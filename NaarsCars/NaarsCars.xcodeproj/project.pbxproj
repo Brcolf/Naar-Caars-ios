@@ -41,6 +41,8 @@
 		DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8F6F3E319E4B4FB1541AE0 /* RideTests.swift */; };
 		E45167AB602B45E7B6D76981 /* Ride.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B634CBD0C4F4A449A464E94 /* Ride.swift */; };
 		F2DF8490E4434A788F5F401C /* NotificationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DF8490E4434A788F5F401D /* NotificationsListView.swift */; };
+		4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */; };
+		C8CEEF770B7A4F8598CD5E47 /* RateLimiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +94,8 @@
 		CBF008BEC84C402E98880D3D /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		EAA13F58C91D42D592759C0A /* Favor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favor.swift; sourceTree = "<group>"; };
 		F2DF8490E4434A788F5F401D /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
+		4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiter.swift; sourceTree = "<group>"; };
+		C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -207,7 +211,10 @@
 				ACDCBE062F0B787800956D1C /* Modifiers */,
 				ACDCBE052F0B787000956D1C /* Styles */,
 				ACDCBE042F0B786400956D1C /* Components */,
-			);
+							137CEAA3220D4C2D9BE917E3 /* ProfileTests.swift */,
+				BB8F6F3E319E4B4FB1541AE0 /* RideTests.swift */,
+				4AD8D7D6054B4B559ED772AC /* FavorTests.swift */,
+);
 			path = UI;
 			sourceTree = "<group>";
 		};
@@ -324,6 +331,7 @@
 			children = (
 				ACDCBE282F0B7DB000956D1C /* AppError.swift */,
 				ACDCBE262F0B7DAE00956D1C /* Secrets.swift */,
+				4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -421,6 +429,7 @@
 		ACDCBE132F0B798400956D1C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -623,6 +632,7 @@
 				DBEB76AEBDE842259F2C55B0 /* InviteCode.swift in Sources */,
 				789FE0C64BB34FBD80D8B882 /* Review.swift in Sources */,
 				1F9DB8AF994C4A7198BC39C7 /* TownHallPost.swift in Sources */,
+				4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -634,6 +644,7 @@
 				B3BDA45A8E05444CAB1EF3A8 /* ProfileTests.swift in Sources */,
 				DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */,
 				28B926AB58164D40896CFF72 /* FavorTests.swift in Sources */,
+				C8CEEF770B7A4F8598CD5E47 /* RateLimiterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
