@@ -183,7 +183,10 @@
 				ACDCBE062F0B787800956D1C /* Modifiers */,
 				ACDCBE052F0B787000956D1C /* Styles */,
 				ACDCBE042F0B786400956D1C /* Components */,
-			);
+							137CEAA3220D4C2D9BE917E3 /* ProfileTests.swift */,
+				BB8F6F3E319E4B4FB1541AE0 /* RideTests.swift */,
+				4AD8D7D6054B4B559ED772AC /* FavorTests.swift */,
+);
 			path = UI;
 			sourceTree = "<group>";
 		};

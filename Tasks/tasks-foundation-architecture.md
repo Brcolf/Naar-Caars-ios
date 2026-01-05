@@ -266,15 +266,15 @@ Update the file after completing each sub-task, not just after completing an ent
 > Verify: Project compiles, all model tests pass
 > Must pass before continuing
 
-- [ ] 8.0 Implement service layer architecture
-  - [ ] 8.1 Create AuthService.swift skeleton in Core/Services with @MainActor and ObservableObject
-  - [ ] 8.2 Add singleton pattern to AuthService with static shared instance
-  - [ ] 8.3 Add @Published properties: currentUserId (UUID?), currentProfile (Profile?), isLoading (Bool)
-  - [ ] 8.4 Add method stubs: checkAuthStatus(), signIn(), signUp(), signOut(), sendPasswordReset()
-  - [ ] 8.5 Add session lifecycle management: clear CacheManager on logout, unsubscribe RealtimeManager
-  - [ ] 8.6 Create AppError.swift in Core/Utilities with all error cases from FR-040
-  - [ ] 8.7 Add LocalizedError conformance with user-friendly errorDescription
-  - [ ] 8.8 Document each service class with clear comments explaining its purpose
+- [x] 8.0 Implement service layer architecture
+  - [x] 8.1 Create AuthService.swift skeleton in Core/Services with @MainActor and ObservableObject
+  - [x] 8.2 Add singleton pattern to AuthService with static shared instance
+  - [x] 8.3 Add @Published properties: currentUserId (UUID?), currentProfile (Profile?), isLoading (Bool)
+  - [x] 8.4 Add method stubs: checkAuthStatus(), signIn(), signUp(), signOut(), sendPasswordReset()
+  - [x] 8.5 Add session lifecycle management: clear CacheManager on logout, unsubscribe RealtimeManager (TODO comments added)
+  - [x] 8.6 Create AppError.swift in Core/Utilities with all error cases from FR-040
+  - [x] 8.7 Add LocalizedError conformance with user-friendly errorDescription
+  - [x] 8.8 Document each service class with clear comments explaining its purpose
   - [ ] 8.9 Commit service layer
 
 - [ ] 9.0 Build app state management
