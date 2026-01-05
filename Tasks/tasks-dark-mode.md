@@ -1,0 +1,77 @@
+# Tasks: Dark Mode
+
+Based on `prd-dark-mode.md`
+
+## Relevant Files
+
+### Source Files
+- `UI/Styles/ColorTheme.swift` - Update with dark mode colors
+- `UI/Styles/AppTheme.swift` - Theme management
+- `Features/Settings/Views/AppearanceSettingsView.swift` - Theme picker
+
+### Test Files
+- `NaarsCarsSnapshotTests/DarkMode/DarkModeSnapshots.swift`
+
+## Notes
+
+- Support system, light, and dark modes
+- Use semantic colors for automatic switching
+- 🧪 items are QA tasks | 🔒 CHECKPOINT items are mandatory gates
+
+## Tasks
+
+- [ ] 0.0 Create feature branch: `git checkout -b feature/dark-mode`
+
+- [ ] 1.0 Update ColorTheme for dark mode
+  - [ ] 1.1 Open ColorTheme.swift
+  - [ ] 1.2 Convert all colors to use Color asset catalogs
+  - [ ] 1.3 Define light and dark variants for each color
+  - [ ] 1.4 Create semantic color names (background, foreground, accent, etc.)
+  - [ ] 1.5 Update primary, secondary, and accent colors
+  - [ ] 1.6 Update success, warning, error colors
+  - [ ] 1.7 Update card and divider colors
+
+- [ ] 2.0 Create theme management
+  - [ ] 2.1 Create AppTheme.swift
+  - [ ] 2.2 Define ThemeMode enum (system, light, dark)
+  - [ ] 2.3 Store preference in UserDefaults
+  - [ ] 2.4 Implement applyTheme() to set overrideUserInterfaceStyle
+  - [ ] 2.5 Apply theme on app launch
+
+### 🔒 CHECKPOINT: QA-DARKMODE-001
+> Run: `./QA/Scripts/checkpoint.sh darkmode-001`
+> Guide: QA/CHECKPOINT-GUIDE.md
+> Verify: App builds with color updates
+> Must pass before continuing
+
+- [ ] 3.0 Build Appearance Settings View
+  - [ ] 3.1 Create AppearanceSettingsView.swift
+  - [ ] 3.2 Add Picker for theme mode
+  - [ ] 3.3 Options: System, Light, Dark
+  - [ ] 3.4 Apply theme immediately on change
+  - [ ] 3.5 Save preference
+
+- [ ] 4.0 Update all UI components
+  - [ ] 4.1 Audit all views for hardcoded colors
+  - [ ] 4.2 Replace with semantic colors from ColorTheme
+  - [ ] 4.3 Test each component in dark mode
+  - [ ] 4.4 Fix any contrast issues
+
+- [ ] 5.0 Add snapshot tests
+  - [ ] 5.1 Create DarkModeSnapshots.swift
+  - [ ] 5.2 Add snapshot for LoginView in dark mode
+  - [ ] 5.3 Add snapshot for RideCard in dark mode
+  - [ ] 5.4 Add snapshot for ConversationView in dark mode
+  - [ ] 5.5 🧪 Add snapshots for key screens in both modes
+
+- [ ] 6.0 Verify dark mode
+  - [ ] 6.1 Test system mode switching
+  - [ ] 6.2 Test manual light/dark toggle
+  - [ ] 6.3 Test all screens in dark mode
+  - [ ] 6.4 Verify contrast meets accessibility
+  - [ ] 6.5 Commit: "feat: implement dark mode"
+
+### 🔒 CHECKPOINT: QA-DARKMODE-FINAL
+> Run: `./QA/Scripts/checkpoint.sh darkmode-final`
+> Guide: QA/CHECKPOINT-GUIDE.md
+> Dark mode snapshot tests must pass

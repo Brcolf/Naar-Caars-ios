@@ -18,12 +18,12 @@ struct LoadingView: View {
             
             if let message = message {
                 Text(message)
-                    .font(.naarsBody)
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+        .background(Color.gray.opacity(0.1))
     }
 }
 
