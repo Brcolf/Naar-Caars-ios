@@ -19,9 +19,9 @@ NC='\033[0m' # No Color
 
 # Configuration
 PROJECT_NAME="NaarsCars"
-PROJECT_FILE="${PROJECT_NAME}.xcodeproj"
+PROJECT_FILE="NaarsCars/${PROJECT_NAME}.xcodeproj"
 SCHEME="${PROJECT_NAME}"
-DESTINATION="platform=iOS Simulator,name=iPhone 15"
+DESTINATION="platform=iOS Simulator,name=iPhone 17"
 REPORTS_DIR="QA/Reports"
 
 # Parse arguments

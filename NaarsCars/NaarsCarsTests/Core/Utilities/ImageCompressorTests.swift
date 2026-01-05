@@ -162,5 +162,37 @@ final class ImageCompressorTests: XCTestCase {
         let compressedAspectRatio = compressedImage.size.width / compressedImage.size.height
         XCTAssertEqual(compressedAspectRatio, originalAspectRatio, accuracy: 0.1, "Aspect ratio should be maintained")
     }
+    
+    // MARK: - Performance Tests (PERF-CLI-004)
+    
+    /// PERF-CLI-004: Image compression meets size limits
+    func testImageCompressionMeetsSizeLimits() {
+        // Create a large test image (2000x2000)
+        let largeImage = createTestImage(width: 2000, height: 2000)
+        
+        // Test avatar preset (max 200KB)
+        if let compressed = ImageCompressor.compress(largeImage, preset: .avatar) {
+            let sizeKB = compressed.count / 1024
+            XCTAssertLessThan(sizeKB, 200, "Avatar should be <200KB, was \(sizeKB)KB")
+        } else {
+            XCTFail("Avatar compression should succeed")
+        }
+        
+        // Test messageImage preset (max 500KB)
+        if let compressed = ImageCompressor.compress(largeImage, preset: .messageImage) {
+            let sizeKB = compressed.count / 1024
+            XCTAssertLessThan(sizeKB, 500, "MessageImage should be <500KB, was \(sizeKB)KB")
+        } else {
+            XCTFail("MessageImage compression should succeed")
+        }
+        
+        // Test fullSize preset (max 1MB)
+        if let compressed = ImageCompressor.compress(largeImage, preset: .fullSize) {
+            let sizeKB = compressed.count / 1024
+            XCTAssertLessThan(sizeKB, 1024, "FullSize should be <1MB, was \(sizeKB)KB")
+        } else {
+            XCTFail("FullSize compression should succeed")
+        }
+    }
 }
 

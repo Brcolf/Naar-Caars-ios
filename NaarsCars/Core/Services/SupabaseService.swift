@@ -34,12 +34,12 @@ final class SupabaseService: ObservableObject {
     private init() {
         // Initialize Supabase client with credentials from Secrets
         let urlString = Secrets.supabaseURL
-        let anonKey = Secrets.supabaseAnonKey
+        let publishableKey = Secrets.supabaseAnonKey // Note: This is actually the publishable/perishable key (sb_publishable_...)
         
         // Debug: Print deobfuscated URL (remove in production)
         print("🔐 Deobfuscated URL: \(urlString)")
         print("🔐 URL length: \(urlString.count)")
-        print("🔐 Anon key length: \(anonKey.count)")
+        print("🔐 Publishable key length: \(publishableKey.count)")
         
         guard let url = URL(string: urlString) else {
             fatalError("Invalid Supabase URL: \(urlString)")
@@ -47,10 +47,10 @@ final class SupabaseService: ObservableObject {
         
         self.client = SupabaseClient(
             supabaseURL: url,
-            supabaseKey: anonKey
+            supabaseKey: publishableKey // Using publishable/perishable key (sb_publishable_...)
         )
         
-        print("✅ Supabase client initialized")
+        print("✅ Supabase client initialized with publishable key")
         // Credentials are now configured via obfuscated arrays
     }
     

@@ -262,5 +262,41 @@ final class CacheManagerTests: XCTestCase {
         XCTAssertNil(cachedRides, "Rides cache should be cleared")
         XCTAssertNil(cachedFavors, "Favors cache should be cleared")
     }
+    
+    // MARK: - Performance Tests (PERF-CLI-002)
+    
+    /// PERF-CLI-002: Cache hit returns immediately - verify <10ms
+    func testCacheHitPerformance() async {
+        let profile = Profile(
+            id: UUID(),
+            name: "Test User",
+            email: "test@example.com",
+            car: nil,
+            phoneNumber: nil,
+            avatarUrl: nil,
+            isAdmin: false,
+            approved: true,
+            invitedBy: nil,
+            notifyRideUpdates: true,
+            notifyMessages: true,
+            notifyAnnouncements: true,
+            notifyNewRequests: true,
+            notifyQaActivity: true,
+            notifyReviewReminders: true,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        // Cache the profile first
+        await cacheManager.cacheProfile(profile)
+        
+        // Measure cache retrieval time
+        let startTime = CFAbsoluteTimeGetCurrent()
+        let cached = await cacheManager.getCachedProfile(id: profile.id)
+        let duration = (CFAbsoluteTimeGetCurrent() - startTime) * 1000 // Convert to milliseconds
+        
+        XCTAssertNotNil(cached, "Cache should return value")
+        XCTAssertLessThan(duration, 10.0, "Cache hit should be <10ms, was \(duration)ms")
+    }
 }
 
