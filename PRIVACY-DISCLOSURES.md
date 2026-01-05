@@ -1,4 +1,4 @@
-# Naars Caars Privacy Disclosures
+# Naar's Cars Privacy Disclosures
 
 ## Document Information
 - **Type**: Privacy Requirements & App Store Compliance
