@@ -304,14 +304,14 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 10.12 Add Xcode Previews to each component
   - [ ] 10.13 Commit UI components
 
-- [ ] 11.0 Add utilities and extensions
-  - [ ] 11.1 Create Constants.swift in Core/Utilities with app-wide constants (animation durations, spacing, API timeouts)
-  - [ ] 11.2 Create Logger.swift in Core/Utilities with categories: auth, network, ui, realtime, push
-  - [ ] 11.3 ⭐ Add Log.security() method for admin operations and auth failures
-  - [ ] 11.4 Create Date+Extensions.swift in Core/Extensions
-  - [ ] 11.5 Add Date extensions: isToday, timeAgo, formatted strings (timeString, dateString)
-  - [ ] 11.6 Create View+Extensions.swift in Core/Extensions
-  - [ ] 11.7 Add View extensions for common modifiers (cardStyle, etc.)
+- [x] 11.0 Add utilities and extensions
+  - [x] 11.1 Create Constants.swift in Core/Utilities with app-wide constants (animation durations, spacing, API timeouts)
+  - [x] 11.2 Create Logger.swift in Core/Utilities with categories: auth, network, ui, realtime, push
+  - [x] 11.3 ⭐ Add Log.security() method for admin operations and auth failures
+  - [x] 11.4 Create Date+Extensions.swift in Core/Extensions
+  - [x] 11.5 Add Date extensions: isToday, timeAgo, formatted strings (timeString, dateString)
+  - [x] 11.6 Create View+Extensions.swift in Core/Extensions
+  - [x] 11.7 Add View extensions for common modifiers (cardStyle, etc.)
   - [ ] 11.8 Create Validators.swift in Core/Utilities for input validation helpers
   - [ ] 11.9 Commit utilities
 
