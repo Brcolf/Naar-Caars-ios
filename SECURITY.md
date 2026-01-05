@@ -1,4 +1,4 @@
-# Naars Caars Security Requirements
+# Naar's Cars Security Requirements
 
 ## Document Information
 - **Type**: Security Requirements
@@ -106,7 +106,73 @@ CREATE POLICY "favors_delete_own" ON public.favors
   FOR DELETE USING (auth.uid() = user_id);
 ```
 
-### 2.4 messages
+### 2.4 ride_participants
+
+```sql
+ALTER TABLE public.ride_participants ENABLE ROW LEVEL SECURITY;
+
+-- Approved users can view participants
+CREATE POLICY "ride_participants_select_approved" ON public.ride_participants
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
+  );
+
+-- Only ride owner can add participants
+CREATE POLICY "ride_participants_insert_owner" ON public.ride_participants
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.rides 
+      WHERE id = ride_participants.ride_id 
+      AND user_id = auth.uid()
+    )
+  );
+```
+
+### 2.5 favor_participants
+
+```sql
+ALTER TABLE public.favor_participants ENABLE ROW LEVEL SECURITY;
+
+-- Approved users can view participants
+CREATE POLICY "favor_participants_select_approved" ON public.favor_participants
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
+  );
+
+-- Only favor owner can add participants
+CREATE POLICY "favor_participants_insert_owner" ON public.favor_participants
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.favors 
+      WHERE id = favor_participants.favor_id 
+      AND user_id = auth.uid()
+    )
+  );
+```
+
+### 2.6 request_qa
+
+```sql
+ALTER TABLE public.request_qa ENABLE ROW LEVEL SECURITY;
+
+-- Approved users can view Q&A
+CREATE POLICY "request_qa_select_approved" ON public.request_qa
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
+  );
+
+-- Approved users can ask questions
+CREATE POLICY "request_qa_insert_approved" ON public.request_qa
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
+  );
+
+-- Users can only delete their own questions/answers
+CREATE POLICY "request_qa_delete_own" ON public.request_qa
+  FOR DELETE USING (auth.uid() = created_by);
+```
+
+### 2.7 messages
 
 | Policy Name | Operation | SQL Check |
 |-------------|-----------|-----------|
@@ -138,7 +204,7 @@ CREATE POLICY "messages_insert_participant" ON public.messages
   );
 ```
 
-### 2.5 conversations
+### 2.8 conversations
 
 ```sql
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
@@ -154,7 +220,7 @@ CREATE POLICY "conversations_select_participant" ON public.conversations
   );
 ```
 
-### 2.6 conversation_participants
+### 2.9 conversation_participants
 
 ```sql
 ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
@@ -170,7 +236,7 @@ CREATE POLICY "participants_select_own_convos" ON public.conversation_participan
   );
 ```
 
-### 2.7 notifications
+### 2.10 notifications
 
 ```sql
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
@@ -188,7 +254,7 @@ CREATE POLICY "notifications_insert" ON public.notifications
   FOR INSERT WITH CHECK (true);
 ```
 
-### 2.8 invite_codes
+### 2.11 invite_codes
 
 ```sql
 ALTER TABLE public.invite_codes ENABLE ROW LEVEL SECURITY;
@@ -208,7 +274,7 @@ CREATE POLICY "invite_codes_select_for_validation" ON public.invite_codes
   FOR SELECT USING (used_by IS NULL);
 ```
 
-### 2.9 push_tokens
+### 2.12 push_tokens
 
 ```sql
 ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
@@ -218,7 +284,7 @@ CREATE POLICY "push_tokens_own" ON public.push_tokens
   FOR ALL USING (auth.uid() = user_id);
 ```
 
-### 2.10 reviews
+### 2.13 reviews
 
 ```sql
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
@@ -234,7 +300,30 @@ CREATE POLICY "reviews_insert_own" ON public.reviews
   FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
 ```
 
-### 2.11 Admin Operations
+### 2.14 town_hall_posts
+
+```sql
+ALTER TABLE public.town_hall_posts ENABLE ROW LEVEL SECURITY;
+
+-- Approved users can view all posts
+CREATE POLICY "town_hall_posts_select_approved" ON public.town_hall_posts
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
+  );
+
+-- Users can only create their own posts
+CREATE POLICY "town_hall_posts_insert_own" ON public.town_hall_posts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Users can delete their own posts, admins can delete any
+CREATE POLICY "town_hall_posts_delete_own_or_admin" ON public.town_hall_posts
+  FOR DELETE USING (
+    auth.uid() = user_id 
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+  );
+```
+
+### 2.15 Admin Operations
 
 Any operation that requires admin privileges MUST verify via RLS:
 
@@ -526,7 +615,7 @@ if (apnsResponse.status === 410) {
 
 ---
 
-## 8. Security Logging
+## 9. Security Logging
 
 ### 8.1 Log Categories
 
@@ -551,7 +640,7 @@ enum Log {
 
 ---
 
-## 9. Pre-Launch Security Checklist
+## 10. Pre-Launch Security Checklist
 
 ### 9.1 RLS Policies
 
@@ -578,7 +667,7 @@ enum Log {
 
 ---
 
-## 10. Incident Response
+## 11. Incident Response
 
 If a security issue is discovered:
 
