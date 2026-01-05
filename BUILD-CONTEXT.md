@@ -12,7 +12,7 @@
 - **Phase:** Phase 0 - Foundation 🟡 IN PROGRESS
 - **PRD:** Foundation Architecture
 - **Task List:** `Tasks/tasks-foundation-architecture.md`
-- **Current Task:** 15.0 - Create RateLimiter Utility
+- **Current Task:** 17.0 - Create ImageCompressor Utility
 - **Next Checkpoint:** QA-FOUNDATION-001
 - **Started:** January 2025
 - **Progress:** Database setup complete ✅, Xcode project setup complete ✅, Supabase SDK integrated ✅, Connection tested ✅, Core models created ✅, Tests passing ✅, Navigation complete ✅, Security docs complete ✅, Privacy docs complete ✅
@@ -79,7 +79,17 @@
     - ✅ PRIVACY-DISCLOSURES.md updated
     - ✅ All Info.plist privacy keys added to build settings
     - ✅ Privacy documentation complete
-15. **CURRENT:** Create RateLimiter Utility (Task 15.0)
+15. ✅ **COMPLETED:** Create RateLimiter Utility (Task 15.0)
+    - ✅ RateLimiter.swift actor created with thread-safe rate limiting
+    - ✅ All rate limit intervals documented per FR-045
+    - ✅ RateLimiterTests with 4 test cases
+    - ✅ All tests passing
+16. ✅ **COMPLETED:** Create CacheManager Utility (Task 16.0)
+    - ✅ CacheManager.swift actor created with TTL-based caching
+    - ✅ Profile, rides, favors, conversations caching implemented
+    - ✅ CacheManagerTests with 13 test cases
+    - ✅ All tests passing
+17. **CURRENT:** Create ImageCompressor Utility (Task 17.0)
 
 ---
 
