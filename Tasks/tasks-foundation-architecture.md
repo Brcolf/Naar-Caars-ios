@@ -289,19 +289,19 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 9.9 Update NaarsCarsApp.swift to inject appState as environmentObject to ContentView
   - [ ] 9.10 Commit app state
 
-- [ ] 10.0 Create reusable UI components
-  - [ ] 10.1 Create ColorTheme.swift in UI/Styles with brand colors from FR-056
-  - [ ] 10.2 Add Color extension for hex color initialization
-  - [ ] 10.3 Create Typography.swift in UI/Styles with text style definitions
-  - [ ] 10.4 Create PrimaryButton.swift in UI/Components/Buttons with loading state support
-  - [ ] 10.5 Create SecondaryButton.swift in UI/Components/Buttons
-  - [ ] 10.6 Create LoadingView.swift in UI/Components/Feedback with optional message parameter
-  - [ ] 10.7 Create ErrorView.swift in UI/Components/Feedback with error and retry action
-  - [ ] 10.8 Create EmptyStateView.swift in UI/Components/Feedback with icon, title, message, optional action
-  - [ ] 10.9 Create AvatarView.swift in UI/Components/Common using AsyncImage with initials fallback
-  - [ ] 10.10 Create RideCard.swift skeleton in UI/Components/Cards
-  - [ ] 10.11 Create FavorCard.swift skeleton in UI/Components/Cards
-  - [ ] 10.12 Add Xcode Previews to each component
+- [x] 10.0 Create reusable UI components
+  - [x] 10.1 Create ColorTheme.swift in UI/Styles with brand colors from FR-056
+  - [x] 10.2 Add Color extension for hex color initialization
+  - [x] 10.3 Create Typography.swift in UI/Styles with text style definitions
+  - [x] 10.4 Create PrimaryButton.swift in UI/Components/Buttons with loading state support
+  - [x] 10.5 Create SecondaryButton.swift in UI/Components/Buttons
+  - [x] 10.6 Create LoadingView.swift in UI/Components/Feedback with optional message parameter
+  - [x] 10.7 Create ErrorView.swift in UI/Components/Feedback with error and retry action
+  - [x] 10.8 Create EmptyStateView.swift in UI/Components/Feedback with icon, title, message, optional action
+  - [x] 10.9 Create AvatarView.swift in UI/Components/Common using AsyncImage with initials fallback
+  - [x] 10.10 Create RideCard.swift skeleton in UI/Components/Cards
+  - [x] 10.11 Create FavorCard.swift skeleton in UI/Components/Cards
+  - [x] 10.12 Add Xcode Previews to each component
   - [ ] 10.13 Commit UI components
 
 - [ ] 11.0 Add utilities and extensions
