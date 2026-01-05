@@ -94,7 +94,13 @@
     - ✅ Three presets: avatar, messageImage, fullSize
     - ✅ ImageCompressorTests with 8 test cases
     - ✅ All tests passing
-18. **CURRENT:** Create RealtimeManager (Task 18.0)
+18. ✅ **COMPLETED:** Create RealtimeManager (Task 18.0)
+    - ✅ RealtimeManager.swift created for centralized subscription management
+    - ✅ Max concurrent subscriptions limit (3) implemented
+    - ✅ Auto-unsubscribe after 30 seconds in background
+    - ✅ App lifecycle observers added
+    - ✅ RealtimeManagerTests skeleton created
+19. **CURRENT:** Create AppLaunchManager (Task 19.0)
 
 ---
 

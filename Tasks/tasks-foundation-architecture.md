@@ -430,15 +430,15 @@ Update the file after completing each sub-task, not just after completing an ent
   - [ ] 18.15 🧪 Write RealtimeManagerTests - test unsubscribeAll clears all channels
   - [ ] 18.16 Commit RealtimeManager
 
-- [ ] 19.0 ⭐ Create AppLaunchManager
-  - [ ] 19.1 Create AppLaunchManager.swift in App folder
-  - [ ] 19.2 Define LaunchState enum: initializing, checkingAuth, ready(AuthState), failed(Error)
-  - [ ] 19.3 Add @Published state property
-  - [ ] 19.4 Implement performCriticalLaunch() - auth session + approval check only (from FR-051)
-  - [ ] 19.5 Implement private checkApprovalStatus(userId:) - minimal query for approved field
-  - [ ] 19.6 Implement performDeferredLoading(userId:) - background fetch of profile, rides, etc.
-  - [ ] 19.7 Target: critical path completes in <1 second
-  - [ ] 19.8 Update ContentView to use AppLaunchManager instead of inline auth check
+- [x] 19.0 ⭐ Create AppLaunchManager
+  - [x] 19.1 Create AppLaunchManager.swift in App folder
+  - [x] 19.2 Define LaunchState enum: initializing, checkingAuth, ready(AuthState), failed(Error)
+  - [x] 19.3 Add @Published state property
+  - [x] 19.4 Implement performCriticalLaunch() - auth session + approval check only (from FR-051)
+  - [x] 19.5 Implement private checkApprovalStatus(userId:) - minimal query for approved field
+  - [x] 19.6 Implement performDeferredLoading(userId:) - background fetch of profile, rides, etc.
+  - [x] 19.7 Target: critical path completes in <1 second
+  - [x] 19.8 Update ContentView to use AppLaunchManager instead of inline auth check
   - [ ] 19.9 Commit AppLaunchManager
 
 - [ ] 20.0 ⭐ Create Skeleton UI Components
