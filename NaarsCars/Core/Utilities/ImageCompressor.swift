@@ -5,32 +5,7 @@
 //  Image compression utility with presets for different use cases
 //
 
-#if os(iOS) || os(tvOS) || os(watchOS)
 import UIKit
-#elseif os(macOS)
-import AppKit
-typealias UIImage = NSImage
-
-// NSImage extension to provide UIImage-like API for macOS
-extension NSImage {
-    var size: CGSize {
-        guard let rep = self.representations.first else { return .zero }
-        return CGSize(width: rep.pixelsWide, height: rep.pixelsHigh)
-    }
-    
-    func jpegData(compressionQuality: CGFloat) -> Data? {
-        guard let tiffData = self.tiffRepresentation,
-              let bitmapImage = NSBitmapImageRep(data: tiffData) else {
-            return nil
-        }
-        return bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: compressionQuality])
-    }
-    
-    func draw(in rect: NSRect, from fromRect: NSRect, operation op: NSCompositingOperation, fraction delta: CGFloat) {
-        self.draw(in: rect, from: fromRect, operation: op, fraction: delta)
-    }
-}
-#endif
 
 /// Image compression presets per FR-047
 enum ImagePreset {
@@ -124,23 +99,11 @@ struct ImageCompressor {
             newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
         }
         
-        #if os(iOS) || os(tvOS) || os(watchOS)
         // Use UIGraphicsImageRenderer for high-quality resizing on iOS
         let renderer = UIGraphicsImageRenderer(size: newSize)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }
-        #elseif os(macOS)
-        // Use NSGraphicsContext for macOS
-        let resizedImage = NSImage(size: newSize)
-        resizedImage.lockFocus()
-        image.draw(in: NSRect(origin: .zero, size: newSize),
-                   from: NSRect(origin: .zero, size: size),
-                   operation: .sourceOver,
-                   fraction: 1.0)
-        resizedImage.unlockFocus()
-        return resizedImage
-        #endif
     }
 }
 

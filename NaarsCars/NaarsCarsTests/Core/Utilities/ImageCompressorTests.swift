@@ -7,33 +7,18 @@
 
 import XCTest
 @testable import NaarsCars
-
-#if os(iOS) || os(tvOS) || os(watchOS)
 import UIKit
-#elseif os(macOS)
-import AppKit
-typealias UIImage = NSImage
-#endif
 
 final class ImageCompressorTests: XCTestCase {
     
     /// Create a test image with specified dimensions
     private func createTestImage(width: Int, height: Int) -> UIImage {
         let size = CGSize(width: width, height: height)
-        #if os(iOS) || os(tvOS) || os(watchOS)
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { context in
             UIColor.blue.setFill()
             context.fill(CGRect(origin: .zero, size: size))
         }
-        #elseif os(macOS)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        NSColor.blue.setFill()
-        NSRect(origin: .zero, size: size).fill()
-        image.unlockFocus()
-        return image
-        #endif
     }
     
     // MARK: - Avatar Preset Tests
@@ -48,20 +33,11 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         
-        #if os(macOS)
-        guard let compressedImage = NSImage(data: compressedData) else {
-            XCTFail("Failed to create NSImage from compressed data")
-            return
-        }
-        let imageSize = compressedImage.representations.first?.size ?? .zero
-        let maxDimension = max(imageSize.width, imageSize.height)
-        #else
         guard let compressedImage = UIImage(data: compressedData) else {
             XCTFail("Failed to create UIImage from compressed data")
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        #endif
         XCTAssertLessThanOrEqual(maxDimension, 400, "Avatar should be max 400px")
     }
     
@@ -91,20 +67,11 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         
-        #if os(macOS)
-        guard let compressedImage = NSImage(data: compressedData) else {
-            XCTFail("Failed to create NSImage from compressed data")
-            return
-        }
-        let imageSize = compressedImage.representations.first?.size ?? .zero
-        let maxDimension = max(imageSize.width, imageSize.height)
-        #else
         guard let compressedImage = UIImage(data: compressedData) else {
             XCTFail("Failed to create UIImage from compressed data")
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        #endif
         XCTAssertLessThanOrEqual(maxDimension, 1200, "Message image should be max 1200px")
     }
     
@@ -134,20 +101,11 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         
-        #if os(macOS)
-        guard let compressedImage = NSImage(data: compressedData) else {
-            XCTFail("Failed to create NSImage from compressed data")
-            return
-        }
-        let imageSize = compressedImage.representations.first?.size ?? .zero
-        let maxDimension = max(imageSize.width, imageSize.height)
-        #else
         guard let compressedImage = UIImage(data: compressedData) else {
             XCTFail("Failed to create UIImage from compressed data")
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        #endif
         XCTAssertLessThanOrEqual(maxDimension, 2000, "Full size image should be max 2000px")
     }
     
@@ -177,20 +135,11 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         
-        #if os(macOS)
-        guard let compressedImage = NSImage(data: compressedData) else {
-            XCTFail("Failed to create NSImage from compressed data")
-            return
-        }
-        let imageSize = compressedImage.representations.first?.size ?? .zero
-        let maxDimension = max(imageSize.width, imageSize.height)
-        #else
         guard let compressedImage = UIImage(data: compressedData) else {
             XCTFail("Failed to create UIImage from compressed data")
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        #endif
         XCTAssertLessThanOrEqual(maxDimension, 400, "Small image should still be under limit")
     }
     
@@ -206,20 +155,11 @@ final class ImageCompressorTests: XCTestCase {
         
         // Check aspect ratio is maintained (2000/500 = 4.0)
         let originalAspectRatio = 2000.0 / 500.0
-        #if os(macOS)
-        guard let compressedImage = NSImage(data: compressedData) else {
-            XCTFail("Failed to create NSImage from compressed data")
-            return
-        }
-        let imageSize = compressedImage.representations.first?.size ?? .zero
-        let compressedAspectRatio = imageSize.width / imageSize.height
-        #else
         guard let compressedImage = UIImage(data: compressedData) else {
             XCTFail("Failed to create UIImage from compressed data")
             return
         }
         let compressedAspectRatio = compressedImage.size.width / compressedImage.size.height
-        #endif
         XCTAssertEqual(compressedAspectRatio, originalAspectRatio, accuracy: 0.1, "Aspect ratio should be maintained")
     }
 }

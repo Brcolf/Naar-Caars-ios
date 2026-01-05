@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 import Supabase
 import Realtime
 internal import Combine
