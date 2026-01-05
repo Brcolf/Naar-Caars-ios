@@ -439,17 +439,17 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 19.6 Implement performDeferredLoading(userId:) - background fetch of profile, rides, etc.
   - [x] 19.7 Target: critical path completes in <1 second
   - [x] 19.8 Update ContentView to use AppLaunchManager instead of inline auth check
-  - [ ] 19.9 Commit AppLaunchManager
+  - [x] 19.9 Commit AppLaunchManager
 
-- [ ] 20.0 ⭐ Create Skeleton UI Components
-  - [ ] 20.1 Create SkeletonView.swift in UI/Components/Feedback
-  - [ ] 20.2 Implement shimmer animation with LinearGradient
-  - [ ] 20.3 Create SkeletonRideCard component matching RideCard layout
-  - [ ] 20.4 Create SkeletonFavorCard component matching FavorCard layout
-  - [ ] 20.5 Create SkeletonMessageRow component
-  - [ ] 20.6 Create SkeletonConversationRow component
-  - [ ] 20.7 Create SkeletonLeaderboardRow component
-  - [ ] 20.8 Add Xcode previews for all skeleton components
+- [x] 20.0 ⭐ Create Skeleton UI Components
+  - [x] 20.1 Create SkeletonView.swift in UI/Components/Feedback
+  - [x] 20.2 Implement shimmer animation with LinearGradient
+  - [x] 20.3 Create SkeletonRideCard component matching RideCard layout
+  - [x] 20.4 Create SkeletonFavorCard component matching FavorCard layout
+  - [x] 20.5 Create SkeletonMessageRow component
+  - [x] 20.6 Create SkeletonConversationRow component
+  - [x] 20.7 Create SkeletonLeaderboardRow component
+  - [x] 20.8 Add Xcode previews for all skeleton components
   - [ ] 20.9 Commit skeleton components
 
 - [ ] 21.0 ⭐ Create DeviceIdentifier Utility
