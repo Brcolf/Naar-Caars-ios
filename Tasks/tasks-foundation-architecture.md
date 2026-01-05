@@ -275,7 +275,7 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 8.6 Create AppError.swift in Core/Utilities with all error cases from FR-040
   - [x] 8.7 Add LocalizedError conformance with user-friendly errorDescription
   - [x] 8.8 Document each service class with clear comments explaining its purpose
-  - [ ] 8.9 Commit service layer
+  - [x] 8.9 Commit service layer
 
 - [x] 9.0 Build app state management
   - [x] 9.1 Create AppState.swift in App folder
@@ -287,7 +287,7 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 9.7 Add computed authState property that returns appropriate AuthState
   - [x] 9.8 Update NaarsCarsApp.swift to create @StateObject var appState = AppState()
   - [x] 9.9 Update NaarsCarsApp.swift to inject appState as environmentObject to ContentView
-  - [ ] 9.10 Commit app state
+  - [x] 9.10 Commit app state
 
 - [x] 10.0 Create reusable UI components
   - [x] 10.1 Create ColorTheme.swift in UI/Styles with brand colors from FR-056
@@ -302,7 +302,7 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 10.10 Create RideCard.swift skeleton in UI/Components/Cards
   - [x] 10.11 Create FavorCard.swift skeleton in UI/Components/Cards
   - [x] 10.12 Add Xcode Previews to each component
-  - [ ] 10.13 Commit UI components
+  - [x] 10.13 Commit UI components
 
 - [x] 11.0 Add utilities and extensions
   - [x] 11.1 Create Constants.swift in Core/Utilities with app-wide constants (animation durations, spacing, API timeouts)
@@ -312,22 +312,22 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 11.5 Add Date extensions: isToday, timeAgo, formatted strings (timeString, dateString)
   - [x] 11.6 Create View+Extensions.swift in Core/Extensions
   - [x] 11.7 Add View extensions for common modifiers (cardStyle, etc.)
-  - [ ] 11.8 Create Validators.swift in Core/Utilities for input validation helpers
-  - [ ] 11.9 Commit utilities
+  - [x] 11.8 Create Validators.swift in Core/Utilities for input validation helpers
+  - [x] 11.9 Commit utilities
 
-- [ ] 12.0 Set up navigation and routing
-  - [ ] 12.1 Update ContentView.swift to observe AppState via @EnvironmentObject
-  - [ ] 12.2 Add switch on appState.authState with cases from FR-039
-  - [ ] 12.3 Case .loading → show LoadingView
-  - [ ] 12.4 Case .unauthenticated → show placeholder Text("Login View")
-  - [ ] 12.5 Case .pendingApproval → show placeholder PendingApprovalView
-  - [ ] 12.6 Case .authenticated → show MainTabView
-  - [ ] 12.7 Add .task modifier to ContentView that calls auth check on appear
-  - [ ] 12.8 Create MainTabView.swift with 5 tabs from FR-038
-  - [ ] 12.9 Create placeholder views: DashboardView, MessagesListView, NotificationsListView, LeaderboardView, ProfileView
-  - [ ] 12.10 Wrap each tab content in NavigationStack
-  - [ ] 12.11 Create PendingApprovalView.swift with waiting message
-  - [ ] 12.12 Commit navigation
+- [x] 12.0 Set up navigation and routing
+  - [x] 12.1 Update ContentView.swift to observe AppState via @EnvironmentObject
+  - [x] 12.2 Add switch on appState.authState with cases from FR-039
+  - [x] 12.3 Case .loading → show LoadingView
+  - [x] 12.4 Case .unauthenticated → show placeholder Text("Login View")
+  - [x] 12.5 Case .pendingApproval → show placeholder PendingApprovalView
+  - [x] 12.6 Case .authenticated → show MainTabView
+  - [x] 12.7 Add .task modifier to ContentView that calls auth check on appear
+  - [x] 12.8 Create MainTabView.swift with 5 tabs from FR-038
+  - [x] 12.9 Create placeholder views: DashboardView, MessagesListView, NotificationsListView, LeaderboardView, ProfileView
+  - [x] 12.10 Wrap each tab content in NavigationStack
+  - [x] 12.11 Create PendingApprovalView.swift with waiting message
+  - [x] 12.12 Commit navigation
 
 ### 🔒 CHECKPOINT: QA-FOUNDATION-002
 > Run: `./QA/Scripts/checkpoint.sh foundation-002`
@@ -335,62 +335,62 @@ Update the file after completing each sub-task, not just after completing an ent
 > Verify: App launches, navigation works based on auth state, UI components render in previews
 > Must pass before continuing
 
-- [ ] 13.0 ⭐ Create Security Documentation ⛔
-  - [ ] 13.1 Create or verify SECURITY.md exists in project root
-  - [ ] 13.2 Document RLS policy requirements for all 14 tables (reference FR-010)
-  - [ ] 13.3 Document credential management guidelines (Secrets.swift, obfuscation)
-  - [ ] 13.4 Document admin authorization requirements (server-side verification)
-  - [ ] 13.5 Document rate limiting requirements table (from FR-045)
-  - [ ] 13.6 Document security logging requirements
-  - [ ] 13.7 Add defense-in-depth guidelines for client code
-  - [ ] 13.8 Add pre-launch security checklist
-  - [ ] 13.9 Commit SECURITY.md
+- [x] 13.0 ⭐ Create Security Documentation ⛔
+  - [x] 13.1 Create or verify SECURITY.md exists in project root
+  - [x] 13.2 Document RLS policy requirements for all 14 tables (reference FR-010)
+  - [x] 13.3 Document credential management guidelines (Secrets.swift, obfuscation)
+  - [x] 13.4 Document admin authorization requirements (server-side verification)
+  - [x] 13.5 Document rate limiting requirements table (from FR-045)
+  - [x] 13.6 Document security logging requirements
+  - [x] 13.7 Add defense-in-depth guidelines for client code
+  - [x] 13.8 Add pre-launch security checklist
+  - [x] 13.9 Commit SECURITY.md
 
-- [ ] 14.0 ⭐ Create Privacy Documentation and Info.plist keys ⛔
-  - [ ] 14.1 Create PRIVACY-DISCLOSURES.md in project root
-  - [ ] 14.2 Document all required Info.plist privacy keys with descriptions
-  - [ ] 14.3 Document App Store Connect Privacy Nutrition Label selections
-  - [ ] 14.4 Document user consent flows for each permission
-  - [ ] 14.5 Document phone number visibility disclosure requirements
-  - [ ] 14.6 Document data retention policies
-  - [ ] 14.7 Add pre-submission privacy checklist
-  - [ ] 14.8 Add NSPhotoLibraryUsageDescription to Info.plist
-  - [ ] 14.9 Add NSCameraUsageDescription to Info.plist
-  - [ ] 14.10 Add NSLocationWhenInUseUsageDescription to Info.plist
-  - [ ] 14.11 Add NSFaceIDUsageDescription to Info.plist
-  - [ ] 14.12 Commit privacy documentation and Info.plist
+- [x] 14.0 ⭐ Create Privacy Documentation and Info.plist keys ⛔
+  - [x] 14.1 Create PRIVACY-DISCLOSURES.md in project root
+  - [x] 14.2 Document all required Info.plist privacy keys with descriptions
+  - [x] 14.3 Document App Store Connect Privacy Nutrition Label selections
+  - [x] 14.4 Document user consent flows for each permission
+  - [x] 14.5 Document phone number visibility disclosure requirements
+  - [x] 14.6 Document data retention policies
+  - [x] 14.7 Add pre-submission privacy checklist
+  - [x] 14.8 Add NSPhotoLibraryUsageDescription to Info.plist
+  - [x] 14.9 Add NSCameraUsageDescription to Info.plist
+  - [x] 14.10 Add NSLocationWhenInUseUsageDescription to Info.plist
+  - [x] 14.11 Add NSFaceIDUsageDescription to Info.plist
+  - [x] 14.12 Commit privacy documentation and Info.plist
 
-- [ ] 15.0 ⭐ Create RateLimiter Utility ⛔
-  - [ ] 15.1 Create RateLimiter.swift in Core/Utilities
-  - [ ] 15.2 Implement as actor for thread safety
-  - [ ] 15.3 Add private lastActionTime dictionary [String: Date]
-  - [ ] 15.4 Implement checkAndRecord(action:minimumInterval:) -> Bool method
-  - [ ] 15.5 Implement reset(action:) method to clear rate limit
-  - [ ] 15.6 Add static shared instance
-  - [ ] 15.7 Document rate limit intervals for each action type (from FR-045)
-  - [ ] 15.8 🧪 Write RateLimiterTests - test checkAndRecord returns false when too fast
-  - [ ] 15.9 🧪 Write RateLimiterTests - test checkAndRecord returns true after interval passes
-  - [ ] 15.10 🧪 Write RateLimiterTests - test reset clears the rate limit
-  - [ ] 15.11 Commit RateLimiter
+- [x] 15.0 ⭐ Create RateLimiter Utility ⛔
+  - [x] 15.1 Create RateLimiter.swift in Core/Utilities
+  - [x] 15.2 Implement as actor for thread safety
+  - [x] 15.3 Add private lastActionTime dictionary [String: Date]
+  - [x] 15.4 Implement checkAndRecord(action:minimumInterval:) -> Bool method
+  - [x] 15.5 Implement reset(action:) method to clear rate limit
+  - [x] 15.6 Add static shared instance
+  - [x] 15.7 Document rate limit intervals for each action type (from FR-045)
+  - [x] 15.8 🧪 Write RateLimiterTests - test checkAndRecord returns false when too fast
+  - [x] 15.9 🧪 Write RateLimiterTests - test checkAndRecord returns true after interval passes
+  - [x] 15.10 🧪 Write RateLimiterTests - test reset clears the rate limit
+  - [x] 15.11 Commit RateLimiter
 
-- [ ] 16.0 ⭐ Create CacheManager Utility
-  - [ ] 16.1 Create CacheManager.swift in Core/Utilities
-  - [ ] 16.2 Implement as actor for thread safety
-  - [ ] 16.3 Add profile cache with 5-minute TTL (from FR-042)
-  - [ ] 16.4 Add rides cache with 2-minute TTL
-  - [ ] 16.5 Add favors cache with 2-minute TTL
-  - [ ] 16.6 Add conversations cache with 1-minute TTL
-  - [ ] 16.7 Implement getCachedProfile(id:) with TTL check
-  - [ ] 16.8 Implement cacheProfile(_:) method
-  - [ ] 16.9 Implement invalidateProfile(id:) method
-  - [ ] 16.10 Implement getCachedRides() / cacheRides(_:) / invalidateRides()
-  - [ ] 16.11 Implement getCachedFavors() / cacheFavors(_:) / invalidateFavors()
-  - [ ] 16.12 Implement clearAll() method for logout
-  - [ ] 16.13 🧪 Write CacheManagerTests - test cache returns nil when empty
-  - [ ] 16.14 🧪 Write CacheManagerTests - test cache returns value before TTL expires
-  - [ ] 16.15 🧪 Write CacheManagerTests - test cache returns nil after TTL expires
-  - [ ] 16.16 🧪 Write CacheManagerTests - test clearAll removes all cached data
-  - [ ] 16.17 Commit CacheManager
+- [x] 16.0 ⭐ Create CacheManager Utility
+  - [x] 16.1 Create CacheManager.swift in Core/Utilities
+  - [x] 16.2 Implement as actor for thread safety
+  - [x] 16.3 Add profile cache with 5-minute TTL (from FR-042)
+  - [x] 16.4 Add rides cache with 2-minute TTL
+  - [x] 16.5 Add favors cache with 2-minute TTL
+  - [x] 16.6 Add conversations cache with 1-minute TTL
+  - [x] 16.7 Implement getCachedProfile(id:) with TTL check
+  - [x] 16.8 Implement cacheProfile(_:) method
+  - [x] 16.9 Implement invalidateProfile(id:) method
+  - [x] 16.10 Implement getCachedRides() / cacheRides(_:) / invalidateRides()
+  - [x] 16.11 Implement getCachedFavors() / cacheFavors(_:) / invalidateFavors()
+  - [x] 16.12 Implement clearAll() method for logout
+  - [x] 16.13 🧪 Write CacheManagerTests - test cache returns nil when empty
+  - [x] 16.14 🧪 Write CacheManagerTests - test cache returns value before TTL expires
+  - [x] 16.15 🧪 Write CacheManagerTests - test cache returns nil after TTL expires
+  - [x] 16.16 🧪 Write CacheManagerTests - test clearAll removes all cached data
+  - [x] 16.17 Commit CacheManager
 
 ### 🔒 CHECKPOINT: QA-FOUNDATION-003
 > Run: `./QA/Scripts/checkpoint.sh foundation-003`
@@ -398,37 +398,37 @@ Update the file after completing each sub-task, not just after completing an ent
 > Verify: RateLimiter and CacheManager tests pass
 > Must pass before continuing
 
-- [ ] 17.0 ⭐ Create ImageCompressor Utility ⛔
-  - [ ] 17.1 Create ImageCompressor.swift in Core/Utilities
-  - [ ] 17.2 Define Preset enum with cases: avatar, messageImage, fullSize (from FR-047)
-  - [ ] 17.3 Define maxDimension for each preset (400, 1200, 2000)
-  - [ ] 17.4 Define maxBytes for each preset (200KB, 500KB, 1MB)
-  - [ ] 17.5 Define initialQuality for each preset (0.8, 0.7, 0.8)
-  - [ ] 17.6 Implement compress(_:preset:) static method
-  - [ ] 17.7 Implement private resize(_:maxDimension:) method using UIGraphicsImageRenderer
-  - [ ] 17.8 Implement iterative quality reduction loop to meet size targets
-  - [ ] 17.9 Return nil if image cannot be compressed enough (quality < 0.1)
-  - [ ] 17.10 🧪 Write ImageCompressorTests - test avatar preset reduces dimensions correctly
-  - [ ] 17.11 🧪 Write ImageCompressorTests - test output size is under maxBytes
-  - [ ] 17.12 Commit ImageCompressor
+- [x] 17.0 ⭐ Create ImageCompressor Utility ⛔
+  - [x] 17.1 Create ImageCompressor.swift in Core/Utilities
+  - [x] 17.2 Define Preset enum with cases: avatar, messageImage, fullSize (from FR-047)
+  - [x] 17.3 Define maxDimension for each preset (400, 1200, 2000)
+  - [x] 17.4 Define maxBytes for each preset (200KB, 500KB, 1MB)
+  - [x] 17.5 Define initialQuality for each preset (0.8, 0.7, 0.8)
+  - [x] 17.6 Implement compress(_:preset:) static method
+  - [x] 17.7 Implement private resize(_:maxDimension:) method using UIGraphicsImageRenderer
+  - [x] 17.8 Implement iterative quality reduction loop to meet size targets
+  - [x] 17.9 Return nil if image cannot be compressed enough (quality < 0.1)
+  - [x] 17.10 🧪 Write ImageCompressorTests - test avatar preset reduces dimensions correctly
+  - [x] 17.11 🧪 Write ImageCompressorTests - test output size is under maxBytes
+  - [x] 17.12 Commit ImageCompressor
 
-- [ ] 18.0 ⭐ Create RealtimeManager ⛔
-  - [ ] 18.1 Create RealtimeManager.swift in Core/Services
-  - [ ] 18.2 Implement as @MainActor singleton
-  - [ ] 18.3 Add activeChannels dictionary [String: RealtimeChannelV2]
-  - [ ] 18.4 Set maxConcurrentSubscriptions = 3 (from FR-049)
-  - [ ] 18.5 Implement subscribe(channelName:table:filter:onInsert:onUpdate:onDelete:) method
-  - [ ] 18.6 Add logic to unsubscribe oldest channel if limit exceeded
-  - [ ] 18.7 Implement unsubscribe(channelName:) method
-  - [ ] 18.8 Implement unsubscribeAll() method
-  - [ ] 18.9 Add NotificationCenter observer for UIApplication.didEnterBackgroundNotification
-  - [ ] 18.10 Add NotificationCenter observer for UIApplication.willEnterForegroundNotification
-  - [ ] 18.11 Implement auto-unsubscribe after 30 seconds in background
-  - [ ] 18.12 Add logging for subscription events using Log.realtime()
-  - [ ] 18.13 🧪 Write RealtimeManagerTests - test subscribe adds channel to activeChannels
-  - [ ] 18.14 🧪 Write RealtimeManagerTests - test max subscriptions enforced (oldest removed)
-  - [ ] 18.15 🧪 Write RealtimeManagerTests - test unsubscribeAll clears all channels
-  - [ ] 18.16 Commit RealtimeManager
+- [x] 18.0 ⭐ Create RealtimeManager ⛔
+  - [x] 18.1 Create RealtimeManager.swift in Core/Services
+  - [x] 18.2 Implement as @MainActor singleton
+  - [x] 18.3 Add activeChannels dictionary [String: RealtimeChannelV2]
+  - [x] 18.4 Set maxConcurrentSubscriptions = 3 (from FR-049)
+  - [x] 18.5 Implement subscribe(channelName:table:filter:onInsert:onUpdate:onDelete:) method
+  - [x] 18.6 Add logic to unsubscribe oldest channel if limit exceeded
+  - [x] 18.7 Implement unsubscribe(channelName:) method
+  - [x] 18.8 Implement unsubscribeAll() method
+  - [x] 18.9 Add NotificationCenter observer for UIApplication.didEnterBackgroundNotification
+  - [x] 18.10 Add NotificationCenter observer for UIApplication.willEnterForegroundNotification
+  - [x] 18.11 Implement auto-unsubscribe after 30 seconds in background
+  - [x] 18.12 Add logging for subscription events using Log.realtime()
+  - [x] 18.13 🧪 Write RealtimeManagerTests - test subscribe adds channel to activeChannels
+  - [x] 18.14 🧪 Write RealtimeManagerTests - test max subscriptions enforced (oldest removed)
+  - [x] 18.15 🧪 Write RealtimeManagerTests - test unsubscribeAll clears all channels
+  - [x] 18.16 Commit RealtimeManager
 
 - [x] 19.0 ⭐ Create AppLaunchManager
   - [x] 19.1 Create AppLaunchManager.swift in App folder
