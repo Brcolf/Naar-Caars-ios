@@ -450,17 +450,17 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 20.6 Create SkeletonConversationRow component
   - [x] 20.7 Create SkeletonLeaderboardRow component
   - [x] 20.8 Add Xcode previews for all skeleton components
-  - [ ] 20.9 Commit skeleton components
+  - [x] 20.9 Commit skeleton components
 
-- [ ] 21.0 ⭐ Create DeviceIdentifier Utility
-  - [ ] 21.1 Create DeviceIdentifier.swift in Core/Utilities
-  - [ ] 21.2 Implement private readFromKeychain() function using Security framework
-  - [ ] 21.3 Implement private saveToKeychain(_:) function
-  - [ ] 21.4 Add static var current: String that returns persistent UUID
-  - [ ] 21.5 Generate new UUID on first access if not in Keychain
-  - [ ] 21.6 Use kSecAttrAccessibleAfterFirstUnlock for accessibility
-  - [ ] 21.7 Verify identifier survives app reinstall (Keychain persists)
-  - [ ] 21.8 Commit DeviceIdentifier
+- [x] 21.0 ⭐ Create DeviceIdentifier Utility
+  - [x] 21.1 Create DeviceIdentifier.swift in Core/Utilities
+  - [x] 21.2 Implement private readFromKeychain() function using Security framework
+  - [x] 21.3 Implement private saveToKeychain(_:) function
+  - [x] 21.4 Add static var current: String that returns persistent UUID
+  - [x] 21.5 Generate new UUID on first access if not in Keychain
+  - [x] 21.6 Use kSecAttrAccessibleAfterFirstUnlock for accessibility
+  - [x] 21.7 Verify identifier survives app reinstall (Keychain persists)
+  - [x] 21.8 Commit DeviceIdentifier
 
 ### 🔒 CHECKPOINT: QA-FOUNDATION-004
 > Run: `./QA/Scripts/checkpoint.sh foundation-004`
