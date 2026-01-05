@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */; };
 		ACDCBDCE2F0B74F400956D1C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBDCD2F0B74F400956D1C /* ContentView.swift */; };
+		ACDCBDD02F0B74F500956D1C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBDCF2F0B74F500956D1C /* AppState.swift */; };
 		ACDCBE112F0B797200956D1C /* NaarsCarsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBE0F2F0B797200956D1C /* NaarsCarsTests.swift */; };
 		ACDCBE192F0B7B6000956D1C /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = ACDCBE182F0B7B6000956D1C /* Auth */; };
 		ACDCBE1B2F0B7B6000956D1C /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = ACDCBE1A2F0B7B6000956D1C /* Functions */; };
@@ -53,6 +54,7 @@
 		ACDCBDC82F0B74F400956D1C /* NaarsCars.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NaarsCars.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaarsCarsApp.swift; sourceTree = "<group>"; };
 		ACDCBDCD2F0B74F400956D1C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		ACDCBDCF2F0B74F500956D1C /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		ACDCBDD52F0B74F700956D1C /* NaarsCarsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NaarsCarsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ACDCBDDF2F0B74F700956D1C /* NaarsCarsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NaarsCarsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ACDCBE0F2F0B797200956D1C /* NaarsCarsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaarsCarsTests.swift; sourceTree = "<group>"; };
@@ -144,6 +146,7 @@
 		ACDCBDF22F0B779600956D1C /* App */ = {
 			isa = PBXGroup;
 			children = (
+				ACDCBDCF2F0B74F500956D1C /* AppState.swift */,
 				ACDCBDCD2F0B74F400956D1C /* ContentView.swift */,
 				ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */,
 			);
@@ -570,6 +573,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ACDCBDCE2F0B74F400956D1C /* ContentView.swift in Sources */,
+				ACDCBDD02F0B74F500956D1C /* AppState.swift in Sources */,
 				ACDCBE272F0B7DAE00956D1C /* Secrets.swift in Sources */,
 				ACDCBE252F0B7D9C00956D1C /* SupabaseService.swift in Sources */,
 				ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */,

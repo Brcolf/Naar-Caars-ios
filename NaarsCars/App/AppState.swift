@@ -1,0 +1,89 @@
+//
+//  AppState.swift
+//  NaarsCars
+//
+//  Global app state management for authentication and user data
+//
+
+import Foundation
+import SwiftUI
+internal import Combine
+
+/// Global app state manager that tracks authentication status and current user
+/// Observes AuthService for authentication changes and provides computed properties
+/// for common state checks (isAdmin, isApproved, authState)
+@MainActor
+final class AppState: ObservableObject {
+    
+    // MARK: - Published Properties
+    
+    /// Current authenticated user's profile, nil if not authenticated
+    @Published var currentUser: Profile?
+    
+    /// Loading state for app initialization and authentication checks
+    @Published var isLoading: Bool = true
+    
+    // MARK: - Private Properties
+    
+    /// Reference to AuthService for authentication state
+    private let authService = AuthService.shared
+    
+    // MARK: - Computed Properties
+    
+    /// Whether the current user is an admin
+    /// Returns false if no user is authenticated
+    var isAdmin: Bool {
+        currentUser?.isAdmin ?? false
+    }
+    
+    /// Whether the current user is approved
+    /// Returns false if no user is authenticated
+    var isApproved: Bool {
+        currentUser?.approved ?? false
+    }
+    
+    /// Current authentication state based on user profile and loading state
+    /// Returns appropriate AuthState enum value
+    var authState: AuthState {
+        if isLoading {
+            return .loading
+        }
+        
+        guard let user = currentUser else {
+            return .unauthenticated
+        }
+        
+        if !user.approved {
+            return .pendingApproval
+        }
+        
+        return .authenticated
+    }
+    
+    // MARK: - Initialization
+    
+    init() {
+        // AppState will be initialized with isLoading = true
+        // AuthService will be checked on app launch to update state
+    }
+    
+    // MARK: - Public Methods
+    
+    /// Check authentication status and update current user
+    /// Should be called on app launch
+    func checkAuthStatus() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let state = try await authService.checkAuthStatus()
+            // Update currentUser based on auth state
+            // This will be implemented when AuthService.checkAuthStatus() is complete
+            currentUser = authService.currentProfile
+        } catch {
+            // Handle error - user is not authenticated
+            currentUser = nil
+        }
+    }
+}
+

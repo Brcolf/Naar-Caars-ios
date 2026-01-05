@@ -277,16 +277,16 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 8.8 Document each service class with clear comments explaining its purpose
   - [ ] 8.9 Commit service layer
 
-- [ ] 9.0 Build app state management
-  - [ ] 9.1 Create AppState.swift in App folder
-  - [ ] 9.2 Make AppState conform to ObservableObject with @MainActor
-  - [ ] 9.3 Add @Published var currentUser: Profile? property
-  - [ ] 9.4 Add @Published var isLoading: Bool = true property
-  - [ ] 9.5 Add computed properties: isAdmin, isApproved (from FR-035)
-  - [ ] 9.6 Create AuthState enum: loading, unauthenticated, pendingApproval, authenticated
-  - [ ] 9.7 Add computed authState property that returns appropriate AuthState
-  - [ ] 9.8 Update NaarsCarsApp.swift to create @StateObject var appState = AppState()
-  - [ ] 9.9 Update NaarsCarsApp.swift to inject appState as environmentObject to ContentView
+- [x] 9.0 Build app state management
+  - [x] 9.1 Create AppState.swift in App folder
+  - [x] 9.2 Make AppState conform to ObservableObject with @MainActor
+  - [x] 9.3 Add @Published var currentUser: Profile? property
+  - [x] 9.4 Add @Published var isLoading: Bool = true property
+  - [x] 9.5 Add computed properties: isAdmin, isApproved (from FR-035)
+  - [x] 9.6 Create AuthState enum: loading, unauthenticated, pendingApproval, authenticated (in AuthService.swift)
+  - [x] 9.7 Add computed authState property that returns appropriate AuthState
+  - [x] 9.8 Update NaarsCarsApp.swift to create @StateObject var appState = AppState()
+  - [x] 9.9 Update NaarsCarsApp.swift to inject appState as environmentObject to ContentView
   - [ ] 9.10 Commit app state
 
 - [ ] 10.0 Create reusable UI components
