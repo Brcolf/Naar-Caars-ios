@@ -43,6 +43,8 @@
 		F2DF8490E4434A788F5F401C /* NotificationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DF8490E4434A788F5F401D /* NotificationsListView.swift */; };
 		4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */; };
 		C8CEEF770B7A4F8598CD5E47 /* RateLimiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */; };
+		3F520A1C460F4FA98D68876A /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F520A1C460F4FA98D68876B /* CacheManager.swift */; };
+		850ABDE68A3C493EA11B2742 /* CacheManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -96,6 +98,8 @@
 		F2DF8490E4434A788F5F401D /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
 		4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiter.swift; sourceTree = "<group>"; };
 		C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiterTests.swift; sourceTree = "<group>"; };
+		3F520A1C460F4FA98D68876B /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
+		1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManagerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -332,6 +336,7 @@
 				ACDCBE282F0B7DB000956D1C /* AppError.swift */,
 				ACDCBE262F0B7DAE00956D1C /* Secrets.swift */,
 				4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */,
+				3F520A1C460F4FA98D68876B /* CacheManager.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -430,6 +435,7 @@
 			isa = PBXGroup;
 			children = (
 				C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */,
+				1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -633,6 +639,7 @@
 				789FE0C64BB34FBD80D8B882 /* Review.swift in Sources */,
 				1F9DB8AF994C4A7198BC39C7 /* TownHallPost.swift in Sources */,
 				4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */,
+				3F520A1C460F4FA98D68876A /* CacheManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -645,6 +652,7 @@
 				DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */,
 				28B926AB58164D40896CFF72 /* FavorTests.swift in Sources */,
 				C8CEEF770B7A4F8598CD5E47 /* RateLimiterTests.swift in Sources */,
+				850ABDE68A3C493EA11B2742 /* CacheManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
