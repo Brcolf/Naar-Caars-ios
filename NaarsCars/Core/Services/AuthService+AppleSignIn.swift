@@ -194,7 +194,7 @@ extension AuthService {
         invitedBy: UUID
     ) async throws {
         // Check if profile exists
-        let existing = try? await supabase.client
+        let existing = try? await SupabaseService.shared.client
             .from("profiles")
             .select()
             .eq("id", value: userIdString)
@@ -204,7 +204,7 @@ extension AuthService {
         if existing != nil {
             // Profile exists - update if name was provided
             if !name.isEmpty {
-                try await supabase.client
+                try await SupabaseService.shared.client
                     .from("profiles")
                     .update(["name": AnyCodable(name)])
                     .eq("id", value: userIdString)
@@ -243,7 +243,7 @@ extension AuthService {
                 approved: false
             )
             
-            try await supabase.client
+            try await SupabaseService.shared.client
                 .from("profiles")
                 .insert(profileInsert)
                 .execute()

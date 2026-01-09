@@ -8,6 +8,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+internal import Combine
 
 /// Map view displaying ride and favor requests
 struct RequestMapView: View {

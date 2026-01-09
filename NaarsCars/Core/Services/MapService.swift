@@ -8,18 +8,19 @@
 import Foundation
 import MapKit
 import CoreLocation
+import SwiftUI
 
 // MARK: - Models
 
 /// Represents a mappable request (ride or favor)
-struct MapRequest: Identifiable, Equatable {
+struct MapRequest: Identifiable {
     let id: UUID
     let type: RequestType
     let coordinate: CLLocationCoordinate2D
     let title: String
     let subtitle: String
     
-    enum RequestType: Equatable {
+    enum RequestType {
         case ride
         case favor
         
@@ -35,6 +36,28 @@ struct MapRequest: Identifiable, Equatable {
             case .ride: return "car.fill"
             case .favor: return "wrench.fill"
             }
+        }
+    }
+}
+
+extension MapRequest: Equatable {
+    static func == (lhs: MapRequest, rhs: MapRequest) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.type == rhs.type &&
+        lhs.coordinate.latitude == rhs.coordinate.latitude &&
+        lhs.coordinate.longitude == rhs.coordinate.longitude &&
+        lhs.title == rhs.title &&
+        lhs.subtitle == rhs.subtitle
+    }
+}
+
+extension MapRequest.RequestType: Equatable {
+    static func == (lhs: MapRequest.RequestType, rhs: MapRequest.RequestType) -> Bool {
+        switch (lhs, rhs) {
+        case (.ride, .ride), (.favor, .favor):
+            return true
+        default:
+            return false
         }
     }
 }

@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+internal import Combine
 
 /// Manager for app localization and language preferences
 final class LocalizationManager: ObservableObject {

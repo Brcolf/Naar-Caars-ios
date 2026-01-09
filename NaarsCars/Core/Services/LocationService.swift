@@ -26,11 +26,21 @@ struct PlacePrediction: Identifiable, Equatable {
 }
 
 /// Detailed place information with coordinates
-struct PlaceDetails: Equatable {
+struct PlaceDetails {
     let placeID: String
     let name: String
     let address: String
     let coordinate: CLLocationCoordinate2D
+}
+
+extension PlaceDetails: Equatable {
+    static func == (lhs: PlaceDetails, rhs: PlaceDetails) -> Bool {
+        lhs.placeID == rhs.placeID &&
+        lhs.name == rhs.name &&
+        lhs.address == rhs.address &&
+        lhs.coordinate.latitude == rhs.coordinate.latitude &&
+        lhs.coordinate.longitude == rhs.coordinate.longitude
+    }
 }
 
 /// Saved location for recent locations feature

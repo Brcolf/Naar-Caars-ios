@@ -8,6 +8,7 @@
 import Foundation
 import AuthenticationServices
 import CryptoKit
+internal import Combine
 
 /// ViewModel for handling Apple Sign-In flow
 @MainActor

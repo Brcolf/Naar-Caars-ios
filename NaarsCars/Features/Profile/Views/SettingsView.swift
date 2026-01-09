@@ -8,6 +8,7 @@
 import SwiftUI
 import UserNotifications
 import AuthenticationServices
+internal import Combine
 
 /// Settings view for biometric authentication and notification preferences
 struct SettingsView: View {
