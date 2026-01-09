@@ -11,7 +11,7 @@
 import Foundation
 import CoreLocation
 import MapKit
-import Combine
+internal import Combine
 
 // MARK: - Models
 

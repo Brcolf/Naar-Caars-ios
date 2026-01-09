@@ -24,33 +24,34 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             Group {
-            switch launchManager.state {
-            case .initializing, .checkingAuth:
-                LoadingView(message: "Loading...")
-                
-            case .ready(let authState):
-                switch authState {
-                case .loading:
+                switch launchManager.state {
+                case .initializing, .checkingAuth:
                     LoadingView(message: "Loading...")
                     
-                case .unauthenticated:
-                    NavigationStack {
-                        LoginView()
+                case .ready(let authState):
+                    switch authState {
+                    case .loading:
+                        LoadingView(message: "Loading...")
+                        
+                    case .unauthenticated:
+                        NavigationStack {
+                            LoginView()
+                        }
+                        
+                    case .pendingApproval:
+                        PendingApprovalView()
+                        
+                    case .authenticated:
+                        MainTabView()
                     }
                     
-                case .pendingApproval:
-                    PendingApprovalView()
-                    
-                case .authenticated:
-                    MainTabView()
-                }
-                
-            case .failed(let error):
-                VStack(spacing: 16) {
-                    Text("Error: \(error.localizedDescription)")
-                    Button("Retry") {
-                        Task {
-                            await launchManager.performCriticalLaunch()
+                case .failed(let error):
+                    VStack(spacing: 16) {
+                        Text("Error: \(error.localizedDescription)")
+                        Button("Retry") {
+                            Task {
+                                await launchManager.performCriticalLaunch()
+                            }
                         }
                     }
                 }

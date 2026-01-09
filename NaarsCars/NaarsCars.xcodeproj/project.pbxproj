@@ -191,6 +191,28 @@
 		AC35ABD02F1065DA0012096B /* RideServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC82F1065DA0012096B /* RideServiceTests.swift */; };
 		AC35ABD22F1065E60012096B /* DeepLinkParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABD12F1065E60012096B /* DeepLinkParserTests.swift */; };
 		AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE98428EC9B46E4A670AC3D /* EmptyStateView.swift */; };
+		AC4723432F1168AE009A6FD0 /* BiometricPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723412F1168AD009A6FD0 /* BiometricPreferences.swift */; };
+		AC4723442F1168AE009A6FD0 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723422F1168AD009A6FD0 /* LocalizationManager.swift */; };
+		AC4723462F1169B1009A6FD0 /* LocationAutocompleteField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723452F1169B1009A6FD0 /* LocationAutocompleteField.swift */; };
+		AC47234A2F1169C4009A6FD0 /* Number+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723482F1169C4009A6FD0 /* Number+Localization.swift */; };
+		AC47234B2F1169C4009A6FD0 /* Date+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723472F1169C4009A6FD0 /* Date+Localization.swift */; };
+		AC47234C2F1169C4009A6FD0 /* String+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723492F1169C4009A6FD0 /* String+Localization.swift */; };
+		AC47234E2F1169CE009A6FD0 /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47234D2F1169CE009A6FD0 /* MapModels.swift */; };
+		AC4723532F1169E2009A6FD0 /* MapService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723522F1169E2009A6FD0 /* MapService.swift */; };
+		AC4723542F1169E2009A6FD0 /* AuthService+AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */; };
+		AC4723552F1169E2009A6FD0 /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723502F1169E2009A6FD0 /* BiometricService.swift */; };
+		AC4723562F1169E2009A6FD0 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723512F1169E2009A6FD0 /* LocationService.swift */; };
+		AC47235B2F116A42009A6FD0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47235A2F116A42009A6FD0 /* SettingsView.swift */; };
+		AC47235C2F116A42009A6FD0 /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723592F116A42009A6FD0 /* LanguageSettingsView.swift */; };
+		AC47235E2F116A87009A6FD0 /* RequestMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47235D2F116A87009A6FD0 /* RequestMapView.swift */; };
+		AC4723602F116A96009A6FD0 /* AppleSignInViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47235F2F116A96009A6FD0 /* AppleSignInViewModel.swift */; };
+		AC4723652F116AA4009A6FD0 /* SignupMethodChoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723642F116AA4009A6FD0 /* SignupMethodChoiceView.swift */; };
+		AC4723662F116AA4009A6FD0 /* AppleSignInButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723612F116AA4009A6FD0 /* AppleSignInButton.swift */; };
+		AC4723672F116AA4009A6FD0 /* AppleSignInLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723622F116AA4009A6FD0 /* AppleSignInLinkView.swift */; };
+		AC4723682F116AA4009A6FD0 /* AppLockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723632F116AA4009A6FD0 /* AppLockView.swift */; };
+		AC47236D2F116B12009A6FD0 /* RequestPin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47236A2F116B12009A6FD0 /* RequestPin.swift */; };
+		AC47236E2F116B12009A6FD0 /* RequestPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47236B2F116B12009A6FD0 /* RequestPreviewCard.swift */; };
+		AC47236F2F116B12009A6FD0 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723692F116B12009A6FD0 /* FilterBar.swift */; };
 		AC91779D2F0B9A330077133C /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC91779C2F0B9A330077133C /* MainTabView.swift */; };
 		AC9178FB2F0BA7010077133C /* AppLaunchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */; };
 		ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */; };
@@ -448,6 +470,28 @@
 		AC35ABC82F1065DA0012096B /* RideServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideServiceTests.swift; sourceTree = "<group>"; };
 		AC35ABC92F1065DA0012096B /* TownHallServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallServiceTests.swift; sourceTree = "<group>"; };
 		AC35ABD12F1065E60012096B /* DeepLinkParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkParserTests.swift; sourceTree = "<group>"; };
+		AC4723412F1168AD009A6FD0 /* BiometricPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricPreferences.swift; sourceTree = "<group>"; };
+		AC4723422F1168AD009A6FD0 /* LocalizationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationManager.swift; sourceTree = "<group>"; };
+		AC4723452F1169B1009A6FD0 /* LocationAutocompleteField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationAutocompleteField.swift; sourceTree = "<group>"; };
+		AC4723472F1169C4009A6FD0 /* Date+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Localization.swift"; sourceTree = "<group>"; };
+		AC4723482F1169C4009A6FD0 /* Number+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Number+Localization.swift"; sourceTree = "<group>"; };
+		AC4723492F1169C4009A6FD0 /* String+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Localization.swift"; sourceTree = "<group>"; };
+		AC47234D2F1169CE009A6FD0 /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
+		AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthService+AppleSignIn.swift"; sourceTree = "<group>"; };
+		AC4723502F1169E2009A6FD0 /* BiometricService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricService.swift; sourceTree = "<group>"; };
+		AC4723512F1169E2009A6FD0 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		AC4723522F1169E2009A6FD0 /* MapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapService.swift; sourceTree = "<group>"; };
+		AC4723592F116A42009A6FD0 /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
+		AC47235A2F116A42009A6FD0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AC47235D2F116A87009A6FD0 /* RequestMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestMapView.swift; sourceTree = "<group>"; };
+		AC47235F2F116A96009A6FD0 /* AppleSignInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInViewModel.swift; sourceTree = "<group>"; };
+		AC4723612F116AA4009A6FD0 /* AppleSignInButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInButton.swift; sourceTree = "<group>"; };
+		AC4723622F116AA4009A6FD0 /* AppleSignInLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInLinkView.swift; sourceTree = "<group>"; };
+		AC4723632F116AA4009A6FD0 /* AppLockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockView.swift; sourceTree = "<group>"; };
+		AC4723642F116AA4009A6FD0 /* SignupMethodChoiceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupMethodChoiceView.swift; sourceTree = "<group>"; };
+		AC4723692F116B12009A6FD0 /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
+		AC47236A2F116B12009A6FD0 /* RequestPin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestPin.swift; sourceTree = "<group>"; };
+		AC47236B2F116B12009A6FD0 /* RequestPreviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestPreviewCard.swift; sourceTree = "<group>"; };
 		AC91779C2F0B9A330077133C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchManager.swift; sourceTree = "<group>"; };
 		ACCB369A6355469493FD86E2 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
@@ -674,6 +718,7 @@
 		AC305EE02F0DB7B00063AFDF /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AC47235D2F116A87009A6FD0 /* RequestMapView.swift */,
 				AC305EDC2F0DB7B00063AFDF /* CreateRideView.swift */,
 				AC305EDD2F0DB7B00063AFDF /* EditRideView.swift */,
 				AC305EDE2F0DB7B00063AFDF /* RideDetailView.swift */,
@@ -685,6 +730,7 @@
 		AC305EEB2F0DB7BD0063AFDF /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				AC47235F2F116A96009A6FD0 /* AppleSignInViewModel.swift */,
 				AC305EE82F0DB7BD0063AFDF /* LoginViewModel.swift */,
 				AC305EE92F0DB7BD0063AFDF /* PasswordResetViewModel.swift */,
 				AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */,
@@ -695,6 +741,10 @@
 		AC305EF02F0DB7BD0063AFDF /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AC4723612F116AA4009A6FD0 /* AppleSignInButton.swift */,
+				AC4723622F116AA4009A6FD0 /* AppleSignInLinkView.swift */,
+				AC4723632F116AA4009A6FD0 /* AppLockView.swift */,
+				AC4723642F116AA4009A6FD0 /* SignupMethodChoiceView.swift */,
 				AC305EEC2F0DB7BD0063AFDF /* LoginView.swift */,
 				AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */,
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
@@ -859,6 +909,16 @@
 				AC35ABB12F1065AD0012096B /* TownHallFeedViewModelTests.swift */,
 			);
 			path = TownHall;
+			sourceTree = "<group>";
+		};
+		AC47236C2F116B12009A6FD0 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				AC4723692F116B12009A6FD0 /* FilterBar.swift */,
+				AC47236A2F116B12009A6FD0 /* RequestPin.swift */,
+				AC47236B2F116B12009A6FD0 /* RequestPreviewCard.swift */,
+			);
+			path = Map;
 			sourceTree = "<group>";
 		};
 		ACDCBDBF2F0B74F300956D1C = {
@@ -1035,6 +1095,10 @@
 		ACDCBE002F0B783F00956D1C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */,
+				AC4723502F1169E2009A6FD0 /* BiometricService.swift */,
+				AC4723512F1169E2009A6FD0 /* LocationService.swift */,
+				AC4723522F1169E2009A6FD0 /* MapService.swift */,
 				AC35AB9D2F1065330012096B /* EmailService.swift */,
 				AC35AB9E2F1065330012096B /* InviteService.swift */,
 				AC35AB7D2F0F25C90012096B /* AdminService.swift */,
@@ -1058,6 +1122,7 @@
 		ACDCBE012F0B784900956D1C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AC47234D2F1169CE009A6FD0 /* MapModels.swift */,
 				AC35AB792F0F1B2F0012096B /* LeaderboardEntry.swift */,
 				AC305F082F0DB8250063AFDF /* RequestQA.swift */,
 				3E213562F51C49A48F8FFF22 /* Profile.swift */,
@@ -1076,6 +1141,9 @@
 		ACDCBE022F0B785000956D1C /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				AC4723472F1169C4009A6FD0 /* Date+Localization.swift */,
+				AC4723482F1169C4009A6FD0 /* Number+Localization.swift */,
+				AC4723492F1169C4009A6FD0 /* String+Localization.swift */,
 				D55441C41BD446FF92B0D9AC /* Date+Extensions.swift */,
 				6919D6DE589147EA882BA5C2 /* View+Extensions.swift */,
 			);
@@ -1085,6 +1153,8 @@
 		ACDCBE032F0B785900956D1C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				AC4723412F1168AD009A6FD0 /* BiometricPreferences.swift */,
+				AC4723422F1168AD009A6FD0 /* LocalizationManager.swift */,
 				AC305F3E2F0DBC430063AFDF /* AnyCodable.swift */,
 				AC305F0A2F0DB8400063AFDF /* Constants.swift */,
 				AC305F0B2F0DB8400063AFDF /* DeepLinkParser.swift */,
@@ -1104,6 +1174,7 @@
 		ACDCBE042F0B786400956D1C /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				AC47236C2F116B12009A6FD0 /* Map */,
 				ACDCBE0D2F0B78CB00956D1C /* Messaging */,
 				ACDCBE0C2F0B78C300956D1C /* Common */,
 				ACDCBE0B2F0B78BC00956D1C /* Feedback */,
@@ -1154,6 +1225,7 @@
 		ACDCBE0A2F0B78B200956D1C /* Inputs */ = {
 			isa = PBXGroup;
 			children = (
+				AC4723452F1169B1009A6FD0 /* LocationAutocompleteField.swift */,
 			);
 			path = Inputs;
 			sourceTree = "<group>";
@@ -1284,6 +1356,8 @@
 		ACDCBE182F0B79B000956D1C /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AC4723592F116A42009A6FD0 /* LanguageSettingsView.swift */,
+				AC47235A2F116A42009A6FD0 /* SettingsView.swift */,
 				AC35ABA12F10654D0012096B /* InvitationWorkflowView.swift */,
 				5FA662507801456991ABCE22 /* MyProfileView.swift */,
 				82E5C134F01A4B3E9C064014 /* EditProfileView.swift */,
@@ -1460,6 +1534,7 @@
 				AC305F412F0ECDAE0063AFDF /* UserSearchView.swift in Sources */,
 				AC35AB6F2F0F19FE0012096B /* ConversationsListViewModel.swift in Sources */,
 				AC35AB702F0F19FE0012096B /* ConversationDetailView.swift in Sources */,
+				AC47235E2F116A87009A6FD0 /* RequestMapView.swift in Sources */,
 				AC35AB712F0F19FE0012096B /* ConversationsListView.swift in Sources */,
 				AC35AB722F0F19FE0012096B /* ConversationDetailViewModel.swift in Sources */,
 				AC305F272F0DB86A0063AFDF /* SkeletonLeaderboardRow.swift in Sources */,
@@ -1487,6 +1562,8 @@
 				ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */,
 				84D9FCFB10CF4588B6DBDE7B /* Profile.swift in Sources */,
 				E45167AB602B45E7B6D76981 /* Ride.swift in Sources */,
+				AC4723432F1168AE009A6FD0 /* BiometricPreferences.swift in Sources */,
+				AC4723442F1168AE009A6FD0 /* LocalizationManager.swift in Sources */,
 				AC91779D2F0B9A330077133C /* MainTabView.swift in Sources */,
 				965D7426031E40078289F3DE /* PendingApprovalView.swift in Sources */,
 				2EA5371F8B0940BCAD74294D /* DashboardView.swift in Sources */,
@@ -1494,6 +1571,7 @@
 				0F2D3338FB6B4011880FB3F4 /* LeaderboardView.swift in Sources */,
 				CBF008BEC84C402E98880D3C /* ProfileView.swift in Sources */,
 				54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */,
+				AC47234E2F1169CE009A6FD0 /* MapModels.swift in Sources */,
 				3E2C7CF183694FB5836B3742 /* ErrorView.swift in Sources */,
 				AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */,
 				1119728817234989A58E0200 /* PrimaryButton.swift in Sources */,
@@ -1509,12 +1587,19 @@
 				B29F4A793E8647D9911439DC /* AppNotification.swift in Sources */,
 				AC305EF12F0DB7BD0063AFDF /* SignupViewModel.swift in Sources */,
 				AC35AB7E2F0F25C90012096B /* AdminService.swift in Sources */,
+				AC4723652F116AA4009A6FD0 /* SignupMethodChoiceView.swift in Sources */,
+				AC4723662F116AA4009A6FD0 /* AppleSignInButton.swift in Sources */,
+				AC4723672F116AA4009A6FD0 /* AppleSignInLinkView.swift in Sources */,
+				AC4723682F116AA4009A6FD0 /* AppLockView.swift in Sources */,
 				AC305EF22F0DB7BD0063AFDF /* LoginView.swift in Sources */,
 				AC305EF32F0DB7BD0063AFDF /* LoginViewModel.swift in Sources */,
 				AC305EF42F0DB7BD0063AFDF /* PasswordResetView.swift in Sources */,
 				AC305EF52F0DB7BD0063AFDF /* SignupInviteCodeView.swift in Sources */,
 				AC35AB982F0F6D9B0012096B /* NavigationCoordinator.swift in Sources */,
 				AC305EF62F0DB7BD0063AFDF /* PasswordResetViewModel.swift in Sources */,
+				AC47234A2F1169C4009A6FD0 /* Number+Localization.swift in Sources */,
+				AC47234B2F1169C4009A6FD0 /* Date+Localization.swift in Sources */,
+				AC47234C2F1169C4009A6FD0 /* String+Localization.swift in Sources */,
 				AC305EF72F0DB7BD0063AFDF /* SignupDetailsView.swift in Sources */,
 				DBEB76AEBDE842259F2C55B0 /* InviteCode.swift in Sources */,
 				789FE0C64BB34FBD80D8B882 /* Review.swift in Sources */,
@@ -1544,6 +1629,7 @@
 				AC305EC52F0DB7890063AFDF /* NotificationsListViewModel.swift in Sources */,
 				AC305EC62F0DB7890063AFDF /* NotificationRow.swift in Sources */,
 				AC305EC72F0DB7890063AFDF /* NotificationsListView.swift in Sources */,
+				AC4723602F116A96009A6FD0 /* AppleSignInViewModel.swift in Sources */,
 				D6FB2A28A2FF482C906F6D09 /* PublicProfileView.swift in Sources */,
 				AC305ED12F0DB79E0063AFDF /* FavorsDashboardViewModel.swift in Sources */,
 				AC305ED22F0DB79E0063AFDF /* CreateFavorView.swift in Sources */,
@@ -1590,11 +1676,16 @@
 				144453F3B1B547A0912EA15F /* Core/Utilities/Constants.swift in Sources */,
 				A04EE73F31C7465B9341BE10 /* Core/Utilities/DeepLinkParser.swift in Sources */,
 				ACE3356524F74ABEBFAB864B /* Core/Utilities/DeviceIdentifier.swift in Sources */,
+				AC4723532F1169E2009A6FD0 /* MapService.swift in Sources */,
+				AC4723542F1169E2009A6FD0 /* AuthService+AppleSignIn.swift in Sources */,
+				AC4723552F1169E2009A6FD0 /* BiometricService.swift in Sources */,
+				AC4723562F1169E2009A6FD0 /* LocationService.swift in Sources */,
 				CF86E62E881140AF84C527CA /* Core/Utilities/Logger.swift in Sources */,
 				9E490CB84FA24C199FF118DC /* Features/Claiming/ViewModels/ClaimViewModel.swift in Sources */,
 				C77C74CE4ADF45FBBD9F5214 /* Features/Claiming/Views/ClaimSheet.swift in Sources */,
 				557ECEF8F4454C42883F123F /* Features/Claiming/Views/CompleteSheet.swift in Sources */,
 				618E2729DA4E4D3A9FE27998 /* Features/Claiming/Views/PhoneRequiredSheet.swift in Sources */,
+				AC4723462F1169B1009A6FD0 /* LocationAutocompleteField.swift in Sources */,
 				F371E26626B549A1842F2B5B /* Features/Claiming/Views/UnclaimSheet.swift in Sources */,
 				565430798DDB4B23924ABE30 /* Features/Favors/ViewModels/CreateFavorViewModel.swift in Sources */,
 				57570E6D1FCD4CCAB7E480D2 /* Features/Favors/ViewModels/FavorDetailViewModel.swift in Sources */,
@@ -1608,7 +1699,12 @@
 				41B955527CAF4F59BECA3D82 /* Features/Messaging/ViewModels/ConversationDetailViewModel.swift in Sources */,
 				6D5101EBFBE8476BB7D9058E /* Features/Messaging/ViewModels/ConversationsListViewModel.swift in Sources */,
 				62A581B7A6134A9FA36783A9 /* Features/Messaging/Views/ConversationDetailView.swift in Sources */,
+				AC47236D2F116B12009A6FD0 /* RequestPin.swift in Sources */,
+				AC47236E2F116B12009A6FD0 /* RequestPreviewCard.swift in Sources */,
+				AC47236F2F116B12009A6FD0 /* FilterBar.swift in Sources */,
 				09248758DAA4444AB0B1BC46 /* Features/Messaging/Views/ConversationsListView.swift in Sources */,
+				AC47235B2F116A42009A6FD0 /* SettingsView.swift in Sources */,
+				AC47235C2F116A42009A6FD0 /* LanguageSettingsView.swift in Sources */,
 				10A2269295B244819A10C11D /* Features/Rides/ViewModels/CreateRideViewModel.swift in Sources */,
 				695FADB8BD984A3FA2164BDF /* Features/Rides/ViewModels/RideDetailViewModel.swift in Sources */,
 				0941BD9C7EC44451957AA1B3 /* Features/Rides/ViewModels/RidesDashboardViewModel.swift in Sources */,
