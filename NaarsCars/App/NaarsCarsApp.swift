@@ -16,6 +16,9 @@ struct NaarsCarsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     init() {
+        // Initialize language preference on app launch
+        LocalizationManager.shared.initializeLanguagePreference()
+        
         // Test connection on app launch
         Task {
             let connected = await SupabaseService.shared.testConnection()

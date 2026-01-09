@@ -48,14 +48,35 @@ final class LocalizationManager: ObservableObject {
     func setLanguage(_ code: String) {
         appLanguage = code
         
+        // Set AppleLanguages to override system language
         if code == "system" {
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
         } else {
+            // Set the language preference
             UserDefaults.standard.set([code], forKey: "AppleLanguages")
+            // Also set it in standardUserDefaults for immediate effect
+            UserDefaults.standard.synchronize()
         }
         
         // Post notification for immediate updates where possible
         NotificationCenter.default.post(name: .languageDidChange, object: nil)
+        
+        print("🌐 [LocalizationManager] Language set to: \(code)")
+    }
+    
+    /// Initialize language preference on app launch
+    func initializeLanguagePreference() {
+        // Ensure AppleLanguages is set based on appLanguage preference
+        if appLanguage != "system" {
+            UserDefaults.standard.set([appLanguage], forKey: "AppleLanguages")
+            UserDefaults.standard.synchronize()
+            print("🌐 [LocalizationManager] Initialized language preference: \(appLanguage)")
+        } else {
+            // Use system language
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            UserDefaults.standard.synchronize()
+            print("🌐 [LocalizationManager] Using system language")
+        }
     }
 }
 
