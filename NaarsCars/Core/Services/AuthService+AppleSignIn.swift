@@ -47,8 +47,8 @@ extension AuthService {
             )
         )
         
-        guard let userIdString = session.user.id.uuidString,
-              let userId = UUID(uuidString: userIdString) else {
+        let userIdString = session.user.id.uuidString
+        guard let userId = UUID(uuidString: userIdString) else {
             throw AppError.unknown("Failed to create user account")
         }
         
@@ -123,8 +123,8 @@ extension AuthService {
             )
         )
         
-        guard let userIdString = session.user.id.uuidString,
-              let userId = UUID(uuidString: userIdString) else {
+        let userIdString = session.user.id.uuidString
+        guard let userId = UUID(uuidString: userIdString) else {
             throw AppError.invalidCredentials
         }
         
@@ -141,11 +141,7 @@ extension AuthService {
             forKey: "appleUserIdentifier"
         )
         
-        if let profile = profile {
-            print("✅ Auth: User logged in with Apple: \(userId), approved: \(profile.approved)")
-        } else {
-            print("⚠️ Auth: Logged in with Apple but profile not found: \(userId)")
-        }
+        print("✅ Auth: User logged in with Apple: \(userId), approved: \(profile.approved)")
     }
     
     /// Link Apple ID to existing email/password account
@@ -161,12 +157,13 @@ extension AuthService {
         }
         
         // Link identity to existing user
+        // Note: Supabase Swift client linkIdentity uses OAuth flow (not idToken)
+        // For native Apple Sign-In, we need to use the OAuth redirect flow
+        // This requires additional setup - for now, we'll use the provider parameter
+        // TODO: Implement proper OAuth flow for linking Apple ID to existing account
+        // The current implementation may need to be updated when Supabase adds native idToken support for linkIdentity
         try await SupabaseService.shared.client.auth.linkIdentity(
-            credentials: OpenIDConnectCredentials(
-                provider: .apple,
-                idToken: identityToken,
-                nonce: nil  // Optional nonce for additional security
-            )
+            provider: .apple
         )
         
         // Store Apple user identifier for credential checking
