@@ -252,23 +252,8 @@ final class LocationService: ObservableObject {
     /// Get Google Places API key from Secrets
     /// - Returns: API key string if available, nil otherwise
     private func getGooglePlacesAPIKey() -> String? {
-        // TODO: Add Secrets.googlePlacesAPIKey property to Secrets.swift
-        // For now, check if it exists using reflection or add directly
-        // This will be added manually after Google Places API key is obtained
-        
-        // Try to access Secrets.googlePlacesAPIKey if it exists
-        // If Secrets.swift doesn't have this property yet, this will return nil
-        // and the service will throw apiKeyMissing error (expected behavior)
-        
-        #if DEBUG
-        // Temporary: Check for environment variable or return nil
-        // In production, this should come from Secrets.swift
-        if let key = ProcessInfo.processInfo.environment["GOOGLE_PLACES_API_KEY"], !key.isEmpty {
-            return key
-        }
-        #endif
-        
-        return nil
+        let key = Secrets.googlePlacesAPIKey
+        return key.isEmpty ? nil : key
     }
     
     private func loadRecentLocations() {
