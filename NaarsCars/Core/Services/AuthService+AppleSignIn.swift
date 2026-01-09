@@ -39,7 +39,7 @@ extension AuthService {
         // 3. Sign in with Supabase using Apple token
         // Note: Supabase will create the user if they don't exist
         // Use signInWithIdToken for native iOS Apple Sign-In
-        let session = try await supabase.client.auth.signInWithIdToken(
+        let session = try await SupabaseService.shared.client.auth.signInWithIdToken(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
                 idToken: identityToken,
@@ -53,7 +53,7 @@ extension AuthService {
         }
         
         // 4. Fetch invite code to get createdBy for profile
-        let inviteCodeResponse = try await supabase.client
+        let inviteCodeResponse = try await SupabaseService.shared.client
             .from("invite_codes")
             .select()
             .eq("id", value: inviteCodeId.uuidString)
@@ -75,7 +75,7 @@ extension AuthService {
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
-        try await supabase.client
+        try await SupabaseService.shared.client
             .from("invite_codes")
             .update([
                 "used_by": AnyCodable(userIdString),
@@ -85,7 +85,8 @@ extension AuthService {
             .execute()
         
         // 7. Fetch profile and update local state
-        if let profile = try? await fetchCurrentProfile() {
+        // Use ProfileService to fetch profile since fetchCurrentProfile is private
+        if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
             currentProfile = profile
             currentUserId = userId
         } else {
@@ -114,7 +115,7 @@ extension AuthService {
         }
         
         // Sign in with Supabase using Apple token
-        let session = try await supabase.client.auth.signInWithIdToken(
+        let session = try await SupabaseService.shared.client.auth.signInWithIdToken(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
                 idToken: identityToken,
@@ -127,8 +128,8 @@ extension AuthService {
             throw AppError.invalidCredentials
         }
         
-        // Fetch profile
-        let profile = try await fetchCurrentProfile()
+        // Fetch profile using ProfileService
+        let profile = try await ProfileService.shared.fetchProfile(userId: userId)
         
         // Update local state
         currentUserId = userId
@@ -160,7 +161,7 @@ extension AuthService {
         }
         
         // Link identity to existing user
-        try await supabase.client.auth.linkIdentity(
+        try await SupabaseService.shared.client.auth.linkIdentity(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
                 idToken: identityToken,

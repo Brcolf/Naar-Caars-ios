@@ -227,7 +227,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Language")
                                     .font(.body)
-                                Text(LocalizationManager.shared.supportedLanguages.first(where: { $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "System Default")
+                                Text(LocalizationManager.supportedLanguages.first(where: { $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "System Default")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
