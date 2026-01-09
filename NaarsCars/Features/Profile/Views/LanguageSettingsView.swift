@@ -45,29 +45,29 @@ struct LanguageSettingsView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
             } footer: {
-                Text("Changing language requires restarting the app for full effect.")
+                Text("language_restart_required".localized)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
-        .navigationTitle("Language")
+        .navigationTitle("language_settings_title".localized)
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Restart Required", isPresented: $showRestartAlert) {
-            Button("Restart Now") {
+        .alert("language_restart_alert_title".localized, isPresented: $showRestartAlert) {
+            Button("language_restart_now".localized) {
                 if let language = pendingLanguage {
                     localizationManager.setLanguage(language)
                     // Force app restart by exiting
                     exit(0)
                 }
             }
-            Button("Later", role: .cancel) {
+            Button("common_later".localized, role: .cancel) {
                 if let language = pendingLanguage {
                     localizationManager.setLanguage(language)
                     dismiss()
                 }
             }
         } message: {
-            Text("The app needs to restart for the language change to take full effect.")
+            Text("language_restart_alert_message".localized)
         }
     }
     

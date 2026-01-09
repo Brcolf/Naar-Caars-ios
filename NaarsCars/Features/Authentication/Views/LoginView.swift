@@ -20,11 +20,11 @@ struct LoginView: View {
             VStack(spacing: 24) {
                 // Logo/Title
                 VStack(spacing: 8) {
-                    Text("Naar's Cars")
+                    Text("app_name".localized)
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
-                    Text("Sign in to continue")
+                    Text("auth_login_title".localized)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -34,11 +34,11 @@ struct LoginView: View {
                 VStack(spacing: 16) {
                     // Email field
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Email")
+                        Text("auth_email_label".localized)
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        TextField("Enter your email", text: $viewModel.email)
+                        TextField("auth_email_placeholder".localized, text: $viewModel.email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
                             .autocapitalization(.none)
@@ -47,11 +47,11 @@ struct LoginView: View {
                     
                     // Password field
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Password")
+                        Text("auth_password_label".localized)
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        SecureField("Enter your password", text: $viewModel.password)
+                        SecureField("auth_password_placeholder".localized, text: $viewModel.password)
                             .textContentType(.password)
                             .textFieldStyle(.roundedBorder)
                     }
@@ -74,7 +74,7 @@ struct LoginView: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Text("Sign In")
+                            Text("auth_sign_in_button".localized)
                                 .frame(maxWidth: .infinity)
                         }
                     }
@@ -82,7 +82,7 @@ struct LoginView: View {
                     .disabled(viewModel.isLoading || viewModel.email.isEmpty || viewModel.password.isEmpty)
                     
                     // Forgot password
-                    Button("Forgot Password?") {
+                    Button("auth_forgot_password".localized) {
                         showPasswordReset = true
                     }
                     .font(.caption)
@@ -93,7 +93,7 @@ struct LoginView: View {
                         Rectangle()
                             .frame(height: 1)
                             .foregroundColor(.secondary.opacity(0.3))
-                        Text("or")
+                        Text("auth_or_continue_with".localized)
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
@@ -131,11 +131,11 @@ struct LoginView: View {
                 
                 // Sign up link
                 HStack {
-                    Text("Don't have an account?")
+                    Text("auth_no_account".localized)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    NavigationLink("Sign Up") {
+                    NavigationLink("auth_sign_up".localized) {
                         SignupInviteCodeView()
                     }
                     .font(.caption)
@@ -149,10 +149,10 @@ struct LoginView: View {
         .sheet(isPresented: $showPasswordReset) {
             PasswordResetView()
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+        .alert("common_error".localized, isPresented: $showError) {
+            Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(appleSignInViewModel.error?.localizedDescription ?? "An error occurred")
+            Text(appleSignInViewModel.error?.localizedDescription ?? "common_error".localized)
         }
     }
 }

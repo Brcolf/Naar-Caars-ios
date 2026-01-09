@@ -25,8 +25,8 @@ struct ContentView: View {
         ZStack {
             Group {
                 switch launchManager.state {
-                case .initializing, .checkingAuth:
-                    LoadingView(message: "Loading...")
+            case .initializing, .checkingAuth:
+                LoadingView(message: "common_loading".localized)
                     
                 case .ready(let authState):
                     switch authState {

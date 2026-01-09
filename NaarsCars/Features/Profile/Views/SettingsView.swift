@@ -27,9 +27,9 @@ struct SettingsView: View {
                         Toggle(isOn: $viewModel.biometricsEnabled) {
                             Label {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Use \(biometricService.biometricType.displayName)")
+                                    Text(String(format: "settings_use_biometric".localized, biometricService.biometricType.displayName))
                                         .font(.body)
-                                    Text("Quickly unlock the app")
+                                    Text("settings_biometric_unlock".localized)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -47,9 +47,9 @@ struct SettingsView: View {
                         if viewModel.biometricsEnabled {
                             Toggle(isOn: $viewModel.requireBiometricsOnLaunch) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Require on Launch")
+                                    Text("settings_require_on_launch".localized)
                                         .font(.body)
-                                    Text("Lock when returning to app")
+                                    Text("settings_lock_when_returning".localized)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -59,10 +59,10 @@ struct SettingsView: View {
                             }
                         }
                     } header: {
-                        Text("Biometric Authentication")
+                        Text("settings_biometric_auth".localized)
                     } footer: {
                         if viewModel.biometricsEnabled && viewModel.requireBiometricsOnLaunch {
-                            Text("App will lock after 5 minutes in background")
+                            Text("settings_lock_after_background".localized)
                                 .font(.caption)
                         }
                     }
@@ -71,12 +71,12 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "exclamationmark.triangle")
                                 .foregroundColor(.orange)
-                            Text("Biometric authentication is not available on this device")
+                            Text("settings_biometric_not_available".localized)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     } header: {
-                        Text("Biometric Authentication")
+                        Text("settings_biometric_auth".localized)
                     }
                 }
                 
@@ -109,12 +109,12 @@ struct SettingsView: View {
                         
                         // Notification Type Preferences
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Notification Types")
+                            Text("settings_notification_types".localized)
                                 .font(.headline)
                                 .padding(.top, 8)
                             
                             Toggle(isOn: $viewModel.notifyRideUpdates) {
-                                Text("Ride Updates")
+                                Text("settings_ride_updates".localized)
                                     .font(.body)
                             }
                             .onChange(of: viewModel.notifyRideUpdates) { _, newValue in
@@ -124,7 +124,7 @@ struct SettingsView: View {
                             }
                             
                             Toggle(isOn: $viewModel.notifyMessages) {
-                                Text("Messages")
+                                Text("settings_messages".localized)
                                     .font(.body)
                             }
                             .onChange(of: viewModel.notifyMessages) { _, newValue in
@@ -134,7 +134,7 @@ struct SettingsView: View {
                             }
                             
                             Toggle(isOn: $viewModel.notifyAnnouncements) {
-                                Text("Announcements")
+                                Text("settings_announcements".localized)
                                     .font(.body)
                             }
                             .onChange(of: viewModel.notifyAnnouncements) { _, newValue in
@@ -144,7 +144,7 @@ struct SettingsView: View {
                             }
                             
                             Toggle(isOn: $viewModel.notifyNewRequests) {
-                                Text("New Requests")
+                                Text("settings_new_requests".localized)
                                     .font(.body)
                             }
                             .onChange(of: viewModel.notifyNewRequests) { _, newValue in
@@ -154,7 +154,7 @@ struct SettingsView: View {
                             }
                             
                             Toggle(isOn: $viewModel.notifyQaActivity) {
-                                Text("Q&A Activity")
+                                Text("settings_qa_activity".localized)
                                     .font(.body)
                             }
                             .onChange(of: viewModel.notifyQaActivity) { _, newValue in
@@ -164,7 +164,7 @@ struct SettingsView: View {
                             }
                             
                             Toggle(isOn: $viewModel.notifyReviewReminders) {
-                                Text("Review Reminders")
+                                Text("settings_review_reminders".localized)
                                     .font(.body)
                             }
                             .onChange(of: viewModel.notifyReviewReminders) { _, newValue in
@@ -191,7 +191,7 @@ struct SettingsView: View {
                         }) {
                             Label {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Link Apple ID")
+                                    Text("settings_link_apple_id".localized)
                                         .font(.body)
                                     Text("Sign in with Apple on this account")
                                         .font(.caption)
@@ -206,16 +206,16 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
-                            Text("Apple ID linked")
+                            Text("settings_apple_id_linked".localized)
                                 .font(.body)
                             Spacer()
                         }
                     }
                 } header: {
-                    Text("Account Linking")
+                    Text("settings_account_linking".localized)
                 } footer: {
                     if !viewModel.isAppleLinked {
-                        Text("Link your Apple ID to sign in with Face ID/Touch ID")
+                        Text("settings_link_apple_id_description".localized)
                             .font(.caption)
                     }
                 }
@@ -225,7 +225,7 @@ struct SettingsView: View {
                     NavigationLink(destination: LanguageSettingsView()) {
                         Label {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Language")
+                                Text("settings_language".localized)
                                     .font(.body)
                                 Text(LocalizationManager.supportedLanguages.first(where: { $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "System Default")
                                     .font(.caption)
@@ -237,7 +237,7 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Localization")
+                    Text("settings_general".localized)
                 } footer: {
                     Text("Change the app's display language")
                         .font(.caption)
@@ -247,7 +247,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("settings_done".localized) {
                         dismiss()
                     }
                 }
@@ -255,10 +255,10 @@ struct SettingsView: View {
             .task {
                 await viewModel.loadSettings()
             }
-            .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .cancel) {}
+            .alert("common_error".localized, isPresented: $viewModel.showError) {
+                Button("common_ok".localized, role: .cancel) {}
             } message: {
-                Text(viewModel.errorMessage ?? "An error occurred")
+                Text(viewModel.errorMessage ?? "common_error".localized)
             }
             .alert("Link Apple ID", isPresented: $viewModel.showLinkAppleAlert) {
                 Button("Link") {
