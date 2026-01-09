@@ -108,7 +108,8 @@ final class LocationService: NSObject, ObservableObject {
     
     private override init() {
         super.init()
-        searchCompleter.delegate = LocationService.shared
+        // Use 'self' instead of 'LocationService.shared' to avoid circular reference during initialization
+        searchCompleter.delegate = self
         searchCompleter.resultTypes = [.address, .pointOfInterest]
         searchCompleter.region = seattleRegion
         loadRecentLocations()
