@@ -65,14 +65,22 @@ final class LocalizationManager: ObservableObject {
     }
     
     /// Initialize language preference on app launch
+    /// This must be called before any UI is rendered to take effect
     func initializeLanguagePreference() {
         // Ensure AppleLanguages is set based on appLanguage preference
+        // This must be set before Bundle.main loads any resources
         if appLanguage != "system" {
+            // Set the language preference array
+            // iOS will use this to determine which .lproj folder to use
             UserDefaults.standard.set([appLanguage], forKey: "AppleLanguages")
             UserDefaults.standard.synchronize()
+            
             print("🌐 [LocalizationManager] Initialized language preference: \(appLanguage)")
+            if let languages = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String] {
+                print("🌐 [LocalizationManager] AppleLanguages set to: \(languages)")
+            }
         } else {
-            // Use system language
+            // Use system language - remove custom override
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
             UserDefaults.standard.synchronize()
             print("🌐 [LocalizationManager] Using system language")
