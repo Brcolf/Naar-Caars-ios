@@ -21,6 +21,7 @@ final class LocalizationManager: ObservableObject {
         AppLanguage(code: "en", name: "English", localizedName: "English"),
         AppLanguage(code: "es", name: "Spanish", localizedName: "Español"),
         AppLanguage(code: "zh-Hans", name: "Chinese (Simplified)", localizedName: "简体中文"),
+        AppLanguage(code: "zh-Hant", name: "Chinese (Traditional)", localizedName: "繁體中文"),
         AppLanguage(code: "vi", name: "Vietnamese", localizedName: "Tiếng Việt"),
         AppLanguage(code: "ko", name: "Korean", localizedName: "한국어")
     ]
