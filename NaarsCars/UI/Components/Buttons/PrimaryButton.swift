@@ -37,8 +37,8 @@ struct PrimaryButton: View {
 #Preview {
     VStack(spacing: 20) {
         PrimaryButton(title: "Sign In", action: {})
-        PrimaryButton(title: "Loading...", isLoading: true, action: {})
-        PrimaryButton(title: "Disabled", isDisabled: true, action: {})
+        PrimaryButton(title: "Loading...", action: {}, isLoading: true)
+        PrimaryButton(title: "Disabled", action: {}, isDisabled: true)
     }
     .padding()
 }

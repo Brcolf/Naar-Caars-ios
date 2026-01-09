@@ -18,6 +18,23 @@ Based on `prd-location-autocomplete.md`
 - No API key required for basic usage
 - 🧪 items are QA tasks | 🔒 CHECKPOINT items are mandatory gates
 
+## Instructions for Completing Tasks
+
+**IMPORTANT:** As you complete each task, you must check it off in this markdown file by changing `- [ ]` to `- [x]`. This helps track progress and ensures you don't skip any steps.
+
+**BLOCKING:** Tasks marked with ⛔ block other features and must be completed first.
+
+**QA RULES:**
+1. Complete 🧪 QA tasks immediately after their related implementation
+2. Do NOT skip past 🔒 CHECKPOINT markers until tests pass
+3. Run: `./QA/Scripts/checkpoint.sh <checkpoint-id>` at each checkpoint
+4. If checkpoint fails, fix issues before continuing
+
+Example:
+- `- [ ] 1.1 Read file` → `- [x] 1.1 Read file` (after completing)
+
+Update the file after completing each sub-task, not just after completing an entire parent task.
+
 ## Tasks
 
 - [ ] 0.0 Create feature branch: `git checkout -b feature/location-autocomplete`

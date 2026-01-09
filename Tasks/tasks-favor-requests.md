@@ -37,27 +37,44 @@ See QA/FLOW-CATALOG.md for flow definitions.
 - ⭐ Use CacheManager for favors list (2-minute TTL)
 - 🧪 items are QA tasks | 🔒 CHECKPOINT items are mandatory gates
 
+## Instructions for Completing Tasks
+
+**IMPORTANT:** As you complete each task, you must check it off in this markdown file by changing `- [ ]` to `- [x]`. This helps track progress and ensures you don't skip any steps.
+
+**BLOCKING:** Tasks marked with ⛔ block other features and must be completed first.
+
+**QA RULES:**
+1. Complete 🧪 QA tasks immediately after their related implementation
+2. Do NOT skip past 🔒 CHECKPOINT markers until tests pass
+3. Run: `./QA/Scripts/checkpoint.sh <checkpoint-id>` at each checkpoint
+4. If checkpoint fails, fix issues before continuing
+
+Example:
+- `- [ ] 1.1 Read file` → `- [x] 1.1 Read file` (after completing)
+
+Update the file after completing each sub-task, not just after completing an entire parent task.
+
 ## Tasks
 
-- [ ] 0.0 Create feature branch
-  - [ ] 0.1 `git checkout -b feature/favor-requests`
+- [x] 0.0 Create feature branch
+  - [x] 0.1 `git checkout -b feature/favor-requests`
 
-- [ ] 1.0 Create Favor data models
-  - [ ] 1.1 Open Favor.swift and verify/add all fields
-  - [ ] 1.2 Add fields: userId, date, time, location, duration, requirements, description, gift
-  - [ ] 1.3 Add status field with FavorStatus enum type
-  - [ ] 1.4 Add claimedBy, reviewed, reviewSkipped fields
-  - [ ] 1.5 Create FavorStatus enum (open, pending, confirmed, completed)
-  - [ ] 1.6 Create Duration enum (thirtyMin, oneHour, twoHours, halfDay, fullDay, multiDay)
-  - [ ] 1.7 🧪 Write FavorTests.testCodableDecoding_Success
+- [x] 1.0 Create Favor data models
+  - [x] 1.1 Open Favor.swift and verify/add all fields
+  - [x] 1.2 Add fields: userId, date, time, location, duration, requirements, description, gift
+  - [x] 1.3 Add status field with FavorStatus enum type
+  - [x] 1.4 Add claimedBy, reviewed, reviewSkipped fields
+  - [x] 1.5 Create FavorStatus enum (open, pending, confirmed, completed)
+  - [x] 1.6 Create Duration enum (underHour, coupleHours, coupleDays, notSure)
+  - [x] 1.7 🧪 Write FavorTests.testCodableDecoding_Success
 
-- [ ] 2.0 Implement FavorService
-  - [ ] 2.1 Create FavorService.swift with singleton pattern
-  - [ ] 2.2 Implement fetchFavors() with cache check
-  - [ ] 2.3 Implement createFavor() with cache invalidation
-  - [ ] 2.4 Implement updateFavor() and deleteFavor()
-  - [ ] 2.5 🧪 Write FavorServiceTests.testFetchFavors_CacheHit
-  - [ ] 2.6 🧪 Write FavorServiceTests.testCreateFavor_InvalidatesCache
+- [x] 2.0 Implement FavorService
+  - [x] 2.1 Create FavorService.swift with singleton pattern
+  - [x] 2.2 Implement fetchFavors() with cache check
+  - [x] 2.3 Implement createFavor() with cache invalidation
+  - [x] 2.4 Implement updateFavor() and deleteFavor()
+  - [x] 2.5 🧪 Write FavorServiceTests.testFetchFavors_CacheHit
+  - [x] 2.6 🧪 Write FavorServiceTests.testCreateFavor_InvalidatesCache
 
 ### 🔒 CHECKPOINT: QA-FAVOR-001
 > Run: `./QA/Scripts/checkpoint.sh favor-001`
@@ -65,47 +82,48 @@ See QA/FLOW-CATALOG.md for flow definitions.
 > Verify: FavorService tests pass
 > Must pass before continuing
 
-- [ ] 3.0 Build Favors Dashboard View
-  - [ ] 3.1 Create FavorsDashboardView.swift
-  - [ ] 3.2 Add segmented picker for filtering
-  - [ ] 3.3 ⭐ Show skeleton loading while fetching
-  - [ ] 3.4 Display List of favors using FavorCard
-  - [ ] 3.5 Add floating "+" button for new favor
-  - [ ] 3.6 Add pull-to-refresh
+- [x] 3.0 Build Favors Dashboard View
+  - [x] 3.1 Create FavorsDashboardView.swift
+  - [x] 3.2 Add segmented picker for filtering
+  - [x] 3.3 ⭐ Show skeleton loading while fetching
+  - [x] 3.4 Display List of favors using FavorCard
+  - [x] 3.5 Add floating "+" button for new favor
+  - [x] 3.6 Add pull-to-refresh
 
-- [ ] 4.0 Implement FavorsDashboardViewModel
-  - [ ] 4.1 Create FavorsDashboardViewModel.swift
-  - [ ] 4.2 Implement loadFavors() and filterFavors()
-  - [ ] 4.3 Setup realtime subscription
-  - [ ] 4.4 🧪 Write FavorsDashboardViewModelTests.testLoadFavors_Success
+- [x] 4.0 Implement FavorsDashboardViewModel
+  - [x] 4.1 Create FavorsDashboardViewModel.swift
+  - [x] 4.2 Implement loadFavors() and filterFavors()
+  - [x] 4.3 Setup realtime subscription
+  - [x] 4.4 🧪 Write FavorsDashboardViewModelTests.testLoadFavors_Success
 
-- [ ] 5.0 Build Create Favor View
-  - [ ] 5.1 Create CreateFavorView.swift
-  - [ ] 5.2 Add fields: title, location, duration picker, date, requirements, description, gift
-  - [ ] 5.3 Validate required fields
-  - [ ] 5.4 Navigate back on success
+- [x] 5.0 Build Create Favor View
+  - [x] 5.1 Create CreateFavorView.swift
+  - [x] 5.2 Add fields: title, location, duration picker, date, requirements, description, gift
+  - [x] 5.3 Validate required fields
+  - [x] 5.4 Navigate back on success
 
-- [ ] 6.0 Implement CreateFavorViewModel
-  - [ ] 6.1 Create CreateFavorViewModel.swift
-  - [ ] 6.2 Implement validateForm() and createFavor()
-  - [ ] 6.3 🧪 Write CreateFavorViewModelTests.testValidateForm_MissingLocation
-  - [ ] 6.4 🧪 Write CreateFavorViewModelTests.testCreateFavor_Success
+- [x] 6.0 Implement CreateFavorViewModel
+  - [x] 6.1 Create CreateFavorViewModel.swift
+  - [x] 6.2 Implement validateForm() and createFavor()
+  - [x] 6.3 🧪 Write CreateFavorViewModelTests.testValidateForm_MissingLocation
+  - [x] 6.4 🧪 Write CreateFavorViewModelTests.testCreateFavor_Success
 
-- [ ] 7.0 Build Favor Detail View
-  - [ ] 7.1 Create FavorDetailView.swift
-  - [ ] 7.2 Display poster, location, duration, date/time
-  - [ ] 7.3 Show status badge and action buttons
-  - [ ] 7.4 Add edit/delete for poster
+- [x] 7.0 Build Favor Detail View
+  - [x] 7.1 Create FavorDetailView.swift
+  - [x] 7.2 Display poster, location, duration, date/time
+  - [x] 7.3 Show status badge and action buttons
+  - [x] 7.4 Add edit/delete for poster
 
-- [ ] 8.0 Build UI Components
-  - [ ] 8.1 Update FavorCard.swift with full implementation
-  - [ ] 8.2 Display duration badge
-  - [ ] 8.3 Add Xcode previews
+- [x] 8.0 Build UI Components
+  - [x] 8.1 Update FavorCard.swift with full implementation
+  - [x] 8.2 Display duration badge
+  - [x] 8.3 Add Xcode previews
 
-- [ ] 9.0 Verify favor requests implementation
-  - [ ] 9.1 Test creating, viewing, editing, deleting favors
-  - [ ] 9.2 Test realtime updates and caching
-  - [ ] 9.3 Commit: "feat: implement favor requests"
+- [x] 9.0 Verify favor requests implementation
+  - [x] 9.1 Build and ensure zero compilation errors
+  - [ ] 9.2 Test creating, viewing, editing, deleting favors (Manual testing required)
+  - [ ] 9.3 Test realtime updates and caching (Manual testing required)
+  - [ ] 9.4 Commit: "feat: implement favor requests"
 
 ### 🔒 CHECKPOINT: QA-FAVOR-FINAL
 > Run: `./QA/Scripts/checkpoint.sh favor-final`

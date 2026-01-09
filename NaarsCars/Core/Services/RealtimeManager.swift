@@ -79,41 +79,48 @@ final class RealtimeManager {
         let channel = supabaseClient.channel(channelName)
         
         // Set up postgres changes for INSERT events
-        channel.onPostgresChange(
+        _ = channel.onPostgresChange(
             InsertAction.self,
             schema: "public",
             table: table,
             filter: filter
-        ) { [weak self] action in
+        ) { action in
             onInsert?(action)
         }
         
         // Add UPDATE events if callback provided
         if let onUpdate = onUpdate {
-            channel.onPostgresChange(
+            _ = channel.onPostgresChange(
                 UpdateAction.self,
                 schema: "public",
                 table: table,
                 filter: filter
-            ) { [weak self] action in
+            ) { action in
                 onUpdate(action)
             }
         }
         
         // Add DELETE events if callback provided
         if let onDelete = onDelete {
-            channel.onPostgresChange(
+            _ = channel.onPostgresChange(
                 DeleteAction.self,
                 schema: "public",
                 table: table,
                 filter: filter
-            ) { [weak self] action in
+            ) { action in
                 onDelete(action)
             }
         }
         
-        // Subscribe to the channel
-        await channel.subscribe()
+        // Subscribe to the channel (using subscribeWithError instead of deprecated subscribe)
+        do {
+            try await channel.subscribeWithError()
+        } catch {
+            print("🔴 [Realtime] Failed to subscribe to channel \(channelName): \(error)")
+            // Don't throw - log the error but continue
+            // The caller can check if subscription was successful by checking activeChannels
+            return
+        }
         
         // Store subscription
         activeChannels[channelName] = ChannelSubscription(

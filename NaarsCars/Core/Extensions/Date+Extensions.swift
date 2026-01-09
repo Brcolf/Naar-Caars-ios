@@ -20,6 +20,13 @@ extension Date {
         return formatter.localizedString(for: self, relativeTo: Date())
     }
     
+    /// Short time ago string for messages (e.g., "2h ago", "3d ago")
+    var timeAgoString: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
+    }
+    
     /// Formatted time string (e.g., "2:30 PM")
     var timeString: String {
         let formatter = DateFormatter()

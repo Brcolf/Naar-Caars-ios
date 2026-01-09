@@ -20,12 +20,28 @@ enum LaunchState: Equatable {
     static func == (lhs: LaunchState, rhs: LaunchState) -> Bool {
         switch (lhs, rhs) {
         case (.initializing, .initializing),
-             (.checkingAuth, .checkingAuth),
-             (.ready, .ready),
-             (.failed, .failed):
+             (.checkingAuth, .checkingAuth):
             return true
+        case (.ready(let lhsState), .ready(let rhsState)):
+            return lhsState == rhsState
+        case (.failed(let lhsError), .failed(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
         default:
             return false
+        }
+    }
+    
+    /// Unique identifier for the state to force view updates
+    var id: String {
+        switch self {
+        case .initializing:
+            return "initializing"
+        case .checkingAuth:
+            return "checkingAuth"
+        case .ready(let authState):
+            return "ready_\(authState)"
+        case .failed(let error):
+            return "failed_\(error.localizedDescription)"
         }
     }
 }
@@ -48,7 +64,48 @@ final class AppLaunchManager: ObservableObject {
     /// Auth service reference
     private let authService = AuthService.shared
     
-    private init() {}
+    private var cancellables = Set<AnyCancellable>()
+    private var signOutObserver: NSObjectProtocol?
+    
+    private init() {
+        print("🔧 [AppLaunchManager] Initializing - setting up notification listener")
+        
+        // Use direct NotificationCenter observer instead of Combine for reliability
+        let notificationName = NSNotification.Name("userDidSignOut")
+        print("🔧 [AppLaunchManager] Setting up observer for notification: '\(notificationName.rawValue)'")
+        
+        signOutObserver = NotificationCenter.default.addObserver(
+            forName: notificationName,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            print("📬 [AppLaunchManager] Received userDidSignOut notification!")
+            print("📬 [AppLaunchManager] Notification name: \(notification.name.rawValue)")
+            print("📬 [AppLaunchManager] Notification object: \(String(describing: notification.object))")
+            
+            guard let self = self else {
+                print("⚠️ [AppLaunchManager] Self is nil, cannot update state")
+                return
+            }
+            
+            // Immediately set state to unauthenticated when sign out happens
+            // Since AppLaunchManager is @MainActor, this is safe to do synchronously
+            print("🔄 [AppLaunchManager] Setting state to unauthenticated immediately")
+            print("🔄 [AppLaunchManager] Current state before update: \(self.state.id)")
+            self.state = .ready(.unauthenticated)
+            print("✅ [AppLaunchManager] State updated to: \(self.state.id)")
+        }
+        
+        print("✅ [AppLaunchManager] Notification listener set up successfully")
+        print("✅ [AppLaunchManager] Observer stored: \(signOutObserver != nil ? "YES" : "NO")")
+    }
+    
+    deinit {
+        // Remove observer when deallocated
+        if let observer = signOutObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
     
     // MARK: - Critical Launch Path
     

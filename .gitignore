@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Build output
+build-output.log
+*.log
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+
+# Node modules (if any)
+node_modules/
+
+# Secrets and credentials (DO NOT COMMIT)
+Secrets.swift
+GoogleService-Info.plist
+*.p8
+
+# Environment files
+.env
+.env.local
+
+# Keep existing NaarsCars/.gitignore patterns
+
+.DS_Store
+**/.DS_Store

@@ -1,0 +1,376 @@
+//
+//  ProfileService.swift
+//  NaarsCars
+//
+//  Service for profile-related operations with caching and image compression
+//
+
+import Foundation
+import UIKit
+import Supabase
+
+/// Service for profile-related operations
+/// Handles fetching, updating profiles, avatar uploads, reviews, and invite codes
+@MainActor
+final class ProfileService {
+    
+    // MARK: - Singleton
+    
+    static let shared = ProfileService()
+    
+    // MARK: - Private Properties
+    
+    private let supabase = SupabaseService.shared.client
+    
+    // MARK: - Initialization
+    
+    private init() {}
+    
+    // MARK: - Profile Operations
+    
+    /// Fetch a profile by user ID
+    /// Checks cache before making network request
+    /// - Parameter userId: The user ID to fetch
+    /// - Returns: Profile if found
+    /// - Throws: AppError if fetch fails
+    func fetchProfile(userId: UUID) async throws -> Profile {
+        // Check cache first
+        if let cached = await CacheManager.shared.getCachedProfile(id: userId) {
+            return cached
+        }
+        
+        // Fetch from network
+        let profile: Profile = try await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId.uuidString)
+            .single()
+            .execute()
+            .value
+        
+        // Cache the profile
+        await CacheManager.shared.cacheProfile(profile)
+        
+        return profile
+    }
+    
+    /// Update the current user's profile
+    /// - Parameters:
+    ///   - userId: The user ID
+    ///   - name: Optional new name
+    ///   - phoneNumber: Optional new phone number (E.164 format)
+    ///   - car: Optional new car description
+    ///   - avatarUrl: Optional new avatar URL
+    /// - Throws: AppError if update fails
+    func updateProfile(
+        userId: UUID,
+        name: String? = nil,
+        phoneNumber: String? = nil,
+        car: String? = nil,
+        avatarUrl: String? = nil
+    ) async throws {
+        var updates: [String: Any] = [:]
+        
+        if let name = name {
+            updates["name"] = name
+        }
+        if let phoneNumber = phoneNumber {
+            updates["phone_number"] = phoneNumber
+        }
+        if let car = car {
+            updates["car"] = car
+        }
+        if let avatarUrl = avatarUrl {
+            updates["avatar_url"] = avatarUrl
+        }
+        
+        guard !updates.isEmpty else {
+            throw AppError.invalidInput("No fields to update")
+        }
+        
+        // Create Codable struct for Supabase update
+        struct ProfileUpdate: Codable {
+            let name: String?
+            let phoneNumber: String?
+            let car: String?
+            let avatarUrl: String?
+            let updatedAt: String
+            
+            enum CodingKeys: String, CodingKey {
+                case name
+                case phoneNumber = "phone_number"
+                case car
+                case avatarUrl = "avatar_url"
+                case updatedAt = "updated_at"
+            }
+        }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        let update = ProfileUpdate(
+            name: name,
+            phoneNumber: phoneNumber,
+            car: car,
+            avatarUrl: avatarUrl,
+            updatedAt: dateFormatter.string(from: Date())
+        )
+        
+        try await supabase
+            .from("profiles")
+            .update(update)
+            .eq("id", value: userId.uuidString)
+            .execute()
+        
+        // Invalidate cache after update
+        await CacheManager.shared.invalidateProfile(id: userId)
+    }
+    
+    /// Update notification preferences for the current user's profile
+    /// - Parameters:
+    ///   - userId: The user ID
+    ///   - preferences: Dictionary of notification preference updates
+    /// - Throws: AppError if update fails
+    func updateNotificationPreferences(
+        userId: UUID,
+        notifyRideUpdates: Bool? = nil,
+        notifyMessages: Bool? = nil,
+        notifyAnnouncements: Bool? = nil,
+        notifyNewRequests: Bool? = nil,
+        notifyQaActivity: Bool? = nil,
+        notifyReviewReminders: Bool? = nil
+    ) async throws {
+        struct NotificationPreferencesUpdate: Codable {
+            let notifyRideUpdates: Bool?
+            let notifyMessages: Bool?
+            let notifyAnnouncements: Bool?
+            let notifyNewRequests: Bool?
+            let notifyQaActivity: Bool?
+            let notifyReviewReminders: Bool?
+            let updatedAt: String
+            
+            enum CodingKeys: String, CodingKey {
+                case notifyRideUpdates = "notify_ride_updates"
+                case notifyMessages = "notify_messages"
+                case notifyAnnouncements = "notify_announcements"
+                case notifyNewRequests = "notify_new_requests"
+                case notifyQaActivity = "notify_qa_activity"
+                case notifyReviewReminders = "notify_review_reminders"
+                case updatedAt = "updated_at"
+            }
+        }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        let update = NotificationPreferencesUpdate(
+            notifyRideUpdates: notifyRideUpdates,
+            notifyMessages: notifyMessages,
+            notifyAnnouncements: notifyAnnouncements,
+            notifyNewRequests: notifyNewRequests,
+            notifyQaActivity: notifyQaActivity,
+            notifyReviewReminders: notifyReviewReminders,
+            updatedAt: dateFormatter.string(from: Date())
+        )
+        
+        try await supabase
+            .from("profiles")
+            .update(update)
+            .eq("id", value: userId.uuidString)
+            .execute()
+        
+        // Invalidate cache after update
+        await CacheManager.shared.invalidateProfile(id: userId)
+    }
+    
+    /// Upload avatar image to Supabase Storage
+    /// Compresses image before upload using avatar preset
+    /// - Parameters:
+    ///   - imageData: The image data to upload
+    ///   - userId: The user ID
+    /// - Returns: Public URL of uploaded avatar
+    /// - Throws: AppError if upload fails
+    func uploadAvatar(imageData: Data, userId: UUID) async throws -> String {
+        // Compress image using avatar preset
+        guard let uiImage = UIImage(data: imageData) else {
+            throw AppError.invalidInput("Invalid image data")
+        }
+        
+        guard let compressedData = ImageCompressor.compress(uiImage, preset: .avatar) else {
+            throw AppError.processingError("Failed to compress image")
+        }
+        
+        // Upload to avatars bucket
+        let fileName = "\(userId.uuidString).jpg"
+        
+        try await supabase.storage
+            .from("avatars")
+            .upload(
+                path: fileName,
+                file: compressedData,
+                options: FileOptions(contentType: "image/jpeg", upsert: true)
+            )
+        
+        // Get public URL with cache-busting query param
+        let publicUrl = try await supabase.storage
+            .from("avatars")
+            .getPublicURL(path: fileName)
+        
+        // Append cache-busting query parameter
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let urlWithCacheBust = "\(publicUrl.absoluteString)?t=\(timestamp)"
+        
+        return urlWithCacheBust
+    }
+    
+    // MARK: - Reviews Operations
+    
+    /// Fetch reviews for a user
+    /// - Parameter userId: The user ID
+    /// - Returns: Array of reviews
+    /// - Throws: AppError if fetch fails
+    func fetchReviews(forUserId userId: UUID) async throws -> [Review] {
+        let reviews: [Review] = try await supabase
+            .from("reviews")
+            .select()
+            .eq("fulfiller_id", value: userId.uuidString)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        
+        return reviews
+    }
+    
+    /// Calculate average rating for a user
+    /// - Parameter userId: The user ID
+    /// - Returns: Average rating (0.0 to 5.0), or nil if no reviews
+    func calculateAverageRating(userId: UUID) async throws -> Double? {
+        let reviews: [ReviewRating] = try await supabase
+            .from("reviews")
+            .select("rating")
+            .eq("fulfiller_id", value: userId.uuidString)
+            .execute()
+            .value
+        
+        guard !reviews.isEmpty else {
+            return nil
+        }
+        
+        let sum = reviews.reduce(0.0) { $0 + Double($1.rating) }
+        return sum / Double(reviews.count)
+    }
+    
+    // MARK: - Invite Codes Operations
+    
+    /// Fetch invite codes for a user
+    /// - Parameter userId: The user ID
+    /// - Returns: Array of invite codes ordered by created_at descending
+    /// - Throws: AppError if fetch fails
+    func fetchInviteCodes(forUserId userId: UUID) async throws -> [InviteCode] {
+        let codes: [InviteCode] = try await supabase
+            .from("invite_codes")
+            .select()
+            .eq("created_by", value: userId.uuidString)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        
+        return codes
+    }
+    
+    /// Generate a new invite code for a user
+    /// Uses InviteCodeGenerator for secure 8-character codes
+    /// - Parameter userId: The user ID
+    /// - Returns: The newly created invite code
+    /// - Throws: AppError if generation fails
+    func generateInviteCode(userId: UUID) async throws -> InviteCode {
+        // Generate secure 8-character code
+        let code = InviteCodeGenerator.generate()
+        
+        let newCode = InviteCode(
+            id: UUID(),
+            code: code,
+            createdBy: userId,
+            usedBy: nil,
+            usedAt: nil,
+            createdAt: Date()
+        )
+        
+        let insertedCode: InviteCode = try await supabase
+            .from("invite_codes")
+            .insert(newCode)
+            .select()
+            .single()
+            .execute()
+            .value
+        
+        return insertedCode
+    }
+    
+    // MARK: - Stats Operations
+    
+    /// Fetch fulfilled count for a user
+    /// Counts confirmed/completed rides and favors
+    /// - Parameter userId: The user ID
+    /// - Returns: Total count of fulfilled requests
+    func fetchFulfilledCount(userId: UUID) async throws -> Int {
+        // Count confirmed/completed rides
+        let ridesResponse = try await supabase
+            .from("rides")
+            .select("id", head: true, count: .exact)
+            .eq("claimed_by", value: userId.uuidString)
+            .in("status", values: ["confirmed", "completed"])
+            .execute()
+        
+        let ridesCount = ridesResponse.count ?? 0
+        
+        // Count confirmed/completed favors
+        let favorsResponse = try await supabase
+            .from("favors")
+            .select("id", head: true, count: .exact)
+            .eq("claimed_by", value: userId.uuidString)
+            .in("status", values: ["confirmed", "completed"])
+            .execute()
+        
+        let favorsCount = favorsResponse.count ?? 0
+        
+        return ridesCount + favorsCount
+    }
+    
+    /// Delete user account and all associated data
+    /// Uses database function to handle cascade deletion
+    /// - Parameter userId: The user ID to delete
+    /// - Throws: AppError if deletion fails
+    func deleteAccount(userId: UUID) async throws {
+        // Use database function to delete account (handles cascade deletes)
+        let params: [String: AnyCodable] = [
+            "p_user_id": AnyCodable(userId.uuidString)
+        ]
+        
+        // Wrap RPC call in Task.detached to avoid MainActor isolation issues
+        let task = Task.detached(priority: .userInitiated) { [userId] () async throws in
+            let params: [String: AnyCodable] = [
+                "p_user_id": AnyCodable(userId.uuidString)
+            ]
+            let client = await SupabaseService.shared.client
+            _ = try await client
+                .rpc("delete_user_account", params: params)
+                .execute()
+        }
+        
+        try await task.value
+        
+        // Invalidate cache
+        await CacheManager.shared.invalidateProfile(id: userId)
+        
+        print("✅ [ProfileService] Account deleted: \(userId)")
+    }
+}
+
+// MARK: - Helper Types
+
+/// Helper struct for decoding review ratings
+private struct ReviewRating: Codable {
+    let rating: Int
+}
+

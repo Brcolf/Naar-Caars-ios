@@ -97,5 +97,48 @@ final class RideTests: XCTestCase {
         XCTAssertNotNil(ride.date)
         XCTAssertNotNil(ride.createdAt)
     }
+    
+    func testCodableDecoding_SnakeCase_Success() throws {
+        // Given: JSON with snake_case keys matching database schema
+        let json = """
+        {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "user_id": "223e4567-e89b-12d3-a456-426614174000",
+            "type": "request",
+            "date": "2025-01-10T00:00:00Z",
+            "time": "14:30:00",
+            "pickup": "123 Main Street",
+            "destination": "456 Oak Avenue",
+            "seats": 3,
+            "notes": "Need help with luggage",
+            "gift": "Coffee and donuts",
+            "status": "open",
+            "claimed_by": null,
+            "reviewed": false,
+            "review_skipped": null,
+            "review_skipped_at": null,
+            "created_at": "2025-01-05T00:00:00Z",
+            "updated_at": "2025-01-05T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+        
+        // When: Decoding with snake_case keys
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let ride = try decoder.decode(Ride.self, from: json)
+        
+        // Then: All snake_case fields should be correctly mapped to camelCase
+        XCTAssertEqual(ride.userId.uuidString, "223e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(ride.pickup, "123 Main Street")
+        XCTAssertEqual(ride.destination, "456 Oak Avenue")
+        XCTAssertEqual(ride.seats, 3)
+        XCTAssertEqual(ride.notes, "Need help with luggage")
+        XCTAssertEqual(ride.gift, "Coffee and donuts")
+        XCTAssertEqual(ride.status, .open)
+        XCTAssertNil(ride.claimedBy)
+        XCTAssertEqual(ride.reviewed, false)
+        XCTAssertNil(ride.reviewSkipped)
+        XCTAssertNil(ride.reviewSkippedAt)
+    }
 }
 

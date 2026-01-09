@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 /// Ride status enum matching database enum
 enum RideStatus: String, Codable {
@@ -13,10 +14,30 @@ enum RideStatus: String, Codable {
     case pending = "pending"
     case confirmed = "confirmed"
     case completed = "completed"
+    
+    /// Human-readable display text
+    var displayText: String {
+        switch self {
+        case .open: return "Open"
+        case .pending: return "Pending"
+        case .confirmed: return "Claimed"
+        case .completed: return "Completed"
+        }
+    }
+    
+    /// Color for status badge
+    var color: Color {
+        switch self {
+        case .open: return .naarsSuccess
+        case .pending: return .naarsWarning
+        case .confirmed: return .naarsPrimary
+        case .completed: return .gray
+        }
+    }
 }
 
 /// Ride request model
-struct Ride: Codable, Identifiable, Equatable {
+struct Ride: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let userId: UUID
     let type: String
@@ -34,6 +55,20 @@ struct Ride: Codable, Identifiable, Equatable {
     let reviewSkippedAt: Date?
     let createdAt: Date
     let updatedAt: Date
+    
+    // MARK: - Optional Joined Fields (populated when fetched with joins)
+    
+    /// Profile of the user who posted the ride
+    var poster: Profile?
+    
+    /// Profile of the user who claimed the ride
+    var claimer: Profile?
+    
+    /// List of participants (co-requestors)
+    var participants: [Profile]?
+    
+    /// Count of Q&A questions/answers
+    var qaCount: Int?
     
     // MARK: - CodingKeys
     
@@ -55,6 +90,7 @@ struct Ride: Codable, Identifiable, Equatable {
         case reviewSkippedAt = "review_skipped_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        // Joined fields are not in CodingKeys - they're populated separately
     }
     
     // MARK: - Initializers
@@ -76,7 +112,11 @@ struct Ride: Codable, Identifiable, Equatable {
         reviewSkipped: Bool? = nil,
         reviewSkippedAt: Date? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        poster: Profile? = nil,
+        claimer: Profile? = nil,
+        participants: [Profile]? = nil,
+        qaCount: Int? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -95,6 +135,10 @@ struct Ride: Codable, Identifiable, Equatable {
         self.reviewSkippedAt = reviewSkippedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.poster = poster
+        self.claimer = claimer
+        self.participants = participants
+        self.qaCount = qaCount
     }
 }
 

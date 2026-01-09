@@ -33,7 +33,7 @@ struct SecondaryButton: View {
 #Preview {
     VStack(spacing: 20) {
         SecondaryButton(title: "Cancel", action: {})
-        SecondaryButton(title: "Disabled", isDisabled: true, action: {})
+        SecondaryButton(title: "Disabled", action: {}, isDisabled: true)
     }
     .padding()
 }

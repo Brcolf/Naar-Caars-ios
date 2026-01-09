@@ -95,5 +95,48 @@ final class FavorTests: XCTestCase {
         
         XCTAssertEqual(favor1, favor2)
     }
+    
+    func testCodableDecoding_Success() throws {
+        // Given: JSON with snake_case keys matching database schema
+        let json = """
+        {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "user_id": "223e4567-e89b-12d3-a456-426614174000",
+            "title": "Help with groceries",
+            "description": "Need help carrying groceries to apartment",
+            "location": "456 Oak Avenue",
+            "duration": "under_hour",
+            "requirements": "Must be able to lift 20 lbs",
+            "date": "2025-01-15T00:00:00Z",
+            "time": "16:30:00",
+            "gift": "Coffee and cookies",
+            "status": "open",
+            "claimed_by": null,
+            "reviewed": false,
+            "review_skipped": null,
+            "review_skipped_at": null,
+            "created_at": "2025-01-05T00:00:00Z",
+            "updated_at": "2025-01-05T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+        
+        // When: Decoding with snake_case keys
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let favor = try decoder.decode(Favor.self, from: json)
+        
+        // Then: All snake_case fields should be correctly mapped to camelCase
+        XCTAssertEqual(favor.userId.uuidString, "223e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(favor.title, "Help with groceries")
+        XCTAssertEqual(favor.description, "Need help carrying groceries to apartment")
+        XCTAssertEqual(favor.location, "456 Oak Avenue")
+        XCTAssertEqual(favor.duration, .underHour)
+        XCTAssertEqual(favor.requirements, "Must be able to lift 20 lbs")
+        XCTAssertEqual(favor.time, "16:30:00")
+        XCTAssertEqual(favor.gift, "Coffee and cookies")
+        XCTAssertEqual(favor.status, .open)
+        XCTAssertNil(favor.claimedBy)
+        XCTAssertEqual(favor.reviewed, false)
+    }
 }
 

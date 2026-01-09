@@ -8,14 +8,19 @@
 import Foundation
 
 /// Message model
-struct Message: Codable, Identifiable, Equatable {
+struct Message: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let conversationId: UUID
     let fromId: UUID
     let text: String
     let imageUrl: String?
-    let readBy: [UUID] // UUID array from PostgreSQL
+    var readBy: [UUID] // UUID array from PostgreSQL
     let createdAt: Date
+    
+    // MARK: - Optional Joined Fields (populated when fetched with joins)
+    
+    /// Profile of the sender
+    var sender: Profile?
     
     // MARK: - CodingKeys
     
@@ -38,7 +43,8 @@ struct Message: Codable, Identifiable, Equatable {
         text: String,
         imageUrl: String? = nil,
         readBy: [UUID] = [],
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        sender: Profile? = nil
     ) {
         self.id = id
         self.conversationId = conversationId
@@ -47,6 +53,7 @@ struct Message: Codable, Identifiable, Equatable {
         self.imageUrl = imageUrl
         self.readBy = readBy
         self.createdAt = createdAt
+        self.sender = sender
     }
 }
 

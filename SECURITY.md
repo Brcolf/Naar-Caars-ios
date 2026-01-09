@@ -225,15 +225,52 @@ CREATE POLICY "conversations_select_participant" ON public.conversations
 ```sql
 ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
 
+-- Helper function to check participation without RLS recursion
+CREATE OR REPLACE FUNCTION public.is_conversation_participant(
+  p_conversation_id UUID,
+  p_user_id UUID
+) RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.conversation_participants
+    WHERE conversation_id = p_conversation_id
+    AND user_id = p_user_id
+  );
+$$;
+
 -- Users can see participants in their conversations
+-- Uses SECURITY DEFINER function to avoid infinite recursion
 CREATE POLICY "participants_select_own_convos" ON public.conversation_participants
   FOR SELECT USING (
+    -- User can see their own participation
+    user_id = auth.uid()
+    OR
+    -- User can see other participants in conversations where they are a participant
+    public.is_conversation_participant(conversation_participants.conversation_id, auth.uid())
+  );
+
+-- Users can add themselves or be added by conversation creator
+CREATE POLICY "participants_insert_creator_or_self" ON public.conversation_participants
+  FOR INSERT WITH CHECK (
+    user_id = auth.uid()
+    OR
     EXISTS (
-      SELECT 1 FROM public.conversation_participants cp
-      WHERE cp.conversation_id = conversation_participants.conversation_id
-      AND cp.user_id = auth.uid()
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = conversation_participants.conversation_id
+      AND c.created_by = auth.uid()
     )
   );
+
+-- Users can update their own participation
+CREATE POLICY "participants_update_own" ON public.conversation_participants
+  FOR UPDATE USING (user_id = auth.uid());
+
+-- Users can remove their own participation
+CREATE POLICY "participants_delete_own" ON public.conversation_participants
+  FOR DELETE USING (user_id = auth.uid());
 ```
 
 ### 2.10 notifications

@@ -8,7 +8,7 @@
 import Foundation
 
 /// User profile model
-struct Profile: Codable, Identifiable, Equatable {
+struct Profile: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let name: String
     let email: String
@@ -29,6 +29,20 @@ struct Profile: Codable, Identifiable, Equatable {
     
     let createdAt: Date
     let updatedAt: Date
+    
+    // MARK: - Computed Properties
+    
+    /// User initials (first letter of first and last name)
+    var initials: String {
+        let components = name.split(separator: " ")
+        guard components.count >= 2 else {
+            // Single name - use first two characters
+            return String(name.prefix(2)).uppercased()
+        }
+        let firstInitial = String(components[0].prefix(1))
+        let lastInitial = String(components[components.count - 1].prefix(1))
+        return (firstInitial + lastInitial).uppercased()
+    }
     
     // MARK: - CodingKeys
     

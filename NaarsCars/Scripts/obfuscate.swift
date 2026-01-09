@@ -4,7 +4,8 @@
 //  NaarsCars
 //
 //  Helper script to obfuscate Supabase credentials for Secrets.swift
-//  Usage: swift Scripts/obfuscate.swift "your-url" "your-anon-key"
+//  Usage: swift Scripts/obfuscate.swift "your-url" "your-publishable-key"
+//  Note: Supabase publishable key is the same as anon key
 //
 
 import Foundation
@@ -33,30 +34,32 @@ func formatBytes(_ bytes: [UInt8]) -> String {
 // MARK: - Main
 
 guard CommandLine.arguments.count == 3 else {
-    print("Usage: swift Scripts/obfuscate.swift \"<supabase-url>\" \"<anon-key>\"")
+    print("Usage: swift Scripts/obfuscate.swift \"<supabase-url>\" \"<publishable-key>\"")
     print("Example: swift Scripts/obfuscate.swift \"https://xxxxx.supabase.co\" \"eyJhbGc...\"")
+    print("Note: Supabase publishable key is the same as anon key")
     exit(1)
 }
 
 let url = CommandLine.arguments[1]
-let anonKey = CommandLine.arguments[2]
+let publishableKey = CommandLine.arguments[2]
 
 print("🔐 Obfuscating Supabase credentials...")
 print()
 
 let obfuscatedURL = obfuscate(url)
-let obfuscatedAnonKey = obfuscate(anonKey)
+let obfuscatedPublishableKey = obfuscate(publishableKey)
 
 print("// Obfuscated Supabase URL")
-print("private static let obfuscatedURL: [UInt8] = [")
+print("private static let urlBytes: [UInt8] = [")
 print("    \(formatBytes(obfuscatedURL))")
 print("]")
 print()
-print("// Obfuscated Supabase anon key")
-print("private static let obfuscatedAnonKey: [UInt8] = [")
-print("    \(formatBytes(obfuscatedAnonKey))")
+print("// Obfuscated Supabase publishable key (same as anon key)")
+print("private static let publishableKeyBytes: [UInt8] = [")
+print("    \(formatBytes(obfuscatedPublishableKey))")
 print("]")
 print()
 print("✅ Copy the above arrays into Secrets.swift")
+print("   Then uncomment the deobfuscate() calls in supabaseURL and supabasePublishableKey")
 
 

@@ -62,9 +62,21 @@ final class AppState: ObservableObject {
     
     // MARK: - Initialization
     
+    private var cancellables = Set<AnyCancellable>()
+    
     init() {
         // AppState will be initialized with isLoading = true
         // AuthService will be checked on app launch to update state
+        
+        // Listen for signout events
+        NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.currentUser = nil
+                    self?.isLoading = false
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods

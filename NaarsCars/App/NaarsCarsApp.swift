@@ -12,6 +12,9 @@ struct NaarsCarsApp: App {
     /// Global app state manager
     @StateObject private var appState = AppState()
     
+    /// App delegate for push notification handling
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     init() {
         // Test connection on app launch
         Task {

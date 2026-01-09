@@ -45,9 +45,22 @@ final class SupabaseService: ObservableObject {
             fatalError("Invalid Supabase URL: \(urlString)")
         }
         
+        // Configure Auth client to emit local session as initial session
+        // This fixes the warning about incorrect behavior in session handling
+        // See: https://github.com/supabase/supabase-swift/pull/822
+        let authOptions = SupabaseClientOptions.AuthOptions(
+            storage: KeychainLocalStorage(service: "com.naarscars.supabase.auth"),
+            emitLocalSessionAsInitialSession: true
+        )
+        
+        let options = SupabaseClientOptions(
+            auth: authOptions
+        )
+        
         self.client = SupabaseClient(
             supabaseURL: url,
-            supabaseKey: anonKey
+            supabaseKey: anonKey,
+            options: options
         )
         
         print("✅ Supabase client initialized")
