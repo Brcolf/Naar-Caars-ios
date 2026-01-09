@@ -7,6 +7,12 @@
 
 import Foundation
 
+/// Vote type enum (shared between posts and comments)
+enum VoteType: String, Codable {
+    case upvote
+    case downvote
+}
+
 /// Post type enum for town hall posts
 enum PostType: String, Codable {
     case userPost = "user_post"
@@ -27,9 +33,15 @@ struct TownHallPost: Codable, Identifiable, Equatable {
     let title: String?
     let pinned: Bool?
     let type: PostType?
+    let reviewId: UUID? // Link to review if this post is about a review
     
     // Joined data (not from database)
     var author: Profile?
+    var review: Review? // Review data if reviewId is set
+    var commentCount: Int = 0
+    var upvotes: Int = 0
+    var downvotes: Int = 0
+    var userVote: VoteType? // Current user's vote on this post
     
     // MARK: - CodingKeys
     
@@ -41,6 +53,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         case imageUrl = "image_url"
         case pinned
         case type
+        case reviewId = "review_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -72,9 +85,15 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         title: String? = nil,
         pinned: Bool? = nil,
         type: PostType? = nil,
+        reviewId: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        author: Profile? = nil
+        author: Profile? = nil,
+        review: Review? = nil,
+        commentCount: Int = 0,
+        upvotes: Int = 0,
+        downvotes: Int = 0,
+        userVote: VoteType? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -83,9 +102,31 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         self.title = title
         self.pinned = pinned
         self.type = type ?? .userPost
+        self.reviewId = reviewId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.author = author
+        self.review = review
+        self.commentCount = commentCount
+        self.upvotes = upvotes
+        self.downvotes = downvotes
+        self.userVote = userVote
+    }
+    
+    // MARK: - Equatable
+    
+    static func == (lhs: TownHallPost, rhs: TownHallPost) -> Bool {
+        // Only compare stored properties, not computed/joined properties
+        return lhs.id == rhs.id &&
+               lhs.userId == rhs.userId &&
+               lhs.content == rhs.content &&
+               lhs.imageUrl == rhs.imageUrl &&
+               lhs.createdAt == rhs.createdAt &&
+               lhs.updatedAt == rhs.updatedAt &&
+               lhs.title == rhs.title &&
+               lhs.pinned == rhs.pinned &&
+               lhs.type == rhs.type &&
+               lhs.reviewId == rhs.reviewId
     }
 }
 

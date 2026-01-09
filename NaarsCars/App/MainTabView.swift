@@ -17,7 +17,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // Combined dashboard with rides and favors
-            DashboardTabView()
+            RequestsDashboardView()
                 .tag(0)
                 .tabItem {
                     Label("Requests", systemImage: "car.fill")
@@ -36,20 +36,14 @@ struct MainTabView: View {
                     Label("Notifications", systemImage: "bell.fill")
                 }
             
-            TownHallFeedView()
+            CommunityTabView()
                 .tag(3)
                 .tabItem {
-                    Label("Town Hall", systemImage: "house.fill")
-                }
-            
-            LeaderboardView()
-                .tag(4)
-                .tabItem {
-                    Label("Leaderboard", systemImage: "trophy.fill")
+                    Label("Community", systemImage: "person.3.fill")
                 }
             
             MyProfileView()
-                .tag(5)
+                .tag(4)
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")
                 }
@@ -61,49 +55,6 @@ struct MainTabView: View {
             // Update coordinator when user manually changes tab
             if let tab = NavigationCoordinator.Tab(rawValue: newTab) {
                 navigationCoordinator.selectedTab = tab
-            }
-        }
-    }
-}
-
-/// Combined dashboard tab showing both rides and favors
-struct DashboardTabView: View {
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
-    @State private var selectedTab = 0
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Tab picker
-                Picker("Dashboard", selection: $selectedTab) {
-                    Text("Rides").tag(0)
-                    Text("Favors").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding()
-                
-                // Content
-                TabView(selection: $selectedTab) {
-                    RidesDashboardView()
-                        .tag(0)
-                    
-                    FavorsDashboardView()
-                        .tag(1)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-            }
-            .navigationTitle("Requests")
-            .onChange(of: navigationCoordinator.navigateToRide) { _, _ in
-                // Switch to rides tab when navigating to a ride
-                if navigationCoordinator.navigateToRide != nil {
-                    selectedTab = 0
-                }
-            }
-            .onChange(of: navigationCoordinator.navigateToFavor) { _, _ in
-                // Switch to favors tab when navigating to a favor
-                if navigationCoordinator.navigateToFavor != nil {
-                    selectedTab = 1
-                }
             }
         }
     }

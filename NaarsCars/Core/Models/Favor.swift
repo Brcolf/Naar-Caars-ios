@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import SwiftUI
 
 /// Favor status enum matching database enum
 enum FavorStatus: String, Codable {

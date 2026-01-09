@@ -6,13 +6,14 @@
 //
 
 import SwiftUI
+import Foundation
 import MapKit
 import CoreLocation
 internal import Combine
 
 /// Map view displaying ride and favor requests
 struct RequestMapView: View {
-    @StateObject private var viewModel = RequestMapViewModel()
+    @StateObject private var viewModel: RequestMapViewModel
     @State private var selectedRequest: MapRequest?
     @State private var cameraPosition: MapCameraPosition
     
@@ -23,11 +24,13 @@ struct RequestMapView: View {
     private static let seattleCenter = CLLocationCoordinate2D(latitude: 47.6062, longitude: -122.3321)
     
     init(
+        filter: RequestFilter = .open,
         onRideSelected: ((UUID) -> Void)? = nil,
         onFavorSelected: ((UUID) -> Void)? = nil
     ) {
         self.onRideSelected = onRideSelected
         self.onFavorSelected = onFavorSelected
+        _viewModel = StateObject(wrappedValue: RequestMapViewModel(filter: filter))
         
         let initialRegion = MKCoordinateRegion(
             center: Self.seattleCenter,
@@ -43,8 +46,8 @@ struct RequestMapView: View {
                 // User location (built-in)
                 UserAnnotation()
                 
-                // Request pins
-                ForEach(viewModel.filteredRequests) { request in
+                // Request pins (both rides and favors are shown together)
+                ForEach(viewModel.mapRequests) { request in
                     Annotation(
                         request.title,
                         coordinate: request.coordinate
@@ -62,36 +65,18 @@ struct RequestMapView: View {
                 MapCompass()
             }
             .ignoresSafeArea(edges: .top)
-            .onAppear {
-                Task {
-                    await viewModel.loadRequests()
-                    // Adjust region to fit all requests
-                    if !viewModel.mapRequests.isEmpty {
-                        adjustRegionToFitRequests()
-                    }
-                }
-            }
-            .onChange(of: viewModel.filteredRequests) { _, _ in
-                // Adjust region when filters change
-                if !viewModel.filteredRequests.isEmpty {
+            .task {
+                await viewModel.loadRequests()
+                // Adjust region to fit all requests
+                if !viewModel.mapRequests.isEmpty {
                     adjustRegionToFitRequests()
                 }
             }
-            
-            // Filter bar overlay
-            VStack {
-                FilterBar(
-                    showRides: $viewModel.showRides,
-                    showFavors: $viewModel.showFavors,
-                    requestCount: viewModel.filteredRequests.count
-                )
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(12)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                
-                Spacer()
+            .onChange(of: viewModel.mapRequests) { _, _ in
+                // Adjust region when requests change
+                if !viewModel.mapRequests.isEmpty {
+                    adjustRegionToFitRequests()
+                }
             }
             
             // Bottom sheet for selected request
@@ -133,9 +118,9 @@ struct RequestMapView: View {
     
     /// Adjust map region to fit all visible requests
     private func adjustRegionToFitRequests() {
-        guard !viewModel.filteredRequests.isEmpty else { return }
+        guard !viewModel.mapRequests.isEmpty else { return }
         
-        let coordinates = viewModel.filteredRequests.map { $0.coordinate }
+        let coordinates = viewModel.mapRequests.map { $0.coordinate }
         let latitudes = coordinates.map { $0.latitude }
         let longitudes = coordinates.map { $0.longitude }
         
@@ -179,39 +164,61 @@ struct RequestMapView: View {
 @MainActor
 final class RequestMapViewModel: ObservableObject {
     @Published var mapRequests: [MapRequest] = []
-    @Published var showRides = true
-    @Published var showFavors = true
     @Published var isLoading = false
     
-    var filteredRequests: [MapRequest] {
-        mapRequests.filter { request in
-            switch request.type {
-            case .ride:
-                return showRides
-            case .favor:
-                return showFavors
-            }
-        }
-    }
-    
+    private let filter: RequestFilter
     private let mapService = MapService.shared
     private let rideService = RideService.shared
     private let favorService = FavorService.shared
+    private let authService = AuthService.shared
     
-    /// Load rides and favors, then create map requests
+    init(filter: RequestFilter = .open) {
+        self.filter = filter
+    }
+    
+    /// Load rides and favors based on filter, then create map requests
     func loadRequests() async {
         isLoading = true
         
         do {
-            // Fetch rides and favors in parallel
-            async let ridesTask: [Ride] = rideService.fetchRides(status: .open)
-            async let favorsTask: [Favor] = favorService.fetchFavors(status: .open)
+            let currentUserId = authService.currentUserId
+            
+            // Fetch rides and favors in parallel based on filter
+            async let ridesTask: [Ride] = {
+                switch filter {
+                case .open:
+                    return try await rideService.fetchRides(status: .open)
+                case .mine:
+                    guard let userId = currentUserId else { return [] }
+                    return try await rideService.fetchRides(userId: userId)
+                case .claimed:
+                    guard let userId = currentUserId else { return [] }
+                    return try await rideService.fetchRides(claimedBy: userId)
+                }
+            }()
+            
+            async let favorsTask: [Favor] = {
+                switch filter {
+                case .open:
+                    return try await favorService.fetchFavors(status: .open)
+                case .mine:
+                    guard let userId = currentUserId else { return [] }
+                    return try await favorService.fetchFavors(userId: userId)
+                case .claimed:
+                    guard let userId = currentUserId else { return [] }
+                    return try await favorService.fetchFavors(claimedBy: userId)
+                }
+            }()
             
             let rides = try await ridesTask
             let favors = try await favorsTask
             
+            // Filter out completed requests
+            let filteredRides = rides.filter { $0.status != .completed }
+            let filteredFavors = favors.filter { $0.status != .completed }
+            
             // Create map requests (geocoding happens here)
-            mapRequests = await mapService.createMapRequests(rides: rides, favors: favors)
+            mapRequests = await mapService.createMapRequests(rides: filteredRides, favors: filteredFavors)
             
         } catch {
             print("❌ [RequestMapViewModel] Error loading requests: \(error.localizedDescription)")

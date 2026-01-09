@@ -23,6 +23,12 @@ extension Color {
     
     /// Error color - Red
     static let naarsError = Color(hex: "EF4444")
+    
+    /// Favor card accent color - Teal/Cyan (complementary to red for rides)
+    static let favorAccent = Color(hex: "2DB3C8") // Teal/cyan
+    
+    /// Ride card accent color - Red
+    static let rideAccent = Color(hex: "EF4444") // Red
 }
 
 /// Color extension for hex color initialization

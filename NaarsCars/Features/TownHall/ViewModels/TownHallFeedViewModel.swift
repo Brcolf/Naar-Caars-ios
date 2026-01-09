@@ -105,6 +105,30 @@ final class TownHallFeedViewModel: ObservableObject {
         }
     }
     
+    /// Vote on a post
+    /// - Parameters:
+    ///   - postId: Post ID to vote on
+    ///   - voteType: Vote type (nil to remove vote)
+    func votePost(postId: UUID, voteType: VoteType?) async {
+        guard let userId = AuthService.shared.currentUserId else {
+            error = .notAuthenticated
+            return
+        }
+        
+        do {
+            try await townHallService.votePost(postId: postId, userId: userId, voteType: voteType)
+            
+            // Update local post state
+            if let index = posts.firstIndex(where: { $0.id == postId }) {
+                // Reload this post to get updated vote counts
+                await refreshPosts()
+            }
+        } catch {
+            self.error = AppError.processingError(error.localizedDescription)
+            print("🔴 Error voting on post: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - Realtime Subscription
     
     private func setupRealtimeSubscription() {

@@ -60,7 +60,7 @@ struct FavorCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundColor(.naarsPrimary)
+                        .foregroundColor(.favorAccent) // Teal/cyan for favors
                         .font(.system(size: 16))
                     Text(favor.location)
                         .font(.naarsBody)
@@ -86,6 +86,14 @@ struct FavorCard: View {
         }
         .padding()
         .background(Color(.systemBackground))
+        .overlay(
+            // Teal/blue accent border on the left for favors (complementary to red)
+            Rectangle()
+                .fill(Color.favorAccent) // Teal/cyan accent for favors
+                .frame(width: 4)
+                .cornerRadius(2),
+            alignment: .leading
+        )
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }

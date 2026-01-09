@@ -55,7 +55,7 @@ struct RideCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundColor(.naarsPrimary)
+                        .foregroundColor(.rideAccent) // Red for rides
                         .font(.system(size: 16))
                     Text(ride.pickup)
                         .font(.naarsBody)
@@ -72,7 +72,7 @@ struct RideCard: View {
                 
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundColor(.naarsAccent)
+                        .foregroundColor(.rideAccent) // Red for rides
                         .font(.system(size: 16))
                     Text(ride.destination)
                         .font(.naarsBody)
@@ -92,6 +92,14 @@ struct RideCard: View {
         }
         .padding()
         .background(Color(.systemBackground))
+        .overlay(
+            // Red accent border on the left for rides
+            Rectangle()
+                .fill(Color.rideAccent)
+                .frame(width: 4)
+                .cornerRadius(2),
+            alignment: .leading
+        )
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
@@ -121,4 +129,3 @@ struct RideCard: View {
     }
     .padding()
 }
-

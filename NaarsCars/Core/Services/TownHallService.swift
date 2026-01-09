@@ -58,6 +58,13 @@ final class TownHallService {
         // Enrich with author profiles
         posts = await enrichPostsWithProfiles(posts)
         
+        // Enrich with vote counts and comment counts
+        if let userId = AuthService.shared.currentUserId {
+            posts = await enrichPostsWithVotesAndComments(posts, userId: userId)
+        } else {
+            posts = await enrichPostsWithVotesAndComments(posts, userId: nil)
+        }
+        
         // Cache first page only
         if offset == 0 {
             await cacheManager.cacheTownHallPosts(posts)
@@ -215,6 +222,94 @@ final class TownHallService {
         print("✅ [TownHallService] Deleted post: \(postId)")
     }
     
+    // MARK: - Vote Operations
+    
+    /// Vote on a post (upvote or downvote, or remove vote if same vote type)
+    /// - Parameters:
+    ///   - postId: Post ID to vote on
+    ///   - userId: User ID voting
+    ///   - voteType: Vote type (nil to remove vote)
+    /// - Throws: AppError if vote operation fails
+    func votePost(postId: UUID, userId: UUID, voteType: VoteType?) async throws {
+        // Check if user already voted on this post
+        let existingVoteResponse = try? await supabase
+            .from("town_hall_votes")
+            .select("id, vote_type")
+            .eq("post_id", value: postId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+        
+        if let existingData = existingVoteResponse?.data {
+            struct ExistingVote: Codable {
+                let id: UUID
+                let voteType: String
+                enum CodingKeys: String, CodingKey {
+                    case id
+                    case voteType = "vote_type"
+                }
+            }
+            
+            let existingVote = try JSONDecoder().decode(ExistingVote.self, from: existingData)
+            
+            if let newVoteType = voteType {
+                // Update existing vote
+                if existingVote.voteType != newVoteType.rawValue {
+                    // Change vote type
+                    try await supabase
+                        .from("town_hall_votes")
+                        .update(["vote_type": AnyCodable(newVoteType.rawValue)])
+                        .eq("id", value: existingVote.id.uuidString)
+                        .execute()
+                }
+                // If same vote type, remove vote (toggle off)
+                else {
+                    try await supabase
+                        .from("town_hall_votes")
+                        .delete()
+                        .eq("id", value: existingVote.id.uuidString)
+                        .execute()
+                }
+            } else {
+                // Remove existing vote
+                try await supabase
+                    .from("town_hall_votes")
+                    .delete()
+                    .eq("id", value: existingVote.id.uuidString)
+                    .execute()
+            }
+        } else if let newVoteType = voteType {
+            // Create new vote
+            struct VoteInsert: Codable {
+                let userId: String
+                let postId: String
+                let voteType: String
+                
+                enum CodingKeys: String, CodingKey {
+                    case userId = "user_id"
+                    case postId = "post_id"
+                    case voteType = "vote_type"
+                }
+            }
+            
+            let voteInsert = VoteInsert(
+                userId: userId.uuidString,
+                postId: postId.uuidString,
+                voteType: newVoteType.rawValue
+            )
+            
+            try await supabase
+                .from("town_hall_votes")
+                .insert(voteInsert)
+                .execute()
+        }
+        
+        // Invalidate post cache to refresh vote counts
+        await cacheManager.invalidateTownHallPosts()
+        
+        print("✅ [TownHallService] Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
+    }
+    
     // MARK: - Helper Methods
     
     /// Generate a title from post content
@@ -261,6 +356,146 @@ final class TownHallService {
             enriched.author = profileMap[post.userId]
             return enriched
         }
+    }
+    
+    /// Enrich posts with vote counts, comment counts, and user votes
+    private func enrichPostsWithVotesAndComments(_ posts: [TownHallPost], userId: UUID?) async -> [TownHallPost] {
+        guard !posts.isEmpty else { return posts }
+        
+        let postIds = posts.map { $0.id }
+        
+        // Fetch vote counts for all posts
+        let voteCounts = await fetchPostVoteCounts(postIds: postIds, userId: userId)
+        
+        // Fetch comment counts for all posts
+        let commentCounts = await fetchCommentCounts(postIds: postIds)
+        
+        // Fetch review data if any posts have reviewId
+        let reviewIds = posts.compactMap { $0.reviewId }
+        var reviewMap: [UUID: Review] = [:]
+        if !reviewIds.isEmpty {
+            reviewMap = await fetchReviews(reviewIds: reviewIds)
+        }
+        
+        // Enrich posts
+        return posts.map { post in
+            var enriched = post
+            if let counts = voteCounts[post.id] {
+                enriched.upvotes = counts.upvotes
+                enriched.downvotes = counts.downvotes
+                enriched.userVote = counts.userVote
+            }
+            enriched.commentCount = commentCounts[post.id] ?? 0
+            if let reviewId = post.reviewId, let review = reviewMap[reviewId] {
+                enriched.review = review
+            }
+            return enriched
+        }
+    }
+    
+    /// Fetch vote counts for posts (helper method)
+    private func fetchPostVoteCounts(postIds: [UUID], userId: UUID?) async -> [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] {
+        guard !postIds.isEmpty else { return [:] }
+        
+        let response = try? await supabase
+            .from("town_hall_votes")
+            .select("post_id, vote_type, user_id")
+            .in("post_id", values: postIds.map { $0.uuidString })
+            .execute()
+        
+        guard let data = response?.data else { return [:] }
+        
+        struct VoteRecord: Codable {
+            let postId: UUID
+            let voteType: String
+            let userId: UUID
+            
+            enum CodingKeys: String, CodingKey {
+                case postId = "post_id"
+                case voteType = "vote_type"
+                case userId = "user_id"
+            }
+        }
+        
+        let votes = (try? JSONDecoder().decode([VoteRecord].self, from: data)) ?? []
+        
+        var counts: [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] = [:]
+        
+        for postId in postIds {
+            counts[postId] = (0, 0, nil)
+        }
+        
+        for vote in votes {
+            var current = counts[vote.postId] ?? (0, 0, nil)
+            if vote.voteType == "upvote" {
+                current.0 += 1
+            } else if vote.voteType == "downvote" {
+                current.1 += 1
+            }
+            
+            // Check if this is the user's vote
+            if let userId = userId, vote.userId == userId {
+                current.2 = VoteType(rawValue: vote.voteType)
+            }
+            
+            counts[vote.postId] = current
+        }
+        
+        return counts
+    }
+    
+    /// Fetch comment counts for posts
+    private func fetchCommentCounts(postIds: [UUID]) async -> [UUID: Int] {
+        guard !postIds.isEmpty else { return [:] }
+        
+        // Use raw SQL to count comments per post
+        // PostgreSQL COUNT with GROUP BY
+        let response = try? await supabase
+            .from("town_hall_comments")
+            .select("post_id")
+            .in("post_id", values: postIds.map { $0.uuidString })
+            .execute()
+        
+        guard let data = response?.data else { return [:] }
+        
+        struct CommentRecord: Codable {
+            let postId: UUID
+            enum CodingKeys: String, CodingKey {
+                case postId = "post_id"
+            }
+        }
+        
+        let comments = (try? JSONDecoder().decode([CommentRecord].self, from: data)) ?? []
+        
+        // Count comments per post
+        var counts: [UUID: Int] = [:]
+        for postId in postIds {
+            counts[postId] = 0
+        }
+        for comment in comments {
+            counts[comment.postId, default: 0] += 1
+        }
+        
+        return counts
+    }
+    
+    /// Fetch review data for review IDs
+    private func fetchReviews(reviewIds: [UUID]) async -> [UUID: Review] {
+        guard !reviewIds.isEmpty else { return [:] }
+        
+        let response = try? await supabase
+            .from("reviews")
+            .select()
+            .in("id", values: reviewIds.map { $0.uuidString })
+            .execute()
+        
+        guard let data = response?.data else { return [:] }
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let reviews = (try? decoder.decode([Review].self, from: data)) ?? []
+        
+        return Dictionary(uniqueKeysWithValues: reviews.map { ($0.id, $0) })
     }
     
     /// Create date decoder for town hall posts
