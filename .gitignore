@@ -32,5 +32,3 @@ GoogleService-Info.plist
 
 # Keep existing NaarsCars/.gitignore patterns
 
-.DS_Store
-**/.DS_Store
