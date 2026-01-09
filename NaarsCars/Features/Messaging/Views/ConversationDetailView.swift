@@ -18,11 +18,43 @@ struct ConversationDetailView: View {
     @FocusState private var isInputFocused: Bool
     @State private var showAddParticipants = false
     @State private var selectedUserIds: Set<UUID> = []
+    @State private var showEditGroupName = false
+    @State private var conversationDetail: ConversationWithDetails?
+    @State private var groupName: String = ""
     
     init(conversationId: UUID) {
         self.conversationId = conversationId
         _viewModel = StateObject(wrappedValue: ConversationDetailViewModel(conversationId: conversationId))
         _participantsViewModel = StateObject(wrappedValue: ConversationParticipantsViewModel(conversationId: conversationId))
+    }
+    
+    // Computed title based on conversation type
+    private var conversationTitle: String {
+        // If activity-based, show request title
+        if let detail = conversationDetail, let requestTitle = detail.requestTitle, !requestTitle.isEmpty {
+            return requestTitle
+        }
+        
+        // If group conversation (3+ participants), show editable group name or participant names
+        if participantsViewModel.participants.count > 2 {
+            if !groupName.isEmpty {
+                return groupName
+            }
+            // Show participant names (excluding current user)
+            let otherParticipants = participantsViewModel.participants.filter { $0.id != AuthService.shared.currentUserId }
+            if !otherParticipants.isEmpty {
+                let names = otherParticipants.map { $0.name }
+                return names.joined(separator: ", ")
+            }
+        }
+        
+        // For direct message (2 participants), show other person's name
+        if participantsViewModel.participants.count == 2 {
+            let otherParticipant = participantsViewModel.participants.first { $0.id != AuthService.shared.currentUserId }
+            return otherParticipant?.name ?? "Chat"
+        }
+        
+        return "Chat"
     }
     
     var body: some View {
@@ -85,9 +117,20 @@ struct ConversationDetailView: View {
                 isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             )
         }
-        .navigationTitle("Chat")
+        .navigationTitle(conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                // Editable title button for group conversations
+                if let detail = conversationDetail,
+                   !detail.conversation.isActivityBased && participantsViewModel.participants.count > 2 {
+                    Button {
+                        showEditGroupName = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     showAddParticipants = true
@@ -111,9 +154,23 @@ struct ConversationDetailView: View {
                 }
             )
         }
+        .sheet(isPresented: $showEditGroupName) {
+            EditGroupNameView(
+                groupName: $groupName,
+                onSave: { newName in
+                    groupName = newName
+                    // TODO: Save group name to database when title field is added
+                    showEditGroupName = false
+                },
+                onCancel: {
+                    showEditGroupName = false
+                }
+            )
+        }
         .task {
             await viewModel.loadMessages()
             await participantsViewModel.loadParticipants()
+            await loadConversationDetails()
         }
         .onAppear {
             // Mark as read and update last_seen when view appears
@@ -149,6 +206,67 @@ struct ConversationDetailView: View {
             await participantsViewModel.loadParticipants()
         } catch {
             print("🔴 Error adding participants: \(error.localizedDescription)")
+        }
+    }
+    
+    private func loadConversationDetails() async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        
+        do {
+            let conversations = try await MessageService.shared.fetchConversations(userId: userId)
+            conversationDetail = conversations.first { $0.conversation.id == conversationId }
+        } catch {
+            print("🔴 Error loading conversation details: \(error.localizedDescription)")
+        }
+    }
+}
+
+/// View for editing group name
+struct EditGroupNameView: View {
+    @Binding var groupName: String
+    @State private var editedName: String
+    @FocusState private var isTextFieldFocused: Bool
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+    
+    init(groupName: Binding<String>, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        self._groupName = groupName
+        self._editedName = State(initialValue: groupName.wrappedValue)
+        self.onSave = onSave
+        self.onCancel = onCancel
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Group Name", text: $editedName)
+                        .focused($isTextFieldFocused)
+                        .textInputAutocapitalization(.words)
+                } header: {
+                    Text("Group Name")
+                } footer: {
+                    Text("This name will be visible to all participants in the conversation.")
+                }
+            }
+            .navigationTitle("Edit Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(editedName)
+                    }
+                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                isTextFieldFocused = true
+            }
         }
     }
 }

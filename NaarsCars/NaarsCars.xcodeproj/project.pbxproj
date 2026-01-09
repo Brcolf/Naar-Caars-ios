@@ -224,6 +224,8 @@
 		AC608DAC2F11BAD800C3769C /* CommunityTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DA92F11BAD800C3769C /* CommunityTabView.swift */; };
 		AC608DAF2F11BAE900C3769C /* TownHallPostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DAE2F11BAE900C3769C /* TownHallPostCard.swift */; };
 		AC608DB02F11BAE900C3769C /* PostCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DAD2F11BAE900C3769C /* PostCommentsView.swift */; };
+		AC608DB32F11C24F00C3769C /* TownHallCommentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DB12F11C24F00C3769C /* TownHallCommentService.swift */; };
+		AC608DB42F11C24F00C3769C /* TownHallVoteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DB22F11C24F00C3769C /* TownHallVoteService.swift */; };
 		AC91779D2F0B9A330077133C /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC91779C2F0B9A330077133C /* MainTabView.swift */; };
 		AC9178FB2F0BA7010077133C /* AppLaunchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */; };
 		ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */; };
@@ -514,6 +516,8 @@
 		AC608DA92F11BAD800C3769C /* CommunityTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityTabView.swift; sourceTree = "<group>"; };
 		AC608DAD2F11BAE900C3769C /* PostCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCommentsView.swift; sourceTree = "<group>"; };
 		AC608DAE2F11BAE900C3769C /* TownHallPostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostCard.swift; sourceTree = "<group>"; };
+		AC608DB12F11C24F00C3769C /* TownHallCommentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallCommentService.swift; sourceTree = "<group>"; };
+		AC608DB22F11C24F00C3769C /* TownHallVoteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallVoteService.swift; sourceTree = "<group>"; };
 		AC91779C2F0B9A330077133C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchManager.swift; sourceTree = "<group>"; };
 		ACCB369A6355469493FD86E2 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
@@ -1163,6 +1167,8 @@
 		ACDCBE002F0B783F00956D1C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AC608DB12F11C24F00C3769C /* TownHallCommentService.swift */,
+				AC608DB22F11C24F00C3769C /* TownHallVoteService.swift */,
 				AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */,
 				AC4723502F1169E2009A6FD0 /* BiometricService.swift */,
 				AC4723512F1169E2009A6FD0 /* LocationService.swift */,
@@ -1762,6 +1768,8 @@
 				AC4723542F1169E2009A6FD0 /* AuthService+AppleSignIn.swift in Sources */,
 				AC4723552F1169E2009A6FD0 /* BiometricService.swift in Sources */,
 				AC4723562F1169E2009A6FD0 /* LocationService.swift in Sources */,
+				AC608DB32F11C24F00C3769C /* TownHallCommentService.swift in Sources */,
+				AC608DB42F11C24F00C3769C /* TownHallVoteService.swift in Sources */,
 				CF86E62E881140AF84C527CA /* Core/Utilities/Logger.swift in Sources */,
 				9E490CB84FA24C199FF118DC /* Features/Claiming/ViewModels/ClaimViewModel.swift in Sources */,
 				C77C74CE4ADF45FBBD9F5214 /* Features/Claiming/Views/ClaimSheet.swift in Sources */,

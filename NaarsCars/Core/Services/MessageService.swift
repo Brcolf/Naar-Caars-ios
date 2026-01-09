@@ -146,11 +146,47 @@ final class MessageService {
                 let otherParticipants: [Profile] = []
                 // TODO: Parse joined profiles from response
                 
+                // Fetch request title if conversation is activity-based
+                var requestTitle: String? = nil
+                if let rideId = conversation.rideId {
+                    // Fetch ride title (from pickup/destination)
+                    if let rideResponse = try? await supabase
+                        .from("rides")
+                        .select("pickup, destination")
+                        .eq("id", value: rideId.uuidString)
+                        .single()
+                        .execute() {
+                        struct RideRow: Codable {
+                            let pickup: String
+                            let destination: String
+                        }
+                        if let ride = try? JSONDecoder().decode(RideRow.self, from: rideResponse.data) {
+                            requestTitle = "\(ride.pickup) → \(ride.destination)"
+                        }
+                    }
+                } else if let favorId = conversation.favorId {
+                    // Fetch favor title
+                    if let favorResponse = try? await supabase
+                        .from("favors")
+                        .select("title")
+                        .eq("id", value: favorId.uuidString)
+                        .single()
+                        .execute() {
+                        struct FavorRow: Codable {
+                            let title: String
+                        }
+                        if let favor = try? JSONDecoder().decode(FavorRow.self, from: favorResponse.data) {
+                            requestTitle = favor.title
+                        }
+                    }
+                }
+                
                 let details = ConversationWithDetails(
                     conversation: conversation,
                     lastMessage: lastMessage,
                     unreadCount: unreadCount,
-                    otherParticipants: otherParticipants
+                    otherParticipants: otherParticipants,
+                    requestTitle: requestTitle
                 )
                 conversationsWithDetails.append(details)
             }

@@ -111,6 +111,7 @@ struct ConversationWithDetails: Codable, Identifiable, Equatable, Sendable {
     let lastMessage: Message?
     let unreadCount: Int
     let otherParticipants: [Profile]
+    let requestTitle: String? // Title of the associated ride/favor if activity-based
     
     var id: UUID { conversation.id }
     
@@ -118,12 +119,14 @@ struct ConversationWithDetails: Codable, Identifiable, Equatable, Sendable {
         conversation: Conversation,
         lastMessage: Message? = nil,
         unreadCount: Int = 0,
-        otherParticipants: [Profile] = []
+        otherParticipants: [Profile] = [],
+        requestTitle: String? = nil
     ) {
         self.conversation = conversation
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount
         self.otherParticipants = otherParticipants
+        self.requestTitle = requestTitle
     }
 }
 
