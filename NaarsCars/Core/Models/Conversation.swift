@@ -63,14 +63,14 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
     
-    // Custom encoder to exclude missing columns when creating
+    // Custom encoder - include title if it exists (for updates)
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
         try container.encode(id, forKey: .id)
         try container.encodeIfPresent(rideId, forKey: .rideId)
         try container.encodeIfPresent(favorId, forKey: .favorId)
-        // Don't encode title or isArchived - they don't exist in database
+        try container.encodeIfPresent(title, forKey: .title) // Include title for updates
         try container.encode(createdBy, forKey: .createdBy)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)

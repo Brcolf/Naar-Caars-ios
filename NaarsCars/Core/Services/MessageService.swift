@@ -65,7 +65,7 @@ final class MessageService {
             // Get conversations where user is creator
             let createdConversationsResponse = try? await supabase
                 .from("conversations")
-                .select("id, created_by, ride_id, favor_id, created_at, updated_at")
+                .select("id, created_by, ride_id, favor_id, title, created_at, updated_at")
                 .eq("created_by", value: userId.uuidString)
                 .execute()
             
@@ -86,7 +86,7 @@ final class MessageService {
             // This scales well even with hundreds/thousands of conversations
             let conversationsResponse = try await supabase
                 .from("conversations")
-                .select("id, created_by, ride_id, favor_id, created_at, updated_at")
+                .select("id, created_by, ride_id, favor_id, title, created_at, updated_at")
                 .in("id", values: Array(allConversationIds).map { $0.uuidString })
                 .order("updated_at", ascending: false)
                 .execute()
@@ -135,16 +135,34 @@ final class MessageService {
                 let unreadCount = unreadMessages.count
                 
                 // Get other participants (excluding current user)
-                _ = try? await supabase
-                    .from("conversation_participants")
-                    .select("user_id, profiles!conversation_participants_user_id_fkey(id, name, avatar_url)")
-                    .eq("conversation_id", value: conversation.id.uuidString)
-                    .neq("user_id", value: userId.uuidString)
-                    .execute()
-                
-                // Parse other participants (simplified - would need proper join parsing)
-                let otherParticipants: [Profile] = []
-                // TODO: Parse joined profiles from response
+                var otherParticipants: [Profile] = []
+                do {
+                    let participantsResponse = try await supabase
+                        .from("conversation_participants")
+                        .select("user_id")
+                        .eq("conversation_id", value: conversation.id.uuidString)
+                        .neq("user_id", value: userId.uuidString)
+                        .execute()
+                    
+                    struct ParticipantRow: Codable {
+                        let userId: UUID
+                        enum CodingKeys: String, CodingKey {
+                            case userId = "user_id"
+                        }
+                    }
+                    
+                    let participantRows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
+                    
+                    // Fetch profiles for each participant
+                    for row in participantRows {
+                        if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+                            otherParticipants.append(profile)
+                        }
+                    }
+                } catch {
+                    print("⚠️ [MessageService] Error fetching participants for conversation \(conversation.id): \(error.localizedDescription)")
+                    // Continue with empty array - better than failing entire fetch
+                }
                 
                 // Fetch request title if conversation is activity-based
                 var requestTitle: String? = nil
@@ -225,7 +243,7 @@ final class MessageService {
         do {
             let response = try await supabase
                 .from("conversations")
-                .select("id, created_by, ride_id, favor_id, created_at, updated_at")
+                .select("id, created_by, ride_id, favor_id, title, created_at, updated_at")
                 .is("ride_id", value: nil)
                 .is("favor_id", value: nil)
                 .execute()
@@ -876,6 +894,46 @@ final class MessageService {
             .execute()
         
         print("✅ [MessageService] Updated last_seen for user \(userId) in conversation \(conversationId)")
+    }
+    
+    // MARK: - Conversation Title Management
+    
+    /// Update the title of a group conversation
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - title: New title (nil to remove title)
+    ///   - userId: User ID making the update (must be a participant)
+    /// - Throws: AppError if update fails
+    func updateConversationTitle(conversationId: UUID, title: String?, userId: UUID) async throws {
+        // Verify user is a participant
+        let participantCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+        
+        guard participantCheck != nil else {
+            throw AppError.permissionDenied("You must be a participant to update the conversation title")
+        }
+        
+        // Update title (use AnyCodable for optional nil value)
+        let updateData: [String: AnyCodable] = [
+            "title": AnyCodable(title),
+            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+        ]
+        
+        try await supabase
+            .from("conversations")
+            .update(updateData)
+            .eq("id", value: conversationId.uuidString)
+            .execute()
+        
+        // Invalidate caches
+        await cacheManager.invalidateConversations(userId: userId)
+        
+        print("✅ [MessageService] Updated title for conversation \(conversationId)")
     }
 }
 

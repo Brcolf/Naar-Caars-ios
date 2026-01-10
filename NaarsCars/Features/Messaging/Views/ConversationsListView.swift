@@ -236,10 +236,9 @@ struct ConversationRow: View {
         }
         
         // Priority 2: Group name (if conversation has a title)
-        // Note: Conversation model doesn't currently have title field, so this is placeholder
-        // if let title = conversationDetail.conversation.title, !title.isEmpty {
-        //     return title
-        // }
+        if let title = conversationDetail.conversation.title, !title.isEmpty {
+            return title
+        }
         
         // Priority 3: Participant names (comma-separated)
         if !conversationDetail.otherParticipants.isEmpty {

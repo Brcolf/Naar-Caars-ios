@@ -35,12 +35,18 @@ struct ConversationDetailView: View {
             return requestTitle
         }
         
-        // If group conversation (3+ participants), show editable group name or participant names
+        // If conversation has a saved title, use it
+        if let detail = conversationDetail, let title = detail.conversation.title, !title.isEmpty {
+            return title
+        }
+        
+        // If we have a local group name (being edited), use it
+        if !groupName.isEmpty && participantsViewModel.participants.count > 2 {
+            return groupName
+        }
+        
+        // If group conversation (3+ participants), show participant names
         if participantsViewModel.participants.count > 2 {
-            if !groupName.isEmpty {
-                return groupName
-            }
-            // Show participant names (excluding current user)
             let otherParticipants = participantsViewModel.participants.filter { $0.id != AuthService.shared.currentUserId }
             if !otherParticipants.isEmpty {
                 let names = otherParticipants.map { $0.name }
@@ -158,8 +164,9 @@ struct ConversationDetailView: View {
             EditGroupNameView(
                 groupName: $groupName,
                 onSave: { newName in
-                    groupName = newName
-                    // TODO: Save group name to database when title field is added
+                    Task {
+                        await updateGroupName(newName)
+                    }
                     showEditGroupName = false
                 },
                 onCancel: {
@@ -214,9 +221,37 @@ struct ConversationDetailView: View {
         
         do {
             let conversations = try await MessageService.shared.fetchConversations(userId: userId)
-            conversationDetail = conversations.first { $0.conversation.id == conversationId }
+            if let detail = conversations.first(where: { $0.conversation.id == conversationId }) {
+                conversationDetail = detail
+                // Update group name if conversation has a title
+                if let title = detail.conversation.title, !title.isEmpty {
+                    groupName = title
+                }
+            }
         } catch {
             print("🔴 Error loading conversation details: \(error.localizedDescription)")
+        }
+    }
+    
+    private func updateGroupName(_ newName: String) async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmedName.isEmpty ? nil : trimmedName
+        
+        do {
+            try await MessageService.shared.updateConversationTitle(
+                conversationId: conversationId,
+                title: finalName,
+                userId: userId
+            )
+            groupName = finalName ?? ""
+            // Reload conversation details to get updated title
+            await loadConversationDetails()
+        } catch {
+            print("🔴 Error updating group name: \(error.localizedDescription)")
+            // Revert group name on error
+            await loadConversationDetails()
         }
     }
 }
