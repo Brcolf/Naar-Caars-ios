@@ -220,6 +220,7 @@
 		ACF0D61C2F1224E20011F64F /* CommunityTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF0D6132F1224E20011F64F /* CommunityTabView.swift */; };
 		ACF0D61D2F1224E20011F64F /* RequestsDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF0D6162F1224E20011F64F /* RequestsDashboardViewModel.swift */; };
 		ACF0D61F2F1226D70011F64F /* TownHallPostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF0D61E2F1226D70011F64F /* TownHallPostCard.swift */; };
+		ACF0D6212F12B2CF0011F64F /* PostCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF0D6202F12B2CF0011F64F /* PostCommentsView.swift */; };
 		AEF04CC8E4B4406DBA4B5F2F /* Features/Favors/Views/EditFavorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CECDD9C8CFD4B14A1D105BE /* Features/Favors/Views/EditFavorView.swift */; };
 		B226C0514DC84558877E369D /* EditProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BCE5B28CED4588BD3232BA /* EditProfileViewModel.swift */; };
 		B29F4A793E8647D9911439DC /* AppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C3095B25134EB5AEC9473F /* AppNotification.swift */; };
@@ -486,6 +487,7 @@
 		ACF0D6162F1224E20011F64F /* RequestsDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsDashboardViewModel.swift; sourceTree = "<group>"; };
 		ACF0D6182F1224E20011F64F /* RequestsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsDashboardView.swift; sourceTree = "<group>"; };
 		ACF0D61E2F1226D70011F64F /* TownHallPostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostCard.swift; sourceTree = "<group>"; };
+		ACF0D6202F12B2CF0011F64F /* PostCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCommentsView.swift; sourceTree = "<group>"; };
 		AFA3030BA66943A389403FBC /* Core/Services/NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/NotificationService.swift; sourceTree = "<group>"; };
 		B8416473F0E54987BAC4482E /* FavorServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorServiceTests.swift; sourceTree = "<group>"; };
 		B8DC8F1E26304A009274E9D4 /* Core/Services/ConversationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/ConversationService.swift; sourceTree = "<group>"; };
@@ -716,6 +718,7 @@
 				AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */,
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
 				AC305EEF2F0DB7BD0063AFDF /* SignupInviteCodeView.swift */,
+				965D7426031E40078289F3DF /* PendingApprovalView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -761,6 +764,7 @@
 		AC35AB5B2F0F080F0012096B /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				ACF0D6202F12B2CF0011F64F /* PostCommentsView.swift */,
 				ACF0D61E2F1226D70011F64F /* TownHallPostCard.swift */,
 				AC35AB582F0F080F0012096B /* CreatePostView.swift */,
 				AC35AB592F0F080F0012096B /* TownHallFeedView.swift */,
@@ -861,7 +865,6 @@
 			children = (
 				AC305EEB2F0DB7BD0063AFDF /* ViewModels */,
 				AC305EF02F0DB7BD0063AFDF /* Views */,
-				965D7426031E40078289F3DF /* PendingApprovalView.swift */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";
@@ -1497,6 +1500,7 @@
 				AC305F3F2F0DBC430063AFDF /* AnyCodable.swift in Sources */,
 				AC35AB5C2F0F080F0012096B /* TownHallFeedView.swift in Sources */,
 				AC35AB5D2F0F080F0012096B /* CreatePostView.swift in Sources */,
+				ACF0D6212F12B2CF0011F64F /* PostCommentsView.swift in Sources */,
 				AC35AB5E2F0F080F0012096B /* TownHallPostRow.swift in Sources */,
 				ACF0D5D12F1223B00011F64F /* LocationAutocompleteField.swift in Sources */,
 				AC35AB5F2F0F080F0012096B /* CreatePostViewModel.swift in Sources */,

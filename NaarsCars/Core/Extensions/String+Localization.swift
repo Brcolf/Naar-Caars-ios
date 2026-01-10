@@ -10,13 +10,12 @@ import Foundation
 extension String {
     /// Returns localized string using self as key
     /// Uses LocalizationManager to respect user's language preference
-    /// 
-    /// Note: This will work once localization files are added to the project.
-    /// For now, it respects the AppleLanguages preference set by LocalizationManager.
+    /// Explicitly uses Bundle.main to ensure Localizable.xcstrings is found
     var localized: String {
-        // Use NSLocalizedString which respects AppleLanguages UserDefaults
-        // LocalizationManager sets this preference on app launch
-        return NSLocalizedString(self, comment: "")
+        // Use NSLocalizedString with explicit bundle to ensure Localizable.xcstrings is found
+        // The tableName "Localizable" corresponds to Localizable.xcstrings
+        let localizedString = NSLocalizedString(self, tableName: "Localizable", bundle: .main, value: self, comment: "")
+        return localizedString
     }
     
     /// Returns localized string with format arguments
