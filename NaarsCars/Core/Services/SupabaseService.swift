@@ -37,12 +37,61 @@ final class SupabaseService: ObservableObject {
         let anonKey = Secrets.supabaseAnonKey
         
         // Debug: Print deobfuscated URL (remove in production)
-        print("🔐 Deobfuscated URL: \(urlString)")
-        print("🔐 URL length: \(urlString.count)")
-        print("🔐 Anon key length: \(anonKey.count)")
+        print("🔐 [SupabaseService] Initializing...")
+        print("🔐 [SupabaseService] URL: \(urlString.isEmpty ? "(empty)" : urlString)")
+        print("🔐 [SupabaseService] URL length: \(urlString.count)")
+        print("🔐 [SupabaseService] Anon key length: \(anonKey.count)")
         
-        guard let url = URL(string: urlString) else {
-            fatalError("Invalid Supabase URL: \(urlString)")
+        // Validate URL before creating client
+        guard !urlString.isEmpty else {
+            print("❌ [SupabaseService] ERROR: Supabase URL is empty!")
+            print("❌ [SupabaseService] Please configure Secrets.swift with valid credentials")
+            // Create a dummy client with placeholder URL to prevent crash
+            // The testConnection() method will handle the error gracefully
+            let placeholderURL = URL(string: "https://placeholder.supabase.co")!
+            self.client = SupabaseClient(
+                supabaseURL: placeholderURL,
+                supabaseKey: "placeholder-key"
+            )
+            self.isConnected = false
+            self.lastError = NSError(domain: "SupabaseService", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "Supabase URL is not configured. Please check Secrets.swift"
+            ])
+            print("⚠️ [SupabaseService] Using placeholder client - connection will fail")
+            return
+        }
+        
+        guard let url = URL(string: urlString), url.scheme == "https" else {
+            print("❌ [SupabaseService] ERROR: Invalid Supabase URL format: '\(urlString)'")
+            print("❌ [SupabaseService] URL must be a valid HTTPS URL")
+            // Create a dummy client with placeholder URL to prevent crash
+            let placeholderURL = URL(string: "https://placeholder.supabase.co")!
+            self.client = SupabaseClient(
+                supabaseURL: placeholderURL,
+                supabaseKey: "placeholder-key"
+            )
+            self.isConnected = false
+            self.lastError = NSError(domain: "SupabaseService", code: -2, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid Supabase URL format: '\(urlString)'. Please check Secrets.swift"
+            ])
+            print("⚠️ [SupabaseService] Using placeholder client - connection will fail")
+            return
+        }
+        
+        guard !anonKey.isEmpty else {
+            print("❌ [SupabaseService] ERROR: Supabase anon key is empty!")
+            print("❌ [SupabaseService] Please configure Secrets.swift with valid credentials")
+            // Create a dummy client with placeholder key to prevent crash
+            self.client = SupabaseClient(
+                supabaseURL: url,
+                supabaseKey: "placeholder-key"
+            )
+            self.isConnected = false
+            self.lastError = NSError(domain: "SupabaseService", code: -3, userInfo: [
+                NSLocalizedDescriptionKey: "Supabase anon key is not configured. Please check Secrets.swift"
+            ])
+            print("⚠️ [SupabaseService] Using placeholder client - connection will fail")
+            return
         }
         
         // Configure Auth client to emit local session as initial session
@@ -63,7 +112,7 @@ final class SupabaseService: ObservableObject {
             options: options
         )
         
-        print("✅ Supabase client initialized")
+        print("✅ [SupabaseService] Client initialized successfully")
         // Credentials are now configured via obfuscated arrays
     }
     
