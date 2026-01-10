@@ -14,114 +14,9 @@ struct TownHallFeedView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Post composer section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Share with the Community")
-                    .font(.naarsHeadline)
-                    .padding(.horizontal)
-                    .padding(.top)
-                
-                HStack(spacing: 12) {
-                    Text("What's on your mind?")
-                        .font(.naarsBody)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
-                        .onTapGesture {
-                            showCreatePost = true
-                        }
-                    
-                    Button {
-                        showCreatePost = true
-                    } label: {
-                        Image(systemName: "photo")
-                            .font(.title3)
-                            .foregroundColor(.naarsPrimary)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.bottom)
-            }
-            .background(Color(.systemBackground))
-            
+            postComposerSection
             Divider()
-            
-            // Posts feed
-            if viewModel.isLoading && viewModel.posts.isEmpty {
-                // Show skeleton loading
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            SkeletonView()
-                        }
-                    }
-                    .padding()
-                }
-            } else if let error = viewModel.error {
-                ErrorView(
-                    error: error.localizedDescription,
-                    retryAction: {
-                        Task {
-                            await viewModel.loadPosts()
-                        }
-                    }
-                )
-            } else if viewModel.posts.isEmpty {
-                EmptyStateView(
-                    icon: "message.fill",
-                    title: "No Posts Yet",
-                    message: "Be the first to share something with the community!",
-                    actionTitle: "Create Post",
-                    action: {
-                        showCreatePost = true
-                    }
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.posts) { post in
-                            TownHallPostCard(
-                                post: post,
-                                currentUserId: AuthService.shared.currentUserId,
-                                onDelete: {
-                                    Task {
-                                        await viewModel.deletePost(post)
-                                    }
-                                },
-                                onComment: { postId in
-                                    // Comment action is handled within TownHallPostCard
-                                },
-                                onVote: { postId, voteType in
-                                    Task {
-                                        await viewModel.votePost(postId: postId, voteType: voteType)
-                                    }
-                                }
-                            )
-                            .onAppear {
-                                // Infinite scroll: load more when near bottom
-                                if post.id == viewModel.posts.last?.id {
-                                    Task {
-                                        await viewModel.loadMore()
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Loading indicator for pagination
-                        if viewModel.isLoadingMore {
-                            ProgressView()
-                                .padding()
-                        }
-                    }
-                    .padding()
-                }
-                .refreshable {
-                    await viewModel.refreshPosts()
-                }
-            }
+            postsFeedContent
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -139,6 +34,137 @@ struct TownHallFeedView: View {
         .task {
             await viewModel.loadPosts()
         }
+    }
+    
+    // MARK: - View Components
+    
+    private var postComposerSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Share with the Community")
+                .font(.naarsHeadline)
+                .padding(.horizontal)
+                .padding(.top)
+            
+            HStack(spacing: 12) {
+                Text("What's on your mind?")
+                    .font(.naarsBody)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    .onTapGesture {
+                        showCreatePost = true
+                    }
+                
+                Button {
+                    showCreatePost = true
+                } label: {
+                    Image(systemName: "photo")
+                        .font(.title3)
+                        .foregroundColor(.naarsPrimary)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom)
+        }
+        .background(Color(.systemBackground))
+    }
+    
+    @ViewBuilder
+    private var postsFeedContent: some View {
+        if viewModel.isLoading && viewModel.posts.isEmpty {
+            skeletonLoadingView
+        } else if let error = viewModel.error {
+            errorView(error)
+        } else if viewModel.posts.isEmpty {
+            emptyStateView
+        } else {
+            postsListView
+        }
+    }
+    
+    private var skeletonLoadingView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                ForEach(0..<3, id: \.self) { _ in
+                    SkeletonView()
+                }
+            }
+            .padding()
+        }
+    }
+    
+    private func errorView(_ error: AppError) -> some View {
+        ErrorView(
+            error: error.localizedDescription,
+            retryAction: {
+                Task {
+                    await viewModel.loadPosts()
+                }
+            }
+        )
+    }
+    
+    private var emptyStateView: some View {
+        EmptyStateView(
+            icon: "message.fill",
+            title: "No Posts Yet",
+            message: "Be the first to share something with the community!",
+            actionTitle: "Create Post",
+            action: {
+                showCreatePost = true
+            }
+        )
+    }
+    
+    private var postsListView: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(viewModel.posts) { post in
+                    postCardView(for: post)
+                        .onAppear {
+                            // Infinite scroll: load more when near bottom
+                            if post.id == viewModel.posts.last?.id {
+                                Task {
+                                    await viewModel.loadMore()
+                                }
+                            }
+                        }
+                }
+                
+                // Loading indicator for pagination
+                if viewModel.isLoadingMore {
+                    ProgressView()
+                        .padding()
+                }
+            }
+            .padding()
+        }
+        .refreshable {
+            await viewModel.refreshPosts()
+        }
+    }
+    
+    private func postCardView(for post: TownHallPost) -> some View {
+        TownHallPostCard(
+            post: post,
+            currentUserId: AuthService.shared.currentUserId,
+            onDelete: {
+                Task {
+                    await viewModel.deletePost(post)
+                }
+            },
+            onComment: { postId in
+                // Comment action is handled within TownHallPostCard
+            },
+            onVote: { postId, voteType in
+                Task {
+                    await viewModel.votePost(postId: postId, voteType: voteType)
+                }
+            }
+        )
     }
 }
 
