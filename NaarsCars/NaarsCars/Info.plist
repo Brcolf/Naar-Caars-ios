@@ -21,5 +21,15 @@
 		<string>MKDirectionsModePedestrian</string>
 		<string>MKDirectionsModeRideShare</string>
 	</array>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.social-networking</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Naar's Cars uses your camera to take profile photos.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
 </dict>
 </plist>
