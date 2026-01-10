@@ -13,26 +13,30 @@ struct TownHallFeedView: View {
     @State private var showCreatePost = false
     
     var body: some View {
+        mainContent
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showCreatePost = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.title3)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCreatePost) {
+                CreatePostView()
+            }
+            .task {
+                await viewModel.loadPosts()
+            }
+    }
+    
+    private var mainContent: some View {
         VStack(spacing: 0) {
             postComposerSection
             Divider()
             postsFeedContent
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    showCreatePost = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title3)
-                }
-            }
-        }
-        .sheet(isPresented: $showCreatePost) {
-            CreatePostView()
-        }
-        .task {
-            await viewModel.loadPosts()
         }
     }
     
