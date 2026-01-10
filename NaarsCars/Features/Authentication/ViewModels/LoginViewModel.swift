@@ -16,21 +16,6 @@ final class LoginViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: AppError?
     
-    /// A user-friendly message derived from the current error
-    var errorMessage: String? {
-        guard let error else { return nil }
-        switch error {
-        case .invalidInput(let message):
-            return message
-        case .processingError(let message):
-            return message
-        case .rateLimited:
-            return "Please wait a moment before trying again."
-        default:
-            return "Something went wrong. Please try again."
-        }
-    }
-    
     private let authService = AuthService.shared
     private let rateLimiter = RateLimiter.shared
     
@@ -54,7 +39,7 @@ final class LoginViewModel: ObservableObject {
         )
         
         guard canProceed else {
-            error = AppError.rateLimited
+            error = AppError.rateLimited("Please wait a moment before trying again")
             return
         }
         
@@ -75,5 +60,6 @@ final class LoginViewModel: ObservableObject {
         isLoading = false
     }
 }
+
 
 

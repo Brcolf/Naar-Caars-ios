@@ -33,7 +33,7 @@ final class PasswordResetViewModel: ObservableObject {
         )
         
         guard canProceed else {
-            error = AppError.rateLimited
+            error = AppError.rateLimited("Please wait before requesting another reset link")
             return
         }
         
@@ -54,5 +54,7 @@ final class PasswordResetViewModel: ObservableObject {
         isLoading = false
     }
 }
+
+
 
 

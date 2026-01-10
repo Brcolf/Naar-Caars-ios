@@ -81,7 +81,7 @@ final class MessageService {
                 return []
             }
             
-            // Query conversations by IDs
+            // Query conversations by IDs (now including title)
             // PostgreSQL optimizes IN clauses efficiently with indexes on id
             // This scales well even with hundreds/thousands of conversations
             let conversationsResponse = try await supabase
@@ -134,34 +134,61 @@ final class MessageService {
                 let unreadMessages: [MessageId] = (try? JSONDecoder().decode([MessageId].self, from: unreadResponse?.data ?? Data())) ?? []
                 let unreadCount = unreadMessages.count
                 
-                // Get other participants (excluding current user)
+                // Get other participants (excluding current user) with profile data
                 var otherParticipants: [Profile] = []
                 do {
                     let participantsResponse = try await supabase
                         .from("conversation_participants")
-                        .select("user_id")
+                        .select("user_id, profiles!conversation_participants_user_id_fkey(id, name, email, avatar_url, car, created_at)")
                         .eq("conversation_id", value: conversation.id.uuidString)
                         .neq("user_id", value: userId.uuidString)
                         .execute()
                     
+                    // Parse the nested structure from Supabase
                     struct ParticipantRow: Codable {
                         let userId: UUID
+                        let profiles: Profile?
+                        
                         enum CodingKeys: String, CodingKey {
                             case userId = "user_id"
+                            case profiles
                         }
                     }
                     
-                    let participantRows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
-                    
-                    // Fetch profiles for each participant
-                    for row in participantRows {
-                        if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
-                            otherParticipants.append(profile)
-                        }
-                    }
+                    let decoder = createDateDecoder()
+                    let rows = try decoder.decode([ParticipantRow].self, from: participantsResponse.data)
+                    otherParticipants = rows.compactMap { $0.profiles }
                 } catch {
                     print("⚠️ [MessageService] Error fetching participants for conversation \(conversation.id): \(error.localizedDescription)")
-                    // Continue with empty array - better than failing entire fetch
+                    // Fallback: fetch profiles separately if join fails
+                    do {
+                        let userIdsResponse = try? await supabase
+                            .from("conversation_participants")
+                            .select("user_id")
+                            .eq("conversation_id", value: conversation.id.uuidString)
+                            .neq("user_id", value: userId.uuidString)
+                            .execute()
+                        
+                        if let userIdsData = userIdsResponse?.data {
+                            struct ParticipantUserId: Codable {
+                                let userId: UUID
+                                enum CodingKeys: String, CodingKey {
+                                    case userId = "user_id"
+                                }
+                            }
+                            
+                            let userIdRows = try JSONDecoder().decode([ParticipantUserId].self, from: userIdsData)
+                            
+                            // Fetch profiles individually
+                            for row in userIdRows {
+                                if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+                                    otherParticipants.append(profile)
+                                }
+                            }
+                        }
+                    } catch {
+                        print("⚠️ [MessageService] Error in fallback participant fetch: \(error.localizedDescription)")
+                    }
                 }
                 
                 // Fetch request title if conversation is activity-based
@@ -358,7 +385,7 @@ final class MessageService {
         // Check for existing conversation
         var query = supabase
             .from("conversations")
-            .select("id, created_by, ride_id, favor_id, created_at, updated_at")
+            .select("id, created_by, ride_id, favor_id, title, created_at, updated_at")
         
         if let rideId = rideId {
             query = query.eq("ride_id", value: rideId.uuidString)
@@ -429,7 +456,7 @@ final class MessageService {
         // Get conversation to check if it's linked to a request
         let conversationResponse = try await supabase
             .from("conversations")
-            .select("id, ride_id, favor_id, created_by")
+            .select("id, ride_id, favor_id, title, created_by")
             .eq("id", value: conversationId.uuidString)
             .single()
             .execute()
@@ -625,7 +652,7 @@ final class MessageService {
         
         var query = supabase
             .from("conversations")
-            .select("id, created_by, ride_id, favor_id, created_at, updated_at")
+            .select("id, created_by, ride_id, favor_id, title, created_at, updated_at")
         
         if let rideId = rideId {
             query = query.eq("ride_id", value: rideId.uuidString)
@@ -896,17 +923,15 @@ final class MessageService {
         print("✅ [MessageService] Updated last_seen for user \(userId) in conversation \(conversationId)")
     }
     
-    // MARK: - Conversation Title Management
-    
-    /// Update the title of a group conversation
+    /// Update conversation title (for group conversations)
     /// - Parameters:
     ///   - conversationId: The conversation ID
-    ///   - title: New title (nil to remove title)
-    ///   - userId: User ID making the update (must be a participant)
+    ///   - title: The new title (nil to clear)
+    ///   - userId: The user ID making the update (must be a participant)
     /// - Throws: AppError if update fails
     func updateConversationTitle(conversationId: UUID, title: String?, userId: UUID) async throws {
         // Verify user is a participant
-        let participantCheck = try? await supabase
+        let participantResponse = try? await supabase
             .from("conversation_participants")
             .select("user_id")
             .eq("conversation_id", value: conversationId.uuidString)
@@ -914,26 +939,23 @@ final class MessageService {
             .single()
             .execute()
         
-        guard participantCheck != nil else {
+        guard participantResponse != nil else {
             throw AppError.permissionDenied("You must be a participant to update the conversation title")
         }
         
-        // Update title (use AnyCodable for optional nil value)
-        let updateData: [String: AnyCodable] = [
-            "title": AnyCodable(title),
-            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-        ]
+        // Update the title
+        let titleValue: AnyCodable? = title?.isEmpty == false ? AnyCodable(title) : nil
         
         try await supabase
             .from("conversations")
-            .update(updateData)
+            .update(["title": titleValue as Any, "updated_at": ISO8601DateFormatter().string(from: Date())])
             .eq("id", value: conversationId.uuidString)
             .execute()
         
         // Invalidate caches
         await cacheManager.invalidateConversations(userId: userId)
         
-        print("✅ [MessageService] Updated title for conversation \(conversationId)")
+        print("✅ [MessageService] Updated conversation title: \(title ?? "nil")")
     }
 }
 

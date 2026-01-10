@@ -289,29 +289,32 @@ struct FadingTitleText: View {
     let maxWidth: CGFloat
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Text(text)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
-                // Fade gradient overlay (mask) on the right side
-                if geometry.size.width > 0 {
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: .clear, location: 0.7),
-                            .init(color: Color(.systemBackground), location: 1.0)
-                        ]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geometry.size.width)
-                    .allowsHitTesting(false)
-                }
+        ZStack(alignment: .leading) {
+            // Full text (may be clipped)
+            Text(text)
+                .lineLimit(1)
+                .frame(maxWidth: maxWidth, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
+            
+            // Overlay gradient for fade effect
+            HStack(spacing: 0) {
+                Spacer()
+                LinearGradient(
+                    gradient: Gradient(stops: [
+                        .init(color: Color(.systemBackground).opacity(0), location: 0.0),
+                        .init(color: Color(.systemBackground).opacity(0.3), location: 0.5),
+                        .init(color: Color(.systemBackground), location: 1.0)
+                    ]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 60)
             }
+            .frame(maxWidth: maxWidth)
+            .allowsHitTesting(false)
         }
-        .frame(height: 20) // Fixed height for single line text
-        .frame(maxWidth: maxWidth)
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .clipped()
     }
 }
 

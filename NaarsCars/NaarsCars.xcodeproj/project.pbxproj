@@ -146,86 +146,7 @@
 		AC35AB5F2F0F080F0012096B /* CreatePostViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB552F0F080F0012096B /* CreatePostViewModel.swift */; };
 		AC35AB602F0F080F0012096B /* TownHallFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB562F0F080F0012096B /* TownHallFeedViewModel.swift */; };
 		AC35AB622F0F08AC0012096B /* TownHallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB612F0F08AC0012096B /* TownHallService.swift */; };
-		AC35AB6F2F0F19FE0012096B /* ConversationsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB6A2F0F19FE0012096B /* ConversationsListViewModel.swift */; };
-		AC35AB702F0F19FE0012096B /* ConversationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB6C2F0F19FE0012096B /* ConversationDetailView.swift */; };
-		AC35AB712F0F19FE0012096B /* ConversationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB6D2F0F19FE0012096B /* ConversationsListView.swift */; };
-		AC35AB722F0F19FE0012096B /* ConversationDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB692F0F19FE0012096B /* ConversationDetailViewModel.swift */; };
-		AC35AB772F0F1AE90012096B /* LeaderboardRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB752F0F1AE90012096B /* LeaderboardRow.swift */; };
-		AC35AB782F0F1AE90012096B /* LeaderboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB732F0F1AE90012096B /* LeaderboardViewModel.swift */; };
-		AC35AB7A2F0F1B2F0012096B /* LeaderboardEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB792F0F1B2F0012096B /* LeaderboardEntry.swift */; };
-		AC35AB7C2F0F1B8C0012096B /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB7B2F0F1B8C0012096B /* LeaderboardService.swift */; };
-		AC35AB7E2F0F25C90012096B /* AdminService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB7D2F0F25C90012096B /* AdminService.swift */; };
-		AC35AB892F0F26160012096B /* UserManagementViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB822F0F26160012096B /* UserManagementViewModel.swift */; };
-		AC35AB8A2F0F26160012096B /* UserManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB872F0F26160012096B /* UserManagementView.swift */; };
-		AC35AB8B2F0F26160012096B /* BroadcastViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB802F0F26160012096B /* BroadcastViewModel.swift */; };
-		AC35AB8C2F0F26160012096B /* AdminPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB7F2F0F26160012096B /* AdminPanelViewModel.swift */; };
-		AC35AB8D2F0F26160012096B /* PendingUsersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB812F0F26160012096B /* PendingUsersViewModel.swift */; };
-		AC35AB8E2F0F26160012096B /* PendingUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB862F0F26160012096B /* PendingUsersView.swift */; };
-		AC35AB8F2F0F26160012096B /* AdminPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB842F0F26160012096B /* AdminPanelView.swift */; };
-		AC35AB902F0F26160012096B /* BroadcastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB852F0F26160012096B /* BroadcastView.swift */; };
-		AC35AB982F0F6D9B0012096B /* NavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB972F0F6D9B0012096B /* NavigationCoordinator.swift */; };
-		AC35AB9B2F1065130012096B /* AdminInviteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB992F1065130012096B /* AdminInviteView.swift */; };
-		AC35AB9C2F1065130012096B /* PendingUserDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB9A2F1065130012096B /* PendingUserDetailView.swift */; };
-		AC35AB9F2F1065330012096B /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB9D2F1065330012096B /* EmailService.swift */; };
-		AC35ABA02F1065330012096B /* InviteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB9E2F1065330012096B /* InviteService.swift */; };
-		AC35ABA22F10654D0012096B /* InvitationWorkflowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABA12F10654D0012096B /* InvitationWorkflowView.swift */; };
-		AC35ABB32F1065AD0012096B /* CreateFavorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABA52F1065AD0012096B /* CreateFavorViewModelTests.swift */; };
-		AC35ABB42F1065AD0012096B /* RideDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABAD2F1065AD0012096B /* RideDetailViewModelTests.swift */; };
-		AC35ABB52F1065AD0012096B /* FavorsDashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABA62F1065AD0012096B /* FavorsDashboardViewModelTests.swift */; };
-		AC35ABB62F1065AD0012096B /* LeaderboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABA82F1065AD0012096B /* LeaderboardViewModelTests.swift */; };
-		AC35ABB72F1065AD0012096B /* RidesDashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABAE2F1065AD0012096B /* RidesDashboardViewModelTests.swift */; };
-		AC35ABB82F1065AD0012096B /* CreateRideViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABAC2F1065AD0012096B /* CreateRideViewModelTests.swift */; };
-		AC35ABB92F1065AD0012096B /* ClaimViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABA32F1065AD0012096B /* ClaimViewModelTests.swift */; };
-		AC35ABBA2F1065AD0012096B /* CreatePostViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABB02F1065AD0012096B /* CreatePostViewModelTests.swift */; };
-		AC35ABBB2F1065AD0012096B /* NotificationsListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABAA2F1065AD0012096B /* NotificationsListViewModelTests.swift */; };
-		AC35ABBC2F1065AD0012096B /* TownHallFeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABB12F1065AD0012096B /* TownHallFeedViewModelTests.swift */; };
-		AC35ABC02F1065CC0012096B /* AppNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABBD2F1065CC0012096B /* AppNotificationTests.swift */; };
-		AC35ABC12F1065CC0012096B /* LeaderboardEntryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABBE2F1065CC0012096B /* LeaderboardEntryTests.swift */; };
-		AC35ABC22F1065CC0012096B /* TownHallPostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABBF2F1065CC0012096B /* TownHallPostTests.swift */; };
-		AC35ABCA2F1065DA0012096B /* NotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC62F1065DA0012096B /* NotificationServiceTests.swift */; };
-		AC35ABCB2F1065DA0012096B /* TownHallServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC92F1065DA0012096B /* TownHallServiceTests.swift */; };
-		AC35ABCC2F1065DA0012096B /* ClaimServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC32F1065DA0012096B /* ClaimServiceTests.swift */; };
-		AC35ABCD2F1065DA0012096B /* FavorServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC42F1065DA0012096B /* FavorServiceTests.swift */; };
-		AC35ABCE2F1065DA0012096B /* LeaderboardServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC52F1065DA0012096B /* LeaderboardServiceTests.swift */; };
-		AC35ABCF2F1065DA0012096B /* PushNotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC72F1065DA0012096B /* PushNotificationServiceTests.swift */; };
-		AC35ABD02F1065DA0012096B /* RideServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABC82F1065DA0012096B /* RideServiceTests.swift */; };
-		AC35ABD22F1065E60012096B /* DeepLinkParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35ABD12F1065E60012096B /* DeepLinkParserTests.swift */; };
 		AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE98428EC9B46E4A670AC3D /* EmptyStateView.swift */; };
-		AC4723432F1168AE009A6FD0 /* BiometricPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723412F1168AD009A6FD0 /* BiometricPreferences.swift */; };
-		AC4723442F1168AE009A6FD0 /* LocalizationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723422F1168AD009A6FD0 /* LocalizationManager.swift */; };
-		AC4723462F1169B1009A6FD0 /* LocationAutocompleteField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723452F1169B1009A6FD0 /* LocationAutocompleteField.swift */; };
-		AC47234A2F1169C4009A6FD0 /* Number+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723482F1169C4009A6FD0 /* Number+Localization.swift */; };
-		AC47234B2F1169C4009A6FD0 /* Date+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723472F1169C4009A6FD0 /* Date+Localization.swift */; };
-		AC47234C2F1169C4009A6FD0 /* String+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723492F1169C4009A6FD0 /* String+Localization.swift */; };
-		AC47234E2F1169CE009A6FD0 /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47234D2F1169CE009A6FD0 /* MapModels.swift */; };
-		AC4723532F1169E2009A6FD0 /* MapService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723522F1169E2009A6FD0 /* MapService.swift */; };
-		AC4723542F1169E2009A6FD0 /* AuthService+AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */; };
-		AC4723552F1169E2009A6FD0 /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723502F1169E2009A6FD0 /* BiometricService.swift */; };
-		AC4723562F1169E2009A6FD0 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723512F1169E2009A6FD0 /* LocationService.swift */; };
-		AC47235B2F116A42009A6FD0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47235A2F116A42009A6FD0 /* SettingsView.swift */; };
-		AC47235C2F116A42009A6FD0 /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723592F116A42009A6FD0 /* LanguageSettingsView.swift */; };
-		AC47235E2F116A87009A6FD0 /* RequestMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47235D2F116A87009A6FD0 /* RequestMapView.swift */; };
-		AC4723602F116A96009A6FD0 /* AppleSignInViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47235F2F116A96009A6FD0 /* AppleSignInViewModel.swift */; };
-		AC4723652F116AA4009A6FD0 /* SignupMethodChoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723642F116AA4009A6FD0 /* SignupMethodChoiceView.swift */; };
-		AC4723662F116AA4009A6FD0 /* AppleSignInButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723612F116AA4009A6FD0 /* AppleSignInButton.swift */; };
-		AC4723672F116AA4009A6FD0 /* AppleSignInLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723622F116AA4009A6FD0 /* AppleSignInLinkView.swift */; };
-		AC4723682F116AA4009A6FD0 /* AppLockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723632F116AA4009A6FD0 /* AppLockView.swift */; };
-		AC47236D2F116B12009A6FD0 /* RequestPin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47236A2F116B12009A6FD0 /* RequestPin.swift */; };
-		AC47236E2F116B12009A6FD0 /* RequestPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC47236B2F116B12009A6FD0 /* RequestPreviewCard.swift */; };
-		AC47236F2F116B12009A6FD0 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4723692F116B12009A6FD0 /* FilterBar.swift */; };
-		AC4723712F117784009A6FD0 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AC4723702F117784009A6FD0 /* Localizable.xcstrings */; };
-		AC608D9D2F11AA3300C3769C /* RequestsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608D9A2F11AA3200C3769C /* RequestsDashboardView.swift */; };
-		AC608D9E2F11AA3300C3769C /* RequestsDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608D982F11AA3200C3769C /* RequestsDashboardViewModel.swift */; };
-		AC608DA12F11AA4700C3769C /* RequestItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DA02F11AA4700C3769C /* RequestItem.swift */; };
-		AC608DA22F11AA4700C3769C /* RequestFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608D9F2F11AA4700C3769C /* RequestFilter.swift */; };
-		AC608DA52F11BA9700C3769C /* TownHallComment.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DA32F11BA9700C3769C /* TownHallComment.swift */; };
-		AC608DA62F11BA9700C3769C /* TownHallVote.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DA42F11BA9700C3769C /* TownHallVote.swift */; };
-		AC608DA82F11BAAD00C3769C /* PostTitleExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DA72F11BAAD00C3769C /* PostTitleExtractor.swift */; };
-		AC608DAC2F11BAD800C3769C /* CommunityTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DA92F11BAD800C3769C /* CommunityTabView.swift */; };
-		AC608DAF2F11BAE900C3769C /* TownHallPostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DAE2F11BAE900C3769C /* TownHallPostCard.swift */; };
-		AC608DB02F11BAE900C3769C /* PostCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DAD2F11BAE900C3769C /* PostCommentsView.swift */; };
-		AC608DB32F11C24F00C3769C /* TownHallCommentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DB12F11C24F00C3769C /* TownHallCommentService.swift */; };
-		AC608DB42F11C24F00C3769C /* TownHallVoteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC608DB22F11C24F00C3769C /* TownHallVoteService.swift */; };
 		AC91779D2F0B9A330077133C /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC91779C2F0B9A330077133C /* MainTabView.swift */; };
 		AC9178FB2F0BA7010077133C /* AppLaunchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */; };
 		ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */; };
@@ -439,85 +360,6 @@
 		AC35AB592F0F080F0012096B /* TownHallFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallFeedView.swift; sourceTree = "<group>"; };
 		AC35AB5A2F0F080F0012096B /* TownHallPostRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostRow.swift; sourceTree = "<group>"; };
 		AC35AB612F0F08AC0012096B /* TownHallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallService.swift; sourceTree = "<group>"; };
-		AC35AB692F0F19FE0012096B /* ConversationDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDetailViewModel.swift; sourceTree = "<group>"; };
-		AC35AB6A2F0F19FE0012096B /* ConversationsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsListViewModel.swift; sourceTree = "<group>"; };
-		AC35AB6C2F0F19FE0012096B /* ConversationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationDetailView.swift; sourceTree = "<group>"; };
-		AC35AB6D2F0F19FE0012096B /* ConversationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsListView.swift; sourceTree = "<group>"; };
-		AC35AB732F0F1AE90012096B /* LeaderboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardViewModel.swift; sourceTree = "<group>"; };
-		AC35AB752F0F1AE90012096B /* LeaderboardRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardRow.swift; sourceTree = "<group>"; };
-		AC35AB792F0F1B2F0012096B /* LeaderboardEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardEntry.swift; sourceTree = "<group>"; };
-		AC35AB7B2F0F1B8C0012096B /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
-		AC35AB7D2F0F25C90012096B /* AdminService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminService.swift; sourceTree = "<group>"; };
-		AC35AB7F2F0F26160012096B /* AdminPanelViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPanelViewModel.swift; sourceTree = "<group>"; };
-		AC35AB802F0F26160012096B /* BroadcastViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastViewModel.swift; sourceTree = "<group>"; };
-		AC35AB812F0F26160012096B /* PendingUsersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUsersViewModel.swift; sourceTree = "<group>"; };
-		AC35AB822F0F26160012096B /* UserManagementViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManagementViewModel.swift; sourceTree = "<group>"; };
-		AC35AB842F0F26160012096B /* AdminPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPanelView.swift; sourceTree = "<group>"; };
-		AC35AB852F0F26160012096B /* BroadcastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastView.swift; sourceTree = "<group>"; };
-		AC35AB862F0F26160012096B /* PendingUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUsersView.swift; sourceTree = "<group>"; };
-		AC35AB872F0F26160012096B /* UserManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManagementView.swift; sourceTree = "<group>"; };
-		AC35AB972F0F6D9B0012096B /* NavigationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationCoordinator.swift; sourceTree = "<group>"; };
-		AC35AB992F1065130012096B /* AdminInviteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminInviteView.swift; sourceTree = "<group>"; };
-		AC35AB9A2F1065130012096B /* PendingUserDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUserDetailView.swift; sourceTree = "<group>"; };
-		AC35AB9D2F1065330012096B /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
-		AC35AB9E2F1065330012096B /* InviteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteService.swift; sourceTree = "<group>"; };
-		AC35ABA12F10654D0012096B /* InvitationWorkflowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvitationWorkflowView.swift; sourceTree = "<group>"; };
-		AC35ABA32F1065AD0012096B /* ClaimViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABA52F1065AD0012096B /* CreateFavorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFavorViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABA62F1065AD0012096B /* FavorsDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorsDashboardViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABA82F1065AD0012096B /* LeaderboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABAA2F1065AD0012096B /* NotificationsListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABAC2F1065AD0012096B /* CreateRideViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRideViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABAD2F1065AD0012096B /* RideDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideDetailViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABAE2F1065AD0012096B /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABB02F1065AD0012096B /* CreatePostViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePostViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABB12F1065AD0012096B /* TownHallFeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallFeedViewModelTests.swift; sourceTree = "<group>"; };
-		AC35ABBD2F1065CC0012096B /* AppNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotificationTests.swift; sourceTree = "<group>"; };
-		AC35ABBE2F1065CC0012096B /* LeaderboardEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardEntryTests.swift; sourceTree = "<group>"; };
-		AC35ABBF2F1065CC0012096B /* TownHallPostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostTests.swift; sourceTree = "<group>"; };
-		AC35ABC32F1065DA0012096B /* ClaimServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABC42F1065DA0012096B /* FavorServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABC52F1065DA0012096B /* LeaderboardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABC62F1065DA0012096B /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABC72F1065DA0012096B /* PushNotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABC82F1065DA0012096B /* RideServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABC92F1065DA0012096B /* TownHallServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallServiceTests.swift; sourceTree = "<group>"; };
-		AC35ABD12F1065E60012096B /* DeepLinkParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkParserTests.swift; sourceTree = "<group>"; };
-		AC4723412F1168AD009A6FD0 /* BiometricPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricPreferences.swift; sourceTree = "<group>"; };
-		AC4723422F1168AD009A6FD0 /* LocalizationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationManager.swift; sourceTree = "<group>"; };
-		AC4723452F1169B1009A6FD0 /* LocationAutocompleteField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationAutocompleteField.swift; sourceTree = "<group>"; };
-		AC4723472F1169C4009A6FD0 /* Date+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Localization.swift"; sourceTree = "<group>"; };
-		AC4723482F1169C4009A6FD0 /* Number+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Number+Localization.swift"; sourceTree = "<group>"; };
-		AC4723492F1169C4009A6FD0 /* String+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Localization.swift"; sourceTree = "<group>"; };
-		AC47234D2F1169CE009A6FD0 /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
-		AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthService+AppleSignIn.swift"; sourceTree = "<group>"; };
-		AC4723502F1169E2009A6FD0 /* BiometricService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricService.swift; sourceTree = "<group>"; };
-		AC4723512F1169E2009A6FD0 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
-		AC4723522F1169E2009A6FD0 /* MapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapService.swift; sourceTree = "<group>"; };
-		AC4723592F116A42009A6FD0 /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
-		AC47235A2F116A42009A6FD0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		AC47235D2F116A87009A6FD0 /* RequestMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestMapView.swift; sourceTree = "<group>"; };
-		AC47235F2F116A96009A6FD0 /* AppleSignInViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInViewModel.swift; sourceTree = "<group>"; };
-		AC4723612F116AA4009A6FD0 /* AppleSignInButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInButton.swift; sourceTree = "<group>"; };
-		AC4723622F116AA4009A6FD0 /* AppleSignInLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInLinkView.swift; sourceTree = "<group>"; };
-		AC4723632F116AA4009A6FD0 /* AppLockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockView.swift; sourceTree = "<group>"; };
-		AC4723642F116AA4009A6FD0 /* SignupMethodChoiceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupMethodChoiceView.swift; sourceTree = "<group>"; };
-		AC4723692F116B12009A6FD0 /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
-		AC47236A2F116B12009A6FD0 /* RequestPin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestPin.swift; sourceTree = "<group>"; };
-		AC47236B2F116B12009A6FD0 /* RequestPreviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestPreviewCard.swift; sourceTree = "<group>"; };
-		AC4723702F117784009A6FD0 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
-		AC608D982F11AA3200C3769C /* RequestsDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsDashboardViewModel.swift; sourceTree = "<group>"; };
-		AC608D9A2F11AA3200C3769C /* RequestsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsDashboardView.swift; sourceTree = "<group>"; };
-		AC608D9F2F11AA4700C3769C /* RequestFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestFilter.swift; sourceTree = "<group>"; };
-		AC608DA02F11AA4700C3769C /* RequestItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestItem.swift; sourceTree = "<group>"; };
-		AC608DA32F11BA9700C3769C /* TownHallComment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallComment.swift; sourceTree = "<group>"; };
-		AC608DA42F11BA9700C3769C /* TownHallVote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallVote.swift; sourceTree = "<group>"; };
-		AC608DA72F11BAAD00C3769C /* PostTitleExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostTitleExtractor.swift; sourceTree = "<group>"; };
-		AC608DA92F11BAD800C3769C /* CommunityTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityTabView.swift; sourceTree = "<group>"; };
-		AC608DAD2F11BAE900C3769C /* PostCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCommentsView.swift; sourceTree = "<group>"; };
-		AC608DAE2F11BAE900C3769C /* TownHallPostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostCard.swift; sourceTree = "<group>"; };
-		AC608DB12F11C24F00C3769C /* TownHallCommentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallCommentService.swift; sourceTree = "<group>"; };
-		AC608DB22F11C24F00C3769C /* TownHallVoteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallVoteService.swift; sourceTree = "<group>"; };
 		AC91779C2F0B9A330077133C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchManager.swift; sourceTree = "<group>"; };
 		ACCB369A6355469493FD86E2 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
@@ -569,22 +411,9 @@
 		FD26EB8EAA724DBEA94FE07E /* UserAvatarLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAvatarLink.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		AC4723402F11673A009A6FD0 /* Exceptions for "NaarsCars" folder in "NaarsCars" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = ACDCBDC72F0B74F400956D1C /* NaarsCars */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		ACDCBDCA2F0B74F400956D1C /* NaarsCars */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				AC4723402F11673A009A6FD0 /* Exceptions for "NaarsCars" folder in "NaarsCars" target */,
-			);
 			path = NaarsCars;
 			sourceTree = "<group>";
 		};
@@ -744,7 +573,6 @@
 		AC305EE02F0DB7B00063AFDF /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				AC47235D2F116A87009A6FD0 /* RequestMapView.swift */,
 				AC305EDC2F0DB7B00063AFDF /* CreateRideView.swift */,
 				AC305EDD2F0DB7B00063AFDF /* EditRideView.swift */,
 				AC305EDE2F0DB7B00063AFDF /* RideDetailView.swift */,
@@ -756,7 +584,6 @@
 		AC305EEB2F0DB7BD0063AFDF /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
-				AC47235F2F116A96009A6FD0 /* AppleSignInViewModel.swift */,
 				AC305EE82F0DB7BD0063AFDF /* LoginViewModel.swift */,
 				AC305EE92F0DB7BD0063AFDF /* PasswordResetViewModel.swift */,
 				AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */,
@@ -767,10 +594,6 @@
 		AC305EF02F0DB7BD0063AFDF /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				AC4723612F116AA4009A6FD0 /* AppleSignInButton.swift */,
-				AC4723622F116AA4009A6FD0 /* AppleSignInLinkView.swift */,
-				AC4723632F116AA4009A6FD0 /* AppLockView.swift */,
-				AC4723642F116AA4009A6FD0 /* SignupMethodChoiceView.swift */,
 				AC305EEC2F0DB7BD0063AFDF /* LoginView.swift */,
 				AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */,
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
@@ -827,167 +650,6 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		AC35AB6B2F0F19FE0012096B /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				AC35AB692F0F19FE0012096B /* ConversationDetailViewModel.swift */,
-				AC35AB6A2F0F19FE0012096B /* ConversationsListViewModel.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		AC35AB6E2F0F19FE0012096B /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				AC35AB6C2F0F19FE0012096B /* ConversationDetailView.swift */,
-				AC35AB6D2F0F19FE0012096B /* ConversationsListView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		AC35AB742F0F1AE90012096B /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				AC35AB732F0F1AE90012096B /* LeaderboardViewModel.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		AC35AB762F0F1AE90012096B /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				AC35AB752F0F1AE90012096B /* LeaderboardRow.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		AC35AB832F0F26160012096B /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				AC35AB7F2F0F26160012096B /* AdminPanelViewModel.swift */,
-				AC35AB802F0F26160012096B /* BroadcastViewModel.swift */,
-				AC35AB812F0F26160012096B /* PendingUsersViewModel.swift */,
-				AC35AB822F0F26160012096B /* UserManagementViewModel.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		AC35AB882F0F26160012096B /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				AC35AB992F1065130012096B /* AdminInviteView.swift */,
-				AC35AB9A2F1065130012096B /* PendingUserDetailView.swift */,
-				AC35AB842F0F26160012096B /* AdminPanelView.swift */,
-				AC35AB852F0F26160012096B /* BroadcastView.swift */,
-				AC35AB862F0F26160012096B /* PendingUsersView.swift */,
-				AC35AB872F0F26160012096B /* UserManagementView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		AC35ABA42F1065AD0012096B /* Claiming */ = {
-			isa = PBXGroup;
-			children = (
-				AC35ABA32F1065AD0012096B /* ClaimViewModelTests.swift */,
-			);
-			path = Claiming;
-			sourceTree = "<group>";
-		};
-		AC35ABA72F1065AD0012096B /* Favors */ = {
-			isa = PBXGroup;
-			children = (
-				AC35ABA52F1065AD0012096B /* CreateFavorViewModelTests.swift */,
-				AC35ABA62F1065AD0012096B /* FavorsDashboardViewModelTests.swift */,
-			);
-			path = Favors;
-			sourceTree = "<group>";
-		};
-		AC35ABA92F1065AD0012096B /* Leaderboards */ = {
-			isa = PBXGroup;
-			children = (
-				AC35ABA82F1065AD0012096B /* LeaderboardViewModelTests.swift */,
-			);
-			path = Leaderboards;
-			sourceTree = "<group>";
-		};
-		AC35ABAB2F1065AD0012096B /* Notifications */ = {
-			isa = PBXGroup;
-			children = (
-				AC35ABAA2F1065AD0012096B /* NotificationsListViewModelTests.swift */,
-			);
-			path = Notifications;
-			sourceTree = "<group>";
-		};
-		AC35ABAF2F1065AD0012096B /* Rides */ = {
-			isa = PBXGroup;
-			children = (
-				AC35ABAC2F1065AD0012096B /* CreateRideViewModelTests.swift */,
-				AC35ABAD2F1065AD0012096B /* RideDetailViewModelTests.swift */,
-				AC35ABAE2F1065AD0012096B /* RidesDashboardViewModelTests.swift */,
-			);
-			path = Rides;
-			sourceTree = "<group>";
-		};
-		AC35ABB22F1065AD0012096B /* TownHall */ = {
-			isa = PBXGroup;
-			children = (
-				AC35ABB02F1065AD0012096B /* CreatePostViewModelTests.swift */,
-				AC35ABB12F1065AD0012096B /* TownHallFeedViewModelTests.swift */,
-			);
-			path = TownHall;
-			sourceTree = "<group>";
-		};
-		AC47236C2F116B12009A6FD0 /* Map */ = {
-			isa = PBXGroup;
-			children = (
-				AC4723692F116B12009A6FD0 /* FilterBar.swift */,
-				AC47236A2F116B12009A6FD0 /* RequestPin.swift */,
-				AC47236B2F116B12009A6FD0 /* RequestPreviewCard.swift */,
-			);
-			path = Map;
-			sourceTree = "<group>";
-		};
-		AC608D992F11AA3200C3769C /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				AC608D982F11AA3200C3769C /* RequestsDashboardViewModel.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		AC608D9B2F11AA3200C3769C /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				AC608D9A2F11AA3200C3769C /* RequestsDashboardView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		AC608D9C2F11AA3200C3769C /* Requests */ = {
-			isa = PBXGroup;
-			children = (
-				AC608D992F11AA3200C3769C /* ViewModels */,
-				AC608D9B2F11AA3200C3769C /* Views */,
-			);
-			path = Requests;
-			sourceTree = "<group>";
-		};
-		AC608DAA2F11BAD800C3769C /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				AC608DA92F11BAD800C3769C /* CommunityTabView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		AC608DAB2F11BAD800C3769C /* Community */ = {
-			isa = PBXGroup;
-			children = (
-				AC608DAA2F11BAD800C3769C /* Views */,
-			);
-			path = Community;
-			sourceTree = "<group>";
-		};
 		ACDCBDBF2F0B74F300956D1C = {
 			isa = PBXGroup;
 			children = (
@@ -1017,7 +679,6 @@
 		ACDCBDF22F0B779600956D1C /* App */ = {
 			isa = PBXGroup;
 			children = (
-				AC35AB972F0F6D9B0012096B /* NavigationCoordinator.swift */,
 				AC305EF82F0DB7DD0063AFDF /* AppDelegate.swift */,
 				AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */,
 				AC91779C2F0B9A330077133C /* MainTabView.swift */,
@@ -1031,8 +692,6 @@
 		ACDCBDF32F0B77A600956D1C /* Features */ = {
 			isa = PBXGroup;
 			children = (
-				AC608DAB2F11BAD800C3769C /* Community */,
-				AC608D9C2F11AA3200C3769C /* Requests */,
 				AC35AB4E2F0F01B70012096B /* Claiming */,
 				ACDCBDFF2F0B782600956D1C /* Admin */,
 				ACDCBDFE2F0B781B00956D1C /* Leaderboards */,
@@ -1071,7 +730,6 @@
 		ACDCBDF62F0B77C200956D1C /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				AC4723702F117784009A6FD0 /* Localizable.xcstrings */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -1108,8 +766,6 @@
 		ACDCBDFA2F0B77F700956D1C /* Messaging */ = {
 			isa = PBXGroup;
 			children = (
-				AC35AB6B2F0F19FE0012096B /* ViewModels */,
-				AC35AB6E2F0F19FE0012096B /* Views */,
 				295D73B3697E4B219FEC2BE1 /* MessagesListView.swift */,
 			);
 			path = Messaging;
@@ -1137,8 +793,6 @@
 		ACDCBDFD2F0B781100956D1C /* TownHall */ = {
 			isa = PBXGroup;
 			children = (
-				AC608DAD2F11BAE900C3769C /* PostCommentsView.swift */,
-				AC608DAE2F11BAE900C3769C /* TownHallPostCard.swift */,
 				AC35AB572F0F080F0012096B /* ViewModels */,
 				AC35AB5B2F0F080F0012096B /* Views */,
 			);
@@ -1148,8 +802,6 @@
 		ACDCBDFE2F0B781B00956D1C /* Leaderboards */ = {
 			isa = PBXGroup;
 			children = (
-				AC35AB742F0F1AE90012096B /* ViewModels */,
-				AC35AB762F0F1AE90012096B /* Views */,
 				0F2D3338FB6B4011880FB3F5 /* LeaderboardView.swift */,
 			);
 			path = Leaderboards;
@@ -1158,8 +810,6 @@
 		ACDCBDFF2F0B782600956D1C /* Admin */ = {
 			isa = PBXGroup;
 			children = (
-				AC35AB832F0F26160012096B /* ViewModels */,
-				AC35AB882F0F26160012096B /* Views */,
 			);
 			path = Admin;
 			sourceTree = "<group>";
@@ -1167,16 +817,6 @@
 		ACDCBE002F0B783F00956D1C /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				AC608DB12F11C24F00C3769C /* TownHallCommentService.swift */,
-				AC608DB22F11C24F00C3769C /* TownHallVoteService.swift */,
-				AC47234F2F1169E2009A6FD0 /* AuthService+AppleSignIn.swift */,
-				AC4723502F1169E2009A6FD0 /* BiometricService.swift */,
-				AC4723512F1169E2009A6FD0 /* LocationService.swift */,
-				AC4723522F1169E2009A6FD0 /* MapService.swift */,
-				AC35AB9D2F1065330012096B /* EmailService.swift */,
-				AC35AB9E2F1065330012096B /* InviteService.swift */,
-				AC35AB7D2F0F25C90012096B /* AdminService.swift */,
-				AC35AB7B2F0F1B8C0012096B /* LeaderboardService.swift */,
 				AC35AB612F0F08AC0012096B /* TownHallService.swift */,
 				AC305EFA2F0DB81A0063AFDF /* ClaimService.swift */,
 				AC305EFB2F0DB81A0063AFDF /* ConversationService.swift */,
@@ -1196,12 +836,6 @@
 		ACDCBE012F0B784900956D1C /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				AC608DA32F11BA9700C3769C /* TownHallComment.swift */,
-				AC608DA42F11BA9700C3769C /* TownHallVote.swift */,
-				AC608D9F2F11AA4700C3769C /* RequestFilter.swift */,
-				AC608DA02F11AA4700C3769C /* RequestItem.swift */,
-				AC47234D2F1169CE009A6FD0 /* MapModels.swift */,
-				AC35AB792F0F1B2F0012096B /* LeaderboardEntry.swift */,
 				AC305F082F0DB8250063AFDF /* RequestQA.swift */,
 				3E213562F51C49A48F8FFF22 /* Profile.swift */,
 				2B634CBD0C4F4A449A464E94 /* Ride.swift */,
@@ -1219,9 +853,6 @@
 		ACDCBE022F0B785000956D1C /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
-				AC4723472F1169C4009A6FD0 /* Date+Localization.swift */,
-				AC4723482F1169C4009A6FD0 /* Number+Localization.swift */,
-				AC4723492F1169C4009A6FD0 /* String+Localization.swift */,
 				D55441C41BD446FF92B0D9AC /* Date+Extensions.swift */,
 				6919D6DE589147EA882BA5C2 /* View+Extensions.swift */,
 			);
@@ -1231,9 +862,6 @@
 		ACDCBE032F0B785900956D1C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
-				AC608DA72F11BAAD00C3769C /* PostTitleExtractor.swift */,
-				AC4723412F1168AD009A6FD0 /* BiometricPreferences.swift */,
-				AC4723422F1168AD009A6FD0 /* LocalizationManager.swift */,
 				AC305F3E2F0DBC430063AFDF /* AnyCodable.swift */,
 				AC305F0A2F0DB8400063AFDF /* Constants.swift */,
 				AC305F0B2F0DB8400063AFDF /* DeepLinkParser.swift */,
@@ -1253,7 +881,6 @@
 		ACDCBE042F0B786400956D1C /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				AC47236C2F116B12009A6FD0 /* Map */,
 				ACDCBE0D2F0B78CB00956D1C /* Messaging */,
 				ACDCBE0C2F0B78C300956D1C /* Common */,
 				ACDCBE0B2F0B78BC00956D1C /* Feedback */,
@@ -1304,7 +931,6 @@
 		ACDCBE0A2F0B78B200956D1C /* Inputs */ = {
 			isa = PBXGroup;
 			children = (
-				AC4723452F1169B1009A6FD0 /* LocationAutocompleteField.swift */,
 			);
 			path = Inputs;
 			sourceTree = "<group>";
@@ -1370,7 +996,6 @@
 		ACDCBE132F0B798400956D1C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
-				AC35ABD12F1065E60012096B /* DeepLinkParserTests.swift */,
 				C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */,
 				1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */,
 				779B417BF68A4467A9C8DB7C /* ImageCompressorTests.swift */,
@@ -1382,13 +1007,6 @@
 		ACDCBE142F0B798E00956D1C /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				AC35ABC32F1065DA0012096B /* ClaimServiceTests.swift */,
-				AC35ABC42F1065DA0012096B /* FavorServiceTests.swift */,
-				AC35ABC52F1065DA0012096B /* LeaderboardServiceTests.swift */,
-				AC35ABC62F1065DA0012096B /* NotificationServiceTests.swift */,
-				AC35ABC72F1065DA0012096B /* PushNotificationServiceTests.swift */,
-				AC35ABC82F1065DA0012096B /* RideServiceTests.swift */,
-				AC35ABC92F1065DA0012096B /* TownHallServiceTests.swift */,
 				D1F3EF202A7C4296B8F87F2E /* RealtimeManagerTests.swift */,
 				1AB3D74CACF14E8585D7CE07 /* ProfileServiceTests.swift */,
 			);
@@ -1398,9 +1016,6 @@
 		ACDCBE152F0B799600956D1C /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				AC35ABBD2F1065CC0012096B /* AppNotificationTests.swift */,
-				AC35ABBE2F1065CC0012096B /* LeaderboardEntryTests.swift */,
-				AC35ABBF2F1065CC0012096B /* TownHallPostTests.swift */,
 				137CEAA3220D4C2D9BE917E3 /* ProfileTests.swift */,
 				BB8F6F3E319E4B4FB1541AE0 /* RideTests.swift */,
 				4AD8D7D6054B4B559ED772AC /* FavorTests.swift */,
@@ -1411,12 +1026,6 @@
 		ACDCBE162F0B799D00956D1C /* Features */ = {
 			isa = PBXGroup;
 			children = (
-				AC35ABA42F1065AD0012096B /* Claiming */,
-				AC35ABA72F1065AD0012096B /* Favors */,
-				AC35ABA92F1065AD0012096B /* Leaderboards */,
-				AC35ABAB2F1065AD0012096B /* Notifications */,
-				AC35ABAF2F1065AD0012096B /* Rides */,
-				AC35ABB22F1065AD0012096B /* TownHall */,
 				ACDCBE192F0B79BD00956D1C /* Profile */,
 			);
 			path = Features;
@@ -1435,9 +1044,6 @@
 		ACDCBE182F0B79B000956D1C /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				AC4723592F116A42009A6FD0 /* LanguageSettingsView.swift */,
-				AC47235A2F116A42009A6FD0 /* SettingsView.swift */,
-				AC35ABA12F10654D0012096B /* InvitationWorkflowView.swift */,
 				5FA662507801456991ABCE22 /* MyProfileView.swift */,
 				82E5C134F01A4B3E9C064014 /* EditProfileView.swift */,
 				84E90AAA9A7547F4A0F8AC12 /* PublicProfileView.swift */,
@@ -1581,7 +1187,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AC4723712F117784009A6FD0 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1609,16 +1214,8 @@
 				AC305F242F0DB86A0063AFDF /* SkeletonFavorCard.swift in Sources */,
 				AC305F252F0DB86A0063AFDF /* SkeletonMessageRow.swift in Sources */,
 				AC305F262F0DB86A0063AFDF /* SkeletonConversationRow.swift in Sources */,
-				AC35AB9F2F1065330012096B /* EmailService.swift in Sources */,
-				AC35ABA02F1065330012096B /* InviteService.swift in Sources */,
 				AC305F412F0ECDAE0063AFDF /* UserSearchView.swift in Sources */,
-				AC35AB6F2F0F19FE0012096B /* ConversationsListViewModel.swift in Sources */,
-				AC35AB702F0F19FE0012096B /* ConversationDetailView.swift in Sources */,
-				AC47235E2F116A87009A6FD0 /* RequestMapView.swift in Sources */,
-				AC35AB712F0F19FE0012096B /* ConversationsListView.swift in Sources */,
-				AC35AB722F0F19FE0012096B /* ConversationDetailViewModel.swift in Sources */,
 				AC305F272F0DB86A0063AFDF /* SkeletonLeaderboardRow.swift in Sources */,
-				AC35ABA22F10654D0012096B /* InvitationWorkflowView.swift in Sources */,
 				AC305F282F0DB86A0063AFDF /* SkeletonRideCard.swift in Sources */,
 				AC305F292F0DB86A0063AFDF /* SkeletonView.swift in Sources */,
 				ACDCBDCE2F0B74F400956D1C /* ContentView.swift in Sources */,
@@ -1642,8 +1239,6 @@
 				ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */,
 				84D9FCFB10CF4588B6DBDE7B /* Profile.swift in Sources */,
 				E45167AB602B45E7B6D76981 /* Ride.swift in Sources */,
-				AC4723432F1168AE009A6FD0 /* BiometricPreferences.swift in Sources */,
-				AC4723442F1168AE009A6FD0 /* LocalizationManager.swift in Sources */,
 				AC91779D2F0B9A330077133C /* MainTabView.swift in Sources */,
 				965D7426031E40078289F3DE /* PendingApprovalView.swift in Sources */,
 				2EA5371F8B0940BCAD74294D /* DashboardView.swift in Sources */,
@@ -1651,11 +1246,8 @@
 				0F2D3338FB6B4011880FB3F4 /* LeaderboardView.swift in Sources */,
 				CBF008BEC84C402E98880D3C /* ProfileView.swift in Sources */,
 				54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */,
-				AC47234E2F1169CE009A6FD0 /* MapModels.swift in Sources */,
 				3E2C7CF183694FB5836B3742 /* ErrorView.swift in Sources */,
 				AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */,
-				AC608DA52F11BA9700C3769C /* TownHallComment.swift in Sources */,
-				AC608DA62F11BA9700C3769C /* TownHallVote.swift in Sources */,
 				1119728817234989A58E0200 /* PrimaryButton.swift in Sources */,
 				AC305F102F0DB8400063AFDF /* Logger.swift in Sources */,
 				AC305F122F0DB8400063AFDF /* DeviceIdentifier.swift in Sources */,
@@ -1667,22 +1259,12 @@
 				CEE4883F511E4863BD984568 /* Message.swift in Sources */,
 				4AEC6FC9813D460387D9E4C0 /* Conversation.swift in Sources */,
 				B29F4A793E8647D9911439DC /* AppNotification.swift in Sources */,
-				AC608DAC2F11BAD800C3769C /* CommunityTabView.swift in Sources */,
 				AC305EF12F0DB7BD0063AFDF /* SignupViewModel.swift in Sources */,
-				AC35AB7E2F0F25C90012096B /* AdminService.swift in Sources */,
-				AC4723652F116AA4009A6FD0 /* SignupMethodChoiceView.swift in Sources */,
-				AC4723662F116AA4009A6FD0 /* AppleSignInButton.swift in Sources */,
-				AC4723672F116AA4009A6FD0 /* AppleSignInLinkView.swift in Sources */,
-				AC4723682F116AA4009A6FD0 /* AppLockView.swift in Sources */,
 				AC305EF22F0DB7BD0063AFDF /* LoginView.swift in Sources */,
 				AC305EF32F0DB7BD0063AFDF /* LoginViewModel.swift in Sources */,
 				AC305EF42F0DB7BD0063AFDF /* PasswordResetView.swift in Sources */,
 				AC305EF52F0DB7BD0063AFDF /* SignupInviteCodeView.swift in Sources */,
-				AC35AB982F0F6D9B0012096B /* NavigationCoordinator.swift in Sources */,
 				AC305EF62F0DB7BD0063AFDF /* PasswordResetViewModel.swift in Sources */,
-				AC47234A2F1169C4009A6FD0 /* Number+Localization.swift in Sources */,
-				AC47234B2F1169C4009A6FD0 /* Date+Localization.swift in Sources */,
-				AC47234C2F1169C4009A6FD0 /* String+Localization.swift in Sources */,
 				AC305EF72F0DB7BD0063AFDF /* SignupDetailsView.swift in Sources */,
 				DBEB76AEBDE842259F2C55B0 /* InviteCode.swift in Sources */,
 				789FE0C64BB34FBD80D8B882 /* Review.swift in Sources */,
@@ -1700,8 +1282,6 @@
 				AC305EE42F0DB7B00063AFDF /* CreateRideViewModel.swift in Sources */,
 				AC305EE52F0DB7B00063AFDF /* CreateRideView.swift in Sources */,
 				AC305EE62F0DB7B00063AFDF /* RideDetailViewModel.swift in Sources */,
-				AC608D9D2F11AA3300C3769C /* RequestsDashboardView.swift in Sources */,
-				AC608D9E2F11AA3300C3769C /* RequestsDashboardViewModel.swift in Sources */,
 				AC305EE72F0DB7B00063AFDF /* EditRideView.swift in Sources */,
 				AC305F2C2F0DB8880063AFDF /* FavorCard.swift in Sources */,
 				AC305F2D2F0DB8880063AFDF /* RideCard.swift in Sources */,
@@ -1714,7 +1294,6 @@
 				AC305EC52F0DB7890063AFDF /* NotificationsListViewModel.swift in Sources */,
 				AC305EC62F0DB7890063AFDF /* NotificationRow.swift in Sources */,
 				AC305EC72F0DB7890063AFDF /* NotificationsListView.swift in Sources */,
-				AC4723602F116A96009A6FD0 /* AppleSignInViewModel.swift in Sources */,
 				D6FB2A28A2FF482C906F6D09 /* PublicProfileView.swift in Sources */,
 				AC305ED12F0DB79E0063AFDF /* FavorsDashboardViewModel.swift in Sources */,
 				AC305ED22F0DB79E0063AFDF /* CreateFavorView.swift in Sources */,
@@ -1727,25 +1306,12 @@
 				74F10B329CDE4E56913B6098 /* UserAvatarLink.swift in Sources */,
 				5539038B67914970B5B5155F /* StarRatingView.swift in Sources */,
 				06B825CE696F4C0C8ACDF684 /* ReviewCard.swift in Sources */,
-				AC35AB892F0F26160012096B /* UserManagementViewModel.swift in Sources */,
-				AC35AB8A2F0F26160012096B /* UserManagementView.swift in Sources */,
-				AC35AB8B2F0F26160012096B /* BroadcastViewModel.swift in Sources */,
-				AC35AB8C2F0F26160012096B /* AdminPanelViewModel.swift in Sources */,
-				AC35AB8D2F0F26160012096B /* PendingUsersViewModel.swift in Sources */,
-				AC35AB8E2F0F26160012096B /* PendingUsersView.swift in Sources */,
-				AC35AB8F2F0F26160012096B /* AdminPanelView.swift in Sources */,
-				AC35AB902F0F26160012096B /* BroadcastView.swift in Sources */,
 				B9F69F275657451E86990E68 /* InviteCodeCard.swift in Sources */,
 				AC305F012F0DB81A0063AFDF /* RideService.swift in Sources */,
 				AC305F022F0DB81A0063AFDF /* MessageService.swift in Sources */,
 				AC305F032F0DB81A0063AFDF /* NotificationService.swift in Sources */,
 				AC305F042F0DB81A0063AFDF /* ConversationService.swift in Sources */,
-				AC608DA82F11BAAD00C3769C /* PostTitleExtractor.swift in Sources */,
-				AC608DA12F11AA4700C3769C /* RequestItem.swift in Sources */,
-				AC608DA22F11AA4700C3769C /* RequestFilter.swift in Sources */,
 				AC305F052F0DB81A0063AFDF /* FavorService.swift in Sources */,
-				AC35AB772F0F1AE90012096B /* LeaderboardRow.swift in Sources */,
-				AC35AB782F0F1AE90012096B /* LeaderboardViewModel.swift in Sources */,
 				AC305F062F0DB81A0063AFDF /* ClaimService.swift in Sources */,
 				AC305F072F0DB81A0063AFDF /* PushNotificationService.swift in Sources */,
 				226D413C793345DCB91FEB97 /* App/AppDelegate.swift in Sources */,
@@ -1754,33 +1320,22 @@
 				60F1DDCB67334F879A5A8132 /* Core/Services/ConversationService.swift in Sources */,
 				4779EAF6DB234F378D72E66E /* Core/Services/FavorService.swift in Sources */,
 				498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */,
-				AC35AB7C2F0F1B8C0012096B /* LeaderboardService.swift in Sources */,
 				9DC77EA5FFCB49719D54EB1D /* Core/Services/NotificationService.swift in Sources */,
 				B929482DB5E7432FB6CA4C9A /* Core/Services/PushNotificationService.swift in Sources */,
-				AC35AB7A2F0F1B2F0012096B /* LeaderboardEntry.swift in Sources */,
 				ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */,
 				AC305F1C2F0DB85B0063AFDF /* NotificationBadge.swift in Sources */,
 				AC305F1D2F0DB85B0063AFDF /* RequestQAView.swift in Sources */,
 				144453F3B1B547A0912EA15F /* Core/Utilities/Constants.swift in Sources */,
 				A04EE73F31C7465B9341BE10 /* Core/Utilities/DeepLinkParser.swift in Sources */,
 				ACE3356524F74ABEBFAB864B /* Core/Utilities/DeviceIdentifier.swift in Sources */,
-				AC4723532F1169E2009A6FD0 /* MapService.swift in Sources */,
-				AC4723542F1169E2009A6FD0 /* AuthService+AppleSignIn.swift in Sources */,
-				AC4723552F1169E2009A6FD0 /* BiometricService.swift in Sources */,
-				AC4723562F1169E2009A6FD0 /* LocationService.swift in Sources */,
-				AC608DB32F11C24F00C3769C /* TownHallCommentService.swift in Sources */,
-				AC608DB42F11C24F00C3769C /* TownHallVoteService.swift in Sources */,
 				CF86E62E881140AF84C527CA /* Core/Utilities/Logger.swift in Sources */,
 				9E490CB84FA24C199FF118DC /* Features/Claiming/ViewModels/ClaimViewModel.swift in Sources */,
 				C77C74CE4ADF45FBBD9F5214 /* Features/Claiming/Views/ClaimSheet.swift in Sources */,
 				557ECEF8F4454C42883F123F /* Features/Claiming/Views/CompleteSheet.swift in Sources */,
 				618E2729DA4E4D3A9FE27998 /* Features/Claiming/Views/PhoneRequiredSheet.swift in Sources */,
-				AC4723462F1169B1009A6FD0 /* LocationAutocompleteField.swift in Sources */,
 				F371E26626B549A1842F2B5B /* Features/Claiming/Views/UnclaimSheet.swift in Sources */,
 				565430798DDB4B23924ABE30 /* Features/Favors/ViewModels/CreateFavorViewModel.swift in Sources */,
 				57570E6D1FCD4CCAB7E480D2 /* Features/Favors/ViewModels/FavorDetailViewModel.swift in Sources */,
-				AC35AB9B2F1065130012096B /* AdminInviteView.swift in Sources */,
-				AC35AB9C2F1065130012096B /* PendingUserDetailView.swift in Sources */,
 				D0C29DB025F0464FB0D5C754 /* Features/Favors/ViewModels/FavorsDashboardViewModel.swift in Sources */,
 				FB3BE6AB07FA45C8885E82BA /* Features/Favors/Views/CreateFavorView.swift in Sources */,
 				AEF04CC8E4B4406DBA4B5F2F /* Features/Favors/Views/EditFavorView.swift in Sources */,
@@ -1789,12 +1344,7 @@
 				41B955527CAF4F59BECA3D82 /* Features/Messaging/ViewModels/ConversationDetailViewModel.swift in Sources */,
 				6D5101EBFBE8476BB7D9058E /* Features/Messaging/ViewModels/ConversationsListViewModel.swift in Sources */,
 				62A581B7A6134A9FA36783A9 /* Features/Messaging/Views/ConversationDetailView.swift in Sources */,
-				AC47236D2F116B12009A6FD0 /* RequestPin.swift in Sources */,
-				AC47236E2F116B12009A6FD0 /* RequestPreviewCard.swift in Sources */,
-				AC47236F2F116B12009A6FD0 /* FilterBar.swift in Sources */,
 				09248758DAA4444AB0B1BC46 /* Features/Messaging/Views/ConversationsListView.swift in Sources */,
-				AC47235B2F116A42009A6FD0 /* SettingsView.swift in Sources */,
-				AC47235C2F116A42009A6FD0 /* LanguageSettingsView.swift in Sources */,
 				10A2269295B244819A10C11D /* Features/Rides/ViewModels/CreateRideViewModel.swift in Sources */,
 				695FADB8BD984A3FA2164BDF /* Features/Rides/ViewModels/RideDetailViewModel.swift in Sources */,
 				0941BD9C7EC44451957AA1B3 /* Features/Rides/ViewModels/RidesDashboardViewModel.swift in Sources */,
@@ -1818,8 +1368,6 @@
 				1F3872FD24264ABC8AD8779C /* UI/Components/Feedback/SkeletonConversationRow.swift in Sources */,
 				FE0FA0DFF13348208AEF1DAE /* UI/Components/Feedback/SkeletonFavorCard.swift in Sources */,
 				37A84B2CFC7F4599A6EE5839 /* UI/Components/Feedback/SkeletonLeaderboardRow.swift in Sources */,
-				AC608DAF2F11BAE900C3769C /* TownHallPostCard.swift in Sources */,
-				AC608DB02F11BAE900C3769C /* PostCommentsView.swift in Sources */,
 				EDBFAE24DC1042E1A416637C /* UI/Components/Feedback/SkeletonMessageRow.swift in Sources */,
 				414266AE4B5045A291093087 /* UI/Components/Feedback/SkeletonRideCard.swift in Sources */,
 				F67A55F753CE4B2091E85DCA /* UI/Components/Feedback/SkeletonView.swift in Sources */,
@@ -1841,39 +1389,18 @@
 				5E0303F50D30446C923902CE /* ImageCompressorTests.swift in Sources */,
 				6A328A38AC664D0C84F0373E /* RealtimeManagerTests.swift in Sources */,
 				7FC1B85E59ED46EC979DDA25 /* ProfileServiceTests.swift in Sources */,
-				AC35ABC02F1065CC0012096B /* AppNotificationTests.swift in Sources */,
-				AC35ABC12F1065CC0012096B /* LeaderboardEntryTests.swift in Sources */,
-				AC35ABC22F1065CC0012096B /* TownHallPostTests.swift in Sources */,
-				AC35ABCA2F1065DA0012096B /* NotificationServiceTests.swift in Sources */,
-				AC35ABCB2F1065DA0012096B /* TownHallServiceTests.swift in Sources */,
-				AC35ABCC2F1065DA0012096B /* ClaimServiceTests.swift in Sources */,
-				AC35ABCD2F1065DA0012096B /* FavorServiceTests.swift in Sources */,
-				AC35ABCE2F1065DA0012096B /* LeaderboardServiceTests.swift in Sources */,
-				AC35ABCF2F1065DA0012096B /* PushNotificationServiceTests.swift in Sources */,
-				AC35ABD02F1065DA0012096B /* RideServiceTests.swift in Sources */,
 				7AD025419E784FB8A81740AC /* ValidatorsTests.swift in Sources */,
 				130951F3D8E84F66ABF62CC0 /* MyProfileViewModelTests.swift in Sources */,
 				2AC1A9F7E1BD428889C01E63 /* EditProfileViewModelTests.swift in Sources */,
 				B8A3E1E96A7B4435BF3A7BDD /* PublicProfileViewModelTests.swift in Sources */,
 				A7C129D4E72D435D90261C7D /* ClaimServiceTests.swift in Sources */,
 				CB403AD0D3F2473FAC682A12 /* FavorServiceTests.swift in Sources */,
-				AC35ABB32F1065AD0012096B /* CreateFavorViewModelTests.swift in Sources */,
-				AC35ABB42F1065AD0012096B /* RideDetailViewModelTests.swift in Sources */,
-				AC35ABB52F1065AD0012096B /* FavorsDashboardViewModelTests.swift in Sources */,
-				AC35ABB62F1065AD0012096B /* LeaderboardViewModelTests.swift in Sources */,
-				AC35ABB72F1065AD0012096B /* RidesDashboardViewModelTests.swift in Sources */,
-				AC35ABB82F1065AD0012096B /* CreateRideViewModelTests.swift in Sources */,
-				AC35ABB92F1065AD0012096B /* ClaimViewModelTests.swift in Sources */,
-				AC35ABBA2F1065AD0012096B /* CreatePostViewModelTests.swift in Sources */,
-				AC35ABBB2F1065AD0012096B /* NotificationsListViewModelTests.swift in Sources */,
-				AC35ABBC2F1065AD0012096B /* TownHallFeedViewModelTests.swift in Sources */,
 				A2F5CB38BA60445B8FFA3FF7 /* RideServiceTests.swift in Sources */,
 				1D0CA4B9AC98457DAB44B728 /* ClaimViewModelTests.swift in Sources */,
 				3471C1AC7A65494F954013B5 /* CreateFavorViewModelTests.swift in Sources */,
 				313F09CFA1C9476D857CDEBA /* FavorsDashboardViewModelTests.swift in Sources */,
 				594E0F7FDDA34601A025A58C /* CreateRideViewModelTests.swift in Sources */,
 				86E075F7762147EEBC9B26B9 /* RideDetailViewModelTests.swift in Sources */,
-				AC35ABD22F1065E60012096B /* DeepLinkParserTests.swift in Sources */,
 				2C5EEDEE3F6E497F81010248 /* RidesDashboardViewModelTests.swift in Sources */,
 				4485FA64AB7941C7B89F3041 /* NaarsCarsUITests.swift in Sources */,
 				104F888413964CF3A97EC9CA /* NaarsCarsUITestsLaunchTests.swift in Sources */,
@@ -2024,27 +1551,19 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = WT4DGUYKL4;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NaarsCars/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Naar's Cars uses your camera to take profile photos.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "Naar's Cars uses Face ID to quickly and securely unlock the app.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Naar's Cars shows your location on the map to help you find nearby requests.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Naar's Cars accesses your photos to set your profile picture and share images in messages.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -2074,27 +1593,23 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = WT4DGUYKL4;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NaarsCars/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Naar's Cars uses your camera to take profile photos.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Naar's Cars uses Face ID to quickly and securely unlock the app.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Naar's Cars shows your location on the map to help you find nearby requests.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Naar's Cars accesses your photos to set your profile picture and share images in messages.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
