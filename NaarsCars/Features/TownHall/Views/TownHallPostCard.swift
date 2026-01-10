@@ -258,7 +258,7 @@ struct TownHallPostCard: View {
     let testUserId = UUID()
     let testAuthorId = UUID()
     
-    return ScrollView {
+    ScrollView {
         VStack(spacing: 16) {
             TownHallPostCard(
                 post: TownHallPost(
