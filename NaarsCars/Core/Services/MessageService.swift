@@ -944,11 +944,22 @@ final class MessageService {
         }
         
         // Update the title
-        let titleValue: AnyCodable? = title?.isEmpty == false ? AnyCodable(title) : nil
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        var updateDict: [String: AnyCodable] = [
+            "updated_at": AnyCodable(dateFormatter.string(from: Date()))
+        ]
+        
+        if let title = title, !title.isEmpty {
+            updateDict["title"] = AnyCodable(title)
+        } else {
+            updateDict["title"] = AnyCodable(nil as String?)
+        }
         
         try await supabase
             .from("conversations")
-            .update(["title": titleValue as Any, "updated_at": ISO8601DateFormatter().string(from: Date())])
+            .update(updateDict)
             .eq("id", value: conversationId.uuidString)
             .execute()
         
