@@ -37,13 +37,15 @@ However, this may not work with fileSystemSynchronizedGroups.
 
 ## Current Status
 
-✅ **Fixed in project.pbxproj:**
-- Debug configuration: `GENERATE_INFOPLIST_FILE = NO` and `INFOPLIST_FILE = NaarsCars/NaarsCars/Info.plist`
-- Release configuration: `GENERATE_INFOPLIST_FILE = NO` and `INFOPLIST_FILE = NaarsCars/NaarsCars/Info.plist`
-- Info.plist updated with all required privacy keys
+✅ **FIXED:**
+- Debug configuration: `GENERATE_INFOPLIST_FILE = NO` and `INFOPLIST_FILE = NaarsCars/Resources/Info.plist`
+- Release configuration: `GENERATE_INFOPLIST_FILE = NO` and `INFOPLIST_FILE = NaarsCars/Resources/Info.plist`
+- Info.plist moved to `NaarsCars/Resources/Info.plist` to exclude it from `fileSystemSynchronizedGroups`
+- Info.plist updated with all required privacy keys (camera, location, photos, Face ID)
+- MapKit directions configuration included in Info.plist
 
-⚠️ **Still Need to Fix:**
-- Remove Info.plist from Copy Bundle Resources phase (must be done in Xcode UI)
+✅ **Resolution Applied:**
+Moved Info.plist outside the `fileSystemSynchronizedGroups` directory (from `NaarsCars/NaarsCars/` to `NaarsCars/Resources/`) which prevents it from being automatically included in Copy Bundle Resources while still allowing it to be processed correctly.
 
 ## Quick Fix Command
 
