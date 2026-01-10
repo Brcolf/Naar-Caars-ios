@@ -46,7 +46,8 @@ struct TownHallPostCard: View {
     
     // Show stars if post is related to a review
     private var starRating: Int? {
-        if post.type == .review, let review = post.review {
+        guard let type = post.type, type == .review else { return nil }
+        if let review = post.review {
             return review.rating
         }
         return nil
@@ -254,45 +255,55 @@ struct TownHallPostCard: View {
 }
 
 #Preview {
-    ScrollView {
+    let testUserId = UUID()
+    let testAuthorId = UUID()
+    
+    return ScrollView {
         VStack(spacing: 16) {
             TownHallPostCard(
                 post: TownHallPost(
-                    userId: UUID(),
+                    userId: testAuthorId,
                     content: "This is a test post with some content. It can be quite long and will wrap to multiple lines. The title should be extracted from this content automatically.",
                     author: Profile(
-                        id: UUID(),
+                        id: testAuthorId,
                         name: "John Doe",
-                        email: "john@example.com"
+                        email: "john@example.com",
+                        invitedBy: UUID(),
+                        isAdmin: false,
+                        approved: true
                     ),
                     commentCount: 5,
                     upvotes: 10,
                     downvotes: 2
                 ),
-                currentUserId: UUID()
+                currentUserId: testUserId
             )
             
             TownHallPostCard(
                 post: TownHallPost(
-                    userId: UUID(),
+                    userId: testAuthorId,
                     content: "Great experience! Highly recommend this service.",
                     type: .review,
                     author: Profile(
-                        id: UUID(),
+                        id: testAuthorId,
                         name: "Jane Smith",
-                        email: "jane@example.com"
+                        email: "jane@example.com",
+                        invitedBy: UUID(),
+                        isAdmin: false,
+                        approved: true
                     ),
                     review: Review(
-                        reviewerId: UUID(),
+                        reviewerId: testAuthorId,
                         fulfillerId: UUID(),
-                        rating: 5
+                        rating: 5,
+                        comment: "Great experience!"
                     ),
                     commentCount: 3,
                     upvotes: 8,
                     downvotes: 0,
                     userVote: .upvote
                 ),
-                currentUserId: UUID()
+                currentUserId: testUserId
             )
         }
         .padding()
