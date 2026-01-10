@@ -268,9 +268,9 @@ struct TownHallPostCard: View {
                         id: testAuthorId,
                         name: "John Doe",
                         email: "john@example.com",
-                        invitedBy: UUID(),
                         isAdmin: false,
-                        approved: true
+                        approved: true,
+                        invitedBy: UUID()
                     ),
                     commentCount: 5,
                     upvotes: 10,
@@ -288,9 +288,9 @@ struct TownHallPostCard: View {
                         id: testAuthorId,
                         name: "Jane Smith",
                         email: "jane@example.com",
-                        invitedBy: UUID(),
                         isAdmin: false,
-                        approved: true
+                        approved: true,
+                        invitedBy: UUID()
                     ),
                     review: Review(
                         reviewerId: testAuthorId,
