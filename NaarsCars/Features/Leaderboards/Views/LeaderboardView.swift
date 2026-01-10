@@ -92,4 +92,3 @@ struct LeaderboardView: View {
 #Preview {
     LeaderboardView()
 }
-

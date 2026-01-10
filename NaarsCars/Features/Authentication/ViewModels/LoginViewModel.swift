@@ -39,7 +39,7 @@ final class LoginViewModel: ObservableObject {
         )
         
         guard canProceed else {
-            error = AppError.rateLimited("Please wait a moment before trying again")
+            error = AppError.rateLimitExceeded("Please wait a moment before trying again")
             return
         }
         
