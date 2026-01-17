@@ -137,3 +137,4 @@ If you prefer to use the Google Places SDK instead of REST API:
 - Both approaches require the same API key and have the same pricing
 - The current implementation uses REST API for simplicity
 
+

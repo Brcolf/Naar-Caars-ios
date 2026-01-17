@@ -101,3 +101,4 @@ To add translations for other languages (Chinese, Vietnamese, Korean):
 - `NSLocalizedString` automatically respects `AppleLanguages`
 - Date/time/number formatting uses `LocalizationManager.currentLocale`
 
+

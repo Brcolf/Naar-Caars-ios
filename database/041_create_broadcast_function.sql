@@ -55,3 +55,4 @@ GRANT EXECUTE ON FUNCTION send_broadcast_notifications TO authenticated;
 -- Add comment
 COMMENT ON FUNCTION send_broadcast_notifications IS 'Sends broadcast notifications to all approved users. Must be called by admin users only.';
 
+

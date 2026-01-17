@@ -25,9 +25,9 @@ enum ImagePreset {
     /// Maximum file size in bytes
     var maxBytes: Int {
         switch self {
-        case .avatar: return 200 * 1024      // 200KB
-        case .messageImage: return 500 * 1024 // 500KB
-        case .fullSize: return 1024 * 1024    // 1MB
+        case .avatar: return 2 * 1024 * 1024      // 2MB
+        case .messageImage: return 2 * 1024 * 1024 // 2MB
+        case .fullSize: return 2 * 1024 * 1024    // 2MB
         }
     }
     

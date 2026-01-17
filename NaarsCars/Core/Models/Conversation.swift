@@ -10,13 +10,18 @@ import Foundation
 /// Conversation model
 struct Conversation: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
-    let rideId: UUID?
-    let favorId: UUID?
     var title: String?
     let createdBy: UUID
     var isArchived: Bool
     let createdAt: Date
     var updatedAt: Date
+    
+    // MARK: - Local-Only Fields (Not in Supabase)
+    
+    /// Cached display name for performance (local-first)
+    /// This is the computed title (group name OR participant names)
+    /// NOT stored in Supabase - hydrated from local cache
+    var cachedDisplayName: String?
     
     // MARK: - Optional Joined Fields (populated when fetched with joins)
     
@@ -29,18 +34,10 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
     /// Unread message count
     var unreadCount: Int?
     
-    // MARK: - Computed Properties
-    
-    var isActivityBased: Bool {
-        rideId != nil || favorId != nil
-    }
-    
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
         case id
-        case rideId = "ride_id"
-        case favorId = "favor_id"
         case title
         case createdBy = "created_by"
         case isArchived = "is_archived"
@@ -54,23 +51,22 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
         id = try container.decode(UUID.self, forKey: .id)
-        rideId = try container.decodeIfPresent(UUID.self, forKey: .rideId)
-        favorId = try container.decodeIfPresent(UUID.self, forKey: .favorId)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         createdBy = try container.decode(UUID.self, forKey: .createdBy)
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        
+        // Local-only fields - not decoded from Supabase
+        cachedDisplayName = nil
     }
     
-    // Custom encoder - now includes title since it exists in database
+    // Custom encoder
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
         try container.encode(id, forKey: .id)
-        try container.encodeIfPresent(rideId, forKey: .rideId)
-        try container.encodeIfPresent(favorId, forKey: .favorId)
-        try container.encodeIfPresent(title, forKey: .title) // Now encoded since column exists
+        try container.encodeIfPresent(title, forKey: .title)
         try container.encode(createdBy, forKey: .createdBy)
         // isArchived still not encoded - doesn't exist in database
         try container.encode(createdAt, forKey: .createdAt)
@@ -81,25 +77,23 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
     
     init(
         id: UUID = UUID(),
-        rideId: UUID? = nil,
-        favorId: UUID? = nil,
         title: String? = nil,
         createdBy: UUID,
         isArchived: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
+        cachedDisplayName: String? = nil,
         participants: [ConversationParticipant]? = nil,
         lastMessage: Message? = nil,
         unreadCount: Int? = nil
     ) {
         self.id = id
-        self.rideId = rideId
-        self.favorId = favorId
         self.title = title
         self.createdBy = createdBy
         self.isArchived = isArchived
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.cachedDisplayName = cachedDisplayName
         self.participants = participants
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount
@@ -112,7 +106,6 @@ struct ConversationWithDetails: Codable, Identifiable, Equatable, Sendable {
     let lastMessage: Message?
     let unreadCount: Int
     let otherParticipants: [Profile]
-    let requestTitle: String? // Title of the associated ride/favor if activity-based
     
     var id: UUID { conversation.id }
     
@@ -120,14 +113,12 @@ struct ConversationWithDetails: Codable, Identifiable, Equatable, Sendable {
         conversation: Conversation,
         lastMessage: Message? = nil,
         unreadCount: Int = 0,
-        otherParticipants: [Profile] = [],
-        requestTitle: String? = nil
+        otherParticipants: [Profile] = []
     ) {
         self.conversation = conversation
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount
         self.otherParticipants = otherParticipants
-        self.requestTitle = requestTitle
     }
 }
 

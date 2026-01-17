@@ -82,14 +82,23 @@ final class PendingUsersViewModel: ObservableObject {
         do {
             try await adminService.approveUser(userId: userId)
             print("✅ [PendingUsersViewModel] Approved user: \(userId)")
-            // Remove from list
+            
+            // Reload the list first to ensure we have the latest data
+            await loadPendingUsers()
+            
+            // Remove from local list if still present (should be gone after reload)
             pendingUsers.removeAll { $0.id == userId }
             // Also remove from inviter profiles if needed
             inviterProfiles.removeValue(forKey: userId)
+            
+            // Refresh badge counts after approving user
+            await BadgeCountManager.shared.refreshAllBadges()
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             print("🔴 [PendingUsersViewModel] Error approving user: \(error.localizedDescription)")
             print("🔴 [PendingUsersViewModel] Error details: \(error)")
+            // Reload list to ensure UI is in sync
+            await loadPendingUsers()
         }
     }
     
@@ -102,6 +111,9 @@ final class PendingUsersViewModel: ObservableObject {
             try await adminService.rejectUser(userId: userId)
             // Remove from list
             pendingUsers.removeAll { $0.id == userId }
+            
+            // Refresh badge counts after rejecting user
+            await BadgeCountManager.shared.refreshAllBadges()
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             print("🔴 [PendingUsersViewModel] Error rejecting user: \(error.localizedDescription)")

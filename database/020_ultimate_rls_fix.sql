@@ -93,3 +93,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- this matches what the policy allows, so no recursion occurs!
 
 
+

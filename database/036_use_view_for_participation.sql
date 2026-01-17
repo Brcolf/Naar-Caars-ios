@@ -152,3 +152,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- from within a policy - we're querying it directly in application code.
 
 
+

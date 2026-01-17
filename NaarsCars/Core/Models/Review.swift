@@ -16,6 +16,7 @@ struct Review: Codable, Identifiable, Equatable {
     let favorId: UUID?
     let rating: Int // 1-5
     let comment: String?
+    let imageUrl: String?
     let createdAt: Date
     
     // MARK: - CodingKeys
@@ -28,6 +29,7 @@ struct Review: Codable, Identifiable, Equatable {
         case favorId = "favor_id"
         case rating
         case comment
+        case imageUrl = "image_url"
         case createdAt = "created_at"
     }
     
@@ -47,6 +49,7 @@ struct Review: Codable, Identifiable, Equatable {
         favorId: UUID? = nil,
         rating: Int,
         comment: String? = nil,
+        imageUrl: String? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -56,6 +59,7 @@ struct Review: Codable, Identifiable, Equatable {
         self.favorId = favorId
         self.rating = rating
         self.comment = comment
+        self.imageUrl = imageUrl
         self.createdAt = createdAt
     }
 }

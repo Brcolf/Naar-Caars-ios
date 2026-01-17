@@ -108,7 +108,7 @@ final class LeaderboardService {
         let params = LeaderboardParams(start_date: startDateString, end_date: endDateString)
         
         // Access supabase client
-        let client = await SupabaseService.shared.client
+        let client = SupabaseService.shared.client
         
         let response = try await client
             .rpc("get_leaderboard", params: params)

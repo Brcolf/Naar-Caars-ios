@@ -207,3 +207,4 @@ https://easlpsksbylyceqiqecq.supabase.co/functions/v1/send-message-push
 - [ ] Function logs show activity
 - [ ] Push notification received on device
 
+

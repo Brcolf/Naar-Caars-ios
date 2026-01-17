@@ -314,3 +314,4 @@ struct RecentLocationRow: View {
     .padding()
 }
 
+

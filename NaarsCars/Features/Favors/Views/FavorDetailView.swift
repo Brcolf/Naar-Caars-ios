@@ -18,6 +18,7 @@ struct FavorDetailView: View {
     @State private var showClaimSheet = false
     @State private var showUnclaimSheet = false
     @State private var showCompleteSheet = false
+    @State private var showReviewSheet = false
     @State private var showPhoneRequired = false
     @State private var navigateToProfile = false
     @State private var navigateToConversation: UUID?
@@ -31,6 +32,29 @@ struct FavorDetailView: View {
                     // Poster info
                     if let poster = favor.poster {
                         UserAvatarLink(profile: poster, size: 60)
+                    }
+                    
+                    // Participants (if any)
+                    if let participants = favor.participants, !participants.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Participants")
+                                .font(.naarsTitle3)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(participants) { participant in
+                                        VStack(spacing: 4) {
+                                            UserAvatarLink(profile: participant, size: 50)
+                                            Text(participant.name)
+                                                .font(.naarsCaption)
+                                                .lineLimit(1)
+                                                .frame(width: 60)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .cardStyle()
                     }
                     
                     // Status badge
@@ -126,13 +150,13 @@ struct FavorDetailView: View {
                         messageAllParticipantsButton(favor: favor)
                     }
                     
-                    // Add participants button (for poster)
-                    if viewModel.isPoster {
+                    // Add participants button (for poster/participants)
+                    if viewModel.canEdit {
                         addParticipantsButton(favor: favor)
                     }
                     
-                    // Action buttons for poster
-                    if viewModel.isPoster {
+                    // Action buttons for poster/participants
+                    if viewModel.canEdit {
                         HStack(spacing: 16) {
                             if favor.status == .confirmed {
                                 SecondaryButton(title: "Mark Complete") {
@@ -336,7 +360,10 @@ struct FavorDetailView: View {
         if let claimedBy = favor.claimedBy {
             ids.append(claimedBy)
         }
-        // TODO: Add favor_participants when that data is available
+        // Add participants
+        if let participants = favor.participants {
+            ids.append(contentsOf: participants.map { $0.id })
+        }
         return ids
     }
     
@@ -344,49 +371,27 @@ struct FavorDetailView: View {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
-            // Get or create conversation for this favor
-            let conversation = try await MessageService.shared.createOrGetRequestConversation(
-                rideId: nil,
-                favorId: favor.id,
-                createdBy: currentUserId
-            )
-            
-            // Collect all participant IDs (poster, claimer, current user)
+            // Collect all relevant user IDs (poster, claimer, participants, current user)
             var participantIds: Set<UUID> = [favor.userId] // Poster
             if let claimedBy = favor.claimedBy {
                 participantIds.insert(claimedBy)
             }
+            // Add participants
+            if let participants = favor.participants {
+                participantIds.formUnion(participants.map { $0.id })
+            }
             participantIds.insert(currentUserId) // Ensure current user is included
-            // TODO: Add favor_participants when that data is available
             
-            // Add participants (will skip if already added)
-            // First ensure current user is a participant so they can add others
-            do {
-                try await MessageService.shared.addParticipantsToConversation(
-                    conversationId: conversation.id,
-                    userIds: [currentUserId],
-                    addedBy: currentUserId,
-                    createAnnouncement: false
-                )
-            } catch {
-                // If current user is already a participant, that's fine
-                print("ℹ️ [FavorDetailView] Current user may already be a participant: \(error.localizedDescription)")
-            }
-            
-            // Now add all other participants
-            let otherParticipants = Array(participantIds.filter { $0 != currentUserId })
-            if !otherParticipants.isEmpty {
-                try await MessageService.shared.addParticipantsToConversation(
-                    conversationId: conversation.id,
-                    userIds: otherParticipants,
-                    addedBy: currentUserId,
-                    createAnnouncement: false
-                )
-            }
+            // Create conversation with all relevant users
+            let conversation = try await MessageService.shared.createConversationWithUsers(
+                userIds: Array(participantIds),
+                createdBy: currentUserId,
+                title: nil
+            )
             
             navigateToConversation = conversation.id
         } catch {
-            print("🔴 Error opening conversation: \(error.localizedDescription)")
+            print("🔴 Error creating conversation: \(error.localizedDescription)")
         }
     }
     

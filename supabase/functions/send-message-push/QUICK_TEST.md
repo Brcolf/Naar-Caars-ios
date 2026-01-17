@@ -206,3 +206,4 @@ cd /Users/bcolf/.cursor/worktrees/naars-cars-ios/vcs
 2. **Test on real device**: See actual push notification
 3. **Test navigation**: Tap notification to verify deep linking works
 
+

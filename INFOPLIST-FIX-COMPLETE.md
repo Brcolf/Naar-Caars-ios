@@ -55,3 +55,4 @@ xcodebuild ... | grep "Multiple commands produce.*Info.plist"
 
 ⚠️ **Note**: Build may still fail due to other Swift compilation errors, but Info.plist issue is fixed.
 
+

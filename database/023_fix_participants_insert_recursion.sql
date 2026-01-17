@@ -52,3 +52,4 @@ CREATE POLICY "participants_insert_creator_or_self" ON public.conversation_parti
 -- Should work if user is adding themselves OR is the conversation creator
 
 
+

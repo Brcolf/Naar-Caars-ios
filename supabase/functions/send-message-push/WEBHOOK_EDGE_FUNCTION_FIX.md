@@ -76,3 +76,4 @@ You should see:
 - HTTP Parameters: Only has `id`, missing `conversation_id`, `from_id`, `text`
 - OR: Remove parameters entirely and let Supabase auto-pass the data
 
+

@@ -20,3 +20,4 @@ echo "2. Reopen the project"
 echo "3. Product → Clean Build Folder (Shift+Cmd+K)"
 echo "4. Try building again"
 
+

@@ -157,3 +157,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- 3. Or use database triggers instead of RLS
 
 
+

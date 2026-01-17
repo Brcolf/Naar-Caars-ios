@@ -118,4 +118,29 @@ enum Validators {
             }
         }
     }
+    
+    // MARK: - Email Validation
+    
+    /// Validates email address format
+    /// - Parameter email: Email string to validate
+    /// - Returns: true if valid email format
+    static func isValidEmail(_ email: String) -> Bool {
+        let emailRegex = #"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"#
+        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
+        return emailPredicate.evaluate(with: email)
+    }
+    
+    // MARK: - Password Validation
+    
+    /// Validates password strength
+    /// - Parameter password: Password string to validate
+    /// - Returns: true if password meets requirements (min 8 chars, at least one letter and one number)
+    static func isValidPassword(_ password: String) -> Bool {
+        guard password.count >= 8 else { return false }
+        
+        let hasLetter = password.range(of: "[A-Za-z]", options: .regularExpression) != nil
+        let hasNumber = password.range(of: "[0-9]", options: .regularExpression) != nil
+        
+        return hasLetter && hasNumber
+    }
 }

@@ -36,6 +36,3 @@ final class PublicProfileViewModelTests: XCTestCase {
     }
 }
 
-
-
-

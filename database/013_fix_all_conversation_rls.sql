@@ -90,3 +90,4 @@ CREATE POLICY "participants_insert_creator_or_self" ON public.conversation_parti
 -- SELECT policyname, cmd FROM pg_policies WHERE tablename IN ('conversations', 'messages', 'conversation_participants');
 
 
+

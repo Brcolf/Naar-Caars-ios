@@ -31,10 +31,8 @@ final class NavigationCoordinator: ObservableObject {
     enum Tab: Int {
         case requests = 0
         case messages = 1
-        case notifications = 2
-        case townHall = 3
-        case leaderboard = 4
-        case profile = 5
+        case community = 2  // Replaces notifications (removed)
+        case profile = 3
     }
     
     // MARK: - Initialization
@@ -111,17 +109,8 @@ final class NavigationCoordinator: ObservableObject {
             }
         }
         
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToNotifications"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.selectedTab = .notifications
-                self.navigateToNotifications = true
-            }
-        }
+        // Notifications tab removed - notifications are shown as badges on relevant tabs
+        // Removed navigateToNotifications listener since there's no notifications tab anymore
     }
     
     // MARK: - Public Methods

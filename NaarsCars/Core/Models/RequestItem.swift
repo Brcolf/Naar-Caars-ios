@@ -94,6 +94,27 @@ enum RequestItem: Identifiable, Equatable {
         }
     }
     
+    /// Check if a user is participating in this request (is poster OR in participants array)
+    func isParticipating(userId: UUID) -> Bool {
+        // Check if user is the poster
+        if self.userId == userId {
+            return true
+        }
+        
+        // Check if user is in participants array
+        switch self {
+        case .ride(let ride):
+            return ride.participants?.contains(where: { $0.id == userId }) ?? false
+        case .favor(let favor):
+            return favor.participants?.contains(where: { $0.id == userId }) ?? false
+        }
+    }
+    
+    /// Check if request is unclaimed (claimedBy is nil)
+    var isUnclaimed: Bool {
+        return claimedBy == nil
+    }
+    
     static func == (lhs: RequestItem, rhs: RequestItem) -> Bool {
         lhs.id == rhs.id
     }

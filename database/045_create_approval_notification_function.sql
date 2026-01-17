@@ -43,3 +43,4 @@ GRANT EXECUTE ON FUNCTION send_approval_notification TO authenticated;
 -- Add comment
 COMMENT ON FUNCTION send_approval_notification IS 'Sends approval notification to a newly approved user. Must be called by admin users only.';
 
+

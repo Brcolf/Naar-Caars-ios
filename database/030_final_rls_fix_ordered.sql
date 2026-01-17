@@ -165,3 +165,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 --    and handle access control in application code or triggers)
 
 
+

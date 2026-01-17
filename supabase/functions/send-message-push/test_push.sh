@@ -80,3 +80,4 @@ echo ""
 echo "Note: If testing on simulator, you won't see the notification,"
 echo "      but the Edge Function logs will show if it was sent."
 
+

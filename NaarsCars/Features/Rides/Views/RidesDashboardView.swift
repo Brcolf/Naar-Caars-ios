@@ -84,7 +84,10 @@ struct RidesDashboardView: View {
                 }
             }
             .sheet(isPresented: $showCreateRide) {
-                CreateRideView()
+                CreateRideView { rideId in
+                    // Navigate to the newly created ride after sheet dismisses
+                    navigateToRide = rideId
+                }
             }
             .navigationDestination(item: $navigateToRide) { rideId in
                 RideDetailView(rideId: rideId)

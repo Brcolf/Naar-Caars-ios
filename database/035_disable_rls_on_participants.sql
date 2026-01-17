@@ -97,3 +97,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- Consider using database triggers or application-level checks to enforce security.
 
 
+

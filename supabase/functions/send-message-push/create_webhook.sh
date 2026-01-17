@@ -67,3 +67,4 @@ echo ""
 echo "To get your service role key, go to:"
 echo "https://supabase.com/dashboard/project/$PROJECT_REF/settings/api"
 
+

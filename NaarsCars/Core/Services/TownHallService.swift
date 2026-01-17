@@ -22,6 +22,7 @@ final class TownHallService {
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
     private let rateLimiter = RateLimiter.shared
+    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -30,6 +31,7 @@ final class TownHallService {
     // MARK: - Fetch Posts
     
     /// Fetch town hall posts with pagination
+    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameters:
     ///   - limit: Maximum number of posts to fetch (default: 20)
     ///   - offset: Number of posts to skip (default: 0)
@@ -44,6 +46,20 @@ final class TownHallService {
         
         print("🔄 [TownHallService] Cache miss for town hall posts. Fetching from network...")
         
+        // Use request deduplicator for first page only (pagination can't be deduplicated easily)
+        if offset == 0 {
+            let key = "townhall_posts_\(limit)_\(offset)"
+            
+            return try await requestDeduplicator.fetch(key: key) { [self] in
+                try await self.fetchPostsFromNetwork(limit: limit, offset: offset)
+            }
+        } else {
+            return try await fetchPostsFromNetwork(limit: limit, offset: offset)
+        }
+    }
+    
+    /// Internal method to fetch posts from network
+    private func fetchPostsFromNetwork(limit: Int, offset: Int) async throws -> [TownHallPost] {
         let response = try await supabase
             .from("town_hall_posts")
             .select()
@@ -500,29 +516,7 @@ final class TownHallService {
     
     /// Create date decoder for town hall posts
     private func createDateDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        return JSONDecoderFactory.createSupabaseDecoder()
     }
 }
 

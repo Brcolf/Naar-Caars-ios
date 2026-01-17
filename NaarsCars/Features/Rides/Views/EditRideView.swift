@@ -25,13 +25,11 @@ struct EditRideView: View {
                     DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
                     
-                    HStack {
-                        Text("Time")
-                        Spacer()
-                        TextField("HH:mm", text: $viewModel.time)
-                            .keyboardType(.numbersAndPunctuation)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    TimePickerView(
+                        hour: $viewModel.hour,
+                        minute: $viewModel.minute,
+                        isAM: $viewModel.isAM
+                    )
                 }
                 
                 Section("Route") {
@@ -69,10 +67,13 @@ struct EditRideView: View {
                     Button("Save") {
                         Task {
                             do {
+                                // Format time from hour/minute/isAM
+                                let formattedTime = viewModel.formatTime(hour: viewModel.hour, minute: viewModel.minute, isAM: viewModel.isAM)
+                                
                                 _ = try await RideService.shared.updateRide(
                                     id: ride.id,
                                     date: viewModel.date,
-                                    time: viewModel.time.isEmpty ? nil : viewModel.time,
+                                    time: formattedTime,
                                     pickup: viewModel.pickup.isEmpty ? nil : viewModel.pickup,
                                     destination: viewModel.destination.isEmpty ? nil : viewModel.destination,
                                     seats: viewModel.seats,
@@ -91,12 +92,18 @@ struct EditRideView: View {
             .onAppear {
                 // Pre-populate form with existing ride data
                 viewModel.date = ride.date
-                viewModel.time = ride.time
                 viewModel.pickup = ride.pickup
                 viewModel.destination = ride.destination
                 viewModel.seats = ride.seats
                 viewModel.notes = ride.notes ?? ""
                 viewModel.gift = ride.gift ?? ""
+                
+                // Parse existing time
+                if let parsedTime = viewModel.parseTime(ride.time) {
+                    viewModel.hour = parsedTime.hour
+                    viewModel.minute = parsedTime.minute
+                    viewModel.isAM = parsedTime.isAM
+                }
             }
         }
     }
@@ -114,6 +121,7 @@ struct EditRideView: View {
         status: .open
     ))
 }
+
 
 
 

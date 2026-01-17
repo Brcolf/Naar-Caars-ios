@@ -155,3 +155,4 @@ After sending a test message, verify:
 3. **If logs show "Skipped - user viewing"**: Correct behavior! Close app and test again.
 4. **If no logs appear**: Check webhook configuration.
 
+

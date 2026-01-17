@@ -118,3 +118,4 @@ The discrepancy you're seeing is **expected behavior** when using `fileSystemSyn
 
 **The key test is: Does the project build successfully?** If yes, all files are being included correctly, regardless of Project Navigator visibility.
 
+

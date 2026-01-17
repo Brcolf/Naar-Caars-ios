@@ -80,3 +80,4 @@ This means users can only see their **own** participation rows directly. When we
 - **Simpler logic**: Easier to understand and maintain
 
 
+

@@ -9,107 +9,108 @@ import SwiftUI
 
 /// View displayed when user account is pending admin approval
 struct PendingApprovalView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var isRefreshing = false
-    @State private var refreshError: AppError?
+    @StateObject private var launchManager = AppLaunchManager.shared
+    @State private var isSigningOut = false
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Image(systemName: "hourglass")
-                    .font(.system(size: 64))
-                    .foregroundColor(.blue)
-                
-                Text("Your Account is Pending Approval")
-                    .font(.title)
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // Icon
+            Image(systemName: "hourglass")
+                .font(.system(size: 80))
+                .foregroundColor(.blue)
+            
+            // Title
+            Text("Your Account is Pending Approval")
+                .font(.title)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
+            
+            // Description
+            VStack(spacing: 16) {
+                Text("Thank you for creating your account!")
+                    .font(.body)
                     .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
                 
-                Text("Your account is pending approval from an administrator. You'll be notified once your account has been approved.")
+                Text("Your account is pending approval from the board. You'll be notified once your account has been approved.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                // Display user's email address for confirmation
-                if let email = appState.currentUser?.email {
-                    Text(email)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                }
-                
-                // Error message
-                if let error = refreshError {
-                    Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .padding(.horizontal)
-                }
-                
-                // Refresh Status button
-                Button(action: {
-                    Task {
-                        await refreshStatus()
-                    }
-                }) {
-                    if isRefreshing {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Refresh Status")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isRefreshing)
-                .padding(.horizontal)
-                
-                // Log Out button
-                Button(action: {
-                    Task {
-                        try? await AuthService.shared.signOut()
-                    }
-                }) {
-                    Text("Log Out")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .padding(.horizontal)
             }
-            .padding()
-        }
-        .refreshable {
-            await refreshStatus()
+            .padding(.horizontal, 32)
+            
+            Spacer()
+            
+            // Return to Login button
+            Button(action: {
+                signOutAndReturnToLogin()
+            }) {
+                HStack {
+                    if isSigningOut {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.8)
+                    }
+                    Text(isSigningOut ? "Signing Out..." : "Return to Login")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Color.blue)
+                .cornerRadius(12)
+            }
+            .disabled(isSigningOut)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.gray.opacity(0.1))
+        .background(Color(.systemGroupedBackground))
+        .task {
+            // Periodically check approval status (every 15 seconds)
+            // This allows users to be automatically transitioned to the main app when approved
+            await startPeriodicApprovalCheck()
+        }
     }
     
-    private func refreshStatus() async {
-        isRefreshing = true
-        refreshError = nil
+    /// Start periodic checks for approval status
+    /// Checks every 15 seconds to detect when user is approved
+    private func startPeriodicApprovalCheck() async {
+        // Initial check after 5 seconds (give server time to process approval)
+        try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
         
-        do {
-            // Recheck auth status which will fetch current profile
-            let authState = try await AuthService.shared.checkAuthStatus()
+        // Then check every 15 seconds
+        while true {
+            // Check approval status by triggering launch manager
+            // This will update the state if user is approved, causing ContentView to transition
+            await launchManager.performCriticalLaunch()
             
-            // If approved, navigation will be handled by ContentView
-            if authState == .authenticated {
-                // Profile was approved, app state will update automatically
-                print("✅ Account approved!")
-            }
-        } catch {
-            refreshError = AppError.processingError(error.localizedDescription)
+            // Wait 15 seconds before next check
+            try? await Task.sleep(nanoseconds: 15_000_000_000) // 15 seconds
         }
-        
-        isRefreshing = false
+    }
+    
+    /// Sign out and return to login screen
+    private func signOutAndReturnToLogin() {
+        Task {
+            isSigningOut = true
+            do {
+                try await AuthService.shared.signOut()
+                // Trigger launch manager to re-check auth state
+                await launchManager.performCriticalLaunch()
+            } catch {
+                print("⚠️ Error signing out: \(error.localizedDescription)")
+                // Still try to update launch state to unauthenticated
+                launchManager.state = .ready(.unauthenticated)
+            }
+            isSigningOut = false
+        }
     }
 }
 
 #Preview {
     PendingApprovalView()
-        .environmentObject(AppState())
 }
-

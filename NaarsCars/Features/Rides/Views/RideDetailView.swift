@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 /// View for displaying ride details
 struct RideDetailView: View {
@@ -18,6 +19,7 @@ struct RideDetailView: View {
     @State private var showClaimSheet = false
     @State private var showUnclaimSheet = false
     @State private var showCompleteSheet = false
+    @State private var showReviewSheet = false
     @State private var showPhoneRequired = false
     @State private var navigateToProfile = false
     @State private var navigateToConversation: UUID?
@@ -31,6 +33,29 @@ struct RideDetailView: View {
                     // Poster info
                     if let poster = ride.poster {
                         UserAvatarLink(profile: poster, size: 60)
+                    }
+                    
+                    // Participants (if any)
+                    if let participants = ride.participants, !participants.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Participants")
+                                .font(.naarsTitle3)
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(participants) { participant in
+                                        VStack(spacing: 4) {
+                                            UserAvatarLink(profile: participant, size: 50)
+                                            Text(participant.name)
+                                                .font(.naarsCaption)
+                                                .lineLimit(1)
+                                                .frame(width: 60)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .cardStyle()
                     }
                     
                     // Status badge
@@ -70,6 +95,31 @@ struct RideDetailView: View {
                             Text(ride.destination)
                                 .font(.naarsBody)
                         }
+                    }
+                    .cardStyle()
+                    
+                    // Estimated cost (if available)
+                    if let estimatedCost = ride.estimatedCost {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Estimated Rideshare Cost")
+                                .font(.naarsTitle3)
+                            
+                            HStack {
+                                Image(systemName: "dollarsign.circle.fill")
+                                    .foregroundColor(.naarsPrimary)
+                                Text(RideCostEstimator.formatCost(estimatedCost))
+                                    .font(.naarsHeadline)
+                            }
+                        }
+                        .cardStyle()
+                    }
+                    
+                    // Map view showing route
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Route Map")
+                            .font(.naarsTitle3)
+                        
+                        RouteMapView(pickup: ride.pickup, destination: ride.destination)
                     }
                     .cardStyle()
                     
@@ -135,13 +185,13 @@ struct RideDetailView: View {
                         messageAllParticipantsButton(ride: ride)
                     }
                     
-                    // Add participants button (for poster)
-                    if viewModel.isPoster {
+                    // Add participants button (for poster/participants)
+                    if viewModel.canEdit {
                         addParticipantsButton(ride: ride)
                     }
                     
-                    // Action buttons for poster
-                    if viewModel.isPoster {
+                    // Action buttons for poster/participants
+                    if viewModel.canEdit {
                         HStack(spacing: 16) {
                             if ride.status == .confirmed {
                                 SecondaryButton(title: "Mark Complete") {
@@ -258,6 +308,29 @@ struct RideDetailView: View {
                 )
             }
         }
+        .sheet(isPresented: $showReviewSheet) {
+            if let ride = viewModel.ride, let claimerId = ride.claimedBy {
+                // Get claimer profile name
+                let claimerName = ride.claimer?.name ?? "Someone"
+                LeaveReviewView(
+                    requestType: "ride",
+                    requestId: ride.id,
+                    requestTitle: "\(ride.pickup) → \(ride.destination)",
+                    fulfillerId: claimerId,
+                    fulfillerName: claimerName,
+                    onReviewSubmitted: {
+                        Task {
+                            await viewModel.loadRide(id: rideId)
+                        }
+                    },
+                    onReviewSkipped: {
+                        Task {
+                            await viewModel.loadRide(id: rideId)
+                        }
+                    }
+                )
+            }
+        }
         .sheet(isPresented: $showPhoneRequired) {
             PhoneRequiredSheet(navigateToProfile: $navigateToProfile)
         }
@@ -345,7 +418,10 @@ struct RideDetailView: View {
         if let claimedBy = ride.claimedBy {
             ids.append(claimedBy)
         }
-        // TODO: Add ride_participants when that data is available
+        // Add participants
+        if let participants = ride.participants {
+            ids.append(contentsOf: participants.map { $0.id })
+        }
         return ids
     }
     
@@ -353,49 +429,27 @@ struct RideDetailView: View {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
-            // Get or create conversation for this ride
-            let conversation = try await MessageService.shared.createOrGetRequestConversation(
-                rideId: ride.id,
-                favorId: nil,
-                createdBy: currentUserId
-            )
-            
-            // Collect all participant IDs (poster, claimer, current user)
+            // Collect all relevant user IDs (poster, claimer, participants, current user)
             var participantIds: Set<UUID> = [ride.userId] // Poster
             if let claimedBy = ride.claimedBy {
                 participantIds.insert(claimedBy)
             }
+            // Add participants
+            if let participants = ride.participants {
+                participantIds.formUnion(participants.map { $0.id })
+            }
             participantIds.insert(currentUserId) // Ensure current user is included
-            // TODO: Add ride_participants when that data is available
             
-            // Add participants (will skip if already added)
-            // First ensure current user is a participant so they can add others
-            do {
-                try await MessageService.shared.addParticipantsToConversation(
-                    conversationId: conversation.id,
-                    userIds: [currentUserId],
-                    addedBy: currentUserId,
-                    createAnnouncement: false
-                )
-            } catch {
-                // If current user is already a participant, that's fine
-                print("ℹ️ [RideDetailView] Current user may already be a participant: \(error.localizedDescription)")
-            }
-            
-            // Now add all other participants
-            let otherParticipants = Array(participantIds.filter { $0 != currentUserId })
-            if !otherParticipants.isEmpty {
-                try await MessageService.shared.addParticipantsToConversation(
-                    conversationId: conversation.id,
-                    userIds: otherParticipants,
-                    addedBy: currentUserId,
-                    createAnnouncement: false
-                )
-            }
+            // Create conversation with all relevant users
+            let conversation = try await MessageService.shared.createConversationWithUsers(
+                userIds: Array(participantIds),
+                createdBy: currentUserId,
+                title: nil
+            )
             
             navigateToConversation = conversation.id
         } catch {
-            print("🔴 Error opening conversation: \(error.localizedDescription)")
+            print("🔴 Error creating conversation: \(error.localizedDescription)")
         }
     }
     

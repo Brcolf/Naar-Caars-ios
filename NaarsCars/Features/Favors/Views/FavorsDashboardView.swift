@@ -84,7 +84,10 @@ struct FavorsDashboardView: View {
                 }
             }
             .sheet(isPresented: $showCreateFavor) {
-                CreateFavorView()
+                CreateFavorView { favorId in
+                    // Navigate to the newly created favor after sheet dismisses
+                    navigateToFavor = favorId
+                }
             }
             .navigationDestination(item: $navigateToFavor) { favorId in
                 FavorDetailView(favorId: favorId)

@@ -58,6 +58,31 @@ struct ReviewCard: View {
                     .font(.body)
                     .foregroundColor(.primary)
             }
+            
+            // Review Image
+            if let imageUrl = review.imageUrl, let url = URL(string: imageUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(height: 200)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 200)
+                            .cornerRadius(8)
+                    case .failure:
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                            .frame(height: 200)
+                    @unknown default:
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                            .frame(height: 200)
+                    }
+                }
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -79,6 +104,7 @@ struct ReviewCard: View {
     )
     .padding()
 }
+
 
 
 

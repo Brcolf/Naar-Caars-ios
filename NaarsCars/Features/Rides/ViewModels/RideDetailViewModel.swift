@@ -88,7 +88,22 @@ final class RideDetailViewModel: ObservableObject {
         }
         return ride.userId == currentUserId
     }
+    
+    /// Check if current user is a participant
+    var isParticipant: Bool {
+        guard let ride = ride,
+              let currentUserId = authService.currentUserId else {
+            return false
+        }
+        return ride.participants?.contains(where: { $0.id == currentUserId }) ?? false
+    }
+    
+    /// Check if current user can edit/delete (poster or participant)
+    var canEdit: Bool {
+        return isPoster || isParticipant
+    }
 }
+
 
 
 

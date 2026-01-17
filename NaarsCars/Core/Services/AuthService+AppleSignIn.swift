@@ -60,7 +60,9 @@ extension AuthService {
             .single()
             .execute()
         
-        let inviteCode = try JSONDecoder().decode(InviteCode.self, from: inviteCodeResponse.data)
+        // Decode with proper date handling for Supabase ISO8601 format
+        let decoder = createInviteCodeDecoder()
+        let inviteCode = try decoder.decode(InviteCode.self, from: inviteCodeResponse.data)
         
         // 5. Create or update profile
         try await createOrUpdateAppleProfile(
@@ -71,18 +73,9 @@ extension AuthService {
             invitedBy: inviteCode.createdBy
         )
         
-        // 6. Mark invite code as used
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        try await SupabaseService.shared.client
-            .from("invite_codes")
-            .update([
-                "used_by": AnyCodable(userIdString),
-                "used_at": AnyCodable(dateFormatter.string(from: Date()))
-            ])
-            .eq("id", value: inviteCodeId.uuidString)
-            .execute()
+        // 6. Mark invite code as used (or create tracking record for bulk codes)
+        // Use InviteService to handle bulk vs non-bulk codes correctly
+        try await InviteService.shared.markInviteCodeAsUsed(inviteCode: inviteCode, userId: userId)
         
         // 7. Fetch profile and update local state
         // Use ProfileService to fetch profile since fetchCurrentProfile is private
@@ -152,7 +145,7 @@ extension AuthService {
         defer { isLoading = false }
         
         guard let identityTokenData = credential.identityToken,
-              let identityToken = String(data: identityTokenData, encoding: .utf8) else {
+              let _ = String(data: identityTokenData, encoding: .utf8) else {
             throw AppError.unknown("Failed to get Apple identity token")
         }
         

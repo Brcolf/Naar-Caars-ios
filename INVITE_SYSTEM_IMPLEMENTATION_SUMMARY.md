@@ -307,3 +307,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 - SMS sending is not yet implemented (requires third-party service)
 - App Store link is a placeholder and should be updated when app is published
 
+

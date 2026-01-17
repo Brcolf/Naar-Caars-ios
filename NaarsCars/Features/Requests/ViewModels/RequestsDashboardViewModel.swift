@@ -25,6 +25,14 @@ final class RequestsDashboardViewModel: ObservableObject {
     private let favorService = FavorService.shared
     private let authService = AuthService.shared
     private let realtimeManager = RealtimeManager.shared
+    private var isSubscribed = false
+    
+    deinit {
+        Task.detached {
+            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-rides")
+            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-favors")
+        }
+    }
     
     // MARK: - Public Methods
     
@@ -48,9 +56,21 @@ final class RequestsDashboardViewModel: ObservableObject {
                     // Fetch all open rides (not completed, available to claim)
                     return try await rideService.fetchRides(status: .open)
                 case .mine:
-                    // Fetch all rides created by current user (regardless of status)
+                    // Fetch all rides created by current user OR where user is a participant (regardless of status)
                     guard let userId = currentUserId else { return [] }
-                    return try await rideService.fetchRides(userId: userId)
+                    // Fetch rides posted by user
+                    let postedRides = try await rideService.fetchRides(userId: userId)
+                    // Fetch rides where user is a participant
+                    let participantRides = try await rideService.fetchRidesByParticipant(userId: userId)
+                    // Combine and deduplicate
+                    var allRides = postedRides
+                    let postedIds = Set(postedRides.map { $0.id })
+                    for ride in participantRides {
+                        if !postedIds.contains(ride.id) {
+                            allRides.append(ride)
+                        }
+                    }
+                    return allRides
                 case .claimed:
                     // Fetch all rides claimed by current user (regardless of status)
                     guard let userId = currentUserId else { return [] }
@@ -64,9 +84,21 @@ final class RequestsDashboardViewModel: ObservableObject {
                     // Fetch all open favors (not completed, available to claim)
                     return try await favorService.fetchFavors(status: .open)
                 case .mine:
-                    // Fetch all favors created by current user (regardless of status)
+                    // Fetch all favors created by current user OR where user is a participant (regardless of status)
                     guard let userId = currentUserId else { return [] }
-                    return try await favorService.fetchFavors(userId: userId)
+                    // Fetch favors posted by user
+                    let postedFavors = try await favorService.fetchFavors(userId: userId)
+                    // Fetch favors where user is a participant
+                    let participantFavors = try await favorService.fetchFavorsByParticipant(userId: userId)
+                    // Combine and deduplicate
+                    var allFavors = postedFavors
+                    let postedIds = Set(postedFavors.map { $0.id })
+                    for favor in participantFavors {
+                        if !postedIds.contains(favor.id) {
+                            allFavors.append(favor)
+                        }
+                    }
+                    return allFavors
                 case .claimed:
                     // Fetch all favors claimed by current user (regardless of status)
                     guard let userId = currentUserId else { return [] }
@@ -82,8 +114,37 @@ final class RequestsDashboardViewModel: ObservableObject {
             let favorItems = favors.map { RequestItem.favor($0) }
             allRequests = rideItems + favorItems
             
+            // Apply filter-specific logic
+            if let userId = currentUserId {
+                switch currentFilter {
+                case .open:
+                    // Open Requests: Show unclaimed requests that user is NOT participating in
+                    allRequests = allRequests.filter { request in
+                        request.isUnclaimed && !request.isParticipating(userId: userId)
+                    }
+                case .mine:
+                    // My Requests: Show requests user is participating in (poster or participant)
+                    // Filter already includes posted + participant requests, just ensure we're filtering correctly
+                    allRequests = allRequests.filter { request in
+                        request.isParticipating(userId: userId)
+                    }
+                case .claimed:
+                    // Claimed Requests: Show requests user has claimed (already filtered by service)
+                    // No additional filtering needed here
+                    break
+                }
+            }
+            
             // Filter out completed requests for all filters
             allRequests = allRequests.filter { !$0.isCompleted }
+            
+            // Filter out requests that are more than 12 hours past their event time
+            let now = Date()
+            allRequests = allRequests.filter { request in
+                let eventTime = request.eventTime
+                let hoursSinceEvent = now.timeIntervalSince(eventTime) / 3600
+                return hoursSinceEvent <= 12
+            }
             
             // Sort by event time (earliest first) instead of created time
             allRequests.sort { $0.eventTime < $1.eventTime }
@@ -113,6 +174,12 @@ final class RequestsDashboardViewModel: ObservableObject {
     
     /// Setup realtime subscription for live updates
     func setupRealtimeSubscription() {
+        guard !isSubscribed else {
+            print("ℹ️ [RequestsDashboardViewModel] Already subscribed to realtime channels")
+            return
+        }
+        
+        isSubscribed = true
         Task {
             // Subscribe to rides changes
             await realtimeManager.subscribe(
@@ -162,6 +229,9 @@ final class RequestsDashboardViewModel: ObservableObject {
     
     /// Cleanup realtime subscription
     func cleanupRealtimeSubscription() {
+        guard isSubscribed else { return }
+        
+        isSubscribed = false
         Task {
             await realtimeManager.unsubscribe(channelName: "requests-dashboard-rides")
             await realtimeManager.unsubscribe(channelName: "requests-dashboard-favors")

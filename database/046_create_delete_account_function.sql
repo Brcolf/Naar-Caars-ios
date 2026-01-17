@@ -60,3 +60,4 @@ GRANT EXECUTE ON FUNCTION delete_user_account TO authenticated;
 -- Add comment
 COMMENT ON FUNCTION delete_user_account IS 'Deletes a user account and all associated data. This action cannot be undone. Must be called by the user themselves (verified by RLS).';
 
+

@@ -161,3 +161,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- The conversation_participants SELECT policy is simple (user_id = auth.uid()) to avoid recursion
 
 
+

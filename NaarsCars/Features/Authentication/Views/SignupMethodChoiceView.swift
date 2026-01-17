@@ -103,7 +103,10 @@ struct SignupMethodChoiceView: View {
         .navigationTitle("Sign Up")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToEmailSignup) {
-            SignupDetailsView(inviteCode: inviteCode)
+            SignupDetailsView(
+                viewModel: SignupViewModel(),
+                validatedInviteCode: inviteCode
+            )
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}

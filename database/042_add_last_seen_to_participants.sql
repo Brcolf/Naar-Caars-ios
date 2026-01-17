@@ -13,3 +13,4 @@ ON conversation_participants(conversation_id, last_seen);
 -- Add comment for documentation
 COMMENT ON COLUMN conversation_participants.last_seen IS 'Timestamp of when user last viewed this conversation. Used to prevent push notifications when user is actively viewing.';
 
+

@@ -99,3 +99,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- This allows the INSERT policy to check if user is a participant without recursion
 
 
+

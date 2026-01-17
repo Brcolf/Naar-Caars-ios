@@ -215,13 +215,33 @@ final class AdminService {
             "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
         ]
         
-        try await supabase
+        print("🔍 [AdminService] Attempting to approve user: \(userId)")
+        print("🔍 [AdminService] Update payload: approved=true")
+        
+        _ = try await supabase
             .from("profiles")
             .update(updates)
             .eq("id", value: userId.uuidString)
             .execute()
         
-        Log.security("Admin approved user: \(userId)")
+        print("✅ [AdminService] Update response received for user: \(userId)")
+        
+        // Verify the update actually worked by fetching the profile
+        let verifyProfile: Profile = try await supabase
+            .from("profiles")
+            .select()
+            .eq("id", value: userId.uuidString)
+            .single()
+            .execute()
+            .value
+        
+        if verifyProfile.approved {
+            print("✅ [AdminService] User \(userId) successfully approved (verified)")
+            Log.security("Admin approved user: \(userId)")
+        } else {
+            print("🔴 [AdminService] ERROR: User \(userId) update appeared to succeed but approved is still false!")
+            throw AppError.unknown("Approval update failed - user is still not approved")
+        }
         
         // Send welcome email (non-blocking, don't fail approval if email fails)
         Task.detached {

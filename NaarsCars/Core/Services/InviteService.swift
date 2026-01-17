@@ -251,18 +251,22 @@ final class InviteService {
         if inviteCode.isBulk {
             // For bulk codes: Create a tracking record (bulk code itself remains active)
             struct BulkInviteRecord: Codable {
+                let id: String
                 let code: String
                 let createdBy: String
                 let usedBy: String
                 let usedAt: String
+                let createdAt: String
                 let isBulk: Bool
                 let bulkCodeId: String
                 
                 enum CodingKeys: String, CodingKey {
+                    case id
                     case code
                     case createdBy = "created_by"
                     case usedBy = "used_by"
                     case usedAt = "used_at"
+                    case createdAt = "created_at"
                     case isBulk = "is_bulk"
                     case bulkCodeId = "bulk_code_id"
                 }
@@ -270,12 +274,15 @@ final class InviteService {
             
             // Generate tracking code for this individual signup
             let trackingCode = "\(inviteCode.code)-\(UUID().uuidString.prefix(8).uppercased())"
+            let newRecordId = UUID()
             
             let bulkRecord = BulkInviteRecord(
+                id: newRecordId.uuidString,
                 code: trackingCode,
                 createdBy: inviteCode.createdBy.uuidString,
                 usedBy: userId.uuidString,
                 usedAt: usedAtString,
+                createdAt: usedAtString, // Use same timestamp for created_at
                 isBulk: false,
                 bulkCodeId: inviteCode.id.uuidString
             )

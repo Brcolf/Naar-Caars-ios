@@ -21,6 +21,7 @@ final class FavorService {
     
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
+    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -30,6 +31,7 @@ final class FavorService {
     
     /// Fetch favors with optional filters
     /// Checks cache first, then fetches from network if needed
+    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameters:
     ///   - status: Optional status filter
     ///   - userId: Optional user ID filter (favors posted by this user)
@@ -62,37 +64,42 @@ final class FavorService {
             }
         }
         
-        // Build query
-        var query = supabase
-            .from("favors")
-            .select()
+        // Use request deduplicator to prevent concurrent requests
+        let key = "favors_\(status?.rawValue ?? "all")_\(userId?.uuidString ?? "all")_\(claimedBy?.uuidString ?? "all")"
         
-        // Apply filters
-        if let status = status {
-            query = query.eq("status", value: status.rawValue)
+        return try await requestDeduplicator.fetch(key: key) { [self] in
+            // Build query
+            var query = self.supabase
+                .from("favors")
+                .select()
+            
+            // Apply filters
+            if let status = status {
+                query = query.eq("status", value: status.rawValue)
+            }
+            if let userId = userId {
+                query = query.eq("user_id", value: userId.uuidString)
+            }
+            if let claimedBy = claimedBy {
+                query = query.eq("claimed_by", value: claimedBy.uuidString)
+            }
+            
+            // Execute query
+            let response = try await query
+                .order("date", ascending: true)
+                .execute()
+            
+            // Decode favors with custom date decoder
+            let favors: [Favor] = try self.createDecoder().decode([Favor].self, from: response.data)
+            
+            // Enrich with profiles
+            let enrichedFavors = await self.enrichFavorsWithProfiles(favors)
+            
+            // Cache results
+            await self.cacheManager.cacheFavors(enrichedFavors)
+            
+            return enrichedFavors
         }
-        if let userId = userId {
-            query = query.eq("user_id", value: userId.uuidString)
-        }
-        if let claimedBy = claimedBy {
-            query = query.eq("claimed_by", value: claimedBy.uuidString)
-        }
-        
-        // Execute query
-        let response = try await query
-            .order("date", ascending: true)
-            .execute()
-        
-        // Decode favors with custom date decoder
-        let favors: [Favor] = try createDecoder().decode([Favor].self, from: response.data)
-        
-        // Enrich with profiles
-        let enrichedFavors = await enrichFavorsWithProfiles(favors)
-        
-        // Cache results
-        await cacheManager.cacheFavors(enrichedFavors)
-        
-        return enrichedFavors
     }
     
     /// Fetch a single favor by ID with all related data
@@ -326,6 +333,77 @@ final class FavorService {
     // MARK: - Participants
     
     /// Add participants to a favor
+    /// Fetch participants for a favor
+    /// - Parameter favorId: Favor ID
+    /// - Returns: Array of participant profiles
+    /// - Throws: AppError if operation fails
+    func fetchFavorParticipants(favorId: UUID) async throws -> [Profile] {
+        let response = try await supabase
+            .from("favor_participants")
+            .select("user_id")
+            .eq("favor_id", value: favorId.uuidString)
+            .execute()
+        
+        struct ParticipantRow: Codable {
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+            }
+        }
+        
+        let rows = try createDecoder().decode([ParticipantRow].self, from: response.data)
+        
+        var profiles: [Profile] = []
+        for row in rows {
+            if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+                profiles.append(profile)
+            }
+        }
+        
+        return profiles
+    }
+    
+    /// Fetch favors where a user is a participant
+    /// - Parameter userId: User ID
+    /// - Returns: Array of favors where the user is a participant
+    /// - Throws: AppError if fetch fails
+    func fetchFavorsByParticipant(userId: UUID) async throws -> [Favor] {
+        // Query favor_participants to get favor IDs
+        let response = try await supabase
+            .from("favor_participants")
+            .select("favor_id")
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+        
+        struct ParticipantRow: Codable {
+            let favorId: UUID
+            enum CodingKeys: String, CodingKey {
+                case favorId = "favor_id"
+            }
+        }
+        
+        let rows = try createDecoder().decode([ParticipantRow].self, from: response.data)
+        let favorIds = rows.map { $0.favorId }
+        
+        guard !favorIds.isEmpty else {
+            return []
+        }
+        
+        // Fetch favors by IDs - fetch individually to avoid .in() syntax issues
+        var allFavors: [Favor] = []
+        for favorId in favorIds {
+            if let favor = try? await fetchFavor(id: favorId) {
+                allFavors.append(favor)
+            }
+        }
+        
+        // Sort by date
+        allFavors.sort { $0.date < $1.date }
+        
+        return allFavors
+    }
+    
+    /// Add participants to a favor
     /// - Parameters:
     ///   - favorId: Favor ID
     ///   - userIds: Array of user IDs to add
@@ -378,21 +456,6 @@ final class FavorService {
             .insert(inserts)
             .execute()
         
-        // If conversation exists for this favor, add participants to conversation
-        if let conversation = try? await MessageService.shared.findExistingRequestConversation(favorId: favorId) {
-            do {
-                try await MessageService.shared.addParticipantsToConversation(
-                    conversationId: conversation.id,
-                    userIds: newUserIds,
-                    addedBy: addedBy,
-                    createAnnouncement: true
-                )
-                print("✅ [FavorService] Added participants to favor and conversation")
-            } catch {
-                print("⚠️ [FavorService] Failed to add participants to conversation: \(error.localizedDescription)")
-            }
-        }
-        
         // Invalidate cache
         await cacheManager.invalidateFavors()
         
@@ -403,38 +466,7 @@ final class FavorService {
     
     /// Create a JSON decoder configured for Supabase date formats
     private func createDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            // Try ISO8601 with fractional seconds (for TIMESTAMP fields)
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try ISO8601 without fractional seconds
-            isoFormatter.formatOptions = [.withInternetDateTime]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try DATE format (YYYY-MM-DD)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        return JSONDecoderFactory.createSupabaseDecoder()
     }
     
     /// Enrich favors with profile data (poster, claimer, participants)
@@ -464,8 +496,10 @@ final class FavorService {
             enriched.claimer = claimer
         }
         
-        // TODO: Fetch participants from participants table
-        // For now, participants is nil
+        // Fetch participants
+        if let participants = try? await fetchFavorParticipants(favorId: favor.id) {
+            enriched.participants = participants
+        }
         
         return enriched
     }

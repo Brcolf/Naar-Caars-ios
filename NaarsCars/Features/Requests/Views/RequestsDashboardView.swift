@@ -15,72 +15,22 @@ struct RequestsDashboardView: View {
     @State private var showCreateFavor = false
     @State private var navigateToRide: UUID?
     @State private var navigateToFavor: UUID?
-    @AppStorage("requests_view_mode") private var viewMode: ViewMode = .list
-    
-    enum ViewMode: String {
-        case list = "list"
-        case map = "map"
-    }
     
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
-                    // Filter tiles (Open Requests, My Requests, Claimed by Me)
-                    FilterTilesView(selectedFilter: $viewModel.filter) { newFilter in
-                        viewModel.filterRequests(newFilter)
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
-                    .background(Color(.systemBackground))
-                    
-                    Divider()
-                    
-                    // Content (List or Map)
-                    Group {
-                        switch viewMode {
-                        case .list:
-                            listContentView
-                        case .map:
-                            mapContentView
-                        }
-                    }
+            VStack(spacing: 0) {
+                // Filter tiles (Open Requests, My Requests, Claimed by Me)
+                FilterTilesView(selectedFilter: $viewModel.filter) { newFilter in
+                    viewModel.filterRequests(newFilter)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(Color(.systemBackground))
                 
-                // Floating map toggle button (bottom right, above nav bar)
-                if viewMode == .list {
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            viewMode = .map
-                        }
-                    } label: {
-                        Image(systemName: "map.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color.accentColor)
-                            .clipShape(Circle())
-                            .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 90) // Above tab bar
-                } else {
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            viewMode = .list
-                        }
-                    } label: {
-                        Image(systemName: "list.bullet")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color.accentColor)
-                            .clipShape(Circle())
-                            .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 90) // Above tab bar
-                }
+                Divider()
+                
+                // List Content (map view removed)
+                listContentView
             }
             .navigationTitle("Requests")
             .toolbar {
@@ -104,10 +54,16 @@ struct RequestsDashboardView: View {
                 }
             }
             .sheet(isPresented: $showCreateRide) {
-                CreateRideView()
+                CreateRideView { rideId in
+                    // Navigate to the newly created ride after sheet dismisses
+                    navigateToRide = rideId
+                }
             }
             .sheet(isPresented: $showCreateFavor) {
-                CreateFavorView()
+                CreateFavorView { favorId in
+                    // Navigate to the newly created favor after sheet dismisses
+                    navigateToFavor = favorId
+                }
             }
             .navigationDestination(item: $navigateToRide) { rideId in
                 RideDetailView(rideId: rideId)
@@ -128,23 +84,14 @@ struct RequestsDashboardView: View {
                 }
             }
             .task {
-                if viewMode == .list {
-                    await viewModel.loadRequests()
-                    viewModel.setupRealtimeSubscription()
-                }
+                await viewModel.loadRequests()
             }
-            .onChange(of: viewMode) { _, newMode in
-                if newMode == .list {
-                    Task {
-                        await viewModel.loadRequests()
-                        viewModel.setupRealtimeSubscription()
-                    }
-                } else {
-                    viewModel.cleanupRealtimeSubscription()
-                }
+            .onAppear {
+                viewModel.setupRealtimeSubscription()
             }
             .onDisappear {
-                viewModel.cleanupRealtimeSubscription()
+                // Don't cleanup on disappear - let deinit handle it
+                // This prevents unsubscribe/resubscribe thrashing when navigating
             }
         }
     }
@@ -194,27 +141,6 @@ struct RequestsDashboardView: View {
             }
             .refreshable {
                 await viewModel.refreshRequests()
-            }
-        }
-    }
-    
-    // MARK: - Map Content View
-    
-    @ViewBuilder
-    private var mapContentView: some View {
-        RequestMapView(
-            filter: viewModel.filter,
-            onRideSelected: { rideId in
-                navigateToRide = rideId
-            },
-            onFavorSelected: { favorId in
-                navigateToFavor = favorId
-            }
-        )
-        .onChange(of: viewModel.filter) { _, newFilter in
-            // Reload map when filter changes
-            Task {
-                await viewModel.loadRequests()
             }
         }
     }

@@ -137,7 +137,7 @@ final class SupabaseService: ObservableObject {
             
             // Try to fetch profiles count as a simple connection test
             print("🔍 Attempting to query profiles table...")
-            let response = try await client
+            _ = try await client
                 .from("profiles")
                 .select("id", head: true, count: .exact)
                 .execute()

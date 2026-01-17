@@ -73,3 +73,4 @@ ls -la /Users/bcolf/.cursor/worktrees/naars-cars-ios/vcs/NaarsCars/App/Navigatio
 
 If this shows the file, it exists and just needs to be added to the Xcode project.
 
+

@@ -28,3 +28,4 @@ CREATE POLICY "conversations_select_participant" ON public.conversations
 -- 4. See the conversation via participation check (SELECT works via function)
 
 
+

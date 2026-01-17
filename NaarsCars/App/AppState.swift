@@ -70,11 +70,14 @@ final class AppState: ObservableObject {
         
         // Listen for signout events
         NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.currentUser = nil
-                    self?.isLoading = false
-                }
+                guard let self = self else { return }
+                print("📬 [AppState] Received userDidSignOut notification")
+                // Clear state immediately on main thread
+                self.currentUser = nil
+                self.isLoading = false
+                print("✅ [AppState] User state cleared")
             }
             .store(in: &cancellables)
     }
@@ -88,7 +91,7 @@ final class AppState: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let state = try await authService.checkAuthStatus()
+            _ = try await authService.checkAuthStatus()
             // Update currentUser based on auth state
             // This will be implemented when AuthService.checkAuthStatus() is complete
             currentUser = authService.currentProfile

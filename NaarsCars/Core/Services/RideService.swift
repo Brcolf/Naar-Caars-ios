@@ -21,6 +21,7 @@ final class RideService {
     
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
+    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -30,6 +31,7 @@ final class RideService {
     
     /// Fetch rides with optional filters
     /// Checks cache first, then fetches from network if needed
+    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameters:
     ///   - status: Optional status filter
     ///   - userId: Optional user ID filter (rides posted by this user)
@@ -62,37 +64,42 @@ final class RideService {
             }
         }
         
-        // Build query
-        var query = supabase
-            .from("rides")
-            .select()
+        // Use request deduplicator to prevent concurrent requests
+        let key = "rides_\(status?.rawValue ?? "all")_\(userId?.uuidString ?? "all")_\(claimedBy?.uuidString ?? "all")"
         
-        // Apply filters
-        if let status = status {
-            query = query.eq("status", value: status.rawValue)
+        return try await requestDeduplicator.fetch(key: key) { [self] in
+            // Build query
+            var query = self.supabase
+                .from("rides")
+                .select()
+            
+            // Apply filters
+            if let status = status {
+                query = query.eq("status", value: status.rawValue)
+            }
+            if let userId = userId {
+                query = query.eq("user_id", value: userId.uuidString)
+            }
+            if let claimedBy = claimedBy {
+                query = query.eq("claimed_by", value: claimedBy.uuidString)
+            }
+            
+            // Execute query
+            let response = try await query
+                .order("date", ascending: true)
+                .execute()
+            
+            // Decode rides with custom date decoder
+            let rides: [Ride] = try self.createDecoder().decode([Ride].self, from: response.data)
+            
+            // Enrich with profiles
+            let enrichedRides = await self.enrichRidesWithProfiles(rides)
+            
+            // Cache results
+            await self.cacheManager.cacheRides(enrichedRides)
+            
+            return enrichedRides
         }
-        if let userId = userId {
-            query = query.eq("user_id", value: userId.uuidString)
-        }
-        if let claimedBy = claimedBy {
-            query = query.eq("claimed_by", value: claimedBy.uuidString)
-        }
-        
-        // Execute query
-        let response = try await query
-            .order("date", ascending: true)
-            .execute()
-        
-        // Decode rides with custom date decoder
-        let rides: [Ride] = try createDecoder().decode([Ride].self, from: response.data)
-        
-        // Enrich with profiles
-        let enrichedRides = await enrichRidesWithProfiles(rides)
-        
-        // Cache results
-        await cacheManager.cacheRides(enrichedRides)
-        
-        return enrichedRides
     }
     
     /// Fetch a single ride by ID with all related data
@@ -171,12 +178,53 @@ final class RideService {
             .single()
             .execute()
         
-        let ride: Ride = try JSONDecoder().decode(Ride.self, from: response.data)
+        let ride: Ride = try createDecoder().decode(Ride.self, from: response.data)
         
         // Invalidate cache
         await cacheManager.invalidateRides()
         
+        // Calculate and save estimated cost asynchronously (don't block ride creation)
+        Task.detached {
+            await self.calculateAndSaveEstimatedCost(for: ride)
+        }
+        
         return ride
+    }
+    
+    /// Calculate and save estimated cost for a ride (asynchronous, non-blocking)
+    /// - Parameter ride: The ride to calculate cost for
+    private func calculateAndSaveEstimatedCost(for ride: Ride) async {
+        do {
+            // Calculate cost using route calculation
+            guard let estimatedCost = await RideCostEstimator.estimateCost(
+                pickup: ride.pickup,
+                destination: ride.destination
+            ) else {
+                // If calculation fails, just log and return (ride is still created)
+                print("⚠️ [RideService] Failed to calculate estimated cost for ride \(ride.id)")
+                return
+            }
+            
+            // Update the ride with calculated cost
+            let updateData: [String: AnyCodable] = [
+                "estimated_cost": AnyCodable(estimatedCost)
+            ]
+            
+            try await supabase
+                .from("rides")
+                .update(updateData)
+                .eq("id", value: ride.id.uuidString)
+                .execute()
+            
+            print("✅ [RideService] Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(ride.id)")
+            
+            // Invalidate cache so the updated ride is fetched next time
+            await cacheManager.invalidateRides()
+            
+        } catch {
+            // If update fails, just log (ride is still created)
+            print("⚠️ [RideService] Failed to save estimated cost for ride \(ride.id): \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Ride Updates
@@ -249,7 +297,7 @@ final class RideService {
             .single()
             .execute()
         
-        let ride: Ride = try JSONDecoder().decode(Ride.self, from: response.data)
+        let ride: Ride = try createDecoder().decode(Ride.self, from: response.data)
         
         // Notify claimer if ride is claimed and details changed
         if let claimedBy = ride.claimedBy,
@@ -266,26 +314,22 @@ final class RideService {
                 // Create notification for claimer
                 // Note: In production, this would typically be handled by a database trigger
                 // or backend function. For now, we'll create an in-app notification.
-                do {
-                    let notificationData: [String: AnyCodable] = [
-                        "user_id": AnyCodable(claimedBy.uuidString),
-                        "type": AnyCodable("ride_update"),
-                        "title": AnyCodable("Ride Details Updated"),
-                        "body": AnyCodable("The ride you claimed has been updated. Check the details."),
-                        "ride_id": AnyCodable(id.uuidString),
-                        "read": AnyCodable(false),
-                        "pinned": AnyCodable(false)
-                    ]
-                    
-                    // Insert notification (if notifications table exists)
-                    try? await supabase
-                        .from("notifications")
-                        .insert(notificationData)
-                        .execute()
-                } catch {
-                    // Notification creation is optional - don't fail the update
-                    print("⚠️ Failed to create notification for claimer: \(error)")
-                }
+                let notificationData: [String: AnyCodable] = [
+                    "user_id": AnyCodable(claimedBy.uuidString),
+                    "type": AnyCodable("ride_update"),
+                    "title": AnyCodable("Ride Details Updated"),
+                    "body": AnyCodable("The ride you claimed has been updated. Check the details."),
+                    "ride_id": AnyCodable(id.uuidString),
+                    "read": AnyCodable(false),
+                    "pinned": AnyCodable(false)
+                ]
+                
+                // Insert notification (if notifications table exists)
+                // Use try? to silently ignore errors - notification is optional
+                try? await supabase
+                    .from("notifications")
+                    .insert(notificationData)
+                    .execute()
             }
         }
         
@@ -425,6 +469,76 @@ final class RideService {
     
     // MARK: - Participants
     
+    /// Fetch participants for a ride
+    /// - Parameter rideId: Ride ID
+    /// - Returns: Array of participant profiles
+    /// - Throws: AppError if operation fails
+    func fetchRideParticipants(rideId: UUID) async throws -> [Profile] {
+        let response = try await supabase
+            .from("ride_participants")
+            .select("user_id")
+            .eq("ride_id", value: rideId.uuidString)
+            .execute()
+        
+        struct ParticipantRow: Codable {
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+            }
+        }
+        
+        let rows = try createDecoder().decode([ParticipantRow].self, from: response.data)
+        
+        var profiles: [Profile] = []
+        for row in rows {
+            if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+                profiles.append(profile)
+            }
+        }
+        
+        return profiles
+    }
+    
+    /// Fetch rides where a user is a participant
+    /// - Parameter userId: User ID
+    /// - Returns: Array of rides where the user is a participant
+    /// - Throws: AppError if fetch fails
+    func fetchRidesByParticipant(userId: UUID) async throws -> [Ride] {
+        // Query ride_participants to get ride IDs
+        let response = try await supabase
+            .from("ride_participants")
+            .select("ride_id")
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+        
+        struct ParticipantRow: Codable {
+            let rideId: UUID
+            enum CodingKeys: String, CodingKey {
+                case rideId = "ride_id"
+            }
+        }
+        
+        let rows = try createDecoder().decode([ParticipantRow].self, from: response.data)
+        let rideIds = rows.map { $0.rideId }
+        
+        guard !rideIds.isEmpty else {
+            return []
+        }
+        
+        // Fetch rides by IDs - fetch individually to avoid .in() syntax issues
+        var allRides: [Ride] = []
+        for rideId in rideIds {
+            if let ride = try? await fetchRide(id: rideId) {
+                allRides.append(ride)
+            }
+        }
+        
+        // Sort by date
+        allRides.sort { $0.date < $1.date }
+        
+        return allRides
+    }
+    
     /// Add participants to a ride
     /// - Parameters:
     ///   - rideId: Ride ID
@@ -478,21 +592,6 @@ final class RideService {
             .insert(inserts)
             .execute()
         
-        // If conversation exists for this ride, add participants to conversation
-        if let conversation = try? await MessageService.shared.findExistingRequestConversation(rideId: rideId) {
-            do {
-                try await MessageService.shared.addParticipantsToConversation(
-                    conversationId: conversation.id,
-                    userIds: newUserIds,
-                    addedBy: addedBy,
-                    createAnnouncement: true
-                )
-                print("✅ [RideService] Added participants to ride and conversation")
-            } catch {
-                print("⚠️ [RideService] Failed to add participants to conversation: \(error.localizedDescription)")
-            }
-        }
-        
         // Invalidate cache
         await cacheManager.invalidateRides()
         
@@ -503,38 +602,7 @@ final class RideService {
     
     /// Create a JSON decoder configured for Supabase date formats
     private func createDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            // Try ISO8601 with fractional seconds (for TIMESTAMP fields)
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try ISO8601 without fractional seconds
-            isoFormatter.formatOptions = [.withInternetDateTime]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try DATE format (YYYY-MM-DD)
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        return JSONDecoderFactory.createSupabaseDecoder()
     }
     
     /// Enrich rides with profile data (poster, claimer, participants)
@@ -564,8 +632,10 @@ final class RideService {
             enriched.claimer = claimer
         }
         
-        // TODO: Fetch participants from participants table
-        // For now, participants is nil
+        // Fetch participants
+        if let participants = try? await fetchRideParticipants(rideId: ride.id) {
+            enriched.participants = participants
+        }
         
         return enriched
     }

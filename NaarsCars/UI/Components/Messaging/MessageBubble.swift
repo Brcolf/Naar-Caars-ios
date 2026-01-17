@@ -11,6 +11,8 @@ import SwiftUI
 struct MessageBubble: View {
     let message: Message
     let isFromCurrentUser: Bool
+    var onLongPress: (() -> Void)? = nil
+    var onReactionTap: ((String) -> Void)? = nil
     
     /// Check if message is an announcement (e.g., "User has been added to the conversation")
     private var isAnnouncement: Bool {
@@ -48,16 +50,73 @@ struct MessageBubble: View {
                             .padding(.horizontal, 4)
                     }
                     
-                    // Message text
-                    Text(message.text)
-                        .font(.naarsBody)
-                        .foregroundColor(isFromCurrentUser ? .white : .primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
-                        )
+                    // Message image (if any)
+                    if let imageUrl = message.imageUrl, let url = URL(string: imageUrl) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: 200, height: 200)
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxWidth: 200, maxHeight: 200)
+                                    .cornerRadius(8)
+                            case .failure:
+                                Image(systemName: "photo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .foregroundColor(.gray)
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                        .padding(.bottom, message.text.isEmpty ? 0 : 4)
+                    }
+                    
+                    // Message text (only show if not empty)
+                    if !message.text.isEmpty {
+                        Text(message.text)
+                            .font(.naarsBody)
+                            .foregroundColor(isFromCurrentUser ? .white : .primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
+                            )
+                    }
+                    
+                    // Reactions (if any)
+                    if let reactions = message.reactions, !reactions.reactions.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(reactions.sortedReactions.prefix(5), id: \.reaction) { reactionData in
+                                Button(action: {
+                                    onReactionTap?(reactionData.reaction)
+                                }) {
+                                    HStack(spacing: 2) {
+                                        Text(reactionData.reaction)
+                                            .font(.system(size: 14))
+                                        if reactionData.count > 1 {
+                                            Text("\(reactionData.count)")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color(.systemGray5))
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                     
                     // Timestamp
                     Text(message.createdAt.timeAgoString)
@@ -71,29 +130,35 @@ struct MessageBubble: View {
                     Spacer()
                 }
             }
+            .onLongPressGesture {
+                onLongPress?()
+            }
         }
     }
 }
 
 #Preview {
-    VStack(spacing: 16) {
+    let sampleMessage1 = Message(
+        conversationId: UUID(),
+        fromId: UUID(),
+        text: "Hello! I can help with your ride request.",
+        sender: Profile(id: UUID(), name: "John Doe", email: "john@example.com")
+    )
+    
+    let sampleMessage2 = Message(
+        conversationId: UUID(),
+        fromId: UUID(),
+        text: "Thanks! That would be great."
+    )
+    
+    return VStack(spacing: 16) {
         MessageBubble(
-            message: Message(
-                conversationId: UUID(),
-                fromId: UUID(),
-                text: "Hello! I can help with your ride request.",
-                sender: Profile(id: UUID(), name: "John Doe", email: "john@example.com")
-            ),
+            message: sampleMessage1,
             isFromCurrentUser: false
         )
         
         MessageBubble(
-            message: Message(
-                conversationId: UUID(),
-                fromId: UUID(),
-                text: "Thanks! That would be great.",
-                sender: nil
-            ),
+            message: sampleMessage2,
             isFromCurrentUser: true
         )
     }

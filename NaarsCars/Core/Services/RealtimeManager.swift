@@ -11,6 +11,17 @@ import Supabase
 import Realtime
 internal import Combine
 
+/// Priority levels for realtime subscriptions
+enum SubscriptionPriority: Int, Comparable {
+    case low = 0        // Background updates, prefetch
+    case normal = 1     // Standard updates
+    case critical = 2   // Active view updates (messages, live data)
+    
+    static func < (lhs: SubscriptionPriority, rhs: SubscriptionPriority) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 /// Callback types for realtime events
 typealias RealtimeInsertCallback = (Any) -> Void
 typealias RealtimeUpdateCallback = (Any) -> Void
@@ -20,6 +31,7 @@ typealias RealtimeDeleteCallback = (Any) -> Void
 private struct ChannelSubscription {
     let channel: RealtimeChannelV2
     let subscribedAt: Date
+    let priority: SubscriptionPriority
 }
 
 /// Centralized manager for Supabase realtime subscriptions
@@ -40,6 +52,9 @@ final class RealtimeManager {
     
     private let supabaseClient: SupabaseClient
     
+    /// Store observer tokens for proper cleanup
+    private var observerTokens: [NSObjectProtocol] = []
+    
     private init() {
         self.supabaseClient = SupabaseService.shared.client
         
@@ -54,6 +69,7 @@ final class RealtimeManager {
     ///   - channelName: Unique identifier for this subscription
     ///   - table: Database table name
     ///   - filter: Optional filter string (e.g., "status=eq.open")
+    ///   - priority: Subscription priority (default: .normal)
     ///   - onInsert: Callback for insert events
     ///   - onUpdate: Callback for update events
     ///   - onDelete: Callback for delete events
@@ -61,6 +77,7 @@ final class RealtimeManager {
         channelName: String,
         table: String,
         filter: String? = nil,
+        priority: SubscriptionPriority = .normal,
         onInsert: RealtimeInsertCallback? = nil,
         onUpdate: RealtimeUpdateCallback? = nil,
         onDelete: RealtimeDeleteCallback? = nil
@@ -72,7 +89,7 @@ final class RealtimeManager {
         
         // Check if we need to remove oldest subscription
         if activeChannels.count >= maxConcurrentSubscriptions {
-            await removeOldestSubscription()
+            await removeLowestPrioritySubscription()
         }
         
         // Create channel
@@ -122,13 +139,14 @@ final class RealtimeManager {
             return
         }
         
-        // Store subscription
+        // Store subscription with priority
         activeChannels[channelName] = ChannelSubscription(
             channel: channel,
-            subscribedAt: Date()
+            subscribedAt: Date(),
+            priority: priority
         )
         
-        print("🔴 [Realtime] Subscribed to channel: \(channelName) (table: \(table))")
+        print("🔴 [Realtime] Subscribed to channel: \(channelName) (table: \(table), priority: \(priority))")
     }
     
     /// Unsubscribe from a specific channel
@@ -157,38 +175,48 @@ final class RealtimeManager {
     
     // MARK: - Private Methods
     
-    /// Remove the oldest subscription to make room for a new one
-    private func removeOldestSubscription() async {
-        guard let oldest = activeChannels.min(by: { $0.value.subscribedAt < $1.value.subscribedAt }) else {
+    /// Remove the lowest priority subscription (or oldest if same priority)
+    private func removeLowestPrioritySubscription() async {
+        guard let lowest = activeChannels.min(by: { lhs, rhs in
+            // First compare by priority (lower priority first)
+            if lhs.value.priority != rhs.value.priority {
+                return lhs.value.priority < rhs.value.priority
+            }
+            // If same priority, compare by age (older first)
+            return lhs.value.subscribedAt < rhs.value.subscribedAt
+        }) else {
             return
         }
         
-        print("🔴 [Realtime] Removing oldest subscription: \(oldest.key) to make room for new subscription")
-        await unsubscribe(channelName: oldest.key)
+        print("🔴 [Realtime] Removing lowest priority subscription: \(lowest.key) (priority: \(lowest.value.priority))")
+        await unsubscribe(channelName: lowest.key)
     }
     
     /// Set up observers for app lifecycle events
     private func setupAppLifecycleObservers() {
         #if os(iOS) || os(tvOS)
-        NotificationCenter.default.addObserver(
+        // Store observer tokens for proper cleanup
+        let backgroundToken = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 await self?.handleDidEnterBackground()
             }
         }
+        observerTokens.append(backgroundToken)
         
-        NotificationCenter.default.addObserver(
+        let foregroundToken = NotificationCenter.default.addObserver(
             forName: UIApplication.willEnterForegroundNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 await self?.handleWillEnterForeground()
             }
         }
+        observerTokens.append(foregroundToken)
         #endif
     }
     
@@ -221,9 +249,16 @@ final class RealtimeManager {
     }
     
     deinit {
+        // Cancel and invalidate timer
         backgroundUnsubscribeTimer?.invalidate()
+        backgroundUnsubscribeTimer = nil
+        
         #if os(iOS) || os(tvOS)
-        NotificationCenter.default.removeObserver(self)
+        // Remove all observers using stored tokens
+        for token in observerTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+        observerTokens.removeAll()
         #endif
     }
 }

@@ -51,6 +51,9 @@ struct MyProfileView: View {
                         // Reviews Section
                         reviewsSection()
                         
+                        // Past Requests Section
+                        pastRequestsSection()
+                        
                         // Delete Account Section
                         deleteAccountSection()
                     } else if viewModel.isLoading {
@@ -183,14 +186,16 @@ struct MyProfileView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign Out", role: .destructive) {
                     Task {
+                        print("🔄 [MyProfileView] User confirmed sign out")
                         do {
                             try await AuthService.shared.signOut()
+                            print("✅ [MyProfileView] Sign out completed successfully")
                             // AuthService already posts "userDidSignOut" notification
                             // AppLaunchManager will handle state change automatically
-                            // No need to call performCriticalLaunch here
-                            print("✅ [MyProfileView] Sign out completed - state will update via notification")
                         } catch {
                             print("🔴 [MyProfileView] Sign out error: \(error.localizedDescription)")
+                            // Even on error, the auth state should be cleared
+                            // The error is non-fatal and user should still be signed out locally
                         }
                     }
                 }
@@ -403,6 +408,26 @@ struct MyProfileView: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+    }
+    
+    // MARK: - Past Requests Section
+    
+    private func pastRequestsSection() -> some View {
+        NavigationLink(destination: PastRequestsView()) {
+            HStack {
+                Image(systemName: "clock.fill")
+                    .foregroundColor(.naarsPrimary)
+                Text("Past Requests")
+                    .font(.naarsHeadline)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+        }
     }
     
     // MARK: - Delete Account Section

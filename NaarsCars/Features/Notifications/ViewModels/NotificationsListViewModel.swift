@@ -19,14 +19,24 @@ final class NotificationsListViewModel: ObservableObject {
     private let notificationService = NotificationService.shared
     private let authService = AuthService.shared
     private let realtimeManager = RealtimeManager.shared
+    private var subscriptionTask: Task<Void, Never>?
     
     init() {
         setupRealtimeSubscription()
     }
     
     deinit {
-        Task {
-            await unsubscribeFromNotifications()
+        // Cancel any active subscription task
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
+        
+        // Unsubscribe from realtime - use Task.detached to avoid capturing self
+        // Note: RealtimeManager.unsubscribeAll() is already called during sign out,
+        // but we ensure cleanup here as well. Since RealtimeManager.shared is a singleton,
+        // we can reference it directly without capturing self.
+        let manager = RealtimeManager.shared
+        Task.detached {
+            await manager.unsubscribe(channelName: "notifications:all")
         }
     }
     
@@ -83,8 +93,9 @@ final class NotificationsListViewModel: ObservableObject {
     func handleNotificationTap(_ notification: AppNotification) {
         // Mark as read if unread
         if !notification.read {
-            Task {
-                await markAsRead(notification)
+            Task { [weak self] in
+                guard let self = self, !Task.isCancelled else { return }
+                await self.markAsRead(notification)
             }
         }
         
@@ -111,9 +122,13 @@ final class NotificationsListViewModel: ObservableObject {
             }
             
         case .adminAnnouncement, .other:
-            // Navigate to notifications tab for announcements
-            coordinator.selectedTab = .notifications
-            coordinator.navigateToNotifications = true
+            // Notifications tab removed - navigate to appropriate tab based on notification type
+            // For admin announcements, navigate to profile tab (admin panel)
+            if notification.type == .adminAnnouncement {
+                coordinator.selectedTab = .profile
+            } else {
+                coordinator.selectedTab = .requests
+            }
             
         default:
             break
@@ -121,23 +136,29 @@ final class NotificationsListViewModel: ObservableObject {
     }
     
     private func setupRealtimeSubscription() {
-        Task {
-            await realtimeManager.subscribe(
+        // Store the task so we can cancel it in deinit
+        // Use RealtimeManager.shared directly to avoid capturing self
+        let manager = RealtimeManager.shared
+        subscriptionTask = Task { [weak self] in
+            await manager.subscribe(
                 channelName: "notifications:all",
                 table: "notifications",
                 onInsert: { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        await self?.loadNotifications()
+                        guard let self = self, !Task.isCancelled else { return }
+                        await self.loadNotifications()
                     }
                 },
                 onUpdate: { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        await self?.loadNotifications()
+                        guard let self = self, !Task.isCancelled else { return }
+                        await self.loadNotifications()
                     }
                 },
                 onDelete: { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        await self?.loadNotifications()
+                        guard let self = self, !Task.isCancelled else { return }
+                        await self.loadNotifications()
                     }
                 }
             )
@@ -145,6 +166,9 @@ final class NotificationsListViewModel: ObservableObject {
     }
     
     private func unsubscribeFromNotifications() async {
+        // Cancel the subscription task first
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
         await realtimeManager.unsubscribe(channelName: "notifications:all")
     }
     
@@ -153,8 +177,9 @@ final class NotificationsListViewModel: ObservableObject {
         guard newNotification.userId == authService.currentUserId else { return }
         
         // Reload to get full list with proper ordering
-        Task {
-            await loadNotifications()
+        Task { [weak self] in
+            guard let self = self, !Task.isCancelled else { return }
+            await self.loadNotifications()
         }
     }
     
@@ -166,8 +191,9 @@ final class NotificationsListViewModel: ObservableObject {
             notifications[index] = updatedNotification
         } else {
             // Reload if not found
-            Task {
-                await loadNotifications()
+            Task { [weak self] in
+                guard let self = self, !Task.isCancelled else { return }
+                await self.loadNotifications()
             }
         }
     }

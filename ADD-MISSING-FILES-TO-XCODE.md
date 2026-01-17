@@ -80,3 +80,4 @@ If any file shows "NaarsCars" unchecked, check it manually.
 
 After adding all files, the build should succeed without "Cannot find X in scope" errors.
 
+

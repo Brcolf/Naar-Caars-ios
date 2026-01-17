@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 internal import Combine
 import Supabase
 import PostgREST
@@ -16,11 +17,15 @@ struct ConversationDetailView: View {
     @StateObject private var viewModel: ConversationDetailViewModel
     @StateObject private var participantsViewModel: ConversationParticipantsViewModel
     @FocusState private var isInputFocused: Bool
-    @State private var showAddParticipants = false
+    @State private var showMessageDetails = false
     @State private var selectedUserIds: Set<UUID> = []
-    @State private var showEditGroupName = false
     @State private var conversationDetail: ConversationWithDetails?
-    @State private var groupName: String = ""
+    @State private var showImagePicker = false
+    @State private var selectedImage: PhotosPickerItem?
+    @State private var imageToSend: UIImage?
+    @State private var showReactionPicker = false
+    @State private var reactionPickerMessageId: UUID?
+    @State private var reactionPickerPosition: CGPoint = .zero
     
     init(conversationId: UUID) {
         self.conversationId = conversationId
@@ -30,15 +35,15 @@ struct ConversationDetailView: View {
     
     // Computed title based on conversation type
     private var conversationTitle: String {
-        // If activity-based, show request title
-        if let detail = conversationDetail, let requestTitle = detail.requestTitle, !requestTitle.isEmpty {
-            return requestTitle
+        // Wait for participants to load before computing title
+        guard !participantsViewModel.participants.isEmpty else {
+            return "Chat"
         }
         
         // If group conversation (3+ participants), show editable group name or participant names
         if participantsViewModel.participants.count > 2 {
-            if !groupName.isEmpty {
-                return groupName
+            if let title = conversationDetail?.conversation.title, !title.isEmpty {
+                return title
             }
             // Show participant names (excluding current user)
             let otherParticipants = participantsViewModel.participants.filter { $0.id != AuthService.shared.currentUserId }
@@ -63,7 +68,28 @@ struct ConversationDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        if viewModel.isLoading {
+                        // Load more button at top (for pagination)
+                        if viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
+                            Button {
+                                Task {
+                                    await viewModel.loadMoreMessages()
+                                }
+                            } label: {
+                                HStack {
+                                    if viewModel.isLoadingMore {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    }
+                                    Text(viewModel.isLoadingMore ? "Loading..." : "Load Older Messages")
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.naarsPrimary)
+                                }
+                                .padding(.vertical, 8)
+                            }
+                            .disabled(viewModel.isLoadingMore)
+                        }
+                        
+                        if viewModel.isLoading && viewModel.messages.isEmpty {
                             ProgressView()
                                 .padding()
                         } else if viewModel.messages.isEmpty {
@@ -81,7 +107,25 @@ struct ConversationDetailView: View {
                             ForEach(viewModel.messages) { message in
                                 MessageBubble(
                                     message: message,
-                                    isFromCurrentUser: isFromCurrentUser(message)
+                                    isFromCurrentUser: isFromCurrentUser(message),
+                                    onLongPress: {
+                                        reactionPickerMessageId = message.id
+                                        showReactionPicker = true
+                                    },
+                                    onReactionTap: { reaction in
+                                        Task {
+                                            if let userId = AuthService.shared.currentUserId,
+                                               let reactions = message.reactions,
+                                               let userIds = reactions.reactions[reaction],
+                                               userIds.contains(userId) {
+                                                // User already reacted with this, remove it
+                                                await viewModel.removeReaction(messageId: message.id)
+                                            } else {
+                                                // Add reaction
+                                                await viewModel.addReaction(messageId: message.id, reaction: reaction)
+                                            }
+                                        }
+                                    }
                                 )
                                 .id(message.id)
                             }
@@ -90,8 +134,8 @@ struct ConversationDetailView: View {
                     .padding()
                 }
                 .onChange(of: viewModel.messages.count) { _, _ in
-                    // Auto-scroll to bottom on new messages
-                    if let lastMessage = viewModel.messages.last {
+                    // Auto-scroll to bottom on new messages (only if not loading more)
+                    if !viewModel.isLoadingMore, let lastMessage = viewModel.messages.last {
                         withAnimation {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
@@ -105,68 +149,97 @@ struct ConversationDetailView: View {
                     }
                 }
             }
+            .overlay(alignment: .center) {
+                // Reaction picker overlay (centered on screen)
+                if showReactionPicker {
+                    VStack {
+                        Spacer()
+                        ReactionPicker(
+                            onReactionSelected: { reaction in
+                                if let messageId = reactionPickerMessageId {
+                                    Task {
+                                        await viewModel.addReaction(messageId: messageId, reaction: reaction)
+                                    }
+                                }
+                                showReactionPicker = false
+                                reactionPickerMessageId = nil
+                            },
+                            onDismiss: {
+                                showReactionPicker = false
+                                reactionPickerMessageId = nil
+                            }
+                        )
+                        .padding(.bottom, 100) // Position above input bar
+                        Spacer()
+                    }
+                    .background(Color.black.opacity(0.3))
+                    .transition(.scale.combined(with: .opacity))
+                    .onTapGesture {
+                        showReactionPicker = false
+                        reactionPickerMessageId = nil
+                    }
+                }
+            }
             
             // Input bar
             MessageInputBar(
                 text: $viewModel.messageText,
+                imageToSend: $imageToSend,
                 onSend: {
                     Task {
-                        await viewModel.sendMessage()
+                        await viewModel.sendMessage(image: imageToSend)
+                        imageToSend = nil
                     }
                 },
-                isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                onImagePickerTapped: {
+                    showImagePicker = true
+                },
+                isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil
             )
         }
         .navigationTitle(conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                // Editable title button for group conversations
-                if let detail = conversationDetail,
-                   !detail.conversation.isActivityBased && participantsViewModel.participants.count > 2 {
-                    Button {
-                        showEditGroupName = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                }
-            }
             ToolbarItem(placement: .navigationBarTrailing) {
+                // Edit button for all conversations (opens message details popup)
+                // Show for both direct messages and group chats
                 Button {
-                    showAddParticipants = true
+                    showMessageDetails = true
                 } label: {
-                    Image(systemName: "person.badge.plus")
+                    Image(systemName: "info.circle")
                 }
             }
         }
-        .sheet(isPresented: $showAddParticipants) {
-            UserSearchView(
-                selectedUserIds: $selectedUserIds,
-                excludeUserIds: participantsViewModel.participantIds,
-                onDismiss: {
-                    if !selectedUserIds.isEmpty {
-                        Task {
-                            await addParticipants(Array(selectedUserIds))
-                        }
-                    }
-                    showAddParticipants = false
-                    selectedUserIds = []
-                }
+        .sheet(isPresented: $showMessageDetails) {
+            MessageDetailsPopup(
+                conversationId: conversationId,
+                currentTitle: conversationDetail?.conversation.title,
+                participants: participantsViewModel.participants
             )
+            .onDisappear {
+                // Reload participants and conversation details after closing
+                Task {
+                    await participantsViewModel.loadParticipants()
+                    await loadConversationDetails()
+                }
+            }
         }
-        .sheet(isPresented: $showEditGroupName) {
-            EditGroupNameView(
-                groupName: $groupName,
-                onSave: { newName in
-                    Task {
-                        await saveGroupName(newName)
+        .photosPicker(
+            isPresented: $showImagePicker,
+            selection: $selectedImage,
+            matching: .images
+        )
+        .onChange(of: selectedImage) { _, newValue in
+            Task {
+                if let item = newValue {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        imageToSend = UIImage(data: data)
                     }
-                    showEditGroupName = false
-                },
-                onCancel: {
-                    showEditGroupName = false
+                } else {
+                    imageToSend = nil
                 }
-            )
+            }
         }
         .task {
             await viewModel.loadMessages()
@@ -205,6 +278,11 @@ struct ConversationDetailView: View {
             await viewModel.loadMessages()
             // Reload participants
             await participantsViewModel.loadParticipants()
+            // Reload conversation details to get updated participant list
+            await loadConversationDetails()
+            
+            // Post notification to refresh conversations list
+            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
         } catch {
             print("🔴 Error adding participants: \(error.localizedDescription)")
         }
@@ -214,93 +292,16 @@ struct ConversationDetailView: View {
         guard let userId = AuthService.shared.currentUserId else { return }
         
         do {
-            let conversations = try await MessageService.shared.fetchConversations(userId: userId)
+            let conversations = try await MessageService.shared.fetchConversations(userId: userId, limit: 100, offset: 0)
             if let detail = conversations.first(where: { $0.conversation.id == conversationId }) {
                 conversationDetail = detail
-                // Set initial group name if conversation has a title
-                if let title = detail.conversation.title, !title.isEmpty {
-                    groupName = title
-                }
             }
         } catch {
             print("🔴 Error loading conversation details: \(error.localizedDescription)")
         }
     }
-    
-    private func saveGroupName(_ newName: String) async {
-        guard let userId = AuthService.shared.currentUserId else { return }
-        
-        do {
-            // Trim and validate name
-            let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let nameToSave = trimmedName.isEmpty ? nil : trimmedName
-            
-            try await MessageService.shared.updateConversationTitle(
-                conversationId: conversationId,
-                title: nameToSave,
-                userId: userId
-            )
-            
-            // Update local state
-            groupName = nameToSave ?? ""
-            
-            // Reload conversation details to get updated title
-            await loadConversationDetails()
-        } catch {
-            print("🔴 Error saving group name: \(error.localizedDescription)")
-        }
-    }
 }
 
-/// View for editing group name
-struct EditGroupNameView: View {
-    @Binding var groupName: String
-    @State private var editedName: String
-    @FocusState private var isTextFieldFocused: Bool
-    let onSave: (String) -> Void
-    let onCancel: () -> Void
-    
-    init(groupName: Binding<String>, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
-        self._groupName = groupName
-        self._editedName = State(initialValue: groupName.wrappedValue)
-        self.onSave = onSave
-        self.onCancel = onCancel
-    }
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Group Name", text: $editedName)
-                        .focused($isTextFieldFocused)
-                        .textInputAutocapitalization(.words)
-                } header: {
-                    Text("Group Name")
-                } footer: {
-                    Text("This name will be visible to all participants in the conversation.")
-                }
-            }
-            .navigationTitle("Edit Group")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onSave(editedName)
-                    }
-                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .onAppear {
-                isTextFieldFocused = true
-            }
-        }
-    }
-}
 
 /// ViewModel for managing conversation participants
 @MainActor

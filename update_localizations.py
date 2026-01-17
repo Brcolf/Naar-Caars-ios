@@ -355,3 +355,4 @@ with open('NaarsCars/Resources/Localizable.xcstrings', 'w', encoding='utf-8') as
 print("✅ Translations added successfully!")
 PYTHON_SCRIPT
 
+

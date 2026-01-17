@@ -11,6 +11,8 @@ import SwiftUI
 struct CreateRideView: View {
     @StateObject private var viewModel = CreateRideViewModel()
     @Environment(\.dismiss) private var dismiss
+    var onRideCreated: ((UUID) -> Void)? = nil
+    @State private var showAddParticipants = false
     
     var body: some View {
         NavigationStack {
@@ -19,13 +21,11 @@ struct CreateRideView: View {
                     DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
                     
-                    HStack {
-                        Text("Time")
-                        Spacer()
-                        TextField("HH:mm", text: $viewModel.time)
-                            .keyboardType(.numbersAndPunctuation)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    TimePickerView(
+                        hour: $viewModel.hour,
+                        minute: $viewModel.minute,
+                        isAM: $viewModel.isAM
+                    )
                 }
                 
                 Section("Route") {
@@ -59,6 +59,24 @@ struct CreateRideView: View {
                     TextField("Gift/Compensation (optional)", text: $viewModel.gift)
                 }
                 
+                Section("Participants (Optional)") {
+                    Button {
+                        showAddParticipants = true
+                    } label: {
+                        HStack {
+                            Text(viewModel.selectedParticipantIds.isEmpty ? "Add Participants" : "\(viewModel.selectedParticipantIds.count) Participant\(viewModel.selectedParticipantIds.count == 1 ? "" : "s") Selected")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                    }
+                    
+                    if viewModel.selectedParticipantIds.count >= 5 {
+                        Text("Maximum 5 participants")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
                 if let error = viewModel.error {
                     Section {
                         Text(error)
@@ -80,15 +98,30 @@ struct CreateRideView: View {
                     Button("Post") {
                         Task {
                             do {
-                                _ = try await viewModel.createRide()
+                                print("🔍 [CreateRideView] Starting ride creation...")
+                                let ride = try await viewModel.createRide()
+                                print("✅ [CreateRideView] Ride created successfully: \(ride.id)")
+                                // Call callback with created ride ID before dismissing
+                                onRideCreated?(ride.id)
                                 dismiss()
                             } catch {
+                                print("🔴 [CreateRideView] Error creating ride: \(error.localizedDescription)")
+                                print("🔴 [CreateRideView] Error details: \(error)")
                                 // Error is already set in viewModel
                             }
                         }
                     }
                     .disabled(viewModel.isLoading)
                 }
+            }
+            .sheet(isPresented: $showAddParticipants) {
+                UserSearchView(
+                    selectedUserIds: $viewModel.selectedParticipantIds,
+                    excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
+                    onDismiss: {
+                        showAddParticipants = false
+                    }
+                )
             }
         }
     }

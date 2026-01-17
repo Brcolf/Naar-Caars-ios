@@ -208,3 +208,4 @@ rating.localizedRating   // "4.8" formatted for locale
 - [String Catalog Format](https://developer.apple.com/documentation/xcode/localizing-strings-in-your-app)
 - [NSLocalizedString Documentation](https://developer.apple.com/documentation/foundation/nslocalizedstring)
 
+

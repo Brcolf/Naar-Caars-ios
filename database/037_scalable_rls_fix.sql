@@ -176,3 +176,4 @@ CREATE POLICY "messages_insert_participant" ON public.messages
 -- - Or restructure the schema to avoid the circular dependency
 
 
+

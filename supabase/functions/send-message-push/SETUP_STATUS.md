@@ -67,3 +67,4 @@ If push notifications don't arrive:
 - Verify notification permissions are granted in iOS app
 - Use real device (simulator doesn't receive push)
 
+

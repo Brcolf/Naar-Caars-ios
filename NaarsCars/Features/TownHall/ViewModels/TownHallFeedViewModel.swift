@@ -33,8 +33,8 @@ final class TownHallFeedViewModel: ObservableObject {
     }
     
     deinit {
-        Task {
-            await unsubscribeFromPosts()
+        Task.detached {
+            await RealtimeManager.shared.unsubscribe(channelName: "town-hall-posts")
         }
     }
     
@@ -119,7 +119,7 @@ final class TownHallFeedViewModel: ObservableObject {
             try await townHallService.votePost(postId: postId, userId: userId, voteType: voteType)
             
             // Update local post state
-            if let index = posts.firstIndex(where: { $0.id == postId }) {
+            if posts.contains(where: { $0.id == postId }) {
                 // Reload this post to get updated vote counts
                 await refreshPosts()
             }

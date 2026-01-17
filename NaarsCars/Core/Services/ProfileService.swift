@@ -21,6 +21,7 @@ final class ProfileService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
+    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -30,6 +31,7 @@ final class ProfileService {
     
     /// Fetch a profile by user ID
     /// Checks cache before making network request
+    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameter userId: The user ID to fetch
     /// - Returns: Profile if found
     /// - Throws: AppError if fetch fails
@@ -39,17 +41,23 @@ final class ProfileService {
             return cached
         }
         
-        // Fetch from network
-        let profile: Profile = try await supabase
-            .from("profiles")
-            .select()
-            .eq("id", value: userId.uuidString)
-            .single()
-            .execute()
-            .value
-        
-        // Cache the profile
-        await CacheManager.shared.cacheProfile(profile)
+        // Use request deduplicator to prevent concurrent requests for same profile
+        let key = "profile_\(userId.uuidString)"
+        let profile: Profile = try await requestDeduplicator.fetch(key: key) { [self] in
+            // Fetch from network
+            let profile: Profile = try await self.supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: userId.uuidString)
+                .single()
+                .execute()
+                .value
+            
+            // Cache the profile
+            await CacheManager.shared.cacheProfile(profile)
+            
+            return profile
+        }
         
         return profile
     }
@@ -206,13 +214,13 @@ final class ProfileService {
         try await supabase.storage
             .from("avatars")
             .upload(
-                path: fileName,
-                file: compressedData,
+                fileName,
+                data: compressedData,
                 options: FileOptions(contentType: "image/jpeg", upsert: true)
             )
         
         // Get public URL with cache-busting query param
-        let publicUrl = try await supabase.storage
+        let publicUrl = try supabase.storage
             .from("avatars")
             .getPublicURL(path: fileName)
         
@@ -343,9 +351,6 @@ final class ProfileService {
     /// - Throws: AppError if deletion fails
     func deleteAccount(userId: UUID) async throws {
         // Use database function to delete account (handles cascade deletes)
-        let params: [String: AnyCodable] = [
-            "p_user_id": AnyCodable(userId.uuidString)
-        ]
         
         // Wrap RPC call in Task.detached to avoid MainActor isolation issues
         let task = Task.detached(priority: .userInitiated) { [userId] () async throws in

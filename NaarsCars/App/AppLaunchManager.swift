@@ -88,12 +88,13 @@ final class AppLaunchManager: ObservableObject {
                 return
             }
             
-            // Immediately set state to unauthenticated when sign out happens
-            // Since AppLaunchManager is @MainActor, this is safe to do synchronously
-            print("🔄 [AppLaunchManager] Setting state to unauthenticated immediately")
-            print("🔄 [AppLaunchManager] Current state before update: \(self.state.id)")
-            self.state = .ready(.unauthenticated)
-            print("✅ [AppLaunchManager] State updated to: \(self.state.id)")
+            // Schedule state update on next run loop to avoid conflicts with view teardown
+            Task { @MainActor in
+                print("🔄 [AppLaunchManager] Setting state to unauthenticated")
+                print("🔄 [AppLaunchManager] Current state before update: \(self.state.id)")
+                self.state = .ready(.unauthenticated)
+                print("✅ [AppLaunchManager] State updated to: \(self.state.id)")
+            }
         }
         
         print("✅ [AppLaunchManager] Notification listener set up successfully")
@@ -160,6 +161,8 @@ final class AppLaunchManager: ObservableObject {
                 let approved: Bool
             }
             
+            print("🔍 [AppLaunchManager] Checking approval status for user: \(userId)")
+            
             let response: ProfileApproval = try await supabase
                 .from("profiles")
                 .select("approved")
@@ -168,8 +171,12 @@ final class AppLaunchManager: ObservableObject {
                 .execute()
                 .value
             
+            print("✅ [AppLaunchManager] Approval status for user \(userId): \(response.approved)")
             return response.approved
         } catch {
+            // Log error for debugging
+            print("⚠️ [AppLaunchManager] Failed to check approval status for user \(userId): \(error.localizedDescription)")
+            print("⚠️ [AppLaunchManager] Error details: \(error)")
             // If query fails, assume not approved (safer default)
             return false
         }
@@ -182,7 +189,7 @@ final class AppLaunchManager: ObservableObject {
         // Load profile, rides, favors, etc. in background
         
         // Update AuthService with full profile
-        try? await authService.checkAuthStatus()
+        _ = try? await authService.checkAuthStatus()
         
         // Note: Additional background loading (rides, favors, etc.)
         // will be handled by respective ViewModels when views appear

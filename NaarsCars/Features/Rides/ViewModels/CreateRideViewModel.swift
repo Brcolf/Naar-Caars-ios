@@ -15,12 +15,15 @@ final class CreateRideViewModel: ObservableObject {
     // MARK: - Published Properties
     
     @Published var date: Date = Date()
-    @Published var time: String = ""
+    @Published var hour: Int = 9
+    @Published var minute: Int = 0
+    @Published var isAM: Bool = true
     @Published var pickup: String = ""
     @Published var destination: String = ""
     @Published var seats: Int = 1
     @Published var notes: String = ""
     @Published var gift: String = ""
+    @Published var selectedParticipantIds: Set<UUID> = []
     
     @Published var isLoading: Bool = false
     @Published var error: String?
@@ -41,16 +44,6 @@ final class CreateRideViewModel: ObservableObject {
         
         if destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "Destination is required"
-        }
-        
-        if time.isEmpty {
-            return "Time is required"
-        }
-        
-        // Validate time format (HH:mm:ss or HH:mm)
-        let timePattern = #"^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:([0-5][0-9]))?$"#
-        if (time.range(of: timePattern, options: .regularExpression) == nil) != nil {
-            return "Time must be in format HH:mm or HH:mm:ss"
         }
         
         // Validate date is not in the past
@@ -83,8 +76,8 @@ final class CreateRideViewModel: ObservableObject {
             throw AppError.authenticationRequired
         }
         
-        // Format time to HH:mm:ss if needed
-        let formattedTime = formatTime(time)
+        // Format time from hour/minute/isAM to HH:mm:ss
+        let formattedTime = formatTime(hour: hour, minute: minute, isAM: isAM)
         
         isLoading = true
         error = nil
@@ -102,6 +95,16 @@ final class CreateRideViewModel: ObservableObject {
                 gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             
+            // Add participants if any were selected (max 5)
+            let participantIds = Array(selectedParticipantIds.prefix(5))
+            if !participantIds.isEmpty {
+                try? await rideService.addRideParticipants(
+                    rideId: ride.id,
+                    userIds: participantIds,
+                    addedBy: userId
+                )
+            }
+            
             return ride
         } catch {
             self.error = error.localizedDescription
@@ -111,22 +114,70 @@ final class CreateRideViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
-    /// Format time string to HH:mm:ss format
-    private func formatTime(_ time: String) -> String {
-        // If already in HH:mm:ss format, return as is
-        if time.components(separatedBy: ":").count == 3 {
-            return time
+    /// Format time from hour/minute/isAM to HH:mm:ss format (24-hour)
+    /// - Parameters:
+    ///   - hour: Hour (1-12)
+    ///   - minute: Minute (0-59)
+    ///   - isAM: true for AM, false for PM
+    /// - Returns: Time string in HH:mm:ss format
+    func formatTime(hour: Int, minute: Int, isAM: Bool) -> String {
+        var hour24 = hour
+        
+        // Convert 12-hour to 24-hour format
+        if isAM {
+            // AM: 12 AM = 0, 1-11 AM = 1-11
+            if hour == 12 {
+                hour24 = 0
+            }
+        } else {
+            // PM: 12 PM = 12, 1-11 PM = 13-23
+            if hour != 12 {
+                hour24 = hour + 12
+            }
         }
         
-        // If in HH:mm format, add :00
-        if time.components(separatedBy: ":").count == 2 {
-            return time + ":00"
+        return String(format: "%02d:%02d:00", hour24, minute)
+    }
+    
+    /// Parse time string from HH:mm:ss format to hour/minute/isAM
+    /// - Parameter timeString: Time string in HH:mm:ss or HH:mm format
+    /// - Returns: Tuple of (hour: Int, minute: Int, isAM: Bool), or nil if parsing fails
+    func parseTime(_ timeString: String) -> (hour: Int, minute: Int, isAM: Bool)? {
+        let components = timeString.components(separatedBy: ":")
+        guard components.count >= 2,
+              let hour24 = Int(components[0]),
+              let minute = Int(components[1]),
+              hour24 >= 0 && hour24 < 24,
+              minute >= 0 && minute < 60 else {
+            return nil
         }
         
-        // Default fallback
-        return time
+        var hour12: Int
+        let isAM: Bool
+        
+        // Convert 24-hour to 12-hour format
+        if hour24 == 0 {
+            // 00:xx = 12:xx AM
+            hour12 = 12
+            isAM = true
+        } else if hour24 < 12 {
+            // 01-11:xx = 1-11:xx AM
+            hour12 = hour24
+            isAM = true
+        } else if hour24 == 12 {
+            // 12:xx = 12:xx PM
+            hour12 = 12
+            isAM = false
+        } else {
+            // 13-23:xx = 1-11:xx PM
+            hour12 = hour24 - 12
+            isAM = false
+        }
+        
+        return (hour12, minute, isAM)
     }
 }
+
 
 
 

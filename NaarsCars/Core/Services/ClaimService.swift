@@ -61,43 +61,61 @@ final class ClaimService {
         // Determine table name
         let tableName = requestType == "ride" ? "rides" : "favors"
         
-        // Update request status to "confirmed" and set claimed_by
-        let updates: [String: AnyCodable] = [
-            "status": AnyCodable("confirmed"),
-            "claimed_by": AnyCodable(claimerId.uuidString),
-            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-        ]
-        
-        try await supabase
-            .from(tableName)
-            .update(updates)
-            .eq("id", value: requestId.uuidString)
-            .execute()
-        
-        // Create or get conversation for this request
-        let conversationId = try await ConversationService.shared.createConversationForRequest(
-            requestType: requestType,
-            requestId: requestId,
-            posterId: try await getPosterId(requestType: requestType, requestId: requestId),
-            claimerId: claimerId
-        )
-        
-        // Create notification for poster
-        try await createClaimNotification(
-            requestType: requestType,
-            requestId: requestId,
-            posterId: try await getPosterId(requestType: requestType, requestId: requestId),
-            claimerId: claimerId
-        )
-        
-        // Invalidate caches
-        if requestType == "ride" {
-            await cacheManager.invalidateRides()
-        } else {
-            await cacheManager.invalidateFavors()
+        do {
+            // Update request status to "confirmed" and set claimed_by
+            let updates: [String: AnyCodable] = [
+                "status": AnyCodable("confirmed"),
+                "claimed_by": AnyCodable(claimerId.uuidString),
+                "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+            ]
+            
+            try await supabase
+                .from(tableName)
+                .update(updates)
+                .eq("id", value: requestId.uuidString)
+                .execute()
+            
+            // Create conversation with poster and claimer
+            let posterId = try await getPosterId(requestType: requestType, requestId: requestId)
+            let conversation = try await MessageService.shared.createConversationWithUsers(
+                userIds: [posterId, claimerId],
+                createdBy: posterId,
+                title: nil
+            )
+            let conversationId = conversation.id
+            
+            // Create notification for poster
+            try await createClaimNotification(
+                requestType: requestType,
+                requestId: requestId,
+                posterId: try await getPosterId(requestType: requestType, requestId: requestId),
+                claimerId: claimerId
+            )
+            
+            // Invalidate caches
+            if requestType == "ride" {
+                await cacheManager.invalidateRides()
+            } else {
+                await cacheManager.invalidateFavors()
+            }
+            
+            return conversationId
+        } catch {
+            // Check for RLS policy errors
+            let errorString = String(describing: error).lowercased()
+            if errorString.contains("42501") || errorString.contains("row-level security") {
+                print("🔴 [ClaimService] Database permission error when claiming \(requestType)")
+                print("   This indicates an RLS policy issue in Supabase")
+                throw AppError.serverError("Unable to claim \(requestType) due to a database configuration issue. Please contact support.")
+            }
+            
+            // Re-throw other errors as AppError
+            if let appError = error as? AppError {
+                throw appError
+            } else {
+                throw AppError.processingError("Failed to claim \(requestType): \(error.localizedDescription)")
+            }
         }
-        
-        return conversationId
     }
     
     // MARK: - Unclaim Request

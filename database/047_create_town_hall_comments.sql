@@ -74,3 +74,4 @@ CREATE TRIGGER update_town_hall_comments_updated_at
 COMMENT ON TABLE town_hall_comments IS 'Comments on town hall posts with support for nested replies';
 COMMENT ON COLUMN town_hall_comments.parent_comment_id IS 'If set, this is a reply to another comment. NULL means it is a top-level comment on the post.';
 
+

@@ -136,3 +136,4 @@ COMMENT ON COLUMN invite_codes.expires_at IS 'Expiration time for bulk invite co
 COMMENT ON COLUMN invite_codes.bulk_code_id IS 'For individual signups from bulk invites, links back to the bulk code that created them';
 ```
 
+

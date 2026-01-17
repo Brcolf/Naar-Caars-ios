@@ -41,12 +41,14 @@ struct EditFavorView: View {
                     DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
                     
-                    HStack {
-                        Text("Time (optional)")
-                        Spacer()
-                        TextField("HH:mm", text: $viewModel.time)
-                            .keyboardType(.numbersAndPunctuation)
-                            .multilineTextAlignment(.trailing)
+                    Toggle("Specify Time", isOn: $viewModel.hasTime)
+                    
+                    if viewModel.hasTime {
+                        TimePickerView(
+                            hour: $viewModel.hour,
+                            minute: $viewModel.minute,
+                            isAM: $viewModel.isAM
+                        )
                     }
                 }
                 
@@ -78,6 +80,9 @@ struct EditFavorView: View {
                     Button("Save") {
                         Task {
                             do {
+                                // Format time from hour/minute/isAM if time is specified
+                                let formattedTime = viewModel.hasTime ? viewModel.formatTime(hour: viewModel.hour, minute: viewModel.minute, isAM: viewModel.isAM) : nil
+                                
                                 _ = try await FavorService.shared.updateFavor(
                                     id: favor.id,
                                     title: viewModel.title.isEmpty ? nil : viewModel.title,
@@ -86,7 +91,7 @@ struct EditFavorView: View {
                                     duration: viewModel.duration,
                                     requirements: viewModel.requirements.isEmpty ? nil : viewModel.requirements,
                                     date: viewModel.date,
-                                    time: viewModel.time.isEmpty ? nil : viewModel.time,
+                                    time: formattedTime,
                                     gift: viewModel.gift.isEmpty ? nil : viewModel.gift
                                 )
                                 dismiss()
@@ -106,8 +111,18 @@ struct EditFavorView: View {
                 viewModel.duration = favor.duration
                 viewModel.requirements = favor.requirements ?? ""
                 viewModel.date = favor.date
-                viewModel.time = favor.time ?? ""
                 viewModel.gift = favor.gift ?? ""
+                
+                // Parse existing time if available
+                if let timeString = favor.time,
+                   let parsedTime = viewModel.parseTime(timeString) {
+                    viewModel.hasTime = true
+                    viewModel.hour = parsedTime.hour
+                    viewModel.minute = parsedTime.minute
+                    viewModel.isAM = parsedTime.isAM
+                } else {
+                    viewModel.hasTime = false
+                }
             }
         }
     }
@@ -123,6 +138,7 @@ struct EditFavorView: View {
         status: .open
     ))
 }
+
 
 
 

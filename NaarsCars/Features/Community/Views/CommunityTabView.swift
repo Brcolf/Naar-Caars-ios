@@ -51,6 +51,10 @@ struct CommunityTabView: View {
                 }
             }
             .navigationTitle("Community")
+            .onAppear {
+                // Clear community badge when viewing Community tab
+                BadgeCountManager.shared.clearCommunityBadge()
+            }
         }
     }
 }
@@ -59,4 +63,5 @@ struct CommunityTabView: View {
     CommunityTabView()
         .environmentObject(AppState())
 }
+
 

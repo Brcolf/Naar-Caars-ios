@@ -53,6 +53,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
     let reviewed: Bool
     let reviewSkipped: Bool?
     let reviewSkippedAt: Date?
+    let estimatedCost: Double?
     let createdAt: Date
     let updatedAt: Date
     
@@ -88,6 +89,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         case reviewed
         case reviewSkipped = "review_skipped"
         case reviewSkippedAt = "review_skipped_at"
+        case estimatedCost = "estimated_cost"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         // Joined fields are not in CodingKeys - they're populated separately
@@ -111,6 +113,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         reviewed: Bool = false,
         reviewSkipped: Bool? = nil,
         reviewSkippedAt: Date? = nil,
+        estimatedCost: Double? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         poster: Profile? = nil,
@@ -133,6 +136,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         self.reviewed = reviewed
         self.reviewSkipped = reviewSkipped
         self.reviewSkippedAt = reviewSkippedAt
+        self.estimatedCost = estimatedCost
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.poster = poster

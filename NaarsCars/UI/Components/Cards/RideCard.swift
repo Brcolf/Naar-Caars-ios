@@ -51,11 +51,11 @@ struct RideCard: View {
             
             Divider()
             
-            // Route
+            // Route addresses
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundColor(.rideAccent) // Red for rides
+                        .foregroundColor(.rideAccent)
                         .font(.system(size: 16))
                     Text(ride.pickup)
                         .font(.naarsBody)
@@ -72,7 +72,7 @@ struct RideCard: View {
                 
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundColor(.rideAccent) // Red for rides
+                        .foregroundColor(.rideAccent)
                         .font(.system(size: 16))
                     Text(ride.destination)
                         .font(.naarsBody)

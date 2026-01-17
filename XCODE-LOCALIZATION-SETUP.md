@@ -119,3 +119,4 @@
 - [ ] Language switching works in the app
 - [ ] Chinese text displays correctly after restart
 
+
