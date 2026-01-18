@@ -85,13 +85,10 @@ struct RequestsDashboardView: View {
             }
             .task {
                 await viewModel.loadRequests()
-            }
-            .onAppear {
                 viewModel.setupRealtimeSubscription()
             }
             .onDisappear {
-                // Don't cleanup on disappear - let deinit handle it
-                // This prevents unsubscribe/resubscribe thrashing when navigating
+                viewModel.cleanupRealtimeSubscription()
             }
         }
     }

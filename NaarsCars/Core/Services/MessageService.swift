@@ -23,7 +23,6 @@ final class MessageService {
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
     private let rateLimiter = RateLimiter.shared
-    private let logger = MessagingLogger.shared
     
     // MARK: - Initialization
     
@@ -39,26 +38,15 @@ final class MessageService {
     /// - Returns: Array of conversations with details
     /// - Throws: AppError if fetch fails
     func fetchConversations(userId: UUID, limit: Int = 10, offset: Int = 0) async throws -> [ConversationWithDetails] {
-        let operationId = "fetchConversations_\(userId)_\(offset)"
-        await logger.startOperation(operationId, description: "Fetch conversations (limit: \(limit), offset: \(offset))")
-        
-        // Check for cancellation before starting
-        do {
-            try Task.checkCancellation()
-        } catch {
-            await logger.endOperation(operationId, success: false, resultDescription: "Task cancelled")
-            throw error
+        // Check cache first
+        if let cached = await cacheManager.getCachedConversations(userId: userId), !cached.isEmpty {
+            print("✅ [MessageService] Cache hit for conversations. Returning \(cached.count) items.")
+            return cached
         }
         
-        // DISABLED: Cache causes inconsistent data with real-time updates
-        // Always fetch fresh data for conversations
-        await logger.log("Cache disabled for conversations - fetching fresh data", level: .info)
+        print("🔄 [MessageService] Cache miss for conversations. Fetching from network...")
         
         do {
-            try Task.checkCancellation()
-            
-            await logger.log("Fetching conversation participants for user", level: .network)
-            
             // Get user's conversation IDs from conversation_participants
             // (RLS is disabled on this table, so we can query it directly)
             // This query uses an index on user_id, so it's efficient even with many conversations
@@ -78,8 +66,6 @@ final class MessageService {
             let participantRows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
             let participantConversationIds = Set(participantRows.map { $0.conversationId })
             
-            await logger.log("Found \(participantConversationIds.count) conversations where user is participant", level: .info)
-            
             // Get conversations where user is creator
             let createdConversationsResponse = try? await supabase
                 .from("conversations")
@@ -92,52 +78,26 @@ final class MessageService {
                 let decoder = createDateDecoder()
                 let created: [Conversation] = try decoder.decode([Conversation].self, from: createdData)
                 allConversationIds.formUnion(created.map { $0.id })
-                await logger.log("Found \(created.count) conversations where user is creator", level: .info)
             }
             
             guard !allConversationIds.isEmpty else {
-                await logger.endOperation(operationId, success: true, resultDescription: "No conversations found")
                 await cacheManager.cacheConversations(userId: userId, [])
                 return []
             }
             
-            await logger.log("Total unique conversations: \(allConversationIds.count)", level: .info)
-            
-            // First, fetch ALL conversations to get their updated_at timestamps for sorting
-            // This is necessary because we need to sort before paginating
-            await logger.log("Fetching conversation timestamps for sorting", level: .network)
-            
-            let allConversationsResponse = try await supabase
-                .from("conversations")
-                .select("id, updated_at")
-                .in("id", values: Array(allConversationIds).map { $0.uuidString })
-                .order("updated_at", ascending: false)
-                .execute()
-            
-            struct ConversationTimestamp: Codable {
-                let id: UUID
-                let updatedAt: Date
-                enum CodingKeys: String, CodingKey {
-                    case id
-                    case updatedAt = "updated_at"
-                }
-            }
-            
-            let timestamps = try createDateDecoder().decode([ConversationTimestamp].self, from: allConversationsResponse.data)
-            
-            // Now we have properly sorted IDs
-            let sortedIds = timestamps.map { $0.id }
+            // Query conversations by IDs (now including title)
+            // PostgreSQL optimizes IN clauses efficiently with indexes on id
+            // This scales well even with hundreds/thousands of conversations
+            // Apply pagination: get conversations in the specified range
+            // Note: We need to order first, then apply range
+            let allConversationIdsArray = Array(allConversationIds)
+            let sortedIds = allConversationIdsArray // IDs are already sorted by updated_at in the query
             let paginatedIds = Array(sortedIds[offset..<min(offset + limit, sortedIds.count)])
             
-            await logger.log("Applying pagination: offset=\(offset), limit=\(limit), result count=\(paginatedIds.count)", level: .info)
-            
             guard !paginatedIds.isEmpty else {
-                await logger.endOperation(operationId, success: true, resultDescription: "No conversations in page range")
                 await cacheManager.cacheConversations(userId: userId, [])
                 return []
             }
-            
-            await logger.log("Fetching conversation details", level: .network)
             
             let conversationsResponse = try await supabase
                 .from("conversations")
@@ -150,110 +110,130 @@ final class MessageService {
             let decoder = createDateDecoder()
             let conversations: [Conversation] = try decoder.decode([Conversation].self, from: conversationsResponse.data)
             
-            await logger.log("Decoded \(conversations.count) conversations", level: .info)
-            
             guard !conversations.isEmpty else {
-                await logger.endOperation(operationId, success: true, resultDescription: "No conversations after decode")
                 await cacheManager.cacheConversations(userId: userId, [])
                 return []
             }
             
-            // Check cancellation before expensive loop
-            try Task.checkCancellation()
+            // For each conversation, get last message and unread count
+            var conversationsWithDetails: [ConversationWithDetails] = []
             
-            // OPTIMIZATION: Batch fetch all data instead of sequential per-conversation fetches
-            // This reduces N queries to 3 queries total (last messages, unread counts, participants)
-            
-            let conversationIds = conversations.map { $0.id }
-            
-            await logger.log("Starting batch fetch for \(conversationIds.count) conversations", level: .info)
-            
-            // 1. Batch fetch last messages for all conversations
-            let lastMessagesDict = await fetchLastMessagesForConversations(conversationIds: conversationIds)
-            await logger.log("Fetched last messages for \(lastMessagesDict.count) conversations", level: .success)
-            
-            // 2. Batch fetch unread counts for all conversations
-            let unreadCountsDict = await fetchUnreadCountsForConversations(conversationIds: conversationIds, userId: userId)
-            await logger.log("Fetched unread counts: total unread in \(unreadCountsDict.filter { $0.value > 0 }.count) conversations", level: .success)
-            
-            // 3. Batch fetch all participants for all conversations
-            let participantsDict = await fetchParticipantsForConversations(conversationIds: conversationIds, userId: userId)
-            await logger.log("Fetched participants: total \(participantsDict.values.reduce(0) { $0 + $1.count }) participants", level: .success)
-            
-            // 4. Hydrate conversations with cached display names (local-first)
-            let displayNameCache = ConversationDisplayNameCache.shared
-            var conversationsWithDetails: [ConversationWithDetails] = []  // Declare the array
-            var conversationsToCompute: [(Conversation, [Profile])] = []  // Track conversations needing name computation
-            
-            for var conversation in conversations {
-                try Task.checkCancellation()
+            for conversation in conversations {
+                // Get last message
+                let lastMessageResponse = try? await supabase
+                    .from("messages")
+                    .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+                    .eq("conversation_id", value: conversation.id.uuidString)
+                    .order("created_at", ascending: false)
+                    .limit(1)
+                    .single()
+                    .execute()
                 
-                // Try to hydrate from cache first
-                if let cachedName = await displayNameCache.getDisplayName(for: conversation.id) {
-                    conversation.cachedDisplayName = cachedName
-                    await logger.logDisplayNameResolution(conversationId: conversation.id, cached: true)
-                } else {
-                    // No cached name - will need to compute and cache
-                    let otherParticipants = participantsDict[conversation.id] ?? []
-                    conversationsToCompute.append((conversation, otherParticipants))
-                    await logger.logDisplayNameResolution(conversationId: conversation.id, cached: false)
-                    // Leave cachedDisplayName as nil for now (UI will show "Loading...")
+                var lastMessage: Message? = nil
+                if let lastMessageData = lastMessageResponse?.data {
+                    // Use createDateDecoder() to properly handle date formats
+                    let decoder = createDateDecoder()
+                    lastMessage = try? decoder.decode(Message.self, from: lastMessageData)
+                }
+                
+                // Calculate unread count (messages not in readBy array)
+                let unreadResponse = try? await supabase
+                    .from("messages")
+                    .select("id")
+                    .eq("conversation_id", value: conversation.id.uuidString)
+                    .not("read_by", operator: .cs, value: userId.uuidString)
+                    .execute()
+                
+                struct MessageId: Codable {
+                    let id: UUID
+                }
+                
+                let unreadMessages: [MessageId] = (try? JSONDecoder().decode([MessageId].self, from: unreadResponse?.data ?? Data())) ?? []
+                let unreadCount = unreadMessages.count
+                
+                // Get other participants (excluding current user) with profile data
+                var otherParticipants: [Profile] = []
+                do {
+                    let participantsResponse = try await supabase
+                        .from("conversation_participants")
+                        .select("user_id, profiles!conversation_participants_user_id_fkey(id, name, email, avatar_url, car, created_at)")
+                        .eq("conversation_id", value: conversation.id.uuidString)
+                        .neq("user_id", value: userId.uuidString)
+                        .execute()
+                    
+                    // Parse the nested structure from Supabase
+                    struct ParticipantRow: Codable {
+                        let userId: UUID
+                        let profiles: Profile?
+                        
+                        enum CodingKeys: String, CodingKey {
+                            case userId = "user_id"
+                            case profiles
+                        }
+                    }
+                    
+                    let decoder = createDateDecoder()
+                    let rows = try decoder.decode([ParticipantRow].self, from: participantsResponse.data)
+                    otherParticipants = rows.compactMap { $0.profiles }
+                } catch {
+                    print("⚠️ [MessageService] Error fetching participants for conversation \(conversation.id): \(error.localizedDescription)")
+                    // Fallback: fetch profiles separately if join fails
+                    do {
+                        let userIdsResponse = try? await supabase
+                            .from("conversation_participants")
+                            .select("user_id")
+                            .eq("conversation_id", value: conversation.id.uuidString)
+                            .neq("user_id", value: userId.uuidString)
+                            .execute()
+                        
+                        if let userIdsData = userIdsResponse?.data {
+                            struct ParticipantUserId: Codable {
+                                let userId: UUID
+                                enum CodingKeys: String, CodingKey {
+                                    case userId = "user_id"
+                                }
+                            }
+                            
+                            let userIdRows = try JSONDecoder().decode([ParticipantUserId].self, from: userIdsData)
+                            
+                            // Fetch profiles individually
+                            for row in userIdRows {
+                                if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+                                    otherParticipants.append(profile)
+                                }
+                            }
+                        }
+                    } catch {
+                        print("⚠️ [MessageService] Error in fallback participant fetch: \(error.localizedDescription)")
+                    }
                 }
                 
                 let details = ConversationWithDetails(
                     conversation: conversation,
-                    lastMessage: lastMessagesDict[conversation.id],
-                    unreadCount: unreadCountsDict[conversation.id] ?? 0,
-                    otherParticipants: participantsDict[conversation.id] ?? []
+                    lastMessage: lastMessage,
+                    unreadCount: unreadCount,
+                    otherParticipants: otherParticipants
                 )
                 conversationsWithDetails.append(details)
             }
             
-            // 5. Background task: Compute and cache missing display names
-            if !conversationsToCompute.isEmpty {
-                await logger.log("Scheduling background task to compute \(conversationsToCompute.count) display names", level: .info)
-                
-                Task.detached(priority: .background) {
-                    await MessagingLogger.shared.log("Computing \(conversationsToCompute.count) missing display names", level: .info)
-                    
-                    var namesToCache: [UUID: String] = [:]
-                    
-                    for (conversation, otherParticipants) in conversationsToCompute {
-                        if let displayName = ConversationDisplayNameCache.computeDisplayName(
-                            conversation: conversation,
-                            otherParticipants: otherParticipants,
-                            currentUserId: userId
-                        ) {
-                            namesToCache[conversation.id] = displayName
-                        }
-                    }
-                    
-                    // Batch save to cache
-                    if !namesToCache.isEmpty {
-                        await displayNameCache.setDisplayNames(namesToCache)
-                        await MessagingLogger.shared.log("Cached \(namesToCache.count) display names in background", level: .success)
-                    }
-                }
-            }
+            // Cache results
+            await cacheManager.cacheConversations(userId: userId, conversationsWithDetails)
             
-            // DISABLED: Don't cache conversations - causes stale data issues
-            await logger.log("Skipping cache write (disabled for real-time consistency)", level: .info)
-            
-            await logger.endOperation(operationId, success: true, resultDescription: "Fetched \(conversationsWithDetails.count) conversations")
+            print("✅ [MessageService] Fetched \(conversationsWithDetails.count) conversations from network.")
             return conversationsWithDetails
             
         } catch {
             // Handle RLS recursion error gracefully
             let errorString = String(describing: error).lowercased()
             if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                await logger.log("RLS policy recursion detected - returning empty conversations", level: .error)
-                await logger.endOperation(operationId, success: false, resultDescription: "RLS recursion error")
+                print("⚠️ [MessageService] RLS policy recursion detected. Returning empty conversations.")
+                print("   This is a database-level issue. Fix the RLS policy in Supabase.")
+                print("   The policy on 'conversation_participants' should not reference itself.")
                 await cacheManager.cacheConversations(userId: userId, [])
                 return []
             }
             // Re-throw other errors
-            await logger.logError(error, context: "fetchConversations")
-            await logger.endOperation(operationId, success: false, resultDescription: error.localizedDescription)
             throw error
         }
     }
@@ -387,9 +367,6 @@ final class MessageService {
         }
         
         // Add all users as participants
-        print("🔄 [MessageService] Adding \(userIds.count) participants to conversation \(conversation.id)")
-        print("   User IDs to add: \(userIds)")
-        
         let participantInserts = userIds.map { userId in
             [
                 "conversation_id": AnyCodable(conversation.id.uuidString),
@@ -397,56 +374,25 @@ final class MessageService {
             ]
         }
         
-        print("📤 [MessageService] Participant insert payload: \(participantInserts)")
-        
         do {
-            let response = try await supabase
+            try await supabase
                 .from("conversation_participants")
                 .insert(participantInserts)
                 .execute()
-            
-            print("📥 [MessageService] Participants insert response status: \(response.response.statusCode)")
-            print("   Response data: \(String(data: response.data, encoding: .utf8) ?? "nil")")
-            print("✅ [MessageService] Created conversation \(conversation.id) with \(userIds.count) participant(s)")
-            
-            // Update display name cache (local-first)
-            Task.detached(priority: .background) {
-                // Fetch participant profiles to compute display name
-                let otherUserIds = userIds.filter { $0 != createdBy }
-                var otherParticipants: [Profile] = []
-                
-                for userId in otherUserIds {
-                    if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                        otherParticipants.append(profile)
-                    }
-                }
-                
-                // Compute and cache display name
-                if let displayName = ConversationDisplayNameCache.computeDisplayName(
-                    conversation: conversation,
-                    otherParticipants: otherParticipants,
-                    currentUserId: createdBy
-                ) {
-                    await ConversationDisplayNameCache.shared.setDisplayName(displayName, for: conversation.id)
-                }
-            }
+            print("✅ [MessageService] Created conversation with \(userIds.count) participant(s)")
         } catch {
             // Handle RLS recursion error - check multiple error formats
             let errorString = String(describing: error).lowercased()
-            print("🔴 [MessageService] Error adding participants to conversation \(conversation.id)")
-            print("   Error: \(error)")
-            print("   Error type: \(type(of: error))")
-            print("   Error description: \(error.localizedDescription)")
-            
             if errorString.contains("infinite recursion") || errorString.contains("recursion") {
                 print("⚠️ [MessageService] RLS policy recursion when creating participants.")
                 print("   This is a database-level issue. Fix the RLS policy in Supabase.")
-                // Throw error - conversation without participants is useless
-                throw AppError.serverError("Cannot add participants due to database policy issue. Please contact support.")
+                print("   Conversation created successfully, but participants were not added.")
+                // Still return the conversation - it was created successfully
+                // Participants will need to be added after RLS policy is fixed
             } else {
-                // For other errors, also throw - participants are essential
-                print("⚠️ [MessageService] Failed to add participants")
-                throw AppError.processingError("Failed to add participants: \(error.localizedDescription)")
+                // For other errors, log but don't throw - conversation was created
+                print("⚠️ [MessageService] Error adding participants: \(error.localizedDescription)")
+                print("   Conversation created successfully, but participants may not have been added.")
             }
         }
         
@@ -584,60 +530,6 @@ final class MessageService {
         await cacheManager.invalidateConversations(userId: addedBy)
         await cacheManager.invalidateMessages(conversationId: conversationId)
         
-        // Update display name cache (local-first)
-        // When participants change, recompute and update the cached name
-        Task.detached(priority: .background) {
-            print("🔄 [MessageService] Updating display name cache after adding participants")
-            
-            // Fetch ALL current participants (including newly added ones)
-            let allParticipantsResponse = try? await self.supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .execute()
-            
-            struct ParticipantUserId: Codable {
-                let userId: UUID
-                enum CodingKeys: String, CodingKey {
-                    case userId = "user_id"
-                }
-            }
-            
-            let allParticipantIds = (try? JSONDecoder().decode([ParticipantUserId].self, from: allParticipantsResponse?.data ?? Data()))?.map { $0.userId } ?? []
-            
-            // Fetch profiles for all participants (excluding the current user)
-            let otherParticipantIds = allParticipantIds.filter { $0 != addedBy }
-            var otherParticipants: [Profile] = []
-            
-            for userId in otherParticipantIds {
-                if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                    otherParticipants.append(profile)
-                }
-            }
-            
-            // Fetch conversation to get title
-            let conversationResponse = try? await self.supabase
-                .from("conversations")
-                .select("id, title, created_by, created_at, updated_at")
-                .eq("id", value: conversationId.uuidString)
-                .single()
-                .execute()
-            
-            if let convData = conversationResponse?.data,
-               let conversation = try? self.createDateDecoder().decode(Conversation.self, from: convData) {
-                
-                // Compute new display name with updated participant list
-                if let displayName = ConversationDisplayNameCache.computeDisplayName(
-                    conversation: conversation,
-                    otherParticipants: otherParticipants,
-                    currentUserId: addedBy
-                ) {
-                    await ConversationDisplayNameCache.shared.setDisplayName(displayName, for: conversationId)
-                    print("✅ [MessageService] Updated cached display name: '\(displayName)'")
-                }
-            }
-        }
-        
         print("✅ [MessageService] Added \(newUserIds.count) participant(s) to conversation \(conversationId)")
     }
     
@@ -645,42 +537,50 @@ final class MessageService {
     // MARK: - Private Helpers
     
     /// Create a date decoder with custom date decoding strategy
-    private nonisolated func createDateDecoder() -> JSONDecoder {
-        return JSONDecoderFactory.createSupabaseDecoder()
+    private func createDateDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid date format: \(dateString)"
+            )
+        }
+        return decoder
     }
     
     // MARK: - Messages
     
+    /// Fetch messages for a conversation
+    /// - Parameter conversationId: The conversation ID
+    /// - Returns: Array of messages ordered by createdAt
+    /// - Throws: AppError if fetch fails
     /// Fetch messages for a conversation with pagination
     /// - Parameters:
     ///   - conversationId: The conversation ID
     ///   - limit: Maximum number of messages to fetch (default: 25)
     ///   - beforeMessageId: Optional message ID to fetch messages before (for pagination)
-    /// - Returns: PaginatedMessages with messages, hasMore flag, and endCursor
+    /// - Returns: Array of messages ordered by creation date (oldest first)
     /// - Throws: AppError if fetch fails or user is not a participant
-    func fetchMessages(conversationId: UUID, limit: Int = 25, beforeMessageId: UUID? = nil) async throws -> PaginatedMessages {
-        let operationId = "fetchMessages_\(conversationId)_\(beforeMessageId?.uuidString ?? "initial")"
-        let isPagination = beforeMessageId != nil
-        await logger.startOperation(operationId, description: "Fetch messages (limit: \(limit), pagination: \(isPagination))")
-        
-        // Check for cancellation before starting
-        do {
-            try Task.checkCancellation()
-        } catch {
-            await logger.endOperation(operationId, success: false, resultDescription: "Task cancelled")
-            throw error
-        }
-        
+    func fetchMessages(conversationId: UUID, limit: Int = 25, beforeMessageId: UUID? = nil) async throws -> [Message] {
         // Security check: Verify user is a participant (RLS is disabled on conversation_participants)
         guard let currentUserId = AuthService.shared.currentUserId else {
-            await logger.log("No authenticated user", level: .error)
-            await logger.endOperation(operationId, success: false, resultDescription: "Not authenticated")
             throw AppError.notAuthenticated
         }
-        
-        try Task.checkCancellation()
-        
-        await logger.log("Verifying user is participant in conversation", level: .info)
         
         // Check if user is a participant or creator
         let participantCheck = try? await supabase
@@ -704,32 +604,15 @@ final class MessageService {
         let isParticipant = hasParticipant || isCreator
         
         guard isParticipant else {
-            await logger.log("User is not a participant - permission denied", level: .error)
-            await logger.endOperation(operationId, success: false, resultDescription: "Permission denied")
             throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
         }
-        
-        await logger.log("User verified as participant", level: .success)
-        
-        // Check cache first (only for initial load, not pagination)
-        if beforeMessageId == nil {
-            if let cached = await cacheManager.getCachedMessages(conversationId: conversationId), !cached.isEmpty {
-                await logger.logCache(operation: "getMessage s", hit: true, key: conversationId.uuidString)
-                await logger.endOperation(operationId, success: true, resultDescription: "Returned \(cached.count) cached messages")
-                // For cached results, assume more might exist
-                return PaginatedMessages(
-                    messages: cached,
-                    hasMore: true, // Conservative: assume more exist
-                    endCursor: cached.last?.id
-                )
-            } else {
-                await logger.logCache(operation: "getMessages", hit: false, key: conversationId.uuidString)
-            }
-        } else {
-            await logger.log("Pagination request - skipping cache", level: .info)
+        // Check cache first
+        if let cached = await cacheManager.getCachedMessages(conversationId: conversationId), !cached.isEmpty {
+            print("✅ [MessageService] Cache hit for messages. Returning \(cached.count) items.")
+            return cached
         }
         
-        await logger.log("Fetching messages from network", level: .network)
+        print("🔄 [MessageService] Cache miss for messages. Fetching from network...")
         
         var query = supabase
             .from("messages")
@@ -738,8 +621,6 @@ final class MessageService {
         
         // If beforeMessageId is provided, fetch messages before that message
         if let beforeMessageId = beforeMessageId {
-            await logger.log("Fetching messages before: \(beforeMessageId)", level: .info)
-            
             // Get the created_at of the beforeMessageId message
             let beforeMessageResponse = try? await supabase
                 .from("messages")
@@ -760,31 +641,20 @@ final class MessageService {
                     let formatter = ISO8601DateFormatter()
                     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                     query = query.lt("created_at", value: formatter.string(from: beforeMessage.createdAt))
-                    await logger.log("Pagination anchor date: \(beforeMessage.createdAt)", level: .info)
                 }
             }
         }
         
-        // Fetch limit + 1 to determine if more exist
+        // Order by created_at descending (newest first), then reverse for display
+        // When beforeMessageId is provided, we want older messages (created_at < beforeMessage.created_at)
+        // For initial load, get the most recent messages
         let response = try await query
             .order("created_at", ascending: false)
-            .limit(limit + 1)
+            .limit(limit)
             .execute()
         
         let decoder = createDateDecoder()
         var messages: [Message] = try decoder.decode([Message].self, from: response.data)
-        
-        await logger.log("Decoded \(messages.count) messages", level: .info)
-        
-        // Check if more messages exist
-        let hasMore = messages.count > limit
-        if hasMore {
-            // Remove the extra message we fetched
-            messages = Array(messages.prefix(limit))
-            await logger.log("More messages available (pagination possible)", level: .info)
-        } else {
-            await logger.log("All messages loaded (end of conversation)", level: .info)
-        }
         
         // Reverse to get oldest first (for display - newest at bottom)
         messages.reverse()
@@ -792,8 +662,6 @@ final class MessageService {
         // Fetch reactions for messages
         let messageIds = messages.map { $0.id.uuidString }
         if !messageIds.isEmpty {
-            await logger.log("Fetching reactions for \(messageIds.count) messages", level: .network)
-            
             let reactionsResponse = try? await supabase
                 .from("message_reactions")
                 .select()
@@ -801,9 +669,7 @@ final class MessageService {
                 .execute()
             
             if let reactionsData = reactionsResponse?.data {
-                let reactions: [MessageReaction] = try! decoder.decode([MessageReaction].self, from: reactionsData) ?? []
-                
-                await logger.log("Found \(reactions.count) reactions", level: .success)
+                let reactions: [MessageReaction] = try? decoder.decode([MessageReaction].self, from: reactionsData) ?? []
                 
                 // Group reactions by message ID
                 var reactionsDict: [UUID: [String: [UUID]]] = [:]
@@ -829,16 +695,10 @@ final class MessageService {
         // Cache results (only cache if this is the initial load, not pagination)
         if beforeMessageId == nil {
             await cacheManager.cacheMessages(conversationId: conversationId, messages)
-            await logger.log("Cached messages for future requests", level: .cache)
         }
         
-        await logger.endOperation(operationId, success: true, resultDescription: "Fetched \(messages.count) messages, hasMore: \(hasMore)")
-        
-        return PaginatedMessages(
-            messages: messages,
-            hasMore: hasMore,
-            endCursor: messages.last?.id
-        )
+        print("✅ [MessageService] Fetched \(messages.count) messages from network.")
+        return messages
     }
     
     /// Upload message image to storage
@@ -865,13 +725,13 @@ final class MessageService {
         try await supabase.storage
             .from("message-images")
             .upload(
-                fileName,
-                data: compressedData,
+                path: fileName,
+                file: compressedData,
                 options: FileOptions(contentType: "image/jpeg", upsert: false)
             )
         
         // Get public URL
-        let publicUrl = try supabase.storage
+        let publicUrl = try await supabase.storage
             .from("message-images")
             .getPublicURL(path: fileName)
         
@@ -887,9 +747,6 @@ final class MessageService {
     /// - Returns: The created message
     /// - Throws: AppError if send fails
     func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil) async throws -> Message {
-        // Check for cancellation before starting
-        try Task.checkCancellation()
-        
         // Security check: Verify user is a participant (RLS is disabled on conversation_participants)
         let participantCheck = try? await supabase
             .from("conversation_participants")
@@ -1085,58 +942,6 @@ final class MessageService {
         // Invalidate caches
         await cacheManager.invalidateConversations(userId: userId)
         
-        // Update display name cache (title changed)
-        // The title is part of the cached display name, so update it
-        Task.detached(priority: .background) {
-            print("🔄 [MessageService] Updating display name cache after title change")
-            
-            // Fetch updated conversation
-            let conversationResponse = try? await self.supabase
-                .from("conversations")
-                .select("id, title, created_by, created_at, updated_at")
-                .eq("id", value: conversationId.uuidString)
-                .single()
-                .execute()
-            
-            if let convData = conversationResponse?.data,
-               let conversation = try? self.createDateDecoder().decode(Conversation.self, from: convData) {
-                
-                // Fetch participants to compute full display name
-                let participantsResponse = try? await self.supabase
-                    .from("conversation_participants")
-                    .select("user_id")
-                    .eq("conversation_id", value: conversationId.uuidString)
-                    .execute()
-                
-                struct ParticipantUserId: Codable {
-                    let userId: UUID
-                    enum CodingKeys: String, CodingKey {
-                        case userId = "user_id"
-                    }
-                }
-                
-                let participantIds = (try? JSONDecoder().decode([ParticipantUserId].self, from: participantsResponse?.data ?? Data()))?.map { $0.userId } ?? []
-                let otherParticipantIds = participantIds.filter { $0 != userId }
-                
-                var otherParticipants: [Profile] = []
-                for participantId in otherParticipantIds {
-                    if let profile = try? await ProfileService.shared.fetchProfile(userId: participantId) {
-                        otherParticipants.append(profile)
-                    }
-                }
-                
-                // Compute and cache new display name
-                if let displayName = ConversationDisplayNameCache.computeDisplayName(
-                    conversation: conversation,
-                    otherParticipants: otherParticipants,
-                    currentUserId: userId
-                ) {
-                    await ConversationDisplayNameCache.shared.setDisplayName(displayName, for: conversationId)
-                    print("✅ [MessageService] Updated cached display name after title change: '\(displayName)'")
-                }
-            }
-        }
-        
         print("✅ [MessageService] Updated conversation title: \(title ?? "nil")")
     }
     
@@ -1274,180 +1079,7 @@ final class MessageService {
         
         return groupedReactions
     }
-    
-    // MARK: - Batch Fetch Helpers (Performance Optimization)
-    
-    /// Batch fetch last messages for multiple conversations
-    /// Reduces N queries to 1 query using concurrent task group
-    private func fetchLastMessagesForConversations(conversationIds: [UUID]) async -> [UUID: Message] {
-        guard !conversationIds.isEmpty else { return [:] }
-        
-        var lastMessagesDict: [UUID: Message] = [:]
-        
-        // Fetch last message for each conversation concurrently
-        await withTaskGroup(of: (UUID, Message?).self) { group in
-            for conversationId in conversationIds {
-                group.addTask {
-                    let lastMessageResponse = try? await self.supabase
-                        .from("messages")
-                        .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
-                        .eq("conversation_id", value: conversationId.uuidString)
-                        .order("created_at", ascending: false)
-                        .limit(1)
-                        .single()
-                        .execute()
-                    
-                    var lastMessage: Message? = nil
-                    if let lastMessageData = lastMessageResponse?.data {
-                        let decoder = self.createDateDecoder()
-                        lastMessage = try? decoder.decode(Message.self, from: lastMessageData)
-                    }
-                    return (conversationId, lastMessage)
-                }
-            }
-            
-            for await (conversationId, message) in group {
-                if let message = message {
-                    lastMessagesDict[conversationId] = message
-                }
-            }
-        }
-        
-        return lastMessagesDict
-    }
-    
-    /// Batch fetch unread counts for multiple conversations
-    /// Reduces N queries to 1 query
-    private func fetchUnreadCountsForConversations(conversationIds: [UUID], userId: UUID) async -> [UUID: Int] {
-        guard !conversationIds.isEmpty else { return [:] }
-        
-        // Fetch all unread messages for user across all conversations
-        let unreadResponse = try? await supabase
-            .from("messages")
-            .select("id, conversation_id")
-            .in("conversation_id", values: conversationIds.map { $0.uuidString })
-            .not("read_by", operator: .cs, value: userId.uuidString)
-            .execute()
-        
-        guard let unreadData = unreadResponse?.data else { return [:] }
-        
-        struct MessageConversation: Codable {
-            let id: UUID
-            let conversationId: UUID
-            
-            enum CodingKeys: String, CodingKey {
-                case id
-                case conversationId = "conversation_id"
-            }
-        }
-        
-        let unreadMessages = (try? JSONDecoder().decode([MessageConversation].self, from: unreadData)) ?? []
-        
-        // Count unread messages per conversation
-        var unreadCountsDict: [UUID: Int] = [:]
-        for conversationId in conversationIds {
-            unreadCountsDict[conversationId] = 0
-        }
-        
-        for message in unreadMessages {
-            unreadCountsDict[message.conversationId, default: 0] += 1
-        }
-        
-        return unreadCountsDict
-    }
-    
-    /// Batch fetch participants for multiple conversations
-    /// Reduces N queries to 2 queries (participants + profiles)
-    private func fetchParticipantsForConversations(conversationIds: [UUID], userId: UUID) async -> [UUID: [Profile]] {
-        guard !conversationIds.isEmpty else { return [:] }
-        
-        // Initialize empty dict for all conversations
-        var participantsDict: [UUID: [Profile]] = [:]
-        for conversationId in conversationIds {
-            participantsDict[conversationId] = []
-        }
-        
-        do {
-            // Step 1: Fetch all participant relationships (conversation_id, user_id)
-            let participantsResponse = try await supabase
-                .from("conversation_participants")
-                .select("conversation_id, user_id")
-                .in("conversation_id", values: conversationIds.map { $0.uuidString })
-                .neq("user_id", value: userId.uuidString)
-                .execute()
-            
-            struct ParticipantRow: Codable {
-                let conversationId: UUID
-                let userId: UUID
-                
-                enum CodingKeys: String, CodingKey {
-                    case conversationId = "conversation_id"
-                    case userId = "user_id"
-                }
-            }
-            
-            let rows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
-            
-            guard !rows.isEmpty else {
-                print("⚠️ [MessageService] No participants found for conversations (excluding current user)")
-                return participantsDict
-            }
-            
-            // Step 2: Collect unique user IDs
-            let userIds = Set(rows.map { $0.userId })
-            
-            print("📊 [MessageService] Found \(rows.count) participant relationships for \(userIds.count) unique users")
-            
-            // Step 3: Batch fetch all profiles for these users
-            // Only select fields needed for conversation display (minimal query for performance)
-            let profilesResponse = try await supabase
-                .from("profiles")
-                .select("id, name, email, avatar_url, car, is_admin, approved, created_at, updated_at")
-                .in("id", values: Array(userIds).map { $0.uuidString })
-                .execute()
-            
-            let decoder = createDateDecoder()
-            let profiles = try decoder.decode([Profile].self, from: profilesResponse.data)
-            
-            // Create a lookup dictionary: userId -> Profile
-            var profileLookup: [UUID: Profile] = [:]
-            for profile in profiles {
-                profileLookup[profile.id] = profile
-            }
-            
-            // Step 4: Map participants to conversations
-            for row in rows {
-                if let profile = profileLookup[row.userId] {
-                    participantsDict[row.conversationId, default: []].append(profile)
-                } else {
-                    print("⚠️ [MessageService] No profile found for participant userId=\(row.userId)")
-                }
-            }
-            
-            let totalParticipants = participantsDict.values.reduce(0) { $0 + $1.count }
-            print("✅ [MessageService] Fetched participants for \(conversationIds.count) conversations. Total participants: \(totalParticipants)")
-            
-            return participantsDict
-            
-        } catch {
-            print("🔴 [MessageService] Error fetching participants for conversations: \(error)")
-            print("   Error description: \(error.localizedDescription)")
-            if let decodingError = error as? DecodingError {
-                switch decodingError {
-                case .dataCorrupted(let context):
-                    print("   Data corrupted: \(context)")
-                case .keyNotFound(let key, let context):
-                    print("   Key '\(key)' not found: \(context.debugDescription)")
-                case .typeMismatch(let type, let context):
-                    print("   Type '\(type)' mismatch: \(context.debugDescription)")
-                case .valueNotFound(let type, let context):
-                    print("   Value '\(type)' not found: \(context.debugDescription)")
-                @unknown default:
-                    print("   Unknown decoding error")
-                }
-            }
-            return participantsDict
-        }
-    }
 }
+
+
 

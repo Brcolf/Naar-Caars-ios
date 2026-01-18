@@ -190,7 +190,6 @@ final class AuthService: ObservableObject {
     }
     
     /// Sign up with email, password, name, car, and invite code ID
-    /// Includes automatic rollback if profile creation fails
     /// - Parameters:
     ///   - email: User's email address
     ///   - password: User's password
@@ -201,9 +200,6 @@ final class AuthService: ObservableObject {
     func signUp(email: String, password: String, name: String, car: String?, inviteCodeId: UUID) async throws {
         isLoading = true
         defer { isLoading = false }
-        
-        var createdAuthUserId: String? = nil
-        var shouldRollback = false
         
         do {
             // 1. Fetch invite code to get createdBy for profile
@@ -226,8 +222,6 @@ final class AuthService: ObservableObject {
             
             let user = authResponse.user
             let userIdString = user.id.uuidString
-            createdAuthUserId = userIdString // Store for potential rollback
-            shouldRollback = true // Enable rollback from this point
             
             guard let userId = UUID(uuidString: userIdString) else {
                 throw AppError.unknown("Invalid user ID format")
@@ -275,32 +269,18 @@ final class AuthService: ObservableObject {
             } catch let updateError {
                 // Profile doesn't exist, insert it
                 print("⚠️ Auth: Profile update failed (may not exist), trying insert: \(updateError.localizedDescription)")
-                
-                // This is critical - if insert fails, we MUST rollback
-                do {
-                    try await supabase.client
-                        .from("profiles")
-                        .insert(profileUpdate)
-                        .execute()
-                    print("✅ Auth: Created new profile for user: \(userId)")
-                } catch let insertError {
-                    print("🔴 Auth: Profile insert failed, rolling back auth user")
-                    // Rollback will happen in catch block below
-                    throw insertError
-                }
+                try await supabase.client
+                    .from("profiles")
+                    .insert(profileUpdate)
+                    .execute()
+                print("✅ Auth: Created new profile for user: \(userId)")
             }
             
             // 4. Mark invite code as used (or create tracking record for bulk codes)
             // Use InviteService to handle bulk vs non-bulk codes correctly:
             // - Non-bulk codes: Mark as used (single-use)
             // - Bulk codes: Create tracking record (bulk code remains active for other users)
-            do {
-                try await InviteService.shared.markInviteCodeAsUsed(inviteCode: inviteCode, userId: userId)
-            } catch {
-                print("⚠️ Auth: Failed to mark invite code as used: \(error.localizedDescription)")
-                // Don't rollback for this - user can still use the account
-                // Admin can manually mark code as used later
-            }
+            try await InviteService.shared.markInviteCodeAsUsed(inviteCode: inviteCode, userId: userId)
             
             // 5. Fetch the created profile and update local state
             if let profile = try? await fetchCurrentProfile() {
@@ -311,18 +291,9 @@ final class AuthService: ObservableObject {
                 currentUserId = userId
             }
             
-            // Success - disable rollback
-            shouldRollback = false
-            
             print("✅ Auth: User signed up successfully: \(email)")
             
         } catch {
-            // ROLLBACK: If auth user was created but profile failed, delete the auth user
-            if shouldRollback, let authUserId = createdAuthUserId {
-                print("🔄 Auth: Rolling back - attempting to delete orphaned auth user")
-                await performSignupRollback(authUserId: authUserId)
-            }
-            
             // Log detailed error for debugging
             print("🔴 Auth: Signup failed for \(email): \(error.localizedDescription)")
             if let nsError = error as NSError? {
@@ -355,48 +326,29 @@ final class AuthService: ObservableObject {
         }
     }
     
-    /// Perform rollback by deleting orphaned auth user
-    /// Called when signup creates auth user but profile creation fails
-    /// - Parameter authUserId: The auth user ID to delete
-    private func performSignupRollback(authUserId: String) async {
-        // Note: admin.deleteUser() requires admin privileges
-        // This might not work in production without proper Supabase admin setup
-        // Alternative: Use a database function or edge function for cleanup
-        
-        // For now, try to sign out the user to prevent orphaned session
-        try? await supabase.client.auth.signOut()
-        
-        print("✅ Auth: Rolled back user session")
-        print("⚠️ Auth: Orphaned auth user \(authUserId) exists in Supabase Auth")
-        print("   Manual cleanup may be required via Supabase dashboard")
-        print("   Or implement a cleanup edge function for automatic deletion")
-    }
-    
     /// Sign out current user
     /// Clears session, profile, and cache
     func signOut() async throws {
         isLoading = true
         defer { isLoading = false }
         
-        // Always call handleSignOut regardless of Supabase errors
-        // This ensures local state is cleared even if network fails
-        defer {
-            Task {
-                await handleSignOut()
-            }
-        }
-        
         do {
             // Call Supabase auth.signOut()
+            // This will trigger .signedOut event in setupAuthStateListener
+            // which will call handleSignOut() to post the notification
             try await supabase.client.auth.signOut()
-            print("✅ Auth: Supabase sign out successful")
+            
+            // Also call handleSignOut() directly to ensure cleanup happens
+            // and notification is posted (in case auth state listener doesn't fire immediately)
+            await handleSignOut()
+            
+            print("✅ Auth: User signed out successfully")
         } catch {
-            // Log error but don't throw - we'll still clear local state via defer
-            print("⚠️ Error during Supabase sign out: \(error.localizedDescription)")
-            print("⚠️ Local state will still be cleared")
+            // Even if sign out fails, clear local state and post notification
+            print("⚠️ Error during sign out: \(error.localizedDescription)")
+            await handleSignOut()
+            throw AppError.processingError(error.localizedDescription)
         }
-        
-        print("✅ Auth: User signed out successfully")
     }
     
     /// Send password reset email
@@ -539,14 +491,15 @@ final class AuthService: ObservableObject {
     /// Handles ISO8601 date format with fractional seconds
     func createInviteCodeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
+        let formatterWithFractional = ISO8601DateFormatter()
+        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        let formatterStandard = ISO8601DateFormatter()
+        formatterStandard.formatOptions = [.withInternetDateTime]
         
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-            
-            // Create thread-local formatters to avoid data races
-            let formatterWithFractional = ISO8601DateFormatter()
-            formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
             // Try with fractional seconds first (Supabase format)
             if let date = formatterWithFractional.date(from: dateString) {
@@ -554,9 +507,6 @@ final class AuthService: ObservableObject {
             }
             
             // Fallback to standard ISO8601
-            let formatterStandard = ISO8601DateFormatter()
-            formatterStandard.formatOptions = [.withInternetDateTime]
-            
             if let date = formatterStandard.date(from: dateString) {
                 return date
             }
@@ -584,27 +534,18 @@ final class AuthService: ObservableObject {
         await CacheManager.shared.clearAll()
         print("✅ [AuthService] Cache cleared")
         
-        // Reset rate limiter state
-        await RateLimiter.shared.resetAll()
-        print("✅ [AuthService] Rate limiter reset")
-        
         // Unsubscribe from all realtime channels
         await RealtimeManager.shared.unsubscribeAll()
         print("✅ [AuthService] Realtime unsubscribed")
         
         // Post notification for app state updates on main thread
-        // CRITICAL: Must post on main thread and schedule on next run loop
-        // to avoid conflicts with view hierarchy teardown
+        // CRITICAL: Must post on main thread for observer to receive it
         await MainActor.run {
             print("📢 [AuthService] Posting userDidSignOut notification on main thread")
             let notificationName = NSNotification.Name("userDidSignOut")
             print("📢 [AuthService] Notification name: '\(notificationName.rawValue)'")
-            
-            // Schedule notification on next run loop to ensure all views have finished processing
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
-                print("✅ [AuthService] userDidSignOut notification posted successfully")
-            }
+            NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
+            print("✅ [AuthService] userDidSignOut notification posted successfully")
         }
         
         print("✅ Auth: Sign out cleanup completed")

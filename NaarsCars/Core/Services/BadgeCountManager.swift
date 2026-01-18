@@ -221,7 +221,7 @@ final class BadgeCountManager: ObservableObject {
     /// Calculate Profile badge count (admin only)
     /// Counts: pending user approvals
     private func calculateProfileBadgeCount() async -> Int {
-        guard let _ = authService.currentUserId,
+        guard let userId = authService.currentUserId,
               let profile = authService.currentProfile,
               profile.isAdmin else {
             return 0

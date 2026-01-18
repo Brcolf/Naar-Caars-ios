@@ -118,22 +118,13 @@ struct MessageDetailsPopup: View {
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: participants.map { $0.id },
                     onDismiss: {
-                        print("📋 [MessageDetailsPopup] Add participants dismissed with \(selectedUserIds.count) selected users")
-                        
-                        // Capture the selected IDs before clearing
-                        let selectedIds = Array(selectedUserIds)
-                        
-                        // Clear state immediately
-                        showAddParticipants = false
-                        selectedUserIds = []
-                        
-                        // Use captured IDs in async task
-                        if !selectedIds.isEmpty {
+                        if !selectedUserIds.isEmpty {
                             Task {
-                                print("➕ [MessageDetailsPopup] Adding \(selectedIds.count) participants to conversation")
-                                await addParticipants(selectedIds)
+                                await addParticipants(Array(selectedUserIds))
                             }
                         }
+                        showAddParticipants = false
+                        selectedUserIds = []
                     }
                 )
             }
@@ -172,14 +163,7 @@ struct MessageDetailsPopup: View {
     }
     
     private func addParticipants(_ userIds: [UUID]) async {
-        guard let currentUserId = AuthService.shared.currentUserId else {
-            print("🔴 [MessageDetailsPopup] No current user ID")
-            return
-        }
-        
-        print("🔄 [MessageDetailsPopup] Starting to add \(userIds.count) participants")
-        print("   User IDs: \(userIds)")
-        print("   Conversation ID: \(conversationId)")
+        guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
             try await MessageService.shared.addParticipantsToConversation(
@@ -188,19 +172,8 @@ struct MessageDetailsPopup: View {
                 addedBy: currentUserId,
                 createAnnouncement: true
             )
-            
-            print("✅ [MessageDetailsPopup] Successfully added \(userIds.count) participants")
-            
-            // Post notification to refresh conversation
-            NotificationCenter.default.post(
-                name: NSNotification.Name("conversationUpdated"),
-                object: conversationId
-            )
-            
-            // Dismiss the popup so parent view reloads
-            dismiss()
+            // Reload to show new participants (parent view should handle this)
         } catch {
-            print("🔴 [MessageDetailsPopup] Failed to add participants: \(error)")
             self.error = "Failed to add participants: \(error.localizedDescription)"
         }
     }

@@ -35,11 +35,6 @@ struct ConversationDetailView: View {
     
     // Computed title based on conversation type
     private var conversationTitle: String {
-        // Wait for participants to load before computing title
-        guard !participantsViewModel.participants.isEmpty else {
-            return "Chat"
-        }
-        
         // If group conversation (3+ participants), show editable group name or participant names
         if participantsViewModel.participants.count > 2 {
             if let title = conversationDetail?.conversation.title, !title.isEmpty {
@@ -202,12 +197,13 @@ struct ConversationDetailView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                // Edit button for all conversations (opens message details popup)
-                // Show for both direct messages and group chats
-                Button {
-                    showMessageDetails = true
-                } label: {
-                    Image(systemName: "info.circle")
+                // Edit button for group conversations (opens message details popup)
+                if participantsViewModel.participants.count > 2 {
+                    Button {
+                        showMessageDetails = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
                 }
             }
         }

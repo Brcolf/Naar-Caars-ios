@@ -54,7 +54,7 @@ final class EmailService {
             }
         }
         
-        _ = EmailPayload(
+        let payload = EmailPayload(
             userId: userId.uuidString,
             email: email,
             name: name,

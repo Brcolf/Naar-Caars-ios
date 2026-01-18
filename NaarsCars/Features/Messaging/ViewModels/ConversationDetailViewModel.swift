@@ -47,9 +47,9 @@ final class ConversationDetailViewModel: ObservableObject {
         
         do {
             let fetched = try await messageService.fetchMessages(conversationId: conversationId, limit: pageSize, beforeMessageId: nil)
-            self.messages = fetched.messages
-            oldestMessageId = fetched.messages.first?.id // Oldest message (first in array after reverse)
-            hasMoreMessages = fetched.hasMore
+            self.messages = fetched
+            oldestMessageId = fetched.first?.id // Oldest message (first in array after reverse)
+            hasMoreMessages = fetched.count == pageSize
             // Update last_seen and mark as read when loading
             // This prevents push notifications when user is actively viewing
             if let userId = authService.currentUserId {
@@ -80,9 +80,9 @@ final class ConversationDetailViewModel: ObservableObject {
         do {
             let fetched = try await messageService.fetchMessages(conversationId: conversationId, limit: pageSize, beforeMessageId: beforeId)
             // Prepend older messages to the beginning
-            self.messages.insert(contentsOf: fetched.messages, at: 0)
-            oldestMessageId = fetched.messages.first?.id
-            hasMoreMessages = fetched.hasMore
+            self.messages.insert(contentsOf: fetched, at: 0)
+            oldestMessageId = fetched.first?.id
+            hasMoreMessages = fetched.count == pageSize
         } catch {
             print("🔴 Error loading more messages: \(error.localizedDescription)")
             // Don't set error here - just log it
@@ -256,4 +256,6 @@ final class ConversationDetailViewModel: ObservableObject {
         messages.removeAll { $0.id == deletedMessage.id }
     }
 }
+
+
 

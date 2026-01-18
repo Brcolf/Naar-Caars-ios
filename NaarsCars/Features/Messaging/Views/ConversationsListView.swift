@@ -17,7 +17,6 @@ struct ConversationsListView: View {
     @State private var navigateToConversation: UUID?
     @State private var conversationToDelete: ConversationWithDetails?
     @State private var showDeleteConfirmation = false
-    @State private var lastRefreshTime = Date.distantPast
     
     var body: some View {
         NavigationStack {
@@ -118,27 +117,13 @@ struct ConversationsListView: View {
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: [],
                     onDismiss: {
-                        // Removed verbose logging
-                        
-                        // Capture the selected IDs before clearing
-                        let selectedIds = Array(selectedUserIds)
-                        
-                        // Clear state immediately
-                        showNewMessage = false
-                        selectedUserIds = []
-                        
-                        // Use captured IDs in async task
-                        if !selectedIds.isEmpty {
+                        if !selectedUserIds.isEmpty, let userId = selectedUserIds.first {
                             Task {
-                                if selectedIds.count == 1 {
-                                    // Direct message (1-on-1)
-                                    await createDirectConversation(with: selectedIds.first!)
-                                } else {
-                                    // Group conversation (2+ selected users)
-                                    await createGroupConversation(with: selectedIds)
-                                }
+                                await createDirectConversation(with: userId)
                             }
                         }
+                        showNewMessage = false
+                        selectedUserIds = []
                     }
                 )
             }
@@ -168,18 +153,11 @@ struct ConversationsListView: View {
                 Text("Are you sure you want to delete this conversation? This action cannot be undone.")
             }
             .task {
-                // Initial load when view is first created
-                // Removed verbose logging
-                await refreshConversationsIfNeeded(force: false)
+                await viewModel.loadConversations()
             }
-            .onAppear {
-                // Do NOT refresh on appear - .task{} already handles initial load
-                // Removed verbose logging
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("conversationUpdated"))) { notification in
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("conversationUpdated"))) { _ in
                 Task {
-                    // Removed verbose logging
-                    await refreshConversationsIfNeeded(force: true)
+                    await viewModel.refreshConversations()
                 }
             }
         }
@@ -193,85 +171,18 @@ struct ConversationsListView: View {
                 userId: currentUserId,
                 otherUserId: userId
             )
-            
-            // Post notification to refresh conversations list
-            NotificationCenter.default.post(
-                name: NSNotification.Name("conversationUpdated"),
-                object: conversation.id
-            )
-            
             navigateToConversation = conversation.id
-            
             // Reload conversations to show the new one
-            await refreshConversationsIfNeeded(force: true)
+            await viewModel.loadConversations()
         } catch {
             print("🔴 Error creating direct conversation: \(error.localizedDescription)")
         }
     }
     
-    private func createGroupConversation(with userIds: [UUID]) async {
-        guard let currentUserId = AuthService.shared.currentUserId else {
-            print("🔴 [ConversationsListView] No current user ID")
-            return
-        }
-        
-        do {
-            // Include current user in the conversation
-            var allUserIds = userIds
-            if !allUserIds.contains(currentUserId) {
-                allUserIds.append(currentUserId)
-            }
-            
-            // Create group conversation without a title (users can add one later)
-            let conversation = try await MessageService.shared.createConversationWithUsers(
-                userIds: allUserIds,
-                createdBy: currentUserId,
-                title: nil
-            )
-            
-            // Post notification to refresh conversations list
-            NotificationCenter.default.post(
-                name: NSNotification.Name("conversationUpdated"),
-                object: conversation.id
-            )
-            
-            navigateToConversation = conversation.id
-            
-            // Reload conversations to show the new one
-            await refreshConversationsIfNeeded(force: true)
-            
-        } catch {
-            print("🔴 [ConversationsListView] Error creating group conversation: \(error.localizedDescription)")
-            // TODO: Show error alert to user
-        }
-    }
-    
     private func deleteConversation(_ conversation: ConversationWithDetails) async {
-        // Clean up display name cache
-        await ConversationDisplayNameCache.shared.removeDisplayName(for: conversation.id)
-        
         // TODO: Implement conversation deletion in MessageService
         // For now, just reload conversations to remove deleted one
-        await refreshConversationsIfNeeded(force: true)
-    }
-    
-    /// Smart refresh with debouncing to avoid duplicate loads
-    /// - Parameter force: If true, always refresh. If false, debounce within 2 seconds.
-    private func refreshConversationsIfNeeded(force: Bool) async {
-        let now = Date()
-        let timeSinceLastRefresh = now.timeIntervalSince(lastRefreshTime)
-        
-        // If less than 2 seconds since last refresh and not forced, skip
-        guard force || timeSinceLastRefresh > 2.0 else {
-            // Removed verbose logging - only log for debugging when needed
-            return
-        }
-        
-        // Removed verbose logging
-        lastRefreshTime = now
-        
-        // No cache invalidation needed - conversations are always fetched fresh
-        await viewModel.loadConversations()
+        await viewModel.refreshConversations()
     }
 }
 
@@ -290,10 +201,13 @@ struct ConversationRow: View {
                 // Title and time row
                 HStack(alignment: .top, spacing: 8) {
                     // Title with fade effect for long names
-                    FadingTitleText(text: conversationTitle)
-                        .font(.body)
-                        .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
-                        .foregroundColor(.primary)
+                    FadingTitleText(
+                        text: conversationTitle,
+                        maxWidth: .infinity
+                    )
+                    .font(.body)
+                    .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
+                    .foregroundColor(.primary)
                     
                     Spacer()
                     
@@ -344,23 +258,19 @@ struct ConversationRow: View {
     }
     
     private var conversationTitle: String {
-        // Priority 1: Use cached display name (local-first, instant)
-        if let cachedName = conversationDetail.conversation.cachedDisplayName, !cachedName.isEmpty {
-            return cachedName
-        }
-        
-        // Priority 2: Compute from current data if available
+        // Priority 1: Group name (if conversation has a title)
         if let title = conversationDetail.conversation.title, !title.isEmpty {
             return title
         }
         
+        // Priority 2: Participant names (comma-separated)
         if !conversationDetail.otherParticipants.isEmpty {
             let names = conversationDetail.otherParticipants.map { $0.name }
-            return ListFormatter.localizedString(byJoining: names)
+            return names.joined(separator: ", ")
         }
         
-        // Priority 3: Show "Loading..." if name is being computed
-        return "Loading..."
+        // Fallback
+        return "Unknown"
     }
 }
 
@@ -399,15 +309,17 @@ struct ConversationAvatar: View {
 /// Text view with fade effect for long content (iMessage-style)
 struct FadingTitleText: View {
     let text: String
+    let maxWidth: CGFloat
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Full text - let it take available width, truncate with fade
+            // Full text (may be clipped)
             Text(text)
                 .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: maxWidth, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
             
-            // Overlay gradient for fade effect (only on right side)
+            // Overlay gradient for fade effect
             HStack(spacing: 0) {
                 Spacer()
                 LinearGradient(
@@ -419,10 +331,13 @@ struct FadingTitleText: View {
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: 40)
+                .frame(width: 60)
             }
+            .frame(maxWidth: maxWidth)
             .allowsHitTesting(false)
         }
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .clipped()
     }
 }
 

@@ -178,7 +178,7 @@ struct TownHallPostCard: View {
                 Spacer()
                 
                 // Delete button (if own post)
-                if isOwnPost, onDelete != nil {
+                if isOwnPost, let onDelete = onDelete {
                     Button(action: {
                         showDeleteAlert = true
                     }) {

@@ -218,7 +218,7 @@ final class AdminService {
         print("🔍 [AdminService] Attempting to approve user: \(userId)")
         print("🔍 [AdminService] Update payload: approved=true")
         
-        _ = try await supabase
+        let response = try await supabase
             .from("profiles")
             .update(updates)
             .eq("id", value: userId.uuidString)

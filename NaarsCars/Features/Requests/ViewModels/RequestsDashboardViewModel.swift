@@ -25,14 +25,6 @@ final class RequestsDashboardViewModel: ObservableObject {
     private let favorService = FavorService.shared
     private let authService = AuthService.shared
     private let realtimeManager = RealtimeManager.shared
-    private var isSubscribed = false
-    
-    deinit {
-        Task.detached {
-            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-rides")
-            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-favors")
-        }
-    }
     
     // MARK: - Public Methods
     
@@ -174,12 +166,6 @@ final class RequestsDashboardViewModel: ObservableObject {
     
     /// Setup realtime subscription for live updates
     func setupRealtimeSubscription() {
-        guard !isSubscribed else {
-            print("ℹ️ [RequestsDashboardViewModel] Already subscribed to realtime channels")
-            return
-        }
-        
-        isSubscribed = true
         Task {
             // Subscribe to rides changes
             await realtimeManager.subscribe(
@@ -229,9 +215,6 @@ final class RequestsDashboardViewModel: ObservableObject {
     
     /// Cleanup realtime subscription
     func cleanupRealtimeSubscription() {
-        guard isSubscribed else { return }
-        
-        isSubscribed = false
         Task {
             await realtimeManager.unsubscribe(channelName: "requests-dashboard-rides")
             await realtimeManager.unsubscribe(channelName: "requests-dashboard-favors")

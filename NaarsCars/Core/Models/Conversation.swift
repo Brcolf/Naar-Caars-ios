@@ -16,13 +16,6 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
     let createdAt: Date
     var updatedAt: Date
     
-    // MARK: - Local-Only Fields (Not in Supabase)
-    
-    /// Cached display name for performance (local-first)
-    /// This is the computed title (group name OR participant names)
-    /// NOT stored in Supabase - hydrated from local cache
-    var cachedDisplayName: String?
-    
     // MARK: - Optional Joined Fields (populated when fetched with joins)
     
     /// List of participants
@@ -56,9 +49,6 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        
-        // Local-only fields - not decoded from Supabase
-        cachedDisplayName = nil
     }
     
     // Custom encoder
@@ -82,7 +72,6 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
         isArchived: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        cachedDisplayName: String? = nil,
         participants: [ConversationParticipant]? = nil,
         lastMessage: Message? = nil,
         unreadCount: Int? = nil
@@ -93,7 +82,6 @@ struct Conversation: Codable, Identifiable, Equatable, Sendable {
         self.isArchived = isArchived
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-        self.cachedDisplayName = cachedDisplayName
         self.participants = participants
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount

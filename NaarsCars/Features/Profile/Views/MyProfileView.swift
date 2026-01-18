@@ -186,16 +186,14 @@ struct MyProfileView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign Out", role: .destructive) {
                     Task {
-                        print("🔄 [MyProfileView] User confirmed sign out")
                         do {
                             try await AuthService.shared.signOut()
-                            print("✅ [MyProfileView] Sign out completed successfully")
                             // AuthService already posts "userDidSignOut" notification
                             // AppLaunchManager will handle state change automatically
+                            // No need to call performCriticalLaunch here
+                            print("✅ [MyProfileView] Sign out completed - state will update via notification")
                         } catch {
                             print("🔴 [MyProfileView] Sign out error: \(error.localizedDescription)")
-                            // Even on error, the auth state should be cleared
-                            // The error is non-fatal and user should still be signed out locally
                         }
                     }
                 }

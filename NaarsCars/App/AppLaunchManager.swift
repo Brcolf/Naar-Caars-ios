@@ -88,13 +88,12 @@ final class AppLaunchManager: ObservableObject {
                 return
             }
             
-            // Schedule state update on next run loop to avoid conflicts with view teardown
-            Task { @MainActor in
-                print("🔄 [AppLaunchManager] Setting state to unauthenticated")
-                print("🔄 [AppLaunchManager] Current state before update: \(self.state.id)")
-                self.state = .ready(.unauthenticated)
-                print("✅ [AppLaunchManager] State updated to: \(self.state.id)")
-            }
+            // Immediately set state to unauthenticated when sign out happens
+            // Since AppLaunchManager is @MainActor, this is safe to do synchronously
+            print("🔄 [AppLaunchManager] Setting state to unauthenticated immediately")
+            print("🔄 [AppLaunchManager] Current state before update: \(self.state.id)")
+            self.state = .ready(.unauthenticated)
+            print("✅ [AppLaunchManager] State updated to: \(self.state.id)")
         }
         
         print("✅ [AppLaunchManager] Notification listener set up successfully")
@@ -189,7 +188,7 @@ final class AppLaunchManager: ObservableObject {
         // Load profile, rides, favors, etc. in background
         
         // Update AuthService with full profile
-        _ = try? await authService.checkAuthStatus()
+        try? await authService.checkAuthStatus()
         
         // Note: Additional background loading (rides, favors, etc.)
         // will be handled by respective ViewModels when views appear

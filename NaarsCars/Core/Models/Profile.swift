@@ -66,40 +66,6 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         case updatedAt = "updated_at"
     }
     
-    // MARK: - Custom Decoder
-    
-    /// Custom decoder to handle missing optional fields gracefully
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        // Required fields
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        email = try container.decode(String.self, forKey: .email)
-        
-        // Optional fields
-        car = try container.decodeIfPresent(String.self, forKey: .car)
-        phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
-        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
-        
-        // Admin/approval fields with defaults
-        isAdmin = try container.decodeIfPresent(Bool.self, forKey: .isAdmin) ?? false
-        approved = try container.decodeIfPresent(Bool.self, forKey: .approved) ?? false
-        invitedBy = try container.decodeIfPresent(UUID.self, forKey: .invitedBy)
-        
-        // Notification preferences with defaults (true)
-        notifyRideUpdates = try container.decodeIfPresent(Bool.self, forKey: .notifyRideUpdates) ?? true
-        notifyMessages = try container.decodeIfPresent(Bool.self, forKey: .notifyMessages) ?? true
-        notifyAnnouncements = try container.decodeIfPresent(Bool.self, forKey: .notifyAnnouncements) ?? true
-        notifyNewRequests = try container.decodeIfPresent(Bool.self, forKey: .notifyNewRequests) ?? true
-        notifyQaActivity = try container.decodeIfPresent(Bool.self, forKey: .notifyQaActivity) ?? true
-        notifyReviewReminders = try container.decodeIfPresent(Bool.self, forKey: .notifyReviewReminders) ?? true
-        
-        // Date fields
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
-        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
-    }
-    
     // MARK: - Initializers
     
     init(

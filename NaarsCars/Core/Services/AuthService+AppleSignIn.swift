@@ -145,7 +145,7 @@ extension AuthService {
         defer { isLoading = false }
         
         guard let identityTokenData = credential.identityToken,
-              let _ = String(data: identityTokenData, encoding: .utf8) else {
+              let identityToken = String(data: identityTokenData, encoding: .utf8) else {
             throw AppError.unknown("Failed to get Apple identity token")
         }
         

@@ -21,7 +21,6 @@ final class FavorService {
     
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
-    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -31,7 +30,6 @@ final class FavorService {
     
     /// Fetch favors with optional filters
     /// Checks cache first, then fetches from network if needed
-    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameters:
     ///   - status: Optional status filter
     ///   - userId: Optional user ID filter (favors posted by this user)
@@ -64,42 +62,37 @@ final class FavorService {
             }
         }
         
-        // Use request deduplicator to prevent concurrent requests
-        let key = "favors_\(status?.rawValue ?? "all")_\(userId?.uuidString ?? "all")_\(claimedBy?.uuidString ?? "all")"
+        // Build query
+        var query = supabase
+            .from("favors")
+            .select()
         
-        return try await requestDeduplicator.fetch(key: key) { [self] in
-            // Build query
-            var query = self.supabase
-                .from("favors")
-                .select()
-            
-            // Apply filters
-            if let status = status {
-                query = query.eq("status", value: status.rawValue)
-            }
-            if let userId = userId {
-                query = query.eq("user_id", value: userId.uuidString)
-            }
-            if let claimedBy = claimedBy {
-                query = query.eq("claimed_by", value: claimedBy.uuidString)
-            }
-            
-            // Execute query
-            let response = try await query
-                .order("date", ascending: true)
-                .execute()
-            
-            // Decode favors with custom date decoder
-            let favors: [Favor] = try self.createDecoder().decode([Favor].self, from: response.data)
-            
-            // Enrich with profiles
-            let enrichedFavors = await self.enrichFavorsWithProfiles(favors)
-            
-            // Cache results
-            await self.cacheManager.cacheFavors(enrichedFavors)
-            
-            return enrichedFavors
+        // Apply filters
+        if let status = status {
+            query = query.eq("status", value: status.rawValue)
         }
+        if let userId = userId {
+            query = query.eq("user_id", value: userId.uuidString)
+        }
+        if let claimedBy = claimedBy {
+            query = query.eq("claimed_by", value: claimedBy.uuidString)
+        }
+        
+        // Execute query
+        let response = try await query
+            .order("date", ascending: true)
+            .execute()
+        
+        // Decode favors with custom date decoder
+        let favors: [Favor] = try createDecoder().decode([Favor].self, from: response.data)
+        
+        // Enrich with profiles
+        let enrichedFavors = await enrichFavorsWithProfiles(favors)
+        
+        // Cache results
+        await cacheManager.cacheFavors(enrichedFavors)
+        
+        return enrichedFavors
     }
     
     /// Fetch a single favor by ID with all related data
@@ -466,7 +459,38 @@ final class FavorService {
     
     /// Create a JSON decoder configured for Supabase date formats
     private func createDecoder() -> JSONDecoder {
-        return JSONDecoderFactory.createSupabaseDecoder()
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            // Try ISO8601 with fractional seconds (for TIMESTAMP fields)
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = isoFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try ISO8601 without fractional seconds
+            isoFormatter.formatOptions = [.withInternetDateTime]
+            if let date = isoFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try DATE format (YYYY-MM-DD)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            if let date = dateFormatter.date(from: dateString) {
+                return date
+            }
+            
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid date format: \(dateString)"
+            )
+        }
+        return decoder
     }
     
     /// Enrich favors with profile data (poster, claimer, participants)

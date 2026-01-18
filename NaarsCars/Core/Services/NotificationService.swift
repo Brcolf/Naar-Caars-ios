@@ -21,7 +21,6 @@ final class NotificationService {
     
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
-    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -30,7 +29,6 @@ final class NotificationService {
     // MARK: - Fetch Notifications
     
     /// Fetch all notifications for a user
-    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameter userId: The user ID
     /// - Returns: Array of notifications ordered by pinned first, then createdAt
     /// - Throws: AppError if fetch fails
@@ -43,75 +41,70 @@ final class NotificationService {
         
         print("🔄 [NotificationService] Cache miss for notifications. Fetching from network...")
         
-        // Use request deduplicator to prevent concurrent requests
-        let key = "notifications_\(userId.uuidString)"
+        let response = try await supabase
+            .from("notifications")
+            .select("*")
+            .eq("user_id", value: userId.uuidString)
+            .order("pinned", ascending: false)
+            .order("created_at", ascending: false)
+            .execute()
         
-        return try await requestDeduplicator.fetch(key: key) {
-            let response = try await self.supabase
-                .from("notifications")
-                .select("*")
-                .eq("user_id", value: userId.uuidString)
-                .order("pinned", ascending: false)
-                .order("created_at", ascending: false)
-                .execute()
+        // Debug: Print raw response
+        if let jsonString = String(data: response.data, encoding: .utf8) {
+            print("📄 [NotificationService] Raw response: \(jsonString.prefix(500))")
+        }
+        
+        // Configure decoder for date format (Supabase uses ISO8601 with fractional seconds)
+        let decoder = JSONDecoder()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
             
-            // Debug: Print raw response
-            if let jsonString = String(data: response.data, encoding: .utf8) {
-                print("📄 [NotificationService] Raw response: \(jsonString.prefix(500))")
+            if let date = formatter.date(from: dateString) {
+                return date
             }
             
-            // Configure decoder for date format (Supabase uses ISO8601 with fractional seconds)
-            let decoder = JSONDecoder()
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            
-            decoder.dateDecodingStrategy = .custom { decoder in
-                let container = try decoder.singleValueContainer()
-                let dateString = try container.decode(String.self)
-                
-                if let date = formatter.date(from: dateString) {
-                    return date
-                }
-                
-                // Try without fractional seconds
-                let fallbackFormatter = ISO8601DateFormatter()
-                fallbackFormatter.formatOptions = [.withInternetDateTime]
-                if let date = fallbackFormatter.date(from: dateString) {
-                    return date
-                }
-                
-                throw DecodingError.dataCorruptedError(
-                    in: container,
-                    debugDescription: "Invalid date format: \(dateString)"
-                )
+            // Try without fractional seconds
+            let fallbackFormatter = ISO8601DateFormatter()
+            fallbackFormatter.formatOptions = [.withInternetDateTime]
+            if let date = fallbackFormatter.date(from: dateString) {
+                return date
             }
             
-            do {
-                let notifications: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
-                
-                // Cache results
-                await self.cacheManager.cacheNotifications(userId: userId, notifications)
-                
-                print("✅ [NotificationService] Fetched \(notifications.count) notifications from network.")
-                return notifications
-            } catch {
-                print("🔴 [NotificationService] Decoding error: \(error)")
-                if let decodingError = error as? DecodingError {
-                    switch decodingError {
-                    case .typeMismatch(let type, let context):
-                        print("   Type mismatch: expected \(type), context: \(context)")
-                    case .valueNotFound(let type, let context):
-                        print("   Value not found: \(type), context: \(context)")
-                    case .keyNotFound(let key, let context):
-                        print("   Key not found: \(key.stringValue), context: \(context)")
-                    case .dataCorrupted(let context):
-                        print("   Data corrupted: \(context)")
-                    @unknown default:
-                        print("   Unknown decoding error")
-                    }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid date format: \(dateString)"
+            )
+        }
+        
+        do {
+            let notifications: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
+            
+            // Cache results
+            await cacheManager.cacheNotifications(userId: userId, notifications)
+            
+            print("✅ [NotificationService] Fetched \(notifications.count) notifications from network.")
+            return notifications
+        } catch {
+            print("🔴 [NotificationService] Decoding error: \(error)")
+            if let decodingError = error as? DecodingError {
+                switch decodingError {
+                case .typeMismatch(let type, let context):
+                    print("   Type mismatch: expected \(type), context: \(context)")
+                case .valueNotFound(let type, let context):
+                    print("   Value not found: \(type), context: \(context)")
+                case .keyNotFound(let key, let context):
+                    print("   Key not found: \(key.stringValue), context: \(context)")
+                case .dataCorrupted(let context):
+                    print("   Data corrupted: \(context)")
+                @unknown default:
+                    print("   Unknown decoding error")
                 }
-                throw AppError.processingError("Failed to decode notifications: \(error.localizedDescription)")
             }
+            throw AppError.processingError("Failed to decode notifications: \(error.localizedDescription)")
         }
     }
     

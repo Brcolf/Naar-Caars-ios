@@ -21,7 +21,6 @@ final class RideService {
     
     private let supabase = SupabaseService.shared.client
     private let cacheManager = CacheManager.shared
-    private let requestDeduplicator = RequestDeduplicator()
     
     // MARK: - Initialization
     
@@ -31,7 +30,6 @@ final class RideService {
     
     /// Fetch rides with optional filters
     /// Checks cache first, then fetches from network if needed
-    /// Uses request deduplication to prevent concurrent duplicate requests
     /// - Parameters:
     ///   - status: Optional status filter
     ///   - userId: Optional user ID filter (rides posted by this user)
@@ -64,42 +62,37 @@ final class RideService {
             }
         }
         
-        // Use request deduplicator to prevent concurrent requests
-        let key = "rides_\(status?.rawValue ?? "all")_\(userId?.uuidString ?? "all")_\(claimedBy?.uuidString ?? "all")"
+        // Build query
+        var query = supabase
+            .from("rides")
+            .select()
         
-        return try await requestDeduplicator.fetch(key: key) { [self] in
-            // Build query
-            var query = self.supabase
-                .from("rides")
-                .select()
-            
-            // Apply filters
-            if let status = status {
-                query = query.eq("status", value: status.rawValue)
-            }
-            if let userId = userId {
-                query = query.eq("user_id", value: userId.uuidString)
-            }
-            if let claimedBy = claimedBy {
-                query = query.eq("claimed_by", value: claimedBy.uuidString)
-            }
-            
-            // Execute query
-            let response = try await query
-                .order("date", ascending: true)
-                .execute()
-            
-            // Decode rides with custom date decoder
-            let rides: [Ride] = try self.createDecoder().decode([Ride].self, from: response.data)
-            
-            // Enrich with profiles
-            let enrichedRides = await self.enrichRidesWithProfiles(rides)
-            
-            // Cache results
-            await self.cacheManager.cacheRides(enrichedRides)
-            
-            return enrichedRides
+        // Apply filters
+        if let status = status {
+            query = query.eq("status", value: status.rawValue)
         }
+        if let userId = userId {
+            query = query.eq("user_id", value: userId.uuidString)
+        }
+        if let claimedBy = claimedBy {
+            query = query.eq("claimed_by", value: claimedBy.uuidString)
+        }
+        
+        // Execute query
+        let response = try await query
+            .order("date", ascending: true)
+            .execute()
+        
+        // Decode rides with custom date decoder
+        let rides: [Ride] = try createDecoder().decode([Ride].self, from: response.data)
+        
+        // Enrich with profiles
+        let enrichedRides = await enrichRidesWithProfiles(rides)
+        
+        // Cache results
+        await cacheManager.cacheRides(enrichedRides)
+        
+        return enrichedRides
     }
     
     /// Fetch a single ride by ID with all related data
@@ -314,22 +307,26 @@ final class RideService {
                 // Create notification for claimer
                 // Note: In production, this would typically be handled by a database trigger
                 // or backend function. For now, we'll create an in-app notification.
-                let notificationData: [String: AnyCodable] = [
-                    "user_id": AnyCodable(claimedBy.uuidString),
-                    "type": AnyCodable("ride_update"),
-                    "title": AnyCodable("Ride Details Updated"),
-                    "body": AnyCodable("The ride you claimed has been updated. Check the details."),
-                    "ride_id": AnyCodable(id.uuidString),
-                    "read": AnyCodable(false),
-                    "pinned": AnyCodable(false)
-                ]
-                
-                // Insert notification (if notifications table exists)
-                // Use try? to silently ignore errors - notification is optional
-                try? await supabase
-                    .from("notifications")
-                    .insert(notificationData)
-                    .execute()
+                do {
+                    let notificationData: [String: AnyCodable] = [
+                        "user_id": AnyCodable(claimedBy.uuidString),
+                        "type": AnyCodable("ride_update"),
+                        "title": AnyCodable("Ride Details Updated"),
+                        "body": AnyCodable("The ride you claimed has been updated. Check the details."),
+                        "ride_id": AnyCodable(id.uuidString),
+                        "read": AnyCodable(false),
+                        "pinned": AnyCodable(false)
+                    ]
+                    
+                    // Insert notification (if notifications table exists)
+                    try? await supabase
+                        .from("notifications")
+                        .insert(notificationData)
+                        .execute()
+                } catch {
+                    // Notification creation is optional - don't fail the update
+                    print("⚠️ Failed to create notification for claimer: \(error)")
+                }
             }
         }
         
@@ -602,7 +599,38 @@ final class RideService {
     
     /// Create a JSON decoder configured for Supabase date formats
     private func createDecoder() -> JSONDecoder {
-        return JSONDecoderFactory.createSupabaseDecoder()
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            
+            // Try ISO8601 with fractional seconds (for TIMESTAMP fields)
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = isoFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try ISO8601 without fractional seconds
+            isoFormatter.formatOptions = [.withInternetDateTime]
+            if let date = isoFormatter.date(from: dateString) {
+                return date
+            }
+            
+            // Try DATE format (YYYY-MM-DD)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            if let date = dateFormatter.date(from: dateString) {
+                return date
+            }
+            
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid date format: \(dateString)"
+            )
+        }
+        return decoder
     }
     
     /// Enrich rides with profile data (poster, claimer, participants)

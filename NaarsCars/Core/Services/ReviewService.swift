@@ -82,7 +82,7 @@ final class ReviewService {
         
         // Decode created review
         let decoder = createDecoder()
-        let review: Review = try decoder.decode(Review.self, from: response.data)
+        var review: Review = try decoder.decode(Review.self, from: response.data)
         
         // Mark request as reviewed
         let tableName = requestType == "ride" ? "rides" : "favors"
@@ -169,13 +169,11 @@ final class ReviewService {
     /// Create decoder with custom date formatting for Supabase
     private func createDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-            
-            // Create thread-local formatter to avoid data races
-            let dateFormatter = ISO8601DateFormatter()
-            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
             if let date = dateFormatter.date(from: dateString) {
                 return date
@@ -219,8 +217,8 @@ final class ReviewService {
             try await supabase.storage
                 .from(bucketName)
                 .upload(
-                    fileName,
-                    data: compressedData,
+                    path: fileName,
+                    file: compressedData,
                     options: FileOptions(contentType: "image/jpeg", upsert: true)
                 )
         } catch {
@@ -228,8 +226,8 @@ final class ReviewService {
             try await supabase.storage
                 .from("town-hall-images")
                 .upload(
-                    fileName,
-                    data: compressedData,
+                    path: fileName,
+                    file: compressedData,
                     options: FileOptions(contentType: "image/jpeg", upsert: true)
                 )
         }

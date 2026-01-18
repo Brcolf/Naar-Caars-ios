@@ -53,7 +53,7 @@ struct TownHallPostRow: View {
                 
                 Spacer()
                 
-                if isOwnPost, onDelete != nil {
+                if isOwnPost, let onDelete = onDelete {
                     Button(action: {
                         showDeleteAlert = true
                     }) {

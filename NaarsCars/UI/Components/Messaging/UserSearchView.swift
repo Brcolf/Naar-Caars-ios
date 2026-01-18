@@ -21,16 +21,6 @@ struct UserSearchView: View {
     @State private var error: AppError?
     @State private var searchTask: Task<Void, Never>?
     
-    // Get selected profiles to display at top
-    private var selectedProfiles: [Profile] {
-        searchResults.filter { selectedUserIds.contains($0.id) }
-    }
-    
-    // Get unselected profiles for search results
-    private var unselectedProfiles: [Profile] {
-        searchResults.filter { !selectedUserIds.contains($0.id) }
-    }
-    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -62,7 +52,7 @@ struct UserSearchView: View {
                         title: "No Users Found",
                         message: "Try a different search term"
                     )
-                } else if searchResults.isEmpty && searchText.isEmpty && selectedUserIds.isEmpty {
+                } else if searchResults.isEmpty {
                     EmptyStateView(
                         icon: "magnifyingglass",
                         title: "Search for Users",
@@ -70,34 +60,16 @@ struct UserSearchView: View {
                     )
                 } else {
                     List {
-                        // Show selected users at the top (always visible)
-                        if !selectedProfiles.isEmpty {
-                            Section(header: Text("SELECTED (\(selectedProfiles.count))")) {
-                                ForEach(selectedProfiles) { profile in
-                                    UserSearchRow(
-                                        profile: profile,
-                                        isSelected: true,
-                                        isExcluded: false
-                                    ) {
-                                        selectedUserIds.remove(profile.id)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Show search results (unselected users)
-                        if !unselectedProfiles.isEmpty {
-                            Section(header: searchText.isEmpty ? Text("") : Text("SEARCH RESULTS")) {
-                                ForEach(unselectedProfiles) { profile in
-                                    UserSearchRow(
-                                        profile: profile,
-                                        isSelected: false,
-                                        isExcluded: excludeUserIds.contains(profile.id)
-                                    ) {
-                                        if !excludeUserIds.contains(profile.id) {
-                                            selectedUserIds.insert(profile.id)
-                                        }
-                                    }
+                        ForEach(searchResults) { profile in
+                            UserSearchRow(
+                                profile: profile,
+                                isSelected: selectedUserIds.contains(profile.id),
+                                isExcluded: excludeUserIds.contains(profile.id)
+                            ) {
+                                if selectedUserIds.contains(profile.id) {
+                                    selectedUserIds.remove(profile.id)
+                                } else if !excludeUserIds.contains(profile.id) {
+                                    selectedUserIds.insert(profile.id)
                                 }
                             }
                         }
@@ -105,12 +77,11 @@ struct UserSearchView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle(selectedUserIds.isEmpty ? "Select Users" : "Select Users (\(selectedUserIds.count))")
+            .navigationTitle("Select Users")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        selectedUserIds.removeAll()
                         onDismiss()
                     }
                 }
@@ -119,7 +90,6 @@ struct UserSearchView: View {
                         onDismiss()
                     }
                     .disabled(selectedUserIds.isEmpty)
-                    .fontWeight(selectedUserIds.isEmpty ? .regular : .semibold)
                 }
             }
         }
@@ -128,14 +98,9 @@ struct UserSearchView: View {
     private func searchUsers(query: String) async {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // If search is empty, clear non-selected results but keep selected users
+        // Require at least 2 characters to search
         guard trimmedQuery.count >= 2 else {
-            // Keep only selected users in results
-            if !selectedUserIds.isEmpty {
-                searchResults = searchResults.filter { selectedUserIds.contains($0.id) }
-            } else {
-                searchResults = []
-            }
+            searchResults = []
             return
         }
         
@@ -200,34 +165,9 @@ struct UserSearchView: View {
             let profiles: [Profile] = try decoder.decode([Profile].self, from: response.data)
             
             // Filter out excluded users
-            let newResults = profiles.filter { !excludeUserIds.contains($0.id) }
+            searchResults = profiles.filter { !excludeUserIds.contains($0.id) }
             
-            // Merge with previously selected users to keep them visible
-            let previouslySelectedProfiles = searchResults.filter { selectedUserIds.contains($0.id) }
-            
-            // Combine and deduplicate by ID
-            var seenIds = Set<UUID>()
-            var combinedResults: [Profile] = []
-            
-            // Add previously selected first
-            for profile in previouslySelectedProfiles {
-                if !seenIds.contains(profile.id) {
-                    seenIds.insert(profile.id)
-                    combinedResults.append(profile)
-                }
-            }
-            
-            // Add new results
-            for profile in newResults {
-                if !seenIds.contains(profile.id) {
-                    seenIds.insert(profile.id)
-                    combinedResults.append(profile)
-                }
-            }
-            
-            searchResults = combinedResults.sorted { $0.name < $1.name }
-            
-            print("✅ [UserSearchView] Found \(newResults.count) users matching '\(trimmedQuery)' (total including selected: \(searchResults.count))")
+            print("✅ [UserSearchView] Found \(searchResults.count) users matching '\(trimmedQuery)'")
         } catch {
             print("🔴 [UserSearchView] Search error: \(error)")
             if let postgrestError = error as? PostgrestError {
@@ -236,8 +176,7 @@ struct UserSearchView: View {
                 print("   PostgREST hint: \(postgrestError.hint ?? "none")")
             }
             self.error = AppError.processingError("Failed to search users: \(error.localizedDescription)")
-            // Keep selected users visible even on error
-            searchResults = searchResults.filter { selectedUserIds.contains($0.id) }
+            searchResults = []
         }
         
         isLoading = false
