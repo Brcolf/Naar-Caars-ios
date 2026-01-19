@@ -27,6 +27,10 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
     let notifyQaActivity: Bool
     let notifyReviewReminders: Bool
     
+    // Community guidelines acceptance
+    let guidelinesAccepted: Bool
+    let guidelinesAcceptedAt: Date?
+    
     let createdAt: Date
     let updatedAt: Date
     
@@ -62,6 +66,8 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         case notifyNewRequests = "notify_new_requests"
         case notifyQaActivity = "notify_qa_activity"
         case notifyReviewReminders = "notify_review_reminders"
+        case guidelinesAccepted = "guidelines_accepted"
+        case guidelinesAcceptedAt = "guidelines_accepted_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -84,6 +90,8 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         notifyNewRequests: Bool = true,
         notifyQaActivity: Bool = true,
         notifyReviewReminders: Bool = true,
+        guidelinesAccepted: Bool = false,
+        guidelinesAcceptedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -102,6 +110,8 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         self.notifyNewRequests = notifyNewRequests
         self.notifyQaActivity = notifyQaActivity
         self.notifyReviewReminders = notifyReviewReminders
+        self.guidelinesAccepted = guidelinesAccepted
+        self.guidelinesAcceptedAt = guidelinesAcceptedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

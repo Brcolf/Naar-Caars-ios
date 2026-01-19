@@ -363,6 +363,17 @@ struct SettingsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
+                    
+                    // Community Guidelines Link
+                    NavigationLink(destination: CommunityGuidelinesView(showDismissButton: false)) {
+                        Label {
+                            Text("Community Guidelines")
+                                .font(.body)
+                        } icon: {
+                            Image(systemName: "doc.text")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
                 } header: {
                     Text("About")
                 }

@@ -20,27 +20,64 @@ struct UserSearchView: View {
     @State private var isLoading = false
     @State private var error: AppError?
     @State private var searchTask: Task<Void, Never>?
+    @FocusState private var isSearchFocused: Bool
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search bar
-                SearchBar(text: $searchText, placeholder: "Search users...")
-                    .padding()
-                    .onChange(of: searchText) { _, newValue in
-                        // Cancel previous search task
-                        searchTask?.cancel()
+                // Search bar with auto-focus
+                SearchBar(
+                    text: $searchText,
+                    placeholder: "Search users...",
+                    isFocused: $isSearchFocused
+                )
+                .padding()
+                .onChange(of: searchText) { _, newValue in
+                    // Cancel previous search task
+                    searchTask?.cancel()
+                    
+                    // Debounce search - wait 300ms after user stops typing
+                    searchTask = Task {
+                        try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
                         
-                        // Debounce search - wait 300ms after user stops typing
-                        searchTask = Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
-                            
-                            // Check if task was cancelled
-                            guard !Task.isCancelled else { return }
-                            
-                            await searchUsers(query: newValue)
-                        }
+                        // Check if task was cancelled
+                        guard !Task.isCancelled else { return }
+                        
+                        await searchUsers(query: newValue)
                     }
+                }
+                .onAppear {
+                    // Auto-focus search field when view appears
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isSearchFocused = true
+                    }
+                }
+                
+                // Selected users section (always visible at top if any selected)
+                if !selectedUserIds.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Selected (\(selectedUserIds.count))")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(Array(selectedUserIds), id: \.self) { userId in
+                                    SelectedUserChip(userId: userId) {
+                                        selectedUserIds.remove(userId)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        Divider()
+                    }
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGroupedBackground))
+                }
                 
                 // Results list
                 if isLoading {
@@ -52,11 +89,11 @@ struct UserSearchView: View {
                         title: "No Users Found",
                         message: "Try a different search term"
                     )
-                } else if searchResults.isEmpty {
+                } else if searchResults.isEmpty && searchText.isEmpty {
                     EmptyStateView(
                         icon: "magnifyingglass",
                         title: "Search for Users",
-                        message: "Type a name or email to find users"
+                        message: selectedUserIds.isEmpty ? "Type a name or email to find users" : "Add more users or tap Done"
                     )
                 } else {
                     List {
@@ -70,6 +107,13 @@ struct UserSearchView: View {
                                     selectedUserIds.remove(profile.id)
                                 } else if !excludeUserIds.contains(profile.id) {
                                     selectedUserIds.insert(profile.id)
+                                    // Clear search after selection for easier multi-select
+                                    searchText = ""
+                                    searchResults = []
+                                    // Refocus search for next selection
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        isSearchFocused = true
+                                    }
                                 }
                             }
                         }
@@ -82,12 +126,13 @@ struct UserSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        onDismiss()
+                        selectedUserIds.removeAll()
+                        dismiss()
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
-                        onDismiss()
+                        dismiss()
                     }
                     .disabled(selectedUserIds.isEmpty)
                 }
@@ -232,10 +277,11 @@ private struct UserSearchRow: View {
     }
 }
 
-/// Search bar component
+/// Search bar component with focus binding
 private struct SearchBar: View {
     @Binding var text: String
     let placeholder: String
+    var isFocused: FocusState<Bool>.Binding
     
     var body: some View {
         HStack {
@@ -244,6 +290,9 @@ private struct SearchBar: View {
             
             TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
+                .focused(isFocused)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
             
             if !text.isEmpty {
                 Button {
@@ -258,6 +307,55 @@ private struct SearchBar: View {
         .padding(.vertical, 8)
         .background(Color(.systemGray6))
         .cornerRadius(10)
+    }
+}
+
+/// Selected user chip component
+private struct SelectedUserChip: View {
+    let userId: UUID
+    let onRemove: () -> Void
+    
+    @State private var profile: Profile?
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            if let profile = profile {
+                AvatarView(
+                    imageUrl: profile.avatarUrl,
+                    name: profile.name,
+                    size: 32
+                )
+                
+                Text(profile.name)
+                    .font(.naarsCaption)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+            } else {
+                ProgressView()
+                    .scaleEffect(0.7)
+            }
+            
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color(.systemGray5))
+        .cornerRadius(16)
+        .task {
+            await loadProfile()
+        }
+    }
+    
+    private func loadProfile() async {
+        do {
+            profile = try await ProfileService.shared.fetchProfile(userId: userId)
+        } catch {
+            print("🔴 Error loading profile for chip: \(error)")
+        }
     }
 }
 

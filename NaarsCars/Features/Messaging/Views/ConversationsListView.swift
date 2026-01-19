@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Supabase
+import PostgREST
 
 /// View for displaying list of conversations
 struct ConversationsListView: View {
@@ -43,7 +45,8 @@ struct ConversationsListView: View {
                         actionTitle: "New Message",
                         action: {
                             showNewMessage = true
-                        }
+                        },
+                        customImage: "naars_messages_icon"
                     )
                 } else {
                     List {
@@ -117,15 +120,21 @@ struct ConversationsListView: View {
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: [],
                     onDismiss: {
-                        if !selectedUserIds.isEmpty, let userId = selectedUserIds.first {
-                            Task {
-                                await createDirectConversation(with: userId)
-                            }
-                        }
-                        showNewMessage = false
-                        selectedUserIds = []
+                        // Don't dismiss immediately - wait for navigation
                     }
                 )
+            }
+            .onChange(of: showNewMessage) { _, isShowing in
+                if !isShowing && !selectedUserIds.isEmpty {
+                    // Sheet was dismissed with selections - create/navigate to conversation
+                    Task {
+                        await createOrNavigateToConversation(with: Array(selectedUserIds))
+                        selectedUserIds = []
+                    }
+                } else if !isShowing {
+                    // Sheet dismissed without selections
+                    selectedUserIds = []
+                }
             }
             .navigationDestination(item: $navigateToConversation) { conversationId in
                 ConversationDetailView(conversationId: conversationId)
@@ -164,20 +173,91 @@ struct ConversationsListView: View {
         }
     }
     
-    private func createDirectConversation(with userId: UUID) async {
+    /// Create or navigate to existing conversation with selected users
+    /// - If existing conversation found: Navigate to it
+    /// - If 1 user selected: Creates/finds direct message (2 participants)
+    /// - If 2+ users selected: Creates group conversation or finds existing (3+ participants)
+    private func createOrNavigateToConversation(with userIds: [UUID]) async {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
+        guard !userIds.isEmpty else { return }
+        
+        print("🔍 [ConversationsListView] Looking for existing conversation with \(userIds.count) user(s)")
         
         do {
-            let conversation = try await MessageService.shared.getOrCreateDirectConversation(
-                userId: currentUserId,
-                otherUserId: userId
-            )
+            let conversation: Conversation
+            
+            if userIds.count == 1 {
+                // Direct message: getOrCreateDirectConversation already checks for existing
+                print("📱 [ConversationsListView] Creating/finding direct message")
+                conversation = try await MessageService.shared.getOrCreateDirectConversation(
+                    userId: currentUserId,
+                    otherUserId: userIds[0]
+                )
+            } else {
+                // Group conversation: Check if one exists with exactly these participants
+                let allParticipantIds = Set([currentUserId] + userIds)
+                
+                print("👥 [ConversationsListView] Looking for group with participants: \(allParticipantIds.count) total")
+                
+                if let existingConversation = try await findExistingGroupConversation(participantIds: allParticipantIds) {
+                    print("✅ [ConversationsListView] Found existing group conversation: \(existingConversation.id)")
+                    conversation = existingConversation
+                } else {
+                    // Create new group conversation
+                    print("➕ [ConversationsListView] Creating new group conversation")
+                    conversation = try await MessageService.shared.createConversationWithUsers(
+                        userIds: Array(allParticipantIds),
+                        createdBy: currentUserId,
+                        title: nil // User can set group name later
+                    )
+                }
+            }
+            
+            print("✅ [ConversationsListView] Navigating to conversation: \(conversation.id)")
             navigateToConversation = conversation.id
-            // Reload conversations to show the new one
+            
+            // Reload conversations to show the new/updated one
             await viewModel.loadConversations()
         } catch {
-            print("🔴 Error creating direct conversation: \(error.localizedDescription)")
+            print("🔴 [ConversationsListView] Error creating/navigating to conversation: \(error.localizedDescription)")
         }
+    }
+    
+    /// Find existing group conversation with exact participant match
+    private func findExistingGroupConversation(participantIds: Set<UUID>) async throws -> Conversation? {
+        guard let currentUserId = AuthService.shared.currentUserId else { return nil }
+        
+        // Get all user's conversations
+        let conversations = try await MessageService.shared.fetchConversations(userId: currentUserId, limit: 100, offset: 0)
+        
+        // Check each conversation for exact participant match
+        for convDetail in conversations {
+            // Get all participants for this conversation
+            let response = try? await SupabaseService.shared.client
+                .from("conversation_participants")
+                .select("user_id")
+                .eq("conversation_id", value: convDetail.conversation.id.uuidString)
+                .execute()
+            
+            if let data = response?.data {
+                struct ParticipantRow: Codable {
+                    let userId: UUID
+                    enum CodingKeys: String, CodingKey {
+                        case userId = "user_id"
+                    }
+                }
+                
+                let rows = try? JSONDecoder().decode([ParticipantRow].self, from: data)
+                let conversationParticipantIds = Set(rows?.map { $0.userId } ?? [])
+                
+                // Check for exact match
+                if conversationParticipantIds == participantIds {
+                    return convDetail.conversation
+                }
+            }
+        }
+        
+        return nil
     }
     
     private func deleteConversation(_ conversation: ConversationWithDetails) async {
@@ -202,15 +282,21 @@ struct ConversationRow: View {
                 // Title and time row
                 HStack(alignment: .top, spacing: 8) {
                     // Title with fade effect for long names
-                    FadingTitleText(
-                        text: conversationTitle,
-                        maxWidth: .infinity
-                    )
-                    .font(.body)
-                    .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
-                    .foregroundColor(.primary)
-                    
-                    Spacer()
+                    // Use geometry reader to calculate available width
+                    GeometryReader { geometry in
+                        HStack(spacing: 0) {
+                            FadingTitleText(
+                                text: conversationTitle,
+                                maxWidth: geometry.size.width - 60 // Reserve space for timestamp
+                            )
+                            .font(.body)
+                            .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
+                            .foregroundColor(.primary)
+                            
+                            Spacer(minLength: 8)
+                        }
+                    }
+                    .frame(height: 20)
                     
                     // Time on right
                     if let lastMessage = conversationDetail.lastMessage {
@@ -308,36 +394,35 @@ struct ConversationAvatar: View {
 }
 
 /// Text view with fade effect for long content (iMessage-style)
+/// Ensures text aligns left and fades to the right
 struct FadingTitleText: View {
     let text: String
     let maxWidth: CGFloat
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Full text (may be clipped)
+            // Full text (starts from left, may overflow)
             Text(text)
                 .lineLimit(1)
-                .frame(maxWidth: maxWidth, alignment: .leading)
-                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Overlay gradient for fade effect
+            // Overlay gradient for fade effect (on the right side)
             HStack(spacing: 0) {
                 Spacer()
                 LinearGradient(
                     gradient: Gradient(stops: [
                         .init(color: Color(.systemBackground).opacity(0), location: 0.0),
-                        .init(color: Color(.systemBackground).opacity(0.3), location: 0.5),
-                        .init(color: Color(.systemBackground), location: 1.0)
+                        .init(color: Color(.systemBackground).opacity(0.5), location: 0.3),
+                        .init(color: Color(.systemBackground), location: 0.8)
                     ]),
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: 60)
+                .frame(width: 40)
             }
-            .frame(maxWidth: maxWidth)
             .allowsHitTesting(false)
         }
-        .frame(maxWidth: maxWidth, alignment: .leading)
+        .frame(width: maxWidth, alignment: .leading)
         .clipped()
     }
 }

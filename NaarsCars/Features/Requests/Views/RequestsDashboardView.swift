@@ -29,6 +29,18 @@ struct RequestsDashboardView: View {
                 
                 Divider()
                 
+                // Quick Action Cards - Show only when viewing "Open Requests"
+                if viewModel.filter == .open {
+                    QuickActionCardsView(
+                        onCreateRide: { showCreateRide = true },
+                        onCreateFavor: { showCreateFavor = true }
+                    )
+                    .padding()
+                    .background(Color(.systemBackground))
+                    
+                    Divider()
+                }
+                
                 // List Content (map view removed)
                 listContentView
             }
@@ -123,7 +135,8 @@ struct RequestsDashboardView: View {
                 title: "No Requests Available",
                 message: filterEmptyMessage,
                 actionTitle: nil,
-                action: nil
+                action: nil,
+                customImage: "naars_requests_icon"
             )
         } else {
             ScrollView {
@@ -264,6 +277,73 @@ struct SkeletonRequestCard: View {
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .redacted(reason: .placeholder)
+    }
+}
+
+// MARK: - Quick Action Cards
+
+struct QuickActionCardsView: View {
+    let onCreateRide: () -> Void
+    let onCreateFavor: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Ride Card
+            QuickActionCard(
+                image: "naars_requests_icon",
+                title: "Need a Ride?",
+                subtitle: "Request transportation",
+                accentColor: .rideAccent,
+                action: onCreateRide
+            )
+            
+            // Favor Card
+            QuickActionCard(
+                image: "naars_community_icon",
+                title: "Need Help?",
+                subtitle: "Request a favor",
+                accentColor: .favorAccent,
+                action: onCreateFavor
+            )
+        }
+    }
+}
+
+struct QuickActionCard: View {
+    let image: String
+    let title: String
+    let subtitle: String
+    let accentColor: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 80)
+                
+                VStack(spacing: 4) {
+                    Text(title)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.primary)
+                    
+                    Text(subtitle)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.naarsBackgroundSecondary)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(accentColor.opacity(0.3), lineWidth: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

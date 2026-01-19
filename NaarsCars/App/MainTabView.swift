@@ -13,7 +13,9 @@ struct MainTabView: View {
     @StateObject private var badgeManager = BadgeCountManager.shared
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var reviewPromptManager = ReviewPromptManager.shared
+    @EnvironmentObject var appState: AppState
     @State private var selectedTab = 0
+    @State private var showGuidelinesAcceptance = false
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -72,10 +74,17 @@ struct MainTabView: View {
             }
         }
         .task {
+            // Check if user needs to accept community guidelines
+            checkGuidelinesAcceptance()
             // Refresh badges on appear
             await badgeManager.refreshAllBadges()
             // Check for review prompts
             await reviewPromptManager.checkForPendingPrompts()
+        }
+        .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
+            GuidelinesAcceptanceSheet {
+                await acceptGuidelines()
+            }
         }
         .sheet(item: $reviewPromptManager.pendingPrompt) { prompt in
             ReviewPromptSheet(
@@ -99,6 +108,43 @@ struct MainTabView: View {
                     }
                 }
             )
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Check if user needs to accept community guidelines
+    private func checkGuidelinesAcceptance() {
+        guard let profile = appState.currentUser else { return }
+        
+        // Show guidelines if not yet accepted
+        if !profile.guidelinesAccepted {
+            showGuidelinesAcceptance = true
+        }
+    }
+    
+    /// Handle guidelines acceptance
+    private func acceptGuidelines() async {
+        guard let userId = appState.currentUser?.id else { return }
+        
+        do {
+            // Update profile with guidelines acceptance
+            try await ProfileService.shared.acceptCommunityGuidelines(userId: userId)
+            
+            // Refresh the user's profile in app state
+            if let updatedProfile = try? await ProfileService.shared.fetchProfile(userId: userId) {
+                await MainActor.run {
+                    appState.currentUser = updatedProfile
+                }
+            }
+            
+            // Dismiss the sheet
+            await MainActor.run {
+                showGuidelinesAcceptance = false
+            }
+        } catch {
+            print("Failed to accept guidelines: \(error)")
+            // Keep the sheet open if acceptance fails
         }
     }
 }

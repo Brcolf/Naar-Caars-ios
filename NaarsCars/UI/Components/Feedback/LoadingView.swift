@@ -7,14 +7,35 @@
 
 import SwiftUI
 
-/// Loading view with spinner and optional message
+/// Loading view with animated logo and optional message
 struct LoadingView: View {
     var message: String? = nil
+    @State private var isAnimating = false
+    @State private var opacity: Double = 0.3
     
     var body: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.2)
+        VStack(spacing: 24) {
+            // Animated full logo
+            Image("NaarsLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 200, height: 200)
+                .scaleEffect(isAnimating ? 1.1 : 1.0)
+                .opacity(opacity)
+                .animation(
+                    .easeInOut(duration: 1.0)
+                    .repeatForever(autoreverses: true),
+                    value: isAnimating
+                )
+                .animation(
+                    .easeInOut(duration: 1.5)
+                    .repeatForever(autoreverses: true),
+                    value: opacity
+                )
+                .onAppear {
+                    isAnimating = true
+                    opacity = 1.0
+                }
             
             if let message = message {
                 Text(message)
@@ -23,7 +44,7 @@ struct LoadingView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.gray.opacity(0.1))
+        .background(Color(.systemBackground))
     }
 }
 

@@ -183,6 +183,42 @@ final class ProfileService {
         await CacheManager.shared.invalidateProfile(id: userId)
     }
     
+    /// Accept community guidelines
+    /// - Parameter userId: The user ID
+    /// - Throws: AppError if update fails
+    func acceptCommunityGuidelines(userId: UUID) async throws {
+        struct GuidelinesAcceptance: Codable {
+            let guidelinesAccepted: Bool
+            let guidelinesAcceptedAt: String
+            let updatedAt: String
+            
+            enum CodingKeys: String, CodingKey {
+                case guidelinesAccepted = "guidelines_accepted"
+                case guidelinesAcceptedAt = "guidelines_accepted_at"
+                case updatedAt = "updated_at"
+            }
+        }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let now = dateFormatter.string(from: Date())
+        
+        let acceptance = GuidelinesAcceptance(
+            guidelinesAccepted: true,
+            guidelinesAcceptedAt: now,
+            updatedAt: now
+        )
+        
+        try await supabase
+            .from("profiles")
+            .update(acceptance)
+            .eq("id", value: userId.uuidString)
+            .execute()
+        
+        // Invalidate cache after update
+        await CacheManager.shared.invalidateProfile(id: userId)
+    }
+    
     /// Upload avatar image to Supabase Storage
     /// Compresses image before upload using avatar preset
     /// - Parameters:

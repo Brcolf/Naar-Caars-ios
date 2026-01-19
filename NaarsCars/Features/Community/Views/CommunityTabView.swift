@@ -26,15 +26,8 @@ struct CommunityTabView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // View toggle tabs at the top
-                Picker("Community View", selection: $selectedView) {
-                    ForEach(CommunityView.allCases, id: \.self) { view in
-                        Text(view.rawValue).tag(view)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
-                .background(Color(.systemBackground))
+                // Visual header with icon
+                CommunityHeaderView(selectedView: $selectedView)
                 
                 Divider()
                 
@@ -57,6 +50,34 @@ struct CommunityTabView: View {
             }
             .trackScreen("Community")
         }
+    }
+}
+
+// MARK: - Community Header View
+
+struct CommunityHeaderView: View {
+    @Binding var selectedView: CommunityTabView.CommunityView
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // Fun icon at the top
+            Image("naars_community_icon")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 60)
+                .padding(.top, 8)
+            
+            // Segmented picker
+            Picker("Community View", selection: $selectedView) {
+                ForEach(CommunityTabView.CommunityView.allCases, id: \.self) { view in
+                    Text(view.rawValue).tag(view)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+        }
+        .padding(.bottom, 12)
+        .background(Color(.systemBackground))
     }
 }
 

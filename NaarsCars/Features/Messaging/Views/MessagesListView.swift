@@ -2,32 +2,22 @@
 //  MessagesListView.swift
 //  NaarsCars
 //
-//  Messages list view (placeholder)
+//  Messages list view - redirects to ConversationsListView
 //
 
 import SwiftUI
 
-/// Messages list view - placeholder for conversations
+/// Messages list view - now redirects to full ConversationsListView
+/// This file maintained for backward compatibility
 struct MessagesListView: View {
     var body: some View {
-        NavigationStack {
-            VStack {
-                Text("Messages")
-                    .font(.title)
-                    .padding()
-                
-                Text("Your conversations will appear here")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-            }
-            .navigationTitle("Messages")
-        }
+        // Use the full ConversationsListView implementation
+        ConversationsListView()
     }
 }
 
 #Preview {
     MessagesListView()
+        .environmentObject(AppState())
 }
 

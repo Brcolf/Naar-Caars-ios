@@ -18,12 +18,12 @@ struct LoginView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Full Logo with Red Car
+                // NaarsCars Title Logo
                 VStack(spacing: 12) {
-                    Image("NaarsLogo")
+                    Image("NaarsTextLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(maxWidth: 280, maxHeight: 200)
+                        .frame(maxWidth: 280, maxHeight: 120)
                         .accessibilityLabel("Naar's Cars - Community Ride Sharing")
                     
                     Text("auth_login_title".localized)

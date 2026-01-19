@@ -166,14 +166,19 @@ struct MessageDetailsPopup: View {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
+            print("✅ [MessageDetailsPopup] Adding \(userIds.count) participant(s) to conversation \(conversationId)")
+            
             try await MessageService.shared.addParticipantsToConversation(
                 conversationId: conversationId,
                 userIds: userIds,
                 addedBy: currentUserId,
                 createAnnouncement: true
             )
-            // Reload to show new participants (parent view should handle this)
+            
+            print("✅ [MessageDetailsPopup] Successfully added participants")
+            // Note: Parent view (ConversationDetailView) will reload on sheet dismiss
         } catch {
+            print("🔴 [MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
             self.error = "Failed to add participants: \(error.localizedDescription)"
         }
     }

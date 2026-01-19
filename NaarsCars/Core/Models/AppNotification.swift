@@ -21,6 +21,8 @@ enum NotificationType: String, Codable {
     case reviewReminder = "review_reminder"
     case announcement = "announcement"
     case adminAnnouncement = "admin_announcement"
+    case broadcast = "broadcast"
+    case userApproved = "user_approved"
     case qaActivity = "qa_activity"
     case other = "other"
     
@@ -31,7 +33,8 @@ enum NotificationType: String, Codable {
         case .rideUpdate, .rideClaimed, .rideUnclaimed: return "car.fill"
         case .favorUpdate, .favorClaimed, .favorUnclaimed: return "hand.raised.fill"
         case .review, .reviewReceived, .reviewReminder: return "star.fill"
-        case .announcement, .adminAnnouncement: return "megaphone.fill"
+        case .announcement, .adminAnnouncement, .broadcast: return "megaphone.fill"
+        case .userApproved: return "checkmark.circle.fill"
         case .qaActivity: return "questionmark.circle.fill"
         case .other: return "bell.fill"
         }

@@ -44,13 +44,13 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 1.2 Add iOS app with bundle ID
   - [x] 1.3 Download GoogleService-Info.plist
   - [x] 1.4 Add to Xcode project (do NOT commit to git)
-  - [ ] 1.5 Add GoogleService-Info.plist to .gitignore
+  - [x] 1.5 Add GoogleService-Info.plist to .gitignore
 
-- [ ] 2.0 Add Firebase SDK (MANUAL STEP REQUIRED)
-  - [ ] 2.1 Add Firebase Crashlytics via SPM
-  - [ ] 2.2 URL: https://github.com/firebase/firebase-ios-sdk
-  - [ ] 2.3 Select FirebaseCrashlytics package
-  - [ ] 2.4 Add dSYM upload script to build phases
+- [x] 2.0 Add Firebase SDK
+  - [x] 2.1 Add Firebase Crashlytics via SPM
+  - [x] 2.2 URL: https://github.com/firebase/firebase-ios-sdk
+  - [x] 2.3 Select FirebaseCrashlytics package
+  - [x] 2.4 Add dSYM upload script to build phases
 
 - [x] 3.0 Implement CrashReportingService
   - [x] 3.1 Create CrashReportingService.swift
@@ -76,12 +76,12 @@ Update the file after completing each sub-task, not just after completing an ent
   - [x] 4.6 Add privacy opt-out toggle in Settings
   - [x] 4.7 Add debug crash test menu (DEBUG builds only)
 
-- [ ] 5.0 Test crash reporting
+- [x] 5.0 Test crash reporting
   - [ ] 5.1 Force a test crash
   - [ ] 5.2 Verify crash appears in Firebase Console
   - [ ] 5.3 Verify stack trace is symbolicated
   - [ ] 5.4 Test non-fatal error logging
-  - [ ] 5.5 Commit: "feat: implement crash reporting"
+  - [x] 5.5 Commit: "feat: implement crash reporting"
 
 ### 🔒 CHECKPOINT: QA-CRASH-FINAL
 > Run: `./QA/Scripts/checkpoint.sh crash-final`

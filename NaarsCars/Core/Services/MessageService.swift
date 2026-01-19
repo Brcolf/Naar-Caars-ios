@@ -85,25 +85,15 @@ final class MessageService {
                 return []
             }
             
-            // Query conversations by IDs (now including title)
+            // Query conversations by IDs with ORDER BY first (chronological, latest first)
             // PostgreSQL optimizes IN clauses efficiently with indexes on id
-            // This scales well even with hundreds/thousands of conversations
-            // Apply pagination: get conversations in the specified range
-            // Note: We need to order first, then apply range
-            let allConversationIdsArray = Array(allConversationIds)
-            let sortedIds = allConversationIdsArray // IDs are already sorted by updated_at in the query
-            let paginatedIds = Array(sortedIds[offset..<min(offset + limit, sortedIds.count)])
-            
-            guard !paginatedIds.isEmpty else {
-                await cacheManager.cacheConversations(userId: userId, [])
-                return []
-            }
-            
+            // IMPORTANT: Order BEFORE pagination to get latest conversations
             let conversationsResponse = try await supabase
                 .from("conversations")
                 .select("id, created_by, title, created_at, updated_at")
-                .in("id", values: paginatedIds.map { $0.uuidString })
+                .in("id", values: Array(allConversationIds).map { $0.uuidString })
                 .order("updated_at", ascending: false)
+                .range(from: offset, to: offset + limit - 1)
                 .execute()
             
             // Decode conversations with custom date decoder
@@ -156,7 +146,7 @@ final class MessageService {
                 do {
                     let participantsResponse = try await supabase
                         .from("conversation_participants")
-                        .select("user_id, profiles!conversation_participants_user_id_fkey(id, name, email, avatar_url, car, created_at)")
+                        .select("user_id, profiles(id, name, email, avatar_url, car, created_at)")
                         .eq("conversation_id", value: conversation.id.uuidString)
                         .neq("user_id", value: userId.uuidString)
                         .execute()
@@ -177,6 +167,19 @@ final class MessageService {
                     otherParticipants = rows.compactMap { $0.profiles }
                 } catch {
                     print("⚠️ [MessageService] Error fetching participants for conversation \(conversation.id): \(error.localizedDescription)")
+                    print("⚠️ [MessageService] Full error: \(error)")
+                    
+                    // Log raw response for debugging
+                    if let participantsResponse = try? await supabase
+                        .from("conversation_participants")
+                        .select("user_id, profiles(id, name, email, avatar_url, car, created_at)")
+                        .eq("conversation_id", value: conversation.id.uuidString)
+                        .neq("user_id", value: userId.uuidString)
+                        .execute(),
+                       let jsonString = String(data: participantsResponse.data, encoding: .utf8) {
+                        print("⚠️ [MessageService] Raw response: \(jsonString.prefix(500))")
+                    }
+                    
                     // Fallback: fetch profiles separately if join fails
                     do {
                         let userIdsResponse = try? await supabase

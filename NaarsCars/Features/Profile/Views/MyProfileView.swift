@@ -395,7 +395,8 @@ struct MyProfileView: View {
                 EmptyStateView(
                     icon: "star",
                     title: "No Reviews Yet",
-                    message: "You haven't received any reviews yet."
+                    message: "You haven't received any reviews yet.",
+                    customImage: "naars_Profile_icon"
                 )
             } else {
                 let reviewsToShow = showAllReviews ? viewModel.reviews : Array(viewModel.reviews.prefix(5))

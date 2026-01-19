@@ -120,7 +120,8 @@ struct TownHallFeedView: View {
             actionTitle: "Create Post",
             action: {
                 showCreatePost = true
-            }
+            },
+            customImage: "naars_community_icon"
         )
     }
     
