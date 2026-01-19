@@ -236,6 +236,7 @@ struct MyProfileView: View {
                     }
                 }
             }
+            .trackScreen("MyProfile")
         }
     }
     

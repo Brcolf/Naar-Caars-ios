@@ -123,6 +123,7 @@ struct CreateRideView: View {
                     }
                 )
             }
+            .trackScreen("CreateRide")
         }
     }
 }

@@ -123,6 +123,7 @@ struct CreateFavorView: View {
                     }
                 )
             }
+            .trackScreen("CreateFavor")
         }
     }
 }

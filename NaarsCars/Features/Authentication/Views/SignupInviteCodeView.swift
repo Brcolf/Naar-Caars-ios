@@ -99,6 +99,7 @@ struct SignupInviteCodeView: View {
                 handleDeepLink(url)
             }
         }
+        .trackScreen("SignupInviteCode")
     }
     
     /// Handle deep link URL with embedded invite code

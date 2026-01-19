@@ -85,6 +85,7 @@ struct LeaderboardView: View {
             .refreshable {
                 await viewModel.refresh()
             }
+            .trackScreen("Leaderboard")
         }
     }
 }

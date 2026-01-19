@@ -156,6 +156,7 @@ struct LoginView: View {
         } message: {
             Text(appleSignInViewModel.error?.localizedDescription ?? "common_error".localized)
         }
+        .trackScreen("Login")
     }
 }
 

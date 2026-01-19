@@ -160,6 +160,7 @@ struct ConversationsListView: View {
                     await viewModel.refreshConversations()
                 }
             }
+            .trackScreen("ConversationsList")
         }
     }
     

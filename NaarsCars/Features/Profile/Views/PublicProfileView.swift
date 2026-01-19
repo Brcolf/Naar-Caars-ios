@@ -59,6 +59,7 @@ struct PublicProfileView: View {
         .task {
             await viewModel.loadProfile(userId: userId)
         }
+        .trackScreen("PublicProfile")
     }
     
     // MARK: - Header Section

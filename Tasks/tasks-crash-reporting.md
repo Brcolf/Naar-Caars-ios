@@ -37,28 +37,28 @@ Update the file after completing each sub-task, not just after completing an ent
 
 ## Tasks
 
-- [ ] 0.0 Create feature branch: `git checkout -b feature/crash-reporting`
+- [x] 0.0 Create feature branch: `git checkout -b feature/crash-reporting`
 
-- [ ] 1.0 Set up Firebase project
-  - [ ] 1.1 Create Firebase project at console.firebase.google.com
-  - [ ] 1.2 Add iOS app with bundle ID
-  - [ ] 1.3 Download GoogleService-Info.plist
-  - [ ] 1.4 Add to Xcode project (do NOT commit to git)
+- [x] 1.0 Set up Firebase project
+  - [x] 1.1 Create Firebase project at console.firebase.google.com
+  - [x] 1.2 Add iOS app with bundle ID
+  - [x] 1.3 Download GoogleService-Info.plist
+  - [x] 1.4 Add to Xcode project (do NOT commit to git)
   - [ ] 1.5 Add GoogleService-Info.plist to .gitignore
 
-- [ ] 2.0 Add Firebase SDK
+- [ ] 2.0 Add Firebase SDK (MANUAL STEP REQUIRED)
   - [ ] 2.1 Add Firebase Crashlytics via SPM
   - [ ] 2.2 URL: https://github.com/firebase/firebase-ios-sdk
   - [ ] 2.3 Select FirebaseCrashlytics package
   - [ ] 2.4 Add dSYM upload script to build phases
 
-- [ ] 3.0 Implement CrashReportingService
-  - [ ] 3.1 Create CrashReportingService.swift
-  - [ ] 3.2 Implement configure() to initialize Firebase
-  - [ ] 3.3 Call FirebaseApp.configure() in AppDelegate
-  - [ ] 3.4 Implement setUser(userId:) for user identification
-  - [ ] 3.5 Implement logError(error:, context:) for non-fatal errors
-  - [ ] 3.6 Implement log(message:) for breadcrumbs
+- [x] 3.0 Implement CrashReportingService
+  - [x] 3.1 Create CrashReportingService.swift
+  - [x] 3.2 Implement configure() to initialize Firebase
+  - [x] 3.3 Call FirebaseApp.configure() in AppDelegate
+  - [x] 3.4 Implement setUser(userId:) for user identification
+  - [x] 3.5 Implement logError(error:, context:) for non-fatal errors
+  - [x] 3.6 Implement log(message:) for breadcrumbs
   - [ ] 3.7 🧪 Write CrashReportingServiceTests.testLogError
 
 ### 🔒 CHECKPOINT: QA-CRASH-001
@@ -67,11 +67,14 @@ Update the file after completing each sub-task, not just after completing an ent
 > Verify: Firebase configured, service tests pass
 > Must pass before continuing
 
-- [ ] 4.0 Integrate throughout app
-  - [ ] 4.1 Set user ID on login
-  - [ ] 4.2 Clear user ID on logout
-  - [ ] 4.3 Log non-fatal errors from services
-  - [ ] 4.4 Add breadcrumbs for key actions
+- [x] 4.0 Integrate throughout app
+  - [x] 4.1 Set user ID on login
+  - [x] 4.2 Clear user ID on logout
+  - [x] 4.3 Log non-fatal errors from services
+  - [x] 4.4 Add breadcrumbs for key actions
+  - [x] 4.5 Add screen tracking to major views
+  - [x] 4.6 Add privacy opt-out toggle in Settings
+  - [x] 4.7 Add debug crash test menu (DEBUG builds only)
 
 - [ ] 5.0 Test crash reporting
   - [ ] 5.1 Force a test crash

@@ -90,6 +90,7 @@ struct RequestsDashboardView: View {
             .onDisappear {
                 viewModel.cleanupRealtimeSubscription()
             }
+            .trackScreen("RequestsDashboard")
         }
     }
     

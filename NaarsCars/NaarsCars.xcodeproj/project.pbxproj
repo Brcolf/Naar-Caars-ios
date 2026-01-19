@@ -79,6 +79,7 @@
 		AABD5781380A404FB7CEC993 /* UI/Components/Common/RequestQAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B46A4F46EBC4F41B44382F7 /* UI/Components/Common/RequestQAView.swift */; };
 		ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD0A9CD93A24C578046DC46 /* Core/Services/RideService.swift */; };
 		AC279FFF2F1ECE0100E3B58F /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */; };
+		AC27A0032F1EDCDC00E3B58F /* CrashReportingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC27A0022F1EDCDC00E3B58F /* CrashReportingService.swift */; };
 		AC305EC52F0DB7890063AFDF /* NotificationsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EC02F0DB7890063AFDF /* NotificationsListViewModel.swift */; };
 		AC305EC62F0DB7890063AFDF /* NotificationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EC22F0DB7890063AFDF /* NotificationRow.swift */; };
 		AC305EC72F0DB7890063AFDF /* NotificationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EC32F0DB7890063AFDF /* NotificationsListView.swift */; };
@@ -382,6 +383,7 @@
 		A5BD6728D2674DDB93C700C3 /* TownHallPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPost.swift; sourceTree = "<group>"; };
 		A7517715836A495AAD05F791 /* UI/Components/Feedback/SkeletonFavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Feedback/SkeletonFavorCard.swift; sourceTree = "<group>"; };
 		AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		AC27A0022F1EDCDC00E3B58F /* CrashReportingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportingService.swift; sourceTree = "<group>"; };
 		AC305EC02F0DB7890063AFDF /* NotificationsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListViewModel.swift; sourceTree = "<group>"; };
 		AC305EC22F0DB7890063AFDF /* NotificationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRow.swift; sourceTree = "<group>"; };
 		AC305EC32F0DB7890063AFDF /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
@@ -1157,6 +1159,7 @@
 		ACDCBE002F0B783F00956D1C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AC27A0022F1EDCDC00E3B58F /* CrashReportingService.swift */,
 				AC8197AA2F14C271003BB08B /* BadgeCountManager.swift */,
 				AC8197AB2F14C271003BB08B /* ReviewService.swift */,
 				AC8197AC2F14C271003BB08B /* ReviewService+Prompt.swift */,
@@ -1716,6 +1719,7 @@
 				DFF2E7BE31B84AC8AF0BBF5B /* MyProfileViewModel.swift in Sources */,
 				B226C0514DC84558877E369D /* EditProfileViewModel.swift in Sources */,
 				AC35AB622F0F08AC0012096B /* TownHallService.swift in Sources */,
+				AC27A0032F1EDCDC00E3B58F /* CrashReportingService.swift in Sources */,
 				705E4B404CE3406391EF9121 /* PublicProfileViewModel.swift in Sources */,
 				4AAA0DD304984275B1F7F158 /* MyProfileView.swift in Sources */,
 				FA2BBF9801DF4FA8810D2A2C /* EditProfileView.swift in Sources */,

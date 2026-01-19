@@ -30,6 +30,7 @@ struct TownHallFeedView: View {
             .task {
                 await viewModel.loadPosts()
             }
+            .trackScreen("TownHallFeed")
     }
     
     private var mainContent: some View {

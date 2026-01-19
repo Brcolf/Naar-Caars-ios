@@ -369,6 +369,7 @@ struct RideDetailView: View {
                 )
             }
         }
+        .trackScreen("RideDetail")
     }
     
     // MARK: - Helper Methods

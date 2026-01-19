@@ -98,6 +98,9 @@ final class AuthService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // Log action for crash context
+        CrashReportingService.shared.logAction("sign_in_attempt")
+        
         do {
             // Call Supabase auth.signIn()
             let response = try await supabase.client.auth.signIn(
@@ -116,12 +119,29 @@ final class AuthService: ObservableObject {
             currentUserId = userId
             currentProfile = profile
             
+            // Set crash reporting user ID and context
+            CrashReportingService.shared.setUserId(userId.uuidString)
             if let profile = profile {
+                CrashReportingService.shared.updateAppStateContext(
+                    isAuthenticated: true,
+                    isApproved: profile.approved,
+                    isAdmin: profile.isAdmin
+                )
                 print("✅ Sign in successful for user: \(email), approved: \(profile.approved)")
             } else {
                 print("⚠️ Sign in successful but profile not found for user: \(email)")
             }
+            
+            CrashReportingService.shared.logAction("sign_in_success")
         } catch {
+            // Record non-fatal error for sign-in failures
+            CrashReportingService.shared.recordError(
+                domain: CrashDomain.auth,
+                code: CrashErrorCode.authInvalidCredentials,
+                message: "Sign in failed",
+                userInfo: ["error_type": String(describing: type(of: error))]
+            )
+            
             // Handle errors with appropriate AppError types
             let errorMessage = error.localizedDescription.lowercased()
             
@@ -522,6 +542,17 @@ final class AuthService: ObservableObject {
     /// Posts notification to trigger app state change
     private func handleSignOut() async {
         print("🔄 [AuthService] handleSignOut() started")
+        
+        // Log action for crash context
+        CrashReportingService.shared.logAction("sign_out")
+        
+        // Clear crash reporting user ID
+        CrashReportingService.shared.setUserId(nil)
+        CrashReportingService.shared.updateAppStateContext(
+            isAuthenticated: false,
+            isApproved: false,
+            isAdmin: false
+        )
         
         // Clear local state on main actor
         await MainActor.run {

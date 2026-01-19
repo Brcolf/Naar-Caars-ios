@@ -2,15 +2,20 @@
 //  AppDelegate.swift
 //  NaarsCars
 //
-//  App delegate for push notification handling
+//  App delegate for push notification handling and Firebase initialization
 //
 
 import UIKit
 import UserNotifications
+import FirebaseCore
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Configure Firebase (must be called before any Firebase services are used)
+        FirebaseApp.configure()
+        print("🔥 [AppDelegate] Firebase configured")
+        
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
         

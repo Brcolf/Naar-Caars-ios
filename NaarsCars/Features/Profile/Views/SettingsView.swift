@@ -274,6 +274,66 @@ struct SettingsView: View {
                         .font(.caption)
                 }
                 
+                // Privacy Section
+                Section {
+                    Toggle(isOn: $viewModel.crashReportingEnabled) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Share Crash Reports")
+                                    .font(.body)
+                                Text("Help improve the app by sharing crash data")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "ant.fill")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .onChange(of: viewModel.crashReportingEnabled) { _, newValue in
+                        viewModel.updateCrashReporting(newValue)
+                    }
+                } header: {
+                    Text("Privacy")
+                } footer: {
+                    Text("Crash reports help us identify and fix issues. No personal data is shared.")
+                        .font(.caption)
+                }
+                
+                // Debug Section (only in DEBUG builds)
+                #if DEBUG
+                Section {
+                    Button(action: {
+                        viewModel.triggerTestCrash()
+                    }) {
+                        Label {
+                            Text("Test Crash")
+                                .foregroundColor(.red)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Button(action: {
+                        viewModel.triggerTestNonFatalError()
+                    }) {
+                        Label {
+                            Text("Test Non-Fatal Error")
+                                .foregroundColor(.orange)
+                        } icon: {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.orange)
+                        }
+                    }
+                } header: {
+                    Text("Debug (Dev Only)")
+                } footer: {
+                    Text("These options are only visible in debug builds for testing crash reporting.")
+                        .font(.caption)
+                }
+                #endif
+                
                 // About Section with Supreme Leader
                 Section {
                     VStack(spacing: 16) {
@@ -375,11 +435,13 @@ final class SettingsViewModel: ObservableObject {
     @Published var showLinkAppleAlert = false
     @Published var startAppleLinking = false
     @Published var selectedTheme: ThemeMode = .system
+    @Published var crashReportingEnabled = true
     
     private let biometricService = BiometricService.shared
     private let biometricPreferences = BiometricPreferences.shared
     private let pushNotificationService = PushNotificationService.shared
     private let themeManager = ThemeManager.shared
+    private let crashReportingService = CrashReportingService.shared
     
     func loadSettings() async {
         // Load biometric preferences
@@ -396,6 +458,9 @@ final class SettingsViewModel: ObservableObject {
         // Load theme preference
         selectedTheme = themeManager.currentTheme
         
+        // Load crash reporting preference
+        crashReportingEnabled = crashReportingService.isEnabled
+        
         // Load notification preferences from profile
         if let userId = AuthService.shared.currentUserId,
            let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
@@ -411,6 +476,23 @@ final class SettingsViewModel: ObservableObject {
     func updateTheme(_ theme: ThemeMode) {
         themeManager.setTheme(theme)
     }
+    
+    func updateCrashReporting(_ enabled: Bool) {
+        crashReportingService.setCrashReportingEnabled(enabled)
+        CrashReportingService.shared.logAction("crash_reporting_toggled", parameters: ["enabled": enabled])
+    }
+    
+    #if DEBUG
+    func triggerTestCrash() {
+        crashReportingService.forceCrash()
+    }
+    
+    func triggerTestNonFatalError() {
+        crashReportingService.recordTestError()
+        errorMessage = "Test non-fatal error recorded. Check Firebase Console."
+        showError = true
+    }
+    #endif
     
     func handleBiometricsToggle(_ enabled: Bool) async {
         if enabled {

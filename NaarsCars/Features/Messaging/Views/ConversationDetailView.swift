@@ -254,6 +254,7 @@ struct ConversationDetailView: View {
                 }
             }
         }
+        .trackScreen("ConversationDetail")
     }
     
     private func isFromCurrentUser(_ message: Message) -> Bool {

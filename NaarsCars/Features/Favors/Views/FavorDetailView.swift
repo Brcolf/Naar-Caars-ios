@@ -311,6 +311,7 @@ struct FavorDetailView: View {
                 )
             }
         }
+        .trackScreen("FavorDetail")
     }
     
     // MARK: - Helper Methods

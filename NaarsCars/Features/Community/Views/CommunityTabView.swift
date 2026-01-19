@@ -55,6 +55,7 @@ struct CommunityTabView: View {
                 // Clear community badge when viewing Community tab
                 BadgeCountManager.shared.clearCommunityBadge()
             }
+            .trackScreen("Community")
         }
     }
 }

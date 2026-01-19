@@ -53,6 +53,7 @@ struct AdminPanelView: View {
             // Verify admin access when view first appears (only once due to hasVerified flag)
             await viewModel.verifyAdminAccess()
         }
+        .trackScreen("AdminPanel")
     }
     
     @ViewBuilder

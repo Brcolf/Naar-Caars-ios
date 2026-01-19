@@ -67,6 +67,12 @@ final class ClaimViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
+            // Log action for crash context
+            CrashReportingService.shared.logAction("claim_request", parameters: [
+                "request_type": requestType,
+                "request_id": requestId.uuidString
+            ])
+            
             let conversationId = try await claimService.claimRequest(
                 requestType: requestType,
                 requestId: requestId,
@@ -80,6 +86,13 @@ final class ClaimViewModel: ObservableObject {
             
             return conversationId
         } catch {
+            // Record non-fatal error
+            CrashReportingService.shared.recordClaimingError(
+                error,
+                operation: "claim",
+                requestType: requestType,
+                requestId: requestId
+            )
             self.error = error.localizedDescription
             throw error
         }
@@ -100,12 +113,23 @@ final class ClaimViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
+            CrashReportingService.shared.logAction("unclaim_request", parameters: [
+                "request_type": requestType,
+                "request_id": requestId.uuidString
+            ])
+            
             try await claimService.unclaimRequest(
                 requestType: requestType,
                 requestId: requestId,
                 claimerId: claimerId
             )
         } catch {
+            CrashReportingService.shared.recordClaimingError(
+                error,
+                operation: "unclaim",
+                requestType: requestType,
+                requestId: requestId
+            )
             self.error = error.localizedDescription
             throw error
         }
@@ -126,12 +150,23 @@ final class ClaimViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
+            CrashReportingService.shared.logAction("complete_request", parameters: [
+                "request_type": requestType,
+                "request_id": requestId.uuidString
+            ])
+            
             try await claimService.completeRequest(
                 requestType: requestType,
                 requestId: requestId,
                 posterId: posterId
             )
         } catch {
+            CrashReportingService.shared.recordClaimingError(
+                error,
+                operation: "complete",
+                requestType: requestType,
+                requestId: requestId
+            )
             self.error = error.localizedDescription
             throw error
         }
