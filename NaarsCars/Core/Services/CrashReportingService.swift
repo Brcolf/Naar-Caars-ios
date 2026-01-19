@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseCrashlytics
+internal import Combine
 
 /// Error domains for categorizing non-fatal errors
 enum CrashDomain {
@@ -112,7 +113,7 @@ final class CrashReportingService {
         // Apply preference
         crashlytics.setCrashlyticsCollectionEnabled(isEnabled)
         
-        Log.network("CrashReportingService initialized, enabled: \(isEnabled)", type: .info)
+        print("🔥 [CrashReporting] Service initialized, enabled: \(isEnabled)")
     }
     
     // MARK: - Configuration
@@ -123,7 +124,7 @@ final class CrashReportingService {
         UserDefaults.standard.set(enabled, forKey: crashReportingEnabledKey)
         crashlytics.setCrashlyticsCollectionEnabled(enabled)
         
-        Log.network("Crash reporting \(enabled ? "enabled" : "disabled")", type: .info)
+        print("🔥 [CrashReporting] Crash reporting \(enabled ? "enabled" : "disabled")")
     }
     
     // MARK: - User Identification
@@ -135,10 +136,10 @@ final class CrashReportingService {
         
         if let userId = userId {
             crashlytics.setUserID(userId)
-            Log.network("Crashlytics user ID set: \(userId.prefix(8))...", type: .info)
+            print("🔥 [CrashReporting] User ID set: \(userId.prefix(8))...")
         } else {
             crashlytics.setUserID("")
-            Log.network("Crashlytics user ID cleared", type: .info)
+            print("🔥 [CrashReporting] User ID cleared")
         }
     }
     
@@ -221,7 +222,7 @@ final class CrashReportingService {
         
         crashlytics.record(error: nsError, userInfo: info)
         
-        Log.network("Non-fatal error recorded: \(error.localizedDescription)", type: .error)
+        print("⚠️ [CrashReporting] Non-fatal error recorded: \(error.localizedDescription)")
     }
     
     /// Record an error with custom domain and code
@@ -244,7 +245,7 @@ final class CrashReportingService {
         let error = NSError(domain: domain, code: code, userInfo: info)
         crashlytics.record(error: error)
         
-        Log.network("Non-fatal error recorded: [\(domain):\(code)] \(message)", type: .error)
+        print("⚠️ [CrashReporting] Non-fatal error recorded: [\(domain):\(code)] \(message)")
     }
     
     /// Record a decoding error with context
@@ -402,18 +403,24 @@ extension CrashReportingService {
         // Determine domain and code based on error type
         if let appError = error as? AppError {
             switch appError {
-            case .networkError:
+            case .networkUnavailable:
                 domain = CrashDomain.network
                 code = CrashErrorCode.networkUnreachable
             case .unauthorized:
                 domain = CrashDomain.auth
                 code = CrashErrorCode.authInvalidToken
-            case .rateLimitExceeded:
+            case .rateLimitExceeded, .rateLimited:
                 domain = CrashDomain.network
                 code = CrashErrorCode.networkRateLimited
             case .notFound:
                 domain = CrashDomain.database
                 code = CrashErrorCode.dbNotFound
+            case .sessionExpired, .notAuthenticated, .authenticationRequired:
+                domain = CrashDomain.auth
+                code = CrashErrorCode.authExpiredSession
+            case .invalidCredentials:
+                domain = CrashDomain.auth
+                code = CrashErrorCode.authInvalidCredentials
             default:
                 domain = CrashDomain.database
                 code = CrashErrorCode.dbQueryFailed
