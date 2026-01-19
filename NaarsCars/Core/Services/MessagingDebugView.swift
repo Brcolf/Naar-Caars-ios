@@ -14,6 +14,7 @@ struct MessagingDebugView: View {
     @StateObject private var viewModel: MessagingDebugViewModel
     @State private var showingOperations = false
     @State private var showingCacheStats = false
+    @State private var showingDebugInfo = false
     
     init(conversationViewModel: ConversationsListViewModel) {
         _viewModel = StateObject(wrappedValue: MessagingDebugViewModel(conversationViewModel: conversationViewModel))
@@ -44,6 +45,17 @@ struct MessagingDebugView: View {
                 InfoRow(label: "Is Loading More", value: viewModel.isLoadingMore ? "Yes" : "No")
                 InfoRow(label: "Has More", value: viewModel.hasMore ? "Yes" : "No")
                 InfoRow(label: "Load Attempts", value: "\(viewModel.loadAttempts)")
+                
+                Button {
+                    showingDebugInfo = true
+                } label: {
+                    HStack {
+                        Text("View Detailed Info")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                    }
+                }
                 
                 if let error = viewModel.error {
                     VStack(alignment: .leading, spacing: 4) {
@@ -170,6 +182,26 @@ struct MessagingDebugView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingDebugInfo) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(viewModel.debugInfo)
+                            .font(.system(.caption, design: .monospaced))
+                            .padding()
+                    }
+                }
+                .navigationTitle("Debug Info")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            showingDebugInfo = false
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -205,6 +237,7 @@ final class MessagingDebugViewModel: ObservableObject {
     @Published var activeOperationsSummary: String = ""
     @Published var cachedDisplayNamesCount: Int = 0
     @Published var potentialRaceConditions: [String] = []
+    @Published var debugInfo: String = ""
     
     private let conversationViewModel: ConversationsListViewModel
     private let logger = MessagingLogger.shared
@@ -230,7 +263,7 @@ final class MessagingDebugViewModel: ObservableObject {
         if activeOperationsCount < 0 { activeOperationsCount = 0 }
         
         // Get conversation view model state
-        let debugInfo = await conversationViewModel.getDebugInfo()
+        debugInfo = conversationViewModel.getDebugInfo()
         conversationsCount = conversationViewModel.conversations.count
         isLoading = conversationViewModel.isLoading
         isLoadingMore = conversationViewModel.isLoadingMore
@@ -241,9 +274,9 @@ final class MessagingDebugViewModel: ObservableObject {
         let cachedIds = await ConversationDisplayNameCache.shared.getCachedConversationIds()
         cachedDisplayNamesCount = cachedIds.count
         
-        // Parse race condition warnings from debug info
-        potentialRaceConditions = debugInfo.components(separatedBy: "\n")
-            .filter { $0.contains("RACE CONDITION") }
+        // Parse race condition warnings from active operations
+        potentialRaceConditions = activeOperationsSummary.components(separatedBy: "\n")
+            .filter { $0.contains("RACE CONDITION") || $0.contains("POTENTIAL RACE") }
     }
     
     func resetStatistics() async {
@@ -258,10 +291,6 @@ final class MessagingDebugViewModel: ObservableObject {
     
     func exportDebugLog() {
         Task {
-            let debugInfo = await conversationViewModel.getDebugInfo()
-            let stats = await logger.getOperationStatistics()
-            let operations = await logger.getActiveOperationsSummary()
-            
             let fullLog = """
             ===== MESSAGING DEBUG LOG =====
             Generated: \(Date())
@@ -269,10 +298,10 @@ final class MessagingDebugViewModel: ObservableObject {
             \(debugInfo)
             
             === Operation Statistics ===
-            \(stats.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
+            \(await logger.getOperationStatistics().map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
             
             === Active Operations ===
-            \(operations)
+            \(activeOperationsSummary)
             
             ===== END DEBUG LOG =====
             """

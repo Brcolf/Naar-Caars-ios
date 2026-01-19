@@ -669,7 +669,7 @@ final class MessageService {
                 .execute()
             
             if let reactionsData = reactionsResponse?.data {
-                let reactions: [MessageReaction] = try? decoder.decode([MessageReaction].self, from: reactionsData) ?? []
+                let reactions: [MessageReaction] = (try? decoder.decode([MessageReaction].self, from: reactionsData)) ?? []
                 
                 // Group reactions by message ID
                 var reactionsDict: [UUID: [String: [UUID]]] = [:]
@@ -1080,6 +1080,5 @@ final class MessageService {
         return groupedReactions
     }
 }
-
 
 

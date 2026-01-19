@@ -135,5 +135,35 @@ final class ConversationsListViewModel: ObservableObject {
     private func handleConversationDelete(_ deletedConversation: Conversation) {
         conversations.removeAll { $0.conversation.id == deletedConversation.id }
     }
+    
+    // MARK: - Debug Support
+    
+    /// Get debug information about the current state
+    func getDebugInfo() -> String {
+        var info = """
+        === Conversations List Debug Info ===
+        Loaded Conversations: \(conversations.count)
+        Is Loading: \(isLoading)
+        Is Loading More: \(isLoadingMore)
+        Has More: \(hasMoreConversations)
+        Current Offset: \(currentOffset)
+        Page Size: \(pageSize)
+        """
+        
+        if let error = error {
+            info += "\nError: \(error.localizedDescription)"
+        }
+        
+        if !conversations.isEmpty {
+            info += "\n\nFirst 5 Conversations:"
+            for (index, conv) in conversations.prefix(5).enumerated() {
+                info += "\n  \(index + 1). ID: \(conv.conversation.id)"
+                info += "\n     Participants: \(conv.otherParticipants.count)"
+                info += "\n     Last Message: \(conv.lastMessage?.text.prefix(30) ?? "None")"
+            }
+        }
+        
+        return info
+    }
 }
 
