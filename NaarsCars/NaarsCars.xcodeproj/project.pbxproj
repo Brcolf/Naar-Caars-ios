@@ -78,6 +78,7 @@
 		A7C129D4E72D435D90261C7D /* ClaimServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFF9E7CFF1048A2835AC60F /* ClaimServiceTests.swift */; };
 		AABD5781380A404FB7CEC993 /* UI/Components/Common/RequestQAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B46A4F46EBC4F41B44382F7 /* UI/Components/Common/RequestQAView.swift */; };
 		ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD0A9CD93A24C578046DC46 /* Core/Services/RideService.swift */; };
+		AC279FFF2F1ECE0100E3B58F /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */; };
 		AC305EC52F0DB7890063AFDF /* NotificationsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EC02F0DB7890063AFDF /* NotificationsListViewModel.swift */; };
 		AC305EC62F0DB7890063AFDF /* NotificationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EC22F0DB7890063AFDF /* NotificationRow.swift */; };
 		AC305EC72F0DB7890063AFDF /* NotificationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EC32F0DB7890063AFDF /* NotificationsListView.swift */; };
@@ -380,6 +381,7 @@
 		A264E32BD8ED463AA1FC641D /* Core/Utilities/DeepLinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Utilities/DeepLinkParser.swift; sourceTree = "<group>"; };
 		A5BD6728D2674DDB93C700C3 /* TownHallPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPost.swift; sourceTree = "<group>"; };
 		A7517715836A495AAD05F791 /* UI/Components/Feedback/SkeletonFavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Feedback/SkeletonFavorCard.swift; sourceTree = "<group>"; };
+		AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		AC305EC02F0DB7890063AFDF /* NotificationsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListViewModel.swift; sourceTree = "<group>"; };
 		AC305EC22F0DB7890063AFDF /* NotificationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRow.swift; sourceTree = "<group>"; };
 		AC305EC32F0DB7890063AFDF /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
@@ -1269,6 +1271,7 @@
 		ACDCBE052F0B787000956D1C /* Styles */ = {
 			isa = PBXGroup;
 			children = (
+				AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */,
 				E50929D19BD346BFACB78B04 /* ColorTheme.swift */,
 				4146003AB84F48B6A6C253DF /* Typography.swift */,
 			);
@@ -1734,6 +1737,7 @@
 				AC305ED42F0DB79E0063AFDF /* FavorsDashboardView.swift in Sources */,
 				AC305ED52F0DB79E0063AFDF /* FavorDetailView.swift in Sources */,
 				AC305ED62F0DB79E0063AFDF /* FavorDetailViewModel.swift in Sources */,
+				AC279FFF2F1ECE0100E3B58F /* AppTheme.swift in Sources */,
 				AC305ED72F0DB79E0063AFDF /* CreateFavorViewModel.swift in Sources */,
 				4D869E20F203460F8918E0AA /* AvatarView.swift in Sources */,
 				74F10B329CDE4E56913B6098 /* UserAvatarLink.swift in Sources */,
@@ -2024,7 +2028,7 @@
 				CODE_SIGN_ENTITLEMENTS = NaarsCars/NaarsCarsDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WT4DGUYKL4;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;

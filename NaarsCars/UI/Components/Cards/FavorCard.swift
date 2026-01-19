@@ -85,7 +85,7 @@ struct FavorCard: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsCardBackground)
         .overlay(
             // Teal/blue accent border on the left for favors (complementary to red)
             Rectangle()
@@ -95,7 +95,7 @@ struct FavorCard: View {
             alignment: .leading
         )
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
     }
 }
 

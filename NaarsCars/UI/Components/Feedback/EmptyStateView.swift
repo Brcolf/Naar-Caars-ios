@@ -14,12 +14,22 @@ struct EmptyStateView: View {
     let message: String
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
+    /// Optional custom image name from assets (uses SF Symbol if nil)
+    var customImage: String? = nil
     
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
+            // Use custom image or SF Symbol
+            if let customImage = customImage {
+                Image(customImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 64))
+                    .foregroundColor(.secondary)
+            }
             
             Text(title)
                 .font(.naarsTitle3)
@@ -41,13 +51,22 @@ struct EmptyStateView: View {
     }
 }
 
-#Preview {
+#Preview("SF Symbol") {
     EmptyStateView(
         icon: "car.fill",
         title: "No Rides Available",
         message: "There are no ride requests at this time. Check back later!",
         actionTitle: "Refresh",
         action: {}
+    )
+}
+
+#Preview("Custom Image") {
+    EmptyStateView(
+        icon: "",
+        title: "No Rides Yet",
+        message: "Be the first to request or offer a ride in your community!",
+        customImage: "SupremeLeader"
     )
 }
 

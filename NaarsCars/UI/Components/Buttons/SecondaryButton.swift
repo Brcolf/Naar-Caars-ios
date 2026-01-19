@@ -19,10 +19,10 @@ struct SecondaryButton: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.clear)
-                .foregroundColor(isDisabled ? Color.gray : Color.naarsPrimary)
+                .foregroundColor(isDisabled ? Color.naarsDisabled : Color.naarsPrimary)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(isDisabled ? Color.gray : Color.naarsPrimary, lineWidth: 2)
+                        .stroke(isDisabled ? Color.naarsDisabled : Color.naarsPrimary, lineWidth: 2)
                 )
                 .cornerRadius(10)
         }

@@ -26,7 +26,7 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(isDisabled || isLoading ? Color.gray : Color.naarsPrimary)
+            .background(isDisabled || isLoading ? Color.naarsDisabled : Color.naarsPrimary)
             .foregroundColor(.white)
             .cornerRadius(10)
         }

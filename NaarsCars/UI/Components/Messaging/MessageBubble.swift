@@ -68,7 +68,7 @@ struct MessageBubble: View {
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 100, height: 100)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(.naarsTextTertiary)
                             @unknown default:
                                 EmptyView()
                             }

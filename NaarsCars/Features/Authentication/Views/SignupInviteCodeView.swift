@@ -23,17 +23,19 @@ struct SignupInviteCodeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Title
-                VStack(spacing: 8) {
-                    Text("Join Naar's Cars")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                // Full Logo with Red Car
+                VStack(spacing: 12) {
+                    Image("NaarsLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 240, maxHeight: 160)
+                        .accessibilityLabel("Naar's Cars - Community Ride Sharing")
                     
                     Text("Enter your invite code to get started")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                .padding(.top, 40)
+                .padding(.top, 20)
                 
                 // Invite code field
                 VStack(alignment: .leading, spacing: 4) {

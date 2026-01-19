@@ -242,6 +242,70 @@ struct SettingsView: View {
                     Text("Change the app's display language")
                         .font(.caption)
                 }
+                
+                // Appearance Section
+                Section {
+                    Picker(selection: $viewModel.selectedTheme) {
+                        ForEach(ThemeMode.allCases) { mode in
+                            Label(mode.displayName, systemImage: mode.iconName)
+                                .tag(mode)
+                        }
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Appearance")
+                                    .font(.body)
+                                Text(viewModel.selectedTheme.displayName)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: viewModel.selectedTheme.iconName)
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .onChange(of: viewModel.selectedTheme) { _, newValue in
+                        viewModel.updateTheme(newValue)
+                    }
+                } header: {
+                    Text("Display")
+                } footer: {
+                    Text("Choose how the app appears. System follows your device settings.")
+                        .font(.caption)
+                }
+                
+                // About Section with Supreme Leader
+                Section {
+                    VStack(spacing: 16) {
+                        // Supreme Leader Character
+                        Image("SupremeLeader")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 100)
+                            .accessibilityLabel("Naar's Cars Supreme Leader")
+                        
+                        // App Name and Tagline
+                        VStack(spacing: 4) {
+                            Text("app_name".localized)
+                                .font(.naarsTitle3)
+                                .fontWeight(.bold)
+                            
+                            Text("Driving People Crazy")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                        
+                        // Version
+                        Text("Version \(Bundle.main.appVersion)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                } header: {
+                    Text("About")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -310,10 +374,12 @@ final class SettingsViewModel: ObservableObject {
     @Published var isAppleLinked = false
     @Published var showLinkAppleAlert = false
     @Published var startAppleLinking = false
+    @Published var selectedTheme: ThemeMode = .system
     
     private let biometricService = BiometricService.shared
     private let biometricPreferences = BiometricPreferences.shared
     private let pushNotificationService = PushNotificationService.shared
+    private let themeManager = ThemeManager.shared
     
     func loadSettings() async {
         // Load biometric preferences
@@ -327,6 +393,9 @@ final class SettingsViewModel: ObservableObject {
         // Check if Apple ID is linked
         isAppleLinked = UserDefaults.standard.string(forKey: "appleUserIdentifier") != nil
         
+        // Load theme preference
+        selectedTheme = themeManager.currentTheme
+        
         // Load notification preferences from profile
         if let userId = AuthService.shared.currentUserId,
            let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
@@ -337,6 +406,10 @@ final class SettingsViewModel: ObservableObject {
             notifyQaActivity = profile.notifyQaActivity
             notifyReviewReminders = profile.notifyReviewReminders
         }
+    }
+    
+    func updateTheme(_ theme: ThemeMode) {
+        themeManager.setTheme(theme)
     }
     
     func handleBiometricsToggle(_ enabled: Bool) async {
