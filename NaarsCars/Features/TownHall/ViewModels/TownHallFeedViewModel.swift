@@ -33,8 +33,10 @@ final class TownHallFeedViewModel: ObservableObject {
     }
     
     deinit {
-        Task {
-            await unsubscribeFromPosts()
+        // Unsubscribe synchronously to avoid retain cycle
+        // Use detached task to prevent capturing self
+        Task.detached { [realtimeManager] in
+            await realtimeManager.unsubscribe(channelName: "town-hall-posts")
         }
     }
     
@@ -155,7 +157,8 @@ final class TownHallFeedViewModel: ObservableObject {
         }
     }
     
-    private func unsubscribeFromPosts() async {
+    /// Cleanup method for manual unsubscribe if needed
+    func cleanup() async {
         await realtimeManager.unsubscribe(channelName: "town-hall-posts")
     }
 }

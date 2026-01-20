@@ -117,14 +117,22 @@ struct MessageDetailsPopup: View {
                 UserSearchView(
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: participants.map { $0.id },
+                    actionButtonTitle: "Add",
                     onDismiss: {
-                        if !selectedUserIds.isEmpty {
-                            Task {
-                                await addParticipants(Array(selectedUserIds))
-                            }
-                        }
+                        print("🔍 [MessageDetailsPopup] UserSearchView dismissed with \(selectedUserIds.count) selected user(s)")
+                        // Capture the selected IDs BEFORE clearing to avoid race condition
+                        let idsToAdd = Array(selectedUserIds)
                         showAddParticipants = false
                         selectedUserIds = []
+                        
+                        if !idsToAdd.isEmpty {
+                            print("🔍 [MessageDetailsPopup] Will add user IDs: \(idsToAdd)")
+                            Task {
+                                await addParticipants(idsToAdd)
+                            }
+                        } else {
+                            print("ℹ️ [MessageDetailsPopup] No users selected, skipping participant addition")
+                        }
                     }
                 )
             }

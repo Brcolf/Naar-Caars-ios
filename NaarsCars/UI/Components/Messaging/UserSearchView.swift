@@ -13,6 +13,8 @@ import PostgREST
 struct UserSearchView: View {
     @Binding var selectedUserIds: Set<UUID>
     let excludeUserIds: [UUID] // Users to exclude from search (e.g., already in conversation)
+    let showExistingParticipants: Bool // Whether to show existing participants as selected (non-removable)
+    let actionButtonTitle: String // Title for the action button (default: "Done")
     let onDismiss: () -> Void
     
     @State private var searchText = ""
@@ -22,6 +24,20 @@ struct UserSearchView: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
     @Environment(\.dismiss) private var dismiss
+    
+    init(
+        selectedUserIds: Binding<Set<UUID>>,
+        excludeUserIds: [UUID],
+        showExistingParticipants: Bool = true,
+        actionButtonTitle: String = "Done",
+        onDismiss: @escaping () -> Void
+    ) {
+        self._selectedUserIds = selectedUserIds
+        self.excludeUserIds = excludeUserIds
+        self.showExistingParticipants = showExistingParticipants
+        self.actionButtonTitle = actionButtonTitle
+        self.onDismiss = onDismiss
+    }
     
     var body: some View {
         NavigationStack {
@@ -54,18 +70,29 @@ struct UserSearchView: View {
                     }
                 }
                 
-                // Selected users section (always visible at top if any selected)
-                if !selectedUserIds.isEmpty {
+                // Selected users section (always visible at top if any selected or existing participants)
+                if !selectedUserIds.isEmpty || (showExistingParticipants && !excludeUserIds.isEmpty) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Selected (\(selectedUserIds.count))")
+                        let totalCount = selectedUserIds.count + (showExistingParticipants ? excludeUserIds.count : 0)
+                        Text(showExistingParticipants && !excludeUserIds.isEmpty ? "Participants (\(totalCount))" : "Selected (\(selectedUserIds.count))")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
+                                // Show existing participants first (non-removable)
+                                if showExistingParticipants {
+                                    ForEach(excludeUserIds, id: \.self) { userId in
+                                        SelectedUserChip(userId: userId, isRemovable: false) {
+                                            // No-op for existing participants
+                                        }
+                                    }
+                                }
+                                
+                                // Show newly selected users (removable)
                                 ForEach(Array(selectedUserIds), id: \.self) { userId in
-                                    SelectedUserChip(userId: userId) {
+                                    SelectedUserChip(userId: userId, isRemovable: true) {
                                         selectedUserIds.remove(userId)
                                     }
                                 }
@@ -126,13 +153,15 @@ struct UserSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        print("🔍 [UserSearchView] Cancel tapped, clearing selections")
                         selectedUserIds.removeAll()
-                        dismiss()
+                        onDismiss()
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                    Button(actionButtonTitle) {
+                        print("🔍 [UserSearchView] \(actionButtonTitle) tapped with \(selectedUserIds.count) selected user(s)")
+                        onDismiss()
                     }
                     .disabled(selectedUserIds.isEmpty)
                 }
@@ -313,6 +342,7 @@ private struct SearchBar: View {
 /// Selected user chip component
 private struct SelectedUserChip: View {
     let userId: UUID
+    let isRemovable: Bool
     let onRemove: () -> Void
     
     @State private var profile: Profile?
@@ -335,15 +365,17 @@ private struct SelectedUserChip: View {
                     .scaleEffect(0.7)
             }
             
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
+            if isRemovable {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(Color(.systemGray5))
+        .background(isRemovable ? Color(.systemGray5) : Color(.systemGray6))
         .cornerRadius(16)
         .task {
             await loadProfile()

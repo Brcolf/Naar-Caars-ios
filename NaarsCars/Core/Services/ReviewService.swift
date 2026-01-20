@@ -205,7 +205,7 @@ final class ReviewService {
             throw AppError.invalidInput("Invalid image data")
         }
         
-        guard let compressedData = ImageCompressor.compress(uiImage, preset: .messageImage) else {
+        guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .messageImage) else {
             throw AppError.processingError("Failed to compress image")
         }
         

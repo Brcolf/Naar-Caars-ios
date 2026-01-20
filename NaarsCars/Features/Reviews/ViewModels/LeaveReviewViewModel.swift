@@ -63,7 +63,7 @@ final class LeaveReviewViewModel: ObservableObject {
                 isUploadingImage = true
                 defer { isUploadingImage = false }
                 
-                guard let compressedData = ImageCompressor.compress(reviewImage, preset: .messageImage) else {
+                guard let compressedData = await ImageCompressor.compressAsync(reviewImage, preset: .messageImage) else {
                     throw AppError.processingError("Failed to compress image")
                 }
                 imageData = compressedData

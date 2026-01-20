@@ -172,7 +172,7 @@ final class EditProfileViewModel: ObservableObject {
             }
             
             // Compress image using avatar preset
-            guard let compressedData = ImageCompressor.compress(uiImage, preset: .avatar) else {
+            guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .avatar) else {
                 error = AppError.processingError("Image too large. Please try a different photo.")
                 return
             }

@@ -8,6 +8,7 @@
 import Foundation
 import Supabase
 import UIKit
+import OSLog
 
 /// Service for message and conversation operations
 /// Handles fetching, sending messages, and managing conversations
@@ -40,11 +41,11 @@ final class MessageService {
     func fetchConversations(userId: UUID, limit: Int = 10, offset: Int = 0) async throws -> [ConversationWithDetails] {
         // Check cache first
         if let cached = await cacheManager.getCachedConversations(userId: userId), !cached.isEmpty {
-            print("✅ [MessageService] Cache hit for conversations. Returning \(cached.count) items.")
+            AppLogger.cache.debug("Cache hit for conversations. Returning \(cached.count) items.")
             return cached
         }
         
-        print("🔄 [MessageService] Cache miss for conversations. Fetching from network...")
+        AppLogger.cache.debug("Cache miss for conversations. Fetching from network...")
         
         do {
             // Get user's conversation IDs from conversation_participants
@@ -105,139 +106,185 @@ final class MessageService {
                 return []
             }
             
-            // For each conversation, get last message and unread count
-            var conversationsWithDetails: [ConversationWithDetails] = []
-            
-            for conversation in conversations {
-                // Get last message
-                let lastMessageResponse = try? await supabase
-                    .from("messages")
-                    .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
-                    .eq("conversation_id", value: conversation.id.uuidString)
-                    .order("created_at", ascending: false)
-                    .limit(1)
-                    .single()
-                    .execute()
-                
-                var lastMessage: Message? = nil
-                if let lastMessageData = lastMessageResponse?.data {
-                    // Use createDateDecoder() to properly handle date formats
-                    let decoder = createDateDecoder()
-                    lastMessage = try? decoder.decode(Message.self, from: lastMessageData)
-                }
-                
-                // Calculate unread count (messages not in readBy array)
-                let unreadResponse = try? await supabase
-                    .from("messages")
-                    .select("id")
-                    .eq("conversation_id", value: conversation.id.uuidString)
-                    .not("read_by", operator: .cs, value: userId.uuidString)
-                    .execute()
-                
-                struct MessageId: Codable {
-                    let id: UUID
-                }
-                
-                let unreadMessages: [MessageId] = (try? JSONDecoder().decode([MessageId].self, from: unreadResponse?.data ?? Data())) ?? []
-                let unreadCount = unreadMessages.count
-                
-                // Get other participants (excluding current user) with profile data
-                var otherParticipants: [Profile] = []
-                do {
-                    let participantsResponse = try await supabase
-                        .from("conversation_participants")
-                        .select("user_id, profiles(id, name, email, avatar_url, car, created_at)")
-                        .eq("conversation_id", value: conversation.id.uuidString)
-                        .neq("user_id", value: userId.uuidString)
-                        .execute()
-                    
-                    // Parse the nested structure from Supabase
-                    struct ParticipantRow: Codable {
-                        let userId: UUID
-                        let profiles: Profile?
-                        
-                        enum CodingKeys: String, CodingKey {
-                            case userId = "user_id"
-                            case profiles
-                        }
-                    }
-                    
-                    let decoder = createDateDecoder()
-                    let rows = try decoder.decode([ParticipantRow].self, from: participantsResponse.data)
-                    otherParticipants = rows.compactMap { $0.profiles }
-                } catch {
-                    print("⚠️ [MessageService] Error fetching participants for conversation \(conversation.id): \(error.localizedDescription)")
-                    print("⚠️ [MessageService] Full error: \(error)")
-                    
-                    // Log raw response for debugging
-                    if let participantsResponse = try? await supabase
-                        .from("conversation_participants")
-                        .select("user_id, profiles(id, name, email, avatar_url, car, created_at)")
-                        .eq("conversation_id", value: conversation.id.uuidString)
-                        .neq("user_id", value: userId.uuidString)
-                        .execute(),
-                       let jsonString = String(data: participantsResponse.data, encoding: .utf8) {
-                        print("⚠️ [MessageService] Raw response: \(jsonString.prefix(500))")
-                    }
-                    
-                    // Fallback: fetch profiles separately if join fails
-                    do {
-                        let userIdsResponse = try? await supabase
-                            .from("conversation_participants")
-                            .select("user_id")
-                            .eq("conversation_id", value: conversation.id.uuidString)
-                            .neq("user_id", value: userId.uuidString)
-                            .execute()
-                        
-                        if let userIdsData = userIdsResponse?.data {
-                            struct ParticipantUserId: Codable {
-                                let userId: UUID
-                                enum CodingKeys: String, CodingKey {
-                                    case userId = "user_id"
-                                }
-                            }
-                            
-                            let userIdRows = try JSONDecoder().decode([ParticipantUserId].self, from: userIdsData)
-                            
-                            // Fetch profiles individually
-                            for row in userIdRows {
-                                if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
-                                    otherParticipants.append(profile)
-                                }
-                            }
-                        }
-                    } catch {
-                        print("⚠️ [MessageService] Error in fallback participant fetch: \(error.localizedDescription)")
+            // Fetch details for all conversations in parallel to avoid N+1 query problem
+            // This significantly improves performance when loading multiple conversations
+            let conversationsWithDetails = await withTaskGroup(of: ConversationWithDetails?.self) { group in
+                for conversation in conversations {
+                    group.addTask { [supabase] in
+                        await self.fetchConversationDetails(
+                            conversation: conversation,
+                            userId: userId,
+                            supabase: supabase
+                        )
                     }
                 }
                 
-                let details = ConversationWithDetails(
-                    conversation: conversation,
-                    lastMessage: lastMessage,
-                    unreadCount: unreadCount,
-                    otherParticipants: otherParticipants
-                )
-                conversationsWithDetails.append(details)
+                var results: [ConversationWithDetails] = []
+                for await result in group {
+                    if let details = result {
+                        results.append(details)
+                    }
+                }
+                
+                // Sort by updated_at (most recent first) to maintain order after parallel fetch
+                return results.sorted { $0.conversation.updatedAt > $1.conversation.updatedAt }
             }
             
             // Cache results
             await cacheManager.cacheConversations(userId: userId, conversationsWithDetails)
             
-            print("✅ [MessageService] Fetched \(conversationsWithDetails.count) conversations from network.")
+            AppLogger.network.info("Fetched \(conversationsWithDetails.count) conversations from network.")
             return conversationsWithDetails
             
         } catch {
             // Handle RLS recursion error gracefully
             let errorString = String(describing: error).lowercased()
             if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                print("⚠️ [MessageService] RLS policy recursion detected. Returning empty conversations.")
-                print("   This is a database-level issue. Fix the RLS policy in Supabase.")
-                print("   The policy on 'conversation_participants' should not reference itself.")
+                AppLogger.database.warning("RLS policy recursion detected. Returning empty conversations.")
                 await cacheManager.cacheConversations(userId: userId, [])
                 return []
             }
             // Re-throw other errors
             throw error
+        }
+    }
+    
+    /// Fetch details for a single conversation (last message, unread count, participants)
+    /// Used by fetchConversations to parallelize queries
+    /// - Parameters:
+    ///   - conversation: The conversation to fetch details for
+    ///   - userId: The current user ID
+    ///   - supabase: The Supabase client
+    /// - Returns: ConversationWithDetails or nil if fetch fails
+    private func fetchConversationDetails(
+        conversation: Conversation,
+        userId: UUID,
+        supabase: SupabaseClient
+    ) async -> ConversationWithDetails? {
+        // Fetch last message, unread count, and participants in parallel
+        async let lastMessageTask = fetchLastMessage(conversationId: conversation.id, supabase: supabase)
+        async let unreadCountTask = fetchUnreadCount(conversationId: conversation.id, userId: userId, supabase: supabase)
+        async let participantsTask = fetchOtherParticipants(conversationId: conversation.id, userId: userId, supabase: supabase)
+        
+        let (lastMessage, unreadCount, otherParticipants) = await (lastMessageTask, unreadCountTask, participantsTask)
+        
+        return ConversationWithDetails(
+            conversation: conversation,
+            lastMessage: lastMessage,
+            unreadCount: unreadCount,
+            otherParticipants: otherParticipants
+        )
+    }
+    
+    /// Fetch the last message for a conversation
+    private func fetchLastMessage(conversationId: UUID, supabase: SupabaseClient) async -> Message? {
+        do {
+            let response = try await supabase
+                .from("messages")
+                .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .order("created_at", ascending: false)
+                .limit(1)
+                .single()
+                .execute()
+            
+            let decoder = createDateDecoder()
+            return try? decoder.decode(Message.self, from: response.data)
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Fetch unread message count for a conversation
+    private func fetchUnreadCount(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> Int {
+        struct MessageId: Codable {
+            let id: UUID
+        }
+        
+        do {
+            let response = try await supabase
+                .from("messages")
+                .select("id")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .not("read_by", operator: .cs, value: userId.uuidString)
+                .execute()
+            
+            let unreadMessages = try? JSONDecoder().decode([MessageId].self, from: response.data)
+            return unreadMessages?.count ?? 0
+        } catch {
+            return 0
+        }
+    }
+    
+    /// Fetch other participants for a conversation (excluding current user)
+    private func fetchOtherParticipants(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> [Profile] {
+        struct ParticipantRow: Codable {
+            let userId: UUID
+            let profiles: Profile?
+            
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case profiles
+            }
+        }
+        
+        do {
+            let response = try await supabase
+                .from("conversation_participants")
+                .select("user_id, profiles(id, name, email, avatar_url, car, phone_number, is_admin, approved, invited_by, notify_ride_updates, notify_messages, notify_announcements, notify_new_requests, notify_qa_activity, notify_review_reminders, guidelines_accepted, guidelines_accepted_at, created_at, updated_at)")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .neq("user_id", value: userId.uuidString)
+                .execute()
+            
+            let decoder = createDateDecoder()
+            let rows = try decoder.decode([ParticipantRow].self, from: response.data)
+            return rows.compactMap { $0.profiles }
+        } catch {
+            AppLogger.database.warning("Error fetching participants for conversation \(conversationId): \(error.localizedDescription)")
+            
+            // Fallback: fetch profiles separately if join fails
+            return await fetchParticipantsFallback(conversationId: conversationId, userId: userId, supabase: supabase)
+        }
+    }
+    
+    /// Fallback method to fetch participants when join fails
+    private func fetchParticipantsFallback(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> [Profile] {
+        struct ParticipantUserId: Codable {
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+            }
+        }
+        
+        do {
+            let response = try await supabase
+                .from("conversation_participants")
+                .select("user_id")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .neq("user_id", value: userId.uuidString)
+                .execute()
+            
+            let userIdRows = try JSONDecoder().decode([ParticipantUserId].self, from: response.data)
+            
+            // Fetch profiles in parallel
+            return await withTaskGroup(of: Profile?.self) { group in
+                for row in userIdRows {
+                    group.addTask {
+                        try? await ProfileService.shared.fetchProfile(userId: row.userId)
+                    }
+                }
+                
+                var profiles: [Profile] = []
+                for await profile in group {
+                    if let profile = profile {
+                        profiles.append(profile)
+                    }
+                }
+                return profiles
+            }
+        } catch {
+            AppLogger.database.warning("Error in fallback participant fetch: \(error.localizedDescription)")
+            return []
         }
     }
     
@@ -301,7 +348,7 @@ final class MessageService {
                     if let convData = conversationResponse?.data {
                         let decoder = createDateDecoder()
                         if let existing = try? decoder.decode(Conversation.self, from: convData) {
-                            print("✅ [MessageService] Found existing DM conversation: \(existing.id)")
+                            AppLogger.database.debug("Found existing DM conversation: \(existing.id)")
                             return existing
                         }
                     }
@@ -353,15 +400,12 @@ final class MessageService {
             conversation = try decoder.decode(Conversation.self, from: response.data)
         } catch {
             // Log the full error for debugging
-            print("🔴 [MessageService] Error creating conversation: \(error)")
-            print("   Error type: \(type(of: error))")
-            print("   Error description: \(error.localizedDescription)")
+            AppLogger.database.error("Error creating conversation: \(error.localizedDescription)")
             
             // Check if this is an RLS recursion error
             let errorString = String(describing: error).lowercased()
             if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                print("⚠️ [MessageService] RLS recursion detected when creating conversation.")
-                print("   This is a database-level issue. Fix the RLS policy in Supabase.")
+                AppLogger.database.error("RLS recursion detected when creating conversation.")
                 // Re-throw as AppError for better user experience
                 throw AppError.serverError("Cannot create conversation due to database policy issue. Please contact support.")
             }
@@ -382,20 +426,17 @@ final class MessageService {
                 .from("conversation_participants")
                 .insert(participantInserts)
                 .execute()
-            print("✅ [MessageService] Created conversation with \(userIds.count) participant(s)")
+            AppLogger.database.info("Created conversation with \(userIds.count) participant(s)")
         } catch {
             // Handle RLS recursion error - check multiple error formats
             let errorString = String(describing: error).lowercased()
             if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                print("⚠️ [MessageService] RLS policy recursion when creating participants.")
-                print("   This is a database-level issue. Fix the RLS policy in Supabase.")
-                print("   Conversation created successfully, but participants were not added.")
+                AppLogger.database.warning("RLS policy recursion when creating participants.")
                 // Still return the conversation - it was created successfully
                 // Participants will need to be added after RLS policy is fixed
             } else {
                 // For other errors, log but don't throw - conversation was created
-                print("⚠️ [MessageService] Error adding participants: \(error.localizedDescription)")
-                print("   Conversation created successfully, but participants may not have been added.")
+                AppLogger.database.warning("Error adding participants: \(error.localizedDescription)")
             }
         }
         
@@ -416,9 +457,19 @@ final class MessageService {
         addedBy: UUID,
         createAnnouncement: Bool = false
     ) async throws {
-        guard !userIds.isEmpty else { return }
+        print("📥 [MessageService] addParticipantsToConversation called")
+        print("   Conversation ID: \(conversationId)")
+        print("   User IDs to add: \(userIds)")
+        print("   Added by: \(addedBy)")
+        print("   Create announcement: \(createAnnouncement)")
+        
+        guard !userIds.isEmpty else {
+            print("⚠️ [MessageService] No user IDs provided, returning early")
+            return
+        }
         
         // Get conversation to check permissions
+        print("🔍 [MessageService] Fetching conversation details...")
         let conversationResponse = try await supabase
             .from("conversations")
             .select("id, title, created_by")
@@ -435,6 +486,7 @@ final class MessageService {
         }
         
         let conversationInfo = try JSONDecoder().decode(ConversationInfo.self, from: conversationResponse.data)
+        print("✅ [MessageService] Conversation found, created by: \(conversationInfo.createdBy)")
         
         // Check if addedBy has permission to add participants
         // They can add if:
@@ -443,8 +495,10 @@ final class MessageService {
         var canAdd = false
         
         if conversationInfo.createdBy == addedBy {
+            print("✅ [MessageService] User is conversation creator, has permission")
             canAdd = true
         } else {
+            print("🔍 [MessageService] User is not creator, checking if they are a participant...")
             // Check if addedBy is a participant (using simple query that won't recurse)
             let participantCheck = try? await supabase
                 .from("conversation_participants")
@@ -455,11 +509,15 @@ final class MessageService {
                 .execute()
             
             if let data = participantCheck?.data, !data.isEmpty {
+                print("✅ [MessageService] User is a participant, has permission")
                 canAdd = true
+            } else {
+                print("❌ [MessageService] User is not a participant")
             }
         }
         
         guard canAdd else {
+            print("🔴 [MessageService] Permission denied: user cannot add participants")
             throw AppError.permissionDenied("You don't have permission to add participants to this conversation")
         }
         
@@ -479,12 +537,15 @@ final class MessageService {
         }
         
         let existingParticipants: [UUID] = (try? JSONDecoder().decode([ParticipantRow].self, from: existingResponse?.data ?? Data()))?.map { $0.userId } ?? []
+        print("🔍 [MessageService] Existing participants: \(existingParticipants.count)")
         
         // Filter out users who are already participants
         let newUserIds = userIds.filter { !existingParticipants.contains($0) }
+        print("🔍 [MessageService] New users to add (after filtering): \(newUserIds.count)")
         
         guard !newUserIds.isEmpty else {
-            print("ℹ️ [MessageService] All users are already participants")
+            print("ℹ️ [MessageService] All users are already participants, nothing to add")
+            AppLogger.database.debug("All users are already participants")
             return
         }
         
@@ -496,13 +557,16 @@ final class MessageService {
             ]
         }
         
+        print("📤 [MessageService] Inserting \(newUserIds.count) new participant(s)...")
         try await supabase
             .from("conversation_participants")
             .insert(inserts)
             .execute()
+        print("✅ [MessageService] Successfully inserted participants")
         
         // Create announcement messages if requested
         if createAnnouncement {
+            print("📢 [MessageService] Creating announcement messages...")
             // Get profile of added user(s) for announcement
             for userId in newUserIds {
                 if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
@@ -520,7 +584,7 @@ final class MessageService {
                             .insert(announcement)
                             .execute()
                     } catch {
-                        print("⚠️ [MessageService] Failed to create announcement message: \(error.localizedDescription)")
+                        AppLogger.database.warning("Failed to create announcement message: \(error.localizedDescription)")
                     }
                 }
             }
@@ -533,7 +597,7 @@ final class MessageService {
         await cacheManager.invalidateConversations(userId: addedBy)
         await cacheManager.invalidateMessages(conversationId: conversationId)
         
-        print("✅ [MessageService] Added \(newUserIds.count) participant(s) to conversation \(conversationId)")
+        AppLogger.database.info("Added \(newUserIds.count) participant(s) to conversation \(conversationId)")
     }
     
     
@@ -611,11 +675,11 @@ final class MessageService {
         }
         // Check cache first
         if let cached = await cacheManager.getCachedMessages(conversationId: conversationId), !cached.isEmpty {
-            print("✅ [MessageService] Cache hit for messages. Returning \(cached.count) items.")
+            AppLogger.cache.debug("Cache hit for messages. Returning \(cached.count) items.")
             return cached
         }
         
-        print("🔄 [MessageService] Cache miss for messages. Fetching from network...")
+        AppLogger.cache.debug("Cache miss for messages. Fetching from network...")
         
         var query = supabase
             .from("messages")
@@ -700,7 +764,7 @@ final class MessageService {
             await cacheManager.cacheMessages(conversationId: conversationId, messages)
         }
         
-        print("✅ [MessageService] Fetched \(messages.count) messages from network.")
+        AppLogger.network.info("Fetched \(messages.count) messages from network.")
         return messages
     }
     
@@ -717,7 +781,7 @@ final class MessageService {
             throw AppError.invalidInput("Invalid image data")
         }
         
-        guard let compressedData = ImageCompressor.compress(uiImage, preset: .messageImage) else {
+        guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .messageImage) else {
             throw AppError.processingError("Failed to compress image")
         }
         
@@ -808,9 +872,9 @@ final class MessageService {
         } catch {
             // Log the raw response for debugging
             if let jsonString = String(data: response.data, encoding: .utf8) {
-                print("🔴 [MessageService] Failed to decode message. Raw JSON: \(jsonString)")
+                AppLogger.database.error("Failed to decode message. Raw JSON: \(jsonString.prefix(200))")
             }
-            print("🔴 [MessageService] Decoding error: \(error)")
+            AppLogger.database.error("Decoding error: \(error)")
             // Try decoding again (might work if error was transient)
             message = try decoder.decode(Message.self, from: response.data)
         }
@@ -826,7 +890,7 @@ final class MessageService {
         await cacheManager.invalidateMessages(conversationId: conversationId)
         await cacheManager.invalidateConversations(userId: fromId)
         
-        print("✅ [MessageService] Sent message: \(message.id)")
+        AppLogger.database.info("Sent message: \(message.id)")
         return message
     }
     
@@ -878,7 +942,7 @@ final class MessageService {
         await cacheManager.invalidateMessages(conversationId: conversationId)
         await cacheManager.invalidateConversations(userId: userId)
         
-        print("✅ [MessageService] Marked messages as read for conversation \(conversationId)")
+        AppLogger.database.debug("Marked messages as read for conversation \(conversationId)")
     }
     
     /// Update last_seen timestamp for a user in a conversation
@@ -899,7 +963,7 @@ final class MessageService {
             .eq("user_id", value: userId.uuidString)
             .execute()
         
-        print("✅ [MessageService] Updated last_seen for user \(userId) in conversation \(conversationId)")
+        AppLogger.database.debug("Updated last_seen for user \(userId) in conversation \(conversationId)")
     }
     
     /// Update conversation title (for group conversations)
@@ -945,7 +1009,7 @@ final class MessageService {
         // Invalidate caches
         await cacheManager.invalidateConversations(userId: userId)
         
-        print("✅ [MessageService] Updated conversation title: \(title ?? "nil")")
+        AppLogger.database.info("Updated conversation title")
     }
     
     // MARK: - Message Reactions
@@ -1007,7 +1071,7 @@ final class MessageService {
         // Invalidate message cache
         await cacheManager.invalidateMessages(conversationId: messageConv.conversationId)
         
-        print("✅ [MessageService] Added reaction \(reaction) to message \(messageId)")
+        AppLogger.database.debug("Added reaction \(reaction) to message \(messageId)")
     }
     
     /// Remove a reaction from a message
@@ -1052,7 +1116,7 @@ final class MessageService {
             await cacheManager.invalidateMessages(conversationId: conversationId)
         }
         
-        print("✅ [MessageService] Removed reaction from message \(messageId)")
+        AppLogger.database.debug("Removed reaction from message \(messageId)")
     }
     
     /// Fetch reactions for a message

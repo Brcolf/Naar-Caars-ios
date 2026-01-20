@@ -216,6 +216,8 @@ naars-cars-ios/
 | `docs/QA/QA-RUNNER-INSTRUCTIONS.md` | Cursor-specific QA guide |
 | `SECURITY.md` | Security requirements and RLS policies |
 | `PRIVACY-DISCLOSURES.md` | Privacy requirements for App Store |
+| `Legal/PRIVACY_POLICY.md` | Draft Privacy Policy (must be hosted for App Store submission) |
+| `Legal/TERMS_OF_SERVICE.md` | Draft Terms of Service (must be hosted and linked in-app) |
 
 ### Understanding the Task System
 

@@ -110,7 +110,7 @@ final class CreatePostViewModel: ObservableObject {
         }
         
         // Compress image using messageImage preset (500KB max, 1200px max dimension)
-        guard let imageData = ImageCompressor.compress(image, preset: .messageImage) else {
+        guard let imageData = await ImageCompressor.compressAsync(image, preset: .messageImage) else {
             throw AppError.invalidInput("Image is too large to compress. Please select a smaller image or try a different photo.")
         }
         

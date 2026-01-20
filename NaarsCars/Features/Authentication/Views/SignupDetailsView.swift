@@ -126,6 +126,23 @@ struct SignupDetailsView: View {
                     .multilineTextAlignment(.center)
             }
             
+            // Terms and Privacy notice
+            VStack(spacing: 4) {
+                Text("By creating an account, you agree to our")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Link("Terms of Service", destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Terms-of-Service-2ee7d642e90c8005ae63d8731e3d50f5")!)
+                        .font(.caption)
+                    Text("and")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Link("Privacy Policy", destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc")!)
+                        .font(.caption)
+                }
+            }
+            .padding(.horizontal)
+            
             // Sign up button
             VStack(spacing: 12) {
                 PrimaryButton(
@@ -133,29 +150,15 @@ struct SignupDetailsView: View {
                     action: {
                         Task {
                             do {
-                                print("🔍 [SignupDetailsView] Starting signup process...")
-                                print("🔍 [SignupDetailsView] Email: \(viewModel.email)")
-                                print("🔍 [SignupDetailsView] Name: \(viewModel.name)")
-                                
                                 try await viewModel.signUp()
-                                print("✅ [SignupDetailsView] Signup completed successfully")
                                 
                                 // Small delay to ensure auth state is updated in Supabase
                                 try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
                                 
                                 // Success - trigger AppLaunchManager to check auth state
                                 // This will automatically show PendingApprovalView if user is not approved
-                                print("🔍 [SignupDetailsView] Triggering AppLaunchManager to check auth state...")
                                 await AppLaunchManager.shared.performCriticalLaunch()
-                                print("✅ [SignupDetailsView] AppLaunchManager completed")
-                                print("🔍 [SignupDetailsView] Current state: \(AppLaunchManager.shared.state.id)")
                             } catch {
-                                print("🔴 [SignupDetailsView] Signup failed: \(error.localizedDescription)")
-                                print("🔴 [SignupDetailsView] Error type: \(type(of: error))")
-                                if let nsError = error as NSError? {
-                                    print("🔴 [SignupDetailsView] Error domain: \(nsError.domain), code: \(nsError.code)")
-                                    print("🔴 [SignupDetailsView] Error userInfo: \(nsError.userInfo)")
-                                }
                                 // Error handled by viewModel.errorMessage
                                 let generator = UINotificationFeedbackGenerator()
                                 generator.notificationOccurred(.error)

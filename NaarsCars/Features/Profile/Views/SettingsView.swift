@@ -374,6 +374,42 @@ struct SettingsView: View {
                                 .foregroundColor(.accentColor)
                         }
                     }
+                    
+                    // Privacy Policy Link
+                    Link(destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc")!) {
+                        Label {
+                            HStack {
+                                Text("Privacy Policy")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "hand.raised")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    
+                    // Terms of Service Link
+                    Link(destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Terms-of-Service-2ee7d642e90c8005ae63d8731e3d50f5")!) {
+                        Label {
+                            HStack {
+                                Text("Terms of Service")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "doc.plaintext")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
                 } header: {
                     Text("About")
                 }

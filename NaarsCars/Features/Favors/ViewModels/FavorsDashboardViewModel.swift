@@ -32,6 +32,15 @@ final class FavorsDashboardViewModel: ObservableObject {
     private let authService = AuthService.shared
     private let realtimeManager = RealtimeManager.shared
     
+    // MARK: - Lifecycle
+    
+    deinit {
+        // Use Task.detached to clean up subscriptions without capturing self
+        Task.detached {
+            await RealtimeManager.shared.unsubscribe(channelName: "favors-dashboard")
+        }
+    }
+    
     // MARK: - Public Methods
     
     /// Load favors based on current filter

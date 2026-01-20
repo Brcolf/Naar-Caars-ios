@@ -43,7 +43,25 @@ enum ImagePreset {
 
 /// Utility for compressing images to meet size and dimension requirements
 struct ImageCompressor {
-    /// Compress an image using the specified preset
+    
+    /// Compress an image asynchronously using the specified preset
+    /// Performs compression on a background thread to avoid blocking the UI
+    /// - Parameters:
+    ///   - image: The UIImage to compress
+    ///   - preset: The compression preset to use
+    /// - Returns: Compressed image data as JPEG, or nil if compression fails
+    static func compressAsync(_ image: UIImage, preset: ImagePreset) async -> Data? {
+        // Perform compression on a background thread
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = compress(image, preset: preset)
+                continuation.resume(returning: result)
+            }
+        }
+    }
+    
+    /// Compress an image using the specified preset (synchronous)
+    /// Note: Prefer `compressAsync` for UI contexts to avoid blocking the main thread
     /// - Parameters:
     ///   - image: The UIImage to compress
     ///   - preset: The compression preset to use

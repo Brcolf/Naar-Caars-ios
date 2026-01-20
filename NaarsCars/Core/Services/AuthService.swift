@@ -7,6 +7,7 @@
 
 import Foundation
 import Supabase
+import OSLog
 internal import Combine
 
 /// Service for managing user authentication and session state
@@ -82,7 +83,7 @@ final class AuthService: ObservableObject {
             }
         } catch {
             // Handle network failures and database errors
-            print("🔴 Error checking auth status: \(error.localizedDescription)")
+            AppLogger.auth.error("Error checking auth status: \(error.localizedDescription)")
             currentUserId = nil
             currentProfile = nil
             return .unauthenticated
@@ -127,9 +128,9 @@ final class AuthService: ObservableObject {
                     isApproved: profile.approved,
                     isAdmin: profile.isAdmin
                 )
-                print("✅ Sign in successful for user: \(email), approved: \(profile.approved)")
+                AppLogger.auth.info("Sign in successful for user: \(email), approved: \(profile.approved)")
             } else {
-                print("⚠️ Sign in successful but profile not found for user: \(email)")
+                AppLogger.auth.warning("Sign in successful but profile not found for user: \(email)")
             }
             
             CrashReportingService.shared.logAction("sign_in_success")
@@ -196,7 +197,7 @@ final class AuthService: ObservableObject {
             // - Bulk codes: Create tracking record (bulk code remains active for other users)
             try await InviteService.shared.markInviteCodeAsUsed(inviteCode: validatedInviteCode, userId: userId)
             
-            print("✅ Sign up successful for user: \(email)")
+            AppLogger.auth.info("Sign up successful for user: \(email)")
         } catch {
             // Handle errors with appropriate AppError types
             let errorMessage = error.localizedDescription.lowercased()
@@ -285,15 +286,15 @@ final class AuthService: ObservableObject {
                     .update(profileUpdate)
                     .eq("id", value: userIdString)
                     .execute()
-                print("✅ Auth: Updated existing profile for user: \(userId)")
+                AppLogger.auth.info("Updated existing profile for user: \(userId)")
             } catch let updateError {
                 // Profile doesn't exist, insert it
-                print("⚠️ Auth: Profile update failed (may not exist), trying insert: \(updateError.localizedDescription)")
+                AppLogger.auth.debug("Profile update failed (may not exist), trying insert: \(updateError.localizedDescription)")
                 try await supabase.client
                     .from("profiles")
                     .insert(profileUpdate)
                     .execute()
-                print("✅ Auth: Created new profile for user: \(userId)")
+                AppLogger.auth.info("Created new profile for user: \(userId)")
             }
             
             // 4. Mark invite code as used (or create tracking record for bulk codes)
@@ -311,14 +312,14 @@ final class AuthService: ObservableObject {
                 currentUserId = userId
             }
             
-            print("✅ Auth: User signed up successfully: \(email)")
+            AppLogger.auth.info("User signed up successfully: \(email)")
             
         } catch {
             // Log detailed error for debugging
-            print("🔴 Auth: Signup failed for \(email): \(error.localizedDescription)")
+            AppLogger.auth.error("Signup failed for \(email): \(error.localizedDescription)")
             if let nsError = error as NSError? {
-                print("🔴 Auth: Error domain: \(nsError.domain), code: \(nsError.code)")
-                print("🔴 Auth: Error userInfo: \(nsError.userInfo)")
+                AppLogger.auth.debug("Error domain: \(nsError.domain), code: \(nsError.code)")
+                AppLogger.auth.debug("Error userInfo: \(nsError.userInfo)")
             }
             
             // Handle specific Supabase errors
@@ -331,7 +332,7 @@ final class AuthService: ObservableObject {
                 
                 // Check for RLS policy errors
                 if errorMessage.contains("row-level security") || errorMessage.contains("policy") {
-                    print("🔴 Auth: RLS policy error detected - check database policies")
+                    AppLogger.auth.error("RLS policy error detected - check database policies")
                     throw AppError.unknown("Account creation failed. Please contact support.")
                 }
             }
@@ -362,10 +363,10 @@ final class AuthService: ObservableObject {
             // and notification is posted (in case auth state listener doesn't fire immediately)
             await handleSignOut()
             
-            print("✅ Auth: User signed out successfully")
+            AppLogger.auth.info("User signed out successfully")
         } catch {
             // Even if sign out fails, clear local state and post notification
-            print("⚠️ Error during sign out: \(error.localizedDescription)")
+            AppLogger.auth.warning("Error during sign out: \(error.localizedDescription)")
             await handleSignOut()
             throw AppError.processingError(error.localizedDescription)
         }
@@ -386,11 +387,11 @@ final class AuthService: ObservableObject {
             )
             
             // Always show success message regardless of email existence (prevent enumeration)
-            print("✅ Password reset email sent (or would be sent if email exists)")
+            AppLogger.auth.info("Password reset email sent (or would be sent if email exists)")
         } catch {
             // Catch and ignore errors - never reveal if email exists
             // This prevents email enumeration attacks
-            print("⚠️ Password reset requested for: \(email) (error hidden for security)")
+            AppLogger.auth.debug("Password reset requested for: \(email) (error hidden for security)")
             // Don't throw error - always show success message to user
         }
     }
@@ -427,7 +428,7 @@ final class AuthService: ObservableObject {
         // - Tracking records have bulkCodeId set and different code format, so they won't match this query
         // Note: Tracking records use format "ORIGINALCODE-UUID", so they won't match the original code anyway
         do {
-            print("🔍 [AuthService] Validating invite code: \(normalized)")
+            AppLogger.auth.debug("Validating invite code: \(normalized)")
             let response = try await supabase.client
                 .from("invite_codes")
                 .select()
@@ -436,12 +437,14 @@ final class AuthService: ObservableObject {
                 .single()
                 .execute()
             
-            print("✅ [AuthService] Found invite code in database")
+            AppLogger.auth.debug("Found invite code in database")
             
-            // Log raw JSON for debugging
+            // Log raw JSON for debugging (only in DEBUG mode)
+            #if DEBUG
             if let jsonString = String(data: response.data, encoding: .utf8) {
-                print("📄 [AuthService] Raw JSON response: \(jsonString.prefix(500))")
+                AppLogger.auth.debug("Raw JSON response: \(jsonString.prefix(500))")
             }
+            #endif
             
             // 5. Decode InviteCode - use custom decoder with date handling for Supabase ISO8601 format
             let decoder = createInviteCodeDecoder()
@@ -449,39 +452,39 @@ final class AuthService: ObservableObject {
             do {
                 inviteCode = try decoder.decode(InviteCode.self, from: response.data)
             } catch let decodingError as DecodingError {
-                print("❌ [AuthService] Decoding error details:")
+                #if DEBUG
+                AppLogger.auth.error("Decoding error details:")
                 switch decodingError {
                 case .typeMismatch(let type, let context):
-                    print("   Type mismatch: Expected \(type), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
-                    print("   Context: \(context.debugDescription)")
+                    AppLogger.auth.error("Type mismatch: Expected \(type), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
                 case .valueNotFound(let type, let context):
-                    print("   Value not found: \(type), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                    AppLogger.auth.error("Value not found: \(type), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
                 case .keyNotFound(let key, let context):
-                    print("   Key not found: \(key.stringValue), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                    AppLogger.auth.error("Key not found: \(key.stringValue), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
                 case .dataCorrupted(let context):
-                    print("   Data corrupted at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
-                    print("   Context: \(context.debugDescription)")
+                    AppLogger.auth.error("Data corrupted at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
                 @unknown default:
-                    print("   Unknown decoding error: \(decodingError)")
+                    AppLogger.auth.error("Unknown decoding error: \(decodingError)")
                 }
+                #endif
                 throw decodingError
             }
             
-            print("🔍 [AuthService] Decoded invite code: code=\(inviteCode.code), isBulk=\(inviteCode.isBulk), usedBy=\(String(describing: inviteCode.usedBy)), expiresAt=\(String(describing: inviteCode.expiresAt)), bulkCodeId=\(String(describing: inviteCode.bulkCodeId))")
+            AppLogger.auth.debug("Decoded invite code: code=\(inviteCode.code), isBulk=\(inviteCode.isBulk)")
             
             // 6. Check expiration
             // Non-bulk codes (expiresAt == nil): Never expire - only check if used (already filtered by used_by IS NULL)
             // Bulk codes (expiresAt != nil): Check if expired (48 hours from creation)
             if inviteCode.isExpired {
                 // Code is expired (only bulk codes can expire) - return same error (prevent enumeration)
-                print("⚠️ [AuthService] Invite code expired: \(normalized) (expiresAt: \(String(describing: inviteCode.expiresAt)))")
+                AppLogger.auth.debug("Invite code expired: \(normalized)")
                 throw AppError.invalidInviteCode
             }
             
             // 7. Additional validation: Non-bulk codes should never expire
             // This is a data consistency check
             if !inviteCode.isBulk && inviteCode.expiresAt != nil {
-                print("⚠️ [AuthService] Non-bulk code has expiresAt set - treating as valid (data inconsistency)")
+                AppLogger.auth.warning("Non-bulk code has expiresAt set - treating as valid (data inconsistency)")
             }
             
             // 8. Validate that the code is actually active (additional safety check)
@@ -489,18 +492,18 @@ final class AuthService: ObservableObject {
             // We've already filtered by used_by IS NULL, so isUsed should be false
             // We've already checked expiration above
             if !inviteCode.isActive {
-                print("⚠️ [AuthService] Invite code not active: \(normalized) (isUsed: \(inviteCode.isUsed), isExpired: \(inviteCode.isExpired))")
+                AppLogger.auth.debug("Invite code not active: \(normalized)")
                 throw AppError.invalidInviteCode
             }
             
             // 9. Return valid invite code
-            print("✅ [AuthService] Invite code validated successfully: \(normalized) (isBulk: \(inviteCode.isBulk), expiresAt: \(String(describing: inviteCode.expiresAt)))")
+            AppLogger.auth.info("Invite code validated successfully: \(normalized)")
             return inviteCode
             
         } catch {
             // 10. Return same error for "not found", "already used", "expired", and decode errors (prevent enumeration)
             // This prevents attackers from discovering which codes exist
-            print("⚠️ [AuthService] Invite code validation failed for: \(normalized) - Error: \(error.localizedDescription)")
+            AppLogger.auth.debug("Invite code validation failed for: \(normalized)")
             throw AppError.invalidInviteCode
         }
     }
@@ -541,7 +544,7 @@ final class AuthService: ObservableObject {
     /// Clears all local state, caches, and realtime subscriptions
     /// Posts notification to trigger app state change
     private func handleSignOut() async {
-        print("🔄 [AuthService] handleSignOut() started")
+        AppLogger.auth.debug("handleSignOut() started")
         
         // Log action for crash context
         CrashReportingService.shared.logAction("sign_out")
@@ -559,27 +562,25 @@ final class AuthService: ObservableObject {
             currentUserId = nil
             currentProfile = nil
         }
-        print("✅ [AuthService] Local state cleared")
+        AppLogger.auth.debug("Local state cleared")
         
         // Clear caches
         await CacheManager.shared.clearAll()
-        print("✅ [AuthService] Cache cleared")
+        AppLogger.cache.debug("Cache cleared on sign out")
         
         // Unsubscribe from all realtime channels
         await RealtimeManager.shared.unsubscribeAll()
-        print("✅ [AuthService] Realtime unsubscribed")
+        AppLogger.realtime.debug("Realtime unsubscribed on sign out")
         
         // Post notification for app state updates on main thread
         // CRITICAL: Must post on main thread for observer to receive it
         await MainActor.run {
-            print("📢 [AuthService] Posting userDidSignOut notification on main thread")
+            AppLogger.auth.debug("Posting userDidSignOut notification")
             let notificationName = NSNotification.Name("userDidSignOut")
-            print("📢 [AuthService] Notification name: '\(notificationName.rawValue)'")
             NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
-            print("✅ [AuthService] userDidSignOut notification posted successfully")
         }
         
-        print("✅ Auth: Sign out cleanup completed")
+        AppLogger.auth.info("Sign out cleanup completed")
     }
     
     /// Fetch current user's profile from database
@@ -604,7 +605,7 @@ final class AuthService: ObservableObject {
             return profile
         } catch {
             // Handle errors - profile might not exist yet
-            print("⚠️ Error fetching profile: \(error.localizedDescription)")
+            AppLogger.auth.debug("Error fetching profile: \(error.localizedDescription)")
             return nil
         }
     }

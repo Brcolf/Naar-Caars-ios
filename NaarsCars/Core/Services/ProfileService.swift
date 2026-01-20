@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 import Supabase
+import OSLog
 
 /// Service for profile-related operations
 /// Handles fetching, updating profiles, avatar uploads, reviews, and invite codes
@@ -232,7 +233,7 @@ final class ProfileService {
             throw AppError.invalidInput("Invalid image data")
         }
         
-        guard let compressedData = ImageCompressor.compress(uiImage, preset: .avatar) else {
+        guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .avatar) else {
             throw AppError.processingError("Failed to compress image")
         }
         
@@ -375,14 +376,15 @@ final class ProfileService {
     
     /// Delete user account and all associated data
     /// Uses database function to handle cascade deletion
+    /// Also revokes Apple Sign-In if linked (required by Apple for account deletion)
     /// - Parameter userId: The user ID to delete
     /// - Throws: AppError if deletion fails
     func deleteAccount(userId: UUID) async throws {
-        // Use database function to delete account (handles cascade deletes)
-        let params: [String: AnyCodable] = [
-            "p_user_id": AnyCodable(userId.uuidString)
-        ]
+        // 1. Revoke Apple Sign-In if linked (Apple App Store requirement)
+        // This must be done BEFORE deleting the account
+        let _ = await AuthService.shared.revokeAppleSignIn()
         
+        // 2. Use database function to delete account (handles cascade deletes)
         // Wrap RPC call in Task.detached to avoid MainActor isolation issues
         let task = Task.detached(priority: .userInitiated) { [userId] () async throws in
             let params: [String: AnyCodable] = [
@@ -396,10 +398,10 @@ final class ProfileService {
         
         try await task.value
         
-        // Invalidate cache
+        // 3. Invalidate cache
         await CacheManager.shared.invalidateProfile(id: userId)
         
-        print("✅ [ProfileService] Account deleted: \(userId)")
+        AppLogger.database.info("Account deleted: \(userId.uuidString)")
     }
 }
 

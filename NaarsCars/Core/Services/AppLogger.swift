@@ -11,15 +11,15 @@ import OSLog
 /// Centralized logging system with structured logging using OSLog
 enum AppLogger {
     
-    // MARK: - Log Categories
+    // MARK: - Log Categories (accessible for direct logging)
     
-    private static let network = Logger(subsystem: "com.naarscars.app", category: "network")
-    private static let cache = Logger(subsystem: "com.naarscars.app", category: "cache")
-    private static let auth = Logger(subsystem: "com.naarscars.app", category: "auth")
-    private static let realtime = Logger(subsystem: "com.naarscars.app", category: "realtime")
-    private static let performance = Logger(subsystem: "com.naarscars.app", category: "performance")
-    private static let database = Logger(subsystem: "com.naarscars.app", category: "database")
-    private static let ui = Logger(subsystem: "com.naarscars.app", category: "ui")
+    static let network = Logger(subsystem: "com.naarscars.app", category: "network")
+    static let cache = Logger(subsystem: "com.naarscars.app", category: "cache")
+    static let auth = Logger(subsystem: "com.naarscars.app", category: "auth")
+    static let realtime = Logger(subsystem: "com.naarscars.app", category: "realtime")
+    static let performance = Logger(subsystem: "com.naarscars.app", category: "performance")
+    static let database = Logger(subsystem: "com.naarscars.app", category: "database")
+    static let ui = Logger(subsystem: "com.naarscars.app", category: "ui")
     
     // MARK: - Network Logging
     

@@ -54,8 +54,14 @@ final class ConversationsListViewModel: ObservableObject {
             currentOffset = fetched.count
             hasMoreConversations = fetched.count == pageSize
         } catch {
-            self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error loading conversations: \(error.localizedDescription)")
+            // Don't show error if task was cancelled (happens during pull-to-refresh)
+            // Check both for CancellationError and if error message contains "cancelled"
+            if Task.isCancelled || error is CancellationError || error.localizedDescription.lowercased().contains("cancel") {
+                print("ℹ️ Load conversations task was cancelled, ignoring error")
+            } else {
+                self.error = AppError.processingError(error.localizedDescription)
+                print("🔴 Error loading conversations: \(error.localizedDescription)")
+            }
         }
         
         isLoading = false
@@ -75,8 +81,13 @@ final class ConversationsListViewModel: ObservableObject {
             currentOffset += fetched.count
             hasMoreConversations = fetched.count == pageSize
         } catch {
-            print("🔴 Error loading more conversations: \(error.localizedDescription)")
-            // Don't set error here - just log it
+            // Don't show error if task was cancelled
+            if Task.isCancelled || error is CancellationError || error.localizedDescription.lowercased().contains("cancel") {
+                print("ℹ️ Load more conversations task was cancelled, ignoring error")
+            } else {
+                print("🔴 Error loading more conversations: \(error.localizedDescription)")
+                // Don't set error here - just log it
+            }
         }
         
         isLoadingMore = false
