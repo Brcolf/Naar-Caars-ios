@@ -120,7 +120,7 @@ final class MapService {
         
         print("🗺️ [MapService] Geocoding: '\(trimmedAddress)'")
         
-        // Try geocoding with region hint first
+        // Attempt 1: Try geocoding with region hint
         do {
             let placemarks = try await geocoder.geocodeAddressString(
                 trimmedAddress,
@@ -134,35 +134,70 @@ final class MapService {
             print("🗺️ [MapService] No placemarks returned with region hint")
         } catch {
             print("🗺️ [MapService] Region hint failed: \(error.localizedDescription)")
-            // Fall through to try with appended city
         }
         
-        // If address doesn't contain common location indicators, try appending Seattle
-        let hasLocationContext = trimmedAddress.lowercased().contains("seattle") ||
-                                  trimmedAddress.lowercased().contains(", wa") ||
-                                  trimmedAddress.lowercased().contains("washington") ||
-                                  trimmedAddress.contains(",")
+        // Attempt 2: Try without region hint (sometimes region hint causes issues)
+        do {
+            let placemarks = try await geocoder.geocodeAddressString(trimmedAddress)
+            
+            if let location = placemarks.first?.location?.coordinate {
+                print("🗺️ [MapService] Success without region hint: \(location.latitude), \(location.longitude)")
+                return location
+            }
+            print("🗺️ [MapService] No placemarks returned without region hint")
+        } catch {
+            print("🗺️ [MapService] Without region hint failed: \(error.localizedDescription)")
+        }
         
-        if !hasLocationContext {
-            // Try with Seattle, WA appended
-            let enhancedAddress = "\(trimmedAddress), Seattle, WA"
-            print("🗺️ [MapService] Trying enhanced: '\(enhancedAddress)'")
+        // Attempt 3: Try with ", WA" appended (helps with Washington state locations)
+        if !trimmedAddress.lowercased().contains(", wa") {
+            let waAddress = "\(trimmedAddress), WA"
+            print("🗺️ [MapService] Trying with WA: '\(waAddress)'")
             do {
-                let placemarks = try await geocoder.geocodeAddressString(enhancedAddress)
+                let placemarks = try await geocoder.geocodeAddressString(waAddress)
                 
                 if let location = placemarks.first?.location?.coordinate {
-                    print("🗺️ [MapService] Success with enhanced: \(location.latitude), \(location.longitude)")
+                    print("🗺️ [MapService] Success with WA: \(location.latitude), \(location.longitude)")
                     return location
                 }
-                print("🗺️ [MapService] No placemarks returned with enhanced")
             } catch {
-                print("🗺️ [MapService] Enhanced failed: \(error.localizedDescription)")
-                // Fall through to error
+                print("🗺️ [MapService] WA suffix failed: \(error.localizedDescription)")
             }
+        }
+        
+        // Attempt 4: Use MKLocalSearch as fallback (more robust for POIs like airports)
+        print("🗺️ [MapService] Trying MKLocalSearch fallback")
+        if let coordinate = await searchWithMapKit(query: trimmedAddress) {
+            print("🗺️ [MapService] Success with MKLocalSearch: \(coordinate.latitude), \(coordinate.longitude)")
+            return coordinate
         }
         
         print("🗺️ [MapService] All geocoding attempts failed for: '\(trimmedAddress)'")
         throw MapError.geocodingFailed
+    }
+    
+    /// Use MKLocalSearch as a fallback for geocoding (better for POIs like airports)
+    private func searchWithMapKit(query: String) async -> CLLocationCoordinate2D? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        request.region = MKCoordinateRegion(
+            center: Self.seattleRegion.center,
+            latitudinalMeters: Self.seattleRegion.radius * 2,
+            longitudinalMeters: Self.seattleRegion.radius * 2
+        )
+        
+        let search = MKLocalSearch(request: request)
+        
+        do {
+            let response = try await search.start()
+            if let item = response.mapItems.first {
+                return item.placemark.coordinate
+            }
+        } catch {
+            print("🗺️ [MapService] MKLocalSearch failed: \(error.localizedDescription)")
+        }
+        
+        return nil
     }
     
     /// Batch geocode addresses (for map view)

@@ -637,10 +637,11 @@ final class RideService {
                 return date
             }
             
-            // Try DATE format (YYYY-MM-DD)
+            // Try DATE format (YYYY-MM-DD) - use local timezone to match user expectations
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            dateFormatter.timeZone = .current  // Use local timezone to avoid off-by-one day issues
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
             if let date = dateFormatter.date(from: dateString) {
                 return date
             }

@@ -2,13 +2,12 @@
 //  TimePickerView.swift
 //  NaarsCars
 //
-//  Custom time picker with hour, minute, and AM/PM wheels
+//  Custom time picker with compact inline menus
 //
 
 import SwiftUI
 
-/// Custom time picker component with wheel-style pickers for hour, minute, and AM/PM
-/// Uses compositionalLayout to improve performance
+/// Compact time picker component with inline menu-style pickers
 struct TimePickerView: View {
     @Binding var hour: Int
     @Binding var minute: Int
@@ -18,47 +17,80 @@ struct TimePickerView: View {
     private let hours = Array(1...12)
     private let minutes = Array(stride(from: 0, to: 60, by: 5))
     
+    /// Formatted time string for display
+    private var timeString: String {
+        let minuteStr = String(format: "%02d", minute)
+        let period = isAM ? "AM" : "PM"
+        return "\(hour):\(minuteStr) \(period)"
+    }
+    
     var body: some View {
-        HStack(spacing: 0) {
-            // Hour picker (1-12)
-            Picker("Hour", selection: $hour) {
-                ForEach(hours, id: \.self) { h in
-                    Text("\(h)")
-                        .tag(h)
+        HStack {
+            Text("Time")
+            
+            Spacer()
+            
+            HStack(spacing: 2) {
+                // Hour picker
+                Menu {
+                    ForEach(hours, id: \.self) { h in
+                        Button(action: { hour = h }) {
+                            if h == hour {
+                                Label("\(h)", systemImage: "checkmark")
+                            } else {
+                                Text("\(h)")
+                            }
+                        }
+                    }
+                } label: {
+                    Text("\(hour)")
+                        .frame(minWidth: 28)
                 }
-            }
-            .pickerStyle(.wheel)
-            .frame(width: 70)
-            .clipped()
-            
-            Text(":")
-                .font(.title2)
-                .padding(.horizontal, 2)
-            
-            // Minute picker (0-59, every 5 minutes)
-            Picker("Minute", selection: $minute) {
-                ForEach(minutes, id: \.self) { m in
-                    Text(String(format: "%02d", m))
-                        .tag(m)
+                .buttonStyle(.bordered)
+                
+                Text(":")
+                    .foregroundColor(.secondary)
+                
+                // Minute picker
+                Menu {
+                    ForEach(minutes, id: \.self) { m in
+                        Button(action: { minute = m }) {
+                            if m == minute {
+                                Label(String(format: "%02d", m), systemImage: "checkmark")
+                            } else {
+                                Text(String(format: "%02d", m))
+                            }
+                        }
+                    }
+                } label: {
+                    Text(String(format: "%02d", minute))
+                        .frame(minWidth: 28)
                 }
+                .buttonStyle(.bordered)
+                
+                // AM/PM picker
+                Menu {
+                    Button(action: { isAM = true }) {
+                        if isAM {
+                            Label("AM", systemImage: "checkmark")
+                        } else {
+                            Text("AM")
+                        }
+                    }
+                    Button(action: { isAM = false }) {
+                        if !isAM {
+                            Label("PM", systemImage: "checkmark")
+                        } else {
+                            Text("PM")
+                        }
+                    }
+                } label: {
+                    Text(isAM ? "AM" : "PM")
+                        .frame(minWidth: 36)
+                }
+                .buttonStyle(.bordered)
             }
-            .pickerStyle(.wheel)
-            .frame(width: 70)
-            .clipped()
-            
-            // AM/PM picker
-            Picker("Period", selection: $isAM) {
-                Text("AM")
-                    .tag(true)
-                Text("PM")
-                    .tag(false)
-            }
-            .pickerStyle(.wheel)
-            .frame(width: 70)
-            .clipped()
         }
-        .frame(height: 120)
-        .compositingGroup() // Improves rendering performance
     }
 }
 
