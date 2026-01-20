@@ -148,6 +148,25 @@ final class AppLaunchManager: ObservableObject {
         }
     }
     
+    // MARK: - Public Methods
+    
+    /// Lightweight approval check for use by PendingApprovalView
+    /// Does NOT change state to checkingAuth (prevents state loops)
+    /// - Returns: true if current user is approved, false otherwise
+    func checkApprovalStatusOnly() async -> Bool {
+        do {
+            let session = try await supabase.auth.session
+            let userIdString = session.user.id.uuidString
+            guard let userId = UUID(uuidString: userIdString) else {
+                return false
+            }
+            return await checkApprovalStatus(userId: userId)
+        } catch {
+            print("⚠️ [AppLaunchManager] Lightweight approval check failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
     // MARK: - Private Methods
     
     /// Check approval status with minimal query (only 'approved' field)

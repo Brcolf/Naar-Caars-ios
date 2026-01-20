@@ -42,6 +42,7 @@
 		498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8AF409DE784C1FBB461F50 /* Core/Services/MessageService.swift */; };
 		4AAA0DD304984275B1F7F158 /* MyProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FA662507801456991ABCE22 /* MyProfileView.swift */; };
 		4AEC6FC9813D460387D9E4C0 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9C1B07712F4342B2190EC3 /* Conversation.swift */; };
+		4B35515A6EE441D4B9FBA18A /* AddressText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA18F86136B84CB396BD5C56 /* AddressText.swift */; };
 		4D869E20F203460F8918E0AA /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9507F3043D4ECAA63F8A7E /* AvatarView.swift */; };
 		4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */; };
 		54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F45926523F4D0C8FA974D1 /* LoadingView.swift */; };
@@ -587,6 +588,7 @@
 		DD6F1D4A53DC4F0A8013FCEC /* Features/Rides/Views/RidesDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/Views/RidesDashboardView.swift; sourceTree = "<group>"; };
 		DF9507F3043D4ECAA63F8A7E /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
 		E50929D19BD346BFACB78B04 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
+		EA18F86136B84CB396BD5C56 /* AddressText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressText.swift; sourceTree = "<group>"; };
 		EAA13F58C91D42D592759C0A /* Favor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favor.swift; sourceTree = "<group>"; };
 		EE20096272154C709693972B /* Features/Rides/Views/EditRideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/Views/EditRideView.swift; sourceTree = "<group>"; };
 		EFED1E64737A4058B6CF581B /* Core/Services/PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
@@ -878,6 +880,7 @@
 		ACBF4A982F12CA56006A7C8A /* Map */ = {
 			isa = PBXGroup;
 			children = (
+				EA18F86136B84CB396BD5C56 /* AddressText.swift */,
 				AC8197A62F14C232003BB08B /* RouteMapView.swift */,
 				ACBF4A952F12CA56006A7C8A /* FilterBar.swift */,
 				ACBF4A962F12CA56006A7C8A /* RequestPin.swift */,
@@ -1619,6 +1622,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4B35515A6EE441D4B9FBA18A /* AddressText.swift in Sources */,
 				AC305F242F0DB86A0063AFDF /* SkeletonFavorCard.swift in Sources */,
 				AC305F252F0DB86A0063AFDF /* SkeletonMessageRow.swift in Sources */,
 				AC305F262F0DB86A0063AFDF /* SkeletonConversationRow.swift in Sources */,
@@ -2067,19 +2071,22 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.NaarsCars;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -2090,7 +2097,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WT4DGUYKL4;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -2114,19 +2121,22 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.NaarsCars;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

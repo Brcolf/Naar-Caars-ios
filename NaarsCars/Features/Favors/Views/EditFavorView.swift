@@ -10,12 +10,14 @@ import SwiftUI
 /// View for editing an existing favor request
 struct EditFavorView: View {
     let favor: Favor
+    var onSaved: (() -> Void)? = nil
     @StateObject private var viewModel = CreateFavorViewModel() // Reuse CreateFavorViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
     
-    init(favor: Favor) {
+    init(favor: Favor, onSaved: (() -> Void)? = nil) {
         self.favor = favor
+        self.onSaved = onSaved
     }
     
     var body: some View {
@@ -94,6 +96,8 @@ struct EditFavorView: View {
                                     time: formattedTime,
                                     gift: viewModel.gift.isEmpty ? nil : viewModel.gift
                                 )
+                                // Notify parent to refresh before dismissing
+                                onSaved?()
                                 dismiss()
                             } catch {
                                 self.error = error.localizedDescription

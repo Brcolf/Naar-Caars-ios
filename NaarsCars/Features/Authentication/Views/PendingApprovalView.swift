@@ -77,20 +77,32 @@ struct PendingApprovalView: View {
     }
     
     /// Start periodic checks for approval status
-    /// Checks every 15 seconds to detect when user is approved
+    /// Checks every 30 seconds to detect when user is approved
     private func startPeriodicApprovalCheck() async {
-        // Initial check after 5 seconds (give server time to process approval)
-        try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+        // Initial check after 10 seconds (give server time to process approval)
+        try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
         
-        // Then check every 15 seconds
-        while true {
-            // Check approval status by triggering launch manager
-            // This will update the state if user is approved, causing ContentView to transition
-            await launchManager.performCriticalLaunch()
+        // Then check every 30 seconds (reduced frequency to avoid loops)
+        while !Task.isCancelled {
+            // Check approval status directly without triggering full launch flow
+            // This prevents state oscillation and request storms
+            let isApproved = await checkApprovalDirectly()
             
-            // Wait 15 seconds before next check
-            try? await Task.sleep(nanoseconds: 15_000_000_000) // 15 seconds
+            if isApproved {
+                // User is now approved - transition to authenticated state
+                launchManager.state = .ready(.authenticated)
+                return // Exit the loop
+            }
+            
+            // Wait 30 seconds before next check
+            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
         }
+    }
+    
+    /// Check approval status directly without triggering full launch flow
+    private func checkApprovalDirectly() async -> Bool {
+        // Use AppLaunchManager's lightweight check (doesn't change state)
+        return await launchManager.checkApprovalStatusOnly()
     }
     
     /// Sign out and return to login screen

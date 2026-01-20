@@ -248,60 +248,75 @@ final class AuthService: ObservableObject {
                 throw AppError.unknown("Invalid user ID format")
             }
             
-            // 3. Create or update profile (trigger may create basic profile)
-            struct ProfileUpdate: Codable {
-                let id: String
-                let name: String
-                let email: String
-                let invitedBy: String
-                let isAdmin: Bool
-                let approved: Bool
-                let car: String?
+            // 3. Create or update profile using RPC function
+            // This handles both new signups AND re-signups after rejection
+            // Uses SECURITY DEFINER to bypass RLS permission issues
+            // Note: Using [String: String?] dictionary to avoid MainActor isolation issues with Sendable
+            var params: [String: String?] = [
+                "p_user_id": userIdString,
+                "p_email": email,
+                "p_name": name,
+                "p_invited_by": inviteCode.createdBy.uuidString,
+                "p_car": car?.isEmpty == false ? car : nil
+            ]
+            
+            struct SignupProfileResponse: Decodable {
+                let success: Bool
+                let error: String?
+                let userId: UUID?
+                let message: String?
                 
                 enum CodingKeys: String, CodingKey {
-                    case id
-                    case name
-                    case email
-                    case invitedBy = "invited_by"
-                    case isAdmin = "is_admin"
-                    case approved
-                    case car
+                    case success
+                    case error
+                    case userId = "user_id"
+                    case message
                 }
             }
             
-            let profileUpdate = ProfileUpdate(
-                id: userIdString,
-                name: name,
-                email: email,
-                invitedBy: inviteCode.createdBy.uuidString,
-                isAdmin: false,
-                approved: false,
-                car: car?.isEmpty == false ? car : nil
-            )
+            let response: SignupProfileResponse = try await supabase.client
+                .rpc("create_signup_profile", params: params)
+                .execute()
+                .value
             
-            // Try to update first (in case trigger created it), otherwise insert
-            do {
-                try await supabase.client
-                    .from("profiles")
-                    .update(profileUpdate)
-                    .eq("id", value: userIdString)
-                    .execute()
-                AppLogger.auth.info("Updated existing profile for user: \(userId)")
-            } catch let updateError {
-                // Profile doesn't exist, insert it
-                AppLogger.auth.debug("Profile update failed (may not exist), trying insert: \(updateError.localizedDescription)")
-                try await supabase.client
-                    .from("profiles")
-                    .insert(profileUpdate)
-                    .execute()
-                AppLogger.auth.info("Created new profile for user: \(userId)")
+            if response.success {
+                AppLogger.auth.info("Created/updated profile for user: \(userId)")
+            } else {
+                let errorMsg = response.error ?? "Unknown error"
+                AppLogger.auth.error("Failed to create profile: \(errorMsg)")
+                throw AppError.unknown("Profile creation failed: \(errorMsg)")
             }
             
             // 4. Mark invite code as used (or create tracking record for bulk codes)
-            // Use InviteService to handle bulk vs non-bulk codes correctly:
-            // - Non-bulk codes: Mark as used (single-use)
-            // - Bulk codes: Create tracking record (bulk code remains active for other users)
-            try await InviteService.shared.markInviteCodeAsUsed(inviteCode: inviteCode, userId: userId)
+            // Uses RPC function with SECURITY DEFINER to bypass RLS
+            // (auth.uid() may not be set immediately after signup)
+            var inviteParams: [String: String?] = [
+                "p_invite_code_id": inviteCode.id.uuidString,
+                "p_user_id": userIdString,
+                "p_is_bulk": inviteCode.isBulk ? "true" : "false"
+            ]
+            if let bulkCodeId = inviteCode.bulkCodeId {
+                inviteParams["p_bulk_code_id"] = bulkCodeId.uuidString
+            }
+            
+            struct MarkInviteResponse: Decodable {
+                let success: Bool
+                let error: String?
+                let message: String?
+            }
+            
+            let inviteResponse: MarkInviteResponse = try await supabase.client
+                .rpc("mark_invite_code_used", params: inviteParams)
+                .execute()
+                .value
+            
+            if !inviteResponse.success {
+                let errorMsg = inviteResponse.error ?? "Unknown error"
+                AppLogger.auth.warning("Failed to mark invite code as used: \(errorMsg)")
+                // Don't throw - profile was created successfully, this is non-critical
+            } else {
+                AppLogger.auth.info("Invite code marked as used: \(inviteResponse.message ?? "")")
+            }
             
             // 5. Fetch the created profile and update local state
             if let profile = try? await fetchCurrentProfile() {
@@ -333,7 +348,7 @@ final class AuthService: ObservableObject {
                 // Check for RLS policy errors
                 if errorMessage.contains("row-level security") || errorMessage.contains("policy") {
                     AppLogger.auth.error("RLS policy error detected - check database policies")
-                    throw AppError.unknown("Account creation failed. Please contact support.")
+                    throw AppError.unknown("Account creation failed - please contact support")
                 }
             }
             

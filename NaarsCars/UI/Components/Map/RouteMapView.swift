@@ -8,6 +8,22 @@
 import SwiftUI
 import MapKit
 
+/// Loading state for map view
+enum MapLoadingState: Equatable {
+    case loading
+    case loaded
+    case error(String)
+    
+    static func == (lhs: MapLoadingState, rhs: MapLoadingState) -> Bool {
+        switch (lhs, rhs) {
+        case (.loading, .loading): return true
+        case (.loaded, .loaded): return true
+        case (.error(let lhsMsg), .error(let rhsMsg)): return lhsMsg == rhsMsg
+        default: return false
+        }
+    }
+}
+
 /// Compact map view showing a route between pickup and destination
 struct RouteMapView: View {
     let pickup: String
@@ -16,10 +32,15 @@ struct RouteMapView: View {
     @State private var destinationCoordinate: CLLocationCoordinate2D?
     @State private var route: MKRoute?
     @State private var cameraPosition: MapCameraPosition
-    @State private var isLoading = true
+    @State private var loadingState: MapLoadingState = .loading
+    @State private var retryCount = 0
+    @State private var loadId = UUID()  // Force task re-run on view appear
     
     // Default Seattle center
     private static let defaultCenter = CLLocationCoordinate2D(latitude: 47.6062, longitude: -122.3321)
+    
+    // Maximum retry attempts
+    private static let maxRetries = 2
     
     init(pickup: String, destination: String) {
         self.pickup = pickup
@@ -34,137 +55,201 @@ struct RouteMapView: View {
     }
     
     var body: some View {
-        Group {
-            if isLoading {
-                // Loading placeholder
-                ZStack {
-                    Color(.systemGray5)
-                    ProgressView()
-                }
-                .frame(height: 200)
-                .cornerRadius(8)
-            } else if let pickupCoord = pickupCoordinate,
-                      let destCoord = destinationCoordinate {
-                // Map with route markers
-                Map(position: $cameraPosition) {
-                    // Pickup marker
-                    Annotation("Pickup", coordinate: pickupCoord) {
-                        Image(systemName: "mappin.circle.fill")
-                            .foregroundColor(.rideAccent)
-                            .font(.title2)
-                            .background(Color.white)
-                            .clipShape(Circle())
-                    }
-                    
-                    // Destination marker
-                    Annotation("Destination", coordinate: destCoord) {
-                        Image(systemName: "mappin.circle.fill")
-                            .foregroundColor(.rideAccent)
-                            .font(.title2)
-                            .background(Color.white)
-                            .clipShape(Circle())
-                    }
-                }
-                .frame(height: 200)
-                .cornerRadius(8)
-                .disabled(true) // Disable interaction for compact view
-            } else {
-                // Error state
-                ZStack {
-                    Color(.systemGray5)
-                    VStack(spacing: 8) {
-                        Image(systemName: "map")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                        Text("Route unavailable")
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(height: 200)
-                .cornerRadius(8)
+        contentView
+            .task(id: loadId) {
+                await loadRoute()
             }
-        }
-        .task {
-            await loadRoute()
+            .onAppear {
+                // Reset state and force reload when view appears
+                if loadingState != .loading && pickupCoordinate == nil {
+                    loadingState = .loading
+                    loadId = UUID()
+                }
+            }
+            .onChange(of: retryCount) { _, _ in
+                // Trigger reload on retry
+                loadId = UUID()
+            }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        switch loadingState {
+        case .loading:
+            loadingView
+            
+        case .loaded:
+            if let pickupCoord = pickupCoordinate,
+               let destCoord = destinationCoordinate {
+                mapView(pickupCoord: pickupCoord, destCoord: destCoord)
+            } else {
+                errorView(message: "Route unavailable")
+            }
+            
+        case .error(let message):
+            errorView(message: message)
         }
     }
     
+    private var loadingView: some View {
+        ZStack {
+            Color(.systemGray5)
+            VStack(spacing: 8) {
+                ProgressView()
+                Text("Loading route...")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(height: 200)
+        .cornerRadius(8)
+    }
+    
+    private func mapView(pickupCoord: CLLocationCoordinate2D, destCoord: CLLocationCoordinate2D) -> some View {
+        Map(position: $cameraPosition) {
+            // Route polyline (drawn first so it appears below markers)
+            if let route = route {
+                MapPolyline(route.polyline)
+                    .stroke(Color.rideAccent, lineWidth: 4)
+            }
+            
+            // Pickup marker
+            Annotation("Pickup", coordinate: pickupCoord) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 32, height: 32)
+                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(.green)
+                        .font(.system(size: 12))
+                }
+            }
+            
+            // Destination marker
+            Annotation("Destination", coordinate: destCoord) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 32, height: 32)
+                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundColor(.rideAccent)
+                        .font(.system(size: 20))
+                }
+            }
+        }
+        .frame(height: 200)
+        .cornerRadius(8)
+        .disabled(true) // Disable interaction for compact view
+    }
+    
+    @ViewBuilder
+    private func errorView(message: String) -> some View {
+        ZStack {
+            Color(.systemGray5)
+            VStack(spacing: 12) {
+                Image(systemName: "map.fill")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+                Text(message)
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                if retryCount < Self.maxRetries {
+                    Button {
+                        retryCount += 1
+                        // loadId change is handled by onChange
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Retry")
+                        }
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsPrimary)
+                    }
+                }
+            }
+            .padding()
+        }
+        .frame(height: 200)
+        .cornerRadius(8)
+    }
+    
     private func loadRoute() async {
-        let mapService = MapService.shared
+        // Reset to loading state at the start
+        loadingState = .loading
         
         do {
-            // Geocode both addresses
-            async let pickupTask = mapService.geocode(address: pickup)
-            async let destinationTask = mapService.geocode(address: destination)
+            // Check for cancellation before starting
+            try Task.checkCancellation()
             
-            let pickupCoord = try await pickupTask
-            let destCoord = try await destinationTask
+            // Geocode both addresses sequentially to avoid CLGeocoder concurrency issues
+            let pickupCoord = try await MapService.shared.geocode(address: pickup)
+            
+            // Check for cancellation between operations
+            try Task.checkCancellation()
+            
+            let destCoord = try await MapService.shared.geocode(address: destination)
+            
+            try Task.checkCancellation()
             
             // Calculate route
-            let calculatedRoute = try await mapService.calculateRoute(from: pickupCoord, to: destCoord)
+            let calculatedRoute = try await MapService.shared.calculateRoute(from: pickupCoord, to: destCoord)
             
-            // Update state on main thread
-            await MainActor.run {
-                self.pickupCoordinate = pickupCoord
-                self.destinationCoordinate = destCoord
-                self.route = calculatedRoute
-                self.isLoading = false
-                
-                // Update camera position to show both points
-                let coordinates = [pickupCoord, destCoord]
-                let region = MKCoordinateRegion(coordinates: coordinates) ?? MKCoordinateRegion(
-                    center: pickupCoord,
-                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                )
-                self.cameraPosition = .region(region)
-            }
+            try Task.checkCancellation()
+            
+            // Update state
+            self.pickupCoordinate = pickupCoord
+            self.destinationCoordinate = destCoord
+            self.route = calculatedRoute
+            
+            // Update camera position to fit the entire route with padding
+            let routeRect = calculatedRoute.polyline.boundingMapRect
+            
+            // Safely calculate padded rect (ensure positive dimensions)
+            let paddingX = max(routeRect.size.width * 0.2, 1000)  // Minimum padding
+            let paddingY = max(routeRect.size.height * 0.2, 1000)
+            let paddedRect = routeRect.insetBy(dx: -paddingX, dy: -paddingY)
+            
+            // Use region instead of rect for more reliable rendering
+            let region = MKCoordinateRegion(paddedRect)
+            self.cameraPosition = .region(region)
+            
+            self.loadingState = .loaded
+            
+        } catch is CancellationError {
+            // Task was cancelled (view disappeared) - don't update state
+            return
+        } catch let error as MapError {
+            // Handle specific map errors with more detail
+            print("🗺️ [RouteMapView] MapError: \(error.errorDescription ?? "unknown")")
+            print("🗺️ [RouteMapView] Pickup: \(pickup)")
+            print("🗺️ [RouteMapView] Destination: \(destination)")
+            self.loadingState = .error(error.errorDescription ?? "Route unavailable")
         } catch {
-            // If geocoding or routing fails, still try to show coordinates if we have them
-            await MainActor.run {
-                self.isLoading = false
-            }
+            // Handle generic errors with details
+            print("🗺️ [RouteMapView] Error: \(error.localizedDescription)")
+            print("🗺️ [RouteMapView] Pickup: \(pickup)")
+            print("🗺️ [RouteMapView] Destination: \(destination)")
+            self.loadingState = .error("Could not load route")
         }
     }
 }
 
-// MARK: - Helper Extension
+// MARK: - Preview
 
-extension MKCoordinateRegion {
-    /// Create a region that encompasses all given coordinates
-    init?(coordinates: [CLLocationCoordinate2D]) {
-        guard !coordinates.isEmpty else { return nil }
-        
-        let latitudes = coordinates.map { $0.latitude }
-        let longitudes = coordinates.map { $0.longitude }
-        
-        let minLat = latitudes.min()!
-        let maxLat = latitudes.max()!
-        let minLon = longitudes.min()!
-        let maxLon = longitudes.max()!
-        
-        let center = CLLocationCoordinate2D(
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLon + maxLon) / 2
-        )
-        
-        let latDelta = (maxLat - minLat) * 1.5 // Add padding
-        let lonDelta = (maxLon - minLon) * 1.5 // Add padding
-        
-        let span = MKCoordinateSpan(
-            latitudeDelta: max(latDelta, 0.01), // Minimum span
-            longitudeDelta: max(lonDelta, 0.01) // Minimum span
-        )
-        
-        self.init(center: center, span: span)
-    }
-}
-
-#Preview {
-    VStack {
+#Preview("Route Map") {
+    VStack(spacing: 16) {
         RouteMapView(
-            pickup: "123 Main St, Seattle, WA",
-            destination: "456 Pine St, Seattle, WA"
+            pickup: "Space Needle, Seattle, WA",
+            destination: "Pike Place Market, Seattle, WA"
+        )
+        
+        RouteMapView(
+            pickup: "Seattle-Tacoma International Airport",
+            destination: "University of Washington, Seattle"
         )
     }
     .padding()

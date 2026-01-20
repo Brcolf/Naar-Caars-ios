@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Supabase
 
 /// Popup for editing conversation details
 struct MessageDetailsPopup: View {
@@ -13,18 +14,21 @@ struct MessageDetailsPopup: View {
     
     let conversationId: UUID
     let currentTitle: String?
-    let participants: [Profile]
+    let initialParticipants: [Profile]
     
+    @State private var participants: [Profile]
     @State private var editedTitle: String
     @State private var showAddParticipants = false
     @State private var selectedUserIds: Set<UUID> = []
     @State private var isSaving = false
+    @State private var isLoadingParticipants = false
     @State private var error: String?
     
     init(conversationId: UUID, currentTitle: String?, participants: [Profile]) {
         self.conversationId = conversationId
         self.currentTitle = currentTitle
-        self.participants = participants
+        self.initialParticipants = participants
+        _participants = State(initialValue: participants)
         _editedTitle = State(initialValue: currentTitle ?? "")
     }
     
@@ -39,6 +43,15 @@ struct MessageDetailsPopup: View {
                 
                 // Participants Section
                 Section("Participants") {
+                    if isLoadingParticipants {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .padding(.vertical, 8)
+                            Spacer()
+                        }
+                    }
+                    
                     ForEach(participants) { participant in
                         HStack {
                             AvatarView(
@@ -183,11 +196,48 @@ struct MessageDetailsPopup: View {
                 createAnnouncement: true
             )
             
-            print("✅ [MessageDetailsPopup] Successfully added participants")
-            // Note: Parent view (ConversationDetailView) will reload on sheet dismiss
+            print("✅ [MessageDetailsPopup] Successfully added participants, reloading list")
+            // Reload participants immediately so the list updates
+            await loadParticipants()
         } catch {
             print("🔴 [MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
             self.error = "Failed to add participants: \(error.localizedDescription)"
+        }
+    }
+    
+    private func loadParticipants() async {
+        isLoadingParticipants = true
+        defer { isLoadingParticipants = false }
+        
+        do {
+            // Fetch participant user IDs
+            let response = try await SupabaseService.shared.client
+                .from("conversation_participants")
+                .select("user_id")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .execute()
+            
+            struct ParticipantRow: Codable {
+                let userId: UUID
+                enum CodingKeys: String, CodingKey {
+                    case userId = "user_id"
+                }
+            }
+            
+            let rows = try JSONDecoder().decode([ParticipantRow].self, from: response.data)
+            
+            // Fetch profiles for each participant
+            var profiles: [Profile] = []
+            for row in rows {
+                if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+                    profiles.append(profile)
+                }
+            }
+            
+            self.participants = profiles
+            print("✅ [MessageDetailsPopup] Reloaded \(profiles.count) participants")
+        } catch {
+            print("🔴 [MessageDetailsPopup] Error loading participants: \(error.localizedDescription)")
         }
     }
     

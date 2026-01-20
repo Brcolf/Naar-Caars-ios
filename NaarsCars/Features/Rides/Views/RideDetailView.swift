@@ -71,29 +71,64 @@ struct RideDetailView: View {
                         Spacer()
                     }
                     
-                    // Route
+                    // Claimer info (when claimed or completed)
+                    if let claimer = ride.claimer {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Claimed by")
+                                .font(.naarsTitle3)
+                            
+                            HStack(spacing: 12) {
+                                UserAvatarLink(profile: claimer, size: 50)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(claimer.name)
+                                        .font(.naarsHeadline)
+                                    if claimer.car != nil {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "car.fill")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Text(claimer.car ?? "")
+                                                .font(.naarsCaption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                        .cardStyle()
+                    }
+                    
+                    // Route (long-press addresses to copy or open in maps)
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Route")
-                            .font(.naarsTitle3)
-                        
-                        HStack(spacing: 12) {
-                            Image(systemName: "mappin.circle.fill")
-                                .foregroundColor(.naarsPrimary)
-                                .font(.title2)
-                            Text(ride.pickup)
-                                .font(.naarsBody)
+                        HStack {
+                            Text("Route")
+                                .font(.naarsTitle3)
+                            Spacer()
+                            Text("Hold address to copy")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
                         }
                         
-                        Image(systemName: "arrow.down")
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 8)
+                        HStack(spacing: 12) {
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(.green)
+                                .font(.system(size: 12))
+                            AddressText(ride.pickup)
+                        }
+                        
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.3))
+                            .frame(width: 2, height: 20)
+                            .padding(.leading, 5)
                         
                         HStack(spacing: 12) {
                             Image(systemName: "mappin.circle.fill")
-                                .foregroundColor(.naarsAccent)
+                                .foregroundColor(.rideAccent)
                                 .font(.title2)
-                            Text(ride.destination)
-                                .font(.naarsBody)
+                            AddressText(ride.destination)
                         }
                     }
                     .cardStyle()
@@ -233,7 +268,12 @@ struct RideDetailView: View {
         }
         .sheet(isPresented: $showEditRide) {
             if let ride = viewModel.ride {
-                EditRideView(ride: ride)
+                EditRideView(ride: ride) {
+                    // Refresh ride data after edit
+                    Task {
+                        await viewModel.loadRide(id: rideId)
+                    }
+                }
             }
         }
         .alert("Delete Ride", isPresented: $showDeleteAlert) {

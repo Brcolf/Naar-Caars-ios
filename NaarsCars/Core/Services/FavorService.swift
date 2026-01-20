@@ -146,9 +146,12 @@ final class FavorService {
         time: String? = nil,
         gift: String? = nil
     ) async throws -> Favor {
-        // Format date as "yyyy-MM-dd"
+        // Format date as "yyyy-MM-dd" using local timezone
+        // Important: Use local timezone to match what the user selected in DatePicker
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = .current  // Use local timezone to avoid off-by-one day issues
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         let dateString = dateFormatter.string(from: date)
         
         // Create favor data
@@ -234,9 +237,12 @@ final class FavorService {
             updates["requirements"] = AnyCodable(requirements)
         }
         if let date = date {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            updates["date"] = AnyCodable(dateFormatter.string(from: date))
+            // Use local timezone to match what the user selected in DatePicker
+            let dateFmt = DateFormatter()
+            dateFmt.dateFormat = "yyyy-MM-dd"
+            dateFmt.timeZone = .current  // Use local timezone to avoid off-by-one day issues
+            dateFmt.locale = Locale(identifier: "en_US_POSIX")
+            updates["date"] = AnyCodable(dateFmt.string(from: date))
         }
         if let time = time {
             updates["time"] = AnyCodable(time)
@@ -477,10 +483,11 @@ final class FavorService {
                 return date
             }
             
-            // Try DATE format (YYYY-MM-DD)
+            // Try DATE format (YYYY-MM-DD) - use local timezone to avoid off-by-one day issues
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+            dateFormatter.timeZone = .current  // Use local timezone to match user expectations
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
             if let date = dateFormatter.date(from: dateString) {
                 return date
             }

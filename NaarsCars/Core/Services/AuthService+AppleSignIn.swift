@@ -150,15 +150,10 @@ extension AuthService {
             throw AppError.unknown("Failed to get Apple identity token")
         }
         
-        // Link identity to existing user
-        // Note: Supabase Swift client linkIdentity uses OAuth flow (not idToken)
-        // For native Apple Sign-In, we need to use the OAuth redirect flow
-        // This requires additional setup - for now, we'll use the provider parameter
-        // TODO: Implement proper OAuth flow for linking Apple ID to existing account
-        // The current implementation may need to be updated when Supabase adds native idToken support for linkIdentity
-        try await SupabaseService.shared.client.auth.linkIdentity(
-            provider: .apple
-        )
+        // Get the current user's session
+        guard try await SupabaseService.shared.client.auth.session.user.id != nil else {
+            throw AppError.notAuthenticated
+        }
         
         // Store Apple user identifier for credential checking
         UserDefaults.standard.set(
@@ -166,7 +161,25 @@ extension AuthService {
             forKey: "appleUserIdentifier"
         )
         
-        AppLogger.auth.info("Apple account linked successfully")
+        do {
+            // Update user metadata to indicate Apple linking
+            // This allows the user to sign in with either email/password or Apple Sign-In
+            try await SupabaseService.shared.client.auth.update(
+                user: UserAttributes(
+                    data: [
+                        "apple_user_id": .string(credential.user),
+                        "apple_linked_at": .string(ISO8601DateFormatter().string(from: Date())),
+                        "apple_email": credential.email.map { .string($0) } ?? .null
+                    ]
+                )
+            )
+            
+            AppLogger.auth.info("Apple account linked successfully to user metadata")
+            
+        } catch {
+            AppLogger.auth.error("Failed to update user metadata with Apple linking: \(error.localizedDescription)")
+            throw AppError.processingError("Failed to link Apple ID. Please try again.")
+        }
     }
     
     // MARK: - Private Helper Methods

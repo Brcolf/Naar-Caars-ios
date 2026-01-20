@@ -51,31 +51,28 @@ struct RideCard: View {
             
             Divider()
             
-            // Route addresses
+            // Route addresses (long-press to copy or open in maps)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(systemName: "mappin.circle.fill")
-                        .foregroundColor(.rideAccent)
-                        .font(.system(size: 16))
-                    Text(ride.pickup)
-                        .font(.naarsBody)
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(.green)
+                        .font(.system(size: 10))
+                    AddressText(ride.pickup)
                 }
                 
                 HStack(spacing: 8) {
-                    Image(systemName: "arrow.down")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 12))
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.3))
+                        .frame(width: 2, height: 16)
                         .padding(.leading, 4)
-                    Text("")
-                        .font(.system(size: 1))
+                    Spacer()
                 }
                 
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.rideAccent)
                         .font(.system(size: 16))
-                    Text(ride.destination)
-                        .font(.naarsBody)
+                    AddressText(ride.destination)
                 }
             }
             
@@ -88,6 +85,34 @@ struct RideCard: View {
                 Label("\(ride.seats) seat\(ride.seats == 1 ? "" : "s")", systemImage: "person.2")
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
+            }
+            
+            // Claimer info (when claimed or completed)
+            if ride.claimedBy != nil {
+                Divider()
+                
+                HStack(spacing: 8) {
+                    if let claimer = ride.claimer {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundColor(.naarsPrimary)
+                            .font(.system(size: 14))
+                        Text("Claimed by")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                        Text(claimer.name)
+                            .font(.naarsCaption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    } else {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundColor(.naarsPrimary)
+                            .font(.system(size: 14))
+                        Text("Claimed")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
             }
         }
         .padding()

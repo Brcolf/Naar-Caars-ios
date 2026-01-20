@@ -56,14 +56,13 @@ struct FavorCard: View {
                 .font(.naarsTitle3)
                 .lineLimit(2)
             
-            // Location and Duration
+            // Location and Duration (long-press location to copy or open in maps)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.favorAccent) // Teal/cyan for favors
                         .font(.system(size: 16))
-                    Text(favor.location)
-                        .font(.naarsBody)
+                    AddressText(favor.location)
                 }
                 
                 HStack(spacing: 8) {
@@ -81,6 +80,34 @@ struct FavorCard: View {
                     Label(time, systemImage: "clock")
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
+                }
+            }
+            
+            // Claimer info (when claimed or completed)
+            if favor.claimedBy != nil {
+                Divider()
+                
+                HStack(spacing: 8) {
+                    if let claimer = favor.claimer {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundColor(.naarsPrimary)
+                            .font(.system(size: 14))
+                        Text("Claimed by")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                        Text(claimer.name)
+                            .font(.naarsCaption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    } else {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundColor(.naarsPrimary)
+                            .font(.system(size: 14))
+                        Text("Claimed")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
                 }
             }
         }

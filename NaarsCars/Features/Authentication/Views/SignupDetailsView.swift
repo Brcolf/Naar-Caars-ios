@@ -152,12 +152,15 @@ struct SignupDetailsView: View {
                             do {
                                 try await viewModel.signUp()
                                 
-                                // Small delay to ensure auth state is updated in Supabase
-                                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                                // Success! Account was created.
+                                // Directly set state to pendingApproval since new signups require approval.
+                                // Don't use performCriticalLaunch() because:
+                                // 1. If email confirmation is required, there won't be a valid session yet
+                                // 2. The account definitely needs approval (it was just created)
+                                AppLaunchManager.shared.state = .ready(.pendingApproval)
                                 
-                                // Success - trigger AppLaunchManager to check auth state
-                                // This will automatically show PendingApprovalView if user is not approved
-                                await AppLaunchManager.shared.performCriticalLaunch()
+                                let generator = UINotificationFeedbackGenerator()
+                                generator.notificationOccurred(.success)
                             } catch {
                                 // Error handled by viewModel.errorMessage
                                 let generator = UINotificationFeedbackGenerator()

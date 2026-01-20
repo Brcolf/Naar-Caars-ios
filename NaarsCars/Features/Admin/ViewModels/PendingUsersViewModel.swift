@@ -108,8 +108,14 @@ final class PendingUsersViewModel: ObservableObject {
         error = nil
         
         do {
+            print("Admin rejected user: \(userId)")
             try await adminService.rejectUser(userId: userId)
-            // Remove from list
+            
+            // Reload the list to verify rejection worked
+            // This ensures we get fresh data from the server
+            await loadPendingUsers()
+            
+            // Also remove from local list if still present (belt and suspenders)
             pendingUsers.removeAll { $0.id == userId }
             
             // Refresh badge counts after rejecting user
@@ -117,6 +123,8 @@ final class PendingUsersViewModel: ObservableObject {
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             print("🔴 [PendingUsersViewModel] Error rejecting user: \(error.localizedDescription)")
+            // Reload list to ensure UI is in sync
+            await loadPendingUsers()
         }
     }
 }

@@ -10,12 +10,14 @@ import SwiftUI
 /// View for editing an existing ride request
 struct EditRideView: View {
     let ride: Ride
+    var onSaved: (() -> Void)? = nil
     @StateObject private var viewModel = CreateRideViewModel() // Reuse CreateRideViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
     
-    init(ride: Ride) {
+    init(ride: Ride, onSaved: (() -> Void)? = nil) {
         self.ride = ride
+        self.onSaved = onSaved
     }
     
     var body: some View {
@@ -80,6 +82,8 @@ struct EditRideView: View {
                                     notes: viewModel.notes.isEmpty ? nil : viewModel.notes,
                                     gift: viewModel.gift.isEmpty ? nil : viewModel.gift
                                 )
+                                // Notify parent to refresh before dismissing
+                                onSaved?()
                                 dismiss()
                             } catch {
                                 self.error = error.localizedDescription

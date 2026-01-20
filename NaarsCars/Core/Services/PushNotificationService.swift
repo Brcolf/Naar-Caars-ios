@@ -114,6 +114,44 @@ final class PushNotificationService {
         
         print("✅ [PushNotificationService] Removed device token for user \(userId)")
     }
+    
+    // MARK: - Local Notifications
+    
+    /// Show a local notification for a new message (when user is not viewing the conversation)
+    /// - Parameters:
+    ///   - senderName: Name of the message sender
+    ///   - messagePreview: Preview of the message text
+    ///   - conversationId: The conversation ID for deep linking
+    func showLocalMessageNotification(senderName: String, messagePreview: String, conversationId: UUID) async {
+        // Check if we have permission first
+        let settings = await notificationCenter.notificationSettings()
+        guard settings.authorizationStatus == .authorized else {
+            print("ℹ️ [PushNotificationService] Notification permission not granted, skipping local notification")
+            return
+        }
+        
+        let content = UNMutableNotificationContent()
+        content.title = senderName
+        content.body = messagePreview.count > 100 ? String(messagePreview.prefix(100)) + "..." : messagePreview
+        content.sound = .default
+        content.userInfo = [
+            "type": "message",
+            "conversation_id": conversationId.uuidString
+        ]
+        
+        // Use a unique identifier based on conversation and timestamp to avoid duplicates
+        let identifier = "message-\(conversationId.uuidString)-\(Date().timeIntervalSince1970)"
+        
+        // Show immediately (no trigger means immediate delivery)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        
+        do {
+            try await notificationCenter.add(request)
+            print("✅ [PushNotificationService] Showed local notification for message from \(senderName)")
+        } catch {
+            print("🔴 [PushNotificationService] Failed to show local notification: \(error.localizedDescription)")
+        }
+    }
 }
 
 

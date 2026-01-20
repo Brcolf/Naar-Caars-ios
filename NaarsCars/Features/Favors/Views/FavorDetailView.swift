@@ -70,6 +70,26 @@ struct FavorDetailView: View {
                         Spacer()
                     }
                     
+                    // Claimer info (when claimed or completed)
+                    if let claimer = favor.claimer {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Claimed by")
+                                .font(.naarsTitle3)
+                            
+                            HStack(spacing: 12) {
+                                UserAvatarLink(profile: claimer, size: 50)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(claimer.name)
+                                        .font(.naarsHeadline)
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                        .cardStyle()
+                    }
+                    
                     // Title
                     Text(favor.title)
                         .font(.naarsTitle2)
@@ -81,13 +101,21 @@ struct FavorDetailView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    // Location and Duration
+                    // Location and Duration (long-press location to copy or open in maps)
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Details")
-                            .font(.naarsTitle3)
-                        
                         HStack {
-                            Label(favor.location, systemImage: "mappin.circle.fill")
+                            Text("Details")
+                                .font(.naarsTitle3)
+                            Spacer()
+                            Text("Hold location to copy")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.favorAccent)
+                            AddressText(favor.location)
                             Spacer()
                         }
                         
@@ -198,7 +226,12 @@ struct FavorDetailView: View {
         }
         .sheet(isPresented: $showEditFavor) {
             if let favor = viewModel.favor {
-                EditFavorView(favor: favor)
+                EditFavorView(favor: favor) {
+                    // Refresh favor data after edit
+                    Task {
+                        await viewModel.loadFavor(id: favorId)
+                    }
+                }
             }
         }
         .alert("Delete Favor", isPresented: $showDeleteAlert) {

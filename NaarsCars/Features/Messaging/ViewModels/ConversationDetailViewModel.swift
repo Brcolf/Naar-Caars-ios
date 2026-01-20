@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 internal import Combine
+import Realtime
 
 /// ViewModel for conversation detail
 @MainActor
@@ -171,23 +172,178 @@ final class ConversationDetailViewModel: ObservableObject {
             await realtimeManager.subscribe(
                 channelName: "messages:\(conversationId.uuidString)",
                 table: "messages",
-                onInsert: { [weak self] _ in
+                filter: "conversation_id=eq.\(conversationId.uuidString)",
+                onInsert: { [weak self] payload in
                     Task { @MainActor [weak self] in
-                        await self?.loadMessages()
+                        self?.handleRealtimeInsert(payload)
                     }
                 },
-                onUpdate: { [weak self] _ in
+                onUpdate: { [weak self] payload in
                     Task { @MainActor [weak self] in
-                        await self?.loadMessages()
+                        self?.handleRealtimeUpdate(payload)
                     }
                 },
-                onDelete: { [weak self] _ in
+                onDelete: { [weak self] payload in
                     Task { @MainActor [weak self] in
-                        await self?.loadMessages()
+                        self?.handleRealtimeDelete(payload)
                     }
                 }
             )
         }
+    }
+    
+    /// Handle realtime INSERT - parse message from payload and add to list
+    private func handleRealtimeInsert(_ payload: Any) {
+        guard let message = parseMessageFromPayload(payload) else {
+            print("⚠️ [ConversationDetailVM] Could not parse message from realtime payload, falling back to reload")
+            Task { await loadMessages() }
+            return
+        }
+        
+        // Check for duplicates - don't add if already in list
+        // This handles the case where we sent the message (optimistic UI)
+        if messages.contains(where: { $0.id == message.id }) {
+            print("ℹ️ [ConversationDetailVM] Message \(message.id) already in list (optimistic UI), skipping")
+            return
+        }
+        
+        // Also check if this is our own message by matching text/time (optimistic message has different ID)
+        if let currentUserId = authService.currentUserId,
+           message.fromId == currentUserId {
+            // Check if we have an optimistic message that matches this one
+            let hasOptimistic = messages.contains { existing in
+                existing.fromId == currentUserId &&
+                existing.text == message.text &&
+                abs(existing.createdAt.timeIntervalSince(message.createdAt)) < 10.0
+            }
+            if hasOptimistic {
+                // Replace optimistic with real message
+                if let index = messages.firstIndex(where: { existing in
+                    existing.fromId == currentUserId &&
+                    existing.text == message.text &&
+                    abs(existing.createdAt.timeIntervalSince(message.createdAt)) < 10.0
+                }) {
+                    messages[index] = message
+                    print("✅ [ConversationDetailVM] Replaced optimistic message with real message \(message.id)")
+                }
+                return
+            }
+        }
+        
+        // Add new message from another user
+        messages.append(message)
+        messages.sort { $0.createdAt < $1.createdAt }
+        print("✅ [ConversationDetailVM] Added realtime message \(message.id) from \(message.fromId)")
+        
+        // Mark as read since user is actively viewing
+        if let userId = authService.currentUserId, message.fromId != userId {
+            Task {
+                try? await messageService.updateLastSeen(conversationId: conversationId, userId: userId)
+                try? await messageService.markAsRead(conversationId: conversationId, userId: userId)
+            }
+        }
+        
+        // Post notification to update conversations list
+        NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
+    }
+    
+    /// Handle realtime UPDATE - update message in list
+    private func handleRealtimeUpdate(_ payload: Any) {
+        guard let message = parseMessageFromPayload(payload) else {
+            Task { await loadMessages() }
+            return
+        }
+        
+        if let index = messages.firstIndex(where: { $0.id == message.id }) {
+            messages[index] = message
+            print("✅ [ConversationDetailVM] Updated message \(message.id) via realtime")
+        }
+    }
+    
+    /// Handle realtime DELETE - remove message from list
+    private func handleRealtimeDelete(_ payload: Any) {
+        guard let message = parseMessageFromPayload(payload) else {
+            Task { await loadMessages() }
+            return
+        }
+        
+        messages.removeAll { $0.id == message.id }
+        print("✅ [ConversationDetailVM] Deleted message \(message.id) via realtime")
+    }
+    
+    /// Parse a Message from Supabase realtime payload
+    private func parseMessageFromPayload(_ payload: Any) -> Message? {
+        // Supabase realtime payloads are InsertAction/UpdateAction/DeleteAction
+        // which contain a `record` property with the row data
+        
+        // Try to extract the record dictionary
+        var recordDict: [String: Any]?
+        
+        // Handle different payload types from Supabase Realtime SDK
+        if let insertAction = payload as? Realtime.InsertAction {
+            recordDict = insertAction.record
+        } else if let updateAction = payload as? Realtime.UpdateAction {
+            recordDict = updateAction.record
+        } else if let deleteAction = payload as? Realtime.DeleteAction {
+            recordDict = deleteAction.oldRecord
+        } else if let dict = payload as? [String: Any] {
+            // Fallback: might be a raw dictionary
+            recordDict = dict["record"] as? [String: Any] ?? dict
+        }
+        
+        guard let record = recordDict else {
+            print("⚠️ [ConversationDetailVM] Could not extract record from payload: \(type(of: payload))")
+            return nil
+        }
+        
+        // Parse the message fields
+        guard let idString = record["id"] as? String,
+              let id = UUID(uuidString: idString),
+              let conversationIdString = record["conversation_id"] as? String,
+              let convId = UUID(uuidString: conversationIdString),
+              let fromIdString = record["from_id"] as? String,
+              let fromId = UUID(uuidString: fromIdString),
+              let text = record["text"] as? String else {
+            print("⚠️ [ConversationDetailVM] Missing required fields in record: \(record.keys)")
+            return nil
+        }
+        
+        // Parse optional fields
+        let imageUrl = record["image_url"] as? String
+        
+        // Parse read_by array
+        var readBy: [UUID] = []
+        if let readByArray = record["read_by"] as? [String] {
+            readBy = readByArray.compactMap { UUID(uuidString: $0) }
+        }
+        
+        // Parse created_at
+        var createdAt = Date()
+        if let createdAtString = record["created_at"] as? String {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: createdAtString) {
+                createdAt = date
+            } else {
+                // Try without fractional seconds
+                formatter.formatOptions = [.withInternetDateTime]
+                if let date = formatter.date(from: createdAtString) {
+                    createdAt = date
+                }
+            }
+        }
+        
+        return Message(
+            id: id,
+            conversationId: convId,
+            fromId: fromId,
+            text: text,
+            imageUrl: imageUrl,
+            readBy: readBy,
+            createdAt: createdAt,
+            sender: nil, // Sender profile not included in realtime payload
+            reactions: nil
+        )
     }
     
     private func unsubscribeFromMessages() async {

@@ -100,26 +100,69 @@ final class MapService {
     
     // MARK: - Geocoding
     
+    /// Default region hint for geocoding (Seattle area)
+    private static let seattleRegion = CLCircularRegion(
+        center: CLLocationCoordinate2D(latitude: 47.6062, longitude: -122.3321),
+        radius: 50000, // 50km radius
+        identifier: "Seattle"
+    )
+    
     /// Convert address string to coordinates
     /// - Parameter address: Address string to geocode
     /// - Returns: CLLocationCoordinate2D if successful
     /// - Throws: MapError if geocoding fails
     func geocode(address: String) async throws -> CLLocationCoordinate2D {
-        guard !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty else {
+            print("🗺️ [MapService] Empty address")
             throw MapError.invalidAddress
         }
         
+        print("🗺️ [MapService] Geocoding: '\(trimmedAddress)'")
+        
+        // Try geocoding with region hint first
         do {
-            let placemarks = try await geocoder.geocodeAddressString(address)
+            let placemarks = try await geocoder.geocodeAddressString(
+                trimmedAddress,
+                in: Self.seattleRegion
+            )
             
-            guard let location = placemarks.first?.location?.coordinate else {
-                throw MapError.geocodingFailed
+            if let location = placemarks.first?.location?.coordinate {
+                print("🗺️ [MapService] Success with region hint: \(location.latitude), \(location.longitude)")
+                return location
             }
-            
-            return location
+            print("🗺️ [MapService] No placemarks returned with region hint")
         } catch {
-            throw MapError.geocodingFailed
+            print("🗺️ [MapService] Region hint failed: \(error.localizedDescription)")
+            // Fall through to try with appended city
         }
+        
+        // If address doesn't contain common location indicators, try appending Seattle
+        let hasLocationContext = trimmedAddress.lowercased().contains("seattle") ||
+                                  trimmedAddress.lowercased().contains(", wa") ||
+                                  trimmedAddress.lowercased().contains("washington") ||
+                                  trimmedAddress.contains(",")
+        
+        if !hasLocationContext {
+            // Try with Seattle, WA appended
+            let enhancedAddress = "\(trimmedAddress), Seattle, WA"
+            print("🗺️ [MapService] Trying enhanced: '\(enhancedAddress)'")
+            do {
+                let placemarks = try await geocoder.geocodeAddressString(enhancedAddress)
+                
+                if let location = placemarks.first?.location?.coordinate {
+                    print("🗺️ [MapService] Success with enhanced: \(location.latitude), \(location.longitude)")
+                    return location
+                }
+                print("🗺️ [MapService] No placemarks returned with enhanced")
+            } catch {
+                print("🗺️ [MapService] Enhanced failed: \(error.localizedDescription)")
+                // Fall through to error
+            }
+        }
+        
+        print("🗺️ [MapService] All geocoding attempts failed for: '\(trimmedAddress)'")
+        throw MapError.geocodingFailed
     }
     
     /// Batch geocode addresses (for map view)

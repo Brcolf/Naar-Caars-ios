@@ -144,9 +144,12 @@ final class RideService {
         notes: String? = nil,
         gift: String? = nil
     ) async throws -> Ride {
-        // Format date as "yyyy-MM-dd"
+        // Format date as "yyyy-MM-dd" using local timezone
+        // Important: Use local timezone to match what the user selected in DatePicker
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = .current  // Use local timezone to avoid off-by-one day issues
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         let dateString = dateFormatter.string(from: date)
         
         // Create ride data
@@ -177,24 +180,38 @@ final class RideService {
         await cacheManager.invalidateRides()
         
         // Calculate and save estimated cost asynchronously (don't block ride creation)
-        Task.detached {
-            await self.calculateAndSaveEstimatedCost(for: ride)
+        // Use Task {} to run on MainActor since MapService is @MainActor
+        // This allows the ride to be returned immediately while cost calculation happens in background
+        let rideId = ride.id
+        let pickupAddress = ride.pickup
+        let destinationAddress = ride.destination
+        Task {
+            await self.calculateAndSaveEstimatedCost(
+                rideId: rideId,
+                pickup: pickupAddress,
+                destination: destinationAddress
+            )
         }
         
         return ride
     }
     
     /// Calculate and save estimated cost for a ride (asynchronous, non-blocking)
-    /// - Parameter ride: The ride to calculate cost for
-    private func calculateAndSaveEstimatedCost(for ride: Ride) async {
+    /// This runs in the background after ride creation and doesn't block the user
+    /// - Parameters:
+    ///   - rideId: The ride ID to update
+    ///   - pickup: Pickup address for cost calculation
+    ///   - destination: Destination address for cost calculation
+    private func calculateAndSaveEstimatedCost(rideId: UUID, pickup: String, destination: String) async {
         do {
             // Calculate cost using route calculation
+            // This may take a few seconds due to geocoding and route calculation
             guard let estimatedCost = await RideCostEstimator.estimateCost(
-                pickup: ride.pickup,
-                destination: ride.destination
+                pickup: pickup,
+                destination: destination
             ) else {
                 // If calculation fails, just log and return (ride is still created)
-                print("⚠️ [RideService] Failed to calculate estimated cost for ride \(ride.id)")
+                print("⚠️ [RideService] Failed to calculate estimated cost for ride \(rideId)")
                 return
             }
             
@@ -206,17 +223,17 @@ final class RideService {
             try await supabase
                 .from("rides")
                 .update(updateData)
-                .eq("id", value: ride.id.uuidString)
+                .eq("id", value: rideId.uuidString)
                 .execute()
             
-            print("✅ [RideService] Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(ride.id)")
+            print("✅ [RideService] Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(rideId)")
             
             // Invalidate cache so the updated ride is fetched next time
             await cacheManager.invalidateRides()
             
         } catch {
             // If update fails, just log (ride is still created)
-            print("⚠️ [RideService] Failed to save estimated cost for ride \(ride.id): \(error.localizedDescription)")
+            print("⚠️ [RideService] Failed to save estimated cost for ride \(rideId): \(error.localizedDescription)")
         }
     }
     
@@ -247,8 +264,11 @@ final class RideService {
         var updates: [String: AnyCodable] = [:]
         
         if let date = date {
+            // Use local timezone to match what the user selected in DatePicker
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = .current  // Use local timezone to avoid off-by-one day issues
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
             updates["date"] = AnyCodable(dateFormatter.string(from: date))
         }
         if let time = time {

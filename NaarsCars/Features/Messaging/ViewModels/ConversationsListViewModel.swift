@@ -7,6 +7,7 @@
 
 import Foundation
 internal import Combine
+import Realtime
 
 /// ViewModel for conversations list
 @MainActor
@@ -26,14 +27,16 @@ final class ConversationsListViewModel: ObservableObject {
     
     init() {
         setupRealtimeSubscription()
+        setupMessagesRealtimeSubscription()
     }
     
     deinit {
         // Use Task.detached to avoid capturing self strongly
-        // Capture the channel name string instead of calling the method
-        let channelName = "conversations:all"
+        let convChannelName = "conversations:all"
+        let msgChannelName = "messages:list-updates"
         Task.detached {
-            await RealtimeManager.shared.unsubscribe(channelName: channelName)
+            await RealtimeManager.shared.unsubscribe(channelName: convChannelName)
+            await RealtimeManager.shared.unsubscribe(channelName: msgChannelName)
         }
     }
     
@@ -106,45 +109,159 @@ final class ConversationsListViewModel: ObservableObject {
                 table: "conversations",
                 onInsert: { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        await self?.loadConversations()
+                        print("📬 [ConversationsListVM] New conversation detected via realtime")
+                        await self?.refreshConversations()
                     }
                 },
                 onUpdate: { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        await self?.loadConversations()
+                        print("📬 [ConversationsListVM] Conversation updated via realtime")
+                        await self?.refreshConversations()
                     }
                 },
                 onDelete: { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        await self?.loadConversations()
+                        print("📬 [ConversationsListVM] Conversation deleted via realtime")
+                        await self?.refreshConversations()
                     }
                 }
             )
         }
     }
     
-    private func unsubscribeFromConversations() async {
-        await realtimeManager.unsubscribe(channelName: "conversations:all")
-    }
-    
-    private func handleNewConversation(_ newConversation: Conversation) {
-        // Reload conversations to get full details
+    /// Subscribe to messages table for real-time list updates
+    /// When a new message arrives, update the conversation preview immediately
+    private func setupMessagesRealtimeSubscription() {
         Task {
-            await loadConversations()
+            await realtimeManager.subscribe(
+                channelName: "messages:list-updates",
+                table: "messages",
+                // Note: No filter - RLS will ensure we only see messages we have access to
+                // and Supabase will only send us events for conversations we're part of
+                onInsert: { [weak self] payload in
+                    Task { @MainActor [weak self] in
+                        self?.handleMessageInsertForList(payload)
+                    }
+                }
+            )
         }
     }
     
-    private func handleConversationUpdate(_ updatedConversation: Conversation) {
-        if let index = conversations.firstIndex(where: { $0.conversation.id == updatedConversation.id }) {
-            // Reload to get updated details
-            Task {
-                await loadConversations()
+    /// Handle a new message for updating the conversation list
+    private func handleMessageInsertForList(_ payload: Any) {
+        guard let message = parseMessageFromPayload(payload) else {
+            print("⚠️ [ConversationsListVM] Could not parse message from payload, refreshing list")
+            Task { await refreshConversations() }
+            return
+        }
+        
+        print("📬 [ConversationsListVM] New message in conversation \(message.conversationId)")
+        
+        // Find the conversation in our list
+        if let index = conversations.firstIndex(where: { $0.conversation.id == message.conversationId }) {
+            let existingConversation = conversations[index]
+            
+            // Show local notification if message is from someone else
+            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
+                // Get sender name from participants
+                let senderName = existingConversation.otherParticipants
+                    .first(where: { $0.id == message.fromId })?.name ?? "Someone"
+                
+                // Show local notification
+                Task {
+                    await PushNotificationService.shared.showLocalMessageNotification(
+                        senderName: senderName,
+                        messagePreview: message.text,
+                        conversationId: message.conversationId
+                    )
+                }
+            }
+            
+            // Calculate new unread count (increment if not from current user)
+            var newUnreadCount = existingConversation.unreadCount
+            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
+                newUnreadCount += 1
+            }
+            
+            // Create updated conversation with new message (ConversationWithDetails is immutable)
+            let updatedConversation = ConversationWithDetails(
+                conversation: existingConversation.conversation,
+                lastMessage: message,
+                unreadCount: newUnreadCount,
+                otherParticipants: existingConversation.otherParticipants
+            )
+            
+            // Remove from current position and insert at top (most recent)
+            conversations.remove(at: index)
+            conversations.insert(updatedConversation, at: 0)
+            
+            print("✅ [ConversationsListVM] Updated conversation \(message.conversationId) in list (moved to top)")
+        } else {
+            // Message is for a conversation not in our list - might be a new conversation
+            print("ℹ️ [ConversationsListVM] Message for unknown conversation, refreshing list")
+            Task { await refreshConversations() }
+        }
+    }
+    
+    /// Parse a Message from Supabase realtime payload
+    private func parseMessageFromPayload(_ payload: Any) -> Message? {
+        var recordDict: [String: Any]?
+        
+        if let insertAction = payload as? Realtime.InsertAction {
+            recordDict = insertAction.record
+        } else if let dict = payload as? [String: Any] {
+            recordDict = dict["record"] as? [String: Any] ?? dict
+        }
+        
+        guard let record = recordDict else {
+            return nil
+        }
+        
+        guard let idString = record["id"] as? String,
+              let id = UUID(uuidString: idString),
+              let conversationIdString = record["conversation_id"] as? String,
+              let convId = UUID(uuidString: conversationIdString),
+              let fromIdString = record["from_id"] as? String,
+              let fromId = UUID(uuidString: fromIdString),
+              let text = record["text"] as? String else {
+            return nil
+        }
+        
+        let imageUrl = record["image_url"] as? String
+        
+        var readBy: [UUID] = []
+        if let readByArray = record["read_by"] as? [String] {
+            readBy = readByArray.compactMap { UUID(uuidString: $0) }
+        }
+        
+        var createdAt = Date()
+        if let createdAtString = record["created_at"] as? String {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: createdAtString) {
+                createdAt = date
+            } else {
+                formatter.formatOptions = [.withInternetDateTime]
+                if let date = formatter.date(from: createdAtString) {
+                    createdAt = date
+                }
             }
         }
+        
+        return Message(
+            id: id,
+            conversationId: convId,
+            fromId: fromId,
+            text: text,
+            imageUrl: imageUrl,
+            readBy: readBy,
+            createdAt: createdAt
+        )
     }
     
-    private func handleConversationDelete(_ deletedConversation: Conversation) {
-        conversations.removeAll { $0.conversation.id == deletedConversation.id }
+    private func unsubscribeFromConversations() async {
+        await realtimeManager.unsubscribe(channelName: "conversations:all")
+        await realtimeManager.unsubscribe(channelName: "messages:list-updates")
     }
     
     // MARK: - Debug Support

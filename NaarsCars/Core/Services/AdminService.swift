@@ -267,17 +267,39 @@ final class AdminService {
     func rejectUser(userId: UUID) async throws {
         try await verifyAdminStatus()
         
-        // Delete the pending profile (safety: only delete unapproved)
-        _ = try await supabase
-            .from("profiles")
-            .delete()
-            .eq("id", value: userId.uuidString)
-            .eq("approved", value: false)
+        // Use RPC function to delete profile (bypasses RLS)
+        // The direct delete doesn't work due to missing RLS delete policy
+        let params: [String: String] = ["p_user_id": userId.uuidString]
+        
+        print("🔍 [AdminService] Calling admin_reject_pending_user for: \(userId)")
+        
+        struct RejectResponse: Decodable {
+            let success: Bool
+            let error: String?
+            let deletedUserId: UUID?
+            let rowsDeleted: Int?
+            
+            enum CodingKeys: String, CodingKey {
+                case success
+                case error
+                case deletedUserId = "deleted_user_id"
+                case rowsDeleted = "rows_deleted"
+            }
+        }
+        
+        let response: RejectResponse = try await supabase
+            .rpc("admin_reject_pending_user", params: params)
             .execute()
+            .value
         
-        Log.security("Admin rejected user: \(userId)")
-        
-        print("✅ [AdminService] Rejected user: \(userId)")
+        if response.success {
+            Log.security("Admin rejected user: \(userId)")
+            print("✅ [AdminService] Successfully rejected user: \(userId), rows deleted: \(response.rowsDeleted ?? 0)")
+        } else {
+            let errorMsg = response.error ?? "Unknown error"
+            print("🔴 [AdminService] Failed to reject user \(userId): \(errorMsg)")
+            throw AppError.processingError("Failed to reject user: \(errorMsg)")
+        }
     }
     
     /// Set admin status for a user

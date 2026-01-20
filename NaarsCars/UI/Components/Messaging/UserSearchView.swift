@@ -153,14 +153,16 @@ struct UserSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        print("🔍 [UserSearchView] Cancel tapped, clearing selections")
+                        print("🔍 [UserSearchView] Cancel tapped, clearing selections and dismissing")
                         selectedUserIds.removeAll()
+                        dismiss()
                         onDismiss()
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(actionButtonTitle) {
-                        print("🔍 [UserSearchView] \(actionButtonTitle) tapped with \(selectedUserIds.count) selected user(s)")
+                        print("🔍 [UserSearchView] \(actionButtonTitle) tapped with \(selectedUserIds.count) selected user(s), dismissing")
+                        dismiss()
                         onDismiss()
                     }
                     .disabled(selectedUserIds.isEmpty)

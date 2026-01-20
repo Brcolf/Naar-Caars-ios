@@ -73,10 +73,13 @@ struct ContentView: View {
                 .zIndex(1000)
             }
         }
-        .id(launchManager.state.id) // Force view recreation when state changes
+        // Note: Removed .id() modifier that was causing view recreation loops
+        // The view will update naturally when launchManager.state changes
         .animation(.easeInOut(duration: 0.3), value: launchManager.state.id)
-        .task {
-            // Perform critical launch on appear
+        .task(id: "initial_launch") {
+            // Only perform critical launch once on initial appear
+            // Subsequent state changes are handled by specific actions (login, signup, etc.)
+            guard case .initializing = launchManager.state else { return }
             await launchManager.performCriticalLaunch()
             
             // Check if biometric unlock is needed on launch

@@ -89,10 +89,12 @@ enum DateFormatters {
     // MARK: - Custom Format Formatters
     
     /// Date-only formatter for API (YYYY-MM-DD format)
+    /// Uses local timezone to match what users select in DatePicker
+    /// This ensures dates don't shift by a day due to timezone conversion
     static let apiDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = .current  // Use local timezone to avoid off-by-one day issues
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
