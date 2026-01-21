@@ -32,9 +32,11 @@ final class NotificationService {
     /// - Parameter userId: The user ID
     /// - Returns: Array of notifications ordered by pinned first, then createdAt
     /// - Throws: AppError if fetch fails
-    func fetchNotifications(userId: UUID) async throws -> [AppNotification] {
+    func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
         // Check cache first
-        if let cached = await cacheManager.getCachedNotifications(userId: userId), !cached.isEmpty {
+        if !forceRefresh,
+           let cached = await cacheManager.getCachedNotifications(userId: userId),
+           !cached.isEmpty {
             print("✅ [NotificationService] Cache hit for notifications. Returning \(cached.count) items.")
             return cached
         }
@@ -157,6 +159,29 @@ final class NotificationService {
         await cacheManager.invalidateNotifications(userId: userId)
         
         print("✅ [NotificationService] Marked all notifications as read for user \(userId)")
+    }
+
+    /// Mark review request notifications as read for a specific request
+    /// - Parameters:
+    ///   - requestType: "ride" or "favor"
+    ///   - requestId: Request ID
+    func markReviewRequestAsRead(requestType: String, requestId: UUID) async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        
+        let idColumn = requestType == "ride" ? "ride_id" : "favor_id"
+        do {
+            try await supabase
+                .from("notifications")
+                .update(["read": true])
+                .eq("user_id", value: userId.uuidString)
+                .eq("type", value: "review_request")
+                .eq(idColumn, value: requestId.uuidString)
+                .execute()
+            
+            await cacheManager.invalidateNotifications(userId: userId)
+        } catch {
+            print("⚠️ [NotificationService] Failed to clear review_request notifications: \(error)")
+        }
     }
     
     // MARK: - Admin Operations

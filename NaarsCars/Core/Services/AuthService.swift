@@ -70,8 +70,10 @@ final class AuthService: ObservableObject {
                 
                 // Check approval status
                 if !profile.approved {
+                    await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
                     return .pendingApproval
                 } else {
+                    await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
                     return .authenticated
                 }
             } else {
@@ -119,6 +121,10 @@ final class AuthService: ObservableObject {
             // Update currentUserId and currentProfile
             currentUserId = userId
             currentProfile = profile
+            
+            await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
+            
+            await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
             
             // Set crash reporting user ID and context
             CrashReportingService.shared.setUserId(userId.uuidString)
@@ -326,6 +332,8 @@ final class AuthService: ObservableObject {
                 // Profile should exist, but set userId for state
                 currentUserId = userId
             }
+            
+            await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
             
             AppLogger.auth.info("User signed up successfully: \(email)")
             
@@ -560,6 +568,7 @@ final class AuthService: ObservableObject {
     /// Posts notification to trigger app state change
     private func handleSignOut() async {
         AppLogger.auth.debug("handleSignOut() started")
+        let userIdToRemove = currentUserId
         
         // Log action for crash context
         CrashReportingService.shared.logAction("sign_out")
@@ -578,6 +587,11 @@ final class AuthService: ObservableObject {
             currentProfile = nil
         }
         AppLogger.auth.debug("Local state cleared")
+
+        if let userId = userIdToRemove {
+            try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
+        }
+        PushNotificationService.shared.clearRegisteredTokenState()
         
         // Clear caches
         await CacheManager.shared.clearAll()

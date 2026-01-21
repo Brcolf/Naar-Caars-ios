@@ -139,7 +139,8 @@ final class ProfileService {
         notifyAnnouncements: Bool? = nil,
         notifyNewRequests: Bool? = nil,
         notifyQaActivity: Bool? = nil,
-        notifyReviewReminders: Bool? = nil
+        notifyReviewReminders: Bool? = nil,
+        notifyTownHall: Bool? = nil
     ) async throws {
         struct NotificationPreferencesUpdate: Codable {
             let notifyRideUpdates: Bool?
@@ -148,6 +149,7 @@ final class ProfileService {
             let notifyNewRequests: Bool?
             let notifyQaActivity: Bool?
             let notifyReviewReminders: Bool?
+            let notifyTownHall: Bool?
             let updatedAt: String
             
             enum CodingKeys: String, CodingKey {
@@ -157,6 +159,7 @@ final class ProfileService {
                 case notifyNewRequests = "notify_new_requests"
                 case notifyQaActivity = "notify_qa_activity"
                 case notifyReviewReminders = "notify_review_reminders"
+                case notifyTownHall = "notify_town_hall"
                 case updatedAt = "updated_at"
             }
         }
@@ -171,6 +174,7 @@ final class ProfileService {
             notifyNewRequests: notifyNewRequests,
             notifyQaActivity: notifyQaActivity,
             notifyReviewReminders: notifyReviewReminders,
+            notifyTownHall: notifyTownHall,
             updatedAt: dateFormatter.string(from: Date())
         )
         

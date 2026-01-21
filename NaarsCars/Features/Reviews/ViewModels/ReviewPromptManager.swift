@@ -25,6 +25,7 @@ final class ReviewPromptManager: ObservableObject {
     
     private let reviewService = ReviewService.shared
     private let authService = AuthService.shared
+    private let profileService = ProfileService.shared
     
     // MARK: - Types
     
@@ -80,6 +81,51 @@ final class ReviewPromptManager: ObservableObject {
     /// Clear current prompt (when user submits or skips)
     func clearPrompt() {
         pendingPrompt = nil
+    }
+
+    /// Load a specific prompt from a push/deep link
+    func loadPrompt(rideId: UUID? = nil, favorId: UUID? = nil) async {
+        guard let userId = authService.currentUserId else {
+            pendingPrompt = nil
+            return
+        }
+        
+        do {
+            if let rideId = rideId {
+                let ride = try await RideService.shared.fetchRide(id: rideId)
+                guard ride.userId == userId, let fulfillerId = ride.claimedBy else { return }
+                let fulfillerName = (try? await profileService.fetchProfile(userId: fulfillerId))?.name ?? "Someone"
+                
+                pendingPrompt = PendingReviewPrompt(
+                    id: rideId,
+                    requestType: "ride",
+                    requestId: rideId,
+                    requestTitle: "\(ride.pickup) → \(ride.destination)",
+                    fulfillerId: fulfillerId,
+                    fulfillerName: fulfillerName
+                )
+                return
+            }
+            
+            if let favorId = favorId {
+                let favor = try await FavorService.shared.fetchFavor(id: favorId)
+                guard favor.userId == userId, let fulfillerId = favor.claimedBy else { return }
+                let fulfillerName = (try? await profileService.fetchProfile(userId: fulfillerId))?.name ?? "Someone"
+                
+                pendingPrompt = PendingReviewPrompt(
+                    id: favorId,
+                    requestType: "favor",
+                    requestId: favorId,
+                    requestTitle: favor.title,
+                    fulfillerId: fulfillerId,
+                    fulfillerName: fulfillerName
+                )
+                return
+            }
+        } catch {
+            print("❌ Error loading review prompt: \(error.localizedDescription)")
+            pendingPrompt = nil
+        }
     }
 }
 

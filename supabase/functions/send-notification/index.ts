@@ -155,13 +155,19 @@ async function handleCompletionResponse(supabase: any, data: any) {
 }
 
 async function processNotificationQueue(supabase: any) {
+  // Queue any due completion reminders
+  const { error: reminderError } = await supabase.rpc('process_completion_reminders')
+  if (reminderError) {
+    console.error('Error processing completion reminders:', reminderError)
+  }
+
   // Fetch unprocessed notifications from queue
   // For non-batched notifications, process immediately
   // For batched notifications, they're handled by the cron job
   const { data: notifications, error } = await supabase
     .from('notification_queue')
     .select('*')
-    .is('processed_at', null)
+    .is('sent_at', null)
     .is('batch_key', null)  // Only non-batched notifications
     .order('created_at', { ascending: true })
     .limit(100)
@@ -252,6 +258,16 @@ async function sendPushToUser(
     .eq('user_id', userId)
     .eq('read', false)
 
+  // Get unread message count for badge
+  const { data: unreadMessages, error: unreadMessagesError } = await supabase
+    .rpc('get_unread_message_count', { p_user_id: userId })
+
+  if (unreadMessagesError) {
+    console.error('Error fetching unread message count:', unreadMessagesError)
+  }
+
+  const unreadMessagesCount = typeof unreadMessages === 'number' ? unreadMessages : 0
+
   // Prepare APNs payload
   const apnsPayload: APNsPayload = {
     aps: {
@@ -260,7 +276,7 @@ async function sendPushToUser(
         body
       },
       sound: 'default',
-      badge: (unreadCount ?? 0) + 1,
+      badge: (unreadCount ?? 0) + unreadMessagesCount,
       'mutable-content': 1,
     },
     type: notificationType,

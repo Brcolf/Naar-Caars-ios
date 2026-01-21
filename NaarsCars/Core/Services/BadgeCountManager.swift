@@ -129,35 +129,9 @@ final class BadgeCountManager: ObservableObject {
     
     /// Clear Requests badge (called when navigating to Requests tab)
     func clearRequestsBadge() async {
-        // Mark all request-related notifications as read
-        guard let userId = authService.currentUserId else { return }
-        
-        do {
-            let notifications = try await notificationService.fetchNotifications(userId: userId)
-            
-            // Request-related notification types to clear
-            let requestTypes: Set<NotificationType> = [
-                .newRide, .newFavor,
-                .rideClaimed, .rideUnclaimed,
-                .favorClaimed, .favorUnclaimed,
-                .rideCompleted, .favorCompleted,
-                .qaActivity, .qaQuestion, .qaAnswer,
-                .completionReminder,
-                .reviewRequest, .reviewReminder
-            ]
-            
-            let requestNotificationIds = notifications
-                .filter { !$0.read && requestTypes.contains($0.type) }
-                .map { $0.id }
-            
-            for notificationId in requestNotificationIds {
-                try? await notificationService.markAsRead(notificationId: notificationId)
-            }
-            
-            await refreshAllBadges()
-        } catch {
-            print("⚠️ [BadgeCountManager] Error clearing requests badge: \(error)")
-        }
+        // Don't auto-clear all request notifications on tab view
+        UserDefaults.standard.set(Date(), forKey: lastViewedRequestsKey)
+        await refreshAllBadges()
     }
     
     /// Clear Messages badge (called when viewing a conversation)
@@ -172,7 +146,7 @@ final class BadgeCountManager: ObservableObject {
         guard let userId = authService.currentUserId else { return }
         
         do {
-            let notifications = try await notificationService.fetchNotifications(userId: userId)
+            let notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
             
             // Community notification types to clear
             let communityTypes: Set<NotificationType> = [
@@ -206,7 +180,7 @@ final class BadgeCountManager: ObservableObject {
     private func calculateRequestsBadgeCount(userId: UUID) async -> Int {
         do {
             // Get unread notifications related to requests
-            let notifications = try await notificationService.fetchNotifications(userId: userId)
+            let notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
             
             // Request-related notification types
             let requestTypes: Set<NotificationType> = [
@@ -249,7 +223,7 @@ final class BadgeCountManager: ObservableObject {
     private func calculateCommunityBadgeCount(userId: UUID) async -> Int {
         do {
             // Get unread notifications related to community/Town Hall
-            let notifications = try await notificationService.fetchNotifications(userId: userId)
+            let notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
             
             // Community notification types
             let communityTypes: Set<NotificationType> = [

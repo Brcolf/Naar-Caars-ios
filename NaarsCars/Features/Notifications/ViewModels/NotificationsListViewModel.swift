@@ -40,7 +40,7 @@ final class NotificationsListViewModel: ObservableObject {
         }
     }
     
-    func loadNotifications() async {
+    func loadNotifications(forceRefresh: Bool = false) async {
         guard let userId = authService.currentUserId else {
             error = .notAuthenticated
             return
@@ -50,7 +50,7 @@ final class NotificationsListViewModel: ObservableObject {
         error = nil
         
         do {
-            self.notifications = try await notificationService.fetchNotifications(userId: userId)
+            self.notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: forceRefresh)
             self.unreadCount = try await notificationService.fetchUnreadCount(userId: userId)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
@@ -63,7 +63,7 @@ final class NotificationsListViewModel: ObservableObject {
     func refreshNotifications() async {
         guard let userId = authService.currentUserId else { return }
         await CacheManager.shared.invalidateNotifications(userId: userId)
-        await loadNotifications()
+        await loadNotifications(forceRefresh: true)
     }
     
     func markAsRead(_ notification: AppNotification) async {
@@ -103,23 +103,51 @@ final class NotificationsListViewModel: ObservableObject {
         let coordinator = NavigationCoordinator.shared
         
         switch notification.type {
-        case .rideClaimed, .rideUnclaimed, .qaActivity:
+        case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted,
+             .qaActivity, .qaQuestion, .qaAnswer, .completionReminder:
             if let rideId = notification.rideId {
                 coordinator.selectedTab = .requests
                 coordinator.navigateToRide = rideId
             }
             
-        case .favorClaimed, .favorUnclaimed:
+        case .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted:
             if let favorId = notification.favorId {
                 coordinator.selectedTab = .requests
                 coordinator.navigateToFavor = favorId
             }
             
-        case .message:
+        case .message, .addedToConversation:
             if let conversationId = notification.conversationId {
                 coordinator.selectedTab = .messages
                 coordinator.navigateToConversation = conversationId
             }
+            
+        case .reviewRequest:
+            if let rideId = notification.rideId {
+                coordinator.selectedTab = .requests
+                coordinator.navigateToRide = rideId
+                NotificationCenter.default.post(
+                    name: .showReviewPrompt,
+                    object: nil,
+                    userInfo: ["rideId": rideId]
+                )
+            } else if let favorId = notification.favorId {
+                coordinator.selectedTab = .requests
+                coordinator.navigateToFavor = favorId
+                NotificationCenter.default.post(
+                    name: .showReviewPrompt,
+                    object: nil,
+                    userInfo: ["favorId": favorId]
+                )
+            }
+            
+        case .townHallPost, .townHallComment, .townHallReaction:
+            coordinator.selectedTab = .community
+            coordinator.navigateToTownHallPost = notification.townHallPostId
+            
+        case .pendingApproval:
+            coordinator.selectedTab = .profile
+            coordinator.navigateToAdminPanel = true
             
         case .adminAnnouncement, .other:
             // Notifications tab removed - navigate to appropriate tab based on notification type
@@ -146,19 +174,28 @@ final class NotificationsListViewModel: ObservableObject {
                 onInsert: { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self = self, !Task.isCancelled else { return }
-                        await self.loadNotifications()
+                        if let userId = self.authService.currentUserId {
+                            await CacheManager.shared.invalidateNotifications(userId: userId)
+                        }
+                        await self.loadNotifications(forceRefresh: true)
                     }
                 },
                 onUpdate: { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self = self, !Task.isCancelled else { return }
-                        await self.loadNotifications()
+                        if let userId = self.authService.currentUserId {
+                            await CacheManager.shared.invalidateNotifications(userId: userId)
+                        }
+                        await self.loadNotifications(forceRefresh: true)
                     }
                 },
                 onDelete: { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self = self, !Task.isCancelled else { return }
-                        await self.loadNotifications()
+                        if let userId = self.authService.currentUserId {
+                            await CacheManager.shared.invalidateNotifications(userId: userId)
+                        }
+                        await self.loadNotifications(forceRefresh: true)
                     }
                 }
             )

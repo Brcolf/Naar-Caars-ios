@@ -137,21 +137,13 @@ struct SettingsView: View {
                                 Text("settings_announcements".localized)
                                     .font(.body)
                             }
-                            .onChange(of: viewModel.notifyAnnouncements) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.announcements, enabled: newValue)
-                                }
-                            }
+                            .disabled(true)
                             
                             Toggle(isOn: $viewModel.notifyNewRequests) {
                                 Text("settings_new_requests".localized)
                                     .font(.body)
                             }
-                            .onChange(of: viewModel.notifyNewRequests) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.newRequests, enabled: newValue)
-                                }
-                            }
+                            .disabled(true)
                             
                             Toggle(isOn: $viewModel.notifyQaActivity) {
                                 Text("settings_qa_activity".localized)
@@ -172,12 +164,24 @@ struct SettingsView: View {
                                     await viewModel.updateNotificationPreference(.reviewReminders, enabled: newValue)
                                 }
                             }
+                            
+                            Toggle(isOn: $viewModel.notifyTownHall) {
+                                Text("Town Hall")
+                                    .font(.body)
+                            }
+                            .onChange(of: viewModel.notifyTownHall) { _, newValue in
+                                Task {
+                                    await viewModel.updateNotificationPreference(.townHall, enabled: newValue)
+                                }
+                            }
                         }
                     }
                 } header: {
                     Text("Notifications")
                 } footer: {
                     if viewModel.pushNotificationsEnabled {
+                        Text("Announcements and New Requests are required and cannot be disabled.")
+                            .font(.caption)
                         Text("Control which types of notifications you receive")
                             .font(.caption)
                     }
@@ -403,6 +407,16 @@ struct SettingsView: View {
                 // Debug Section (only in DEBUG builds)
                 #if DEBUG
                 Section {
+                    NavigationLink(destination: NotificationDiagnosticsView()) {
+                        Label {
+                            Text("Notification Diagnostics")
+                                .foregroundColor(.primary)
+                        } icon: {
+                            Image(systemName: "bell.badge")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
                     Button(action: {
                         viewModel.triggerTestCrash()
                     }) {
@@ -576,6 +590,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var notifyNewRequests = true
     @Published var notifyQaActivity = true
     @Published var notifyReviewReminders = true
+    @Published var notifyTownHall = true
     @Published var showError = false
     @Published var errorMessage: String?
     @Published var isAppleLinked = false
@@ -619,10 +634,19 @@ final class SettingsViewModel: ObservableObject {
            let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
             notifyRideUpdates = profile.notifyRideUpdates
             notifyMessages = profile.notifyMessages
-            notifyAnnouncements = profile.notifyAnnouncements
-            notifyNewRequests = profile.notifyNewRequests
+            notifyAnnouncements = true
+            notifyNewRequests = true
             notifyQaActivity = profile.notifyQaActivity
             notifyReviewReminders = profile.notifyReviewReminders
+            notifyTownHall = profile.notifyTownHall
+            
+            if profile.notifyAnnouncements == false || profile.notifyNewRequests == false {
+                try? await ProfileService.shared.updateNotificationPreferences(
+                    userId: userId,
+                    notifyAnnouncements: true,
+                    notifyNewRequests: true
+                )
+            }
         }
         
         // Load messaging preferences from UserDefaults
@@ -743,17 +767,9 @@ final class SettingsViewModel: ObservableObject {
                 )
                 notifyMessages = enabled
             case .announcements:
-                try await ProfileService.shared.updateNotificationPreferences(
-                    userId: userId,
-                    notifyAnnouncements: enabled
-                )
-                notifyAnnouncements = enabled
+                notifyAnnouncements = true
             case .newRequests:
-                try await ProfileService.shared.updateNotificationPreferences(
-                    userId: userId,
-                    notifyNewRequests: enabled
-                )
-                notifyNewRequests = enabled
+                notifyNewRequests = true
             case .qaActivity:
                 try await ProfileService.shared.updateNotificationPreferences(
                     userId: userId,
@@ -766,6 +782,12 @@ final class SettingsViewModel: ObservableObject {
                     notifyReviewReminders: enabled
                 )
                 notifyReviewReminders = enabled
+            case .townHall:
+                try await ProfileService.shared.updateNotificationPreferences(
+                    userId: userId,
+                    notifyTownHall: enabled
+                )
+                notifyTownHall = enabled
             }
             
             // Refresh profile cache
@@ -777,10 +799,11 @@ final class SettingsViewModel: ObservableObject {
             switch type {
             case .rideUpdates: notifyRideUpdates = !enabled
             case .messages: notifyMessages = !enabled
-            case .announcements: notifyAnnouncements = !enabled
-            case .newRequests: notifyNewRequests = !enabled
+            case .announcements: notifyAnnouncements = true
+            case .newRequests: notifyNewRequests = true
             case .qaActivity: notifyQaActivity = !enabled
             case .reviewReminders: notifyReviewReminders = !enabled
+            case .townHall: notifyTownHall = !enabled
             }
         }
     }
@@ -806,6 +829,7 @@ enum NotificationPreferenceType {
     case newRequests
     case qaActivity
     case reviewReminders
+    case townHall
 }
 
 enum MessagingPreferenceType {
@@ -813,6 +837,66 @@ enum MessagingPreferenceType {
     case showTypingIndicators
     case showLinkPreviews
     case autoDownloadMedia
+}
+
+// MARK: - Notification Diagnostics
+
+struct NotificationDiagnosticsView: View {
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var token: String?
+    @State private var lastPayload: String?
+    
+    private let notificationCenter = UNUserNotificationCenter.current()
+    private let pushService = PushNotificationService.shared
+    
+    var body: some View {
+        Form {
+            Section("Authorization") {
+                Text("Status: \(authorizationStatusLabel)")
+            }
+            
+            Section("APNs Token") {
+                if let token = token {
+                    Text(token)
+                        .font(.footnote)
+                        .textSelection(.enabled)
+                } else {
+                    Text("No token stored yet.")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Section("Last Push Payload") {
+                if let lastPayload = lastPayload {
+                    Text(lastPayload)
+                        .font(.footnote)
+                        .textSelection(.enabled)
+                } else {
+                    Text("No payload recorded yet.")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Notification Diagnostics")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            let settings = await notificationCenter.notificationSettings()
+            authorizationStatus = settings.authorizationStatus
+            token = pushService.storedDeviceTokenString()
+            lastPayload = pushService.lastPushPayloadDescription()
+        }
+    }
+    
+    private var authorizationStatusLabel: String {
+        switch authorizationStatus {
+        case .notDetermined: return "Not Determined"
+        case .denied: return "Denied"
+        case .authorized: return "Authorized"
+        case .provisional: return "Provisional"
+        case .ephemeral: return "Ephemeral"
+        @unknown default: return "Unknown"
+        }
+    }
 }
 
 // MARK: - Blocked Users View

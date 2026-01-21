@@ -86,9 +86,9 @@ final class NavigationCoordinator: ObservableObject {
             navigateToAdminPanel = true
             
         case .notifications:
-            // Notifications are now shown as badges on tabs
-            // Navigate to the most relevant tab
-            selectedTab = .requests
+            // Notifications list lives in Profile tab
+            selectedTab = .profile
+            navigateToNotifications = true
             
         case .enterApp:
             // User was approved - just go to dashboard
@@ -201,6 +201,26 @@ final class NavigationCoordinator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.navigate(to: .adminPanel)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("navigateToNotifications"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.navigate(to: .notifications)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("navigateToDashboard"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.navigate(to: .dashboard)
             }
         }
         

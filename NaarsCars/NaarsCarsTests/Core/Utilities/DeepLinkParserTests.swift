@@ -107,6 +107,71 @@ final class DeepLinkParserTests: XCTestCase {
             XCTFail("Expected .notifications deep link, got \(deepLink)")
         }
     }
+
+    /// Test parsing town hall post notification
+    func testParse_TownHallPostNotification() {
+        let postId = UUID()
+        let userInfo: [AnyHashable: Any] = [
+            "type": "town_hall_post",
+            "town_hall_post_id": postId.uuidString
+        ]
+        
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+        
+        if case .townHallPost(let id) = deepLink {
+            XCTAssertEqual(id, postId, "Should parse town hall post ID correctly")
+        } else {
+            XCTFail("Expected .townHallPost deep link, got \(deepLink)")
+        }
+    }
+    
+    /// Test parsing admin notification
+    func testParse_AdminNotification() {
+        let userInfo: [AnyHashable: Any] = [
+            "type": "pending_approval"
+        ]
+        
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+        
+        if case .adminPanel = deepLink {
+            XCTAssertTrue(true, "Should parse admin panel deep link")
+        } else {
+            XCTFail("Expected .adminPanel deep link, got \(deepLink)")
+        }
+    }
+    
+    /// Test parsing review request notification
+    func testParse_ReviewRequestNotification() {
+        let rideId = UUID()
+        let userInfo: [AnyHashable: Any] = [
+            "type": "review_request",
+            "ride_id": rideId.uuidString
+        ]
+        
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+        
+        if case .ride(let id) = deepLink {
+            XCTAssertEqual(id, rideId, "Should parse review_request ride ID correctly")
+        } else {
+            XCTFail("Expected .ride deep link, got \(deepLink)")
+        }
+    }
+    
+    /// Test parsing user approved notification
+    func testParse_UserApprovedNotification() {
+        let userInfo: [AnyHashable: Any] = [
+            "type": "user_approved",
+            "action": "enter_app"
+        ]
+        
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+        
+        if case .enterApp = deepLink {
+            XCTAssertTrue(true, "Should parse enter app deep link")
+        } else {
+            XCTFail("Expected .enterApp deep link, got \(deepLink)")
+        }
+    }
     
     /// Test parsing unknown notification
     func testParse_UnknownNotification() {

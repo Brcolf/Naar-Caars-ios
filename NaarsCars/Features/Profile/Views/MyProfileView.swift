@@ -11,6 +11,7 @@ import PhotosUI
 /// View for displaying and managing current user's profile
 struct MyProfileView: View {
     @StateObject private var viewModel = MyProfileViewModel()
+    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @EnvironmentObject var appState: AppState
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false
@@ -44,6 +45,8 @@ struct MyProfileView: View {
                         if profile.isAdmin {
                             adminPanelLink()
                         }
+                        
+                        notificationsSection()
                         
                         // Invite Codes Section
                         inviteCodesSection()
@@ -140,6 +143,12 @@ struct MyProfileView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(appState)
+            }
+            .navigationDestination(isPresented: $navigationCoordinator.navigateToNotifications) {
+                NotificationsListView()
+                    .onDisappear {
+                        navigationCoordinator.navigateToNotifications = false
+                    }
             }
             .refreshable {
                 // Try to get user ID from appState first, fallback to AuthService
@@ -495,6 +504,26 @@ struct MyProfileView: View {
                 Image(systemName: "shield.fill")
                     .foregroundColor(.naarsPrimary)
                 Text("Admin Panel")
+                    .font(.naarsHeadline)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+        }
+    }
+
+    // MARK: - Notifications Link
+    
+    private func notificationsSection() -> some View {
+        NavigationLink(destination: NotificationsListView()) {
+            HStack {
+                Image(systemName: "bell.fill")
+                    .foregroundColor(.naarsPrimary)
+                Text("Notifications")
                     .font(.naarsHeadline)
                 Spacer()
                 Image(systemName: "chevron.right")

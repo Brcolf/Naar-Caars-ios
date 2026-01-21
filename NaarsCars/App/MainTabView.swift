@@ -73,6 +73,16 @@ struct MainTabView: View {
                 }
             }
         }
+        .onChange(of: navigationCoordinator.showReviewPrompt) { _, showPrompt in
+            guard showPrompt else { return }
+            Task { @MainActor in
+                await reviewPromptManager.loadPrompt(
+                    rideId: navigationCoordinator.reviewPromptRideId,
+                    favorId: navigationCoordinator.reviewPromptFavorId
+                )
+                navigationCoordinator.resetReviewPrompt()
+            }
+        }
         .task {
             // Check if user needs to accept community guidelines
             checkGuidelinesAcceptance()

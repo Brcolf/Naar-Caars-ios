@@ -75,6 +75,9 @@ struct DeepLinkParser {
                 return .townHallPost(id: postId)
             }
             return .townHall
+
+        case "town_hall":
+            return .townHall
             
         // Profile/user notifications
         case "profile_update":
@@ -84,15 +87,18 @@ struct DeepLinkParser {
             }
             
         // Admin notifications - navigate to admin panel
-        case "pending_approval":
+        case "pending_approval", "admin_panel":
             return .adminPanel
             
         // User approved - navigate to main app
-        case "user_approved":
+        case "user_approved", "enter_app":
             if userInfo["action"] as? String == "enter_app" {
                 return .enterApp
             }
             return .enterApp
+
+        case "dashboard":
+            return .dashboard
             
         // Announcement/broadcast notifications
         case "announcement", "admin_announcement", "broadcast":

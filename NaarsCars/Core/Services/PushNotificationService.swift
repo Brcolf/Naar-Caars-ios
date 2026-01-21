@@ -43,6 +43,10 @@ final class PushNotificationService: NSObject, ObservableObject {
     
     private let supabase = SupabaseService.shared.client
     private let notificationCenter = UNUserNotificationCenter.current()
+    private let tokenStorageKey = "apns_device_token"
+    private let lastRegisteredTokenKey = "apns_last_registered_token"
+    private let tokenUserIdKey = "apns_device_token_user_id"
+    private let lastPushPayloadKey = "apns_last_push_payload"
     
     // MARK: - Initialization
     
@@ -59,7 +63,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         let yesAction = UNNotificationAction(
             identifier: NotificationAction.yesCompleted.rawValue,
             title: "Yes, Completed",
-            options: [.foreground]
+            options: []
         )
         
         let noAction = UNNotificationAction(
@@ -107,9 +111,10 @@ final class PushNotificationService: NSObject, ObservableObject {
     func requestPermission() async -> Bool {
         do {
             let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound, .badge])
+            Log.push("Notification permission request result: \(granted ? "granted" : "denied")")
             return granted
         } catch {
-            print("🔴 [PushNotificationService] Failed to request permission: \(error.localizedDescription)")
+            Log.push("Failed to request notification permission: \(error.localizedDescription)", type: .error)
             return false
         }
     }
@@ -118,6 +123,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// - Returns: Authorization status
     func checkAuthorizationStatus() async -> UNAuthorizationStatus {
         let settings = await notificationCenter.notificationSettings()
+        Log.push("Notification authorization status: \(settings.authorizationStatus.rawValue)")
         return settings.authorizationStatus
     }
     
@@ -130,7 +136,10 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// - Throws: AppError if registration fails
     func registerDeviceToken(deviceToken: Data, userId: UUID) async throws {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        
+        try await registerDeviceToken(tokenString: tokenString, userId: userId)
+    }
+    
+    private func registerDeviceToken(tokenString: String, userId: UUID) async throws {
         // Get device identifier
         let deviceId = DeviceIdentifier.current
         
@@ -170,6 +179,10 @@ final class PushNotificationService: NSObject, ObservableObject {
             
             print("✅ [PushNotificationService] Registered device token for user \(userId)")
         }
+
+        // Record last registered state for re-registration checks
+        UserDefaults.standard.set(tokenString, forKey: lastRegisteredTokenKey)
+        UserDefaults.standard.set(userId.uuidString, forKey: tokenUserIdKey)
     }
     
     /// Remove device token (on logout)
@@ -186,6 +199,69 @@ final class PushNotificationService: NSObject, ObservableObject {
             .execute()
         
         print("✅ [PushNotificationService] Removed device token for user \(userId)")
+    }
+
+    /// Store the latest APNs device token locally for later registration
+    func storeDeviceToken(_ deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        UserDefaults.standard.set(tokenString, forKey: tokenStorageKey)
+        Log.push("Stored APNs token locally: \(tokenString.prefix(12))...")
+    }
+
+    /// Register a locally stored token if needed (user changed or token updated)
+    func registerStoredDeviceTokenIfNeeded(userId: UUID) async {
+        guard let tokenString = UserDefaults.standard.string(forKey: tokenStorageKey) else {
+            Log.push("No stored APNs token to register for user \(userId)")
+            return
+        }
+
+        let lastRegisteredToken = UserDefaults.standard.string(forKey: lastRegisteredTokenKey)
+        let lastRegisteredUserId = UserDefaults.standard.string(forKey: tokenUserIdKey)
+
+        if lastRegisteredToken == tokenString && lastRegisteredUserId == userId.uuidString {
+            Log.push("APNs token already registered for user \(userId)")
+            return
+        }
+
+        do {
+            try await registerDeviceToken(tokenString: tokenString, userId: userId)
+        } catch {
+            Log.push("Failed to register stored APNs token: \(error.localizedDescription)", type: .error)
+        }
+    }
+
+    /// Clear last registered token state on sign out
+    func clearRegisteredTokenState() {
+        UserDefaults.standard.removeObject(forKey: lastRegisteredTokenKey)
+        UserDefaults.standard.removeObject(forKey: tokenUserIdKey)
+    }
+
+    /// Persist the last push payload for diagnostics
+    func recordLastPushPayload(_ userInfo: [AnyHashable: Any]) {
+        let payload: [String: Any] = userInfo.reduce(into: [:]) { result, entry in
+            result[String(describing: entry.key)] = entry.value
+        }
+
+        if JSONSerialization.isValidJSONObject(payload),
+           let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) {
+            UserDefaults.standard.set(data, forKey: lastPushPayloadKey)
+        } else {
+            UserDefaults.standard.set(String(describing: payload), forKey: lastPushPayloadKey)
+        }
+    }
+
+    /// Read the last push payload for diagnostics
+    func lastPushPayloadDescription() -> String? {
+        if let data = UserDefaults.standard.data(forKey: lastPushPayloadKey),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        return UserDefaults.standard.string(forKey: lastPushPayloadKey)
+    }
+
+    /// Read the stored APNs token for diagnostics
+    func storedDeviceTokenString() -> String? {
+        UserDefaults.standard.string(forKey: tokenStorageKey)
     }
     
     // MARK: - Local Notifications
@@ -336,86 +412,12 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// - Parameter userInfo: The notification payload
     /// - Returns: DeepLink if parseable, nil otherwise
     func handleNotificationTap(userInfo: [AnyHashable: Any]) -> DeepLink? {
-        guard let type = userInfo["type"] as? String else {
-            print("⚠️ [PushNotificationService] No type in notification payload")
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+        if case .unknown = deepLink {
+            print("⚠️ [PushNotificationService] Unknown deep link from payload")
             return nil
         }
-        
-        print("📱 [PushNotificationService] Handling notification tap for type: \(type)")
-        
-        switch type {
-        case "new_ride", "ride_claimed", "ride_unclaimed", "ride_completed", "ride_update":
-            if let rideIdString = userInfo["ride_id"] as? String,
-               let rideId = UUID(uuidString: rideIdString) {
-                return .ride(id: rideId)
-            }
-            return .dashboard
-            
-        case "new_favor", "favor_claimed", "favor_unclaimed", "favor_completed", "favor_update":
-            if let favorIdString = userInfo["favor_id"] as? String,
-               let favorId = UUID(uuidString: favorIdString) {
-                return .favor(id: favorId)
-            }
-            return .dashboard
-            
-        case "message", "added_to_conversation":
-            if let conversationIdString = userInfo["conversation_id"] as? String,
-               let conversationId = UUID(uuidString: conversationIdString) {
-                return .conversation(id: conversationId)
-            }
-            
-        case "qa_question", "qa_answer", "qa_activity":
-            // Q&A notifications link to the request
-            if let rideIdString = userInfo["ride_id"] as? String,
-               let rideId = UUID(uuidString: rideIdString) {
-                return .ride(id: rideId)
-            } else if let favorIdString = userInfo["favor_id"] as? String,
-                      let favorId = UUID(uuidString: favorIdString) {
-                return .favor(id: favorId)
-            }
-            
-        case "town_hall_post", "town_hall_comment", "town_hall_reaction":
-            if let postIdString = userInfo["town_hall_post_id"] as? String,
-               let postId = UUID(uuidString: postIdString) {
-                return .townHallPost(id: postId)
-            }
-            return .townHall
-            
-        case "review_request", "review_received", "review_reminder":
-            if let rideIdString = userInfo["ride_id"] as? String,
-               let rideId = UUID(uuidString: rideIdString) {
-                return .ride(id: rideId)
-            } else if let favorIdString = userInfo["favor_id"] as? String,
-                      let favorId = UUID(uuidString: favorIdString) {
-                return .favor(id: favorId)
-            }
-            
-        case "completion_reminder":
-            // Link to the request for completion
-            if let rideIdString = userInfo["ride_id"] as? String,
-               let rideId = UUID(uuidString: rideIdString) {
-                return .ride(id: rideId)
-            } else if let favorIdString = userInfo["favor_id"] as? String,
-                      let favorId = UUID(uuidString: favorIdString) {
-                return .favor(id: favorId)
-            }
-            
-        case "pending_approval":
-            return .adminPanel
-            
-        case "user_approved":
-            // User was approved - just open the app
-            return .dashboard
-            
-        case "announcement", "admin_announcement", "broadcast":
-            return .townHall
-            
-        default:
-            print("⚠️ [PushNotificationService] Unknown notification type: \(type)")
-            return .dashboard
-        }
-        
-        return nil
+        return deepLink
     }
     
     /// Handle notification action (Yes/No buttons)
@@ -424,6 +426,11 @@ final class PushNotificationService: NSObject, ObservableObject {
     ///   - userInfo: The notification payload
     func handleNotificationAction(actionIdentifier: String, userInfo: [AnyHashable: Any]) async {
         print("📱 [PushNotificationService] Handling action: \(actionIdentifier)")
+
+        if let notificationIdString = userInfo["notification_id"] as? String,
+           let notificationId = UUID(uuidString: notificationIdString) {
+            try? await NotificationService.shared.markAsRead(notificationId: notificationId)
+        }
         
         guard let reminderIdString = userInfo["reminder_id"] as? String,
               let reminderId = UUID(uuidString: reminderIdString) else {
@@ -465,14 +472,14 @@ final class PushNotificationService: NSObject, ObservableObject {
                     NotificationCenter.default.post(
                         name: .showReviewPrompt,
                         object: nil,
-                        userInfo: ["ride_id": rideId]
+                        userInfo: ["rideId": rideId]
                     )
                 } else if let favorIdString = userInfo["favor_id"] as? String,
                           let favorId = UUID(uuidString: favorIdString) {
                     NotificationCenter.default.post(
                         name: .showReviewPrompt,
                         object: nil,
-                        userInfo: ["favor_id": favorId]
+                        userInfo: ["favorId": favorId]
                     )
                 }
             } else {

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 internal import Combine
 import Realtime
 
@@ -167,13 +168,15 @@ final class ConversationsListViewModel: ObservableObject {
                 let senderName = existingConversation.otherParticipants
                     .first(where: { $0.id == message.fromId })?.name ?? "Someone"
                 
-                // Show local notification
-                Task {
-                    await PushNotificationService.shared.showLocalMessageNotification(
-                        senderName: senderName,
-                        messagePreview: message.text,
-                        conversationId: message.conversationId
-                    )
+                // Show local notification only when app is active to avoid duplicates
+                if UIApplication.shared.applicationState == .active {
+                    Task {
+                        await PushNotificationService.shared.showLocalMessageNotification(
+                            senderName: senderName,
+                            messagePreview: message.text,
+                            conversationId: message.conversationId
+                        )
+                    }
                 }
             }
             
@@ -196,6 +199,13 @@ final class ConversationsListViewModel: ObservableObject {
             conversations.insert(updatedConversation, at: 0)
             
             print("✅ [ConversationsListVM] Updated conversation \(message.conversationId) in list (moved to top)")
+            
+            // Refresh message badge count immediately for new incoming messages
+            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
+                Task { @MainActor in
+                    await BadgeCountManager.shared.refreshAllBadges()
+                }
+            }
         } else {
             // Message is for a conversation not in our list - might be a new conversation
             print("ℹ️ [ConversationsListVM] Message for unknown conversation, refreshing list")

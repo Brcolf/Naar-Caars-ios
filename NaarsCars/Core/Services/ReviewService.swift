@@ -94,6 +94,12 @@ final class ReviewService {
         
         // Create Town Hall post with review
         try await createTownHallPostForReview(review: review, fulfillerId: fulfillerId)
+
+        // Clear any pending review_request notifications for this request
+        await NotificationService.shared.markReviewRequestAsRead(
+            requestType: requestType,
+            requestId: requestId
+        )
         
         print("✅ [ReviewService] Created review: \(review.id)")
         return review
@@ -121,6 +127,12 @@ final class ReviewService {
             .update(updates)
             .eq("id", value: requestId.uuidString)
             .execute()
+
+        // Clear any pending review_request notifications for this request
+        await NotificationService.shared.markReviewRequestAsRead(
+            requestType: requestType,
+            requestId: requestId
+        )
         
         print("✅ [ReviewService] Skipped review for request: \(requestId)")
     }
