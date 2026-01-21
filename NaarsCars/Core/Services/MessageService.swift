@@ -70,7 +70,7 @@ final class MessageService {
             // Get conversations where user is creator
             let createdConversationsResponse = try? await supabase
                 .from("conversations")
-                .select("id, created_by, title, created_at, updated_at")
+                .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
                 .eq("created_by", value: userId.uuidString)
                 .execute()
             
@@ -91,7 +91,7 @@ final class MessageService {
             // IMPORTANT: Order BEFORE pagination to get latest conversations
             let conversationsResponse = try await supabase
                 .from("conversations")
-                .select("id, created_by, title, created_at, updated_at")
+                .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
                 .in("id", values: Array(allConversationIds).map { $0.uuidString })
                 .order("updated_at", ascending: false)
                 .range(from: offset, to: offset + limit - 1)
@@ -218,31 +218,42 @@ final class MessageService {
     
     /// Fetch other participants for a conversation (excluding current user)
     private func fetchOtherParticipants(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> [Profile] {
-        struct ParticipantRow: Codable {
-            let userId: UUID
-            let profiles: Profile?
-            
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-                case profiles
-            }
-        }
-        
+        // Use two-step approach for reliability (avoid foreign key join issues)
         do {
-            let response = try await supabase
+            // Step 1: Get participant user IDs
+            let participantsResponse = try await supabase
                 .from("conversation_participants")
-                .select("user_id, profiles(id, name, email, avatar_url, car, phone_number, is_admin, approved, invited_by, notify_ride_updates, notify_messages, notify_announcements, notify_new_requests, notify_qa_activity, notify_review_reminders, guidelines_accepted, guidelines_accepted_at, created_at, updated_at)")
+                .select("user_id")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .neq("user_id", value: userId.uuidString)
+                .is("left_at", value: nil) // Only active participants
+                .execute()
+            
+            struct ParticipantUserId: Codable {
+                let userId: UUID
+                enum CodingKeys: String, CodingKey {
+                    case userId = "user_id"
+                }
+            }
+            
+            let participantIds = try JSONDecoder().decode([ParticipantUserId].self, from: participantsResponse.data)
+            
+            guard !participantIds.isEmpty else { return [] }
+            
+            // Step 2: Fetch profiles for those user IDs
+            let userIdStrings = participantIds.map { $0.userId.uuidString }
+            let profilesResponse = try await supabase
+                .from("profiles")
+                .select("*")
+                .in("id", values: userIdStrings)
                 .execute()
             
             let decoder = createDateDecoder()
-            let rows = try decoder.decode([ParticipantRow].self, from: response.data)
-            return rows.compactMap { $0.profiles }
+            return try decoder.decode([Profile].self, from: profilesResponse.data)
         } catch {
-            AppLogger.database.warning("Error fetching participants for conversation \(conversationId): \(error.localizedDescription)")
+            print("Error fetching participants for conversation \(conversationId): \(error.localizedDescription)")
             
-            // Fallback: fetch profiles separately if join fails
+            // Fallback: try old approach
             return await fetchParticipantsFallback(conversationId: conversationId, userId: userId, supabase: supabase)
         }
     }
@@ -340,7 +351,7 @@ final class MessageService {
                     // Found existing DM conversation
                     let conversationResponse = try? await supabase
                         .from("conversations")
-                        .select("id, created_by, title, created_at, updated_at")
+                        .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
                         .eq("id", value: userConv.conversationId.uuidString)
                         .single()
                         .execute()
@@ -798,11 +809,128 @@ final class MessageService {
             )
         
         // Get public URL
-        let publicUrl = try await supabase.storage
+        let publicUrl = try supabase.storage
             .from("message-images")
             .getPublicURL(path: fileName)
         
+        print("📸 [MessageService] Uploaded image, public URL: \(publicUrl.absoluteString)")
         return publicUrl.absoluteString
+    }
+    
+    /// Upload audio message to storage
+    /// - Parameters:
+    ///   - audioData: The audio file data
+    ///   - conversationId: The conversation ID
+    ///   - fromId: The sender user ID
+    /// - Returns: Public URL of uploaded audio
+    func uploadAudioMessage(audioData: Data, conversationId: UUID, fromId: UUID) async throws -> String {
+        // Upload to audio-messages bucket
+        let fileName = "\(conversationId.uuidString)/\(UUID().uuidString).m4a"
+        
+        try await supabase.storage
+            .from("audio-messages")
+            .upload(
+                path: fileName,
+                file: audioData,
+                options: FileOptions(contentType: "audio/m4a", upsert: false)
+            )
+        
+        // Get public URL
+        let publicUrl = try await supabase.storage
+            .from("audio-messages")
+            .getPublicURL(path: fileName)
+        
+        return publicUrl.absoluteString
+    }
+    
+    /// Send an audio message
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - fromId: The sender user ID
+    ///   - audioUrl: The uploaded audio URL
+    ///   - duration: Audio duration in seconds
+    ///   - replyToId: Optional message ID being replied to
+    /// - Returns: The created message
+    func sendAudioMessage(conversationId: UUID, fromId: UUID, audioUrl: String, duration: Double, replyToId: UUID? = nil) async throws -> Message {
+        let newMessage = Message(
+            conversationId: conversationId,
+            fromId: fromId,
+            text: "",
+            messageType: .audio,
+            replyToId: replyToId,
+            audioUrl: audioUrl,
+            audioDuration: duration
+        )
+        
+        let response = try await supabase
+            .from("messages")
+            .insert(newMessage)
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .single()
+            .execute()
+        
+        let decoder = createDateDecoder()
+        let message = try decoder.decode(Message.self, from: response.data)
+        
+        // Update conversation timestamp
+        try await supabase
+            .from("conversations")
+            .update(["updated_at": ISO8601DateFormatter().string(from: Date())])
+            .eq("id", value: conversationId.uuidString)
+            .execute()
+        
+        // Invalidate caches
+        await cacheManager.invalidateMessages(conversationId: conversationId)
+        await cacheManager.invalidateConversations(userId: fromId)
+        
+        AppLogger.database.info("Sent audio message: \(message.id)")
+        return message
+    }
+    
+    /// Send a location message
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - fromId: The sender user ID
+    ///   - latitude: Location latitude
+    ///   - longitude: Location longitude
+    ///   - locationName: Human-readable location name/address
+    ///   - replyToId: Optional message ID being replied to
+    /// - Returns: The created message
+    func sendLocationMessage(conversationId: UUID, fromId: UUID, latitude: Double, longitude: Double, locationName: String?, replyToId: UUID? = nil) async throws -> Message {
+        let newMessage = Message(
+            conversationId: conversationId,
+            fromId: fromId,
+            text: locationName ?? "Shared location",
+            messageType: .location,
+            replyToId: replyToId,
+            latitude: latitude,
+            longitude: longitude,
+            locationName: locationName
+        )
+        
+        let response = try await supabase
+            .from("messages")
+            .insert(newMessage)
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .single()
+            .execute()
+        
+        let decoder = createDateDecoder()
+        let message = try decoder.decode(Message.self, from: response.data)
+        
+        // Update conversation timestamp
+        try await supabase
+            .from("conversations")
+            .update(["updated_at": ISO8601DateFormatter().string(from: Date())])
+            .eq("id", value: conversationId.uuidString)
+            .execute()
+        
+        // Invalidate caches
+        await cacheManager.invalidateMessages(conversationId: conversationId)
+        await cacheManager.invalidateConversations(userId: fromId)
+        
+        AppLogger.database.info("Sent location message: \(message.id)")
+        return message
     }
     
     /// Send a message
@@ -813,7 +941,7 @@ final class MessageService {
     ///   - imageUrl: Optional image URL (if message includes an image)
     /// - Returns: The created message
     /// - Throws: AppError if send fails
-    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil) async throws -> Message {
+    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, replyToId: UUID? = nil) async throws -> Message {
         // Security check: Verify user is a participant (RLS is disabled on conversation_participants)
         let participantCheck = try? await supabase
             .from("conversation_participants")
@@ -854,13 +982,14 @@ final class MessageService {
             conversationId: conversationId,
             fromId: fromId,
             text: text,
-            imageUrl: imageUrl
+            imageUrl: imageUrl,
+            replyToId: replyToId
         )
         
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
             .single()
             .execute()
         
@@ -1146,6 +1275,553 @@ final class MessageService {
         
         return groupedReactions
     }
+    
+    // MARK: - Group Management
+    
+    /// Leave a conversation (self-removal)
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - userId: The user leaving
+    ///   - createAnnouncement: Whether to create a system message (default: true)
+    /// - Throws: AppError if operation fails
+    func leaveConversation(
+        conversationId: UUID,
+        userId: UUID,
+        createAnnouncement: Bool = true
+    ) async throws {
+        AppLogger.database.info("User \(userId) leaving conversation \(conversationId)")
+        
+        // Verify user is a participant
+        let participantCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id, left_at")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+        
+        struct ParticipantStatus: Codable {
+            let userId: UUID
+            let leftAt: Date?
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case leftAt = "left_at"
+            }
+        }
+        
+        guard let participantData = participantCheck?.data,
+              let status = try? createDateDecoder().decode(ParticipantStatus.self, from: participantData) else {
+            throw AppError.permissionDenied("You are not a participant in this conversation")
+        }
+        
+        // Check if already left
+        if status.leftAt != nil {
+            AppLogger.database.debug("User already left conversation")
+            return
+        }
+        
+        // Update left_at timestamp
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let now = formatter.string(from: Date())
+        
+        try await supabase
+            .from("conversation_participants")
+            .update(["left_at": now])
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+        
+        // Create announcement message if requested
+        if createAnnouncement {
+            if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
+                let announcementText = "\(profile.name) left the conversation"
+                try? await sendSystemMessage(
+                    conversationId: conversationId,
+                    text: announcementText,
+                    fromId: userId
+                )
+            }
+        }
+        
+        // Invalidate caches
+        await cacheManager.invalidateConversations(userId: userId)
+        await cacheManager.invalidateMessages(conversationId: conversationId)
+        
+        AppLogger.database.info("User \(userId) successfully left conversation \(conversationId)")
+    }
+    
+    /// Remove a participant from a conversation (admin/member action)
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - userId: The user ID to remove
+    ///   - removedBy: The user performing the removal
+    ///   - createAnnouncement: Whether to create a system message (default: true)
+    /// - Throws: AppError if operation fails
+    func removeParticipantFromConversation(
+        conversationId: UUID,
+        userId: UUID,
+        removedBy: UUID,
+        createAnnouncement: Bool = true
+    ) async throws {
+        AppLogger.database.info("Removing user \(userId) from conversation \(conversationId) by \(removedBy)")
+        
+        // Verify remover is a participant or creator
+        let removerCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id, left_at")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: removedBy.uuidString)
+            .single()
+            .execute()
+        
+        let conversationCheck = try? await supabase
+            .from("conversations")
+            .select("created_by")
+            .eq("id", value: conversationId.uuidString)
+            .single()
+            .execute()
+        
+        struct CreatorInfo: Codable {
+            let createdBy: UUID
+            enum CodingKeys: String, CodingKey {
+                case createdBy = "created_by"
+            }
+        }
+        
+        let isParticipant = removerCheck?.data.isEmpty == false
+        var isCreator = false
+        if let creatorData = conversationCheck?.data,
+           let creatorInfo = try? JSONDecoder().decode(CreatorInfo.self, from: creatorData) {
+            isCreator = creatorInfo.createdBy == removedBy
+        }
+        
+        guard isParticipant || isCreator else {
+            throw AppError.permissionDenied("You must be a participant to remove others")
+        }
+        
+        // Verify target user is a participant and hasn't left
+        let targetCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id, left_at")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+        
+        struct ParticipantStatus: Codable {
+            let userId: UUID
+            let leftAt: Date?
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case leftAt = "left_at"
+            }
+        }
+        
+        guard let targetData = targetCheck?.data,
+              let targetStatus = try? createDateDecoder().decode(ParticipantStatus.self, from: targetData),
+              targetStatus.leftAt == nil else {
+            throw AppError.invalidInput("User is not an active participant")
+        }
+        
+        // Update left_at timestamp
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let now = formatter.string(from: Date())
+        
+        try await supabase
+            .from("conversation_participants")
+            .update(["left_at": now])
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+        
+        // Create announcement message if requested
+        if createAnnouncement {
+            let removedProfile = try? await ProfileService.shared.fetchProfile(userId: userId)
+            let removerProfile = try? await ProfileService.shared.fetchProfile(userId: removedBy)
+            
+            let removedName = removedProfile?.name ?? "A user"
+            let removerName = removerProfile?.name ?? "Someone"
+            
+            let announcementText = "\(removerName) removed \(removedName) from the conversation"
+            try? await sendSystemMessage(
+                conversationId: conversationId,
+                text: announcementText,
+                fromId: removedBy
+            )
+        }
+        
+        // Invalidate caches for both users
+        await cacheManager.invalidateConversations(userId: userId)
+        await cacheManager.invalidateConversations(userId: removedBy)
+        await cacheManager.invalidateMessages(conversationId: conversationId)
+        
+        AppLogger.database.info("Successfully removed user \(userId) from conversation \(conversationId)")
+    }
+    
+    /// Send a system message (announcement)
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - text: The system message text
+    ///   - fromId: The user ID associated with the action
+    /// - Returns: The created message
+    private func sendSystemMessage(
+        conversationId: UUID,
+        text: String,
+        fromId: UUID
+    ) async throws -> Message {
+        let messageData: [String: AnyCodable] = [
+            "conversation_id": AnyCodable(conversationId.uuidString),
+            "from_id": AnyCodable(fromId.uuidString),
+            "text": AnyCodable(text),
+            "message_type": AnyCodable("system")
+        ]
+        
+        let response = try await supabase
+            .from("messages")
+            .insert(messageData)
+            .select()
+            .single()
+            .execute()
+        
+        let decoder = createDateDecoder()
+        return try decoder.decode(Message.self, from: response.data)
+    }
+    
+    // MARK: - Group Image Management
+    
+    /// Upload a group image to storage
+    /// - Parameters:
+    ///   - imageData: The image data to upload
+    ///   - conversationId: The conversation ID
+    /// - Returns: Public URL of uploaded image
+    /// - Throws: AppError if upload fails
+    func uploadGroupImage(imageData: Data, conversationId: UUID) async throws -> String {
+        // Compress image
+        guard let uiImage = UIImage(data: imageData) else {
+            throw AppError.invalidInput("Invalid image data")
+        }
+        
+        guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .avatar) else {
+            throw AppError.processingError("Failed to compress image")
+        }
+        
+        // Upload to group-images bucket
+        let fileName = "\(conversationId.uuidString)/avatar_\(UUID().uuidString).jpg"
+        
+        try await supabase.storage
+            .from("group-images")
+            .upload(
+                path: fileName,
+                file: compressedData,
+                options: FileOptions(contentType: "image/jpeg", upsert: true)
+            )
+        
+        // Get public URL
+        let publicUrl = try await supabase.storage
+            .from("group-images")
+            .getPublicURL(path: fileName)
+        
+        AppLogger.database.info("Uploaded group image for conversation \(conversationId)")
+        return publicUrl.absoluteString
+    }
+    
+    /// Update the group image URL for a conversation
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - imageUrl: The new image URL (nil to remove)
+    ///   - userId: The user making the update (must be a participant)
+    /// - Throws: AppError if update fails
+    func updateGroupImage(
+        conversationId: UUID,
+        imageUrl: String?,
+        userId: UUID
+    ) async throws {
+        // Verify user is a participant
+        let participantCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+        
+        guard participantCheck?.data.isEmpty == false else {
+            throw AppError.permissionDenied("You must be a participant to update the group image")
+        }
+        
+        // Update the group image URL
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        var updateDict: [String: AnyCodable] = [
+            "updated_at": AnyCodable(dateFormatter.string(from: Date()))
+        ]
+        
+        if let imageUrl = imageUrl {
+            updateDict["group_image_url"] = AnyCodable(imageUrl)
+        } else {
+            updateDict["group_image_url"] = AnyCodable(nil as String?)
+        }
+        
+        try await supabase
+            .from("conversations")
+            .update(updateDict)
+            .eq("id", value: conversationId.uuidString)
+            .execute()
+        
+        // Invalidate caches
+        await cacheManager.invalidateConversations(userId: userId)
+        
+        // Create announcement
+        if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
+            let announcementText = imageUrl != nil 
+                ? "\(profile.name) updated the group photo"
+                : "\(profile.name) removed the group photo"
+            try? await sendSystemMessage(
+                conversationId: conversationId,
+                text: announcementText,
+                fromId: userId
+            )
+        }
+        
+        AppLogger.database.info("Updated group image for conversation \(conversationId)")
+    }
+    
+    /// Check if user has left a conversation
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - userId: The user ID to check
+    /// - Returns: True if user has left, false if still active
+    func hasUserLeftConversation(conversationId: UUID, userId: UUID) async -> Bool {
+        let response = try? await supabase
+            .from("conversation_participants")
+            .select("left_at")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+        
+        struct LeftStatus: Codable {
+            let leftAt: Date?
+            enum CodingKeys: String, CodingKey {
+                case leftAt = "left_at"
+            }
+        }
+        
+        guard let data = response?.data,
+              let status = try? createDateDecoder().decode(LeftStatus.self, from: data) else {
+            return true // Not found = effectively left
+        }
+        
+        return status.leftAt != nil
+    }
+    
+    // MARK: - Reporting
+    
+    /// Report type enum
+    enum ReportType: String {
+        case spam
+        case harassment
+        case inappropriateContent = "inappropriate_content"
+        case scam
+        case other
+    }
+    
+    /// Submit a report for a user
+    func reportUser(reporterId: UUID, reportedUserId: UUID, type: ReportType, description: String?) async throws {
+        try await supabase.rpc(
+            "submit_report",
+            params: [
+                "p_reporter_id": reporterId.uuidString,
+                "p_reported_user_id": reportedUserId.uuidString,
+                "p_report_type": type.rawValue,
+                "p_description": description ?? ""
+            ]
+        ).execute()
+        
+        AppLogger.database.info("Reported user: \(reportedUserId)")
+    }
+    
+    /// Submit a report for a message
+    func reportMessage(reporterId: UUID, messageId: UUID, type: ReportType, description: String?) async throws {
+        try await supabase.rpc(
+            "submit_report",
+            params: [
+                "p_reporter_id": reporterId.uuidString,
+                "p_reported_message_id": messageId.uuidString,
+                "p_report_type": type.rawValue,
+                "p_description": description ?? ""
+            ]
+        ).execute()
+        
+        AppLogger.database.info("Reported message: \(messageId)")
+    }
+    
+    // MARK: - Blocking
+    
+    /// Block a user
+    func blockUser(blockerId: UUID, blockedId: UUID, reason: String?) async throws {
+        try await supabase.rpc(
+            "block_user",
+            params: [
+                "p_blocker_id": blockerId.uuidString,
+                "p_blocked_id": blockedId.uuidString,
+                "p_reason": reason ?? ""
+            ]
+        ).execute()
+        
+        AppLogger.database.info("Blocked user: \(blockedId)")
+    }
+    
+    /// Unblock a user
+    func unblockUser(blockerId: UUID, blockedId: UUID) async throws {
+        try await supabase.rpc(
+            "unblock_user",
+            params: [
+                "p_blocker_id": blockerId.uuidString,
+                "p_blocked_id": blockedId.uuidString
+            ]
+        ).execute()
+        
+        AppLogger.database.info("Unblocked user: \(blockedId)")
+    }
+    
+    /// Check if a user is blocked
+    func isUserBlocked(userId: UUID, otherUserId: UUID) async throws -> Bool {
+        struct BlockedResult: Codable {
+            let result: Bool
+            
+            enum CodingKeys: String, CodingKey {
+                case result = "is_user_blocked"
+            }
+        }
+        
+        let response = try await supabase.rpc(
+            "is_user_blocked",
+            params: [
+                "p_user_id": userId.uuidString,
+                "p_other_user_id": otherUserId.uuidString
+            ]
+        ).execute()
+        
+        let decoder = JSONDecoder()
+        if let result = try? decoder.decode(Bool.self, from: response.data) {
+            return result
+        }
+        return false
+    }
+    
+    /// Get list of blocked users
+    func getBlockedUsers(userId: UUID) async throws -> [BlockedUser] {
+        let response = try await supabase.rpc(
+            "get_blocked_users",
+            params: ["p_user_id": userId.uuidString]
+        ).execute()
+        
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        
+        return try decoder.decode([BlockedUser].self, from: response.data)
+    }
+    
+    // MARK: - Typing Indicators
+    
+    /// Set typing status for current user in a conversation
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - userId: The user ID
+    func setTypingStatus(conversationId: UUID, userId: UUID) async {
+        do {
+            // Use upsert to update or insert typing indicator
+            try await supabase
+                .from("typing_indicators")
+                .upsert([
+                    "conversation_id": conversationId.uuidString,
+                    "user_id": userId.uuidString,
+                    "started_at": ISO8601DateFormatter().string(from: Date())
+                ], onConflict: "conversation_id,user_id")
+                .execute()
+        } catch {
+            // Typing indicator failures are non-critical, just log
+            AppLogger.database.debug("Failed to set typing status: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Clear typing status for current user in a conversation
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - userId: The user ID
+    func clearTypingStatus(conversationId: UUID, userId: UUID) async {
+        do {
+            try await supabase
+                .from("typing_indicators")
+                .delete()
+                .eq("conversation_id", value: conversationId.uuidString)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+        } catch {
+            // Typing indicator failures are non-critical, just log
+            AppLogger.database.debug("Failed to clear typing status: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Fetch currently typing users in a conversation
+    /// - Parameter conversationId: The conversation ID
+    /// - Returns: Array of typing users (excluding current user)
+    func fetchTypingUsers(conversationId: UUID) async -> [TypingUser] {
+        guard let currentUserId = AuthService.shared.currentUserId else { return [] }
+        
+        do {
+            // Step 1: Fetch typing user IDs (no foreign key join - more reliable)
+            let response = try await supabase
+                .from("typing_indicators")
+                .select("user_id, started_at")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .neq("user_id", value: currentUserId.uuidString)
+                .gte("started_at", value: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-5)))
+                .execute()
+            
+            struct TypingRow: Codable {
+                let userId: UUID
+                let startedAt: Date
+                
+                enum CodingKeys: String, CodingKey {
+                    case userId = "user_id"
+                    case startedAt = "started_at"
+                }
+            }
+            
+            let rows = try createDateDecoder().decode([TypingRow].self, from: response.data)
+            
+            guard !rows.isEmpty else { return [] }
+            
+            // Step 2: Fetch profiles for those user IDs
+            let userIds = rows.map { $0.userId.uuidString }
+            let profilesResponse = try await supabase
+                .from("profiles")
+                .select("id, name, avatar_url")
+                .in("id", values: userIds)
+                .execute()
+            
+            struct ProfileData: Codable {
+                let id: UUID
+                let name: String
+                let avatarUrl: String?
+                
+                enum CodingKeys: String, CodingKey {
+                    case id, name
+                    case avatarUrl = "avatar_url"
+                }
+            }
+            
+            let profiles = try JSONDecoder().decode([ProfileData].self, from: profilesResponse.data)
+            return profiles.map { TypingUser(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl) }
+        } catch {
+            // Silently fail - typing indicators are non-critical
+            return []
+        }
+    }
 }
-
-

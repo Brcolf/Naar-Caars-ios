@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import SwiftUI
 internal import Combine
 import Realtime
 
@@ -18,7 +19,22 @@ final class ConversationDetailViewModel: ObservableObject {
     @Published var isLoadingMore: Bool = false
     @Published var hasMoreMessages: Bool = true
     @Published var error: AppError?
-    @Published var messageText: String = ""
+    @Published var messageText: String = "" {
+        didSet {
+            handleTypingChange()
+        }
+    }
+    
+    /// Users currently typing in this conversation
+    @Published var typingUsers: [TypingUser] = []
+    
+    /// Count of unread messages (messages not from current user that haven't been read)
+    var unreadCount: Int {
+        guard let userId = authService.currentUserId else { return 0 }
+        return messages.filter { message in
+            message.fromId != userId && !message.readBy.contains(userId)
+        }.count
+    }
     
     let conversationId: UUID
     private let messageService = MessageService.shared
@@ -28,15 +44,27 @@ final class ConversationDetailViewModel: ObservableObject {
     private let pageSize = 25
     private var oldestMessageId: UUID?
     
+    // Typing indicator state
+    private var typingTimer: Timer?
+    private var typingRefreshTimer: Timer?
+    private var lastTypingUpdate: Date?
+    private let typingDebounceInterval: TimeInterval = 2.0
+    
     init(conversationId: UUID) {
         self.conversationId = conversationId
         setupRealtimeSubscription()
+        setupTypingIndicatorSubscription()
+        startTypingRefreshTimer()
     }
     
     deinit {
-        // Unsubscribe synchronously if possible, or use a detached task
+        // Clear typing status on deinit
         Task.detached { [conversationId] in
             await RealtimeManager.shared.unsubscribe(channelName: "messages:\(conversationId.uuidString)")
+            await RealtimeManager.shared.unsubscribe(channelName: "typing:\(conversationId.uuidString)")
+            if let userId = await AuthService.shared.currentUserId {
+                await MessageService.shared.clearTypingStatus(conversationId: conversationId, userId: userId)
+            }
         }
     }
     
@@ -92,7 +120,7 @@ final class ConversationDetailViewModel: ObservableObject {
         isLoadingMore = false
     }
     
-    func sendMessage(image: UIImage? = nil) async {
+    func sendMessage(image: UIImage? = nil, replyToId: UUID? = nil) async {
         guard (!messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || image != nil),
               let fromId = authService.currentUserId else {
             return
@@ -125,7 +153,8 @@ final class ConversationDetailViewModel: ObservableObject {
             fromId: fromId,
             text: text,
             imageUrl: imageUrl,
-            createdAt: optimisticTimestamp
+            createdAt: optimisticTimestamp,
+            replyToId: replyToId
         )
         messages.append(optimisticMessage)
         
@@ -134,7 +163,8 @@ final class ConversationDetailViewModel: ObservableObject {
                 conversationId: conversationId,
                 fromId: fromId,
                 text: text,
-                imageUrl: imageUrl
+                imageUrl: imageUrl,
+                replyToId: replyToId
             )
             
             // Replace optimistic message with real one
@@ -189,6 +219,190 @@ final class ConversationDetailViewModel: ObservableObject {
                     }
                 }
             )
+        }
+    }
+    
+    // MARK: - Audio Messages
+    
+    /// Send an audio message
+    func sendAudioMessage(audioURL: URL, duration: Double, replyToId: UUID? = nil) async {
+        guard let fromId = authService.currentUserId else { return }
+        
+        do {
+            // Read audio data from file
+            let audioData = try Data(contentsOf: audioURL)
+            
+            // Upload audio to storage
+            let uploadedUrl = try await messageService.uploadAudioMessage(
+                audioData: audioData,
+                conversationId: conversationId,
+                fromId: fromId
+            )
+            
+            // Create optimistic message
+            let optimisticMessage = Message(
+                conversationId: conversationId,
+                fromId: fromId,
+                messageType: .audio,
+                replyToId: replyToId,
+                audioUrl: uploadedUrl,
+                audioDuration: duration
+            )
+            messages.append(optimisticMessage)
+            
+            // Send audio message
+            let sentMessage = try await messageService.sendAudioMessage(
+                conversationId: conversationId,
+                fromId: fromId,
+                audioUrl: uploadedUrl,
+                duration: duration,
+                replyToId: replyToId
+            )
+            
+            // Replace optimistic message
+            if let index = messages.firstIndex(where: { $0.audioUrl == uploadedUrl && $0.fromId == fromId }) {
+                messages[index] = sentMessage
+            }
+            
+            // Clean up temp file
+            try? FileManager.default.removeItem(at: audioURL)
+            
+        } catch {
+            self.error = AppError.processingError("Failed to send audio: \(error.localizedDescription)")
+            print("🔴 Error sending audio message: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Location Messages
+    
+    /// Send a location message
+    func sendLocationMessage(latitude: Double, longitude: Double, locationName: String?, replyToId: UUID? = nil) async {
+        guard let fromId = authService.currentUserId else { return }
+        
+        // Create optimistic message
+        let optimisticMessage = Message(
+            conversationId: conversationId,
+            fromId: fromId,
+            text: locationName ?? "Shared location",
+            messageType: .location,
+            replyToId: replyToId,
+            latitude: latitude,
+            longitude: longitude,
+            locationName: locationName
+        )
+        messages.append(optimisticMessage)
+        
+        do {
+            let sentMessage = try await messageService.sendLocationMessage(
+                conversationId: conversationId,
+                fromId: fromId,
+                latitude: latitude,
+                longitude: longitude,
+                locationName: locationName,
+                replyToId: replyToId
+            )
+            
+            // Replace optimistic message
+            if let index = messages.firstIndex(where: { msg in
+                msg.latitude == latitude && msg.longitude == longitude && msg.fromId == fromId
+            }) {
+                messages[index] = sentMessage
+            }
+        } catch {
+            self.error = AppError.processingError("Failed to send location: \(error.localizedDescription)")
+            print("🔴 Error sending location message: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Typing Indicators
+    
+    private func setupTypingIndicatorSubscription() {
+        Task {
+            await realtimeManager.subscribe(
+                channelName: "typing:\(conversationId.uuidString)",
+                table: "typing_indicators",
+                filter: "conversation_id=eq.\(conversationId.uuidString)",
+                onInsert: { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        await self?.refreshTypingUsers()
+                    }
+                },
+                onUpdate: { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        await self?.refreshTypingUsers()
+                    }
+                },
+                onDelete: { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        await self?.refreshTypingUsers()
+                    }
+                }
+            )
+        }
+    }
+    
+    private func startTypingRefreshTimer() {
+        // Refresh typing users every 2 seconds to handle stale indicators
+        typingRefreshTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshTypingUsers()
+            }
+        }
+    }
+    
+    private func refreshTypingUsers() async {
+        let users = await messageService.fetchTypingUsers(conversationId: conversationId)
+        if users != typingUsers {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                typingUsers = users
+            }
+        }
+    }
+    
+    private func handleTypingChange() {
+        guard let userId = authService.currentUserId else { return }
+        
+        // Only send typing status if text is not empty
+        if messageText.isEmpty {
+            // Clear typing status
+            typingTimer?.invalidate()
+            typingTimer = nil
+            Task {
+                await messageService.clearTypingStatus(conversationId: conversationId, userId: userId)
+            }
+            return
+        }
+        
+        // Debounce typing updates
+        let now = Date()
+        if let lastUpdate = lastTypingUpdate, now.timeIntervalSince(lastUpdate) < typingDebounceInterval {
+            return
+        }
+        
+        lastTypingUpdate = now
+        
+        // Send typing status
+        Task {
+            await messageService.setTypingStatus(conversationId: conversationId, userId: userId)
+        }
+        
+        // Reset typing timer - clear after 5 seconds of no typing
+        typingTimer?.invalidate()
+        typingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self, let userId = self.authService.currentUserId else { return }
+                await self.messageService.clearTypingStatus(conversationId: self.conversationId, userId: userId)
+            }
+        }
+    }
+    
+    /// Clear typing status when sending a message
+    func clearTypingStatusOnSend() {
+        guard let userId = authService.currentUserId else { return }
+        typingTimer?.invalidate()
+        typingTimer = nil
+        Task {
+            await messageService.clearTypingStatus(conversationId: conversationId, userId: userId)
         }
     }
     

@@ -25,8 +25,8 @@ enum ImagePreset {
     /// Maximum file size in bytes
     var maxBytes: Int {
         switch self {
-        case .avatar: return 2 * 1024 * 1024      // 2MB
-        case .messageImage: return 2 * 1024 * 1024 // 2MB
+        case .avatar: return 500 * 1024           // 500KB
+        case .messageImage: return 800 * 1024     // 800KB (safe for Supabase storage limits)
         case .fullSize: return 2 * 1024 * 1024    // 2MB
         }
     }
@@ -34,8 +34,8 @@ enum ImagePreset {
     /// Initial JPEG quality (0.0 to 1.0)
     var initialQuality: CGFloat {
         switch self {
-        case .avatar: return 0.8
-        case .messageImage: return 0.7
+        case .avatar: return 0.7
+        case .messageImage: return 0.6
         case .fullSize: return 0.8
         }
     }

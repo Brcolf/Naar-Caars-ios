@@ -153,6 +153,10 @@
 		AC35AB602F0F080F0012096B /* TownHallFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB562F0F080F0012096B /* TownHallFeedViewModel.swift */; };
 		AC35AB622F0F08AC0012096B /* TownHallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35AB612F0F08AC0012096B /* TownHallService.swift */; };
 		AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE98428EC9B46E4A670AC3D /* EmptyStateView.swift */; };
+		AC4F1DEF2F209C6200CC5DBA /* DevNotificationTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */; };
+		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
+		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
+		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197892F14C198003BB08B /* ReactionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197882F14C198003BB08B /* ReactionPicker.swift */; };
@@ -454,6 +458,10 @@
 		AC35AB592F0F080F0012096B /* TownHallFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallFeedView.swift; sourceTree = "<group>"; };
 		AC35AB5A2F0F080F0012096B /* TownHallPostRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostRow.swift; sourceTree = "<group>"; };
 		AC35AB612F0F08AC0012096B /* TownHallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallService.swift; sourceTree = "<group>"; };
+		AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevNotificationTestView.swift; sourceTree = "<group>"; };
+		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
+		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
+		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197882F14C198003BB08B /* ReactionPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionPicker.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
@@ -946,6 +954,7 @@
 		ACBF4AE02F12CB30006A7C8A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */,
 				ACBF4ADA2F12CB30006A7C8A /* AdminInviteView.swift */,
 				ACBF4ADB2F12CB30006A7C8A /* AdminPanelView.swift */,
 				ACBF4ADC2F12CB30006A7C8A /* BroadcastView.swift */,
@@ -1363,6 +1372,9 @@
 		ACDCBE0D2F0B78CB00956D1C /* Messaging */ = {
 			isa = PBXGroup;
 			children = (
+				AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */,
+				AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */,
+				AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */,
 				AC8197882F14C198003BB08B /* ReactionPicker.swift */,
 				AC305F402F0ECDAE0063AFDF /* UserSearchView.swift */,
 				AC305F162F0DB8500063AFDF /* MessageBubble.swift */,
@@ -1573,6 +1585,11 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
+				ko,
+				vi,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = ACDCBDBF2F0B74F300956D1C;
 			minimizedProjectReferenceProxies = 1;
@@ -1673,6 +1690,7 @@
 				54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */,
 				3E2C7CF183694FB5836B3742 /* ErrorView.swift in Sources */,
 				AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */,
+				AC4F1DEF2F209C6200CC5DBA /* DevNotificationTestView.swift in Sources */,
 				ACBF4A992F12CA56006A7C8A /* FilterBar.swift in Sources */,
 				ACBF4A9A2F12CA56006A7C8A /* RequestPin.swift in Sources */,
 				ACBF4A9B2F12CA56006A7C8A /* RequestPreviewCard.swift in Sources */,
@@ -1845,6 +1863,9 @@
 				ACBF4AB52F12CAD7006A7C8A /* TownHallComment.swift in Sources */,
 				2693C24838084E52BB8A9869 /* Features/Rides/Views/CreateRideView.swift in Sources */,
 				978C66F9CB8840BF84FFBF5C /* Features/Rides/Views/EditRideView.swift in Sources */,
+				AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */,
+				AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */,
+				AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */,
 				45BD6598267841EF999E58AA /* Features/Rides/Views/RideDetailView.swift in Sources */,
 				5801D0508DC74CBA8508CB60 /* Features/Rides/Views/RidesDashboardView.swift in Sources */,
 				F40DD3C5D5F24274B3A9E82A /* UI/Components/Buttons/ClaimButton.swift in Sources */,
@@ -2071,7 +2092,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.NaarsCars;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -2121,7 +2142,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.NaarsCars;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

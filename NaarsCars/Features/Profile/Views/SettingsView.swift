@@ -220,6 +220,106 @@ struct SettingsView: View {
                     }
                 }
                 
+                // Messaging Settings Section
+                Section {
+                    // Send Read Receipts
+                    Toggle(isOn: $viewModel.sendReadReceipts) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Send Read Receipts")
+                                    .font(.body)
+                                Text("Let others know when you've read their messages")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "checkmark.message.fill")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .onChange(of: viewModel.sendReadReceipts) { _, newValue in
+                        viewModel.updateMessagingPreference(.sendReadReceipts, enabled: newValue)
+                    }
+                    
+                    // Show Typing Indicators
+                    Toggle(isOn: $viewModel.showTypingIndicators) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Typing Indicators")
+                                    .font(.body)
+                                Text("Show when you're typing to others")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "ellipsis.message.fill")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .onChange(of: viewModel.showTypingIndicators) { _, newValue in
+                        viewModel.updateMessagingPreference(.showTypingIndicators, enabled: newValue)
+                    }
+                    
+                    // Link Previews
+                    Toggle(isOn: $viewModel.showLinkPreviews) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Link Previews")
+                                    .font(.body)
+                                Text("Show preview cards for links in messages")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "link.circle.fill")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .onChange(of: viewModel.showLinkPreviews) { _, newValue in
+                        viewModel.updateMessagingPreference(.showLinkPreviews, enabled: newValue)
+                    }
+                    
+                    // Auto-download Media
+                    Toggle(isOn: $viewModel.autoDownloadMedia) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Auto-Download Media")
+                                    .font(.body)
+                                Text("Automatically download images and audio")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                    .onChange(of: viewModel.autoDownloadMedia) { _, newValue in
+                        viewModel.updateMessagingPreference(.autoDownloadMedia, enabled: newValue)
+                    }
+                    
+                    // Blocked Users
+                    NavigationLink(destination: BlockedUsersView()) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Blocked Users")
+                                    .font(.body)
+                                Text("Manage blocked contacts")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "person.crop.circle.badge.xmark")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                } header: {
+                    Text("Messaging")
+                } footer: {
+                    Text("Control how messages are sent and displayed")
+                        .font(.caption)
+                }
+                
                 // Language Settings Section
                 Section {
                     NavigationLink(destination: LanguageSettingsView()) {
@@ -484,6 +584,12 @@ final class SettingsViewModel: ObservableObject {
     @Published var selectedTheme: ThemeMode = .system
     @Published var crashReportingEnabled = true
     
+    // Messaging settings
+    @Published var sendReadReceipts = true
+    @Published var showTypingIndicators = true
+    @Published var showLinkPreviews = true
+    @Published var autoDownloadMedia = true
+    
     private let biometricService = BiometricService.shared
     private let biometricPreferences = BiometricPreferences.shared
     private let pushNotificationService = PushNotificationService.shared
@@ -517,6 +623,25 @@ final class SettingsViewModel: ObservableObject {
             notifyNewRequests = profile.notifyNewRequests
             notifyQaActivity = profile.notifyQaActivity
             notifyReviewReminders = profile.notifyReviewReminders
+        }
+        
+        // Load messaging preferences from UserDefaults
+        sendReadReceipts = UserDefaults.standard.object(forKey: "messaging_sendReadReceipts") as? Bool ?? true
+        showTypingIndicators = UserDefaults.standard.object(forKey: "messaging_showTypingIndicators") as? Bool ?? true
+        showLinkPreviews = UserDefaults.standard.object(forKey: "messaging_showLinkPreviews") as? Bool ?? true
+        autoDownloadMedia = UserDefaults.standard.object(forKey: "messaging_autoDownloadMedia") as? Bool ?? true
+    }
+    
+    func updateMessagingPreference(_ type: MessagingPreferenceType, enabled: Bool) {
+        switch type {
+        case .sendReadReceipts:
+            UserDefaults.standard.set(enabled, forKey: "messaging_sendReadReceipts")
+        case .showTypingIndicators:
+            UserDefaults.standard.set(enabled, forKey: "messaging_showTypingIndicators")
+        case .showLinkPreviews:
+            UserDefaults.standard.set(enabled, forKey: "messaging_showLinkPreviews")
+        case .autoDownloadMedia:
+            UserDefaults.standard.set(enabled, forKey: "messaging_autoDownloadMedia")
         }
     }
     
@@ -683,8 +808,140 @@ enum NotificationPreferenceType {
     case reviewReminders
 }
 
+enum MessagingPreferenceType {
+    case sendReadReceipts
+    case showTypingIndicators
+    case showLinkPreviews
+    case autoDownloadMedia
+}
+
+// MARK: - Blocked Users View
+
+/// View for managing blocked users
+struct BlockedUsersView: View {
+    @State private var blockedUsers: [BlockedUser] = []
+    @State private var isLoading = true
+    @State private var error: String?
+    @State private var showUnblockConfirmation = false
+    @State private var userToUnblock: BlockedUser?
+    
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView("Loading...")
+            } else if blockedUsers.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.system(size: 60))
+                        .foregroundColor(.secondary)
+                    
+                    Text("No Blocked Users")
+                        .font(.headline)
+                    
+                    Text("Users you block will appear here")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else {
+                List {
+                    ForEach(blockedUsers) { blockedUser in
+                        HStack(spacing: 12) {
+                            // Avatar
+                            AvatarView(
+                                imageUrl: blockedUser.blockedAvatarUrl,
+                                name: blockedUser.blockedName,
+                                size: 44
+                            )
+                            
+                            // Name and blocked date
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(blockedUser.blockedName)
+                                    .font(.body)
+                                
+                                Text("Blocked \(blockedUser.blockedAt.timeAgoString)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            // Unblock button
+                            Button("Unblock") {
+                                userToUnblock = blockedUser
+                                showUnblockConfirmation = true
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.naarsPrimary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .listStyle(.insetGrouped)
+            }
+        }
+        .navigationTitle("Blocked Users")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadBlockedUsers()
+        }
+        .alert("Unblock User", isPresented: $showUnblockConfirmation) {
+            Button("Cancel", role: .cancel) {
+                userToUnblock = nil
+            }
+            Button("Unblock") {
+                if let user = userToUnblock {
+                    Task {
+                        await unblockUser(user)
+                    }
+                }
+                userToUnblock = nil
+            }
+        } message: {
+            if let user = userToUnblock {
+                Text("Are you sure you want to unblock \(user.blockedName)? They will be able to message you again.")
+            }
+        }
+    }
+    
+    private func loadBlockedUsers() async {
+        guard let userId = AuthService.shared.currentUserId else {
+            isLoading = false
+            return
+        }
+        
+        do {
+            blockedUsers = try await MessageService.shared.getBlockedUsers(userId: userId)
+            isLoading = false
+        } catch {
+            self.error = error.localizedDescription
+            isLoading = false
+        }
+    }
+    
+    private func unblockUser(_ blockedUser: BlockedUser) async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        
+        do {
+            try await MessageService.shared.unblockUser(blockerId: userId, blockedId: blockedUser.blockedId)
+            
+            // Remove from local list
+            blockedUsers.removeAll { $0.blockedId == blockedUser.blockedId }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
 #Preview {
     SettingsView()
         .environmentObject(AppState())
+}
+
+#Preview("Blocked Users") {
+    NavigationStack {
+        BlockedUsersView()
+    }
 }
 

@@ -79,14 +79,14 @@ final class ImageCompressorTests: XCTestCase {
         // Create a large image
         let largeImage = createTestImage(width: 3000, height: 3000)
         
-        // Compress with messageImage preset (max 500KB)
+        // Compress with messageImage preset (max 800KB)
         guard let compressedData = ImageCompressor.compress(largeImage, preset: .messageImage) else {
             XCTFail("Compression should succeed")
             return
         }
         
         // Check that file size is under limit
-        XCTAssertLessThanOrEqual(compressedData.count, 500 * 1024, "Message image should be max 500KB")
+        XCTAssertLessThanOrEqual(compressedData.count, 800 * 1024, "Message image should be max 800KB")
     }
     
     // MARK: - FullSize Preset Tests

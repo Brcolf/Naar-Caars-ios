@@ -27,6 +27,22 @@ struct ConversationDetailView: View {
     @State private var reactionPickerMessageId: UUID?
     @State private var reactionPickerPosition: CGPoint = .zero
     
+    // Scroll-to-bottom state
+    @State private var showScrollToBottom = false
+    @State private var newMessageIds: Set<UUID> = []
+    @State private var scrollProxy: ScrollViewProxy?
+    
+    // Reply state
+    @State private var replyingToMessage: ReplyContext?
+    
+    // Image viewer state
+    @State private var selectedImageUrl: URL?
+    @State private var showImageViewer = false
+    
+    // Report state
+    @State private var showReportSheet = false
+    @State private var messageToReport: Message?
+    
     init(conversationId: UUID) {
         self.conversationId = conversationId
         _viewModel = StateObject(wrappedValue: ConversationDetailViewModel(conversationId: conversationId))
@@ -62,7 +78,7 @@ struct ConversationDetailView: View {
             // Messages list
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 0) {
                         // Load more button at top (for pagination)
                         if viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
                             Button {
@@ -79,7 +95,7 @@ struct ConversationDetailView: View {
                                         .font(.naarsCaption)
                                         .foregroundColor(.naarsPrimary)
                                 }
-                                .padding(.vertical, 8)
+                                .padding(.vertical, 12)
                             }
                             .disabled(viewModel.isLoadingMore)
                         }
@@ -95,53 +111,100 @@ struct ConversationDetailView: View {
                                 Text("No messages yet")
                                     .font(.naarsBody)
                                     .foregroundColor(.secondary)
+                                Text("Start the conversation!")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .padding()
                         } else {
-                            ForEach(viewModel.messages) { message in
-                                MessageBubble(
-                                    message: message,
-                                    isFromCurrentUser: isFromCurrentUser(message),
-                                    onLongPress: {
-                                        reactionPickerMessageId = message.id
-                                        showReactionPicker = true
-                                    },
-                                    onReactionTap: { reaction in
-                                        Task {
-                                            if let userId = AuthService.shared.currentUserId,
-                                               let reactions = message.reactions,
-                                               let userIds = reactions.reactions[reaction],
-                                               userIds.contains(userId) {
-                                                // User already reacted with this, remove it
-                                                await viewModel.removeReaction(messageId: message.id)
-                                            } else {
-                                                // Add reaction
-                                                await viewModel.addReaction(messageId: message.id, reaction: reaction)
-                                            }
-                                        }
+                            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                                let isFirst = isFirstInSeries(at: index)
+                                let isLast = isLastInSeries(at: index)
+                                let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
+                                
+                                VStack(spacing: 0) {
+                                    // Date separator
+                                    if shouldShowDateSeparator {
+                                        DateSeparatorView(date: message.createdAt)
+                                            .padding(.vertical, 16)
                                     }
-                                )
+                                    
+                                    createMessageBubble(
+                                        message: message,
+                                        isFirst: isFirst,
+                                        isLast: isLast
+                                    )
+                                }
                                 .id(message.id)
                             }
                         }
+                        
+                        // Typing indicator (inline)
+                        if !viewModel.typingUsers.isEmpty {
+                            typingIndicatorInline
+                                .padding(.horizontal)
+                        }
+                        
+                        // Invisible spacer at bottom for scroll detection
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottom")
                     }
-                    .padding()
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
                 }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    // Auto-scroll to bottom on new messages (only if not loading more)
-                    if !viewModel.isLoadingMore, let lastMessage = viewModel.messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                .onAppear {
+                    scrollProxy = proxy
+                }
+                .onChange(of: viewModel.messages.count) { oldCount, newCount in
+                    // Track new messages for animation
+                    if newCount > oldCount {
+                        let newMessages = viewModel.messages.suffix(newCount - oldCount)
+                        for message in newMessages {
+                            newMessageIds.insert(message.id)
+                        }
+                        // Clear animation flags after delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            newMessageIds.removeAll()
                         }
                     }
+                    
+                    // Auto-scroll to bottom on new messages (only if not loading more and near bottom)
+                    if !viewModel.isLoadingMore && !showScrollToBottom {
+                        if let lastMessage = viewModel.messages.last {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
+                        }
+                    } else if newCount > oldCount {
+                        // Show scroll to bottom button if we have new messages but didn't auto-scroll
+                        showScrollToBottom = true
+                    }
+                    
                     // Update last_seen when new messages arrive while viewing
-                    // This ensures we don't get push notifications for messages we see in real-time
                     Task {
                         if let userId = AuthService.shared.currentUserId {
                             try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
                         }
                     }
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                // Scroll to bottom button
+                if showScrollToBottom {
+                    ScrollToBottomButton(
+                        unreadCount: viewModel.unreadCount,
+                        action: {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                scrollProxy?.scrollTo("bottom", anchor: .bottom)
+                            }
+                            showScrollToBottom = false
+                        }
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 8)
+                    .transition(.scale.combined(with: .opacity))
                 }
             }
             .overlay(alignment: .center) {
@@ -182,14 +245,39 @@ struct ConversationDetailView: View {
                 imageToSend: $imageToSend,
                 onSend: {
                     Task {
-                        await viewModel.sendMessage(image: imageToSend)
+                        viewModel.clearTypingStatusOnSend()
+                        await viewModel.sendMessage(image: imageToSend, replyToId: replyingToMessage?.id)
                         imageToSend = nil
+                        // Clear reply context after sending
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            replyingToMessage = nil
+                        }
                     }
                 },
                 onImagePickerTapped: {
                     showImagePicker = true
                 },
-                isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil
+                isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil,
+                replyingTo: replyingToMessage,
+                onCancelReply: {
+                    replyingToMessage = nil
+                },
+                onAudioRecorded: { audioURL, duration in
+                    Task {
+                        await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyingToMessage?.id)
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            replyingToMessage = nil
+                        }
+                    }
+                },
+                onLocationShare: { latitude, longitude, name in
+                    Task {
+                        await viewModel.sendLocationMessage(latitude: latitude, longitude: longitude, locationName: name, replyToId: replyingToMessage?.id)
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            replyingToMessage = nil
+                        }
+                    }
+                }
             )
         }
         .navigationTitle(conversationTitle)
@@ -211,6 +299,7 @@ struct ConversationDetailView: View {
             MessageDetailsPopup(
                 conversationId: conversationId,
                 currentTitle: conversationDetail?.conversation.title,
+                currentGroupImageUrl: conversationDetail?.conversation.groupImageUrl,
                 participants: participantsViewModel.participants
             )
             .onDisappear {
@@ -255,10 +344,250 @@ struct ConversationDetailView: View {
             }
         }
         .trackScreen("ConversationDetail")
+        .fullScreenCover(isPresented: $showImageViewer) {
+            if let imageUrl = selectedImageUrl {
+                fullscreenImageViewer(imageUrl: imageUrl)
+            }
+        }
+        .sheet(isPresented: $showReportSheet) {
+            if let message = messageToReport {
+                ReportMessageSheet(
+                    message: message,
+                    onSubmit: { reportType, description in
+                        Task {
+                            await submitReport(message: message, type: reportType, description: description)
+                        }
+                    }
+                )
+            }
+        }
+    }
+    
+    /// Submit a report for a message
+    private func submitReport(message: Message, type: MessageService.ReportType, description: String?) async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        
+        do {
+            try await MessageService.shared.reportMessage(
+                reporterId: userId,
+                messageId: message.id,
+                type: type,
+                description: description
+            )
+            
+            messageToReport = nil
+        } catch {
+            print("🔴 Error submitting report: \(error.localizedDescription)")
+        }
     }
     
     private func isFromCurrentUser(_ message: Message) -> Bool {
         message.fromId == AuthService.shared.currentUserId
+    }
+    
+    /// Check if this is a group conversation (more than 2 participants)
+    private var isGroup: Bool {
+        participantsViewModel.participants.count > 2
+    }
+    
+    /// Create a message bubble with all handlers
+    @ViewBuilder
+    private func createMessageBubble(message: Message, isFirst: Bool, isLast: Bool) -> some View {
+        MessageBubble(
+            message: message,
+            isFromCurrentUser: isFromCurrentUser(message),
+            showAvatar: isGroup && !isFromCurrentUser(message),
+            isFirstInSeries: isFirst,
+            isLastInSeries: isLast,
+            shouldAnimate: newMessageIds.contains(message.id),
+            totalParticipants: participantsViewModel.participants.count,
+            onLongPress: {
+                reactionPickerMessageId = message.id
+                showReactionPicker = true
+            },
+            onReactionTap: { reaction in
+                handleReactionTap(message: message, reaction: reaction)
+            },
+            onReply: {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    replyingToMessage = ReplyContext(from: message)
+                }
+            },
+            onImageTap: { imageUrl in
+                selectedImageUrl = imageUrl
+                showImageViewer = true
+            },
+            onReport: {
+                messageToReport = message
+                showReportSheet = true
+            }
+        )
+    }
+    
+    private func handleReactionTap(message: Message, reaction: String) {
+        Task {
+            if let userId = AuthService.shared.currentUserId,
+               let reactions = message.reactions,
+               let userIds = reactions.reactions[reaction],
+               userIds.contains(userId) {
+                // User already reacted with this, remove it
+                await viewModel.removeReaction(messageId: message.id)
+            } else {
+                // Add reaction
+                await viewModel.addReaction(messageId: message.id, reaction: reaction)
+            }
+        }
+    }
+    
+    /// Check if message is the first in a consecutive series from the same sender
+    private func isFirstInSeries(at index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let currentMessage = viewModel.messages[index]
+        let previousMessage = viewModel.messages[index - 1]
+        
+        // Different sender = first in new series
+        if currentMessage.fromId != previousMessage.fromId {
+            return true
+        }
+        
+        // More than 5 minutes apart = new series
+        let timeDiff = currentMessage.createdAt.timeIntervalSince(previousMessage.createdAt)
+        if timeDiff > 300 { // 5 minutes
+            return true
+        }
+        
+        return false
+    }
+    
+    /// Check if message is the last in a consecutive series from the same sender
+    private func isLastInSeries(at index: Int) -> Bool {
+        guard index < viewModel.messages.count - 1 else { return true }
+        let currentMessage = viewModel.messages[index]
+        let nextMessage = viewModel.messages[index + 1]
+        
+        // Different sender = last in current series
+        if currentMessage.fromId != nextMessage.fromId {
+            return true
+        }
+        
+        // More than 5 minutes apart = end of series
+        let timeDiff = nextMessage.createdAt.timeIntervalSince(currentMessage.createdAt)
+        if timeDiff > 300 { // 5 minutes
+            return true
+        }
+        
+        return false
+    }
+    
+    /// Check if we should show a date separator before this message
+    private func shouldShowDateSeparator(at index: Int) -> Bool {
+        guard index > 0 else { return true } // Always show for first message
+        
+        let currentMessage = viewModel.messages[index]
+        let previousMessage = viewModel.messages[index - 1]
+        
+        // Check if different day
+        let calendar = Calendar.current
+        let currentDay = calendar.startOfDay(for: currentMessage.createdAt)
+        let previousDay = calendar.startOfDay(for: previousMessage.createdAt)
+        
+        return currentDay != previousDay
+    }
+    
+    // MARK: - Inline Typing Indicator
+    
+    private var typingIndicatorInline: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            // Simple avatar placeholder
+            Circle()
+                .fill(Color(.systemGray4))
+                .frame(width: 28, height: 28)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(typingText)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                
+                // Animated dots
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Circle()
+                            .fill(Color(.systemGray3))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color(.systemGray5))
+                )
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var typingText: String {
+        let users = viewModel.typingUsers
+        switch users.count {
+        case 1:
+            return "\(users[0].name) is typing..."
+        case 2:
+            return "\(users[0].name) and \(users[1].name) are typing..."
+        default:
+            return "\(users[0].name) and \(users.count - 1) others are typing..."
+        }
+    }
+    
+    // MARK: - Inline Image Viewer
+    
+    @ViewBuilder
+    private func fullscreenImageViewer(imageUrl: URL) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            AsyncImage(url: imageUrl) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                case .failure:
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 40))
+                            .foregroundColor(.white.opacity(0.6))
+                        Text("Failed to load image")
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                default:
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                }
+            }
+            
+            // Close button
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showImageViewer = false
+                        selectedImageUrl = nil
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                    }
+                }
+                .padding()
+                Spacer()
+            }
+        }
     }
     
     private func addParticipants(_ userIds: [UUID]) async {
@@ -357,11 +686,241 @@ final class ConversationParticipantsViewModel: ObservableObject {
     }
 }
 
+// MARK: - Date Separator View
+
+/// Shows a date separator between messages from different days
+struct DateSeparatorView: View {
+    let date: Date
+    
+    private var dateText: String {
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
+            // Same week - show day name
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            // Same year
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d"
+            return formatter.string(from: date)
+        } else {
+            // Different year
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d, yyyy"
+            return formatter.string(from: date)
+        }
+    }
+    
+    var body: some View {
+        HStack {
+            VStack { Divider() }
+            
+            Text(dateText)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color(.systemGray6))
+                )
+            
+            VStack { Divider() }
+        }
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Scroll to Bottom Button
+
+/// Floating button to scroll to the bottom of the conversation
+struct ScrollToBottomButton: View {
+    let unreadCount: Int
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            action()
+        }) {
+            ZStack(alignment: .topTrailing) {
+                Circle()
+                    .fill(Color(.systemBackground))
+                    .frame(width: 44, height: 44)
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    .overlay(
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.naarsPrimary)
+                    )
+                
+                // Unread badge
+                if unreadCount > 0 {
+                    Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.naarsPrimary)
+                        .clipShape(Capsule())
+                        .offset(x: 8, y: -8)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Report Message Sheet
+
+/// Sheet for reporting a message
+struct ReportMessageSheet: View {
+    let message: Message
+    let onSubmit: (MessageService.ReportType, String?) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedReportType: MessageService.ReportType = .other
+    @State private var description = ""
+    @State private var isSubmitting = false
+    
+    private let reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] = [
+        (.spam, "Spam", "exclamationmark.bubble"),
+        (.harassment, "Harassment", "person.crop.circle.badge.exclamationmark"),
+        (.inappropriateContent, "Inappropriate Content", "eye.slash"),
+        (.scam, "Scam", "exclamationmark.shield"),
+        (.other, "Other", "ellipsis.circle")
+    ]
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                // Message preview
+                Section {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Report this message")
+                                .font(.headline)
+                            
+                            Text(message.text.isEmpty ? "Media message" : message.text)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Message")
+                }
+                
+                // Report type selection
+                Section {
+                    ForEach(reportTypes, id: \.type.rawValue) { reportType in
+                        Button {
+                            selectedReportType = reportType.type
+                        } label: {
+                            HStack {
+                                Image(systemName: reportType.icon)
+                                    .foregroundColor(.naarsPrimary)
+                                    .frame(width: 24)
+                                
+                                Text(reportType.title)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                if selectedReportType == reportType.type {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.naarsPrimary)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Reason")
+                }
+                
+                // Additional details
+                Section {
+                    TextField("Additional details (optional)", text: $description, axis: .vertical)
+                        .lineLimit(3...6)
+                } header: {
+                    Text("Description")
+                } footer: {
+                    Text("Provide any additional context that may help us review this report.")
+                }
+                
+                // Block user option
+                Section {
+                    Button {
+                        // TODO: Implement block user from report flow
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.crop.circle.badge.xmark")
+                                .foregroundColor(.red)
+                            Text("Block this user")
+                                .foregroundColor(.red)
+                        }
+                    }
+                } footer: {
+                    Text("You won't see messages from this user anymore.")
+                }
+            }
+            .navigationTitle("Report Message")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Submit") {
+                        isSubmitting = true
+                        onSubmit(selectedReportType, description.isEmpty ? nil : description)
+                        dismiss()
+                    }
+                    .disabled(isSubmitting)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 #Preview {
     NavigationStack {
         ConversationDetailView(conversationId: UUID())
     }
 }
 
+#Preview("Date Separator") {
+    VStack(spacing: 20) {
+        DateSeparatorView(date: Date())
+        DateSeparatorView(date: Date().addingTimeInterval(-86400)) // Yesterday
+        DateSeparatorView(date: Date().addingTimeInterval(-86400 * 3)) // 3 days ago
+    }
+    .padding()
+}
 
+#Preview("Scroll Button") {
+    VStack(spacing: 20) {
+        ScrollToBottomButton(unreadCount: 0, action: {})
+        ScrollToBottomButton(unreadCount: 5, action: {})
+        ScrollToBottomButton(unreadCount: 150, action: {})
+    }
+    .padding()
+    .background(Color(.systemGray5))
+}
 

@@ -19,6 +19,47 @@ struct ConversationsListView: View {
     @State private var navigateToConversation: UUID?
     @State private var conversationToDelete: ConversationWithDetails?
     @State private var showDeleteConfirmation = false
+    @State private var searchText = ""
+    @State private var pinnedConversations: Set<UUID> = []
+    @State private var mutedConversations: Set<UUID> = []
+    
+    /// Filter conversations based on search
+    private var filteredConversations: [ConversationWithDetails] {
+        if searchText.isEmpty {
+            return viewModel.conversations
+        }
+        return viewModel.conversations.filter { convo in
+            // Search in conversation title
+            if let title = convo.conversation.title?.lowercased(),
+               title.contains(searchText.lowercased()) {
+                return true
+            }
+            // Search in participant names
+            let participantNames = convo.otherParticipants.map { $0.name.lowercased() }
+            if participantNames.contains(where: { $0.contains(searchText.lowercased()) }) {
+                return true
+            }
+            // Search in last message
+            if let lastMessage = convo.lastMessage?.text.lowercased(),
+               lastMessage.contains(searchText.lowercased()) {
+                return true
+            }
+            return false
+        }
+    }
+    
+    /// Sort conversations: pinned first, then by last update
+    private var sortedConversations: [ConversationWithDetails] {
+        filteredConversations.sorted { a, b in
+            let aPinned = pinnedConversations.contains(a.conversation.id)
+            let bPinned = pinnedConversations.contains(b.conversation.id)
+            
+            if aPinned && !bPinned { return true }
+            if !aPinned && bPinned { return false }
+            
+            return a.conversation.updatedAt > b.conversation.updatedAt
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -50,34 +91,34 @@ struct ConversationsListView: View {
                     )
                 } else {
                     List {
-                        ForEach(viewModel.conversations) { conversationDetail in
-                            NavigationLink {
-                                ConversationDetailView(conversationId: conversationDetail.conversation.id)
-                            } label: {
-                                ConversationRow(conversationDetail: conversationDetail)
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    conversationToDelete = conversationDetail
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                        // Pinned section (if any)
+                        if !pinnedConversations.isEmpty && searchText.isEmpty {
+                            Section {
+                                ForEach(sortedConversations.filter { pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
+                                    conversationRow(for: conversationDetail)
                                 }
+                            } header: {
+                                Text("Pinned")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    // Archive conversation (placeholder - implement if needed)
-                                    print("Archive conversation: \(conversationDetail.conversation.id)")
-                                } label: {
-                                    Label("Archive", systemImage: "archivebox")
-                                }
-                                .tint(.blue)
+                        }
+                        
+                        // Main conversations section
+                        Section {
+                            ForEach(sortedConversations.filter { searchText.isEmpty ? !pinnedConversations.contains($0.conversation.id) : true }) { conversationDetail in
+                                conversationRow(for: conversationDetail)
+                            }
+                        } header: {
+                            if !pinnedConversations.isEmpty && searchText.isEmpty {
+                                Text("All Messages")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                         
                         // Load more button at bottom
-                        if viewModel.hasMoreConversations {
+                        if viewModel.hasMoreConversations && searchText.isEmpty {
                             Button {
                                 Task {
                                     await viewModel.loadMoreConversations()
@@ -100,6 +141,7 @@ struct ConversationsListView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .searchable(text: $searchText, prompt: "Search messages")
                     .refreshable {
                         await viewModel.refreshConversations()
                     }
@@ -162,6 +204,7 @@ struct ConversationsListView: View {
                 Text("Are you sure you want to delete this conversation? This action cannot be undone.")
             }
             .task {
+                loadSavedPreferences()
                 await viewModel.loadConversations()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("conversationUpdated"))) { _ in
@@ -265,11 +308,102 @@ struct ConversationsListView: View {
         // For now, just reload conversations to remove deleted one
         await viewModel.refreshConversations()
     }
+    
+    /// Build a conversation row with swipe actions
+    @ViewBuilder
+    private func conversationRow(for conversationDetail: ConversationWithDetails) -> some View {
+        let isPinned = pinnedConversations.contains(conversationDetail.conversation.id)
+        let isMuted = mutedConversations.contains(conversationDetail.conversation.id)
+        
+        NavigationLink {
+            ConversationDetailView(conversationId: conversationDetail.conversation.id)
+        } label: {
+            ConversationRow(
+                conversationDetail: conversationDetail,
+                isMuted: isMuted
+            )
+        }
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            // Delete button
+            Button(role: .destructive) {
+                conversationToDelete = conversationDetail
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            
+            // Archive button
+            Button {
+                // Archive conversation (placeholder)
+                print("Archive conversation: \(conversationDetail.conversation.id)")
+            } label: {
+                Label("Archive", systemImage: "archivebox")
+            }
+            .tint(.indigo)
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            // Pin/Unpin button
+            Button {
+                withAnimation {
+                    if isPinned {
+                        pinnedConversations.remove(conversationDetail.conversation.id)
+                    } else {
+                        pinnedConversations.insert(conversationDetail.conversation.id)
+                    }
+                }
+                // Save to UserDefaults
+                savePinnedConversations()
+            } label: {
+                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
+            }
+            .tint(.orange)
+            
+            // Mute/Unmute button
+            Button {
+                withAnimation {
+                    if isMuted {
+                        mutedConversations.remove(conversationDetail.conversation.id)
+                    } else {
+                        mutedConversations.insert(conversationDetail.conversation.id)
+                    }
+                }
+                // Save to UserDefaults
+                saveMutedConversations()
+            } label: {
+                Label(isMuted ? "Unmute" : "Mute", systemImage: isMuted ? "bell" : "bell.slash")
+            }
+            .tint(.gray)
+        }
+    }
+    
+    /// Save pinned conversations to UserDefaults
+    private func savePinnedConversations() {
+        let ids = pinnedConversations.map { $0.uuidString }
+        UserDefaults.standard.set(ids, forKey: "pinnedConversations")
+    }
+    
+    /// Save muted conversations to UserDefaults
+    private func saveMutedConversations() {
+        let ids = mutedConversations.map { $0.uuidString }
+        UserDefaults.standard.set(ids, forKey: "mutedConversations")
+    }
+    
+    /// Load saved preferences
+    private func loadSavedPreferences() {
+        if let pinnedIds = UserDefaults.standard.array(forKey: "pinnedConversations") as? [String] {
+            pinnedConversations = Set(pinnedIds.compactMap { UUID(uuidString: $0) })
+        }
+        if let mutedIds = UserDefaults.standard.array(forKey: "mutedConversations") as? [String] {
+            mutedConversations = Set(mutedIds.compactMap { UUID(uuidString: $0) })
+        }
+    }
 }
 
 /// Conversation row component (iMessage-style)
 struct ConversationRow: View {
     let conversationDetail: ConversationWithDetails
+    var isMuted: Bool = false
     
     var body: some View {
         HStack(spacing: 12) {
@@ -284,14 +418,21 @@ struct ConversationRow: View {
                     // Title with fade effect for long names
                     // Use geometry reader to calculate available width
                     GeometryReader { geometry in
-                        HStack(spacing: 0) {
+                        HStack(spacing: 4) {
                             FadingTitleText(
                                 text: conversationTitle,
-                                maxWidth: geometry.size.width - 60 // Reserve space for timestamp
+                                maxWidth: geometry.size.width - (isMuted ? 80 : 60) // Reserve space for mute icon
                             )
                             .font(.body)
                             .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
                             .foregroundColor(.primary)
+                            
+                            // Muted indicator
+                            if isMuted {
+                                Image(systemName: "bell.slash.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
                             
                             Spacer(minLength: 8)
                         }
@@ -309,14 +450,31 @@ struct ConversationRow: View {
                 
                 // Message preview (up to 2 lines)
                 HStack(alignment: .top, spacing: 8) {
-                    // Preview text
+                    // Preview text with icon for media messages
                     if let lastMessage = conversationDetail.lastMessage {
-                        Text(lastMessage.text)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 4) {
+                            // Show icon for media messages
+                            if lastMessage.isAudioMessage {
+                                Image(systemName: "waveform")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            } else if lastMessage.isLocationMessage {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            } else if lastMessage.imageUrl != nil && lastMessage.text.isEmpty {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Text(messagePreviewText(lastMessage))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text("No messages yet")
                             .font(.subheadline)
@@ -333,7 +491,7 @@ struct ConversationRow: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.naarsPrimary)
+                            .background(isMuted ? Color.secondary : Color.naarsPrimary)
                             .clipShape(Capsule())
                             .fixedSize(horizontal: true, vertical: false)
                     }
@@ -342,6 +500,19 @@ struct ConversationRow: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle()) // Make entire row tappable
+    }
+    
+    /// Generate preview text for the message
+    private func messagePreviewText(_ message: Message) -> String {
+        if message.isAudioMessage {
+            return "Voice message"
+        } else if message.isLocationMessage {
+            return message.locationName ?? "Shared location"
+        } else if message.imageUrl != nil && message.text.isEmpty {
+            return "Photo"
+        } else {
+            return message.text
+        }
     }
     
     private var conversationTitle: String {
@@ -375,20 +546,102 @@ struct ConversationAvatar: View {
                     size: 50
                 )
             } else if conversationDetail.otherParticipants.count > 1 {
-                // Group avatar (stacked or icon)
-                ZStack {
-                    Circle()
-                        .fill(Color.naarsPrimary.opacity(0.2))
-                        .frame(width: 50, height: 50)
-                    
-                    Image(systemName: "person.2.fill")
-                        .foregroundColor(.naarsPrimary)
-                        .font(.system(size: 20))
-                }
+                // Group avatar
+                groupAvatarView
             } else {
                 // Default avatar
                 AvatarView(imageUrl: nil, name: "Unknown", size: 50)
             }
+        }
+    }
+    
+    @ViewBuilder
+    private var groupAvatarView: some View {
+        // Check if group has a custom image
+        if let groupImageUrl = conversationDetail.conversation.groupImageUrl,
+           let url = URL(string: groupImageUrl) {
+            // Show custom group image
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    defaultGroupAvatar
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                case .failure:
+                    defaultGroupAvatar
+                @unknown default:
+                    defaultGroupAvatar
+                }
+            }
+        } else if conversationDetail.otherParticipants.count >= 2 {
+            // Show stacked avatars (2 participants)
+            stackedAvatarsView
+        } else {
+            defaultGroupAvatar
+        }
+    }
+    
+    private var stackedAvatarsView: some View {
+        ZStack {
+            // Background circle
+            Circle()
+                .fill(Color(.systemGray5))
+                .frame(width: 50, height: 50)
+            
+            // First participant (bottom-right)
+            if let first = conversationDetail.otherParticipants.first {
+                AvatarView(
+                    imageUrl: first.avatarUrl,
+                    name: first.name,
+                    size: 30
+                )
+                .offset(x: 8, y: 8)
+            }
+            
+            // Second participant (top-left)
+            if conversationDetail.otherParticipants.count > 1 {
+                let second = conversationDetail.otherParticipants[1]
+                AvatarView(
+                    imageUrl: second.avatarUrl,
+                    name: second.name,
+                    size: 30
+                )
+                .offset(x: -8, y: -8)
+                .overlay(
+                    Circle()
+                        .stroke(Color(.systemBackground), lineWidth: 2)
+                        .frame(width: 30, height: 30)
+                        .offset(x: -8, y: -8)
+                )
+            }
+            
+            // Show +N badge if more than 2 other participants
+            if conversationDetail.otherParticipants.count > 2 {
+                Text("+\(conversationDetail.otherParticipants.count - 2)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(4)
+                    .background(Color.naarsPrimary)
+                    .clipShape(Circle())
+                    .offset(x: 16, y: -16)
+            }
+        }
+        .frame(width: 50, height: 50)
+    }
+    
+    private var defaultGroupAvatar: some View {
+        ZStack {
+            Circle()
+                .fill(Color.naarsPrimary.opacity(0.2))
+                .frame(width: 50, height: 50)
+            
+            Image(systemName: "person.2.fill")
+                .foregroundColor(.naarsPrimary)
+                .font(.system(size: 20))
         }
     }
 }

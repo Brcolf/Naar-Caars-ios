@@ -2,11 +2,12 @@
 //  MessageDetailsPopup.swift
 //  NaarsCars
 //
-//  Popup for editing conversation details (title and participants)
+//  Popup for editing conversation details (title, participants, and group image)
 //
 
 import SwiftUI
 import Supabase
+import PhotosUI
 
 /// Popup for editing conversation details
 struct MessageDetailsPopup: View {
@@ -14,6 +15,7 @@ struct MessageDetailsPopup: View {
     
     let conversationId: UUID
     let currentTitle: String?
+    let currentGroupImageUrl: String?
     let initialParticipants: [Profile]
     
     @State private var participants: [Profile]
@@ -22,11 +24,24 @@ struct MessageDetailsPopup: View {
     @State private var selectedUserIds: Set<UUID> = []
     @State private var isSaving = false
     @State private var isLoadingParticipants = false
+    @State private var isRemovingParticipant = false
     @State private var error: String?
     
-    init(conversationId: UUID, currentTitle: String?, participants: [Profile]) {
+    // Group image states
+    @State private var showImagePicker = false
+    @State private var selectedImageItem: PhotosPickerItem?
+    @State private var groupImage: UIImage?
+    @State private var isUploadingImage = false
+    
+    // Leave/Remove confirmation
+    @State private var showLeaveConfirmation = false
+    @State private var showRemoveConfirmation = false
+    @State private var participantToRemove: Profile?
+    
+    init(conversationId: UUID, currentTitle: String?, currentGroupImageUrl: String? = nil, participants: [Profile]) {
         self.conversationId = conversationId
         self.currentTitle = currentTitle
+        self.currentGroupImageUrl = currentGroupImageUrl
         self.initialParticipants = participants
         _participants = State(initialValue: participants)
         _editedTitle = State(initialValue: currentTitle ?? "")
@@ -35,6 +50,63 @@ struct MessageDetailsPopup: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Group Image Section
+                Section {
+                    HStack {
+                        Spacer()
+                        
+                        // Group avatar with edit overlay
+                        ZStack(alignment: .bottomTrailing) {
+                            if let groupImage = groupImage {
+                                // Show selected image
+                                Image(uiImage: groupImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 80, height: 80)
+                                    .clipShape(Circle())
+                            } else if let imageUrl = currentGroupImageUrl, let url = URL(string: imageUrl) {
+                                // Show existing group image
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        ProgressView()
+                                            .frame(width: 80, height: 80)
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 80, height: 80)
+                                            .clipShape(Circle())
+                                    case .failure:
+                                        defaultGroupAvatar
+                                    @unknown default:
+                                        defaultGroupAvatar
+                                    }
+                                }
+                            } else {
+                                // Default group avatar
+                                defaultGroupAvatar
+                            }
+                            
+                            // Edit button overlay
+                            Button {
+                                showImagePicker = true
+                            } label: {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                                    .background(Color.naarsPrimary)
+                                    .clipShape(Circle())
+                            }
+                            .offset(x: 4, y: 4)
+                        }
+                        
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                }
+                
                 // Title Section
                 Section("Conversation Name") {
                     TextField("Group Name", text: $editedTitle)
@@ -42,7 +114,7 @@ struct MessageDetailsPopup: View {
                 }
                 
                 // Participants Section
-                Section("Participants") {
+                Section("Participants (\(participants.count))") {
                     if isLoadingParticipants {
                         HStack {
                             Spacer()
@@ -76,13 +148,18 @@ struct MessageDetailsPopup: View {
                             // Remove button (only for non-current user)
                             if participant.id != AuthService.shared.currentUserId {
                                 Button(role: .destructive) {
-                                    Task {
-                                        await removeParticipant(userId: participant.id)
-                                    }
+                                    participantToRemove = participant
+                                    showRemoveConfirmation = true
                                 } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundColor(.red)
+                                    if isRemovingParticipant && participantToRemove?.id == participant.id {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(.red)
+                                    }
                                 }
+                                .disabled(isRemovingParticipant)
                             }
                         }
                     }
@@ -95,6 +172,19 @@ struct MessageDetailsPopup: View {
                             Image(systemName: "person.badge.plus")
                             Text("Add Participants")
                         }
+                    }
+                }
+                
+                // Leave Group Section
+                Section {
+                    Button(role: .destructive) {
+                        showLeaveConfirmation = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                            Text("Leave Conversation")
+                        }
+                        .foregroundColor(.red)
                     }
                 }
                 
@@ -114,16 +204,33 @@ struct MessageDetailsPopup: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .disabled(isSaving)
+                    .disabled(isSaving || isUploadingImage)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await saveChanges()
+                    if isSaving || isUploadingImage {
+                        ProgressView()
+                    } else {
+                        Button("Save") {
+                            Task {
+                                await saveChanges()
+                            }
                         }
                     }
-                    .disabled(isSaving)
+                }
+            }
+            .photosPicker(
+                isPresented: $showImagePicker,
+                selection: $selectedImageItem,
+                matching: .images
+            )
+            .onChange(of: selectedImageItem) { _, newValue in
+                Task {
+                    if let item = newValue {
+                        if let data = try? await item.loadTransferable(type: Data.self) {
+                            groupImage = UIImage(data: data)
+                        }
+                    }
                 }
             }
             .sheet(isPresented: $showAddParticipants) {
@@ -133,7 +240,6 @@ struct MessageDetailsPopup: View {
                     actionButtonTitle: "Add",
                     onDismiss: {
                         print("🔍 [MessageDetailsPopup] UserSearchView dismissed with \(selectedUserIds.count) selected user(s)")
-                        // Capture the selected IDs BEFORE clearing to avoid race condition
                         let idsToAdd = Array(selectedUserIds)
                         showAddParticipants = false
                         selectedUserIds = []
@@ -149,6 +255,48 @@ struct MessageDetailsPopup: View {
                     }
                 )
             }
+            .alert("Leave Conversation", isPresented: $showLeaveConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Leave", role: .destructive) {
+                    Task {
+                        await leaveConversation()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to leave this conversation? You can still see the message history but won't receive new messages.")
+            }
+            .alert("Remove Participant", isPresented: $showRemoveConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    participantToRemove = nil
+                }
+                Button("Remove", role: .destructive) {
+                    if let participant = participantToRemove {
+                        Task {
+                            await removeParticipant(userId: participant.id)
+                        }
+                    }
+                }
+            } message: {
+                if let participant = participantToRemove {
+                    Text("Are you sure you want to remove \(participant.name) from this conversation?")
+                } else {
+                    Text("Are you sure you want to remove this participant?")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Views
+    
+    private var defaultGroupAvatar: some View {
+        ZStack {
+            Circle()
+                .fill(Color.naarsPrimary.opacity(0.2))
+                .frame(width: 80, height: 80)
+            
+            Image(systemName: "person.2.fill")
+                .foregroundColor(.naarsPrimary)
+                .font(.system(size: 30))
         }
     }
     
@@ -157,14 +305,29 @@ struct MessageDetailsPopup: View {
     private func saveChanges() async {
         isSaving = true
         error = nil
-        defer { isSaving = false }
         
         guard let userId = AuthService.shared.currentUserId else {
             error = "Not authenticated"
+            isSaving = false
             return
         }
         
         do {
+            // Upload new group image if selected
+            if let newImage = groupImage, let imageData = newImage.jpegData(compressionQuality: 0.8) {
+                isUploadingImage = true
+                let imageUrl = try await MessageService.shared.uploadGroupImage(
+                    imageData: imageData,
+                    conversationId: conversationId
+                )
+                try await MessageService.shared.updateGroupImage(
+                    conversationId: conversationId,
+                    imageUrl: imageUrl,
+                    userId: userId
+                )
+                isUploadingImage = false
+            }
+            
             // Update title if changed
             let titleToSave = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
             let finalTitle = titleToSave.isEmpty ? nil : titleToSave
@@ -177,10 +340,16 @@ struct MessageDetailsPopup: View {
                 )
             }
             
+            // Post notification to refresh conversations list
+            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
+            
             dismiss()
         } catch {
             self.error = error.localizedDescription
         }
+        
+        isSaving = false
+        isUploadingImage = false
     }
     
     private func addParticipants(_ userIds: [UUID]) async {
@@ -197,7 +366,6 @@ struct MessageDetailsPopup: View {
             )
             
             print("✅ [MessageDetailsPopup] Successfully added participants, reloading list")
-            // Reload participants immediately so the list updates
             await loadParticipants()
         } catch {
             print("🔴 [MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
@@ -210,21 +378,40 @@ struct MessageDetailsPopup: View {
         defer { isLoadingParticipants = false }
         
         do {
-            // Fetch participant user IDs
+            // Fetch participant user IDs (only active participants - not left)
             let response = try await SupabaseService.shared.client
                 .from("conversation_participants")
-                .select("user_id")
+                .select("user_id, left_at")
                 .eq("conversation_id", value: conversationId.uuidString)
+                .is("left_at", value: nil) // Only active participants
                 .execute()
             
             struct ParticipantRow: Codable {
                 let userId: UUID
+                let leftAt: Date?
                 enum CodingKeys: String, CodingKey {
                     case userId = "user_id"
+                    case leftAt = "left_at"
                 }
             }
             
-            let rows = try JSONDecoder().decode([ParticipantRow].self, from: response.data)
+            let decoder = JSONDecoder()
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            decoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let dateString = try container.decode(String.self)
+                if let date = dateFormatter.date(from: dateString) {
+                    return date
+                }
+                dateFormatter.formatOptions = [.withInternetDateTime]
+                if let date = dateFormatter.date(from: dateString) {
+                    return date
+                }
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date")
+            }
+            
+            let rows = try decoder.decode([ParticipantRow].self, from: response.data)
             
             // Fetch profiles for each participant
             var profiles: [Profile] = []
@@ -235,16 +422,59 @@ struct MessageDetailsPopup: View {
             }
             
             self.participants = profiles
-            print("✅ [MessageDetailsPopup] Reloaded \(profiles.count) participants")
+            print("✅ [MessageDetailsPopup] Reloaded \(profiles.count) active participants")
         } catch {
             print("🔴 [MessageDetailsPopup] Error loading participants: \(error.localizedDescription)")
         }
     }
     
     private func removeParticipant(userId: UUID) async {
-        // Note: Removing participants would require a new method in MessageService
-        // For now, we'll skip this functionality - users can leave conversations themselves
-        // In the future, we could add MessageService.removeParticipant()
+        guard let currentUserId = AuthService.shared.currentUserId else { return }
+        
+        isRemovingParticipant = true
+        defer { 
+            isRemovingParticipant = false
+            participantToRemove = nil
+        }
+        
+        do {
+            try await MessageService.shared.removeParticipantFromConversation(
+                conversationId: conversationId,
+                userId: userId,
+                removedBy: currentUserId,
+                createAnnouncement: true
+            )
+            
+            // Remove from local list
+            participants.removeAll { $0.id == userId }
+            
+            print("✅ [MessageDetailsPopup] Successfully removed participant")
+        } catch {
+            print("🔴 [MessageDetailsPopup] Failed to remove participant: \(error.localizedDescription)")
+            self.error = "Failed to remove participant: \(error.localizedDescription)"
+        }
+    }
+    
+    private func leaveConversation() async {
+        guard let currentUserId = AuthService.shared.currentUserId else { return }
+        
+        isSaving = true
+        defer { isSaving = false }
+        
+        do {
+            try await MessageService.shared.leaveConversation(
+                conversationId: conversationId,
+                userId: currentUserId,
+                createAnnouncement: true
+            )
+            
+            // Post notification to refresh conversations list
+            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
+            
+            dismiss()
+        } catch {
+            self.error = "Failed to leave conversation: \(error.localizedDescription)"
+        }
     }
 }
 
@@ -252,10 +482,10 @@ struct MessageDetailsPopup: View {
     MessageDetailsPopup(
         conversationId: UUID(),
         currentTitle: "Group Chat",
+        currentGroupImageUrl: nil,
         participants: [
             Profile(id: UUID(), name: "John Doe", email: "john@example.com"),
             Profile(id: UUID(), name: "Jane Smith", email: "jane@example.com")
         ]
     )
 }
-
