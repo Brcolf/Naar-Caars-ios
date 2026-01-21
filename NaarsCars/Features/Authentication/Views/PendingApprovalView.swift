@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 /// View displayed when user account is pending admin approval
 struct PendingApprovalView: View {
     @StateObject private var launchManager = AppLaunchManager.shared
     @State private var isSigningOut = false
+    @State private var hasRequestedNotifications = false
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var showNotificationPrompt = false
     
     var body: some View {
         VStack(spacing: 32) {
@@ -42,6 +46,13 @@ struct PendingApprovalView: View {
             }
             .padding(.horizontal, 32)
             
+            // Notification permission prompt
+            if notificationStatus == .notDetermined && !hasRequestedNotifications {
+                notificationPromptCard
+            } else if notificationStatus == .authorized {
+                notificationEnabledBadge
+            }
+            
             Spacer()
             
             // Return to Login button
@@ -70,9 +81,101 @@ struct PendingApprovalView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
         .task {
+            // Check notification status on appear
+            await checkNotificationStatus()
+            
+            // Show notification prompt after a short delay if not determined
+            if notificationStatus == .notDetermined {
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                showNotificationPrompt = true
+            }
+            
             // Periodically check approval status (every 15 seconds)
             // This allows users to be automatically transitioned to the main app when approved
             await startPeriodicApprovalCheck()
+        }
+    }
+    
+    // MARK: - Notification UI Components
+    
+    private var notificationPromptCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "bell.badge.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Enable Notifications")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text("Get notified when your account is approved")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            Button(action: {
+                Task {
+                    await requestNotificationPermission()
+                }
+            }) {
+                Text("Enable")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.blue)
+                    .cornerRadius(8)
+            }
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 32)
+        .opacity(showNotificationPrompt ? 1 : 0)
+        .animation(.easeIn(duration: 0.3), value: showNotificationPrompt)
+    }
+    
+    private var notificationEnabledBadge: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+            
+            Text("Notifications enabled - we'll let you know when approved!")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 32)
+    }
+    
+    // MARK: - Notification Methods
+    
+    private func checkNotificationStatus() async {
+        let status = await PushNotificationService.shared.checkAuthorizationStatus()
+        await MainActor.run {
+            notificationStatus = status
+        }
+    }
+    
+    private func requestNotificationPermission() async {
+        hasRequestedNotifications = true
+        
+        let granted = await PushNotificationService.shared.requestPermission()
+        
+        await MainActor.run {
+            notificationStatus = granted ? .authorized : .denied
+        }
+        
+        // If granted and we have a user ID, register for remote notifications
+        if granted {
+            await MainActor.run {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
         }
     }
     

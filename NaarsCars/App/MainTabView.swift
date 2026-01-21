@@ -65,7 +65,7 @@ struct MainTabView: View {
                 case 1: // Messages
                     await badgeManager.clearMessagesBadge()
                 case 2: // Community
-                    badgeManager.clearCommunityBadge()
+                    await await await badgeManager.clearCommunityBadge()
                 case 3: // Profile
                     await badgeManager.clearProfileBadge()
                 default:

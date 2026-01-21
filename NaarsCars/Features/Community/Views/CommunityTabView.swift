@@ -46,7 +46,9 @@ struct CommunityTabView: View {
             .navigationTitle("Community")
             .onAppear {
                 // Clear community badge when viewing Community tab
-                BadgeCountManager.shared.clearCommunityBadge()
+                Task {
+                    await BadgeCountManager.shared.clearCommunityBadge()
+                }
             }
             .trackScreen("Community")
         }

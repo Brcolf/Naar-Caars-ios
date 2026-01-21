@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 internal import Combine
 
 /// Tab badge types
@@ -27,17 +28,23 @@ final class BadgeCountManager: ObservableObject {
     
     // MARK: - Published Properties
     
-    /// Badge count for Requests tab
+    /// Badge count for Requests tab (new requests + Q&A activity)
     @Published var requestsBadgeCount: Int = 0
     
-    /// Badge count for Messages tab
+    /// Badge count for Messages tab (unread messages)
     @Published var messagesBadgeCount: Int = 0
     
-    /// Badge count for Community tab
+    /// Badge count for Community tab (new Town Hall posts/comments)
     @Published var communityBadgeCount: Int = 0
     
-    /// Badge count for Profile tab (admin only)
+    /// Badge count for Profile tab (admin: pending approvals)
     @Published var profileBadgeCount: Int = 0
+    
+    /// Badge count for Admin Panel within Profile (pending approvals)
+    @Published var adminPanelBadgeCount: Int = 0
+    
+    /// Total unread notification count (for app icon badge)
+    @Published var totalUnreadCount: Int = 0
     
     // MARK: - Private Properties
     
@@ -49,6 +56,7 @@ final class BadgeCountManager: ObservableObject {
     
     /// UserDefaults keys for last viewed timestamps
     private let lastViewedCommunityKey = "lastViewedCommunity"
+    private let lastViewedRequestsKey = "lastViewedRequests"
     
     // MARK: - Initialization
     
@@ -56,6 +64,24 @@ final class BadgeCountManager: ObservableObject {
         // Load initial badge counts when user is authenticated
         Task {
             await refreshAllBadges()
+        }
+        
+        // Listen for notification changes
+        setupNotificationListeners()
+    }
+    
+    // MARK: - Setup
+    
+    private func setupNotificationListeners() {
+        // Refresh badges when app becomes active
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshAllBadges()
+            }
         }
     }
     
@@ -69,13 +95,16 @@ final class BadgeCountManager: ObservableObject {
             messagesBadgeCount = 0
             communityBadgeCount = 0
             profileBadgeCount = 0
+            adminPanelBadgeCount = 0
+            totalUnreadCount = 0
+            updateAppIconBadge(0)
             return
         }
         
         // Calculate all badges in parallel
         async let requestsCount = calculateRequestsBadgeCount(userId: userId)
         async let messagesCount = calculateMessagesBadgeCount(userId: userId)
-        async let communityCount = calculateCommunityBadgeCount()
+        async let communityCount = calculateCommunityBadgeCount(userId: userId)
         async let profileCount = calculateProfileBadgeCount()
         
         let (requests, messages, community, profile) = await (
@@ -86,6 +115,16 @@ final class BadgeCountManager: ObservableObject {
         messagesBadgeCount = messages
         communityBadgeCount = community
         profileBadgeCount = profile
+        adminPanelBadgeCount = profile  // Same as profile badge for admins
+        
+        // Calculate total for app icon badge
+        totalUnreadCount = requests + messages + community
+        updateAppIconBadge(totalUnreadCount)
+    }
+    
+    /// Update the app icon badge number
+    private func updateAppIconBadge(_ count: Int) {
+        UIApplication.shared.applicationIconBadgeNumber = count
     }
     
     /// Clear Requests badge (called when navigating to Requests tab)
@@ -94,10 +133,21 @@ final class BadgeCountManager: ObservableObject {
         guard let userId = authService.currentUserId else { return }
         
         do {
-            // Mark all qaActivity notifications as read
             let notifications = try await notificationService.fetchNotifications(userId: userId)
+            
+            // Request-related notification types to clear
+            let requestTypes: Set<NotificationType> = [
+                .newRide, .newFavor,
+                .rideClaimed, .rideUnclaimed,
+                .favorClaimed, .favorUnclaimed,
+                .rideCompleted, .favorCompleted,
+                .qaActivity, .qaQuestion, .qaAnswer,
+                .completionReminder,
+                .reviewRequest, .reviewReminder
+            ]
+            
             let requestNotificationIds = notifications
-                .filter { !$0.read && ($0.type == .qaActivity) }
+                .filter { !$0.read && requestTypes.contains($0.type) }
                 .map { $0.id }
             
             for notificationId in requestNotificationIds {
@@ -118,13 +168,28 @@ final class BadgeCountManager: ObservableObject {
     }
     
     /// Clear Community badge (called when viewing Community tab or a post)
-    func clearCommunityBadge() {
-        // Update last viewed timestamp
-        UserDefaults.standard.set(Date(), forKey: lastViewedCommunityKey)
+    func clearCommunityBadge() async {
+        guard let userId = authService.currentUserId else { return }
         
-        // Refresh badge count
-        Task {
+        do {
+            let notifications = try await notificationService.fetchNotifications(userId: userId)
+            
+            // Community notification types to clear
+            let communityTypes: Set<NotificationType> = [
+                .townHallPost, .townHallComment, .townHallReaction
+            ]
+            
+            let communityNotificationIds = notifications
+                .filter { !$0.read && communityTypes.contains($0.type) }
+                .map { $0.id }
+            
+            for notificationId in communityNotificationIds {
+                try? await notificationService.markAsRead(notificationId: notificationId)
+            }
+            
             await refreshAllBadges()
+        } catch {
+            print("⚠️ [BadgeCountManager] Error clearing community badge: \(error)")
         }
     }
     
@@ -137,22 +202,28 @@ final class BadgeCountManager: ObservableObject {
     // MARK: - Private Methods
     
     /// Calculate Requests badge count
-    /// Counts: new rides/favors posted + new questions/comments on user's requests
+    /// Counts: new rides/favors posted + claim activity + Q&A + completion reminders
     private func calculateRequestsBadgeCount(userId: UUID) async -> Int {
         do {
             // Get unread notifications related to requests
             let notifications = try await notificationService.fetchNotifications(userId: userId)
             
-            // Count unread qaActivity notifications (questions/comments on user's requests)
-            let qaActivityCount = notifications
-                .filter { !$0.read && $0.type == .qaActivity }
+            // Request-related notification types
+            let requestTypes: Set<NotificationType> = [
+                .newRide, .newFavor,                    // New requests from others
+                .rideClaimed, .rideUnclaimed,           // Claim status on user's requests
+                .favorClaimed, .favorUnclaimed,
+                .rideCompleted, .favorCompleted,        // Completion status
+                .qaActivity, .qaQuestion, .qaAnswer,    // Q&A activity
+                .completionReminder,                    // Reminder to mark as complete
+                .reviewRequest, .reviewReminder         // Review prompts
+            ]
+            
+            let requestNotificationCount = notifications
+                .filter { !$0.read && requestTypes.contains($0.type) }
                 .count
             
-            // For now, we'll use qaActivity notifications as the main indicator
-            // New rides/favors posted by others could be added as a separate notification type
-            // or we could query the rides/favors table directly
-            // For simplicity, we'll focus on qaActivity for now
-            return qaActivityCount
+            return requestNotificationCount
         } catch {
             print("⚠️ [BadgeCountManager] Error calculating requests badge: \(error)")
             return 0
@@ -174,48 +245,28 @@ final class BadgeCountManager: ObservableObject {
     }
     
     /// Calculate Community badge count
-    /// Counts: new posts/comments since last viewed
-    private func calculateCommunityBadgeCount() async -> Int {
-        // Get last viewed timestamp
-        let lastViewed = UserDefaults.standard.object(forKey: lastViewedCommunityKey) as? Date ?? Date.distantPast
-        
+    /// Counts: unread Town Hall notifications (posts, comments, reactions)
+    private func calculateCommunityBadgeCount(userId: UUID) async -> Int {
         do {
-            // Count new posts since last viewed (limit to recent posts for performance)
-            let posts = try await townHallService.fetchPosts(limit: 50)
-            let newPostsCount = posts.filter { $0.createdAt > lastViewed }.count
+            // Get unread notifications related to community/Town Hall
+            let notifications = try await notificationService.fetchNotifications(userId: userId)
             
-            // Count new comments since last viewed on recent posts only
-            // Fetch comments on posts created after last viewed, or posts with new comments
-            var newCommentsCount = 0
-            for post in posts {
-                // Only check comments on posts that are new or might have new comments
-                if post.createdAt > lastViewed || post.updatedAt > lastViewed {
-                    let comments = try? await TownHallCommentService.shared.fetchComments(for: post.id)
-                    if let comments = comments {
-                        // Flatten nested comments to count all comments (including replies)
-                        let allComments = flattenComments(comments)
-                        newCommentsCount += allComments.filter { $0.createdAt > lastViewed }.count
-                    }
-                }
-            }
+            // Community notification types
+            let communityTypes: Set<NotificationType> = [
+                .townHallPost,      // New posts
+                .townHallComment,   // Comments on posts
+                .townHallReaction   // Reactions on posts
+            ]
             
-            return newPostsCount + newCommentsCount
+            let communityNotificationCount = notifications
+                .filter { !$0.read && communityTypes.contains($0.type) }
+                .count
+            
+            return communityNotificationCount
         } catch {
             print("⚠️ [BadgeCountManager] Error calculating community badge: \(error)")
             return 0
         }
-    }
-    
-    /// Flatten nested comments to a single array
-    private func flattenComments(_ comments: [TownHallComment]) -> [TownHallComment] {
-        var result: [TownHallComment] = []
-        for comment in comments {
-            result.append(comment)
-            if let replies = comment.replies {
-                result.append(contentsOf: flattenComments(replies))
-            }
-        }
-        return result
     }
     
     /// Calculate Profile badge count (admin only)
