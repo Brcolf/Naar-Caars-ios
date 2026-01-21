@@ -9,6 +9,8 @@ import SwiftUI
 import PhotosUI
 import AVFoundation
 import CoreLocation
+import MapKit
+internal import Combine
 
 /// Chat input bar component with rich media support
 struct MessageInputBar: View {
@@ -37,7 +39,6 @@ struct MessageInputBar: View {
     
     // Location sharing state
     @State private var showLocationPicker = false
-    @State private var locationManager = CLLocationManager()
     
     // Expanded attachment menu
     @State private var showAttachmentMenu = false
@@ -120,6 +121,11 @@ struct MessageInputBar: View {
         }
         .background(Color(.systemBackground))
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
+        .sheet(isPresented: $showLocationPicker) {
+            LocationPickerSheet { coordinate, name in
+                onLocationShare?(coordinate.latitude, coordinate.longitude, name)
+            }
+        }
     }
     
     // MARK: - Audio Recording Banner
@@ -274,37 +280,7 @@ struct MessageInputBar: View {
     // MARK: - Location Sharing
     
     private func shareCurrentLocation() {
-        // Check authorization
-        let status = locationManager.authorizationStatus
-        
-        if status == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
-        }
-        
-        if status == .authorizedWhenInUse || status == .authorizedAlways {
-            if let location = locationManager.location {
-                // Reverse geocode to get address
-                let geocoder = CLGeocoder()
-                geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                    var locationName: String? = nil
-                    
-                    if let placemark = placemarks?.first {
-                        let components = [
-                            placemark.name,
-                            placemark.thoroughfare,
-                            placemark.locality
-                        ].compactMap { $0 }
-                        locationName = components.joined(separator: ", ")
-                    }
-                    
-                    onLocationShare?(
-                        location.coordinate.latitude,
-                        location.coordinate.longitude,
-                        locationName
-                    )
-                }
-            }
-        }
+        showLocationPicker = true
     }
     
     // MARK: - Reply Banner
@@ -337,7 +313,7 @@ struct MessageInputBar: View {
                     Text(replyContext.text.isEmpty ? "Photo" : replyContext.text)
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
             }
             
@@ -358,6 +334,241 @@ struct MessageInputBar: View {
         .padding(.vertical, 10)
         .background(Color(.systemGray6))
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+}
+
+// MARK: - Location Picker Sheet
+
+private struct LocationPickerSheet: View {
+    let onSelect: (CLLocationCoordinate2D, String?) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel = LocationPickerViewModel()
+    @State private var searchText = ""
+    @State private var cameraPosition = MapCameraPosition.region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 47.6062, longitude: -122.3321),
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+    )
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                TextField("Search for a location", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal)
+                    .onChange(of: searchText) { _, newValue in
+                        Task { await viewModel.search(query: newValue) }
+                    }
+                
+                if !viewModel.searchResults.isEmpty {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(viewModel.searchResults) { result in
+                                Button {
+                                    Task {
+                                        await viewModel.selectPrediction(result)
+                                        if let coordinate = viewModel.selectedCoordinate {
+                                            cameraPosition = .region(
+                                                MKCoordinateRegion(
+                                                    center: coordinate,
+                                                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                                )
+                                            )
+                                        }
+                                        searchText = ""
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(result.primaryText)
+                                            .font(.system(size: 15, weight: .semibold))
+                                        if !result.secondaryText.isEmpty {
+                                            Text(result.secondaryText)
+                                                .font(.system(size: 13))
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal)
+                                }
+                                Divider()
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 180)
+                }
+                
+                ZStack {
+                    Map(position: $cameraPosition) {
+                        if let coordinate = viewModel.selectedCoordinate {
+                            Annotation("Selected", coordinate: coordinate) {
+                                EmptyView()
+                            }
+                        }
+                    }
+                    .onMapCameraChange { context in
+                        viewModel.updateCoordinateFromMap(context.region.center)
+                    }
+                    
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.red)
+                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
+                }
+                .frame(height: 300)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal)
+                
+                VStack(spacing: 4) {
+                    if let name = viewModel.selectedName {
+                        Text(name)
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    if let address = viewModel.selectedAddress, !address.isEmpty {
+                        Text(address)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+                
+                Button(action: confirmSelection) {
+                    Text("Send Location")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.naarsPrimary)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .disabled(viewModel.selectedCoordinate == nil)
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+            }
+            .navigationTitle("Share Location")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                viewModel.requestUserLocation()
+            }
+            .onChange(of: viewModel.userCoordinate?.latitude) { _, _ in
+                if let coordinate = viewModel.userCoordinate {
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        )
+                    )
+                }
+            }
+        }
+    }
+    
+    private func confirmSelection() {
+        guard let coordinate = viewModel.selectedCoordinate else { return }
+        let name = viewModel.selectedName ?? viewModel.selectedAddress
+        onSelect(coordinate, name)
+        dismiss()
+    }
+}
+
+@MainActor
+private final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var searchResults: [PlacePrediction] = []
+    @Published var selectedCoordinate: CLLocationCoordinate2D?
+    @Published var selectedName: String?
+    @Published var selectedAddress: String?
+    @Published var userCoordinate: CLLocationCoordinate2D?
+    
+    private let locationManager = CLLocationManager()
+    private let locationService = LocationService.shared
+    private let geocoder = CLGeocoder()
+    private var reverseGeocodeTask: Task<Void, Never>?
+    
+    override init() {
+        super.init()
+        locationManager.delegate = self
+    }
+    
+    func requestUserLocation() {
+        let status = locationManager.authorizationStatus
+        if status == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
+        } else if status == .authorizedWhenInUse || status == .authorizedAlways {
+            locationManager.requestLocation()
+        }
+    }
+    
+    func search(query: String) async {
+        guard query.count >= 2 else {
+            searchResults = []
+            return
+        }
+        
+        do {
+            searchResults = try await locationService.searchPlaces(query: query)
+        } catch {
+            searchResults = []
+        }
+    }
+    
+    func selectPrediction(_ prediction: PlacePrediction) async {
+        do {
+            let details = try await locationService.getPlaceDetails(placeID: prediction.placeID)
+            selectedCoordinate = details.coordinate
+            selectedName = details.name
+            selectedAddress = details.address
+            searchResults = []
+        } catch {
+            searchResults = []
+        }
+    }
+    
+    func updateCoordinateFromMap(_ coordinate: CLLocationCoordinate2D) {
+        selectedCoordinate = coordinate
+        reverseGeocodeTask?.cancel()
+        reverseGeocodeTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            await reverseGeocode(coordinate: coordinate)
+        }
+    }
+    
+    private func reverseGeocode(coordinate: CLLocationCoordinate2D) async {
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        if let placemark = try? await geocoder.reverseGeocodeLocation(location).first {
+            let components = [
+                placemark.name,
+                placemark.thoroughfare,
+                placemark.locality
+            ].compactMap { $0 }
+            selectedName = components.first
+            selectedAddress = components.dropFirst().joined(separator: ", ")
+        }
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        requestUserLocation()
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.first else { return }
+        userCoordinate = location.coordinate
+        selectedCoordinate = location.coordinate
+        Task {
+            await reverseGeocode(coordinate: location.coordinate)
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // Non-fatal: location permission may be denied
     }
 }
 

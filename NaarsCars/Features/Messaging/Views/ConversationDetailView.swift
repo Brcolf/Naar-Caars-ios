@@ -26,6 +26,10 @@ struct ConversationDetailView: View {
     @State private var showReactionPicker = false
     @State private var reactionPickerMessageId: UUID?
     @State private var reactionPickerPosition: CGPoint = .zero
+    @State private var showReactionDetails = false
+    @State private var reactionDetailsMessage: Message?
+    @State private var reactionProfiles: [String: [Profile]] = [:]
+    @State private var highlightedMessageId: UUID?
     
     // Scroll-to-bottom state
     @State private var showScrollToBottom = false
@@ -244,9 +248,11 @@ struct ConversationDetailView: View {
                 text: $viewModel.messageText,
                 imageToSend: $imageToSend,
                 onSend: {
+                    let textToSend = viewModel.messageText
+                    viewModel.messageText = ""
                     Task {
                         viewModel.clearTypingStatusOnSend()
-                        await viewModel.sendMessage(image: imageToSend, replyToId: replyingToMessage?.id)
+                        await viewModel.sendMessage(textOverride: textToSend, image: imageToSend, replyToId: replyingToMessage?.id)
                         imageToSend = nil
                         // Clear reply context after sending
                         withAnimation(.easeOut(duration: 0.2)) {
@@ -361,6 +367,21 @@ struct ConversationDetailView: View {
                 )
             }
         }
+        .sheet(isPresented: $showReactionDetails) {
+            if let message = reactionDetailsMessage, let reactions = message.reactions {
+                ReactionDetailsSheet(
+                    message: message,
+                    reactions: reactions,
+                    profilesByReaction: reactionProfiles,
+                    onRemoveReaction: { reaction in
+                        Task {
+                            await viewModel.removeReaction(messageId: message.id)
+                            await refreshReactionProfiles(for: message)
+                        }
+                    }
+                )
+            }
+        }
     }
     
     /// Submit a report for a message
@@ -406,7 +427,7 @@ struct ConversationDetailView: View {
                 showReactionPicker = true
             },
             onReactionTap: { reaction in
-                handleReactionTap(message: message, reaction: reaction)
+                showReactionDetails(for: message)
             },
             onReply: {
                 withAnimation(.easeOut(duration: 0.2)) {
@@ -420,21 +441,63 @@ struct ConversationDetailView: View {
             onReport: {
                 messageToReport = message
                 showReportSheet = true
-            }
+            },
+            onReplyPreviewTap: { replyId in
+                scrollToMessage(replyId)
+            },
+            isHighlighted: highlightedMessageId == message.id
         )
     }
     
-    private func handleReactionTap(message: Message, reaction: String) {
+    private func showReactionDetails(for message: Message) {
+        reactionDetailsMessage = message
+        showReactionDetails = true
         Task {
-            if let userId = AuthService.shared.currentUserId,
-               let reactions = message.reactions,
-               let userIds = reactions.reactions[reaction],
-               userIds.contains(userId) {
-                // User already reacted with this, remove it
-                await viewModel.removeReaction(messageId: message.id)
-            } else {
-                // Add reaction
-                await viewModel.addReaction(messageId: message.id, reaction: reaction)
+            await refreshReactionProfiles(for: message)
+        }
+    }
+    
+    private func refreshReactionProfiles(for message: Message) async {
+        guard let reactions = message.reactions else {
+            reactionProfiles = [:]
+            return
+        }
+        
+        let userIds = Array(reactions.allUserIds)
+        let profiles = await withTaskGroup(of: Profile?.self) { group in
+            for userId in userIds {
+                group.addTask {
+                    try? await ProfileService.shared.fetchProfile(userId: userId)
+                }
+            }
+            var results: [Profile] = []
+            for await profile in group {
+                if let profile = profile {
+                    results.append(profile)
+                }
+            }
+            return results
+        }
+        
+        let profilesById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        var mapped: [String: [Profile]] = [:]
+        for (reaction, userIds) in reactions.reactions {
+            mapped[reaction] = userIds.compactMap { profilesById[$0] }
+        }
+        reactionProfiles = mapped
+    }
+    
+    private func scrollToMessage(_ messageId: UUID) {
+        guard viewModel.messages.contains(where: { $0.id == messageId }) else { return }
+        
+        withAnimation(.easeInOut(duration: 0.25)) {
+            scrollProxy?.scrollTo(messageId, anchor: .center)
+        }
+        highlightedMessageId = messageId
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if highlightedMessageId == messageId {
+                highlightedMessageId = nil
             }
         }
     }
@@ -573,6 +636,15 @@ struct ConversationDetailView: View {
             VStack {
                 HStack {
                     Spacer()
+                    ShareLink(item: imageUrl) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                    }
+                    .padding(.trailing, 8)
+                    
                     Button(action: {
                         showImageViewer = false
                         selectedImageUrl = nil
@@ -775,6 +847,74 @@ struct ScrollToBottomButton: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Reaction Details Sheet
+
+struct ReactionDetailsSheet: View {
+    let message: Message
+    let reactions: MessageReactions
+    let profilesByReaction: [String: [Profile]]
+    let onRemoveReaction: (String) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(sortedReactions, id: \.reaction) { reactionData in
+                    Section(header: Text("\(reactionData.reaction) \(reactionData.count)")) {
+                        ForEach(profilesByReaction[reactionData.reaction] ?? [], id: \.id) { profile in
+                            HStack(spacing: 12) {
+                                AvatarView(
+                                    imageUrl: profile.avatarUrl,
+                                    name: profile.name,
+                                    size: 32
+                                )
+                                Text(profile.name)
+                                    .font(.system(size: 15, weight: .medium))
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+                
+                if let currentUserId = AuthService.shared.currentUserId {
+                    let myReactions = reactions.reactions.filter { $0.value.contains(currentUserId) }
+                    if !myReactions.isEmpty {
+                        Section {
+                            ForEach(myReactions.keys.sorted(), id: \.self) { reaction in
+                                Button(role: .destructive) {
+                                    onRemoveReaction(reaction)
+                                } label: {
+                                    Text("Remove \(reaction)")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Reactions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+    
+    private var sortedReactions: [(reaction: String, count: Int, userIds: [UUID])] {
+        reactions.sortedReactions.sorted {
+            if $0.count == $1.count {
+                return $0.reaction < $1.reaction
+            }
+            return $0.count > $1.count
+        }
     }
 }
 

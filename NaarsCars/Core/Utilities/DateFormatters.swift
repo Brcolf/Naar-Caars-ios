@@ -112,5 +112,19 @@ enum DateFormatters {
         formatter.dateFormat = "EEEE"
         return formatter
     }()
+    
+    /// Month and day formatter (e.g., "Jan 15")
+    static let monthDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter
+    }()
+    
+    /// Month, day, and year formatter (e.g., "Jan 15, 2025")
+    static let monthDayYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter
+    }()
 }
 

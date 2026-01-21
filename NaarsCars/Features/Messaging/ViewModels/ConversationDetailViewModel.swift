@@ -120,13 +120,14 @@ final class ConversationDetailViewModel: ObservableObject {
         isLoadingMore = false
     }
     
-    func sendMessage(image: UIImage? = nil, replyToId: UUID? = nil) async {
-        guard (!messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || image != nil),
+    func sendMessage(textOverride: String? = nil, image: UIImage? = nil, replyToId: UUID? = nil) async {
+        let effectiveText = textOverride ?? messageText
+        guard (!effectiveText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || image != nil),
               let fromId = authService.currentUserId else {
             return
         }
         
-        let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = effectiveText.trimmingCharacters(in: .whitespacesAndNewlines)
         messageText = "" // Clear input
         
         // Upload image first if provided
@@ -148,7 +149,7 @@ final class ConversationDetailViewModel: ObservableObject {
         // Optimistic UI update - store the text and timestamp to match later
         let optimisticText = text
         let optimisticTimestamp = Date()
-        let optimisticMessage = Message(
+        var optimisticMessage = Message(
             conversationId: conversationId,
             fromId: fromId,
             text: text,
@@ -156,16 +157,26 @@ final class ConversationDetailViewModel: ObservableObject {
             createdAt: optimisticTimestamp,
             replyToId: replyToId
         )
+        if let replyToId = replyToId,
+           let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+            optimisticMessage.replyToMessage = context
+        }
         messages.append(optimisticMessage)
         
         do {
-            let sentMessage = try await messageService.sendMessage(
+            var sentMessage = try await messageService.sendMessage(
                 conversationId: conversationId,
                 fromId: fromId,
                 text: text,
                 imageUrl: imageUrl,
                 replyToId: replyToId
             )
+            
+            // Attach reply context if available locally
+            if let replyToId = replyToId,
+               let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+                sentMessage.replyToMessage = context
+            }
             
             // Replace optimistic message with real one
             // Match by text and timestamp (within 5 seconds) since IDs will differ
@@ -240,7 +251,7 @@ final class ConversationDetailViewModel: ObservableObject {
             )
             
             // Create optimistic message
-            let optimisticMessage = Message(
+            var optimisticMessage = Message(
                 conversationId: conversationId,
                 fromId: fromId,
                 messageType: .audio,
@@ -248,16 +259,25 @@ final class ConversationDetailViewModel: ObservableObject {
                 audioUrl: uploadedUrl,
                 audioDuration: duration
             )
+            if let replyToId = replyToId,
+               let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+                optimisticMessage.replyToMessage = context
+            }
             messages.append(optimisticMessage)
             
             // Send audio message
-            let sentMessage = try await messageService.sendAudioMessage(
+            var sentMessage = try await messageService.sendAudioMessage(
                 conversationId: conversationId,
                 fromId: fromId,
                 audioUrl: uploadedUrl,
                 duration: duration,
                 replyToId: replyToId
             )
+            
+            if let replyToId = replyToId,
+               let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+                sentMessage.replyToMessage = context
+            }
             
             // Replace optimistic message
             if let index = messages.firstIndex(where: { $0.audioUrl == uploadedUrl && $0.fromId == fromId }) {
@@ -280,7 +300,7 @@ final class ConversationDetailViewModel: ObservableObject {
         guard let fromId = authService.currentUserId else { return }
         
         // Create optimistic message
-        let optimisticMessage = Message(
+        var optimisticMessage = Message(
             conversationId: conversationId,
             fromId: fromId,
             text: locationName ?? "Shared location",
@@ -290,10 +310,14 @@ final class ConversationDetailViewModel: ObservableObject {
             longitude: longitude,
             locationName: locationName
         )
+        if let replyToId = replyToId,
+           let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+            optimisticMessage.replyToMessage = context
+        }
         messages.append(optimisticMessage)
         
         do {
-            let sentMessage = try await messageService.sendLocationMessage(
+            var sentMessage = try await messageService.sendLocationMessage(
                 conversationId: conversationId,
                 fromId: fromId,
                 latitude: latitude,
@@ -301,6 +325,11 @@ final class ConversationDetailViewModel: ObservableObject {
                 locationName: locationName,
                 replyToId: replyToId
             )
+            
+            if let replyToId = replyToId,
+               let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+                sentMessage.replyToMessage = context
+            }
             
             // Replace optimistic message
             if let index = messages.firstIndex(where: { msg in
@@ -445,9 +474,24 @@ final class ConversationDetailViewModel: ObservableObject {
         }
         
         // Add new message from another user
-        messages.append(message)
+        var incomingMessage = message
+        if let replyToId = incomingMessage.replyToId,
+           let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+            incomingMessage.replyToMessage = context
+        }
+        messages.append(incomingMessage)
         messages.sort { $0.createdAt < $1.createdAt }
         print("✅ [ConversationDetailVM] Added realtime message \(message.id) from \(message.fromId)")
+
+        // Enrich message with sender + reply context from server if missing
+        if incomingMessage.sender == nil || (incomingMessage.replyToId != nil && incomingMessage.replyToMessage == nil) {
+            Task {
+                if let enriched = try? await messageService.fetchMessageById(incomingMessage.id),
+                   let index = messages.firstIndex(where: { $0.id == incomingMessage.id }) {
+                    messages[index] = enriched
+                }
+            }
+        }
         
         // Mark as read since user is actively viewing
         if let userId = authService.currentUserId, message.fromId != userId {
@@ -524,6 +568,13 @@ final class ConversationDetailViewModel: ObservableObject {
         
         // Parse optional fields
         let imageUrl = record["image_url"] as? String
+        let replyToId = (record["reply_to_id"] as? String).flatMap(UUID.init)
+        let messageType = (record["message_type"] as? String).flatMap(MessageType.init(rawValue:))
+        let audioUrl = record["audio_url"] as? String
+        let audioDuration = parseDouble(record["audio_duration"])
+        let latitude = parseDouble(record["latitude"])
+        let longitude = parseDouble(record["longitude"])
+        let locationName = record["location_name"] as? String
         
         // Parse read_by array
         var readBy: [UUID] = []
@@ -555,9 +606,29 @@ final class ConversationDetailViewModel: ObservableObject {
             imageUrl: imageUrl,
             readBy: readBy,
             createdAt: createdAt,
+            messageType: messageType,
+            replyToId: replyToId,
+            audioUrl: audioUrl,
+            audioDuration: audioDuration,
+            latitude: latitude,
+            longitude: longitude,
+            locationName: locationName,
             sender: nil, // Sender profile not included in realtime payload
             reactions: nil
         )
+    }
+
+    private func parseDouble(_ value: Any?) -> Double? {
+        if let doubleValue = value as? Double {
+            return doubleValue
+        }
+        if let intValue = value as? Int {
+            return Double(intValue)
+        }
+        if let stringValue = value as? String {
+            return Double(stringValue)
+        }
+        return nil
     }
     
     private func unsubscribeFromMessages() async {

@@ -181,7 +181,7 @@ final class MessageService {
         do {
             let response = try await supabase
                 .from("messages")
-                .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+                .select("*, sender:profiles!messages_from_id_fkey(*)")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .order("created_at", ascending: false)
                 .limit(1)
@@ -694,7 +694,7 @@ final class MessageService {
         
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
             .eq("conversation_id", value: conversationId.uuidString)
         
         // If beforeMessageId is provided, fetch messages before that message
@@ -770,6 +770,19 @@ final class MessageService {
             }
         }
         
+        // Populate reply contexts (if any)
+        let replyIds = Array(Set(messages.compactMap { $0.replyToId }))
+        if !replyIds.isEmpty {
+            if let replyContexts = try? await fetchReplyContexts(for: replyIds) {
+                for index in messages.indices {
+                    if let replyId = messages[index].replyToId,
+                       let context = replyContexts[replyId] {
+                        messages[index].replyToMessage = context
+                    }
+                }
+            }
+        }
+        
         // Cache results (only cache if this is the initial load, not pagination)
         if beforeMessageId == nil {
             await cacheManager.cacheMessages(conversationId: conversationId, messages)
@@ -777,6 +790,68 @@ final class MessageService {
         
         AppLogger.network.info("Fetched \(messages.count) messages from network.")
         return messages
+    }
+
+    /// Fetch reply contexts for a set of message IDs
+    private func fetchReplyContexts(for messageIds: [UUID]) async throws -> [UUID: ReplyContext] {
+        guard !messageIds.isEmpty else { return [:] }
+        
+        let response = try await supabase
+            .from("messages")
+            .select("id, text, from_id, image_url, sender:profiles!messages_from_id_fkey(*)")
+            .in("id", values: messageIds.map { $0.uuidString })
+            .execute()
+
+        struct ReplyRow: Codable {
+            let id: UUID
+            let text: String
+            let fromId: UUID
+            let imageUrl: String?
+            let sender: Profile?
+            
+            enum CodingKeys: String, CodingKey {
+                case id
+                case text
+                case fromId = "from_id"
+                case imageUrl = "image_url"
+                case sender
+            }
+        }
+        
+        let replyRows: [ReplyRow] = try JSONDecoder().decode([ReplyRow].self, from: response.data)
+        var contexts: [UUID: ReplyContext] = [:]
+        for row in replyRows {
+            contexts[row.id] = ReplyContext(
+                id: row.id,
+                text: row.text,
+                senderName: row.sender?.name ?? "Unknown",
+                senderId: row.fromId,
+                imageUrl: row.imageUrl
+            )
+        }
+        
+        return contexts
+    }
+
+    /// Fetch a single message by ID with sender join (for realtime enrichment)
+    func fetchMessageById(_ messageId: UUID) async throws -> Message {
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("id", value: messageId.uuidString)
+            .single()
+            .execute()
+        
+        let decoder = createDateDecoder()
+        var message = try decoder.decode(Message.self, from: response.data)
+        
+        if let replyId = message.replyToId {
+            if let replyContext = try? await fetchReplyContexts(for: [replyId])[replyId] {
+                message.replyToMessage = replyContext
+            }
+        }
+        
+        return message
     }
     
     /// Upload message image to storage
@@ -865,7 +940,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
             .single()
             .execute()
         
@@ -911,7 +986,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
             .single()
             .execute()
         
@@ -989,7 +1064,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
+            .select("*, sender:profiles!messages_from_id_fkey(*), reply_to_id")
             .single()
             .execute()
         

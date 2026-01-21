@@ -12,9 +12,10 @@ import Supabase
 internal import Combine
 
 /// Notification action identifiers
+/// IMPORTANT: These must match AppDelegate's action identifiers for response handling
 enum NotificationAction: String {
-    case yesCompleted = "YES_COMPLETED"
-    case noNotYet = "NO_NOT_YET"
+    case yesCompleted = "COMPLETE_YES"
+    case noNotYet = "COMPLETE_NO"
 }
 
 /// Notification category identifiers

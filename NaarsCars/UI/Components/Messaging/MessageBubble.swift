@@ -6,6 +6,10 @@
 //
 
 import SwiftUI
+import AVFoundation
+import MapKit
+import UIKit
+internal import Combine
 
 /// Message bubble component with iMessage-style design
 struct MessageBubble: View {
@@ -34,15 +38,23 @@ struct MessageBubble: View {
     var onDelete: (() -> Void)? = nil
     var onImageTap: ((URL) -> Void)? = nil
     var onReport: (() -> Void)? = nil
+    var onReplyPreviewTap: ((UUID) -> Void)? = nil
+    var isHighlighted: Bool = false
     
     // Animation states
     @State private var hasAppeared = false
     @State private var showContextMenu = false
+    @State private var showTimestampOverride = false
+    @ObservedObject private var audioPlayer = MessageAudioPlayer.shared
+    @AppStorage("messaging_showLinkPreviews") private var showLinkPreviews = true
     
     // Swipe-to-reply state
     @State private var swipeOffset: CGFloat = 0
     @State private var isSwipingToReply = false
     private let swipeThreshold: CGFloat = 60
+    private let waveformHeights: [CGFloat] = [10, 14, 18, 12, 22, 16, 20, 12, 24, 14, 18, 10, 16, 22, 12, 20, 14, 18, 12, 16]
+    private let bubbleMaxWidth: CGFloat = UIScreen.main.bounds.width * 0.7
+    private let replyPreviewMaxWidth: CGFloat = UIScreen.main.bounds.width * 0.75
     
     /// Extract URLs from message text
     private var detectedURLs: [URL] {
@@ -245,12 +257,18 @@ struct MessageBubble: View {
                 
                 // Replied-to message preview
                 if let replyContext = message.replyToMessage {
-                    ReplyPreviewView(
-                        senderName: replyContext.senderName,
-                        text: replyContext.text,
-                        hasImage: replyContext.imageUrl != nil,
-                        isFromCurrentUser: isFromCurrentUser
-                    )
+                    Button {
+                        onReplyPreviewTap?(replyContext.id)
+                    } label: {
+                        ReplyPreviewView(
+                            senderName: replyContext.senderName,
+                            text: replyContext.text,
+                            hasImage: replyContext.imageUrl != nil,
+                            isFromCurrentUser: isFromCurrentUser
+                        )
+                        .frame(maxWidth: replyPreviewMaxWidth, alignment: .leading)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                     .padding(.bottom, 2)
                 }
                 
@@ -274,29 +292,16 @@ struct MessageBubble: View {
                     // Message text bubble (only show if not empty)
                     if !message.text.isEmpty && !message.isAudioMessage && !message.isLocationMessage {
                         messageBubbleView
+                            .frame(maxWidth: bubbleMaxWidth, alignment: isFromCurrentUser ? .trailing : .leading)
                     }
                     
                     // Link preview (if URL detected and no image)
-                    // Note: LinkPreviewView needs to be added to Xcode project
                     if message.imageUrl == nil && !message.isAudioMessage && !message.isLocationMessage, let firstUrl = detectedURLs.first {
-                        // Inline link indicator
-                        Button(action: { UIApplication.shared.open(firstUrl) }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "link")
-                                    .font(.system(size: 12))
-                                Text(firstUrl.host ?? firstUrl.absoluteString)
-                                    .font(.system(size: 13))
-                                    .lineLimit(1)
-                            }
-                            .foregroundColor(isFromCurrentUser ? .white.opacity(0.9) : .naarsPrimary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(isFromCurrentUser ? Color.white.opacity(0.2) : Color.naarsPrimary.opacity(0.1))
-                            )
+                        if showLinkPreviews {
+                            LinkPreviewView(url: firstUrl, isFromCurrentUser: isFromCurrentUser)
+                        } else {
+                            InlineLinkPreview(url: firstUrl, isFromCurrentUser: isFromCurrentUser)
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 
@@ -306,9 +311,9 @@ struct MessageBubble: View {
                 }
                 
                 // Timestamp and read receipt (only for last message in series)
-                if isLastInSeries {
+                if isLastInSeries || showTimestampOverride {
                     HStack(spacing: 4) {
-                        Text(message.createdAt.timeAgoString)
+                        Text(message.createdAt.messageTimestampString)
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         
@@ -316,11 +321,26 @@ struct MessageBubble: View {
                         if isFromCurrentUser {
                             readReceiptIndicator
                         }
+                        
+                        if isFromCurrentUser && totalParticipants > 2 && readStatus == .read {
+                            Text("Read by \(max(message.readBy.count - 1, 0))")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .padding(.horizontal, 4)
                     .padding(.top, 2)
                 }
             }
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.naarsPrimary.opacity(isHighlighted ? 0.08 : 0))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.naarsPrimary.opacity(isHighlighted ? 0.6 : 0), lineWidth: 1.5)
+            )
+            .animation(.easeInOut(duration: 0.2), value: isHighlighted)
             
             if !isFromCurrentUser {
                 Spacer(minLength: 60)
@@ -371,8 +391,13 @@ struct MessageBubble: View {
                     }
                 }
         )
-        .padding(.vertical, isLastInSeries ? 4 : 1)
+        .padding(.vertical, isLastInSeries ? 8 : 2)
         .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                toggleTimestamp()
+            }
+        )
         .contextMenu {
             // Reactions quick access
             Button {
@@ -428,6 +453,17 @@ struct MessageBubble: View {
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
             onLongPress?()
+        }
+    }
+    
+    private func toggleTimestamp() {
+        showTimestampOverride.toggle()
+        if showTimestampOverride {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                if showTimestampOverride {
+                    showTimestampOverride = false
+                }
+            }
         }
     }
     
@@ -511,17 +547,18 @@ struct MessageBubble: View {
     
     // MARK: - Audio Message View
     
-    @State private var isPlayingAudio = false
-    @State private var audioProgress: Double = 0
-    
     private func audioMessageView(audioUrl: String, duration: Double) -> some View {
-        HStack(spacing: 12) {
+        let isCurrent = audioPlayer.currentUrl?.absoluteString == audioUrl
+        let isPlaying = isCurrent && audioPlayer.isPlaying
+        let progress = isCurrent ? audioPlayer.progress : 0
+        let totalDuration = duration > 0 ? duration : (isCurrent ? audioPlayer.duration : 0)
+        
+        return HStack(spacing: 12) {
             // Play/Pause button
             Button(action: {
-                isPlayingAudio.toggle()
-                // Audio playback handled by parent
+                audioPlayer.togglePlayback(urlString: audioUrl)
             }) {
-                Image(systemName: isPlayingAudio ? "pause.fill" : "play.fill")
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 18))
                     .foregroundColor(isFromCurrentUser ? .white : .naarsPrimary)
                     .frame(width: 40, height: 40)
@@ -533,16 +570,16 @@ struct MessageBubble: View {
             
             // Waveform visualization placeholder
             HStack(spacing: 2) {
-                ForEach(0..<20, id: \.self) { i in
+                ForEach(waveformHeights.indices, id: \.self) { i in
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(isFromCurrentUser ? Color.white.opacity(i < Int(audioProgress * 20) ? 1.0 : 0.4) : Color.naarsPrimary.opacity(i < Int(audioProgress * 20) ? 1.0 : 0.3))
-                        .frame(width: 3, height: CGFloat.random(in: 8...24))
+                        .fill(isFromCurrentUser ? Color.white.opacity(i < Int(progress * Double(waveformHeights.count)) ? 1.0 : 0.4) : Color.naarsPrimary.opacity(i < Int(progress * Double(waveformHeights.count)) ? 1.0 : 0.3))
+                        .frame(width: 3, height: waveformHeights[i])
                 }
             }
             .frame(height: 30)
             
             // Duration
-            Text(formatDuration(duration))
+            Text(durationLabel(totalDuration: totalDuration, progress: progress))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(isFromCurrentUser ? .white.opacity(0.8) : .secondary)
         }
@@ -552,6 +589,14 @@ struct MessageBubble: View {
             RoundedRectangle(cornerRadius: 18)
                 .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
         )
+    }
+    
+    private func durationLabel(totalDuration: Double, progress: Double) -> String {
+        if totalDuration > 0 && progress > 0 {
+            let elapsed = totalDuration * progress
+            return "\(formatDuration(elapsed)) / \(formatDuration(totalDuration))"
+        }
+        return formatDuration(totalDuration)
     }
     
     private func formatDuration(_ seconds: Double) -> String {
@@ -571,50 +616,10 @@ struct MessageBubble: View {
             }
         }) {
             VStack(alignment: .leading, spacing: 0) {
-                // Map preview placeholder
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(.systemGray4), Color(.systemGray5)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 200, height: 120)
-                    
-                    // Map grid lines
-                    VStack(spacing: 15) {
-                        ForEach(0..<5, id: \.self) { _ in
-                            Rectangle()
-                                .fill(Color(.systemGray3).opacity(0.5))
-                                .frame(height: 1)
-                        }
-                    }
-                    .frame(width: 200, height: 120)
-                    
-                    HStack(spacing: 20) {
-                        ForEach(0..<6, id: \.self) { _ in
-                            Rectangle()
-                                .fill(Color(.systemGray3).opacity(0.5))
-                                .frame(width: 1)
-                        }
-                    }
-                    .frame(width: 200, height: 120)
-                    
-                    // Location pin
-                    VStack(spacing: 0) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(.red)
-                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
-                        
-                        Circle()
-                            .fill(Color.black.opacity(0.2))
-                            .frame(width: 12, height: 6)
-                            .offset(y: -2)
-                    }
-                }
+                LocationSnapshotView(
+                    coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                )
+                .frame(width: 200, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 
                 // Location name
@@ -676,6 +681,204 @@ struct MessageBubble: View {
     }
 }
 
+// MARK: - Location Snapshot View
+
+struct LocationSnapshotView: View {
+    let coordinate: CLLocationCoordinate2D
+    
+    @State private var snapshotImage: UIImage?
+    
+    var body: some View {
+        ZStack {
+            if let image = snapshotImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray5))
+                    .overlay(ProgressView())
+            }
+            
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 28))
+                .foregroundColor(.red)
+                .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 2)
+        }
+        .clipped()
+        .task {
+            if snapshotImage == nil {
+                snapshotImage = await MapSnapshotCache.shared.snapshot(for: coordinate)
+            }
+        }
+    }
+}
+
+@MainActor
+final class MapSnapshotCache {
+    static let shared = MapSnapshotCache()
+    private let cache = NSCache<NSString, UIImage>()
+    
+    private init() {}
+    
+    func snapshot(for coordinate: CLLocationCoordinate2D) async -> UIImage? {
+        let key = "\(coordinate.latitude),\(coordinate.longitude)" as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+        
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        options.size = CGSize(width: 200, height: 120)
+        options.scale = UIScreen.main.scale
+        options.mapType = .standard
+        
+        let snapshotter = MKMapSnapshotter(options: options)
+        do {
+            let snapshot = try await snapshotter.start()
+            cache.setObject(snapshot.image, forKey: key)
+            return snapshot.image
+        } catch {
+            return nil
+        }
+    }
+}
+
+// MARK: - Audio Playback Manager
+
+@MainActor
+final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
+    static let shared = MessageAudioPlayer()
+    
+    @Published private(set) var isPlaying = false
+    @Published private(set) var progress: Double = 0
+    @Published private(set) var duration: Double = 0
+    @Published private(set) var currentUrl: URL?
+    
+    private var player: AVAudioPlayer?
+    private var progressTimer: Timer?
+    private var cachedFiles: [URL: URL] = [:]
+    
+    private override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+    }
+    
+    func togglePlayback(urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        
+        if isPlaying, currentUrl == url {
+            pause()
+        } else {
+            Task { await play(url: url) }
+        }
+    }
+    
+    private func play(url: URL) async {
+        stop()
+        
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default, options: [.duckOthers])
+            try? session.setActive(true)
+            
+            let playableUrl = try await resolvePlayableUrl(for: url)
+            let audioPlayer = try AVAudioPlayer(contentsOf: playableUrl)
+            audioPlayer.delegate = self
+            audioPlayer.prepareToPlay()
+            
+            player = audioPlayer
+            currentUrl = url
+            duration = audioPlayer.duration
+            audioPlayer.play()
+            
+            isPlaying = true
+            startProgressTimer()
+        } catch {
+            stop()
+        }
+    }
+    
+    private func pause() {
+        player?.pause()
+        isPlaying = false
+        stopProgressTimer()
+    }
+    
+    private func stop() {
+        player?.stop()
+        player = nil
+        isPlaying = false
+        progress = 0
+        duration = 0
+        currentUrl = nil
+        stopProgressTimer()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+    
+    private func startProgressTimer() {
+        stopProgressTimer()
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, let player = self.player else { return }
+            if player.duration > 0 {
+                self.progress = player.currentTime / player.duration
+            }
+        }
+    }
+    
+    private func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+    }
+    
+    private func resolvePlayableUrl(for url: URL) async throws -> URL {
+        if url.isFileURL {
+            return url
+        }
+        
+        if let cached = cachedFiles[url] {
+            return cached
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let fileName = "audio-\(abs(url.absoluteString.hashValue)).m4a"
+        let fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try data.write(to: fileUrl, options: .atomic)
+        cachedFiles[url] = fileUrl
+        return fileUrl
+    }
+    
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            self.stop()
+        }
+    }
+    
+    @objc private func handleAudioInterruption(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        if type == .began {
+            pause()
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+}
+
 // MARK: - Reply Preview View
 
 /// Shows a preview of the message being replied to
@@ -710,7 +913,7 @@ struct ReplyPreviewView: View {
                     Text(text.isEmpty ? "Photo" : text)
                         .font(.system(size: 12))
                         .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
-                        .lineLimit(2)
+                        .lineLimit(3)
                 }
             }
             
@@ -718,7 +921,7 @@ struct ReplyPreviewView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .frame(maxWidth: 220)
+        .frame(maxWidth: 260)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color(.systemGray6))

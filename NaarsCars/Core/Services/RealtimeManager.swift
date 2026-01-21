@@ -30,7 +30,10 @@ final class RealtimeManager {
     static let shared = RealtimeManager()
     
     /// Maximum concurrent subscriptions (per FR-049)
-    private let maxConcurrentSubscriptions = 3
+    private let maxConcurrentSubscriptions = 10
+    
+    /// Protected channel prefixes that should not be evicted when possible
+    private let protectedChannelPrefixes = ["messages:", "typing:"]
     
     /// Active channel subscriptions
     private var activeChannels: [String: ChannelSubscription] = [:]
@@ -159,7 +162,15 @@ final class RealtimeManager {
     
     /// Remove the oldest subscription to make room for a new one
     private func removeOldestSubscription() async {
-        guard let oldest = activeChannels.min(by: { $0.value.subscribedAt < $1.value.subscribedAt }) else {
+        guard !activeChannels.isEmpty else { return }
+        
+        // Prefer evicting non-protected channels first
+        let nonProtected = activeChannels.filter { key, _ in
+            !protectedChannelPrefixes.contains { key.hasPrefix($0) }
+        }
+        
+        let candidatePool = nonProtected.isEmpty ? activeChannels : nonProtected
+        guard let oldest = candidatePool.min(by: { $0.value.subscribedAt < $1.value.subscribedAt }) else {
             return
         }
         

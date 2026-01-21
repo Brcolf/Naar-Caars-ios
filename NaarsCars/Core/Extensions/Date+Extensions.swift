@@ -29,6 +29,30 @@ extension Date {
         DateFormatters.timeFormatter.string(from: self)
     }
     
+    /// Messaging timestamp string (e.g., "10:30 AM", "Yesterday 10:30 AM")
+    var messageTimestampString: String {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        if calendar.isDateInToday(self) {
+            return timeString
+        }
+        if calendar.isDateInYesterday(self) {
+            return "Yesterday \(timeString)"
+        }
+        if calendar.isDate(self, equalTo: now, toGranularity: .weekOfYear) {
+            let day = DateFormatters.dayOfWeekFormatter.string(from: self)
+            return "\(day) \(timeString)"
+        }
+        if calendar.isDate(self, equalTo: now, toGranularity: .year) {
+            let day = DateFormatters.monthDayFormatter.string(from: self)
+            return "\(day), \(timeString)"
+        }
+        
+        let day = DateFormatters.monthDayYearFormatter.string(from: self)
+        return "\(day), \(timeString)"
+    }
+    
     /// Formatted date string (e.g., "Jan 15, 2025")
     var dateString: String {
         DateFormatters.dateFormatter.string(from: self)

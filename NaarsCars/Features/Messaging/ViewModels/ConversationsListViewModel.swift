@@ -228,6 +228,12 @@ final class ConversationsListViewModel: ObservableObject {
         }
         
         let imageUrl = record["image_url"] as? String
+        let messageType = (record["message_type"] as? String).flatMap(MessageType.init(rawValue:))
+        let audioUrl = record["audio_url"] as? String
+        let audioDuration = parseDouble(record["audio_duration"])
+        let latitude = parseDouble(record["latitude"])
+        let longitude = parseDouble(record["longitude"])
+        let locationName = record["location_name"] as? String
         
         var readBy: [UUID] = []
         if let readByArray = record["read_by"] as? [String] {
@@ -255,8 +261,27 @@ final class ConversationsListViewModel: ObservableObject {
             text: text,
             imageUrl: imageUrl,
             readBy: readBy,
-            createdAt: createdAt
+            createdAt: createdAt,
+            messageType: messageType,
+            audioUrl: audioUrl,
+            audioDuration: audioDuration,
+            latitude: latitude,
+            longitude: longitude,
+            locationName: locationName
         )
+    }
+
+    private func parseDouble(_ value: Any?) -> Double? {
+        if let doubleValue = value as? Double {
+            return doubleValue
+        }
+        if let intValue = value as? Int {
+            return Double(intValue)
+        }
+        if let stringValue = value as? String {
+            return Double(stringValue)
+        }
+        return nil
     }
     
     private func unsubscribeFromConversations() async {

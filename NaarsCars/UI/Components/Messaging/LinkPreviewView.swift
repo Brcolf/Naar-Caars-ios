@@ -7,20 +7,21 @@
 
 import SwiftUI
 import LinkPresentation
+import UIKit
 
 /// Model for link preview metadata
 struct LinkPreviewData: Equatable, Sendable {
     let url: URL
     let title: String?
     let description: String?
-    let imageUrl: URL?
+    let imageData: Data?
     let siteName: String?
     
-    init(url: URL, title: String? = nil, description: String? = nil, imageUrl: URL? = nil, siteName: String? = nil) {
+    init(url: URL, title: String? = nil, description: String? = nil, imageData: Data? = nil, siteName: String? = nil) {
         self.url = url
         self.title = title
         self.description = description
-        self.imageUrl = imageUrl
+        self.imageData = imageData
         self.siteName = siteName
     }
 }
@@ -58,17 +59,16 @@ class LinkPreviewService {
         do {
             let metadata = try await metadataProvider.startFetchingMetadata(for: url)
             
-            var imageUrl: URL? = nil
+            var imageData: Data? = nil
             if let imageProvider = metadata.imageProvider {
-                // Try to get the image URL from the provider
-                imageUrl = metadata.url
+                imageData = await loadImageData(from: imageProvider)
             }
             
             let preview = LinkPreviewData(
                 url: url,
                 title: metadata.title,
                 description: nil, // LPMetadataProvider doesn't provide description directly
-                imageUrl: imageUrl,
+                imageData: imageData,
                 siteName: metadata.url?.host
             )
             
@@ -80,9 +80,26 @@ class LinkPreviewService {
                 url: url,
                 title: nil,
                 description: nil,
-                imageUrl: nil,
+                imageData: nil,
                 siteName: url.host
             )
+        }
+    }
+    
+    private func loadImageData(from provider: NSItemProvider) async -> Data? {
+        await withCheckedContinuation { continuation in
+            if provider.canLoadObject(ofClass: UIImage.self) {
+                provider.loadObject(ofClass: UIImage.self) { object, _ in
+                    if let image = object as? UIImage,
+                       let data = image.jpegData(compressionQuality: 0.8) {
+                        continuation.resume(returning: data)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            } else {
+                continuation.resume(returning: nil)
+            }
         }
     }
 }
@@ -99,19 +116,12 @@ struct LinkPreviewView: View {
         Button(action: openLink) {
             HStack(spacing: 10) {
                 // Image thumbnail (if available)
-                if let imageUrl = preview?.imageUrl {
-                    AsyncImage(url: imageUrl) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 60, height: 60)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        default:
-                            linkIcon
-                        }
-                    }
+                if let data = preview?.imageData, let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else {
                     linkIcon
                 }

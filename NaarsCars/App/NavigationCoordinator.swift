@@ -241,4 +241,3 @@ final class NavigationCoordinator: ObservableObject {
         reviewPromptFavorId = nil
     }
 }
-
