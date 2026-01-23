@@ -77,7 +77,7 @@ struct PastRequestsView: View {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.requests) { request in
                                 NavigationLink(destination: destinationView(for: request)) {
-                                    RequestCardView(request: request)
+                                    RequestCardView(request: request, showsUnseenIndicator: false)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }

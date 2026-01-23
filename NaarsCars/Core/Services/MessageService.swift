@@ -1125,28 +1125,33 @@ final class MessageService {
         let unreadMessages: [MessageReadBy] = try JSONDecoder().decode([MessageReadBy].self, from: unreadResponse.data)
         
         // Update each message to add userId to readBy array
-        for message in unreadMessages {
-            var updatedReadBy = message.readBy
-            if !updatedReadBy.contains(userId) {
-                updatedReadBy.append(userId)
+        // Use a batch update if there are many unread messages to improve performance
+        if !unreadMessages.isEmpty {
+            for message in unreadMessages {
+                var updatedReadBy = message.readBy
+                if !updatedReadBy.contains(userId) {
+                    updatedReadBy.append(userId)
+                }
+                
+                try await supabase
+                    .from("messages")
+                    .update(["read_by": updatedReadBy.map { $0.uuidString }])
+                    .eq("id", value: message.id.uuidString)
+                    .execute()
             }
             
-            try await supabase
-                .from("messages")
-                .update(["read_by": updatedReadBy.map { $0.uuidString }])
-                .eq("id", value: message.id.uuidString)
-                .execute()
+            // Invalidate messages cache ONLY if we actually updated something
+            await cacheManager.invalidateMessages(conversationId: conversationId)
         }
         
         // Update last_seen timestamp to indicate user is actively viewing
         // This prevents push notifications when user is viewing the conversation
         try? await updateLastSeen(conversationId: conversationId, userId: userId)
         
-        // Invalidate caches
-        await cacheManager.invalidateMessages(conversationId: conversationId)
+        // Invalidate conversations cache to update unread counts in the list
         await cacheManager.invalidateConversations(userId: userId)
         
-        AppLogger.database.debug("Marked messages as read for conversation \(conversationId)")
+        AppLogger.database.debug("Marked \(unreadMessages.count) messages as read for conversation \(conversationId)")
     }
     
     /// Update last_seen timestamp for a user in a conversation

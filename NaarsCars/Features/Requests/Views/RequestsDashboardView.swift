@@ -6,15 +6,21 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// Unified dashboard view for all requests
 struct RequestsDashboardView: View {
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = RequestsDashboardViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
     @State private var showCreateFavor = false
     @State private var navigateToRide: UUID?
     @State private var navigateToFavor: UUID?
+    
+    // SwiftData Queries for "Zero-Spinner" experience
+    @Query(sort: \SDRide.date, order: .forward) private var sdRides: [SDRide]
+    @Query(sort: \SDFavor.date, order: .forward) private var sdFavors: [SDFavor]
     
     var body: some View {
         NavigationStack {
@@ -32,9 +38,15 @@ struct RequestsDashboardView: View {
                 // List Content (map view removed)
                 listContentView
             }
+            .id("app.entry.enterApp")
             .navigationTitle("Requests")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    BellButton {
+                        navigationCoordinator.navigateToNotifications = true
+                        print("🔔 [RequestsDashboardView] Bell tapped")
+                    }
+
                     Menu {
                         Button {
                             showCreateRide = true
@@ -84,6 +96,8 @@ struct RequestsDashboardView: View {
                 }
             }
             .task {
+                // ViewModel now uses SwiftData for its source of truth
+                viewModel.setup(modelContext: modelContext)
                 await viewModel.loadRequests()
                 viewModel.setupRealtimeSubscription()
             }
@@ -98,7 +112,9 @@ struct RequestsDashboardView: View {
     
     @ViewBuilder
     private var listContentView: some View {
-        if viewModel.isLoading && viewModel.requests.isEmpty {
+        let filteredRequests = viewModel.getFilteredRequests(rides: sdRides, favors: sdFavors)
+        
+        if viewModel.isLoading && filteredRequests.isEmpty {
             // Show skeleton loading
             ScrollView {
                 VStack(spacing: 16) {
@@ -117,7 +133,7 @@ struct RequestsDashboardView: View {
                     }
                 }
             )
-        } else if viewModel.requests.isEmpty {
+        } else if filteredRequests.isEmpty {
             EmptyStateView(
                 icon: "list.bullet.rectangle",
                 title: "No Requests Available",
@@ -129,9 +145,10 @@ struct RequestsDashboardView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    ForEach(viewModel.requests) { request in
+                    ForEach(filteredRequests) { request in
+                        let showsUnseenIndicator = viewModel.unseenRequestKeys.contains(request.notificationKey)
                         NavigationLink(destination: destinationView(for: request)) {
-                            RequestCardView(request: request)
+                            RequestCardView(request: request, showsUnseenIndicator: showsUnseenIndicator)
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
@@ -175,7 +192,7 @@ struct FilterTilesView: View {
     let onFilterChanged: (RequestFilter) -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ForEach(RequestFilter.allCases, id: \.self) { filter in
                 FilterTile(
                     title: filter.rawValue,
@@ -184,6 +201,7 @@ struct FilterTilesView: View {
                     selectedFilter = filter
                     onFilterChanged(filter)
                 }
+                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -202,10 +220,10 @@ struct FilterTile: View {
                 .font(.subheadline)
                 .fontWeight(isSelected ? .semibold : .regular)
                 .foregroundColor(isSelected ? .white : .primary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
                 .background(isSelected ? Color.accentColor : Color(.systemGray5))
-                .cornerRadius(20)
+                .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -215,14 +233,15 @@ struct FilterTile: View {
 
 struct RequestCardView: View {
     let request: RequestItem
+    let showsUnseenIndicator: Bool
     
     var body: some View {
         Group {
             switch request {
             case .ride(let ride):
-                RideCard(ride: ride)
+                RideCard(ride: ride, showsUnseenIndicator: showsUnseenIndicator)
             case .favor(let favor):
-                FavorCard(favor: favor)
+                FavorCard(favor: favor, showsUnseenIndicator: showsUnseenIndicator)
             }
         }
     }

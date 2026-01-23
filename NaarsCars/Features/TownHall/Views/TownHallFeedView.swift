@@ -10,7 +10,11 @@ import SwiftUI
 /// Town hall feed view showing community posts
 struct TownHallFeedView: View {
     @StateObject private var viewModel = TownHallFeedViewModel()
+    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreatePost = false
+    @State private var highlightedPostId: UUID?
+    @State private var highlightTask: Task<Void, Never>?
+    @State private var openCommentsTarget: PostCommentsTarget?
     
     var body: some View {
         mainContent
@@ -31,6 +35,10 @@ struct TownHallFeedView: View {
                 await viewModel.loadPosts()
             }
             .trackScreen("TownHallFeed")
+            .sheet(item: $openCommentsTarget) { target in
+                PostCommentsView(postId: target.id)
+                    .id("community.townHall.postCommentsSheet(\(target.id))")
+            }
     }
     
     private var mainContent: some View {
@@ -126,30 +134,49 @@ struct TownHallFeedView: View {
     }
     
     private var postsListView: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                ForEach(viewModel.posts) { post in
-                    postCardView(for: post)
-                        .onAppear {
-                            // Infinite scroll: load more when near bottom
-                            if post.id == viewModel.posts.last?.id {
-                                Task {
-                                    await viewModel.loadMore()
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(viewModel.posts) { post in
+                        postCardView(for: post)
+                            .id("community.townHall.postCard(\(post.id))")
+                            .onAppear {
+                                // Infinite scroll: load more when near bottom
+                                if post.id == viewModel.posts.last?.id {
+                                    Task {
+                                        await viewModel.loadMore()
+                                    }
                                 }
                             }
-                        }
+                    }
+                    
+                    // Loading indicator for pagination
+                    if viewModel.isLoadingMore {
+                        ProgressView()
+                            .padding()
+                    }
                 }
-                
-                // Loading indicator for pagination
-                if viewModel.isLoadingMore {
-                    ProgressView()
-                        .padding()
-                }
+                .padding()
             }
-            .padding()
-        }
-        .refreshable {
-            await viewModel.refreshPosts()
+            .refreshable {
+                await viewModel.refreshPosts()
+            }
+            .onChange(of: navigationCoordinator.townHallNavigationTarget) { _, target in
+                guard let target else { return }
+                let anchorId = "community.townHall.postCard(\(target.postId))"
+                withAnimation(.easeInOut) {
+                    proxy.scrollTo(anchorId, anchor: .top)
+                }
+
+                switch target.mode {
+                case .openComments:
+                    openCommentsTarget = .init(id: target.postId)
+                case .highlightPost:
+                    highlightPost(target.postId)
+                }
+
+                navigationCoordinator.townHallNavigationTarget = nil
+            }
         }
     }
     
@@ -169,9 +196,23 @@ struct TownHallFeedView: View {
                 Task {
                     await viewModel.votePost(postId: postId, voteType: voteType)
                 }
-            }
+            },
+            isHighlighted: highlightedPostId == post.id
         )
     }
+
+    private func highlightPost(_ postId: UUID) {
+        highlightTask?.cancel()
+        highlightedPostId = postId
+        highlightTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            highlightedPostId = nil
+        }
+    }
+}
+
+private struct PostCommentsTarget: Identifiable {
+    let id: UUID
 }
 
 #Preview {

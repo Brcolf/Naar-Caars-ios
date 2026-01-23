@@ -7,6 +7,8 @@
 
 import UIKit
 import UserNotifications
+import BackgroundTasks
+import os
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
@@ -20,12 +22,53 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Register for remote notifications
         application.registerForRemoteNotifications()
         
+        // Register background tasks
+        registerBackgroundTasks()
+        
         // Handle deep link if app was opened via URL
         if let url = launchOptions?[.url] as? URL {
             handleURL(url)
         }
         
         return true
+    }
+    
+    // MARK: - Background Tasks
+    
+    private func registerBackgroundTasks() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.naarscars.app.refresh", using: nil) { task in
+            self.handleAppRefresh(task: task as! BGAppRefreshTask)
+        }
+    }
+    
+    private func handleAppRefresh(task: BGAppRefreshTask) {
+        // Schedule next refresh
+        scheduleAppRefresh()
+        
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        
+        task.expirationHandler = {
+            queue.cancelAllOperations()
+        }
+        
+        Task {
+            // Perform sync
+            await DashboardSyncEngine.shared.syncAll()
+            task.setTaskCompleted(success: true)
+        }
+    }
+    
+    func scheduleAppRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: "com.naarscars.app.refresh")
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60) // 15 minutes
+        
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            print("📅 [AppDelegate] Scheduled background refresh")
+        } catch {
+            print("🔴 [AppDelegate] Could not schedule app refresh: \(error)")
+        }
     }
     
     // MARK: - URL Handling
@@ -97,8 +140,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Mark the specific notification as read when tapped (if available)
         if let notificationIdString = userInfo["notification_id"] as? String,
            let notificationId = UUID(uuidString: notificationIdString) {
-            Task { @MainActor in
-                try? await NotificationService.shared.markAsRead(notificationId: notificationId)
+            let type = userInfo["type"] as? String
+            if type != "review_request" && type != "review_reminder" {
+                Task { @MainActor in
+                    try? await NotificationService.shared.markAsRead(notificationId: notificationId)
+                }
             }
         }
         
@@ -110,7 +156,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         
         // Handle deep link navigation
-        handleDeepLink(deepLink)
+        handleDeepLink(deepLink, userInfo: userInfo)
         
         completionHandler()
     }
@@ -119,10 +165,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let userInfo = notification.request.content.userInfo
         PushNotificationService.shared.recordLastPushPayload(userInfo)
         
-        // Avoid duplicate alerts for message pushes (local foreground handling)
+        // Avoid duplicate alerts when in Messages; allow banners elsewhere in foreground.
         if let type = userInfo["type"] as? String,
            type == "message" || type == "added_to_conversation" {
-            completionHandler([])
+            Task { @MainActor in
+                let isMessagesTab = NavigationCoordinator.shared.selectedTab == .messages
+                print("🔔 [AppDelegate] Foreground message banner: \(isMessagesTab ? "suppressed" : "shown")")
+                completionHandler(isMessagesTab ? [] : [.banner, .sound, .badge])
+            }
             return
         }
         
@@ -132,32 +182,54 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     
     // MARK: - Deep Link Handling
     
-    private func handleDeepLink(_ deepLink: DeepLink) {
+    private func handleDeepLink(_ deepLink: DeepLink, userInfo: [AnyHashable: Any]? = nil) {
         // Post notifications that views can listen to for navigation
         // Views use @State variables and navigationDestination modifiers to handle navigation
         switch deepLink {
         case .ride(let id):
             print("🔗 [AppDelegate] Navigate to ride: \(id)")
+            var payload: [AnyHashable: Any] = ["rideId": id]
+            if let userInfo, let requestPayload = requestNavigationPayload(
+                from: userInfo,
+                requestId: id,
+                requestType: .ride
+            ) {
+                payload.merge(requestPayload) { _, new in new }
+            }
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToRide"),
                 object: nil,
-                userInfo: ["rideId": id]
+                userInfo: payload
             )
             
         case .favor(let id):
             print("🔗 [AppDelegate] Navigate to favor: \(id)")
+            var payload: [AnyHashable: Any] = ["favorId": id]
+            if let userInfo, let requestPayload = requestNavigationPayload(
+                from: userInfo,
+                requestId: id,
+                requestType: .favor
+            ) {
+                payload.merge(requestPayload) { _, new in new }
+            }
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToFavor"),
                 object: nil,
-                userInfo: ["favorId": id]
+                userInfo: payload
             )
             
         case .conversation(let id):
             print("🔗 [AppDelegate] Navigate to conversation: \(id)")
+            var payload: [AnyHashable: Any] = ["conversationId": id]
+            if let userInfo,
+               let messageIdString = userInfo["message_id"] as? String,
+               let messageId = UUID(uuidString: messageIdString) {
+                payload["messageId"] = messageId
+            }
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToConversation"),
                 object: nil,
-                userInfo: ["conversationId": id]
+                userInfo: payload
             )
             
         case .profile(let id):
@@ -174,6 +246,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 name: NSNotification.Name("navigateToNotifications"),
                 object: nil
             )
+
+        case .announcements(let notificationId):
+            print("🔗 [AppDelegate] Navigate to announcements")
+            NotificationCenter.default.post(
+                name: NSNotification.Name("navigateToAnnouncements"),
+                object: nil,
+                userInfo: ["notificationId": notificationId as Any]
+            )
             
         case .townHall:
             print("🔗 [AppDelegate] Navigate to town hall")
@@ -182,14 +262,22 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 object: nil
             )
             
-        case .townHallPost(let id):
-            print("🔗 [AppDelegate] Navigate to town hall post: \(id)")
+        case .townHallPostComments(let id):
+            print("🔗 [AppDelegate] Navigate to town hall post comments: \(id)")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToTownHall"),
                 object: nil,
-                userInfo: ["postId": id]
+                userInfo: ["postId": id, "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.openComments.rawValue]
             )
             
+        case .townHallPostHighlight(let id):
+            print("🔗 [AppDelegate] Navigate to town hall post highlight: \(id)")
+            NotificationCenter.default.post(
+                name: NSNotification.Name("navigateToTownHall"),
+                object: nil,
+                userInfo: ["postId": id, "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.highlightPost.rawValue]
+            )
+
         case .adminPanel:
             print("🔗 [AppDelegate] Navigate to admin panel")
             NotificationCenter.default.post(
@@ -197,6 +285,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 object: nil
             )
             
+        case .pendingUsers:
+            print("🔗 [AppDelegate] Navigate to pending users list")
+            NotificationCenter.default.post(
+                name: NSNotification.Name("navigateToPendingUsers"),
+                object: nil
+            )
+
         case .dashboard:
             print("🔗 [AppDelegate] Navigate to dashboard")
             NotificationCenter.default.post(
@@ -213,6 +308,43 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .unknown:
             print("🔗 [AppDelegate] Unknown deep link")
         }
+    }
+
+    private func requestNavigationPayload(
+        from userInfo: [AnyHashable: Any],
+        requestId: UUID,
+        requestType: RequestType
+    ) -> [AnyHashable: Any]? {
+        guard let typeRaw = userInfo["type"] as? String,
+              let type = NotificationType(rawValue: typeRaw) else {
+            return nil
+        }
+
+        let rideId = (requestType == .ride) ? requestId : nil
+        let favorId = (requestType == .favor) ? requestId : nil
+
+        guard let target = RequestNotificationMapping.target(
+            for: type,
+            rideId: rideId,
+            favorId: favorId
+        ) else {
+            return nil
+        }
+
+        var payload: [AnyHashable: Any] = [
+            "requestAnchor": target.anchor.rawValue,
+            "requestAutoClear": target.shouldAutoClear
+        ]
+
+        if let scrollAnchor = target.scrollAnchor {
+            payload["requestScrollAnchor"] = scrollAnchor.rawValue
+        }
+
+        if let highlightAnchor = target.highlightAnchor {
+            payload["requestHighlightAnchor"] = highlightAnchor.rawValue
+        }
+
+        return payload
     }
 
     private func postReviewPrompt(from userInfo: [AnyHashable: Any]) {

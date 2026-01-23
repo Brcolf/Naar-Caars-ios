@@ -6,14 +6,19 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// Dashboard view for ride requests
 struct RidesDashboardView: View {
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = RidesDashboardViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
     @State private var navigateToRide: UUID?
     @AppStorage("rides_view_mode") private var viewMode: ViewMode = .list
+    
+    // SwiftData Query for "Zero-Spinner" experience
+    @Query(sort: \SDRide.date, order: .forward) private var sdRides: [SDRide]
     
     enum ViewMode: String, CaseIterable {
         case list = "list"
@@ -100,6 +105,7 @@ struct RidesDashboardView: View {
             }
             .task {
                 if viewMode == .list {
+                    viewModel.setup(modelContext: modelContext)
                     await viewModel.loadRides()
                     viewModel.setupRealtimeSubscription()
                 }
@@ -114,7 +120,9 @@ struct RidesDashboardView: View {
     
     @ViewBuilder
     private var listContentView: some View {
-        if viewModel.isLoading && viewModel.rides.isEmpty {
+        let filteredRides = viewModel.getFilteredRides(sdRides: sdRides)
+        
+        if viewModel.isLoading && filteredRides.isEmpty {
             // Show skeleton loading
             ScrollView {
                 VStack(spacing: 16) {
@@ -133,7 +141,7 @@ struct RidesDashboardView: View {
                     }
                 }
             )
-        } else if viewModel.rides.isEmpty {
+        } else if filteredRides.isEmpty {
             EmptyStateView(
                 icon: "car.fill",
                 title: "No Rides Available",
@@ -146,7 +154,7 @@ struct RidesDashboardView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    ForEach(viewModel.rides) { ride in
+                    ForEach(filteredRides) { ride in
                         NavigationLink(destination: RideDetailView(rideId: ride.id)) {
                             RideCard(ride: ride)
                         }

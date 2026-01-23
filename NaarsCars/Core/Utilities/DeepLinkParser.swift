@@ -13,11 +13,14 @@ enum DeepLink {
     case favor(id: UUID)
     case conversation(id: UUID)
     case profile(id: UUID)
-    case townHallPost(id: UUID)
+    case townHallPostComments(id: UUID)
+    case townHallPostHighlight(id: UUID)
     case townHall
     case adminPanel
+    case pendingUsers
     case dashboard
     case notifications
+    case announcements(notificationId: UUID?)
     case enterApp  // For approved users to enter the main app
     case unknown
 }
@@ -35,7 +38,7 @@ struct DeepLinkParser {
         switch type {
         // Ride notifications - navigate to ride detail
         case "new_ride", "ride_claimed", "ride_unclaimed", "ride_update", "ride_completed",
-             "completion_reminder", "review_request", "qa_question", "qa_answer":
+             "completion_reminder", "review_request", "review_reminder", "qa_activity", "qa_question", "qa_answer":
             if let rideIdString = userInfo["ride_id"] as? String,
                let rideId = UUID(uuidString: rideIdString) {
                 return .ride(id: rideId)
@@ -51,7 +54,8 @@ struct DeepLinkParser {
             }
             
         // Favor notifications - navigate to favor detail
-        case "new_favor", "favor_claimed", "favor_unclaimed", "favor_update", "favor_completed":
+        case "new_favor", "favor_claimed", "favor_unclaimed", "favor_update", "favor_completed",
+             "completion_reminder", "review_request", "review_reminder", "qa_activity", "qa_question", "qa_answer":
             if let favorIdString = userInfo["favor_id"] as? String,
                let favorId = UUID(uuidString: favorIdString) {
                 return .favor(id: favorId)
@@ -72,7 +76,10 @@ struct DeepLinkParser {
         case "town_hall_post", "town_hall_comment", "town_hall_reaction":
             if let postIdString = userInfo["town_hall_post_id"] as? String,
                let postId = UUID(uuidString: postIdString) {
-                return .townHallPost(id: postId)
+                if type == "town_hall_post" {
+                    return .townHallPostComments(id: postId)
+                }
+                return .townHallPostHighlight(id: postId)
             }
             return .townHall
 
@@ -87,7 +94,10 @@ struct DeepLinkParser {
             }
             
         // Admin notifications - navigate to admin panel
-        case "pending_approval", "admin_panel":
+        case "pending_approval":
+            return .pendingUsers
+
+        case "admin_panel":
             return .adminPanel
             
         // User approved - navigate to main app
@@ -102,7 +112,8 @@ struct DeepLinkParser {
             
         // Announcement/broadcast notifications
         case "announcement", "admin_announcement", "broadcast":
-            return .notifications
+            let notificationId = (userInfo["notification_id"] as? String).flatMap(UUID.init)
+            return .announcements(notificationId: notificationId)
             
         // Generic notification
         case "notification":

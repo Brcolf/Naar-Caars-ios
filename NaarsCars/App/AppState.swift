@@ -23,6 +23,9 @@ final class AppState: ObservableObject {
     /// Loading state for app initialization and authentication checks
     @Published var isLoading: Bool = true
     
+    /// Whether the notifications surface is currently shown
+    @Published var showNotifications: Bool = false
+    
     // MARK: - Private Properties
     
     /// Reference to AuthService for authentication state

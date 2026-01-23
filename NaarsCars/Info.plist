@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.naarscars.app.refresh</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -57,10 +61,10 @@
 	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Naar's Cars uses your microphone to record audio messages in conversations.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -73,6 +77,7 @@
 		<string>remote-notification</string>
 		<string>fetch</string>
 		<string>location</string>
+		<string>processing</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

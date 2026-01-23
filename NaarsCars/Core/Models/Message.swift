@@ -122,6 +122,7 @@ struct Message: Codable, Identifiable, Sendable {
         case latitude
         case longitude
         case locationName = "location_name"
+        case sender
         // reactions and replyToMessage are not in CodingKeys - populated separately
     }
     

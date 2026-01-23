@@ -52,6 +52,7 @@ struct PendingUsersView: View {
             }
             .navigationTitle("Pending Approvals")
             .navigationBarTitleDisplayMode(.large)
+            .id("profile.admin.pendingUsersList")
             .task {
                 await viewModel.loadPendingUsers()
             }

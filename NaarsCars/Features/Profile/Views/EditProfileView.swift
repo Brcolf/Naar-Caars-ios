@@ -106,7 +106,9 @@ struct EditProfileView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Open Settings") {
                     if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(settingsUrl)
+                        Task { @MainActor in
+                            await UIApplication.shared.open(settingsUrl)
+                        }
                     }
                 }
             } message: {

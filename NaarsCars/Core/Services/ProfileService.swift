@@ -70,27 +70,9 @@ final class ProfileService {
         car: String? = nil,
         avatarUrl: String? = nil
     ) async throws {
-        var updates: [String: Any] = [:]
-        
-        if let name = name {
-            updates["name"] = name
-        }
-        if let phoneNumber = phoneNumber {
-            updates["phone_number"] = phoneNumber
-        }
-        if let car = car {
-            updates["car"] = car
-        }
-        if let avatarUrl = avatarUrl {
-            updates["avatar_url"] = avatarUrl
-        }
-        
-        guard !updates.isEmpty else {
-            throw AppError.invalidInput("No fields to update")
-        }
-        
         // Create Codable struct for Supabase update
         struct ProfileUpdate: Codable {
+            let id: UUID // Include ID to satisfy RLS check if needed
             let name: String?
             let phoneNumber: String?
             let car: String?
@@ -98,6 +80,7 @@ final class ProfileService {
             let updatedAt: String
             
             enum CodingKeys: String, CodingKey {
+                case id
                 case name
                 case phoneNumber = "phone_number"
                 case car
@@ -110,6 +93,7 @@ final class ProfileService {
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
         let update = ProfileUpdate(
+            id: userId,
             name: name,
             phoneNumber: phoneNumber,
             car: car,

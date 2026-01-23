@@ -16,6 +16,7 @@ struct ConversationDetailView: View {
     let conversationId: UUID
     @StateObject private var viewModel: ConversationDetailViewModel
     @StateObject private var participantsViewModel: ConversationParticipantsViewModel
+    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @FocusState private var isInputFocused: Bool
     @State private var showMessageDetails = false
     @State private var selectedUserIds: Set<UUID> = []
@@ -35,6 +36,7 @@ struct ConversationDetailView: View {
     @State private var showScrollToBottom = false
     @State private var newMessageIds: Set<UUID> = []
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var isAtBottom = true
     
     // Reply state
     @State private var replyingToMessage: ReplyContext?
@@ -76,6 +78,18 @@ struct ConversationDetailView: View {
         
         return "Chat"
     }
+
+    private var threadAnchorId: String {
+        "messages.thread(\(conversationId))"
+    }
+
+    private var threadBottomAnchorId: String {
+        "messages.thread.bottom"
+    }
+
+    private func messageAnchorId(_ messageId: UUID) -> String {
+        "messages.thread.message(\(messageId))"
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -83,25 +97,36 @@ struct ConversationDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        // Load more button at top (for pagination)
-                        if viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
-                            Button {
-                                Task {
-                                    await viewModel.loadMoreMessages()
-                                }
-                            } label: {
-                                HStack {
-                                    if viewModel.isLoadingMore {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
+                        // Top anchor for infinite scrolling
+                        Color.clear
+                            .frame(height: 2)
+                            .onAppear {
+                                if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
+                                    print("🔄 [ConversationDetail] Reached top, loading more messages")
+                                    Task {
+                                        await viewModel.loadMoreMessages()
                                     }
-                                    Text(viewModel.isLoadingMore ? "Loading..." : "Load Older Messages")
-                                        .font(.naarsCaption)
-                                        .foregroundColor(.naarsPrimary)
                                 }
-                                .padding(.vertical, 12)
                             }
-                            .disabled(viewModel.isLoadingMore)
+
+                        // No more messages indicator
+                        if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
+                            VStack(spacing: 8) {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                                Text("Beginning of Conversation")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 20)
+                            .frame(maxWidth: .infinity)
+                        }
+                        
+                        if viewModel.isLoadingMore {
+                            ProgressView()
+                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity)
                         }
                         
                         if viewModel.isLoading && viewModel.messages.isEmpty {
@@ -140,7 +165,10 @@ struct ConversationDetailView: View {
                                         isLast: isLast
                                     )
                                 }
-                                .id(message.id)
+                                .onAppear {
+                                    viewModel.trackMessageVisible(message)
+                                }
+                                .id(messageAnchorId(message.id))
                             }
                         }
                         
@@ -153,13 +181,32 @@ struct ConversationDetailView: View {
                         // Invisible spacer at bottom for scroll detection
                         Color.clear
                             .frame(height: 1)
-                            .id("bottom")
+                            .id(threadBottomAnchorId)
+                            .onAppear {
+                                isAtBottom = true
+                                showScrollToBottom = false
+                            }
+                            .onDisappear {
+                                isAtBottom = false
+                            }
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 8)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .onAppear {
                     scrollProxy = proxy
+                }
+                .onChange(of: isInputFocused) { _, isFocused in
+                    if isFocused {
+                        // Scroll to bottom when keyboard appears
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 100_000_000) // Reduced delay for snappier feel
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
+                            }
+                        }
+                    }
                 }
                 .onChange(of: viewModel.messages.count) { oldCount, newCount in
                     // Track new messages for animation
@@ -174,16 +221,20 @@ struct ConversationDetailView: View {
                         }
                     }
                     
-                    // Auto-scroll to bottom on new messages (only if not loading more and near bottom)
-                    if !viewModel.isLoadingMore && !showScrollToBottom {
+                    // Always scroll to bottom when a new message is sent by current user
+                    let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
+                    
+                    if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore {
                         if let lastMessage = viewModel.messages.last {
                             withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                proxy.scrollTo(messageAnchorId(lastMessage.id), anchor: .bottom)
                             }
                         }
+                        showScrollToBottom = false
+                        print("⬇️ [ConversationDetail] Auto-scroll to bottom")
                     } else if newCount > oldCount {
-                        // Show scroll to bottom button if we have new messages but didn't auto-scroll
                         showScrollToBottom = true
+                        print("⬆️ [ConversationDetail] New messages while scrolled up")
                     }
                     
                     // Update last_seen when new messages arrive while viewing
@@ -192,6 +243,8 @@ struct ConversationDetailView: View {
                             try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
                         }
                     }
+
+                    handleConversationScrollTarget(with: proxy)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -201,11 +254,12 @@ struct ConversationDetailView: View {
                         unreadCount: viewModel.unreadCount,
                         action: {
                             withAnimation(.easeOut(duration: 0.3)) {
-                                scrollProxy?.scrollTo("bottom", anchor: .bottom)
+                                scrollProxy?.scrollTo(threadBottomAnchorId, anchor: .bottom)
                             }
                             showScrollToBottom = false
                         }
                     )
+                    .id("messages.thread.scrollToBottomButton")
                     .padding(.trailing, 16)
                     .padding(.bottom, 8)
                     .transition(.scale.combined(with: .opacity))
@@ -286,6 +340,7 @@ struct ConversationDetailView: View {
                 }
             )
         }
+        .id(threadAnchorId)
         .navigationTitle(conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -338,16 +393,26 @@ struct ConversationDetailView: View {
             await loadConversationDetails()
         }
         .onAppear {
+            NotificationCenter.default.post(
+                name: .messageThreadDidAppear,
+                object: nil,
+                userInfo: ["conversationId": conversationId]
+            )
             // Mark as read and update last_seen when view appears
             // This prevents push notifications when user is actively viewing
             Task {
                 if let userId = AuthService.shared.currentUserId {
                     // Update last_seen first to mark user as actively viewing
                     try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
-                    // Then mark messages as read
-                    try? await MessageService.shared.markAsRead(conversationId: conversationId, userId: userId)
                 }
             }
+        }
+        .onDisappear {
+            NotificationCenter.default.post(
+                name: .messageThreadDidDisappear,
+                object: nil,
+                userInfo: ["conversationId": conversationId]
+            )
         }
         .trackScreen("ConversationDetail")
         .fullScreenCover(isPresented: $showImageViewer) {
@@ -414,6 +479,11 @@ struct ConversationDetailView: View {
     /// Create a message bubble with all handlers
     @ViewBuilder
     private func createMessageBubble(message: Message, isFirst: Bool, isLast: Bool) -> some View {
+        let totalParticipants = max(
+            participantsViewModel.participants.count,
+            (conversationDetail?.otherParticipants.count ?? 0) + 1
+        )
+        
         MessageBubble(
             message: message,
             isFromCurrentUser: isFromCurrentUser(message),
@@ -421,7 +491,7 @@ struct ConversationDetailView: View {
             isFirstInSeries: isFirst,
             isLastInSeries: isLast,
             shouldAnimate: newMessageIds.contains(message.id),
-            totalParticipants: participantsViewModel.participants.count,
+            totalParticipants: totalParticipants,
             onLongPress: {
                 reactionPickerMessageId = message.id
                 showReactionPicker = true
@@ -491,7 +561,7 @@ struct ConversationDetailView: View {
         guard viewModel.messages.contains(where: { $0.id == messageId }) else { return }
         
         withAnimation(.easeInOut(duration: 0.25)) {
-            scrollProxy?.scrollTo(messageId, anchor: .center)
+            scrollProxy?.scrollTo(messageAnchorId(messageId), anchor: .center)
         }
         highlightedMessageId = messageId
         
@@ -499,6 +569,19 @@ struct ConversationDetailView: View {
             if highlightedMessageId == messageId {
                 highlightedMessageId = nil
             }
+        }
+    }
+
+    private func handleConversationScrollTarget(with proxy: ScrollViewProxy) {
+        guard let target = navigationCoordinator.conversationScrollTarget,
+              target.conversationId == conversationId else {
+            return
+        }
+
+        navigationCoordinator.conversationScrollTarget = nil
+        showScrollToBottom = false
+        withAnimation(.easeOut(duration: 0.3)) {
+            proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
         }
     }
     
@@ -724,11 +807,26 @@ final class ConversationParticipantsViewModel: ObservableObject {
         error = nil
         
         do {
-            // Fetch participant user IDs
+            // 1. First try to load from local SwiftData for instant UI
+            if let sdConv = try? await MessagingRepository.shared.fetchSDConversation(id: conversationId) {
+                var localProfiles: [Profile] = []
+                for userId in sdConv.participantIds {
+                    if let profile = await CacheManager.shared.getCachedProfile(id: userId) {
+                        localProfiles.append(profile)
+                    }
+                }
+                
+                if !localProfiles.isEmpty {
+                    self.participants = localProfiles
+                }
+            }
+
+            // 2. Fetch fresh participant user IDs from network
             let response = try await SupabaseService.shared.client
                 .from("conversation_participants")
                 .select("user_id")
                 .eq("conversation_id", value: conversationId.uuidString)
+                .is("left_at", value: nil) // ONLY active participants
                 .execute()
             
             struct ParticipantRow: Codable {
@@ -739,11 +837,18 @@ final class ConversationParticipantsViewModel: ObservableObject {
             }
             
             let rows = try JSONDecoder().decode([ParticipantRow].self, from: response.data)
+            let freshParticipantIds = rows.map { $0.userId }
+
+            // 3. Update local SwiftData participant list
+            if let sdConv = try? await MessagingRepository.shared.fetchSDConversation(id: conversationId) {
+                sdConv.participantIds = freshParticipantIds
+                try? await MessagingRepository.shared.save()
+            }
             
-            // Fetch profiles for each participant
+            // 4. Fetch profiles for each participant
             var profiles: [Profile] = []
-            for row in rows {
-                if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
+            for userId in freshParticipantIds {
+                if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
                     profiles.append(profile)
                 }
             }

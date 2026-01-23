@@ -14,6 +14,7 @@ struct TownHallPostCard: View {
     let onDelete: (() -> Void)?
     let onComment: ((UUID) -> Void)? // Post ID
     let onVote: ((UUID, VoteType?) -> Void)? // Post ID, Vote type (nil = remove vote)
+    let isHighlighted: Bool
     
     @State private var showDeleteAlert = false
     @State private var showComments = false
@@ -23,13 +24,15 @@ struct TownHallPostCard: View {
         currentUserId: UUID?,
         onDelete: (() -> Void)? = nil,
         onComment: ((UUID) -> Void)? = nil,
-        onVote: ((UUID, VoteType?) -> Void)? = nil
+        onVote: ((UUID, VoteType?) -> Void)? = nil,
+        isHighlighted: Bool = false
     ) {
         self.post = post
         self.currentUserId = currentUserId
         self.onDelete = onDelete
         self.onComment = onComment
         self.onVote = onVote
+        self.isHighlighted = isHighlighted
     }
     
     var isOwnPost: Bool {
@@ -240,6 +243,10 @@ struct TownHallPostCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.naarsPrimary.opacity(0.6), lineWidth: isHighlighted ? 2 : 0)
+        )
         .sheet(isPresented: $showComments) {
             PostCommentsView(postId: post.id)
         }

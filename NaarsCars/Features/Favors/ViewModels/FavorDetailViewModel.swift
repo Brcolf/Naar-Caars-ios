@@ -24,8 +24,15 @@ final class FavorDetailViewModel: ObservableObject {
     private let favorService = FavorService.shared
     private let rideService = RideService.shared // Reuse RideService for Q&A
     private let authService = AuthService.shared
+    private let notificationRepository = NotificationRepository.shared
     
     // MARK: - Public Methods
+    
+    /// Check if there are unread notifications of specific types for this favor
+    func hasUnreadNotifications(of types: [NotificationType]) async -> Bool {
+        guard let favor = favor else { return false }
+        return notificationRepository.hasUnreadNotifications(requestId: favor.id, types: types)
+    }
     
     /// Load favor details
     /// - Parameter id: Favor ID

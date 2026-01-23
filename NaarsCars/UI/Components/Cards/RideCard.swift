@@ -10,6 +10,7 @@ import SwiftUI
 /// Card component for displaying ride requests
 struct RideCard: View {
     let ride: Ride
+    var showsUnseenIndicator: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -38,15 +39,24 @@ struct RideCard: View {
                 
                 Spacer()
                 
-                // Status badge
-                Text(ride.status.displayText)
-                    .font(.naarsCaption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(ride.status.color)
-                    .cornerRadius(8)
+                HStack(spacing: 8) {
+                    if showsUnseenIndicator {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .accessibilityLabel("Unseen request activity")
+                    }
+                    
+                    // Status badge
+                    Text(ride.status.displayText)
+                        .font(.naarsCaption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(ride.status.color)
+                        .cornerRadius(8)
+                }
             }
             
             Divider()

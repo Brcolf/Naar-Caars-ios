@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 internal import Combine
 
 /// Filter type for favors dashboard
@@ -21,13 +22,13 @@ final class FavorsDashboardViewModel: ObservableObject {
     
     // MARK: - Published Properties
     
-    @Published var favors: [Favor] = []
     @Published var filter: FavorFilter = .all
     @Published var isLoading: Bool = false
     @Published var error: String?
     
     // MARK: - Private Properties
     
+    private var modelContext: ModelContext?
     private let favorService = FavorService.shared
     private let authService = AuthService.shared
     private let realtimeManager = RealtimeManager.shared
@@ -43,6 +44,52 @@ final class FavorsDashboardViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
+    /// Set up the model context for SwiftData operations
+    func setup(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+    
+    /// Get filtered favors from SwiftData models
+    func getFilteredFavors(sdFavors: [SDFavor]) -> [Favor] {
+        guard let userId = authService.currentUserId else { return [] }
+        
+        let favors = sdFavors.map { sd in
+            Favor(
+                id: sd.id,
+                userId: sd.userId,
+                title: sd.title,
+                description: sd.favorDescription,
+                location: sd.location,
+                duration: FavorDuration(rawValue: sd.duration) ?? .notSure,
+                requirements: sd.requirements,
+                date: sd.date,
+                time: sd.time,
+                gift: sd.gift,
+                status: FavorStatus(rawValue: sd.status) ?? .open,
+                claimedBy: sd.claimedBy,
+                reviewed: sd.reviewed,
+                reviewSkipped: sd.reviewSkipped,
+                reviewSkippedAt: sd.reviewSkippedAt,
+                createdAt: sd.createdAt,
+                updatedAt: sd.updatedAt,
+                qaCount: sd.qaCount
+            )
+        }
+        
+        var filtered = favors
+        
+        switch filter {
+        case .all:
+            break
+        case .mine:
+            filtered = filtered.filter { $0.userId == userId || ($0.participants?.contains(where: { $0.id == userId }) ?? false) }
+        case .claimed:
+            filtered = filtered.filter { $0.claimedBy == userId }
+        }
+        
+        return filtered.sorted { $0.date < $1.date }
+    }
+    
     /// Load favors based on current filter
     func loadFavors() async {
         isLoading = true
@@ -50,40 +97,65 @@ final class FavorsDashboardViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let currentUserId = authService.currentUserId
+            let fetchedFavors = try await favorService.fetchFavors()
             
-            var fetchedFavors: [Favor] = []
-            
-            switch filter {
-            case .all:
-                fetchedFavors = try await favorService.fetchFavors()
-            case .mine:
-                guard let userId = currentUserId else {
-                    error = "Not authenticated"
-                    return
-                }
-                fetchedFavors = try await favorService.fetchFavors(userId: userId)
-            case .claimed:
-                guard let userId = currentUserId else {
-                    error = "Not authenticated"
-                    return
-                }
-                fetchedFavors = try await favorService.fetchFavors(claimedBy: userId)
+            // Sync to SwiftData
+            if let context = modelContext {
+                syncFavorsToSwiftData(fetchedFavors, in: context)
+                try? context.save()
             }
-            
-            favors = fetchedFavors
         } catch {
             self.error = error.localizedDescription
             print("❌ Error loading favors: \(error)")
         }
     }
     
+    private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) {
+        for favor in favors {
+            let id = favor.id
+            let fetchDescriptor = FetchDescriptor<SDFavor>(predicate: #Predicate { $0.id == id })
+            if let existing = try? context.fetch(fetchDescriptor).first {
+                existing.status = favor.status.rawValue
+                existing.claimedBy = favor.claimedBy
+                existing.updatedAt = favor.updatedAt
+                existing.qaCount = favor.qaCount ?? 0
+                existing.title = favor.title
+                existing.favorDescription = favor.description
+                existing.location = favor.location
+                existing.duration = favor.duration.rawValue
+                existing.requirements = favor.requirements
+                existing.date = favor.date
+                existing.time = favor.time
+                existing.gift = favor.gift
+            } else {
+                let sdFavor = SDFavor(
+                    id: favor.id,
+                    userId: favor.userId,
+                    title: favor.title,
+                    favorDescription: favor.description,
+                    location: favor.location,
+                    duration: favor.duration.rawValue,
+                    requirements: favor.requirements,
+                    date: favor.date,
+                    time: favor.time,
+                    gift: favor.gift,
+                    status: favor.status.rawValue,
+                    claimedBy: favor.claimedBy,
+                    reviewed: favor.reviewed,
+                    reviewSkipped: favor.reviewSkipped,
+                    reviewSkippedAt: favor.reviewSkippedAt,
+                    createdAt: favor.createdAt,
+                    updatedAt: favor.updatedAt,
+                    qaCount: favor.qaCount ?? 0
+                )
+                context.insert(sdFavor)
+            }
+        }
+    }
+    
     /// Update filter and reload favors
     func filterFavors(_ newFilter: FavorFilter) {
         filter = newFilter
-        Task {
-            await loadFavors()
-        }
     }
     
     /// Refresh favors (pull-to-refresh)

@@ -47,6 +47,8 @@ final class NotificationService {
             .from("notifications")
             .select("*")
             .eq("user_id", value: userId.uuidString)
+            .neq("type", value: NotificationType.message.rawValue)
+            .neq("type", value: NotificationType.addedToConversation.rawValue)
             .order("pinned", ascending: false)
             .order("created_at", ascending: false)
             .execute()
@@ -83,7 +85,8 @@ final class NotificationService {
         }
         
         do {
-            let notifications: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
+            let decoded: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
+            let notifications = NotificationGrouping.filterBellNotifications(from: decoded)
             
             // Cache results
             await cacheManager.cacheNotifications(userId: userId, notifications)
@@ -120,6 +123,8 @@ final class NotificationService {
             .select("id", head: true, count: .exact)
             .eq("user_id", value: userId.uuidString)
             .eq("read", value: false)
+            .neq("type", value: NotificationType.message.rawValue)
+            .neq("type", value: NotificationType.addedToConversation.rawValue)
             .execute()
         
         return response.count ?? 0
@@ -161,27 +166,81 @@ final class NotificationService {
         print("✅ [NotificationService] Marked all notifications as read for user \(userId)")
     }
 
+    /// Mark all bell notifications (non-message) as read for a user
+    /// - Parameter userId: The user ID
+    /// - Throws: AppError if update fails
+    func markAllBellNotificationsAsRead(userId: UUID) async throws {
+        try await supabase
+            .from("notifications")
+            .update(["read": true])
+            .eq("user_id", value: userId.uuidString)
+            .neq("type", value: NotificationType.message.rawValue)
+            .neq("type", value: NotificationType.addedToConversation.rawValue)
+            .execute()
+        
+        await cacheManager.invalidateNotifications(userId: userId)
+        
+        print("✅ [NotificationService] Marked all bell notifications as read for user \(userId)")
+    }
+
+    /// Mark request-scoped notifications as read for the current user
+    /// - Parameters:
+    ///   - requestType: "ride" or "favor"
+    ///   - requestId: Request ID
+    ///   - notificationTypes: Optional subset of notification types to mark
+    ///   - includeReviews: Whether to include review request/reminder notifications
+    /// - Returns: Number of notifications updated
+    func markRequestScopedRead(
+        requestType: String,
+        requestId: UUID,
+        notificationTypes: [NotificationType]? = nil,
+        includeReviews: Bool = false
+    ) async -> Int {
+        guard let userId = AuthService.shared.currentUserId else { return 0 }
+
+        var params: [String: AnyCodable] = [
+            "p_request_type": AnyCodable(requestType),
+            "p_request_id": AnyCodable(requestId.uuidString),
+            "p_include_reviews": AnyCodable(includeReviews)
+        ]
+
+        if let notificationTypes {
+            // Format as Postgres array literal: {type1, type2}
+            let typeStrings = notificationTypes.map { $0.rawValue }.joined(separator: ",")
+            params["p_notification_types"] = AnyCodable("{\(typeStrings)}")
+        } else {
+            // Explicitly pass nil to let the RPC use its default array
+            params["p_notification_types"] = AnyCodable(nil as String?)
+        }
+
+        do {
+            let response = try await supabase
+                .rpc("mark_request_notifications_read", params: params)
+                .execute()
+
+            let decoder = JSONDecoder()
+            let updatedCount = try decoder.decode(Int.self, from: response.data)
+
+            await cacheManager.invalidateNotifications(userId: userId)
+            print("✅ [NotificationService] Marked \(updatedCount) request notifications read for \(requestType) \(requestId)")
+            return updatedCount
+        } catch {
+            print("⚠️ [NotificationService] Failed to mark request notifications read: \(error)")
+            return 0
+        }
+    }
+
     /// Mark review request notifications as read for a specific request
     /// - Parameters:
     ///   - requestType: "ride" or "favor"
     ///   - requestId: Request ID
     func markReviewRequestAsRead(requestType: String, requestId: UUID) async {
-        guard let userId = AuthService.shared.currentUserId else { return }
-        
-        let idColumn = requestType == "ride" ? "ride_id" : "favor_id"
-        do {
-            try await supabase
-                .from("notifications")
-                .update(["read": true])
-                .eq("user_id", value: userId.uuidString)
-                .eq("type", value: "review_request")
-                .eq(idColumn, value: requestId.uuidString)
-                .execute()
-            
-            await cacheManager.invalidateNotifications(userId: userId)
-        } catch {
-            print("⚠️ [NotificationService] Failed to clear review_request notifications: \(error)")
-        }
+        let types: [NotificationType] = [.reviewRequest, .reviewReminder]
+        _ = await markRequestScopedRead(
+            requestType: requestType,
+            requestId: requestId,
+            notificationTypes: types
+        )
     }
     
     // MARK: - Admin Operations

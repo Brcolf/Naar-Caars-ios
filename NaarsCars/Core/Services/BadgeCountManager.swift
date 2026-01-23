@@ -8,6 +8,8 @@
 import Foundation
 import UIKit
 internal import Combine
+import Supabase
+import PostgREST
 
 /// Tab badge types
 enum BadgeTab: String {
@@ -42,6 +44,9 @@ final class BadgeCountManager: ObservableObject {
     
     /// Badge count for Admin Panel within Profile (pending approvals)
     @Published var adminPanelBadgeCount: Int = 0
+
+    /// Badge count for Bell (non-message notifications)
+    @Published var bellBadgeCount: Int = 0
     
     /// Total unread notification count (for app icon badge)
     @Published var totalUnreadCount: Int = 0
@@ -53,6 +58,14 @@ final class BadgeCountManager: ObservableObject {
     private let adminService = AdminService.shared
     private let townHallService = TownHallService.shared
     private let authService = AuthService.shared
+    private let supabase = SupabaseService.shared.client
+    private let realtimeManager = RealtimeManager.shared
+    private var cancellables = Set<AnyCancellable>()
+
+    private let connectedPollingInterval: TimeInterval = 10
+    private let disconnectedPollingInterval: TimeInterval = 90
+    private var pollingTimer: Timer?
+    private var pollingInterval: TimeInterval?
     
     /// UserDefaults keys for last viewed timestamps
     private let lastViewedCommunityKey = "lastViewedCommunity"
@@ -63,7 +76,8 @@ final class BadgeCountManager: ObservableObject {
     private init() {
         // Load initial badge counts when user is authenticated
         Task {
-            await refreshAllBadges()
+            await refreshAllBadges(reason: "init")
+            updatePollingInterval(reason: "init")
         }
         
         // Listen for notification changes
@@ -80,46 +94,66 @@ final class BadgeCountManager: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                await self?.refreshAllBadges()
+                await self?.refreshAllBadges(reason: "didBecomeActive")
+                self?.updatePollingInterval(reason: "didBecomeActive")
             }
         }
+
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.stopPolling(reason: "didEnterBackground")
+        }
+
+        realtimeManager.$isConnected
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updatePollingInterval(reason: "realtimeStatusChanged")
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
     
     /// Refresh all badge counts
-    func refreshAllBadges() async {
+    func refreshAllBadges(reason: String = "manual") async {
         guard let userId = authService.currentUserId else {
-            // Clear all badges if not authenticated
-            requestsBadgeCount = 0
-            messagesBadgeCount = 0
-            communityBadgeCount = 0
-            profileBadgeCount = 0
-            adminPanelBadgeCount = 0
-            totalUnreadCount = 0
-            updateAppIconBadge(0)
+            // ...
             return
         }
-        
-        // Calculate all badges in parallel
-        async let requestsCount = calculateRequestsBadgeCount(userId: userId)
-        async let messagesCount = calculateMessagesBadgeCount(userId: userId)
-        async let communityCount = calculateCommunityBadgeCount(userId: userId)
+
+        print("🧭 [BadgeCountManager] Refreshing badges (\(reason))")
         async let profileCount = calculateProfileBadgeCount()
-        
-        let (requests, messages, community, profile) = await (
-            requestsCount, messagesCount, communityCount, profileCount
-        )
-        
-        requestsBadgeCount = requests
-        messagesBadgeCount = messages
-        communityBadgeCount = community
-        profileBadgeCount = profile
-        adminPanelBadgeCount = profile  // Same as profile badge for admins
-        
-        // Calculate total for app icon badge
-        totalUnreadCount = requests + messages + community
-        updateAppIconBadge(totalUnreadCount)
+
+        do {
+            // Always include details to update conversation-level unread counts
+            let counts = try await fetchBadgeCounts(includeDetails: true)
+            let profile = await profileCount
+
+            requestsBadgeCount = counts.requestsTotal
+            messagesBadgeCount = counts.messagesTotal
+            communityBadgeCount = counts.communityTotal
+            profileBadgeCount = profile
+            adminPanelBadgeCount = profile  // Same as profile badge for admins
+            bellBadgeCount = counts.bellTotal
+
+            // Broadcast conversation-level unread counts to any active view models
+            NotificationCenter.default.post(
+                name: .conversationUnreadCountsUpdated,
+                object: nil,
+                userInfo: ["counts": counts.conversationDetails]
+            )
+
+            // Calculate total for app icon badge
+            totalUnreadCount = counts.requestsTotal + counts.messagesTotal + counts.communityTotal
+            updateAppIconBadge(totalUnreadCount)
+
+            print("✅ [BadgeCountManager] Counts synced: requests=\(counts.requestsTotal), messages=\(counts.messagesTotal), community=\(counts.communityTotal), bell=\(counts.bellTotal)")
+        } catch {
+            // ...
+        }
     }
     
     /// Update the app icon badge number
@@ -131,14 +165,29 @@ final class BadgeCountManager: ObservableObject {
     func clearRequestsBadge() async {
         // Don't auto-clear all request notifications on tab view
         UserDefaults.standard.set(Date(), forKey: lastViewedRequestsKey)
-        await refreshAllBadges()
+        await refreshAllBadges(reason: "clearRequestsBadge")
     }
     
     /// Clear Messages badge (called when viewing a conversation)
-    func clearMessagesBadge() async {
-        // Badge is automatically cleared when messages are marked as read
-        // Just refresh the count
-        await refreshAllBadges()
+    func clearMessagesBadge(for conversationId: UUID? = nil) async {
+        if let conversationId = conversationId {
+            // Optimistically clear the unread count for this specific conversation
+            // This ensures the badge disappears immediately when returning to the list
+            NotificationCenter.default.post(
+                name: .conversationUnreadCountsUpdated,
+                object: nil,
+                userInfo: ["counts": [ConversationCountDetail(conversationId: conversationId, unreadCount: 0)]]
+            )
+            
+            // Also update the local SwiftData store immediately
+            if let sdConv = try? await MessagingRepository.shared.fetchSDConversation(id: conversationId) {
+                sdConv.unreadCount = 0
+                try? await MessagingRepository.shared.save()
+            }
+        }
+        
+        // Refresh all badges to ensure the tab bar badge is updated correctly
+        await refreshAllBadges(reason: "clearMessagesBadge")
     }
     
     /// Clear Community badge (called when viewing Community tab or a post)
@@ -161,7 +210,7 @@ final class BadgeCountManager: ObservableObject {
                 try? await notificationService.markAsRead(notificationId: notificationId)
             }
             
-            await refreshAllBadges()
+            await refreshAllBadges(reason: "clearCommunityBadge")
         } catch {
             print("⚠️ [BadgeCountManager] Error clearing community badge: \(error)")
         }
@@ -170,7 +219,42 @@ final class BadgeCountManager: ObservableObject {
     /// Clear Profile badge (called when approving/denying users)
     func clearProfileBadge() async {
         // Badge count will automatically update when pending users change
-        await refreshAllBadges()
+        await refreshAllBadges(reason: "clearProfileBadge")
+    }
+
+    // MARK: - Polling
+
+    private func updatePollingInterval(reason: String) {
+        guard authService.currentUserId != nil else {
+            stopPolling(reason: "notAuthenticated")
+            return
+        }
+
+        guard UIApplication.shared.applicationState == .active else {
+            stopPolling(reason: "appInactive")
+            return
+        }
+
+        let interval = realtimeManager.isConnected ? connectedPollingInterval : disconnectedPollingInterval
+        guard pollingInterval != interval else { return }
+
+        pollingInterval = interval
+        pollingTimer?.invalidate()
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshAllBadges(reason: "polling")
+            }
+        }
+
+        let status = realtimeManager.isConnected ? "connected" : "disconnected"
+        print("🧭 [BadgeCountManager] Polling every \(Int(interval))s (\(status), \(reason))")
+    }
+
+    private func stopPolling(reason: String) {
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+        pollingInterval = nil
+        print("🧭 [BadgeCountManager] Polling stopped (\(reason))")
     }
     
     // MARK: - Private Methods
@@ -181,23 +265,8 @@ final class BadgeCountManager: ObservableObject {
         do {
             // Get unread notifications related to requests
             let notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
-            
-            // Request-related notification types
-            let requestTypes: Set<NotificationType> = [
-                .newRide, .newFavor,                    // New requests from others
-                .rideClaimed, .rideUnclaimed,           // Claim status on user's requests
-                .favorClaimed, .favorUnclaimed,
-                .rideCompleted, .favorCompleted,        // Completion status
-                .qaActivity, .qaQuestion, .qaAnswer,    // Q&A activity
-                .completionReminder,                    // Reminder to mark as complete
-                .reviewRequest, .reviewReminder         // Review prompts
-            ]
-            
-            let requestNotificationCount = notifications
-                .filter { !$0.read && requestTypes.contains($0.type) }
-                .count
-            
-            return requestNotificationCount
+            let requestKeys = NotificationGrouping.unreadRequestKeys(from: notifications)
+            return requestKeys.count
         } catch {
             print("⚠️ [BadgeCountManager] Error calculating requests badge: \(error)")
             return 0
@@ -260,5 +329,68 @@ final class BadgeCountManager: ObservableObject {
             return 0
         }
     }
+
+    /// Calculate Bell badge count
+    /// Counts: unread grouped bell-feed notifications (non-message)
+    private func calculateBellBadgeCount(userId: UUID) async -> Int {
+        do {
+            let notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
+            let groups = NotificationGrouping.groupBellNotifications(from: notifications)
+            let unreadGroups = groups.filter { $0.hasUnread }.count
+            return unreadGroups
+        } catch {
+            print("⚠️ [BadgeCountManager] Error calculating bell badge: \(error)")
+            return 0
+        }
+    }
+
+    // MARK: - Authoritative Counts RPC
+
+    struct RequestCountDetail: Decodable {
+        let requestType: String
+        let requestId: UUID
+        let unreadCount: Int
+    }
+
+    struct ConversationCountDetail: Decodable {
+        let conversationId: UUID
+        let unreadCount: Int
+    }
+
+    private struct BadgeCountsPayload: Decodable {
+        let requestsTotal: Int
+        let messagesTotal: Int
+        let communityTotal: Int
+        let bellTotal: Int
+        let requestDetails: [RequestCountDetail]
+        let conversationDetails: [ConversationCountDetail]
+    }
+
+    private func fetchBadgeCounts(includeDetails: Bool = false) async throws -> BadgeCountsPayload {
+        let response = try await supabase
+            .rpc("get_badge_counts", params: [
+                "p_include_details": AnyCodable(includeDetails)
+            ])
+            .execute()
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(BadgeCountsPayload.self, from: response.data)
+    }
+
+    // MARK: - Debug Helpers
+
+    func fetchBadgeCountsPayload(includeDetails: Bool = true) async throws -> String {
+        let response = try await supabase
+            .rpc("get_badge_counts", params: [
+                "p_include_details": AnyCodable(includeDetails)
+            ])
+            .execute()
+
+        let jsonObject = try JSONSerialization.jsonObject(with: response.data, options: [])
+        let prettyData = try JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted])
+        return String(data: prettyData, encoding: .utf8) ?? ""
+    }
 }
+
 

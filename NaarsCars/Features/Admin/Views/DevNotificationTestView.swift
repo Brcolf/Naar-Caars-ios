@@ -14,6 +14,8 @@ struct DevNotificationTestView: View {
     @State private var lastSent: String?
     @State private var showingAlert = false
     @State private var alertMessage = ""
+    @State private var badgePayload: String?
+    @State private var isFetchingBadgePayload = false
     
     private let notificationCenter = UNUserNotificationCenter.current()
     
@@ -245,6 +247,46 @@ struct DevNotificationTestView: View {
                         userInfo: [:]
                     )
                 }
+            }
+
+            Section {
+                Button {
+                    Task {
+                        isFetchingBadgePayload = true
+                        do {
+                            badgePayload = try await BadgeCountManager.shared.fetchBadgeCountsPayload()
+                        } catch {
+                            badgePayload = "Error: \(error.localizedDescription)"
+                        }
+                        isFetchingBadgePayload = false
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "tray.full")
+                            .foregroundColor(.naarsPrimary)
+                        Text("Fetch badge counts payload")
+                        Spacer()
+                        if isFetchingBadgePayload {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                }
+
+                if let badgePayload = badgePayload {
+                    Text(badgePayload)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("No payload fetched yet.")
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Badge Counts RPC")
+            } footer: {
+                Text("Calls get_badge_counts RPC and shows raw JSON for QA.")
             }
         }
         .navigationTitle("Notification Tester")

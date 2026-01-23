@@ -6,14 +6,19 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// Dashboard view for favor requests
 struct FavorsDashboardView: View {
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = FavorsDashboardViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateFavor = false
     @State private var navigateToFavor: UUID?
     @AppStorage("favors_view_mode") private var viewMode: ViewMode = .list
+    
+    // SwiftData Query for "Zero-Spinner" experience
+    @Query(sort: \SDFavor.date, order: .forward) private var sdFavors: [SDFavor]
     
     enum ViewMode: String, CaseIterable {
         case list = "list"
@@ -100,6 +105,7 @@ struct FavorsDashboardView: View {
             }
             .task {
                 if viewMode == .list {
+                    viewModel.setup(modelContext: modelContext)
                     await viewModel.loadFavors()
                     viewModel.setupRealtimeSubscription()
                 }
@@ -114,7 +120,9 @@ struct FavorsDashboardView: View {
     
     @ViewBuilder
     private var listContentView: some View {
-        if viewModel.isLoading && viewModel.favors.isEmpty {
+        let filteredFavors = viewModel.getFilteredFavors(sdFavors: sdFavors)
+        
+        if viewModel.isLoading && filteredFavors.isEmpty {
             // Show skeleton loading
             ScrollView {
                 VStack(spacing: 16) {
@@ -133,7 +141,7 @@ struct FavorsDashboardView: View {
                     }
                 }
             )
-        } else if viewModel.favors.isEmpty {
+        } else if filteredFavors.isEmpty {
             EmptyStateView(
                 icon: "hand.raised.fill",
                 title: "No Favors Available",
@@ -146,7 +154,7 @@ struct FavorsDashboardView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    ForEach(viewModel.favors) { favor in
+                    ForEach(filteredFavors) { favor in
                         NavigationLink(destination: FavorDetailView(favorId: favor.id)) {
                             FavorCard(favor: favor)
                         }

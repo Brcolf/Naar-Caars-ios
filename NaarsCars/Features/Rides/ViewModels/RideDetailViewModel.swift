@@ -23,8 +23,15 @@ final class RideDetailViewModel: ObservableObject {
     
     private let rideService = RideService.shared
     private let authService = AuthService.shared
+    private let notificationRepository = NotificationRepository.shared
     
     // MARK: - Public Methods
+    
+    /// Check if there are unread notifications of specific types for this ride
+    func hasUnreadNotifications(of types: [NotificationType]) async -> Bool {
+        guard let ride = ride else { return false }
+        return notificationRepository.hasUnreadNotifications(requestId: ride.id, types: types)
+    }
     
     /// Load ride details
     /// - Parameter id: Ride ID

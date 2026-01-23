@@ -1,0 +1,45 @@
+//
+//  BellButton.swift
+//  NaarsCars
+//
+//  Bell icon button with badge for global chrome
+//
+
+import SwiftUI
+
+struct BellButton: View {
+    @ObservedObject private var badgeManager = BadgeCountManager.shared
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell")
+                    .font(.title3)
+                    .id("app.chrome.bellIcon")
+
+                if badgeManager.bellBadgeCount > 0 {
+                    Text(badgeText)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red)
+                        .clipShape(Capsule())
+                        .offset(x: 8, y: -6)
+                        .id("app.chrome.bellBadge")
+                }
+            }
+        }
+        .accessibilityLabel("Notifications")
+    }
+
+    private var badgeText: String {
+        if badgeManager.bellBadgeCount > 99 {
+            return "99+"
+        }
+        return "\(badgeManager.bellBadgeCount)"
+    }
+}
+

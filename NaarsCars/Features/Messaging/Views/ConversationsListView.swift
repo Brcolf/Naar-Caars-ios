@@ -22,6 +22,7 @@ struct ConversationsListView: View {
     @State private var searchText = ""
     @State private var pinnedConversations: Set<UUID> = []
     @State private var mutedConversations: Set<UUID> = []
+    @State private var toastDismissTask: Task<Void, Never>?
     
     /// Filter conversations based on search
     private var filteredConversations: [ConversationWithDetails] {
@@ -48,6 +49,127 @@ struct ConversationsListView: View {
         }
     }
     
+    // MARK: - Subviews
+    
+    @ViewBuilder
+    private var mainContent: some View {
+        if viewModel.isLoading {
+            // Skeleton loading
+            List {
+                ForEach(0..<5) { _ in
+                    SkeletonConversationRow()
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                }
+            }
+            .listStyle(.plain)
+        } else if let error = viewModel.error {
+            ErrorView(
+                error: error.localizedDescription,
+                retryAction: { Task { await viewModel.loadConversations() } }
+            )
+        } else if viewModel.conversations.isEmpty {
+            EmptyStateView(
+                icon: "message.fill",
+                title: "No Conversations Yet",
+                message: "Start a conversation by claiming a request or messaging a user.",
+                actionTitle: "New Message",
+                action: {
+                    showNewMessage = true
+                },
+                customImage: "naars_messages_icon"
+            )
+        } else {
+            conversationsList
+        }
+    }
+    
+    @ViewBuilder
+    private var conversationsList: some View {
+        List {
+            // Pinned section (if any)
+            if !pinnedConversations.isEmpty && searchText.isEmpty {
+                Section {
+                    ForEach(sortedConversations.filter { pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
+                        conversationRow(for: conversationDetail)
+                    }
+                } header: {
+                    Text("Pinned")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Main conversations section
+            Section {
+                ForEach(sortedConversations.filter { searchText.isEmpty ? !pinnedConversations.contains($0.conversation.id) : true }) { conversationDetail in
+                    conversationRow(for: conversationDetail)
+                }
+                
+                // Bottom anchor for infinite scrolling
+                if viewModel.hasMoreConversations && searchText.isEmpty {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .padding(.vertical, 16)
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .onAppear {
+                        if !viewModel.isLoadingMore {
+                            print("🔄 [ConversationsList] Reached bottom, loading more conversations")
+                            Task {
+                                await viewModel.loadMoreConversations()
+                            }
+                        }
+                    }
+                } else if !viewModel.hasMoreConversations && !viewModel.conversations.isEmpty && searchText.isEmpty {
+                    // End of conversations indicator
+                    Text("No more conversations")
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .listRowSeparator(.hidden)
+                }
+            } header: {
+                if !pinnedConversations.isEmpty && searchText.isEmpty {
+                    Text("All Messages")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .searchable(text: $searchText, prompt: "Search messages")
+        .refreshable {
+            await viewModel.refreshConversations()
+        }
+    }
+    
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let toast = viewModel.latestToast {
+            Button {
+                print("🔗 [ConversationsListView] Toast tapped for \(toast.conversationId)")
+                navigationCoordinator.conversationScrollTarget = .init(
+                    conversationId: toast.conversationId,
+                    messageId: toast.messageId
+                )
+                viewModel.latestToast = nil
+                navigationCoordinator.navigate(to: .conversation(id: toast.conversationId))
+            } label: {
+                InAppMessageToastView(toast: toast)
+            }
+            .buttonStyle(.plain)
+            .id("messages.conversationsList.inAppToast")
+            .padding(.top, 8)
+            .padding(.horizontal, 16)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+    
     /// Sort conversations: pinned first, then by last update
     private var sortedConversations: [ConversationWithDetails] {
         filteredConversations.sorted { a, b in
@@ -63,98 +185,25 @@ struct ConversationsListView: View {
     
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    // Skeleton loading
-                    List {
-                        ForEach(0..<5) { _ in
-                            SkeletonConversationRow()
-                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        }
-                    }
-                    .listStyle(.plain)
-                } else if let error = viewModel.error {
-                    ErrorView(
-                        error: error.localizedDescription,
-                        retryAction: { Task { await viewModel.loadConversations() } }
-                    )
-                } else if viewModel.conversations.isEmpty {
-                    EmptyStateView(
-                        icon: "message.fill",
-                        title: "No Conversations Yet",
-                        message: "Start a conversation by claiming a request or messaging a user.",
-                        actionTitle: "New Message",
-                        action: {
-                            showNewMessage = true
-                        },
-                        customImage: "naars_messages_icon"
-                    )
-                } else {
-                    List {
-                        // Pinned section (if any)
-                        if !pinnedConversations.isEmpty && searchText.isEmpty {
-                            Section {
-                                ForEach(sortedConversations.filter { pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
-                                    conversationRow(for: conversationDetail)
-                                }
-                            } header: {
-                                Text("Pinned")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        // Main conversations section
-                        Section {
-                            ForEach(sortedConversations.filter { searchText.isEmpty ? !pinnedConversations.contains($0.conversation.id) : true }) { conversationDetail in
-                                conversationRow(for: conversationDetail)
-                            }
-                        } header: {
-                            if !pinnedConversations.isEmpty && searchText.isEmpty {
-                                Text("All Messages")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        // Load more button at bottom
-                        if viewModel.hasMoreConversations && searchText.isEmpty {
-                            Button {
-                                Task {
-                                    await viewModel.loadMoreConversations()
-                                }
-                            } label: {
-                                HStack {
-                                    if viewModel.isLoadingMore {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
-                                    }
-                                    Text(viewModel.isLoadingMore ? "Loading..." : "Load More")
-                                        .font(.naarsBody)
-                                        .foregroundColor(.naarsPrimary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                            }
-                            .disabled(viewModel.isLoadingMore)
-                            .listRowInsets(EdgeInsets())
-                        }
-                    }
-                    .listStyle(.plain)
-                    .searchable(text: $searchText, prompt: "Search messages")
-                    .refreshable {
-                        await viewModel.refreshConversations()
-                    }
+            mainContent
+                .id("messages.conversationsList")
+                .navigationTitle("Messages")
+                .overlay(alignment: .top) {
+                    toastOverlay
                 }
-            }
-            .navigationTitle("Messages")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    BellButton {
+                        navigationCoordinator.navigateToNotifications = true
+                        print("🔔 [ConversationsListView] Bell tapped")
+                    }
+
                     Button {
                         showNewMessage = true
                     } label: {
                         Image(systemName: "square.and.pencil")
                     }
+                    .id("messages.conversationsList.newMessageComposer")
                 }
             }
             .sheet(isPresented: $showNewMessage) {
@@ -206,6 +255,22 @@ struct ConversationsListView: View {
             .task {
                 loadSavedPreferences()
                 await viewModel.loadConversations()
+            }
+            .onAppear {
+                viewModel.setMessagesTabActive(navigationCoordinator.selectedTab == .messages)
+            }
+            .onChange(of: navigationCoordinator.selectedTab) { _, newTab in
+                viewModel.setMessagesTabActive(newTab == .messages)
+            }
+            .onChange(of: viewModel.latestToast) { _, newToast in
+                toastDismissTask?.cancel()
+                guard newToast != nil else { return }
+                toastDismissTask = Task {
+                    try? await Task.sleep(nanoseconds: 4_000_000_000)
+                    await MainActor.run {
+                        viewModel.latestToast = nil
+                    }
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("conversationUpdated"))) { _ in
                 Task {
@@ -323,6 +388,7 @@ struct ConversationsListView: View {
                 isMuted: isMuted
             )
         }
+        .id("messages.conversationsList.row(\(conversationDetail.conversation.id))")
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             // Delete button
@@ -332,15 +398,6 @@ struct ConversationsListView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
-            
-            // Archive button
-            Button {
-                // Archive conversation (placeholder)
-                print("Archive conversation: \(conversationDetail.conversation.id)")
-            } label: {
-                Label("Archive", systemImage: "archivebox")
-            }
-            .tint(.indigo)
         }
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
             // Pin/Unpin button
@@ -529,6 +586,42 @@ struct ConversationRow: View {
         
         // Fallback
         return "Unknown"
+    }
+}
+
+struct InAppMessageToastView: View {
+    let toast: InAppMessageToast
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AvatarView(
+                imageUrl: toast.senderAvatarUrl,
+                name: toast.senderName,
+                size: 36
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(toast.senderName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                Text(toast.messagePreview)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        )
+        .accessibilityElement(children: .combine)
     }
 }
 

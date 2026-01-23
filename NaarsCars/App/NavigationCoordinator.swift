@@ -22,11 +22,16 @@ final class NavigationCoordinator: ObservableObject {
     @Published var selectedTab: Tab = .requests
     @Published var navigateToRide: UUID?
     @Published var navigateToFavor: UUID?
+    @Published var requestNavigationTarget: RequestNotificationTarget?
     @Published var navigateToConversation: UUID?
+    @Published var conversationScrollTarget: ConversationScrollTarget?
     @Published var navigateToProfile: UUID?
-    @Published var navigateToTownHallPost: UUID?
+    @Published var townHallNavigationTarget: TownHallNavigationTarget?
     @Published var navigateToAdminPanel: Bool = false
+    @Published var navigateToPendingUsers: Bool = false
     @Published var navigateToNotifications: Bool = false
+    @Published var profileScrollTarget: String?
+    @Published var announcementsNavigationTarget: AnnouncementsNavigationTarget?
     @Published var showReviewPrompt: Bool = false
     @Published var reviewPromptRideId: UUID?
     @Published var reviewPromptFavorId: UUID?
@@ -38,6 +43,26 @@ final class NavigationCoordinator: ObservableObject {
         case messages = 1
         case community = 2  // Town Hall + Leaderboard
         case profile = 3
+    }
+
+    struct ConversationScrollTarget: Equatable {
+        let conversationId: UUID
+        let messageId: UUID
+    }
+
+    struct TownHallNavigationTarget: Equatable {
+        enum Mode: String {
+            case openComments
+            case highlightPost
+        }
+
+        let postId: UUID
+        let mode: Mode
+    }
+
+    struct AnnouncementsNavigationTarget: Identifiable, Equatable {
+        let id: UUID
+        let scrollToNotificationId: UUID?
     }
     
     // MARK: - Initialization
@@ -73,9 +98,13 @@ final class NavigationCoordinator: ObservableObject {
         case .townHall:
             selectedTab = .community
             
-        case .townHallPost(let postId):
+        case .townHallPostComments(let postId):
             selectedTab = .community
-            navigateToTownHallPost = postId
+            townHallNavigationTarget = .init(postId: postId, mode: .openComments)
+
+        case .townHallPostHighlight(let postId):
+            selectedTab = .community
+            townHallNavigationTarget = .init(postId: postId, mode: .highlightPost)
             
         case .profile(let userId):
             selectedTab = .profile
@@ -85,10 +114,18 @@ final class NavigationCoordinator: ObservableObject {
             selectedTab = .profile
             navigateToAdminPanel = true
             
-        case .notifications:
-            // Notifications list lives in Profile tab
+        case .pendingUsers:
             selectedTab = .profile
+            navigateToPendingUsers = true
+
+        case .notifications:
             navigateToNotifications = true
+
+        case .announcements(let notificationId):
+            announcementsNavigationTarget = .init(
+                id: UUID(),
+                scrollToNotificationId: notificationId
+            )
             
         case .enterApp:
             // User was approved - just go to dashboard
@@ -128,6 +165,9 @@ final class NavigationCoordinator: ObservableObject {
                     return
                 }
                 self.navigate(to: .ride(id: rideId))
+                if let target = Self.requestTarget(from: userInfo, requestId: rideId, requestType: .ride) {
+                    self.requestNavigationTarget = target
+                }
             }
         }
         
@@ -143,6 +183,9 @@ final class NavigationCoordinator: ObservableObject {
                     return
                 }
                 self.navigate(to: .favor(id: favorId))
+                if let target = Self.requestTarget(from: userInfo, requestId: favorId, requestType: .favor) {
+                    self.requestNavigationTarget = target
+                }
             }
         }
         
@@ -158,6 +201,13 @@ final class NavigationCoordinator: ObservableObject {
                     return
                 }
                 self.navigate(to: .conversation(id: conversationId))
+                if let messageId = userInfo["messageId"] as? UUID {
+                    self.conversationScrollTarget = .init(
+                        conversationId: conversationId,
+                        messageId: messageId
+                    )
+                    print("📍 [NavigationCoordinator] Message deep link to \(conversationId) (\(messageId))")
+                }
             }
         }
         
@@ -186,7 +236,10 @@ final class NavigationCoordinator: ObservableObject {
                 
                 if let userInfo = notification.userInfo,
                    let postId = userInfo["postId"] as? UUID {
-                    self.navigate(to: .townHallPost(id: postId))
+                    let modeValue = userInfo["mode"] as? String
+                    let mode = TownHallNavigationTarget.Mode(rawValue: modeValue ?? "") ?? .openComments
+                    self.selectedTab = .community
+                    self.townHallNavigationTarget = .init(postId: postId, mode: mode)
                 } else {
                     self.navigate(to: .townHall)
                 }
@@ -205,12 +258,39 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("navigateToPendingUsers"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.selectedTab = .profile
+                self.navigateToPendingUsers = true
+            }
+        }
+
+        NotificationCenter.default.addObserver(
             forName: NSNotification.Name("navigateToNotifications"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.navigate(to: .notifications)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("navigateToAnnouncements"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let notificationId = (notification.userInfo?["notificationId"] as? UUID)
+                self.announcementsNavigationTarget = .init(
+                    id: UUID(),
+                    scrollToNotificationId: notificationId
+                )
             }
         }
 
@@ -249,9 +329,13 @@ final class NavigationCoordinator: ObservableObject {
         navigateToFavor = nil
         navigateToConversation = nil
         navigateToProfile = nil
-        navigateToTownHallPost = nil
+        townHallNavigationTarget = nil
         navigateToAdminPanel = false
+        navigateToPendingUsers = false
         navigateToNotifications = false
+        profileScrollTarget = nil
+        announcementsNavigationTarget = nil
+        requestNavigationTarget = nil
     }
     
     /// Reset review prompt state
@@ -259,5 +343,41 @@ final class NavigationCoordinator: ObservableObject {
         showReviewPrompt = false
         reviewPromptRideId = nil
         reviewPromptFavorId = nil
+    }
+
+    private static func requestTarget(
+        from userInfo: [AnyHashable: Any],
+        requestId: UUID,
+        requestType: RequestType
+    ) -> RequestNotificationTarget? {
+        guard let anchorRaw = userInfo["requestAnchor"] as? String else {
+            return nil
+        }
+        guard let anchor = RequestDetailAnchor(rawValue: anchorRaw) else {
+            print("⚠️ [NavigationCoordinator] Unknown request anchor: \(anchorRaw)")
+            return nil
+        }
+
+        let scrollRaw = userInfo["requestScrollAnchor"] as? String
+        let scrollAnchor = scrollRaw.flatMap(RequestDetailAnchor.init(rawValue:))
+        if scrollRaw != nil && scrollAnchor == nil {
+            print("⚠️ [NavigationCoordinator] Unknown request scroll anchor: \(scrollRaw ?? "")")
+        }
+
+        let highlightRaw = userInfo["requestHighlightAnchor"] as? String
+        let highlightAnchor = highlightRaw.flatMap(RequestDetailAnchor.init(rawValue:))
+        if highlightRaw != nil && highlightAnchor == nil {
+            print("⚠️ [NavigationCoordinator] Unknown request highlight anchor: \(highlightRaw ?? "")")
+        }
+        let shouldAutoClear = userInfo["requestAutoClear"] as? Bool ?? true
+
+        return RequestNotificationTarget(
+            requestType: requestType,
+            requestId: requestId,
+            anchor: anchor,
+            scrollAnchor: scrollAnchor,
+            highlightAnchor: highlightAnchor,
+            shouldAutoClear: shouldAutoClear
+        )
     }
 }

@@ -65,7 +65,7 @@ struct MainTabView: View {
                 case 1: // Messages
                     await badgeManager.clearMessagesBadge()
                 case 2: // Community
-                    await await await badgeManager.clearCommunityBadge()
+                    await badgeManager.clearCommunityBadge()
                 case 3: // Profile
                     await badgeManager.clearProfileBadge()
                 default:
@@ -90,6 +90,18 @@ struct MainTabView: View {
             await badgeManager.refreshAllBadges()
             // Check for review prompts
             await reviewPromptManager.checkForPendingPrompts()
+        }
+        .sheet(isPresented: $navigationCoordinator.navigateToNotifications, onDismiss: {
+            navigationCoordinator.navigateToNotifications = false
+        }) {
+            NotificationsListView()
+                .environmentObject(appState)
+        }
+        .sheet(item: $navigationCoordinator.announcementsNavigationTarget, onDismiss: {
+            navigationCoordinator.announcementsNavigationTarget = nil
+        }) { target in
+            AnnouncementsView(scrollToNotificationId: target.scrollToNotificationId)
+                .environmentObject(appState)
         }
         .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
             GuidelinesAcceptanceSheet {

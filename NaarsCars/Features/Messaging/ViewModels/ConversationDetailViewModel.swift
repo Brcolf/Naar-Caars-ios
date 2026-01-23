@@ -89,6 +89,9 @@ final class ConversationDetailViewModel: ObservableObject {
                 
                 // Refresh badge counts after marking messages as read
                 await BadgeCountManager.shared.refreshAllBadges()
+                
+                // Also refresh conversations list to clear unread indicator there
+                NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
             }
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
@@ -479,12 +482,29 @@ final class ConversationDetailViewModel: ObservableObject {
            let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
             incomingMessage.replyToMessage = context
         }
+        
+        // Enrich message with sender profile immediately if missing (common in realtime payloads)
+        if incomingMessage.sender == nil {
+            Task {
+                if let profile = try? await ProfileService.shared.fetchProfile(userId: incomingMessage.fromId) {
+                    await MainActor.run {
+                        if let index = messages.firstIndex(where: { $0.id == incomingMessage.id }) {
+                            messages[index].sender = profile
+                        } else {
+                            // If not added yet, set it on the local variable before appending
+                            incomingMessage.sender = profile
+                        }
+                    }
+                }
+            }
+        }
+
         messages.append(incomingMessage)
         messages.sort { $0.createdAt < $1.createdAt }
         print("✅ [ConversationDetailVM] Added realtime message \(message.id) from \(message.fromId)")
 
-        // Enrich message with sender + reply context from server if missing
-        if incomingMessage.sender == nil || (incomingMessage.replyToId != nil && incomingMessage.replyToMessage == nil) {
+        // Enrich message with full context from server if still missing fields
+        if incomingMessage.replyToId != nil && incomingMessage.replyToMessage == nil {
             Task {
                 if let enriched = try? await messageService.fetchMessageById(incomingMessage.id),
                    let index = messages.firstIndex(where: { $0.id == incomingMessage.id }) {
@@ -498,6 +518,9 @@ final class ConversationDetailViewModel: ObservableObject {
             Task {
                 try? await messageService.updateLastSeen(conversationId: conversationId, userId: userId)
                 try? await messageService.markAsRead(conversationId: conversationId, userId: userId)
+                // Refresh badges and list after marking as read
+                await BadgeCountManager.shared.refreshAllBadges()
+                NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
             }
         }
         

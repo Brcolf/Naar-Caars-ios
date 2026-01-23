@@ -90,21 +90,22 @@ final class DeepLinkParserTests: XCTestCase {
         }
     }
     
-    /// Test parsing notifications list notification
+    /// Test parsing announcements notification
     func testParse_NotificationsNotification() {
         // Given: A notifications list notification payload
         let userInfo: [AnyHashable: Any] = [
-            "type": "announcement"
+            "type": "announcement",
+            "notification_id": UUID().uuidString
         ]
         
         // When: Parsing the deep link
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         
-        // Then: Should return notifications deep link
-        if case .notifications = deepLink {
-            XCTAssertTrue(true, "Should parse notifications deep link")
+        // Then: Should return announcements deep link
+        if case .announcements = deepLink {
+            XCTAssertTrue(true, "Should parse announcements deep link")
         } else {
-            XCTFail("Expected .notifications deep link, got \(deepLink)")
+            XCTFail("Expected .announcements deep link, got \(deepLink)")
         }
     }
 
@@ -118,14 +119,14 @@ final class DeepLinkParserTests: XCTestCase {
         
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         
-        if case .townHallPost(let id) = deepLink {
+        if case .townHallPostComments(let id) = deepLink {
             XCTAssertEqual(id, postId, "Should parse town hall post ID correctly")
         } else {
-            XCTFail("Expected .townHallPost deep link, got \(deepLink)")
+            XCTFail("Expected .townHallPostComments deep link, got \(deepLink)")
         }
     }
     
-    /// Test parsing admin notification
+    /// Test parsing pending approval notification
     func testParse_AdminNotification() {
         let userInfo: [AnyHashable: Any] = [
             "type": "pending_approval"
@@ -133,10 +134,10 @@ final class DeepLinkParserTests: XCTestCase {
         
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         
-        if case .adminPanel = deepLink {
-            XCTAssertTrue(true, "Should parse admin panel deep link")
+        if case .pendingUsers = deepLink {
+            XCTAssertTrue(true, "Should parse pending users deep link")
         } else {
-            XCTFail("Expected .adminPanel deep link, got \(deepLink)")
+            XCTFail("Expected .pendingUsers deep link, got \(deepLink)")
         }
     }
     

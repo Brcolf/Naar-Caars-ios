@@ -141,7 +141,7 @@ struct RouteMapView: View {
         }
         .frame(height: 200)
         .cornerRadius(8)
-        .disabled(true) // Disable interaction for compact view
+        .allowsHitTesting(false) // Let taps pass through to the parent container
     }
     
     @ViewBuilder

@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import MapKit
+import CoreLocation
 
-/// View for displaying favor details
 struct FavorDetailView: View {
     let favorId: UUID
     @StateObject private var viewModel = FavorDetailViewModel()
     @StateObject private var claimViewModel = ClaimViewModel()
+    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false
@@ -24,213 +26,44 @@ struct FavorDetailView: View {
     @State private var navigateToConversation: UUID?
     @State private var showAddParticipants = false
     @State private var selectedUserIds: Set<UUID> = []
+    @State private var highlightedAnchor: RequestDetailAnchor?
+    @State private var highlightTask: Task<Void, Never>?
+    @State private var clearedAnchors: Set<RequestDetailAnchor> = []
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                if let favor = viewModel.favor {
-                    // Poster info
-                    if let poster = favor.poster {
-                        UserAvatarLink(profile: poster, size: 60)
-                    }
-                    
-                    // Participants (if any)
-                    if let participants = favor.participants, !participants.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Participants")
-                                .font(.naarsTitle3)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(participants) { participant in
-                                        VStack(spacing: 4) {
-                                            UserAvatarLink(profile: participant, size: 50)
-                                            Text(participant.name)
-                                                .font(.naarsCaption)
-                                                .lineLimit(1)
-                                                .frame(width: 60)
-                                        }
-                                    }
-                                }
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    if let favor = viewModel.favor {
+                        favorDetails(favor: favor)
+                    } else if viewModel.isLoading {
+                        LoadingView(message: "Loading favor details...")
+                    } else if let error = viewModel.error {
+                        ErrorView(
+                            error: error,
+                            retryAction: {
+                                Task { await viewModel.loadFavor(id: favorId) }
                             }
-                        }
-                        .cardStyle()
+                        )
                     }
-                    
-                    // Status badge
-                    HStack {
-                        Text(favor.status.displayText)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(favor.status.color)
-                            .cornerRadius(8)
-                        
-                        Spacer()
-                    }
-                    
-                    // Claimer info (when claimed or completed)
-                    if let claimer = favor.claimer {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Claimed by")
-                                .font(.naarsTitle3)
-                            
-                            HStack(spacing: 12) {
-                                UserAvatarLink(profile: claimer, size: 50)
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(claimer.name)
-                                        .font(.naarsHeadline)
-                                }
-                                
-                                Spacer()
-                            }
-                        }
-                        .cardStyle()
-                    }
-                    
-                    // Title
-                    Text(favor.title)
-                        .font(.naarsTitle2)
-                    
-                    // Description
-                    if let description = favor.description, !description.isEmpty {
-                        Text(description)
-                            .font(.naarsBody)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    // Location and Duration (long-press location to copy or open in maps)
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Details")
-                                .font(.naarsTitle3)
-                            Spacer()
-                            Text("Hold location to copy")
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        HStack(spacing: 8) {
-                            Image(systemName: "mappin.circle.fill")
-                                .foregroundColor(.favorAccent)
-                            AddressText(favor.location)
-                            Spacer()
-                        }
-                        
-                        HStack {
-                            Label(favor.duration.displayText, systemImage: favor.duration.icon)
-                            Spacer()
-                        }
-                        
-                        HStack {
-                            Label(favor.date.dateString, systemImage: "calendar")
-                            Spacer()
-                        }
-                        
-                        if let time = favor.time {
-                            HStack {
-                                Label(time, systemImage: "clock")
-                                Spacer()
-                            }
-                        }
-                    }
-                    .cardStyle()
-                    
-                    // Requirements
-                    if let requirements = favor.requirements, !requirements.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Requirements")
-                                .font(.naarsTitle3)
-                            Text(requirements)
-                                .font(.naarsBody)
-                        }
-                        .cardStyle()
-                    }
-                    
-                    // Gift
-                    if let gift = favor.gift, !gift.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Gift/Compensation")
-                                .font(.naarsTitle3)
-                            Text(gift)
-                                .font(.naarsBody)
-                        }
-                        .cardStyle()
-                    }
-                    
-                    // Q&A Section
-                    RequestQAView(
-                        qaItems: viewModel.qaItems,
-                        requestId: favor.id,
-                        requestType: "favor",
-                        onPostQuestion: { question in
-                            await viewModel.postQuestion(question)
-                        }
-                    )
-                    
-                    // Claim/Unclaim/Complete button
-                    claimButtonSection(favor: favor)
-                    
-                    // Message all participants button (only when claimed)
-                    if favor.claimedBy != nil && favor.status != .open {
-                        messageAllParticipantsButton(favor: favor)
-                    }
-                    
-                    // Add participants button (for poster/participants)
-                    if viewModel.canEdit {
-                        addParticipantsButton(favor: favor)
-                    }
-                    
-                    // Action buttons for poster/participants
-                    if viewModel.canEdit {
-                        HStack(spacing: 16) {
-                            if favor.status == .confirmed {
-                                SecondaryButton(title: "Mark Complete") {
-                                    showCompleteSheet = true
-                                }
-                            }
-                            
-                            SecondaryButton(title: "Edit") {
-                                showEditFavor = true
-                            }
-                            
-                            SecondaryButton(title: "Delete") {
-                                showDeleteAlert = true
-                            }
-                        }
-                    }
-                } else if viewModel.isLoading {
-                    LoadingView(message: "Loading favor details...")
-                } else if let error = viewModel.error {
-                    ErrorView(
-                        error: error,
-                        retryAction: {
-                            Task {
-                                await viewModel.loadFavor(id: favorId)
-                            }
-                        }
-                    )
+                }
+                .padding()
+                .onChange(of: navigationCoordinator.requestNavigationTarget) { _, target in
+                    guard let target,
+                          target.requestType == .favor,
+                          target.requestId == favorId else { return }
+                    handleRequestNavigation(target, proxy: proxy)
                 }
             }
-            .padding()
         }
         .navigationTitle("Favor Details")
         .navigationBarTitleDisplayMode(.large)
-        .refreshable {
-            await viewModel.loadFavor(id: favorId)
-        }
-        .task {
-            await viewModel.loadFavor(id: favorId)
-        }
+        .refreshable { await viewModel.loadFavor(id: favorId) }
+        .task { await viewModel.loadFavor(id: favorId) }
         .sheet(isPresented: $showEditFavor) {
             if let favor = viewModel.favor {
                 EditFavorView(favor: favor) {
-                    // Refresh favor data after edit
-                    Task {
-                        await viewModel.loadFavor(id: favorId)
-                    }
+                    Task { await viewModel.loadFavor(id: favorId) }
                 }
             }
         }
@@ -268,6 +101,7 @@ struct FavorDetailView: View {
                         }
                     }
                 )
+                .id(RequestDetailAnchor.claimSheet.anchorId(for: .favor))
             }
         }
         .sheet(isPresented: $showUnclaimSheet) {
@@ -286,6 +120,7 @@ struct FavorDetailView: View {
                         }
                     }
                 )
+                .id(RequestDetailAnchor.unclaimSheet.anchorId(for: .favor))
             }
         }
         .sheet(isPresented: $showCompleteSheet) {
@@ -304,6 +139,27 @@ struct FavorDetailView: View {
                         }
                     }
                 )
+                .id(RequestDetailAnchor.completeSheet.anchorId(for: .favor))
+                .onAppear { handleSectionAppeared(.completeSheet) }
+            }
+        }
+        .sheet(isPresented: $showReviewSheet) {
+            if let favor = viewModel.favor, let claimerId = favor.claimedBy {
+                let claimerName = favor.claimer?.name ?? "Someone"
+                LeaveReviewView(
+                    requestType: "favor",
+                    requestId: favor.id,
+                    requestTitle: favor.title,
+                    fulfillerId: claimerId,
+                    fulfillerName: claimerName,
+                    onReviewSubmitted: {
+                        Task { await viewModel.loadFavor(id: favorId) }
+                    },
+                    onReviewSkipped: {
+                        Task { await viewModel.loadFavor(id: favorId) }
+                    }
+                )
+                .id(RequestDetailAnchor.reviewSheet.anchorId(for: .favor))
             }
         }
         .sheet(isPresented: $showPhoneRequired) {
@@ -334,9 +190,7 @@ struct FavorDetailView: View {
                     excludeUserIds: getExistingParticipantIds(favor: favor),
                     onDismiss: {
                         if !selectedUserIds.isEmpty {
-                            Task {
-                                await addParticipantsToFavor(Array(selectedUserIds))
-                            }
+                            Task { await addParticipantsToFavor(Array(selectedUserIds)) }
                         }
                         showAddParticipants = false
                         selectedUserIds = []
@@ -347,14 +201,321 @@ struct FavorDetailView: View {
         .trackScreen("FavorDetail")
     }
     
+    @ViewBuilder
+    private func favorDetails(favor: Favor) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Header Section: Status and Poster
+            HStack(alignment: .center, spacing: 16) {
+                if let poster = favor.poster {
+                    UserAvatarLink(profile: poster, size: 60)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(favor.status.displayText)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(favor.status.color)
+                        .cornerRadius(8)
+                        .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
+                        .requestHighlight(highlightedAnchor == .statusBadge)
+                    
+                    if let poster = favor.poster {
+                        Text("Requested by \(poster.name)")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.bottom, 8)
+            .id(RequestDetailAnchor.mainTop.anchorId(for: .favor))
+            .requestHighlight(highlightedAnchor == .mainTop)
+            .onAppear { handleSectionAppeared(.mainTop) }
+            
+            // Title & Description Card
+            VStack(alignment: .leading, spacing: 12) {
+                Text(favor.title)
+                    .font(.naarsTitle2)
+                    .foregroundColor(.primary)
+                
+                if let description = favor.description, !description.isEmpty {
+                    Text(description)
+                        .font(.naarsBody)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+            
+            // Location & Time Card
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("Details", systemImage: "info.circle.fill")
+                        .font(.naarsTitle3)
+                        .foregroundColor(.favorAccent)
+                    Spacer()
+                    Text("Hold location to copy")
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "mappin.circle.fill")
+                            .foregroundColor(.favorAccent)
+                            .font(.title3)
+                        AddressText(favor.location)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        openInExternalMaps(favor: favor)
+                    }
+                    
+                    Divider()
+                    
+                    HStack(spacing: 16) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(favor.date.dateString)
+                                    .font(.naarsHeadline)
+                                Text("Date")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.naarsPrimary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        if let time = favor.time {
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(time)
+                                        .font(.naarsHeadline)
+                                    Text("Time")
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: "clock")
+                                    .foregroundColor(.naarsPrimary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(favor.duration.displayText)
+                                .font(.naarsHeadline)
+                            Text("Estimated Duration")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: favor.duration.icon)
+                            .foregroundColor(.naarsPrimary)
+                    }
+                }
+            }
+            .cardStyle()
+            
+            // Participants Section
+            if let participants = favor.participants, !participants.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Participants")
+                        .font(.naarsTitle3)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            ForEach(participants) { participant in
+                                VStack(spacing: 6) {
+                                    UserAvatarLink(profile: participant, size: 50)
+                                    Text(participant.name)
+                                        .font(.naarsCaption)
+                                        .lineLimit(1)
+                                        .frame(width: 60)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                }
+                .cardStyle()
+            }
+            
+            // Claimer Section
+            if let claimer = favor.claimer {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Claimed by")
+                        .font(.naarsTitle3)
+                    
+                    HStack(spacing: 12) {
+                        UserAvatarLink(profile: claimer, size: 50)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(claimer.name)
+                                .font(.naarsHeadline)
+                        }
+                        
+                        Spacer()
+                    }
+                }
+                .cardStyle()
+                .id(RequestDetailAnchor.claimerCard.anchorId(for: .favor))
+                .requestHighlight(highlightedAnchor == .claimerCard)
+            }
+            
+            // Requirements & Gift
+            if (favor.requirements != nil && !favor.requirements!.isEmpty) || (favor.gift != nil && !favor.gift!.isEmpty) {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let requirements = favor.requirements, !requirements.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Requirements", systemImage: "list.bullet.clipboard")
+                                .font(.naarsHeadline)
+                            Text(requirements)
+                                .font(.naarsBody)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    if favor.requirements != nil && !favor.requirements!.isEmpty && favor.gift != nil && !favor.gift!.isEmpty {
+                        Divider()
+                    }
+                    
+                    if let gift = favor.gift, !gift.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Gift/Compensation", systemImage: "gift.fill")
+                                .font(.naarsHeadline)
+                                .foregroundColor(.naarsPrimary)
+                            Text(gift)
+                                .font(.naarsBody)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .cardStyle()
+            }
+            
+            RequestQAView(
+                qaItems: viewModel.qaItems,
+                requestId: favor.id,
+                requestType: "favor",
+                onPostQuestion: { question in
+                    await viewModel.postQuestion(question)
+                }
+            )
+            .id(RequestDetailAnchor.qaSection.anchorId(for: .favor))
+            .requestHighlight(highlightedAnchor == .qaSection)
+            .onAppear { handleSectionAppeared(.qaSection) }
+            
+            claimButtonSection(favor: favor)
+                .id(RequestDetailAnchor.claimAction.anchorId(for: .favor))
+                .requestHighlight(highlightedAnchor == .claimAction)
+                .onAppear { handleSectionAppeared(.claimAction) }
+            
+            if favor.claimedBy != nil && favor.status != .open {
+                messageAllParticipantsButton(favor: favor)
+            }
+            
+            if viewModel.canEdit {
+                addParticipantsButton(favor: favor)
+            }
+            
+            if viewModel.canEdit {
+                HStack(spacing: 16) {
+                    if favor.status == .confirmed {
+                        SecondaryButton(title: "Mark Complete") {
+                            showCompleteSheet = true
+                        }
+                        .id(RequestDetailAnchor.completeAction.anchorId(for: .favor))
+                        .requestHighlight(highlightedAnchor == .completeAction)
+                        .onAppear { handleSectionAppeared(.completeAction) }
+                    }
+                    
+                    SecondaryButton(title: "Edit") { showEditFavor = true }
+                    SecondaryButton(title: "Delete") { showDeleteAlert = true }
+                }
+            }
+        }
+    }
+    
     // MARK: - Helper Methods
+    
+    private func handleRequestNavigation(_ target: RequestNotificationTarget, proxy: ScrollViewProxy) {
+        let scrollAnchor = target.scrollAnchor ?? target.anchor
+        let scrollId = scrollAnchor.anchorId(for: .favor)
+        if let highlightAnchor = target.highlightAnchor {
+            highlightSection(highlightAnchor)
+        }
+        
+        if target.scrollAnchor != nil {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                withAnimation(.easeInOut) {
+                    proxy.scrollTo(scrollId, anchor: .top)
+                }
+            }
+        } else {
+            withAnimation(.easeInOut) {
+                proxy.scrollTo(scrollId, anchor: .top)
+            }
+        }
+        
+        if target.anchor == .completeSheet {
+            showCompleteSheet = true
+        }
+        
+        navigationCoordinator.requestNavigationTarget = nil
+        print("📍 [FavorDetailView] Deep link to \(target.anchor.rawValue)")
+    }
+    
+    private func highlightSection(_ anchor: RequestDetailAnchor) {
+        highlightTask?.cancel()
+        highlightedAnchor = anchor
+        highlightTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            highlightedAnchor = nil
+        }
+    }
+    
+    private func handleSectionAppeared(_ anchor: RequestDetailAnchor) {
+        guard !clearedAnchors.contains(anchor) else { return }
+        if anchor == .reviewSheet { return }
+        let types = RequestNotificationMapping.notificationTypes(for: anchor, requestType: .favor)
+        guard !types.isEmpty else { return }
+        
+        // Optimistically mark as cleared to prevent redundant calls
+        clearedAnchors.insert(anchor)
+        
+        Task {
+            // Check if we actually have unread notifications of these types for this favor
+            // to avoid redundant RPC calls that return 0
+            let hasUnread = await viewModel.hasUnreadNotifications(of: types)
+            guard hasUnread else {
+                print("ℹ️ [FavorDetailView] No unread \(anchor.rawValue) notifications to clear")
+                return
+            }
+
+            let updated = await NotificationService.shared.markRequestScopedRead(
+                requestType: "favor",
+                requestId: favorId,
+                notificationTypes: types
+            )
+            if updated > 0 {
+                await BadgeCountManager.shared.refreshAllBadges(reason: "requestSectionViewed")
+            }
+        }
+    }
     
     @ViewBuilder
     private func messageAllParticipantsButton(favor: Favor) -> some View {
         Button {
-            Task {
-                await openOrCreateConversation(favor: favor)
-            }
+            Task { await openOrCreateConversation(favor: favor) }
         } label: {
             HStack {
                 Image(systemName: "message.fill")
@@ -390,11 +551,10 @@ struct FavorDetailView: View {
     }
     
     private func getExistingParticipantIds(favor: Favor) -> [UUID] {
-        var ids: [UUID] = [favor.userId] // Poster
+        var ids: [UUID] = [favor.userId]
         if let claimedBy = favor.claimedBy {
             ids.append(claimedBy)
         }
-        // Add participants
         if let participants = favor.participants {
             ids.append(contentsOf: participants.map { $0.id })
         }
@@ -405,18 +565,13 @@ struct FavorDetailView: View {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
-            // Collect all relevant user IDs (poster, claimer, participants, current user)
-            var participantIds: Set<UUID> = [favor.userId] // Poster
-            if let claimedBy = favor.claimedBy {
-                participantIds.insert(claimedBy)
-            }
-            // Add participants
+            var participantIds: Set<UUID> = [favor.userId]
+            if let claimedBy = favor.claimedBy { participantIds.insert(claimedBy) }
             if let participants = favor.participants {
                 participantIds.formUnion(participants.map { $0.id })
             }
-            participantIds.insert(currentUserId) // Ensure current user is included
+            participantIds.insert(currentUserId)
             
-            // Create conversation with all relevant users
             let conversation = try await MessageService.shared.createConversationWithUsers(
                 userIds: Array(participantIds),
                 createdBy: currentUserId,
@@ -439,10 +594,58 @@ struct FavorDetailView: View {
                 userIds: userIds,
                 addedBy: currentUserId
             )
-            // Reload favor to show new participants
             await viewModel.loadFavor(id: favorId)
         } catch {
             print("🔴 Error adding participants to favor: \(error.localizedDescription)")
+        }
+    }
+    
+    private func openInExternalMaps(favor: Favor) {
+        print("🗺️ [FavorDetailView] Opening external maps for favor: \(favor.id)")
+        let location = favor.location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        
+        // Google Maps URL Scheme
+        let googleMapsUrl = URL(string: "comgooglemaps://?q=\(location)&directionsmode=driving")
+        let googleMapsWebUrl = URL(string: "https://www.google.com/maps/search/?api=1&query=\(location)")
+        
+        // Apple Maps via MKMapItem
+        let appleMapsOpen = {
+            let geocoder = CLGeocoder()
+            Task {
+                do {
+                    let placemarks = try await geocoder.geocodeAddressString(favor.location)
+                    guard let placemark = placemarks.first else {
+                        throw NSError(domain: "Maps", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not geocode address"])
+                    }
+                    
+                    let mapItem = MKMapItem(placemark: MKPlacemark(placemark: placemark))
+                    mapItem.name = favor.title
+                    
+                    let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
+                    mapItem.openInMaps(launchOptions: launchOptions)
+                    print("🗺️ [FavorDetailView] Opened Apple Maps via MKMapItem")
+                } catch {
+                    print("🗺️ [FavorDetailView] Apple Maps failed: \(error.localizedDescription)")
+                    // Fallback to simple URL
+                    if let url = URL(string: "http://maps.apple.com/?q=\(location)") {
+                        await UIApplication.shared.open(url)
+                    }
+                }
+            }
+        }
+        
+        if let url = googleMapsUrl, UIApplication.shared.canOpenURL(url) {
+            print("🗺️ [FavorDetailView] Opening Google Maps App")
+            Task { @MainActor in
+                await UIApplication.shared.open(url)
+            }
+        } else if let url = googleMapsWebUrl, UIApplication.shared.canOpenURL(URL(string: "comgooglemaps://")!) {
+            Task { @MainActor in
+                await UIApplication.shared.open(url)
+            }
+        } else {
+            print("🗺️ [FavorDetailView] Attempting Apple Maps")
+            appleMapsOpen()
         }
     }
     
@@ -451,18 +654,13 @@ struct FavorDetailView: View {
         let authService = AuthService.shared
         let currentUserId = authService.currentUserId
         
-        // Determine button state
         let buttonState: ClaimButtonState = {
             if viewModel.isPoster {
                 return .isPoster
             } else if favor.status == .completed {
                 return .completed
             } else if let claimedBy = favor.claimedBy {
-                if claimedBy == currentUserId {
-                    return .claimedByMe
-                } else {
-                    return .claimedByOther
-                }
+                return claimedBy == currentUserId ? .claimedByMe : .claimedByOther
             } else {
                 return .canClaim
             }

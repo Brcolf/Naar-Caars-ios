@@ -142,8 +142,11 @@ final class EditProfileViewModel: ObservableObject {
                 avatarUrl: avatarUrl
             )
             
-            // Invalidate cache
-            await CacheManager.shared.invalidateProfile(id: userId)
+            // Re-fetch profile to ensure local state is perfectly in sync with server
+            if let updatedProfile = try? await profileService.fetchProfile(userId: userId) {
+                // This ensures the next time the view loads, it has the latest data
+                await CacheManager.shared.cacheProfile(updatedProfile)
+            }
             
             return true
         } catch {

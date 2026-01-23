@@ -20,6 +20,15 @@ enum RequestItem: Identifiable, Equatable {
             return favor.id
         }
     }
+
+    var notificationKey: String {
+        switch self {
+        case .ride(let ride):
+            return "ride:\(ride.id)"
+        case .favor(let favor):
+            return "favor:\(favor.id)"
+        }
+    }
     
     var userId: UUID {
         switch self {

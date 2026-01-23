@@ -116,6 +116,7 @@ struct PostCommentsView: View {
                         .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding()
+                    .id("community.townHall.postCommentsSheet.commentInput")
                 }
                 .background(Color(.systemBackground))
             }

@@ -120,6 +120,21 @@ final class MapService {
         
         print("🗺️ [MapService] Geocoding: '\(trimmedAddress)'")
         
+        // Strategy: If it looks like a POI (no numbers at start, or contains "Airport", "Station", etc.), 
+        // try MKLocalSearch first as it's much better for these.
+        let looksLikePOI = !trimmedAddress.first!.isNumber || 
+                          trimmedAddress.localizedCaseInsensitiveContains("Airport") ||
+                          trimmedAddress.localizedCaseInsensitiveContains("Station") ||
+                          trimmedAddress.localizedCaseInsensitiveContains("Park")
+        
+        if looksLikePOI {
+            print("🗺️ [MapService] POI detected, trying MKLocalSearch first")
+            if let coordinate = await searchWithMapKit(query: trimmedAddress) {
+                print("🗺️ [MapService] Success with MKLocalSearch (POI): \(coordinate.latitude), \(coordinate.longitude)")
+                return coordinate
+            }
+        }
+
         // Attempt 1: Try geocoding with region hint
         do {
             let placemarks = try await geocoder.geocodeAddressString(
@@ -131,12 +146,14 @@ final class MapService {
                 print("🗺️ [MapService] Success with region hint: \(location.latitude), \(location.longitude)")
                 return location
             }
-            print("🗺️ [MapService] No placemarks returned with region hint")
         } catch {
-            print("🗺️ [MapService] Region hint failed: \(error.localizedDescription)")
+            // Only log if it's not a "not found" error to reduce noise
+            if (error as NSError).code != 8 {
+                print("🗺️ [MapService] Region hint error: \(error.localizedDescription)")
+            }
         }
         
-        // Attempt 2: Try without region hint (sometimes region hint causes issues)
+        // Attempt 2: Try without region hint
         do {
             let placemarks = try await geocoder.geocodeAddressString(trimmedAddress)
             
@@ -144,32 +161,30 @@ final class MapService {
                 print("🗺️ [MapService] Success without region hint: \(location.latitude), \(location.longitude)")
                 return location
             }
-            print("🗺️ [MapService] No placemarks returned without region hint")
         } catch {
-            print("🗺️ [MapService] Without region hint failed: \(error.localizedDescription)")
-        }
-        
-        // Attempt 3: Try with ", WA" appended (helps with Washington state locations)
-        if !trimmedAddress.lowercased().contains(", wa") {
-            let waAddress = "\(trimmedAddress), WA"
-            print("🗺️ [MapService] Trying with WA: '\(waAddress)'")
-            do {
-                let placemarks = try await geocoder.geocodeAddressString(waAddress)
-                
-                if let location = placemarks.first?.location?.coordinate {
-                    print("🗺️ [MapService] Success with WA: \(location.latitude), \(location.longitude)")
-                    return location
-                }
-            } catch {
-                print("🗺️ [MapService] WA suffix failed: \(error.localizedDescription)")
+            if (error as NSError).code != 8 {
+                print("🗺️ [MapService] Without region hint error: \(error.localizedDescription)")
             }
         }
         
-        // Attempt 4: Use MKLocalSearch as fallback (more robust for POIs like airports)
-        print("🗺️ [MapService] Trying MKLocalSearch fallback")
-        if let coordinate = await searchWithMapKit(query: trimmedAddress) {
-            print("🗺️ [MapService] Success with MKLocalSearch: \(coordinate.latitude), \(coordinate.longitude)")
-            return coordinate
+        // Attempt 3: Try with ", WA" appended
+        if !trimmedAddress.localizedCaseInsensitiveContains(", wa") {
+            let waAddress = "\(trimmedAddress), WA"
+            do {
+                let placemarks = try await geocoder.geocodeAddressString(waAddress)
+                if let location = placemarks.first?.location?.coordinate {
+                    print("🗺️ [MapService] Success with WA suffix: \(location.latitude), \(location.longitude)")
+                    return location
+                }
+            } catch {}
+        }
+        
+        // Final Attempt: MKLocalSearch fallback if not already tried
+        if !looksLikePOI {
+            if let coordinate = await searchWithMapKit(query: trimmedAddress) {
+                print("🗺️ [MapService] Success with MKLocalSearch fallback: \(coordinate.latitude), \(coordinate.longitude)")
+                return coordinate
+            }
         }
         
         print("🗺️ [MapService] All geocoding attempts failed for: '\(trimmedAddress)'")

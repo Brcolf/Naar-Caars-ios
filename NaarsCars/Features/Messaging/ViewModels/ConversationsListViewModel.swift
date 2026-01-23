@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import SwiftUI
 internal import Combine
 import Realtime
 
@@ -18,17 +19,82 @@ final class ConversationsListViewModel: ObservableObject {
     @Published var isLoadingMore: Bool = false
     @Published var hasMoreConversations: Bool = true
     @Published var error: AppError?
+    @Published var latestToast: InAppMessageToast?
     
     private let messageService = MessageService.shared
+    private let profileService = ProfileService.shared
+    private let repository = MessagingRepository.shared
     private let authService = AuthService.shared
     private let realtimeManager = RealtimeManager.shared
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
+    private var isMessagesTabActive = false
+    private var activeConversationId: UUID?
     
     init() {
         setupRealtimeSubscription()
         setupMessagesRealtimeSubscription()
+        setupThreadVisibilityObservers()
+        setupUnreadCountObservers()
+        setupLocalObservation()
+    }
+
+    private func setupLocalObservation() {
+        repository.getConversationsPublisher()
+            .sink { [weak self] updatedConversations in
+                withAnimation(.easeInOut) {
+                    self?.conversations = updatedConversations
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func setupUnreadCountObservers() {
+        NotificationCenter.default.publisher(for: .conversationUnreadCountsUpdated)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let details = notification.userInfo?["counts"] as? [BadgeCountManager.ConversationCountDetail] else {
+                    return
+                }
+                self.applyUnreadCounts(details)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func applyUnreadCounts(_ details: [BadgeCountManager.ConversationCountDetail]) {
+        let countsById = Dictionary(uniqueKeysWithValues: details.map { ($0.conversationId, $0.unreadCount) })
+        
+        var hasChanges = false
+        for index in conversations.indices {
+            let conversationId = conversations[index].conversation.id
+            let serverCount = countsById[conversationId] ?? 0
+            
+            if conversations[index].unreadCount != serverCount {
+                let existing = conversations[index]
+                conversations[index] = ConversationWithDetails(
+                    conversation: existing.conversation,
+                    lastMessage: existing.lastMessage,
+                    unreadCount: serverCount,
+                    otherParticipants: existing.otherParticipants
+                )
+                
+                // Update local SwiftData unread count to keep it in sync
+                if let sdConv = try? repository.fetchSDConversation(id: conversationId) {
+                    sdConv.unreadCount = serverCount
+                }
+                
+                hasChanges = true
+            }
+        }
+        
+        if hasChanges {
+            print("✅ [ConversationsListVM] Applied server-side unread counts to list and local storage")
+            try? repository.save()
+            // Force a UI refresh
+            objectWillChange.send()
+        }
     }
     
     deinit {
@@ -49,26 +115,69 @@ final class ConversationsListViewModel: ObservableObject {
         
         isLoading = true
         error = nil
-        currentOffset = 0
-        hasMoreConversations = true
         
+        // 1. Load from local SwiftData immediately
         do {
-            let fetched = try await messageService.fetchConversations(userId: userId, limit: pageSize, offset: currentOffset)
-            self.conversations = fetched
-            currentOffset = fetched.count
-            hasMoreConversations = fetched.count == pageSize
+            let localConversations = try repository.getConversations()
+            self.conversations = localConversations
+            print("📱 [ConversationsListVM] Loaded \(conversations.count) conversations from local storage")
+            
+            // Hydrate profiles for local conversations
+            await hydrateProfiles(for: localConversations)
         } catch {
-            // Don't show error if task was cancelled (happens during pull-to-refresh)
-            // Check both for CancellationError and if error message contains "cancelled"
-            if Task.isCancelled || error is CancellationError || error.localizedDescription.lowercased().contains("cancel") {
-                print("ℹ️ Load conversations task was cancelled, ignoring error")
-            } else {
-                self.error = AppError.processingError(error.localizedDescription)
-                print("🔴 Error loading conversations: \(error.localizedDescription)")
+            print("⚠️ [ConversationsListVM] Error loading local conversations: \(error)")
+        }
+        
+        // 2. Sync from remote in background
+        Task {
+            do {
+                try await repository.syncConversations(userId: userId)
+                // Re-fetch local data after sync to update UI
+                let updatedConversations = try repository.getConversations()
+                self.conversations = updatedConversations
+                
+                // Hydrate profiles for updated conversations
+                await hydrateProfiles(for: updatedConversations)
+            } catch {
+                print("🔴 [ConversationsListVM] Error syncing conversations: \(error)")
             }
         }
         
         isLoading = false
+    }
+
+    private func hydrateProfiles(for conversations: [ConversationWithDetails]) async {
+        guard let currentUserId = authService.currentUserId else { return }
+        
+        var updatedConversations = conversations
+        var hasChanges = false
+        
+        for i in 0..<updatedConversations.count {
+            let convWithDetails = updatedConversations[i]
+            let participantIds = convWithDetails.conversation.participants?.map { $0.userId } ?? []
+            let otherParticipantIds = participantIds.filter { $0 != currentUserId }
+            
+            var otherProfiles: [Profile] = []
+            for userId in otherParticipantIds {
+                if let profile = try? await profileService.fetchProfile(userId: userId) {
+                    otherProfiles.append(profile)
+                }
+            }
+            
+            if !otherProfiles.isEmpty {
+                updatedConversations[i] = ConversationWithDetails(
+                    conversation: convWithDetails.conversation,
+                    lastMessage: convWithDetails.lastMessage,
+                    unreadCount: convWithDetails.unreadCount,
+                    otherParticipants: otherProfiles
+                )
+                hasChanges = true
+            }
+        }
+        
+        if hasChanges {
+            self.conversations = updatedConversations
+        }
     }
     
     func loadMoreConversations() async {
@@ -80,10 +189,24 @@ final class ConversationsListViewModel: ObservableObject {
         isLoadingMore = true
         
         do {
+            print("🔄 [ConversationsListVM] Fetching more conversations at offset \(currentOffset)")
             let fetched = try await messageService.fetchConversations(userId: userId, limit: pageSize, offset: currentOffset)
-            self.conversations.append(contentsOf: fetched)
-            currentOffset += fetched.count
-            hasMoreConversations = fetched.count == pageSize
+            
+            // Filter out duplicates to prevent UI glitches
+            let existingIds = Set(self.conversations.map { $0.conversation.id })
+            let newConversations = fetched.filter { !existingIds.contains($0.conversation.id) }
+            
+            if !newConversations.isEmpty {
+                self.conversations.append(contentsOf: newConversations)
+                currentOffset += fetched.count 
+                print("✅ [ConversationsListVM] Loaded \(newConversations.count) more conversations. New offset: \(currentOffset)")
+            } 
+            
+            // IMPORTANT: Only mark as reached end if the server actually returned fewer than requested
+            if fetched.count < pageSize {
+                hasMoreConversations = false
+                print("ℹ️ [ConversationsListVM] Reached the end of the conversation list (fetched \(fetched.count) < \(pageSize))")
+            }
         } catch {
             // Don't show error if task was cancelled
             if Task.isCancelled || error is CancellationError || error.localizedDescription.lowercased().contains("cancel") {
@@ -99,8 +222,17 @@ final class ConversationsListViewModel: ObservableObject {
     
     func refreshConversations() async {
         guard let userId = authService.currentUserId else { return }
-        await CacheManager.shared.invalidateConversations(userId: userId)
+        // (Cache invalidation removed as part of SwiftData migration)
         await loadConversations()
+    }
+
+    func deleteConversation(_ conversation: Conversation) async {
+        do {
+            try await repository.deleteConversation(id: conversation.id)
+            // Local observation will update the list automatically
+        } catch {
+            self.error = AppError.processingError("Failed to delete conversation: \(error.localizedDescription)")
+        }
     }
     
     private func setupRealtimeSubscription() {
@@ -114,9 +246,11 @@ final class ConversationsListViewModel: ObservableObject {
                         await self?.refreshConversations()
                     }
                 },
-                onUpdate: { [weak self] _ in
+                onUpdate: { [weak self] payload in
                     Task { @MainActor [weak self] in
                         print("📬 [ConversationsListVM] Conversation updated via realtime")
+                        // If it's just a timestamp update, we might not need a full refresh
+                        // but for now, let's keep it simple and refresh
                         await self?.refreshConversations()
                     }
                 },
@@ -141,7 +275,7 @@ final class ConversationsListViewModel: ObservableObject {
                 // and Supabase will only send us events for conversations we're part of
                 onInsert: { [weak self] payload in
                     Task { @MainActor [weak self] in
-                        self?.handleMessageInsertForList(payload)
+                        await self?.handleMessageInsertForList(payload)
                     }
                 }
             )
@@ -149,8 +283,8 @@ final class ConversationsListViewModel: ObservableObject {
     }
     
     /// Handle a new message for updating the conversation list
-    private func handleMessageInsertForList(_ payload: Any) {
-        guard let message = parseMessageFromPayload(payload) else {
+    private func handleMessageInsertForList(_ payload: Any) async {
+        guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
             print("⚠️ [ConversationsListVM] Could not parse message from payload, refreshing list")
             Task { await refreshConversations() }
             return
@@ -162,22 +296,36 @@ final class ConversationsListViewModel: ObservableObject {
         if let index = conversations.firstIndex(where: { $0.conversation.id == message.conversationId }) {
             let existingConversation = conversations[index]
             
-            // Show local notification if message is from someone else
-            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
-                // Get sender name from participants
-                let senderName = existingConversation.otherParticipants
-                    .first(where: { $0.id == message.fromId })?.name ?? "Someone"
-                
-                // Show local notification only when app is active to avoid duplicates
-                if UIApplication.shared.applicationState == .active {
-                    Task {
-                        await PushNotificationService.shared.showLocalMessageNotification(
-                            senderName: senderName,
-                            messagePreview: message.text,
-                            conversationId: message.conversationId
-                        )
+            // Hydrate other participants if they are empty
+            var otherParticipants = existingConversation.otherParticipants
+            if otherParticipants.isEmpty {
+                let participantIds = existingConversation.conversation.participants?.map { $0.userId } ?? []
+                if let currentUserId = authService.currentUserId {
+                    let otherParticipantIds = participantIds.filter { $0 != currentUserId }
+                    for userId in otherParticipantIds {
+                        if let profile = try? await profileService.fetchProfile(userId: userId) {
+                            otherParticipants.append(profile)
+                        }
                     }
                 }
+            }
+            
+            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
+                // Use the hydrated participants for the toast
+                let sender = otherParticipants.first(where: { $0.id == message.fromId })
+                let senderName = sender?.name ?? "Someone"
+                let senderAvatarUrl = sender?.avatarUrl
+
+                latestToast = InAppMessageToast(
+                    id: message.id,
+                    conversationId: message.conversationId,
+                    messageId: message.id,
+                    senderName: senderName,
+                    senderAvatarUrl: senderAvatarUrl,
+                    messagePreview: toastPreviewText(for: message),
+                    receivedAt: Date()
+                )
+                print("✅ [ConversationsListVM] Showing in-app toast for \(message.conversationId)")
             }
             
             // Calculate new unread count (increment if not from current user)
@@ -191,7 +339,7 @@ final class ConversationsListViewModel: ObservableObject {
                 conversation: existingConversation.conversation,
                 lastMessage: message,
                 unreadCount: newUnreadCount,
-                otherParticipants: existingConversation.otherParticipants
+                otherParticipants: otherParticipants
             )
             
             // Remove from current position and insert at top (most recent)
@@ -203,95 +351,80 @@ final class ConversationsListViewModel: ObservableObject {
             // Refresh message badge count immediately for new incoming messages
             if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
                 Task { @MainActor in
-                    await BadgeCountManager.shared.refreshAllBadges()
+                    await BadgeCountManager.shared.refreshAllBadges(reason: "realtimeMessageInsert")
                 }
             }
         } else {
             // Message is for a conversation not in our list - might be a new conversation
-            print("ℹ️ [ConversationsListVM] Message for unknown conversation, refreshing list")
+            print("ℹ : [ConversationsListVM] Message for unknown conversation, refreshing list")
             Task { await refreshConversations() }
         }
     }
     
-    /// Parse a Message from Supabase realtime payload
-    private func parseMessageFromPayload(_ payload: Any) -> Message? {
-        var recordDict: [String: Any]?
-        
-        if let insertAction = payload as? Realtime.InsertAction {
-            recordDict = insertAction.record
-        } else if let dict = payload as? [String: Any] {
-            recordDict = dict["record"] as? [String: Any] ?? dict
+    func setMessagesTabActive(_ isActive: Bool) {
+        isMessagesTabActive = isActive
+        if !isActive {
+            latestToast = nil
         }
-        
-        guard let record = recordDict else {
-            return nil
-        }
-        
-        guard let idString = record["id"] as? String,
-              let id = UUID(uuidString: idString),
-              let conversationIdString = record["conversation_id"] as? String,
-              let convId = UUID(uuidString: conversationIdString),
-              let fromIdString = record["from_id"] as? String,
-              let fromId = UUID(uuidString: fromIdString),
-              let text = record["text"] as? String else {
-            return nil
-        }
-        
-        let imageUrl = record["image_url"] as? String
-        let messageType = (record["message_type"] as? String).flatMap(MessageType.init(rawValue:))
-        let audioUrl = record["audio_url"] as? String
-        let audioDuration = parseDouble(record["audio_duration"])
-        let latitude = parseDouble(record["latitude"])
-        let longitude = parseDouble(record["longitude"])
-        let locationName = record["location_name"] as? String
-        
-        var readBy: [UUID] = []
-        if let readByArray = record["read_by"] as? [String] {
-            readBy = readByArray.compactMap { UUID(uuidString: $0) }
-        }
-        
-        var createdAt = Date()
-        if let createdAtString = record["created_at"] as? String {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: createdAtString) {
-                createdAt = date
-            } else {
-                formatter.formatOptions = [.withInternetDateTime]
-                if let date = formatter.date(from: createdAtString) {
-                    createdAt = date
-                }
-            }
-        }
-        
-        return Message(
-            id: id,
-            conversationId: convId,
-            fromId: fromId,
-            text: text,
-            imageUrl: imageUrl,
-            readBy: readBy,
-            createdAt: createdAt,
-            messageType: messageType,
-            audioUrl: audioUrl,
-            audioDuration: audioDuration,
-            latitude: latitude,
-            longitude: longitude,
-            locationName: locationName
-        )
     }
 
-    private func parseDouble(_ value: Any?) -> Double? {
-        if let doubleValue = value as? Double {
-            return doubleValue
+    private func setupThreadVisibilityObservers() {
+        NotificationCenter.default.publisher(for: .messageThreadDidAppear)
+            .compactMap { $0.userInfo?["conversationId"] as? UUID }
+            .sink { [weak self] conversationId in
+                self?.activeConversationId = conversationId
+                self?.latestToast = nil
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .messageThreadDidDisappear)
+            .sink { [weak self] _ in
+                self?.activeConversationId = nil
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateToastIfNeeded(for message: Message, in conversation: ConversationWithDetails) {
+        guard UIApplication.shared.applicationState == .active else {
+            print("ℹ️ [ConversationsListVM] Toast suppressed (app not active)")
+            return
         }
-        if let intValue = value as? Int {
-            return Double(intValue)
+        guard isMessagesTabActive else {
+            print("ℹ️ [ConversationsListVM] Toast suppressed (Messages tab inactive)")
+            return
         }
-        if let stringValue = value as? String {
-            return Double(stringValue)
+        guard activeConversationId == nil else {
+            print("ℹ️ [ConversationsListVM] Toast suppressed (thread active)")
+            return
         }
-        return nil
+
+        let sender = conversation.otherParticipants.first(where: { $0.id == message.fromId })
+        let senderName = sender?.name ?? "Someone"
+        let senderAvatarUrl = sender?.avatarUrl
+
+        latestToast = InAppMessageToast(
+            id: message.id,
+            conversationId: message.conversationId,
+            messageId: message.id,
+            senderName: senderName,
+            senderAvatarUrl: senderAvatarUrl,
+            messagePreview: toastPreviewText(for: message),
+            receivedAt: Date()
+        )
+        print("✅ [ConversationsListVM] Showing in-app toast for \(message.conversationId)")
+    }
+
+    private func toastPreviewText(for message: Message) -> String {
+        if message.isAudioMessage {
+            return "Voice message"
+        }
+        if message.isLocationMessage {
+            return message.locationName ?? "Shared location"
+        }
+        if message.imageUrl != nil && message.text.isEmpty {
+            return "Photo"
+        }
+        return message.text
     }
     
     private func unsubscribeFromConversations() async {
@@ -328,5 +461,20 @@ final class ConversationsListViewModel: ObservableObject {
         
         return info
     }
+}
+
+struct InAppMessageToast: Identifiable, Equatable {
+    let id: UUID
+    let conversationId: UUID
+    let messageId: UUID
+    let senderName: String
+    let senderAvatarUrl: String?
+    let messagePreview: String
+    let receivedAt: Date
+}
+
+extension Notification.Name {
+    static let messageThreadDidAppear = Notification.Name("messageThreadDidAppear")
+    static let messageThreadDidDisappear = Notification.Name("messageThreadDidDisappear")
 }
 

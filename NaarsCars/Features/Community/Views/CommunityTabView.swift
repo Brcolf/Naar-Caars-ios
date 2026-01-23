@@ -10,6 +10,7 @@ import SwiftUI
 /// Unified Community tab that combines Town Hall and Leaderboard
 struct CommunityTabView: View {
     @State private var selectedView: CommunityView = .townHall
+    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     
     enum CommunityView: String, CaseIterable {
         case townHall = "Town Hall"
@@ -44,10 +45,23 @@ struct CommunityTabView: View {
                 }
             }
             .navigationTitle("Community")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    BellButton {
+                        navigationCoordinator.navigateToNotifications = true
+                        print("🔔 [CommunityTabView] Bell tapped")
+                    }
+                }
+            }
             .onAppear {
                 // Clear community badge when viewing Community tab
                 Task {
                     await BadgeCountManager.shared.clearCommunityBadge()
+                }
+            }
+            .onChange(of: navigationCoordinator.townHallNavigationTarget) { _, newTarget in
+                if newTarget != nil {
+                    selectedView = .townHall
                 }
             }
             .trackScreen("Community")

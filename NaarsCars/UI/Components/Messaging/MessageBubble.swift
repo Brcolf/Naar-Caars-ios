@@ -245,8 +245,8 @@ struct MessageBubble: View {
             }
             
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 2) {
-                // Sender name (only for first message in series, in group chats)
-                if !isFromCurrentUser && showAvatar && isFirstInSeries, let sender = message.sender {
+                // Sender name (only for received messages in group chats)
+                if !isFromCurrentUser && totalParticipants > 2 && isFirstInSeries, let sender = message.sender {
                     Text(sender.name)
                         .font(.naarsCaption)
                         .fontWeight(.medium)
@@ -612,7 +612,9 @@ struct MessageBubble: View {
             // Open in Maps
             let url = URL(string: "maps://?ll=\(latitude),\(longitude)")!
             if UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url)
+                Task { @MainActor in
+                    await UIApplication.shared.open(url)
+                }
             }
         }) {
             VStack(alignment: .leading, spacing: 0) {

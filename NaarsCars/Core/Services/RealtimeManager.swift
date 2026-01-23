@@ -37,6 +37,9 @@ final class RealtimeManager {
     
     /// Active channel subscriptions
     private var activeChannels: [String: ChannelSubscription] = [:]
+
+    /// Realtime connection status (best-effort)
+    @Published private(set) var isConnected: Bool = false
     
     /// Background unsubscribe timer
     private var backgroundUnsubscribeTimer: Timer?
@@ -130,6 +133,7 @@ final class RealtimeManager {
             channel: channel,
             subscribedAt: Date()
         )
+        isConnected = true
         
         print("🔴 [Realtime] Subscribed to channel: \(channelName) (table: \(table))")
     }
@@ -143,6 +147,9 @@ final class RealtimeManager {
         
         await subscription.channel.unsubscribe()
         activeChannels.removeValue(forKey: channelName)
+        if activeChannels.isEmpty {
+            isConnected = false
+        }
         
         print("🔴 [Realtime] Unsubscribed from channel: \(channelName)")
     }
@@ -154,6 +161,7 @@ final class RealtimeManager {
         for channelName in channelNames {
             await unsubscribe(channelName: channelName)
         }
+        isConnected = false
         
         print("🔴 [Realtime] Unsubscribed from all channels")
     }

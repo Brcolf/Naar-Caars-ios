@@ -92,8 +92,9 @@ struct AddressText: View {
             return
         }
         
-        // Try Apple Maps URL scheme first (opens Maps app directly)
-        if let mapsURL = URL(string: "maps://?q=\(encodedAddress)") {
+        // Use the 'address' parameter for better geocoding results in Apple Maps
+        // The 'q' parameter is for general search, 'address' is more specific
+        if let mapsURL = URL(string: "http://maps.apple.com/?address=\(encodedAddress)") {
             openURL(mapsURL)
         }
     }

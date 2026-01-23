@@ -6,105 +6,127 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// Notifications list view for displaying in-app notifications
 struct NotificationsListView: View {
+    @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = NotificationsListViewModel()
     @EnvironmentObject var appState: AppState
+    @State private var announcementNavigationTarget: AnnouncementNavigationTarget?
+    
+    // SwiftData Query for "Zero-Spinner" experience
+    @Query(sort: \SDNotification.createdAt, order: .reverse) private var sdNotifications: [SDNotification]
     
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    // Skeleton loading
-                    List {
-                        ForEach(0..<5) { _ in
-                            SkeletonNotificationRow()
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        }
-                    }
-                    .listStyle(.plain)
-                } else if let error = viewModel.error {
-                    ErrorView(
-                        error: error.localizedDescription,
-                        retryAction: { Task { await viewModel.loadNotifications() } }
-                    )
-                } else if viewModel.notifications.isEmpty {
-                    EmptyStateView(
-                        icon: "bell.fill",
-                        title: "No Notifications",
-                        message: "You're all caught up! New notifications will appear here.",
-                        actionTitle: nil,
-                        action: nil
-                    )
-                } else {
-                    List {
-                        // Pinned notifications first
-                        if !pinnedNotifications.isEmpty {
-                            Section {
-                                ForEach(pinnedNotifications) { notification in
-                                    NotificationRow(notification: notification) {
-                                        viewModel.handleNotificationTap(notification)
-                                    }
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
-                                }
+            content
+                .navigationTitle("Notifications")
+                .id("bell.notificationsList")
+                .toolbar {
+                    if !viewModel.getNotificationGroups(sdNotifications: sdNotifications).isEmpty && viewModel.unreadCount > 0 {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Mark All Read") {
+                                Task { await viewModel.markAllAsRead() }
                             }
+                            .font(.naarsBody)
+                            .id("bell.notificationsList.markAllRead")
                         }
-                        
-                        // Grouped by day
-                        ForEach(groupedNotifications.keys.sorted(by: >), id: \.self) { day in
-                            Section(header: Text(dayString(day))) {
-                                ForEach(groupedNotifications[day] ?? []) { notification in
-                                    NotificationRow(notification: notification) {
-                                        viewModel.handleNotificationTap(notification)
-                                    }
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .refreshable {
-                        await viewModel.refreshNotifications()
                     }
                 }
-            }
-            .navigationTitle("Notifications")
-            .toolbar {
-                if !viewModel.notifications.isEmpty && viewModel.unreadCount > 0 {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Mark All Read") {
-                            Task {
-                                await viewModel.markAllAsRead()
-                            }
-                        }
-                        .font(.naarsBody)
-                    }
+                .task {
+                    viewModel.setup(modelContext: modelContext)
+                    await viewModel.loadNotifications()
                 }
-            }
-            .task {
-                await viewModel.loadNotifications()
-            }
+                .navigationDestination(item: $announcementNavigationTarget) { target in
+                    AnnouncementsView(scrollToNotificationId: target.id)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .dismissNotificationsSurface)) { _ in
+                    print("🔔 [NotificationsListView] Dismissing notifications surface")
+                    NotificationCenter.default.post(name: NSNotification.Name("dismissNotificationsSheet"), object: nil)
+                }
         }
     }
     
-    // MARK: - Computed Properties
+    // MARK: - Subviews
     
-    private var pinnedNotifications: [AppNotification] {
-        viewModel.notifications.filter { $0.pinned }
-    }
-    
-    private var regularNotifications: [AppNotification] {
-        viewModel.notifications.filter { !$0.pinned }
-    }
-    
-    private var groupedNotifications: [Date: [AppNotification]] {
-        Dictionary(grouping: regularNotifications) { notification in
-            Calendar.current.startOfDay(for: notification.createdAt)
+    @ViewBuilder
+    private var content: some View {
+        let groups = viewModel.getNotificationGroups(sdNotifications: sdNotifications)
+        
+        if viewModel.isLoading && groups.isEmpty {
+            List {
+                ForEach(0..<5) { _ in
+                    SkeletonNotificationRow()
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+            }
+            .listStyle(.plain)
+        } else if let error = viewModel.error {
+            ErrorView(
+                error: error.localizedDescription,
+                retryAction: { Task { await viewModel.loadNotifications() } }
+            )
+        } else if groups.isEmpty {
+            EmptyStateView(
+                icon: "bell.fill",
+                title: "No Notifications",
+                message: "You're all caught up! New notifications will appear here.",
+                actionTitle: nil,
+                action: nil
+            )
+        } else {
+            notificationsList(groups: groups)
         }
+    }
+    
+    @ViewBuilder
+    private func notificationsList(groups: [NotificationGroup]) -> some View {
+        List {
+            let pinned = groups.filter { $0.isPinned }
+            let regular = groups.filter { !$0.isPinned }
+            let grouped = Dictionary(grouping: regular) { group in
+                Calendar.current.startOfDay(for: group.primaryNotification.createdAt)
+            }
+            
+            if !pinned.isEmpty {
+                Section {
+                    ForEach(pinned) { group in
+                        notificationRow(for: group)
+                    }
+                }
+            }
+            
+            ForEach(grouped.keys.sorted(by: >), id: \.self) { day in
+                Section(header: Text(dayString(day))) {
+                    ForEach(grouped[day] ?? []) { group in
+                        notificationRow(for: group)
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .refreshable { await viewModel.refreshNotifications() }
+    }
+    
+    @ViewBuilder
+    private func notificationRow(for group: NotificationGroup) -> some View {
+        NotificationRow(
+            notification: group.primaryNotification,
+            isReadOverride: !group.hasUnread,
+            groupCount: group.totalCount
+        ) {
+            if NotificationGrouping.announcementTypes.contains(group.primaryNotification.type) {
+                viewModel.handleAnnouncementTap(group.primaryNotification)
+                announcementNavigationTarget = .init(id: group.primaryNotification.id)
+            } else {
+                viewModel.handleNotificationTap(group.primaryNotification, group: group)
+            }
+        }
+        .id("bell.notificationsList.row(\(group.primaryNotification.id))")
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
     
     // MARK: - Helpers
@@ -120,6 +142,10 @@ struct NotificationsListView: View {
             return formatter.string(from: date)
         }
     }
+}
+
+private struct AnnouncementNavigationTarget: Identifiable, Hashable {
+    let id: UUID
 }
 
 /// Skeleton loading row for notifications

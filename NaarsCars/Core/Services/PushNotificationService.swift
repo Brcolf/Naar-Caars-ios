@@ -9,6 +9,7 @@ import Foundation
 import UserNotifications
 import UIKit
 import Supabase
+import os
 internal import Combine
 
 /// Notification action identifiers
@@ -537,6 +538,8 @@ final class PushNotificationService: NSObject, ObservableObject {
 
 extension Notification.Name {
     static let showReviewPrompt = Notification.Name("showReviewPrompt")
+    static let dismissNotificationsSurface = Notification.Name("dismissNotificationsSurface")
+    static let conversationUnreadCountsUpdated = Notification.Name("conversationUnreadCountsUpdated")
 }
 
 // MARK: - Completion Response

@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import SwiftData
+import FirebaseCore
 
 @main
 struct NaarsCarsApp: App {
@@ -18,12 +20,36 @@ struct NaarsCarsApp: App {
     /// App delegate for push notification handling
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
+    /// SwiftData container
+    let container: ModelContainer
+    
     init() {
+        // Initialize Firebase
+        FirebaseApp.configure()
+        
         // Initialize language preference on app launch
         LocalizationManager.shared.initializeLanguagePreference()
         
         // Apply saved theme preference on app launch
         ThemeManager.shared.applyThemeOnLaunch()
+        
+        // Initialize SwiftData
+        do {
+            container = try ModelContainer(for: SDConversation.self, SDMessage.self, SDRide.self, SDFavor.self, SDNotification.self)
+            
+            // Setup Sync Engines with the model context
+            let context = container.mainContext
+            MessagingRepository.shared.setup(modelContext: context)
+            NotificationRepository.shared.setup(modelContext: context)
+            DashboardSyncEngine.shared.setup(modelContext: context)
+            MessagingSyncEngine.shared.setup(modelContext: context) 
+            
+            // Start background sync
+            DashboardSyncEngine.shared.startSync()
+            MessagingSyncEngine.shared.startSync()
+        } catch {
+            fatalError("Failed to initialize SwiftData container: \(error)")
+        }
         
         // Test connection on app launch
         Task {
@@ -37,6 +63,7 @@ struct NaarsCarsApp: App {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(themeManager)
+                .modelContainer(container)
                 .task {
                     // Check authentication status on app launch
                     await appState.checkAuthStatus()

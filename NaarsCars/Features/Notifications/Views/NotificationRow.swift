@@ -10,7 +10,21 @@ import SwiftUI
 /// Notification row component for displaying individual notifications
 struct NotificationRow: View {
     let notification: AppNotification
+    let isReadOverride: Bool?
+    let groupCount: Int?
     let onTap: () -> Void
+
+    init(
+        notification: AppNotification,
+        isReadOverride: Bool? = nil,
+        groupCount: Int? = nil,
+        onTap: @escaping () -> Void
+    ) {
+        self.notification = notification
+        self.isReadOverride = isReadOverride
+        self.groupCount = groupCount
+        self.onTap = onTap
+    }
     
     var body: some View {
         Button(action: onTap) {
@@ -18,11 +32,11 @@ struct NotificationRow: View {
                 // Icon
                 Image(systemName: notification.type.icon)
                     .font(.title3)
-                    .foregroundColor(notification.read ? .secondary : .naarsPrimary)
+                    .foregroundColor(isRead ? .secondary : .naarsPrimary)
                     .frame(width: 40, height: 40)
                     .background(
                         Circle()
-                            .fill(notification.read ? Color.gray.opacity(0.1) : Color.naarsPrimary.opacity(0.1))
+                            .fill(isRead ? Color.gray.opacity(0.1) : Color.naarsPrimary.opacity(0.1))
                     )
                 
                 // Content
@@ -30,7 +44,7 @@ struct NotificationRow: View {
                     HStack {
                         Text(notification.title)
                             .font(.naarsHeadline)
-                            .foregroundColor(notification.read ? .secondary : .primary)
+                            .foregroundColor(isRead ? .secondary : .primary)
                         
                         Spacer()
                         
@@ -38,6 +52,17 @@ struct NotificationRow: View {
                             Image(systemName: "pin.fill")
                                 .font(.caption)
                                 .foregroundColor(.naarsPrimary)
+                        }
+
+                        if let groupCount, groupCount > 1 {
+                            Text("\(groupCount)")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.naarsPrimary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.naarsPrimary.opacity(0.1))
+                                .clipShape(Capsule())
                         }
                     }
                     
@@ -54,7 +79,7 @@ struct NotificationRow: View {
                 }
                 
                 // Unread indicator
-                if !notification.read {
+                if !isRead {
                     Circle()
                         .fill(Color.naarsPrimary)
                         .frame(width: 8, height: 8)
@@ -63,10 +88,14 @@ struct NotificationRow: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(notification.read ? Color(.systemBackground) : Color.naarsPrimary.opacity(0.05))
+                    .fill(isRead ? Color(.systemBackground) : Color.naarsPrimary.opacity(0.05))
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private var isRead: Bool {
+        isReadOverride ?? notification.read
     }
 }
 

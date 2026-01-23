@@ -179,7 +179,9 @@ struct LinkPreviewView: View {
     }
     
     private func openLink() {
-        UIApplication.shared.open(url)
+        Task { @MainActor in
+            await UIApplication.shared.open(url)
+        }
     }
 }
 
@@ -189,7 +191,11 @@ struct InlineLinkPreview: View {
     let isFromCurrentUser: Bool
     
     var body: some View {
-        Button(action: { UIApplication.shared.open(url) }) {
+        Button(action: {
+            Task { @MainActor in
+                await UIApplication.shared.open(url)
+            }
+        }) {
             HStack(spacing: 6) {
                 Image(systemName: "link")
                     .font(.system(size: 12))

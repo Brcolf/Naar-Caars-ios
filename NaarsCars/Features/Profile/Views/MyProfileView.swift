@@ -28,106 +28,120 @@ struct MyProfileView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    if let profile = viewModel.profile {
-                        // Header Section (with sign out)
-                        headerSection(profile: profile)
-                        
-                        // Stats Section
-                        statsSection(
-                            rating: viewModel.averageRating,
-                            reviewCount: viewModel.reviews.count,
-                            fulfilledCount: viewModel.fulfilledCount
-                        )
-                        
-                        // Admin Panel Link (below stats)
-                        if profile.isAdmin {
-                            adminPanelLink()
-                        }
-                        
-                        notificationsSection()
-                        
-                        // Invite Codes Section
-                        inviteCodesSection()
-                        
-                        // Reviews Section
-                        reviewsSection()
-                        
-                        // Past Requests Section
-                        pastRequestsSection()
-                        
-                        // Delete Account Section
-                        deleteAccountSection()
-                    } else if viewModel.isLoading {
-                        LoadingView(message: "Loading profile...")
-                    } else {
-                        // Check if we have a user ID to retry with
-                        let hasUserId = appState.currentUser?.id != nil || AuthService.shared.currentUserId != nil
-                        
-                        if hasUserId {
-                            ErrorView(
-                                error: (viewModel.error ?? AppError.unknown("Failed to load profile")).localizedDescription,
-                                retryAction: {
-                                    // Try to get user ID from appState first, fallback to AuthService
-                                    let userId: UUID?
-                                    if let appStateUserId = appState.currentUser?.id {
-                                        userId = appStateUserId
-                                    } else if let authUserId = AuthService.shared.currentUserId {
-                                        userId = authUserId
-                                        // Update appState if we found a user via AuthService
-                                        Task {
-                                            await appState.checkAuthStatus()
-                                        }
-                                    } else {
-                                        userId = nil
-                                    }
-                                    
-                                    if let userId = userId {
-                                        Task {
-                                            await viewModel.loadProfile(userId: userId)
-                                        }
-                                    }
-                                }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 24) {
+                        if let profile = viewModel.profile {
+                            // Header Section (with sign out)
+                            headerSection(profile: profile)
+                            
+                            // Stats Section
+                            statsSection(
+                                rating: viewModel.averageRating,
+                                reviewCount: viewModel.reviews.count,
+                                fulfilledCount: viewModel.fulfilledCount
                             )
+                            
+                            // Admin Panel Link (below stats)
+                            if profile.isAdmin {
+                                adminPanelLink()
+                            }
+                            
+                            notificationsSection()
+                            
+                            // Invite Codes Section
+                            inviteCodesSection()
+                            
+                            // Reviews Section
+                            reviewsSection()
+                            
+                            // Past Requests Section
+                            pastRequestsSection()
+                            
+                            // Delete Account Section
+                            deleteAccountSection()
+                        } else if viewModel.isLoading {
+                            LoadingView(message: "Loading profile...")
                         } else {
-                            VStack(spacing: 16) {
-                                Image(systemName: "person.circle")
-                                    .font(.system(size: 64))
-                                    .foregroundColor(.secondary)
-                                
-                                Text("Not Signed In")
-                                    .font(.naarsTitle2)
-                                
-                                Text("Please sign in to view your profile.")
-                                    .font(.naarsBody)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                                
-                                PrimaryButton(
-                                    title: "Retry",
-                                    action: {
-                                        Task {
-                                            await appState.checkAuthStatus()
-                                            if let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId {
+                            // Check if we have a user ID to retry with
+                            let hasUserId = appState.currentUser?.id != nil || AuthService.shared.currentUserId != nil
+                            
+                            if hasUserId {
+                                ErrorView(
+                                    error: (viewModel.error ?? AppError.unknown("Failed to load profile")).localizedDescription,
+                                    retryAction: {
+                                        // Try to get user ID from appState first, fallback to AuthService
+                                        let userId: UUID?
+                                        if let appStateUserId = appState.currentUser?.id {
+                                            userId = appStateUserId
+                                        } else if let authUserId = AuthService.shared.currentUserId {
+                                            userId = authUserId
+                                            // Update appState if we found a user via AuthService
+                                            Task {
+                                                await appState.checkAuthStatus()
+                                            }
+                                        } else {
+                                            userId = nil
+                                        }
+                                        
+                                        if let userId = userId {
+                                            Task {
                                                 await viewModel.loadProfile(userId: userId)
                                             }
                                         }
                                     }
                                 )
-                                .padding(.horizontal)
+                            } else {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "person.circle")
+                                        .font(.system(size: 64))
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Not Signed In")
+                                        .font(.naarsTitle2)
+                                    
+                                    Text("Please sign in to view your profile.")
+                                        .font(.naarsBody)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                    
+                                    PrimaryButton(
+                                        title: "Retry",
+                                        action: {
+                                            Task {
+                                                await appState.checkAuthStatus()
+                                                if let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId {
+                                                    await viewModel.loadProfile(userId: userId)
+                                                }
+                                            }
+                                        }
+                                    )
+                                    .padding(.horizontal)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
+                    .padding()
                 }
-                .padding()
+                .onChange(of: navigationCoordinator.profileScrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeInOut) {
+                        proxy.scrollTo(target, anchor: .top)
+                    }
+                    navigationCoordinator.profileScrollTarget = nil
+                }
             }
             .navigationTitle("My Profile")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 16) {
+                        BellButton {
+                            navigationCoordinator.navigateToNotifications = true
+                            print("🔔 [MyProfileView] Bell tapped")
+                        }
+
                         Button {
                             showSettings = true
                         } label: {
@@ -144,10 +158,10 @@ struct MyProfileView: View {
                 SettingsView()
                     .environmentObject(appState)
             }
-            .navigationDestination(isPresented: $navigationCoordinator.navigateToNotifications) {
-                NotificationsListView()
+            .navigationDestination(isPresented: $navigationCoordinator.navigateToPendingUsers) {
+                PendingUsersView()
                     .onDisappear {
-                        navigationCoordinator.navigateToNotifications = false
+                        navigationCoordinator.navigateToPendingUsers = false
                     }
             }
             .refreshable {
@@ -417,6 +431,7 @@ struct MyProfileView: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+        .id("profile.myProfile.reviewsSection")
     }
     
     // MARK: - Past Requests Section
