@@ -1,8 +1,0 @@
-Command line invocation:
-    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -configuration Debug build
-
-Build settings from command line:
-    SDKROOT = iphonesimulator26.2
-
-2026-01-22 23:28:46.677 xcodebuild[53605:7188532] Writing error result bundle to /var/folders/g8/9hhxfskd72j4kvg89m540jr40000gn/T/ResultBundle_2026-22-01_23-28-0046.xcresult
-xcodebuild: error: 'NaarsCars/NaarsCars.xcodeproj' does not exist.
