@@ -89,13 +89,8 @@ final class ClaimService {
             posterId: try await getPosterId(requestType: requestType, requestId: requestId),
             claimerId: claimerId
         )
-        
-        // Schedule completion reminder local notification
-        await scheduleCompletionReminderIfNeeded(
-            requestType: requestType,
-            requestId: requestId,
-            claimerId: claimerId
-        )
+
+        // Completion reminders are server-scheduled via database triggers.
         
         return conversationId
     }
@@ -167,12 +162,6 @@ final class ClaimService {
             requestType: requestType,
             requestId: requestId,
             posterId: try await getPosterId(requestType: requestType, requestId: requestId)
-        )
-        
-        // Cancel any scheduled completion reminder
-        await cancelCompletionReminderIfExists(
-            requestType: requestType,
-            requestId: requestId
         )
         
     }
@@ -313,150 +302,5 @@ final class ClaimService {
             .execute()
     }
     
-    // MARK: - Completion Reminder Helpers
-    
-    /// Schedule a local notification for completion reminder
-    /// The database trigger creates the completion_reminder record when claim happens
-    private func scheduleCompletionReminderIfNeeded(
-        requestType: String,
-        requestId: UUID,
-        claimerId: UUID
-    ) async {
-        do {
-            // Fetch the completion reminder that was created by the database trigger
-            let rideIdFilter = requestType == "ride" ? requestId.uuidString : nil
-            let favorIdFilter = requestType == "favor" ? requestId.uuidString : nil
-            
-            var query = supabase
-                .from("completion_reminders")
-                .select("id, scheduled_for")
-                .eq("claimer_user_id", value: claimerId.uuidString)
-                .eq("completed", value: false)
-            
-            if let rideId = rideIdFilter {
-                query = query.eq("ride_id", value: rideId)
-            } else if let favorId = favorIdFilter {
-                query = query.eq("favor_id", value: favorId)
-            }
-            
-            let response = try await query
-                .order("created_at", ascending: false)
-                .limit(1)
-                .single()
-                .execute()
-            
-            struct ReminderInfo: Codable {
-                let id: UUID
-                let scheduledFor: Date
-                
-                enum CodingKeys: String, CodingKey {
-                    case id
-                    case scheduledFor = "scheduled_for"
-                }
-            }
-            
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let reminder = try decoder.decode(ReminderInfo.self, from: response.data)
-            
-            // Build request title for the notification
-            let requestTitle: String
-            if requestType == "ride" {
-                // Try to get ride destination
-                let rideResponse = try? await supabase
-                    .from("rides")
-                    .select("destination_name")
-                    .eq("id", value: requestId.uuidString)
-                    .single()
-                    .execute()
-                
-                if let rideData = rideResponse?.data,
-                   let ride = try? JSONDecoder().decode([String: String?].self, from: rideData),
-                   let destination = ride["destination_name"] ?? nil {
-                    requestTitle = "ride to \(destination)"
-                } else {
-                    requestTitle = "your ride"
-                }
-            } else {
-                // Try to get favor title
-                let favorResponse = try? await supabase
-                    .from("favors")
-                    .select("title")
-                    .eq("id", value: requestId.uuidString)
-                    .single()
-                    .execute()
-                
-                if let favorData = favorResponse?.data,
-                   let favor = try? JSONDecoder().decode([String: String?].self, from: favorData),
-                   let title = favor["title"] ?? nil {
-                    requestTitle = title
-                } else {
-                    requestTitle = "your favor"
-                }
-            }
-            
-            // Schedule the local notification
-            await PushNotificationService.shared.scheduleCompletionReminder(
-                reminderId: reminder.id,
-                requestTitle: requestTitle,
-                rideId: requestType == "ride" ? requestId : nil,
-                favorId: requestType == "favor" ? requestId : nil,
-                scheduledFor: reminder.scheduledFor
-            )
-            
-            print("✅ [ClaimService] Scheduled completion reminder for \(reminder.scheduledFor)")
-        } catch {
-            print("⚠️ [ClaimService] Could not schedule completion reminder: \(error)")
-            // This is non-critical, so we don't throw
-        }
-    }
-    
-    /// Cancel any existing completion reminder for a request
-    private func cancelCompletionReminderIfExists(
-        requestType: String,
-        requestId: UUID
-    ) async {
-        do {
-            let rideIdFilter = requestType == "ride" ? requestId.uuidString : nil
-            let favorIdFilter = requestType == "favor" ? requestId.uuidString : nil
-            
-            var query = supabase
-                .from("completion_reminders")
-                .select("id")
-                .eq("completed", value: false)
-            
-            if let rideId = rideIdFilter {
-                query = query.eq("ride_id", value: rideId)
-            } else if let favorId = favorIdFilter {
-                query = query.eq("favor_id", value: favorId)
-            }
-            
-            let response = try await query.execute()
-            
-            struct ReminderId: Codable {
-                let id: UUID
-            }
-            
-            let reminders = try JSONDecoder().decode([ReminderId].self, from: response.data)
-            
-            for reminder in reminders {
-                // Cancel the local notification
-                PushNotificationService.shared.cancelCompletionReminder(reminderId: reminder.id)
-                
-                // Mark as completed in database (unclaimed means no longer needed)
-                try? await supabase
-                    .from("completion_reminders")
-                    .update(["completed": AnyCodable(true)])
-                    .eq("id", value: reminder.id.uuidString)
-                    .execute()
-            }
-            
-            if !reminders.isEmpty {
-                print("✅ [ClaimService] Cancelled \(reminders.count) completion reminder(s)")
-            }
-        } catch {
-            print("⚠️ [ClaimService] Could not cancel completion reminders: \(error)")
-        }
-    }
 }
 
