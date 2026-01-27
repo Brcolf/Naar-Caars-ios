@@ -42,6 +42,7 @@
 		45BD6598267841EF999E58AA /* Features/Rides/Views/RideDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3715109DCDE84BC59DBAD1FE /* Features/Rides/Views/RideDetailView.swift */; };
 		4779EAF6DB234F378D72E66E /* Core/Services/FavorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38092A64DA1E4019975DEE4A /* Core/Services/FavorService.swift */; };
 		498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8AF409DE784C1FBB461F50 /* Core/Services/MessageService.swift */; };
+		B4A1D20E9F3B4E2CA1B2C3D5 /* InAppToastManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D4 /* InAppToastManager.swift */; };
 		4AAA0DD304984275B1F7F158 /* MyProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FA662507801456991ABCE22 /* MyProfileView.swift */; };
 		4AEC6FC9813D460387D9E4C0 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9C1B07712F4342B2190EC3 /* Conversation.swift */; };
 		4B35515A6EE441D4B9FBA18A /* AddressText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA18F86136B84CB396BD5C56 /* AddressText.swift */; };
@@ -80,6 +81,7 @@
 		A04EE73F31C7465B9341BE10 /* Core/Utilities/DeepLinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A264E32BD8ED463AA1FC641D /* Core/Utilities/DeepLinkParser.swift */; };
 		A2F5CB38BA60445B8FFA3FF7 /* RideServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7A641489B9452EB69687FF /* RideServiceTests.swift */; };
 		A7C129D4E72D435D90261C7D /* ClaimServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFF9E7CFF1048A2835AC60F /* ClaimServiceTests.swift */; };
+		B4A1D20E9F3B4E2CA1B2C3D7 /* InAppToastManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D6 /* InAppToastManagerTests.swift */; };
 		AABD5781380A404FB7CEC993 /* UI/Components/Common/RequestQAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B46A4F46EBC4F41B44382F7 /* UI/Components/Common/RequestQAView.swift */; };
 		ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD0A9CD93A24C578046DC46 /* Core/Services/RideService.swift */; };
 		AC279FFF2F1ECE0100E3B58F /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */; };
@@ -300,6 +302,7 @@
 		137CEAA3220D4C2D9BE917E3 /* ProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTests.swift; sourceTree = "<group>"; };
 		16C93B187FE445C983773333 /* Core/Utilities/DeviceIdentifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Utilities/DeviceIdentifier.swift; sourceTree = "<group>"; };
 		1AB3D74CACF14E8585D7CE07 /* ProfileServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileServiceTests.swift; sourceTree = "<group>"; };
+		B4A1D20E9F3B4E2CA1B2C3D6 /* InAppToastManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/InAppToastManagerTests.swift; sourceTree = "<group>"; };
 		1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManagerTests.swift; sourceTree = "<group>"; };
 		1F680B715D99482B82C724D7 /* Scripts/obfuscate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scripts/obfuscate.swift; sourceTree = "<group>"; };
 		1F859B4E10E14211A4D70EFA /* MyProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyProfileViewModelTests.swift; sourceTree = "<group>"; };
@@ -395,6 +398,7 @@
 		AC305EFA2F0DB81A0063AFDF /* ClaimService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaimService.swift; sourceTree = "<group>"; };
 		AC305EFC2F0DB81A0063AFDF /* FavorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorService.swift; sourceTree = "<group>"; };
 		AC305EFD2F0DB81A0063AFDF /* MessageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageService.swift; sourceTree = "<group>"; };
+		B4A1D20E9F3B4E2CA1B2C3D4 /* InAppToastManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppToastManager.swift; sourceTree = "<group>"; };
 		AC305EFE2F0DB81A0063AFDF /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		AC305EFF2F0DB81A0063AFDF /* PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationService.swift; sourceTree = "<group>"; };
 		AC305F002F0DB81A0063AFDF /* RideService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideService.swift; sourceTree = "<group>"; };
@@ -1266,6 +1270,7 @@
 				AC305EFD2F0DB81A0063AFDF /* MessageService.swift */,
 				AC305EFE2F0DB81A0063AFDF /* NotificationService.swift */,
 				AC305EFF2F0DB81A0063AFDF /* PushNotificationService.swift */,
+				B4A1D20E9F3B4E2CA1B2C3D4 /* InAppToastManager.swift */,
 				AC305F002F0DB81A0063AFDF /* RideService.swift */,
 				ACDCBE252F0B7DAD00956D1C /* AuthService.swift */,
 				ACDCBE242F0B7D9C00956D1C /* SupabaseService.swift */,
@@ -1460,6 +1465,7 @@
 				ACDCBE162F0B799D00956D1C /* Features */,
 				ACDCBE122F0B797600956D1C /* Core */,
 				ACDCBE0F2F0B797200956D1C /* NaarsCarsTests.swift */,
+				B4A1D20E9F3B4E2CA1B2C3D6 /* InAppToastManagerTests.swift */,
 			);
 			path = NaarsCarsTests;
 			sourceTree = "<group>";
@@ -1875,6 +1881,7 @@
 				ACD19A472F14D001009C1DE5 /* RequestDeduplicator.swift in Sources */,
 				ACBF4B082F12CBAE006A7C8A /* MessagesListView.swift in Sources */,
 				498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */,
+				B4A1D20E9F3B4E2CA1B2C3D5 /* InAppToastManager.swift in Sources */,
 				9DC77EA5FFCB49719D54EB1D /* Core/Services/NotificationService.swift in Sources */,
 				AC8197BB2F14C2C1003BB08B /* LeaveReviewViewModel.swift in Sources */,
 				AC8197BC2F14C2C1003BB08B /* LeaveReviewView.swift in Sources */,
@@ -1943,6 +1950,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ACDCBE112F0B797200956D1C /* NaarsCarsTests.swift in Sources */,
+				B4A1D20E9F3B4E2CA1B2C3D7 /* InAppToastManagerTests.swift in Sources */,
 				B3BDA45A8E05444CAB1EF3A8 /* ProfileTests.swift in Sources */,
 				DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */,
 				28B926AB58164D40896CFF72 /* FavorTests.swift in Sources */,

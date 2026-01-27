@@ -22,7 +22,6 @@ struct ConversationsListView: View {
     @State private var searchText = ""
     @State private var pinnedConversations: Set<UUID> = []
     @State private var mutedConversations: Set<UUID> = []
-    @State private var toastDismissTask: Task<Void, Never>?
     
     /// Filter conversations based on search
     private var filteredConversations: [ConversationWithDetails] {
@@ -148,28 +147,6 @@ struct ConversationsListView: View {
         }
     }
     
-    @ViewBuilder
-    private var toastOverlay: some View {
-        if let toast = viewModel.latestToast {
-            Button {
-                print("🔗 [ConversationsListView] Toast tapped for \(toast.conversationId)")
-                navigationCoordinator.conversationScrollTarget = .init(
-                    conversationId: toast.conversationId,
-                    messageId: toast.messageId
-                )
-                viewModel.latestToast = nil
-                navigationCoordinator.navigate(to: .conversation(id: toast.conversationId))
-            } label: {
-                InAppMessageToastView(toast: toast)
-            }
-            .buttonStyle(.plain)
-            .id("messages.conversationsList.inAppToast")
-            .padding(.top, 8)
-            .padding(.horizontal, 16)
-            .transition(.move(edge: .top).combined(with: .opacity))
-        }
-    }
-    
     /// Sort conversations: pinned first, then by last update
     private var sortedConversations: [ConversationWithDetails] {
         filteredConversations.sorted { a, b in
@@ -188,9 +165,6 @@ struct ConversationsListView: View {
             mainContent
                 .id("messages.conversationsList")
                 .navigationTitle("Messages")
-                .overlay(alignment: .top) {
-                    toastOverlay
-                }
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {
@@ -256,22 +230,6 @@ struct ConversationsListView: View {
             .task {
                 loadSavedPreferences()
                 await viewModel.loadConversations()
-            }
-            .onAppear {
-                viewModel.setMessagesTabActive(navigationCoordinator.selectedTab == .messages)
-            }
-            .onChange(of: navigationCoordinator.selectedTab) { _, newTab in
-                viewModel.setMessagesTabActive(newTab == .messages)
-            }
-            .onChange(of: viewModel.latestToast) { _, newToast in
-                toastDismissTask?.cancel()
-                guard newToast != nil else { return }
-                toastDismissTask = Task {
-                    try? await Task.sleep(nanoseconds: 4_000_000_000)
-                    await MainActor.run {
-                        viewModel.latestToast = nil
-                    }
-                }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("conversationUpdated"))) { _ in
                 Task {

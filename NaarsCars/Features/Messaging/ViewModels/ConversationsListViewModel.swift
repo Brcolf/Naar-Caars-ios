@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import UIKit
 import SwiftUI
 internal import Combine
 
@@ -18,7 +17,6 @@ final class ConversationsListViewModel: ObservableObject {
     @Published var isLoadingMore: Bool = false
     @Published var hasMoreConversations: Bool = true
     @Published var error: AppError?
-    @Published var latestToast: InAppMessageToast?
     
     private let messageService = MessageService.shared
     private let profileService = ProfileService.shared
@@ -27,11 +25,8 @@ final class ConversationsListViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
-    private var isMessagesTabActive = false
-    private var activeConversationId: UUID?
     
     init() {
-        setupThreadVisibilityObservers()
         setupUnreadCountObservers()
         setupLocalObservation()
     }
@@ -224,71 +219,6 @@ final class ConversationsListViewModel: ObservableObject {
     }
     
     
-    func setMessagesTabActive(_ isActive: Bool) {
-        isMessagesTabActive = isActive
-        if !isActive {
-            latestToast = nil
-        }
-    }
-
-    private func setupThreadVisibilityObservers() {
-        NotificationCenter.default.publisher(for: .messageThreadDidAppear)
-            .compactMap { $0.userInfo?["conversationId"] as? UUID }
-            .sink { [weak self] conversationId in
-                self?.activeConversationId = conversationId
-                self?.latestToast = nil
-            }
-            .store(in: &cancellables)
-
-        NotificationCenter.default.publisher(for: .messageThreadDidDisappear)
-            .sink { [weak self] _ in
-                self?.activeConversationId = nil
-            }
-            .store(in: &cancellables)
-    }
-
-    private func updateToastIfNeeded(for message: Message, in conversation: ConversationWithDetails) {
-        guard UIApplication.shared.applicationState == .active else {
-            print("ℹ️ [ConversationsListVM] Toast suppressed (app not active)")
-            return
-        }
-        guard isMessagesTabActive else {
-            print("ℹ️ [ConversationsListVM] Toast suppressed (Messages tab inactive)")
-            return
-        }
-        guard activeConversationId == nil else {
-            print("ℹ️ [ConversationsListVM] Toast suppressed (thread active)")
-            return
-        }
-
-        let sender = conversation.otherParticipants.first(where: { $0.id == message.fromId })
-        let senderName = sender?.name ?? "Someone"
-        let senderAvatarUrl = sender?.avatarUrl
-
-        latestToast = InAppMessageToast(
-            id: message.id,
-            conversationId: message.conversationId,
-            messageId: message.id,
-            senderName: senderName,
-            senderAvatarUrl: senderAvatarUrl,
-            messagePreview: toastPreviewText(for: message),
-            receivedAt: Date()
-        )
-        print("✅ [ConversationsListVM] Showing in-app toast for \(message.conversationId)")
-    }
-
-    private func toastPreviewText(for message: Message) -> String {
-        if message.isAudioMessage {
-            return "Voice message"
-        }
-        if message.isLocationMessage {
-            return message.locationName ?? "Shared location"
-        }
-        if message.imageUrl != nil && message.text.isEmpty {
-            return "Photo"
-        }
-        return message.text
-    }
     
     // MARK: - Debug Support
     
@@ -321,18 +251,4 @@ final class ConversationsListViewModel: ObservableObject {
     }
 }
 
-struct InAppMessageToast: Identifiable, Equatable {
-    let id: UUID
-    let conversationId: UUID
-    let messageId: UUID
-    let senderName: String
-    let senderAvatarUrl: String?
-    let messagePreview: String
-    let receivedAt: Date
-}
-
-extension Notification.Name {
-    static let messageThreadDidAppear = Notification.Name("messageThreadDidAppear")
-    static let messageThreadDidDisappear = Notification.Name("messageThreadDidDisappear")
-}
 

@@ -13,9 +13,31 @@ struct MainTabView: View {
     @StateObject private var badgeManager = BadgeCountManager.shared
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var reviewPromptManager = ReviewPromptManager.shared
+    @ObservedObject private var toastManager = InAppToastManager.shared
     @EnvironmentObject var appState: AppState
     @State private var selectedTab = 0
     @State private var showGuidelinesAcceptance = false
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let toast = toastManager.latestToast {
+            Button {
+                navigationCoordinator.conversationScrollTarget = .init(
+                    conversationId: toast.conversationId,
+                    messageId: toast.messageId
+                )
+                toastManager.latestToast = nil
+                navigationCoordinator.navigate(to: .conversation(id: toast.conversationId))
+            } label: {
+                InAppMessageToastView(toast: toast)
+            }
+            .buttonStyle(.plain)
+            .id("app.toast.inAppMessage")
+            .padding(.top, 8)
+            .padding(.horizontal, 16)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -90,6 +112,9 @@ struct MainTabView: View {
             await badgeManager.refreshAllBadges()
             // Check for review prompts
             await reviewPromptManager.checkForPendingPrompts()
+        }
+        .overlay(alignment: .top) {
+            toastOverlay
         }
         .sheet(isPresented: $navigationCoordinator.navigateToNotifications, onDismiss: {
             navigationCoordinator.navigateToNotifications = false
