@@ -37,8 +37,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     
     private func registerBackgroundTasks() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.naarscars.app.refresh", using: nil) { task in
-            self.handleAppRefresh(task: task as! BGAppRefreshTask)
+            guard let refreshTask = Self.appRefreshTask(from: task) else {
+                print("🔴 [AppDelegate] Expected BGAppRefreshTask, received \(type(of: task))")
+                task.setTaskCompleted(success: false)
+                return
+            }
+            self.handleAppRefresh(task: refreshTask)
         }
+    }
+
+    static func appRefreshTask(from task: Any) -> BGAppRefreshTask? {
+        task as? BGAppRefreshTask
     }
     
     private func handleAppRefresh(task: BGAppRefreshTask) {
@@ -122,6 +131,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
+        let notificationType = userInfo["type"] as? String
         PushNotificationService.shared.recordLastPushPayload(userInfo)
         
         // Handle actionable responses (Yes/No) without opening the app
@@ -140,8 +150,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Mark the specific notification as read when tapped (if available)
         if let notificationIdString = userInfo["notification_id"] as? String,
            let notificationId = UUID(uuidString: notificationIdString) {
-            let type = userInfo["type"] as? String
-            if type != "review_request" && type != "review_reminder" {
+            if notificationType != "review_request" && notificationType != "review_reminder" {
                 Task { @MainActor in
                     try? await NotificationService.shared.markAsRead(notificationId: notificationId)
                 }
@@ -149,7 +158,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
         
         // Review requests should open the review modal directly
-        if let type = userInfo["type"] as? String, type == "review_request" {
+        if Self.shouldShowReviewPrompt(for: notificationType) {
             postReviewPrompt(from: userInfo)
         }
 
@@ -363,6 +372,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 userInfo: ["favorId": favorId]
             )
         }
+    }
+
+    static func shouldShowReviewPrompt(for notificationType: String?) -> Bool {
+        guard let notificationType else {
+            return false
+        }
+        return notificationType == "review_request" || notificationType == "review_reminder"
     }
 }
 
