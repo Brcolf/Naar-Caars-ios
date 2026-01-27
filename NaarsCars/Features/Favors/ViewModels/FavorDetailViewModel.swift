@@ -59,6 +59,10 @@ final class FavorDetailViewModel: ObservableObject {
     /// Post a question on this favor
     /// - Parameter question: Question text
     func postQuestion(_ question: String) async {
+        guard canAskQuestions else {
+            error = "Questions are disabled after a request is claimed"
+            return
+        }
         guard let favorId = favor?.id,
               let userId = authService.currentUserId else {
             error = "Not authenticated"
@@ -109,6 +113,12 @@ final class FavorDetailViewModel: ObservableObject {
     /// Check if current user can edit/delete (poster or participant)
     var canEdit: Bool {
         return isPoster || isParticipant
+    }
+
+    /// Whether Q&A submissions are allowed for this favor
+    var canAskQuestions: Bool {
+        guard let favor = favor else { return false }
+        return favor.claimedBy == nil
     }
 }
 

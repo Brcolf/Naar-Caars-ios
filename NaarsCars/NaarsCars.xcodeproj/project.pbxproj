@@ -82,6 +82,7 @@
 		A2F5CB38BA60445B8FFA3FF7 /* RideServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7A641489B9452EB69687FF /* RideServiceTests.swift */; };
 		A7C129D4E72D435D90261C7D /* ClaimServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFF9E7CFF1048A2835AC60F /* ClaimServiceTests.swift */; };
 		B4A1D20E9F3B4E2CA1B2C3D7 /* InAppToastManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D6 /* InAppToastManagerTests.swift */; };
+		B4A1D20E9F3B4E2CA1B2C3D9 /* FavorDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D8 /* FavorDetailViewModelTests.swift */; };
 		AABD5781380A404FB7CEC993 /* UI/Components/Common/RequestQAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B46A4F46EBC4F41B44382F7 /* UI/Components/Common/RequestQAView.swift */; };
 		ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD0A9CD93A24C578046DC46 /* Core/Services/RideService.swift */; };
 		AC279FFF2F1ECE0100E3B58F /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC279FFE2F1ECE0000E3B58F /* AppTheme.swift */; };
@@ -303,6 +304,7 @@
 		16C93B187FE445C983773333 /* Core/Utilities/DeviceIdentifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Utilities/DeviceIdentifier.swift; sourceTree = "<group>"; };
 		1AB3D74CACF14E8585D7CE07 /* ProfileServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileServiceTests.swift; sourceTree = "<group>"; };
 		B4A1D20E9F3B4E2CA1B2C3D6 /* InAppToastManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/InAppToastManagerTests.swift; sourceTree = "<group>"; };
+		B4A1D20E9F3B4E2CA1B2C3D8 /* FavorDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Favors/FavorDetailViewModelTests.swift; sourceTree = "<group>"; };
 		1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManagerTests.swift; sourceTree = "<group>"; };
 		1F680B715D99482B82C724D7 /* Scripts/obfuscate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scripts/obfuscate.swift; sourceTree = "<group>"; };
 		1F859B4E10E14211A4D70EFA /* MyProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyProfileViewModelTests.swift; sourceTree = "<group>"; };
@@ -1466,6 +1468,7 @@
 				ACDCBE122F0B797600956D1C /* Core */,
 				ACDCBE0F2F0B797200956D1C /* NaarsCarsTests.swift */,
 				B4A1D20E9F3B4E2CA1B2C3D6 /* InAppToastManagerTests.swift */,
+				B4A1D20E9F3B4E2CA1B2C3D8 /* FavorDetailViewModelTests.swift */,
 			);
 			path = NaarsCarsTests;
 			sourceTree = "<group>";
@@ -1951,6 +1954,7 @@
 			files = (
 				ACDCBE112F0B797200956D1C /* NaarsCarsTests.swift in Sources */,
 				B4A1D20E9F3B4E2CA1B2C3D7 /* InAppToastManagerTests.swift in Sources */,
+				B4A1D20E9F3B4E2CA1B2C3D9 /* FavorDetailViewModelTests.swift in Sources */,
 				B3BDA45A8E05444CAB1EF3A8 /* ProfileTests.swift in Sources */,
 				DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */,
 				28B926AB58164D40896CFF72 /* FavorTests.swift in Sources */,

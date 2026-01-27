@@ -407,6 +407,10 @@ struct FavorDetailView: View {
                 requestType: "favor",
                 onPostQuestion: { question in
                     await viewModel.postQuestion(question)
+                },
+                isClaimed: favor.claimedBy != nil,
+                onMessageParticipants: favor.claimedBy == nil ? nil : {
+                    Task { await openOrCreateConversation(favor: favor) }
                 }
             )
             .id(RequestDetailAnchor.qaSection.anchorId(for: .favor))
@@ -417,11 +421,6 @@ struct FavorDetailView: View {
                 .id(RequestDetailAnchor.claimAction.anchorId(for: .favor))
                 .requestHighlight(highlightedAnchor == .claimAction)
                 .onAppear { handleSectionAppeared(.claimAction) }
-            
-            if favor.claimedBy != nil && favor.status != .open {
-                messageAllParticipantsButton(favor: favor)
-                    .accessibilityIdentifier("favor.messageAllParticipants")
-            }
             
             if viewModel.canEdit {
                 addParticipantsButton(favor: favor)
@@ -514,25 +513,6 @@ struct FavorDetailView: View {
             if updated > 0 {
                 await BadgeCountManager.shared.refreshAllBadges(reason: "requestSectionViewed")
             }
-        }
-    }
-    
-    @ViewBuilder
-    private func messageAllParticipantsButton(favor: Favor) -> some View {
-        Button {
-            Task { await openOrCreateConversation(favor: favor) }
-        } label: {
-            HStack {
-                Image(systemName: "message.fill")
-                Text("Message All Participants")
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color.naarsPrimary)
-            .foregroundColor(.white)
-            .cornerRadius(12)
         }
     }
     

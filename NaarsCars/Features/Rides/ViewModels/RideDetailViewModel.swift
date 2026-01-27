@@ -58,6 +58,10 @@ final class RideDetailViewModel: ObservableObject {
     /// Post a question on this ride
     /// - Parameter question: Question text
     func postQuestion(_ question: String) async {
+        guard canAskQuestions else {
+            error = "Questions are disabled after a request is claimed"
+            return
+        }
         guard let rideId = ride?.id,
               let userId = authService.currentUserId else {
             error = "Not authenticated"
@@ -108,6 +112,12 @@ final class RideDetailViewModel: ObservableObject {
     /// Check if current user can edit/delete (poster or participant)
     var canEdit: Bool {
         return isPoster || isParticipant
+    }
+
+    /// Whether Q&A submissions are allowed for this ride
+    var canAskQuestions: Bool {
+        guard let ride = ride else { return false }
+        return ride.claimedBy == nil
     }
 }
 

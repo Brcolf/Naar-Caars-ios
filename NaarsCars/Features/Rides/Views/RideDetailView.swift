@@ -456,6 +456,10 @@ struct RideDetailView: View {
                 requestType: "ride",
                 onPostQuestion: { question in
                     await viewModel.postQuestion(question)
+                },
+                isClaimed: ride.claimedBy != nil,
+                onMessageParticipants: ride.claimedBy == nil ? nil : {
+                    Task { await openOrCreateConversation(ride: ride) }
                 }
             )
             .id(RequestDetailAnchor.qaSection.anchorId(for: .ride))
@@ -466,11 +470,6 @@ struct RideDetailView: View {
                 .id(RequestDetailAnchor.claimAction.anchorId(for: .ride))
                 .requestHighlight(highlightedAnchor == .claimAction)
                 .onAppear { handleSectionAppeared(.claimAction) }
-            
-            if ride.claimedBy != nil && ride.status != .open {
-                messageAllParticipantsButton(ride: ride)
-                    .accessibilityIdentifier("ride.messageAllParticipants")
-            }
             
             if viewModel.canEdit {
                 addParticipantsButton(ride: ride)
@@ -563,25 +562,6 @@ struct RideDetailView: View {
             if updated > 0 {
                 await BadgeCountManager.shared.refreshAllBadges(reason: "requestSectionViewed")
             }
-        }
-    }
-    
-    @ViewBuilder
-    private func messageAllParticipantsButton(ride: Ride) -> some View {
-        Button {
-            Task { await openOrCreateConversation(ride: ride) }
-        } label: {
-            HStack {
-                Image(systemName: "message.fill")
-                Text("Message All Participants")
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color.naarsPrimary)
-            .foregroundColor(.white)
-            .cornerRadius(12)
         }
     }
     

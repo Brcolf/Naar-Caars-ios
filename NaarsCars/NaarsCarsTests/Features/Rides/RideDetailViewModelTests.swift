@@ -51,6 +51,38 @@ final class RideDetailViewModelTests: XCTestCase {
         // In a real scenario, you'd verify the question was added to qaItems
         XCTAssertTrue(true, "Post question attempted (expected behavior)")
     }
+
+    func testCanAskQuestions_WhenUnclaimed() {
+        let testRide = Ride(
+            userId: UUID(),
+            date: Date(),
+            time: "14:00:00",
+            pickup: "Test Pickup",
+            destination: "Test Destination",
+            seats: 1,
+            status: .open,
+            claimedBy: nil
+        )
+        viewModel.ride = testRide
+
+        XCTAssertTrue(viewModel.canAskQuestions, "Should allow Q&A when ride is unclaimed")
+    }
+
+    func testCanAskQuestions_WhenClaimed() {
+        let testRide = Ride(
+            userId: UUID(),
+            date: Date(),
+            time: "14:00:00",
+            pickup: "Test Pickup",
+            destination: "Test Destination",
+            seats: 1,
+            status: .confirmed,
+            claimedBy: UUID()
+        )
+        viewModel.ride = testRide
+
+        XCTAssertFalse(viewModel.canAskQuestions, "Should not allow Q&A when ride is claimed")
+    }
 }
 
 

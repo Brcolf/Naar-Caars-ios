@@ -13,6 +13,8 @@ struct RequestQAView: View {
     let requestId: UUID
     let requestType: String
     let onPostQuestion: (String) async -> Void
+    let isClaimed: Bool
+    let onMessageParticipants: (() -> Void)?
     
     @State private var newQuestion: String = ""
     @State private var isPosting: Bool = false
@@ -75,23 +77,39 @@ struct RequestQAView: View {
                 }
             }
             
-            // Post question form
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Ask a Question")
-                    .font(.naarsHeadline)
-                
-                TextField("Type your question...", text: $newQuestion, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(2...4)
-                
-                PrimaryButton(title: "Post Question", action: {
-                    Task {
-                        isPosting = true
-                        await onPostQuestion(newQuestion)
-                        newQuestion = ""
-                        isPosting = false
-                    }
-                }, isLoading: isPosting, isDisabled: newQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if isClaimed {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This request has been claimed. Please message participants for follow-up questions.")
+                        .font(.naarsBody)
+                        .foregroundColor(.secondary)
+
+                    PrimaryButton(
+                        title: "Message Participants",
+                        action: {
+                            onMessageParticipants?()
+                        },
+                        isDisabled: onMessageParticipants == nil
+                    )
+                }
+            } else {
+                // Post question form
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ask a Question")
+                        .font(.naarsHeadline)
+                    
+                    TextField("Type your question...", text: $newQuestion, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                    
+                    PrimaryButton(title: "Post Question", action: {
+                        Task {
+                            isPosting = true
+                            await onPostQuestion(newQuestion)
+                            newQuestion = ""
+                            isPosting = false
+                        }
+                    }, isLoading: isPosting, isDisabled: newQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
         }
         .cardStyle()
@@ -113,7 +131,9 @@ struct RequestQAView: View {
         ],
         requestId: UUID(),
         requestType: "ride",
-        onPostQuestion: { _ in }
+        onPostQuestion: { _ in },
+        isClaimed: false,
+        onMessageParticipants: nil
     )
     .padding()
 }
