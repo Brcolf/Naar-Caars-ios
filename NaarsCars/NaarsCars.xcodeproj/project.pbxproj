@@ -141,6 +141,8 @@
 		AC4F1E1A2F23340500CC5DBA /* SDModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E172F23340500CC5DBA /* SDModels.swift */; };
 		AC4F1E1B2F23340500CC5DBA /* MessagingSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E162F23340500CC5DBA /* MessagingSyncEngine.swift */; };
 		AC4F1E1C2F23340500CC5DBA /* MessagingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E152F23340500CC5DBA /* MessagingRepository.swift */; };
+		E1A3B5C92F7A9A1E00A1B2C3 /* TownHallRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */; };
+		E1A3B5CA2F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */; };
 		AC4F1E1E2F23495600CC5DBA /* DashboardSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E1D2F23495600CC5DBA /* DashboardSyncEngine.swift */; };
 		AC4F1E202F23497B00CC5DBA /* PersistentImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E1F2F23497B00CC5DBA /* PersistentImageService.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
@@ -442,6 +444,8 @@
 		AC4F1E152F23340500CC5DBA /* MessagingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingRepository.swift; sourceTree = "<group>"; };
 		AC4F1E162F23340500CC5DBA /* MessagingSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingSyncEngine.swift; sourceTree = "<group>"; };
 		AC4F1E172F23340500CC5DBA /* SDModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDModels.swift; sourceTree = "<group>"; };
+		E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallRepository.swift; sourceTree = "<group>"; };
+		E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallSyncEngine.swift; sourceTree = "<group>"; };
 		AC4F1E1D2F23495600CC5DBA /* DashboardSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSyncEngine.swift; sourceTree = "<group>"; };
 		AC4F1E1F2F23497B00CC5DBA /* PersistentImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentImageService.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
@@ -911,6 +915,8 @@
 				AC4F1E142F23340500CC5DBA /* MessagingMapper.swift */,
 				AC4F1E152F23340500CC5DBA /* MessagingRepository.swift */,
 				AC4F1E162F23340500CC5DBA /* MessagingSyncEngine.swift */,
+				E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */,
+				E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */,
 				AC4F1E172F23340500CC5DBA /* SDModels.swift */,
 			);
 			path = Storage;
@@ -1915,6 +1921,8 @@
 				AC4F1E1A2F23340500CC5DBA /* SDModels.swift in Sources */,
 				AC4F1E1B2F23340500CC5DBA /* MessagingSyncEngine.swift in Sources */,
 				AC4F1E1C2F23340500CC5DBA /* MessagingRepository.swift in Sources */,
+				E1A3B5C92F7A9A1E00A1B2C3 /* TownHallRepository.swift in Sources */,
+				E1A3B5CA2F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift in Sources */,
 				AC35AB522F0F01B70012096B /* UnclaimSheet.swift in Sources */,
 				AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */,
 				AC8197A52F14C216003BB08B /* TimePickerView.swift in Sources */,

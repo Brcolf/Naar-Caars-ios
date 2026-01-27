@@ -330,11 +330,26 @@ final class PostCommentsViewModel: ObservableObject {
     @Published var error: String?
     
     let postId: UUID
-    private let commentService = TownHallCommentService.shared
+    private let commentService: TownHallCommentService
+    private let voteService: TownHallVoteService
+    private let repository: TownHallRepository
     private let authService = AuthService.shared
+    private var commentsCancellable: AnyCancellable?
+    private var voteCancellable: AnyCancellable?
+    private var commentVoteCache: [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] = [:]
     
-    init(postId: UUID) {
+    init(
+        postId: UUID,
+        repository: TownHallRepository = .shared,
+        commentService: TownHallCommentService = .shared,
+        voteService: TownHallVoteService = .shared
+    ) {
         self.postId = postId
+        self.repository = repository
+        self.commentService = commentService
+        self.voteService = voteService
+        bindComments()
+        bindVoteNotifications()
     }
     
     var topLevelComments: [TownHallComment] {
@@ -342,12 +357,25 @@ final class PostCommentsViewModel: ObservableObject {
     }
     
     func loadComments(for postId: UUID) async {
-        isLoading = true
         error = nil
+        let localComments = (try? repository.getComments(postId: postId)) ?? []
+        if !localComments.isEmpty {
+            isLoading = false
+            comments = applyVoteCache(to: localComments)
+            Task {
+                await refreshFromNetwork(showLoading: false)
+            }
+            return
+        }
+
+        isLoading = true
         defer { isLoading = false }
-        
+
         do {
-            comments = try await commentService.fetchComments(for: postId)
+            let fetched = try await commentService.fetchComments(for: postId)
+            updateVoteCache(with: fetched)
+            comments = applyVoteCache(to: fetched)
+            try repository.upsertComments(fetched)
         } catch {
             self.error = error.localizedDescription
             print("🔴 Error loading comments: \(error.localizedDescription)")
@@ -371,8 +399,7 @@ final class PostCommentsViewModel: ObservableObject {
                 userId: userId,
                 content: content
             )
-            // Reload comments to get nested structure
-            await loadComments(for: postId)
+            await refreshFromNetwork(showLoading: false)
         } catch {
             self.error = error.localizedDescription
             print("🔴 Error adding comment: \(error.localizedDescription)")
@@ -391,8 +418,7 @@ final class PostCommentsViewModel: ObservableObject {
                 userId: userId,
                 content: content
             )
-            // Reload comments to get nested structure
-            await loadComments(for: postId)
+            await refreshFromNetwork(showLoading: false)
         } catch {
             self.error = error.localizedDescription
             print("🔴 Error adding reply: \(error.localizedDescription)")
@@ -407,8 +433,7 @@ final class PostCommentsViewModel: ObservableObject {
         
         do {
             try await commentService.voteComment(commentId: commentId, userId: userId, voteType: voteType)
-            // Reload comments to get updated vote counts
-            await loadComments(for: postId)
+            await refreshVoteCounts(for: [commentId])
         } catch {
             self.error = error.localizedDescription
             print("🔴 Error voting on comment: \(error.localizedDescription)")
@@ -423,8 +448,7 @@ final class PostCommentsViewModel: ObservableObject {
         
         do {
             try await commentService.deleteComment(commentId: commentId, userId: userId)
-            // Reload comments
-            await loadComments(for: postId)
+            await refreshFromNetwork(showLoading: false)
         } catch {
             self.error = error.localizedDescription
             print("🔴 Error deleting comment: \(error.localizedDescription)")
@@ -444,6 +468,86 @@ final class PostCommentsViewModel: ObservableObject {
             return nil
         }
         return search(in: comments)
+    }
+
+    private func bindComments() {
+        commentsCancellable = repository.getCommentsPublisher(postId: postId)
+            .sink { [weak self] comments in
+                guard let self else { return }
+                self.comments = self.applyVoteCache(to: comments)
+            }
+    }
+
+    private func bindVoteNotifications() {
+        voteCancellable = NotificationCenter.default.publisher(for: .townHallCommentVotesDidChange)
+            .compactMap { $0.object as? UUID }
+            .sink { [weak self] commentId in
+                Task { @MainActor in
+                    await self?.refreshVoteCounts(for: [commentId])
+                }
+            }
+    }
+
+    private func refreshFromNetwork(showLoading: Bool) async {
+        if showLoading {
+            isLoading = true
+            defer { isLoading = false }
+        }
+
+        do {
+            let fetched = try await commentService.fetchComments(for: postId)
+            updateVoteCache(with: fetched)
+            comments = applyVoteCache(to: fetched)
+            try repository.upsertComments(fetched)
+        } catch {
+            self.error = error.localizedDescription
+            print("🔴 Error refreshing comments: \(error.localizedDescription)")
+        }
+    }
+
+    private func refreshVoteCounts(for commentIds: [UUID]) async {
+        guard !commentIds.isEmpty else { return }
+        let counts = await voteService.fetchCommentVoteCounts(
+            commentIds: commentIds,
+            userId: authService.currentUserId
+        )
+        for (commentId, data) in counts {
+            commentVoteCache[commentId] = (data.upvotes, data.downvotes, data.userVote)
+        }
+        comments = applyVoteCache(to: comments)
+    }
+
+    private func updateVoteCache(with comments: [TownHallComment]) {
+        for comment in flattenComments(comments) {
+            commentVoteCache[comment.id] = (comment.upvotes, comment.downvotes, comment.userVote)
+        }
+    }
+
+    private func applyVoteCache(to comments: [TownHallComment]) -> [TownHallComment] {
+        comments.map { comment in
+            var updated = comment
+            if let cached = commentVoteCache[comment.id] {
+                updated.upvotes = cached.upvotes
+                updated.downvotes = cached.downvotes
+                updated.userVote = cached.userVote
+            }
+            if let replies = updated.replies {
+                updated.replies = applyVoteCache(to: replies)
+            }
+            return updated
+        }
+    }
+
+    private func flattenComments(_ comments: [TownHallComment]) -> [TownHallComment] {
+        var output: [TownHallComment] = []
+        func walk(_ comment: TownHallComment) {
+            output.append(comment)
+            if let replies = comment.replies {
+                replies.forEach(walk)
+            }
+        }
+        comments.forEach(walk)
+        return output
     }
 }
 

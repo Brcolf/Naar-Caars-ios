@@ -35,7 +35,15 @@ struct NaarsCarsApp: App {
         
         // Initialize SwiftData
         do {
-            container = try ModelContainer(for: SDConversation.self, SDMessage.self, SDRide.self, SDFavor.self, SDNotification.self)
+            container = try ModelContainer(
+                for: SDConversation.self,
+                SDMessage.self,
+                SDRide.self,
+                SDFavor.self,
+                SDNotification.self,
+                SDTownHallPost.self,
+                SDTownHallComment.self
+            )
             
             // Setup Sync Engines with the model context
             let context = container.mainContext
@@ -43,10 +51,13 @@ struct NaarsCarsApp: App {
             NotificationRepository.shared.setup(modelContext: context)
             DashboardSyncEngine.shared.setup(modelContext: context)
             MessagingSyncEngine.shared.setup(modelContext: context) 
+            TownHallRepository.shared.setup(modelContext: context)
+            TownHallSyncEngine.shared.setup(modelContext: context)
             
             // Start background sync
             DashboardSyncEngine.shared.startSync()
             MessagingSyncEngine.shared.startSync()
+            TownHallSyncEngine.shared.startSync()
         } catch {
             fatalError("Failed to initialize SwiftData container: \(error)")
         }

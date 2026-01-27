@@ -225,5 +225,57 @@ final class TownHallVoteService {
         
         return counts
     }
+
+    /// Fetch vote counts for comments
+    /// - Parameter commentIds: Array of comment IDs
+    /// - Returns: Dictionary mapping comment ID to (upvotes, downvotes, userVote)
+    func fetchCommentVoteCounts(commentIds: [UUID], userId: UUID?) async -> [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] {
+        guard !commentIds.isEmpty else { return [:] }
+
+        let response = try? await supabase
+            .from("town_hall_votes")
+            .select("comment_id, vote_type, user_id")
+            .in("comment_id", values: commentIds.map { $0.uuidString })
+            .execute()
+
+        guard let data = response?.data else { return [:] }
+
+        struct VoteRecord: Codable {
+            let commentId: UUID
+            let voteType: String
+            let userId: UUID
+
+            enum CodingKeys: String, CodingKey {
+                case commentId = "comment_id"
+                case voteType = "vote_type"
+                case userId = "user_id"
+            }
+        }
+
+        let votes = (try? JSONDecoder().decode([VoteRecord].self, from: data)) ?? []
+
+        var counts: [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] = [:]
+
+        for commentId in commentIds {
+            counts[commentId] = (0, 0, nil)
+        }
+
+        for vote in votes {
+            var current = counts[vote.commentId] ?? (0, 0, nil)
+            if vote.voteType == "upvote" {
+                current.0 += 1
+            } else if vote.voteType == "downvote" {
+                current.1 += 1
+            }
+
+            if let userId = userId, vote.userId == userId {
+                current.2 = VoteType(rawValue: vote.voteType)
+            }
+
+            counts[vote.commentId] = current
+        }
+
+        return counts
+    }
 }
 
