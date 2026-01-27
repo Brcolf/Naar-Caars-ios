@@ -245,3 +245,93 @@ final class SDNotification {
         self.sourceUserId = sourceUserId
     }
 }
+
+// MARK: - Town Hall Models
+
+@Model
+final class SDTownHallPost {
+    @Attribute(.unique) var id: UUID
+    var userId: UUID
+    var title: String?
+    var content: String
+    var imageUrl: String?
+    var pinned: Bool
+    var type: String?
+    var reviewId: UUID?
+    var createdAt: Date
+    var updatedAt: Date
+
+    // Cached author snapshot
+    var authorName: String?
+    var authorAvatarUrl: String?
+
+    // Cached aggregates
+    var commentCount: Int
+
+    init(
+        id: UUID,
+        userId: UUID,
+        title: String? = nil,
+        content: String,
+        imageUrl: String? = nil,
+        pinned: Bool = false,
+        type: String? = nil,
+        reviewId: UUID? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        authorName: String? = nil,
+        authorAvatarUrl: String? = nil,
+        commentCount: Int = 0
+    ) {
+        self.id = id
+        self.userId = userId
+        self.title = title
+        self.content = content
+        self.imageUrl = imageUrl
+        self.pinned = pinned
+        self.type = type
+        self.reviewId = reviewId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.authorName = authorName
+        self.authorAvatarUrl = authorAvatarUrl
+        self.commentCount = commentCount
+    }
+}
+
+@Model
+final class SDTownHallComment {
+    @Attribute(.unique) var id: UUID
+    var postId: UUID
+    var userId: UUID
+    var parentCommentId: UUID?
+    var content: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    // Cached author snapshot
+    var authorName: String?
+    var authorAvatarUrl: String?
+
+    init(
+        id: UUID,
+        postId: UUID,
+        userId: UUID,
+        parentCommentId: UUID? = nil,
+        content: String,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        authorName: String? = nil,
+        authorAvatarUrl: String? = nil
+    ) {
+        self.id = id
+        self.postId = postId
+        self.userId = userId
+        self.parentCommentId = parentCommentId
+        self.content = content
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.authorName = authorName
+        self.authorAvatarUrl = authorAvatarUrl
+    }
+}

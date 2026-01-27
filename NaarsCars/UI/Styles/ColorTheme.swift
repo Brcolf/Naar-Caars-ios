@@ -230,6 +230,7 @@ extension UIColor {
 }
 
 // MARK: - Color Hex Extension (kept for compatibility)
+
 extension Color {
     /// Initialize a Color from a hex string
     /// - Parameter hex: Hex color string (e.g., "B5634B" or "#B5634B")
