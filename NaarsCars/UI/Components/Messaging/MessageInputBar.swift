@@ -109,6 +109,8 @@ struct MessageInputBar: View {
                             onSend()
                         }
                     }
+                    .accessibilityIdentifier("message.input")
+                    .accessibilityLabel("Message input field")
                 
                 Button(action: onSend) {
                     Image(systemName: "arrow.up.circle.fill")
@@ -116,6 +118,7 @@ struct MessageInputBar: View {
                         .foregroundColor(isDisabled ? .gray : .naarsPrimary)
                 }
                 .disabled(isDisabled)
+                .accessibilityIdentifier("message.send")
             }
             .padding()
         }

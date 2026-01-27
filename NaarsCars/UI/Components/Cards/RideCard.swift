@@ -137,6 +137,8 @@ struct RideCard: View {
         )
         .cornerRadius(12)
         .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Ride from \(ride.pickup) to \(ride.destination)")
     }
 }
 

@@ -38,3 +38,4 @@ struct SkeletonFavorCard: View {
     .padding()
 }
 
+

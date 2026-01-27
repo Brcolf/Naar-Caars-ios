@@ -33,7 +33,8 @@ struct CreateRideView: View {
                         label: "",
                         placeholder: "Pickup Location",
                         text: $viewModel.pickup,
-                        icon: "location.circle.fill"
+                        icon: "location.circle.fill",
+                        accessibilityId: "createRide.pickup"
                     ) { details in
                         // Optional: Store coordinates for future map integration
                         // viewModel.pickupCoordinate = details.coordinate
@@ -43,7 +44,8 @@ struct CreateRideView: View {
                         label: "",
                         placeholder: "Destination",
                         text: $viewModel.destination,
-                        icon: "mappin.circle.fill"
+                        icon: "mappin.circle.fill",
+                        accessibilityId: "createRide.destination"
                     ) { details in
                         // Optional: Store coordinates for future map integration
                         // viewModel.destinationCoordinate = details.coordinate
@@ -55,8 +57,10 @@ struct CreateRideView: View {
                     
                     TextField("Notes (optional)", text: $viewModel.notes, axis: .vertical)
                         .lineLimit(3...6)
+                        .accessibilityIdentifier("createRide.notes")
                     
                     TextField("Gift/Compensation (optional)", text: $viewModel.gift)
+                        .accessibilityIdentifier("createRide.gift")
                 }
                 
                 Section("Participants (Optional)") {
@@ -69,6 +73,7 @@ struct CreateRideView: View {
                             Image(systemName: "chevron.right")
                         }
                     }
+                    .accessibilityIdentifier("createRide.participants")
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
                         Text("Maximum 5 participants")
@@ -85,6 +90,7 @@ struct CreateRideView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Create Ride Request")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -92,6 +98,7 @@ struct CreateRideView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("createRide.cancel")
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
@@ -112,6 +119,7 @@ struct CreateRideView: View {
                         }
                     }
                     .disabled(viewModel.isLoading)
+                    .accessibilityIdentifier("createRide.post")
                 }
             }
             .sheet(isPresented: $showAddParticipants) {

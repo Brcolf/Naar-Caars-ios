@@ -218,3 +218,4 @@ user is participant before showing messages.';
 -- Test with: SELECT * FROM conversations; (should only show user's created conversations)
 -- Application code in MessageService handles additional filtering
 
+

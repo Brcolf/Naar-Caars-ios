@@ -199,3 +199,4 @@ Database Migration: 069_fix_profiles_rls_for_messaging.sql"
 
 **All fixes are complete!** Clean build, run, and test. Everything should work now. 🎉
 
+

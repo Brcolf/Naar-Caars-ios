@@ -97,3 +97,4 @@ COMMENT ON FUNCTION create_signup_profile IS
 'Creates or updates a profile during signup. Uses SECURITY DEFINER to bypass RLS.
 Handles both new signups and re-signups after rejection.';
 
+

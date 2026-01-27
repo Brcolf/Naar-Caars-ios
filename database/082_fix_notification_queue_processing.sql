@@ -222,3 +222,4 @@ COMMENT ON FUNCTION process_immediate_notification IS 'Trigger function that mar
 COMMENT ON FUNCTION send_push_notification_direct IS 'Sends a push notification directly, bypassing the queue for immediate delivery';
 COMMENT ON FUNCTION notify_message_push IS 'Updated to use direct push notification for immediate message delivery';
 
+

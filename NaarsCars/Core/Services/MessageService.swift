@@ -22,7 +22,6 @@ final class MessageService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     private let rateLimiter = RateLimiter.shared
     
     // MARK: - Initialization
@@ -39,15 +38,13 @@ final class MessageService {
     /// - Returns: Array of conversations with details
     /// - Throws: AppError if fetch fails
     func fetchConversations(userId: UUID, limit: Int = 10, offset: Int = 0) async throws -> [ConversationWithDetails] {
-        // Check cache first
-        if let cached = await cacheManager.getCachedConversations(userId: userId), !cached.isEmpty {
-            AppLogger.cache.debug("Cache hit for conversations. Returning \(cached.count) items.")
-            return cached
-        }
-        
-        AppLogger.cache.debug("Cache miss for conversations. Fetching from network...")
-        
         do {
+            if let rpcConversations = try? await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset),
+               !rpcConversations.isEmpty {
+                AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
+                return rpcConversations
+            }
+
             // Get user's conversation IDs from conversation_participants
             // (RLS is disabled on this table, so we can query it directly)
             // This query uses an index on user_id, so it's efficient even with many conversations
@@ -81,10 +78,7 @@ final class MessageService {
                 allConversationIds.formUnion(created.map { $0.id })
             }
             
-            guard !allConversationIds.isEmpty else {
-                await cacheManager.cacheConversations(userId: userId, [])
-                return []
-            }
+            guard !allConversationIds.isEmpty else { return [] }
             
             // Query conversations by IDs with ORDER BY first (chronological, latest first)
             // PostgreSQL optimizes IN clauses efficiently with indexes on id
@@ -101,10 +95,7 @@ final class MessageService {
             let decoder = createDateDecoder()
             let conversations: [Conversation] = try decoder.decode([Conversation].self, from: conversationsResponse.data)
             
-            guard !conversations.isEmpty else {
-                await cacheManager.cacheConversations(userId: userId, [])
-                return []
-            }
+            guard !conversations.isEmpty else { return [] }
             
             // Fetch details for all conversations in parallel to avoid N+1 query problem
             // This significantly improves performance when loading multiple conversations
@@ -130,9 +121,6 @@ final class MessageService {
                 return results.sorted { $0.conversation.updatedAt > $1.conversation.updatedAt }
             }
             
-            // Cache results
-            await cacheManager.cacheConversations(userId: userId, conversationsWithDetails)
-            
             AppLogger.network.info("Fetched \(conversationsWithDetails.count) conversations from network.")
             return conversationsWithDetails
             
@@ -141,7 +129,6 @@ final class MessageService {
             let errorString = String(describing: error).lowercased()
             if errorString.contains("infinite recursion") || errorString.contains("recursion") {
                 AppLogger.database.warning("RLS policy recursion detected. Returning empty conversations.")
-                await cacheManager.cacheConversations(userId: userId, [])
                 return []
             }
             // Re-throw other errors
@@ -306,6 +293,13 @@ final class MessageService {
     /// - Returns: Conversation
     /// - Throws: AppError if operation fails
     func getOrCreateDirectConversation(userId: UUID, otherUserId: UUID) async throws -> Conversation {
+        if let existingConversationId = await findDirectConversationId(userId: userId, otherUserId: otherUserId) {
+            if let conversation = try? await fetchConversationById(existingConversationId) {
+                AppLogger.database.debug("Found existing DM conversation via RPC: \(conversation.id)")
+                return conversation
+            }
+        }
+
         // Check for existing DM conversation by finding conversations where both users are participants
         // and the conversation has exactly 2 participants
         let participantsResponse = try? await supabase
@@ -450,6 +444,9 @@ final class MessageService {
                 AppLogger.database.warning("Error adding participants: \(error.localizedDescription)")
             }
         }
+
+        let allUserIds = Array(Set(userIds + [createdBy]))
+        await invalidateConversationCaches(for: allUserIds)
         
         return conversation
     }
@@ -516,6 +513,7 @@ final class MessageService {
                 .select("user_id")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .eq("user_id", value: addedBy.uuidString)
+                .is("left_at", value: nil)
                 .limit(1)
                 .execute()
             
@@ -601,13 +599,6 @@ final class MessageService {
             }
         }
         
-        // Invalidate conversation cache for all added users
-        for userId in newUserIds {
-            await cacheManager.invalidateConversations(userId: userId)
-        }
-        await cacheManager.invalidateConversations(userId: addedBy)
-        await cacheManager.invalidateMessages(conversationId: conversationId)
-        
         AppLogger.database.info("Added \(newUserIds.count) participant(s) to conversation \(conversationId)")
     }
     
@@ -639,6 +630,119 @@ final class MessageService {
             )
         }
         return decoder
+    }
+
+    private func fetchConversationsViaRpc(userId: UUID, limit: Int, offset: Int) async throws -> [ConversationWithDetails] {
+        struct ConversationRpcRow: Codable {
+            let conversationId: UUID
+            let createdBy: UUID
+            let title: String?
+            let groupImageUrl: String?
+            let isArchived: Bool?
+            let createdAt: Date
+            let updatedAt: Date
+            let lastMessage: Message?
+            let unreadCount: Int?
+            let otherParticipants: [Profile]?
+
+            enum CodingKeys: String, CodingKey {
+                case conversationId = "conversation_id"
+                case createdBy = "created_by"
+                case title
+                case groupImageUrl = "group_image_url"
+                case isArchived = "is_archived"
+                case createdAt = "created_at"
+                case updatedAt = "updated_at"
+                case lastMessage = "last_message"
+                case unreadCount = "unread_count"
+                case otherParticipants = "other_participants"
+            }
+        }
+
+        let response = try await supabase.rpc(
+            "get_conversations_with_details",
+            params: [
+                "p_user_id": AnyCodable(userId.uuidString),
+                "p_limit": AnyCodable(limit),
+                "p_offset": AnyCodable(offset)
+            ]
+        ).execute()
+
+        let decoder = createDateDecoder()
+        let rows = try decoder.decode([ConversationRpcRow].self, from: response.data)
+        return rows.map { row in
+            let conversation = Conversation(
+                id: row.conversationId,
+                title: row.title,
+                groupImageUrl: row.groupImageUrl,
+                createdBy: row.createdBy,
+                isArchived: row.isArchived ?? false,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt
+            )
+            return ConversationWithDetails(
+                conversation: conversation,
+                lastMessage: row.lastMessage,
+                unreadCount: row.unreadCount ?? 0,
+                otherParticipants: row.otherParticipants ?? []
+            )
+        }
+    }
+
+    private func fetchConversationById(_ conversationId: UUID) async throws -> Conversation? {
+        let response = try await supabase
+            .from("conversations")
+            .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
+            .eq("id", value: conversationId.uuidString)
+            .single()
+            .execute()
+
+        let decoder = createDateDecoder()
+        return try decoder.decode(Conversation.self, from: response.data)
+    }
+
+    private func findDirectConversationId(userId: UUID, otherUserId: UUID) async -> UUID? {
+        do {
+            let response = try await supabase.rpc(
+                "find_dm_conversation",
+                params: [
+                    "p_user_a": AnyCodable(userId.uuidString),
+                    "p_user_b": AnyCodable(otherUserId.uuidString)
+                ]
+            ).execute()
+            return decodeSingleUuid(from: response.data)
+        } catch {
+            return nil
+        }
+    }
+
+    private func decodeSingleUuid(from data: Data) -> UUID? {
+        if let id = try? JSONDecoder().decode(UUID.self, from: data) {
+            return id
+        }
+        if let array = try? JSONDecoder().decode([UUID].self, from: data) {
+            return array.first
+        }
+        if let dict = try? JSONDecoder().decode([String: UUID].self, from: data) {
+            return dict.values.first
+        }
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+            for item in json {
+                if let string = item as? String, let uuid = UUID(uuidString: string) {
+                    return uuid
+                }
+                if let dict = item as? [String: Any],
+                   let value = dict["conversation_id"] as? String,
+                   let uuid = UUID(uuidString: value) {
+                    return uuid
+                }
+            }
+        }
+        if let string = String(data: data, encoding: .utf8),
+           let uuid = UUID(uuidString: string.trimmingCharacters(in: CharacterSet(charactersIn: "\""))) {
+            return uuid
+        }
+        return nil
     }
     
     // MARK: - Messages
@@ -684,14 +788,6 @@ final class MessageService {
         guard isParticipant else {
             throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
         }
-        // Check cache first
-        if let cached = await cacheManager.getCachedMessages(conversationId: conversationId), !cached.isEmpty {
-            AppLogger.cache.debug("Cache hit for messages. Returning \(cached.count) items.")
-            return cached
-        }
-        
-        AppLogger.cache.debug("Cache miss for messages. Fetching from network...")
-        
         var query = supabase
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
@@ -784,10 +880,6 @@ final class MessageService {
         }
         
         // Cache results (only cache if this is the initial load, not pagination)
-        if beforeMessageId == nil {
-            await cacheManager.cacheMessages(conversationId: conversationId, messages)
-        }
-        
         AppLogger.network.info("Fetched \(messages.count) messages from network.")
         return messages
     }
@@ -954,10 +1046,6 @@ final class MessageService {
             .eq("id", value: conversationId.uuidString)
             .execute()
         
-        // Invalidate caches
-        await cacheManager.invalidateMessages(conversationId: conversationId)
-        await cacheManager.invalidateConversations(userId: fromId)
-        
         AppLogger.database.info("Sent audio message: \(message.id)")
         return message
     }
@@ -999,10 +1087,6 @@ final class MessageService {
             .update(["updated_at": ISO8601DateFormatter().string(from: Date())])
             .eq("id", value: conversationId.uuidString)
             .execute()
-        
-        // Invalidate caches
-        await cacheManager.invalidateMessages(conversationId: conversationId)
-        await cacheManager.invalidateConversations(userId: fromId)
         
         AppLogger.database.info("Sent location message: \(message.id)")
         return message
@@ -1090,10 +1174,6 @@ final class MessageService {
             .eq("id", value: conversationId.uuidString)
             .execute()
         
-        // Invalidate caches
-        await cacheManager.invalidateMessages(conversationId: conversationId)
-        await cacheManager.invalidateConversations(userId: fromId)
-        
         AppLogger.database.info("Sent message: \(message.id)")
         return message
     }
@@ -1124,32 +1204,36 @@ final class MessageService {
         
         let unreadMessages: [MessageReadBy] = try JSONDecoder().decode([MessageReadBy].self, from: unreadResponse.data)
         
-        // Update each message to add userId to readBy array
-        // Use a batch update if there are many unread messages to improve performance
         if !unreadMessages.isEmpty {
-            for message in unreadMessages {
-                var updatedReadBy = message.readBy
-                if !updatedReadBy.contains(userId) {
-                    updatedReadBy.append(userId)
+            let messageIds = unreadMessages.map { $0.id.uuidString }
+            do {
+                try await supabase.rpc(
+                    "mark_messages_read_batch",
+                    params: [
+                        "p_message_ids": AnyCodable(messageIds),
+                        "p_user_id": AnyCodable(userId.uuidString)
+                    ]
+                ).execute()
+            } catch {
+                for message in unreadMessages {
+                    var updatedReadBy = message.readBy
+                    if !updatedReadBy.contains(userId) {
+                        updatedReadBy.append(userId)
+                    }
+                    
+                    try await supabase
+                        .from("messages")
+                        .update(["read_by": updatedReadBy.map { $0.uuidString }])
+                        .eq("id", value: message.id.uuidString)
+                        .execute()
                 }
-                
-                try await supabase
-                    .from("messages")
-                    .update(["read_by": updatedReadBy.map { $0.uuidString }])
-                    .eq("id", value: message.id.uuidString)
-                    .execute()
             }
-            
-            // Invalidate messages cache ONLY if we actually updated something
-            await cacheManager.invalidateMessages(conversationId: conversationId)
+
         }
         
         // Update last_seen timestamp to indicate user is actively viewing
         // This prevents push notifications when user is viewing the conversation
         try? await updateLastSeen(conversationId: conversationId, userId: userId)
-        
-        // Invalidate conversations cache to update unread counts in the list
-        await cacheManager.invalidateConversations(userId: userId)
         
         AppLogger.database.debug("Marked \(unreadMessages.count) messages as read for conversation \(conversationId)")
     }
@@ -1215,9 +1299,6 @@ final class MessageService {
             .eq("id", value: conversationId.uuidString)
             .execute()
         
-        // Invalidate caches
-        await cacheManager.invalidateConversations(userId: userId)
-        
         AppLogger.database.info("Updated conversation title")
     }
     
@@ -1277,9 +1358,6 @@ final class MessageService {
             .upsert(reactionData, onConflict: "message_id,user_id")
             .execute()
         
-        // Invalidate message cache
-        await cacheManager.invalidateMessages(conversationId: messageConv.conversationId)
-        
         AppLogger.database.debug("Added reaction \(reaction) to message \(messageId)")
     }
     
@@ -1320,11 +1398,6 @@ final class MessageService {
             .eq("user_id", value: userId.uuidString)
             .execute()
         
-        // Invalidate message cache
-        if let conversationId = conversationId {
-            await cacheManager.invalidateMessages(conversationId: conversationId)
-        }
-        
         AppLogger.database.debug("Removed reaction from message \(messageId)")
     }
     
@@ -1357,6 +1430,18 @@ final class MessageService {
     }
     
     // MARK: - Group Management
+
+    /// Delete a conversation (creator or admin)
+    /// - Parameter id: Conversation ID to delete
+    func deleteConversation(id: UUID) async throws {
+        // Attempt delete; database should cascade to messages/participants if configured.
+        try await supabase
+            .from("conversations")
+            .delete()
+            .eq("id", value: id.uuidString)
+            .execute()
+
+    }
     
     /// Leave a conversation (self-removal)
     /// - Parameters:
@@ -1423,10 +1508,6 @@ final class MessageService {
                 )
             }
         }
-        
-        // Invalidate caches
-        await cacheManager.invalidateConversations(userId: userId)
-        await cacheManager.invalidateMessages(conversationId: conversationId)
         
         AppLogger.database.info("User \(userId) successfully left conversation \(conversationId)")
     }
@@ -1532,11 +1613,6 @@ final class MessageService {
             )
         }
         
-        // Invalidate caches for both users
-        await cacheManager.invalidateConversations(userId: userId)
-        await cacheManager.invalidateConversations(userId: removedBy)
-        await cacheManager.invalidateMessages(conversationId: conversationId)
-        
         AppLogger.database.info("Successfully removed user \(userId) from conversation \(conversationId)")
     }
     
@@ -1567,6 +1643,12 @@ final class MessageService {
         
         let decoder = createDateDecoder()
         return try decoder.decode(Message.self, from: response.data)
+    }
+
+    /// Invalidate conversation caches for a list of users
+    func invalidateConversationCaches(for userIds: [UUID]) async {
+        // Cache layer removed; keep no-op for callers.
+        _ = userIds
     }
     
     // MARK: - Group Image Management
@@ -1650,9 +1732,6 @@ final class MessageService {
             .update(updateDict)
             .eq("id", value: conversationId.uuidString)
             .execute()
-        
-        // Invalidate caches
-        await cacheManager.invalidateConversations(userId: userId)
         
         // Create announcement
         if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {

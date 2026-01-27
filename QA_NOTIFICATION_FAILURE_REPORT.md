@@ -37,3 +37,4 @@ These functions were defined in migrations `091_request_notification_read_scoped
 2.  **Globalize Toasts:** Move the `latestToast` state and rendering from `ConversationsListViewModel/View` to a global state manager so it can appear over any tab.
 3.  **Verify Approval Status:** Ensure the test accounts are marked as `approved = true` in the `profiles` table, as the notification triggers (e.g., `notify_new_ride`) filter for approved users only.
 
+

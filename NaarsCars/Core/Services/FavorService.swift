@@ -20,7 +20,6 @@ final class FavorService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     
     // MARK: - Initialization
     
@@ -29,7 +28,6 @@ final class FavorService {
     // MARK: - Favor Fetching
     
     /// Fetch favors with optional filters
-    /// Checks cache first, then fetches from network if needed
     /// - Parameters:
     ///   - status: Optional status filter
     ///   - userId: Optional user ID filter (favors posted by this user)
@@ -39,29 +37,10 @@ final class FavorService {
     func fetchFavors(
         status: FavorStatus? = nil,
         userId: UUID? = nil,
-        claimedBy: UUID? = nil
+        claimedBy: UUID? = nil,
+        forceRefresh: Bool = false
     ) async throws -> [Favor] {
-        // Check cache first
-        if let cachedFavors = await cacheManager.getCachedFavors() {
-            // Apply filters to cached data
-            var filtered = cachedFavors
-            
-            if let status = status {
-                filtered = filtered.filter { $0.status == status }
-            }
-            if let userId = userId {
-                filtered = filtered.filter { $0.userId == userId }
-            }
-            if let claimedBy = claimedBy {
-                filtered = filtered.filter { $0.claimedBy == claimedBy }
-            }
-            
-            // If cache hit and we have results, return cached data
-            if !filtered.isEmpty {
-                return filtered.sorted { $0.date < $1.date }
-            }
-        }
-        
+        _ = forceRefresh
         // Build query
         var query = supabase
             .from("favors")
@@ -88,9 +67,6 @@ final class FavorService {
         
         // Enrich with profiles
         let enrichedFavors = await enrichFavorsWithProfiles(favors)
-        
-        // Cache results
-        await cacheManager.cacheFavors(enrichedFavors)
         
         return enrichedFavors
     }
@@ -186,9 +162,6 @@ final class FavorService {
             .execute()
         
         let favor: Favor = try createDecoder().decode(Favor.self, from: response.data)
-        
-        // Invalidate cache
-        await cacheManager.invalidateFavors()
         
         return favor
     }
@@ -307,9 +280,6 @@ final class FavorService {
             }
         }
         
-        // Invalidate cache
-        await cacheManager.invalidateFavors()
-        
         return favor
     }
     
@@ -325,8 +295,6 @@ final class FavorService {
             .eq("id", value: id.uuidString)
             .execute()
         
-        // Invalidate cache
-        await cacheManager.invalidateFavors()
     }
     
     // MARK: - Participants
@@ -454,9 +422,6 @@ final class FavorService {
             .from("favor_participants")
             .insert(inserts)
             .execute()
-        
-        // Invalidate cache
-        await cacheManager.invalidateFavors()
         
         print("✅ [FavorService] Added \(newUserIds.count) participant(s) to favor \(favorId)")
     }

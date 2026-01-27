@@ -9,7 +9,6 @@ import Foundation
 import UIKit
 import SwiftUI
 internal import Combine
-import Realtime
 
 /// ViewModel for conversations list
 @MainActor
@@ -25,7 +24,6 @@ final class ConversationsListViewModel: ObservableObject {
     private let profileService = ProfileService.shared
     private let repository = MessagingRepository.shared
     private let authService = AuthService.shared
-    private let realtimeManager = RealtimeManager.shared
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
@@ -33,8 +31,6 @@ final class ConversationsListViewModel: ObservableObject {
     private var activeConversationId: UUID?
     
     init() {
-        setupRealtimeSubscription()
-        setupMessagesRealtimeSubscription()
         setupThreadVisibilityObservers()
         setupUnreadCountObservers()
         setupLocalObservation()
@@ -97,15 +93,7 @@ final class ConversationsListViewModel: ObservableObject {
         }
     }
     
-    deinit {
-        // Use Task.detached to avoid capturing self strongly
-        let convChannelName = "conversations:all"
-        let msgChannelName = "messages:list-updates"
-        Task.detached {
-            await RealtimeManager.shared.unsubscribe(channelName: convChannelName)
-            await RealtimeManager.shared.unsubscribe(channelName: msgChannelName)
-        }
-    }
+    deinit {}
     
     func loadConversations() async {
         guard let userId = authService.currentUserId else {
@@ -235,131 +223,6 @@ final class ConversationsListViewModel: ObservableObject {
         }
     }
     
-    private func setupRealtimeSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "conversations:all",
-                table: "conversations",
-                onInsert: { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        print("📬 [ConversationsListVM] New conversation detected via realtime")
-                        await self?.refreshConversations()
-                    }
-                },
-                onUpdate: { [weak self] payload in
-                    Task { @MainActor [weak self] in
-                        print("📬 [ConversationsListVM] Conversation updated via realtime")
-                        // If it's just a timestamp update, we might not need a full refresh
-                        // but for now, let's keep it simple and refresh
-                        await self?.refreshConversations()
-                    }
-                },
-                onDelete: { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        print("📬 [ConversationsListVM] Conversation deleted via realtime")
-                        await self?.refreshConversations()
-                    }
-                }
-            )
-        }
-    }
-    
-    /// Subscribe to messages table for real-time list updates
-    /// When a new message arrives, update the conversation preview immediately
-    private func setupMessagesRealtimeSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "messages:list-updates",
-                table: "messages",
-                // Note: No filter - RLS will ensure we only see messages we have access to
-                // and Supabase will only send us events for conversations we're part of
-                onInsert: { [weak self] payload in
-                    Task { @MainActor [weak self] in
-                        await self?.handleMessageInsertForList(payload)
-                    }
-                }
-            )
-        }
-    }
-    
-    /// Handle a new message for updating the conversation list
-    private func handleMessageInsertForList(_ payload: Any) async {
-        guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
-            print("⚠️ [ConversationsListVM] Could not parse message from payload, refreshing list")
-            Task { await refreshConversations() }
-            return
-        }
-        
-        print("📬 [ConversationsListVM] New message in conversation \(message.conversationId)")
-        
-        // Find the conversation in our list
-        if let index = conversations.firstIndex(where: { $0.conversation.id == message.conversationId }) {
-            let existingConversation = conversations[index]
-            
-            // Hydrate other participants if they are empty
-            var otherParticipants = existingConversation.otherParticipants
-            if otherParticipants.isEmpty {
-                let participantIds = existingConversation.conversation.participants?.map { $0.userId } ?? []
-                if let currentUserId = authService.currentUserId {
-                    let otherParticipantIds = participantIds.filter { $0 != currentUserId }
-                    for userId in otherParticipantIds {
-                        if let profile = try? await profileService.fetchProfile(userId: userId) {
-                            otherParticipants.append(profile)
-                        }
-                    }
-                }
-            }
-            
-            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
-                // Use the hydrated participants for the toast
-                let sender = otherParticipants.first(where: { $0.id == message.fromId })
-                let senderName = sender?.name ?? "Someone"
-                let senderAvatarUrl = sender?.avatarUrl
-
-                latestToast = InAppMessageToast(
-                    id: message.id,
-                    conversationId: message.conversationId,
-                    messageId: message.id,
-                    senderName: senderName,
-                    senderAvatarUrl: senderAvatarUrl,
-                    messagePreview: toastPreviewText(for: message),
-                    receivedAt: Date()
-                )
-                print("✅ [ConversationsListVM] Showing in-app toast for \(message.conversationId)")
-            }
-            
-            // Calculate new unread count (increment if not from current user)
-            var newUnreadCount = existingConversation.unreadCount
-            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
-                newUnreadCount += 1
-            }
-            
-            // Create updated conversation with new message (ConversationWithDetails is immutable)
-            let updatedConversation = ConversationWithDetails(
-                conversation: existingConversation.conversation,
-                lastMessage: message,
-                unreadCount: newUnreadCount,
-                otherParticipants: otherParticipants
-            )
-            
-            // Remove from current position and insert at top (most recent)
-            conversations.remove(at: index)
-            conversations.insert(updatedConversation, at: 0)
-            
-            print("✅ [ConversationsListVM] Updated conversation \(message.conversationId) in list (moved to top)")
-            
-            // Refresh message badge count immediately for new incoming messages
-            if let currentUserId = authService.currentUserId, message.fromId != currentUserId {
-                Task { @MainActor in
-                    await BadgeCountManager.shared.refreshAllBadges(reason: "realtimeMessageInsert")
-                }
-            }
-        } else {
-            // Message is for a conversation not in our list - might be a new conversation
-            print("ℹ : [ConversationsListVM] Message for unknown conversation, refreshing list")
-            Task { await refreshConversations() }
-        }
-    }
     
     func setMessagesTabActive(_ isActive: Bool) {
         isMessagesTabActive = isActive
@@ -425,11 +288,6 @@ final class ConversationsListViewModel: ObservableObject {
             return "Photo"
         }
         return message.text
-    }
-    
-    private func unsubscribeFromConversations() async {
-        await realtimeManager.unsubscribe(channelName: "conversations:all")
-        await realtimeManager.unsubscribe(channelName: "messages:list-updates")
     }
     
     // MARK: - Debug Support

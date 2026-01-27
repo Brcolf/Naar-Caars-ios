@@ -99,12 +99,6 @@ final class PerformanceImprovementsTests: XCTestCase {
         XCTAssertEqual(paginated.messages.count, 10)
     }
     
-    func testSubscriptionPriorityComparison() {
-        XCTAssertTrue(SubscriptionPriority.low < SubscriptionPriority.normal)
-        XCTAssertTrue(SubscriptionPriority.normal < SubscriptionPriority.critical)
-        XCTAssertTrue(SubscriptionPriority.low < SubscriptionPriority.critical)
-    }
-    
     // MARK: - Phase 3: Architecture Improvements
     
     func testJSONDecoderFactoryWorks() throws {

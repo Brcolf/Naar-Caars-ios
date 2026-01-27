@@ -38,3 +38,4 @@ struct SkeletonRideCard: View {
     .padding()
 }
 
+

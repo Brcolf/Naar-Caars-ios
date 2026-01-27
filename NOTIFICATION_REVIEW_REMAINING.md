@@ -20,3 +20,4 @@ These items could not be completed in this environment and should be finished on
 ## Optional
 - Update Supabase CLI to latest version (v2.72.7+) when convenient.
 
+

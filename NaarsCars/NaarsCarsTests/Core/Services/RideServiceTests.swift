@@ -20,6 +20,7 @@ final class RideServiceTests: XCTestCase {
     // MARK: - Cache Tests
     
     func testFetchRides_CacheHit_ReturnsWithoutNetwork() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
         // Create test rides
         let testRides = [
             Ride(
@@ -53,7 +54,8 @@ final class RideServiceTests: XCTestCase {
         XCTAssertEqual(fetchedRides[1].pickup, testRides[1].pickup)
     }
     
-    func testFetchRides_CacheMiss_FetchesAndCaches() async {
+    func testFetchRides_CacheMiss_FetchesAndCaches() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
         // Clear cache first
         await CacheManager.shared.invalidateRides()
         
@@ -74,7 +76,8 @@ final class RideServiceTests: XCTestCase {
         }
     }
     
-    func testCreateRide_InvalidatesCache() async {
+    func testCreateRide_InvalidatesCache() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
         // Create and cache test rides
         let testRides = [
             Ride(
@@ -104,6 +107,34 @@ final class RideServiceTests: XCTestCase {
         // Verify cache is cleared
         let cachedAfter = await CacheManager.shared.getCachedRides()
         XCTAssertNil(cachedAfter, "Rides should be removed from cache after create")
+    }
+
+    func testFetchRides_ForceRefreshClearsCache() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
+        let testRides = [
+            Ride(
+                userId: UUID(),
+                date: Date(),
+                time: "10:00:00",
+                pickup: "Cached Pickup",
+                destination: "Cached Destination",
+                seats: 1,
+                status: .open
+            )
+        ]
+
+        await CacheManager.shared.cacheRides(testRides)
+        let cachedBefore = await CacheManager.shared.getCachedRides()
+        XCTAssertNotNil(cachedBefore, "Cache should be populated before force refresh")
+
+        do {
+            _ = try await rideService.fetchRides(forceRefresh: true)
+        } catch {
+            // Network failures are acceptable for this test
+        }
+
+        let cachedAfter = await CacheManager.shared.getCachedRides()
+        XCTAssertNil(cachedAfter, "Force refresh should clear the rides cache")
     }
 }
 

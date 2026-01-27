@@ -60,6 +60,14 @@ naars-cars-ios/
 - **Supabase Account** (free tier is fine for development)
 - **Apple Developer Account** ($99/year - required for TestFlight/App Store)
 
+### Secrets Setup (Required for Build)
+
+1. Copy `NaarsCars/Core/Utilities/Secrets.swift.template` to `NaarsCars/Core/Utilities/Secrets.swift`.
+2. Run `NaarsCars/Scripts/obfuscate.swift` to generate obfuscated byte arrays for the Supabase URL and anon key.
+3. Paste the generated arrays into `Secrets.swift`.
+
+`Secrets.swift` is gitignored and must be created locally for builds.
+
 ### ⚠️ CRITICAL: Database-First Approach
 
 **This project uses a database-first development approach. You MUST complete Phase 0 (Database Setup) before creating the iOS project in Phase 1.**

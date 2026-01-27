@@ -224,3 +224,4 @@ COMMENT ON POLICY "messages_insert_for_participants" ON public.messages IS
 COMMENT ON POLICY "messages_update_for_participants" ON public.messages IS 
     'Allows conversation participants to update messages (e.g., mark as read).';
 
+

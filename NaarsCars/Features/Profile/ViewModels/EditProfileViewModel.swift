@@ -139,7 +139,8 @@ final class EditProfileViewModel: ObservableObject {
                 name: name.trimmingCharacters(in: .whitespaces),
                 phoneNumber: formattedPhone,
                 car: car.trimmingCharacters(in: .whitespaces).isEmpty ? nil : car.trimmingCharacters(in: .whitespaces),
-                avatarUrl: avatarUrl
+                avatarUrl: avatarUrl,
+                shouldUpdateAvatar: avatarUrl != nil
             )
             
             // Re-fetch profile to ensure local state is perfectly in sync with server

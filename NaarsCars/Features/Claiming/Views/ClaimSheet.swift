@@ -46,10 +46,12 @@ struct ClaimSheet: View {
                         onConfirm()
                         dismiss()
                     }
+                    .accessibilityIdentifier("claim.confirm")
                     
                     SecondaryButton(title: "Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("claim.cancel")
                 }
                 .padding(.horizontal)
                 

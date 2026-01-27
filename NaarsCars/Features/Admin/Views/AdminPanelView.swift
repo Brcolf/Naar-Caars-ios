@@ -131,6 +131,7 @@ struct AdminPanelView: View {
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
+            .accessibilityIdentifier("admin.broadcast")
             
             NavigationLink(destination: AdminInviteView()) {
                 HStack {
@@ -150,6 +151,7 @@ struct AdminPanelView: View {
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
+            .accessibilityIdentifier("admin.inviteCodes")
         }
     }
     
@@ -187,6 +189,7 @@ struct AdminPanelView: View {
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
+            .accessibilityIdentifier("admin.pendingUsers")
             
             NavigationLink(destination: UserManagementView()) {
                 HStack {
@@ -206,6 +209,7 @@ struct AdminPanelView: View {
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
+            .accessibilityIdentifier("admin.userManagement")
         }
     }
     

@@ -66,3 +66,4 @@ COMMENT ON TABLE public.message_reactions IS
 -- FROM information_schema.columns 
 -- WHERE table_name = 'message_reactions';
 
+

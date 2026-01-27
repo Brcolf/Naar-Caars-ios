@@ -75,11 +75,13 @@ struct PendingApprovalView: View {
                 .cornerRadius(12)
             }
             .disabled(isSigningOut)
+            .accessibilityIdentifier("pendingApproval.returnLogin")
             .padding(.horizontal, 32)
             .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
+        .accessibilityIdentifier("pendingApproval.screen")
         .task {
             // Check notification status on appear
             await checkNotificationStatus()
@@ -132,6 +134,7 @@ struct PendingApprovalView: View {
                     .background(Color.blue)
                     .cornerRadius(8)
             }
+            .accessibilityIdentifier("pendingApproval.enableNotifications")
         }
         .padding(16)
         .background(Color(.secondarySystemGroupedBackground))

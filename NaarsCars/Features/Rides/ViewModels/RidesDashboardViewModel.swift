@@ -92,13 +92,13 @@ final class RidesDashboardViewModel: ObservableObject {
     }
     
     /// Load rides based on current filter
-    func loadRides() async {
+    func loadRides(forceRefresh: Bool = false) async {
         isLoading = true
         error = nil
         defer { isLoading = false }
         
         do {
-            let fetchedRides = try await rideService.fetchRides()
+            let fetchedRides = try await rideService.fetchRides(forceRefresh: forceRefresh)
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -161,9 +161,7 @@ final class RidesDashboardViewModel: ObservableObject {
     
     /// Refresh rides (pull-to-refresh)
     func refreshRides() async {
-        // Invalidate cache to force fresh fetch
-        await CacheManager.shared.invalidateRides()
-        await loadRides()
+        await loadRides(forceRefresh: true)
     }
     
     /// Setup realtime subscription for live updates

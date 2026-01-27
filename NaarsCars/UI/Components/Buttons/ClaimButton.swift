@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// Claim button states
 enum ClaimButtonState {
@@ -23,7 +24,12 @@ struct ClaimButton: View {
     var isLoading: Bool = false
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred()
+            action()
+        }) {
             HStack {
                 if isLoading {
                     ProgressView()
@@ -41,6 +47,7 @@ struct ClaimButton: View {
             .cornerRadius(10)
         }
         .disabled(isLoading || state == .claimedByOther || state == .completed || state == .isPoster)
+        .accessibilityIdentifier("claim.button.\(accessibilityState)")
     }
     
     private var buttonTitle: String {
@@ -70,6 +77,21 @@ struct ClaimButton: View {
             return .gray
         case .isPoster:
             return .gray
+        }
+    }
+
+    private var accessibilityState: String {
+        switch state {
+        case .canClaim:
+            return "canClaim"
+        case .claimedByMe:
+            return "claimedByMe"
+        case .claimedByOther:
+            return "claimedByOther"
+        case .completed:
+            return "completed"
+        case .isPoster:
+            return "isPoster"
         }
     }
 }

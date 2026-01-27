@@ -124,8 +124,6 @@ final class AuthService: ObservableObject {
             
             await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
             
-            await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
-            
             // Set crash reporting user ID and context
             CrashReportingService.shared.setUserId(userId.uuidString)
             if let profile = profile {
@@ -138,6 +136,8 @@ final class AuthService: ObservableObject {
             } else {
                 AppLogger.auth.warning("Sign in successful but profile not found for user: \(email)")
             }
+
+            restartRealtimeSyncEngines()
             
             CrashReportingService.shared.logAction("sign_in_success")
         } catch {
@@ -204,6 +204,7 @@ final class AuthService: ObservableObject {
             try await InviteService.shared.markInviteCodeAsUsed(inviteCode: validatedInviteCode, userId: userId)
             
             AppLogger.auth.info("Sign up successful for user: \(email)")
+            restartRealtimeSyncEngines()
         } catch {
             // Handle errors with appropriate AppError types
             let errorMessage = error.localizedDescription.lowercased()
@@ -588,6 +589,13 @@ final class AuthService: ObservableObject {
         }
         AppLogger.auth.debug("Local state cleared")
 
+        // Post notification early so UI can redirect immediately
+        await MainActor.run {
+            AppLogger.auth.debug("Posting userDidSignOut notification (early)")
+            let notificationName = NSNotification.Name("userDidSignOut")
+            NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
+        }
+
         if let userId = userIdToRemove {
             try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
         }
@@ -597,19 +605,18 @@ final class AuthService: ObservableObject {
         await CacheManager.shared.clearAll()
         AppLogger.cache.debug("Cache cleared on sign out")
         
-        // Unsubscribe from all realtime channels
+        // Unsubscribe from all realtime channels (best-effort)
         await RealtimeManager.shared.unsubscribeAll()
         AppLogger.realtime.debug("Realtime unsubscribed on sign out")
         
-        // Post notification for app state updates on main thread
-        // CRITICAL: Must post on main thread for observer to receive it
-        await MainActor.run {
-            AppLogger.auth.debug("Posting userDidSignOut notification")
-            let notificationName = NSNotification.Name("userDidSignOut")
-            NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
-        }
-        
         AppLogger.auth.info("Sign out cleanup completed")
+    }
+
+    func restartRealtimeSyncEngines() {
+        Task { @MainActor in
+            DashboardSyncEngine.shared.startSync()
+            MessagingSyncEngine.shared.startSync()
+        }
     }
     
     /// Fetch current user's profile from database

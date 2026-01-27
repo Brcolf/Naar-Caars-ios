@@ -32,3 +32,4 @@ During the exhaustive review of the messaging and notification system, several u
 - **Missing Block Flow:**
   - In `ReportMessageSheet`, there is a "Block this user" button marked with a `TODO`. This means users currently have no way to immediately block someone they are reporting for harassment.
 
+

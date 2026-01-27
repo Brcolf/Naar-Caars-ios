@@ -85,7 +85,6 @@ final class TownHallFeedViewModel: ObservableObject {
     
     /// Refresh posts (pull-to-refresh)
     func refreshPosts() async {
-        await CacheManager.shared.invalidateTownHallPosts()
         await loadPosts()
     }
     

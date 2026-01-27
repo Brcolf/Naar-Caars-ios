@@ -58,3 +58,4 @@ FROM pg_constraint
 WHERE conrelid = 'invite_codes'::regclass 
 AND contype = 'f';
 
+

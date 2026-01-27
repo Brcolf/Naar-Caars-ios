@@ -20,6 +20,8 @@ final class RequestsDashboardViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published var unseenRequestKeys: Set<String> = []
+    @Published var filteredRides: [SDRide] = []
+    @Published var filteredFavors: [SDFavor] = []
     
     // MARK: - Private Properties
     
@@ -46,6 +48,7 @@ final class RequestsDashboardViewModel: ObservableObject {
     /// Set up the model context for SwiftData operations
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
+        refreshFilteredRequests()
     }
     
     /// Get filtered requests from SwiftData models
@@ -59,8 +62,20 @@ final class RequestsDashboardViewModel: ObservableObject {
         var allRequests: [RequestItem] = []
         
         // Convert SDRide to Ride
-        let ridesConverted = rides.map { sdRide in
-            Ride(
+        let ridesConverted: [Ride] = rides.map { sdRide -> Ride in
+            let poster = makeProfile(
+                id: sdRide.userId,
+                name: sdRide.posterName,
+                avatarUrl: sdRide.posterAvatarUrl
+            )
+            let claimer = sdRide.claimedBy.flatMap { claimedBy in
+                makeProfile(
+                    id: claimedBy,
+                    name: sdRide.claimerName,
+                    avatarUrl: sdRide.claimerAvatarUrl
+                )
+            }
+            return Ride(
                 id: sdRide.id,
                 userId: sdRide.userId,
                 type: sdRide.type,
@@ -79,13 +94,27 @@ final class RequestsDashboardViewModel: ObservableObject {
                 estimatedCost: sdRide.estimatedCost,
                 createdAt: sdRide.createdAt,
                 updatedAt: sdRide.updatedAt,
+                poster: poster,
+                claimer: claimer,
                 qaCount: sdRide.qaCount
             )
         }
         
         // Convert SDFavor to Favor
-        let favorsConverted = favors.map { sdFavor in
-            Favor(
+        let favorsConverted: [Favor] = favors.map { sdFavor -> Favor in
+            let poster = makeProfile(
+                id: sdFavor.userId,
+                name: sdFavor.posterName,
+                avatarUrl: sdFavor.posterAvatarUrl
+            )
+            let claimer = sdFavor.claimedBy.flatMap { claimedBy in
+                makeProfile(
+                    id: claimedBy,
+                    name: sdFavor.claimerName,
+                    avatarUrl: sdFavor.claimerAvatarUrl
+                )
+            }
+            return Favor(
                 id: sdFavor.id,
                 userId: sdFavor.userId,
                 title: sdFavor.title,
@@ -103,6 +132,8 @@ final class RequestsDashboardViewModel: ObservableObject {
                 reviewSkippedAt: sdFavor.reviewSkippedAt,
                 createdAt: sdFavor.createdAt,
                 updatedAt: sdFavor.updatedAt,
+                poster: poster,
+                claimer: claimer,
                 qaCount: sdFavor.qaCount
             )
         }
@@ -145,15 +176,15 @@ final class RequestsDashboardViewModel: ObservableObject {
     }
     
     /// Load requests (rides + favors) from network and sync to SwiftData
-    func loadRequests() async {
+    func loadRequests(forceRefresh: Bool = false) async {
         isLoading = true
         error = nil
         defer { isLoading = false }
         
         do {
             // Fetch everything from Supabase (Full Mirror Sync)
-            async let ridesTask = rideService.fetchRides()
-            async let favorsTask = favorService.fetchFavors()
+            async let ridesTask = rideService.fetchRides(forceRefresh: forceRefresh)
+            async let favorsTask = favorService.fetchFavors(forceRefresh: forceRefresh)
             
             let rides = try await ridesTask
             let favors = try await favorsTask
@@ -164,7 +195,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 syncFavorsToSwiftData(favors, in: context)
                 try? context.save()
             }
-            
+            refreshFilteredRequests()
             await refreshUnseenRequestKeys()
         } catch {
             self.error = error.localizedDescription
@@ -193,6 +224,10 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.reviewSkipped = ride.reviewSkipped
                 existing.reviewSkippedAt = ride.reviewSkippedAt
                 existing.estimatedCost = ride.estimatedCost
+                existing.posterName = ride.poster?.name
+                existing.posterAvatarUrl = ride.poster?.avatarUrl
+                existing.claimerName = ride.claimer?.name
+                existing.claimerAvatarUrl = ride.claimer?.avatarUrl
             } else {
                 // Insert new
                 let sdRide = SDRide(
@@ -214,11 +249,16 @@ final class RequestsDashboardViewModel: ObservableObject {
                     estimatedCost: ride.estimatedCost,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
+                    posterName: ride.poster?.name,
+                    posterAvatarUrl: ride.poster?.avatarUrl,
+                    claimerName: ride.claimer?.name,
+                    claimerAvatarUrl: ride.claimer?.avatarUrl,
                     qaCount: ride.qaCount ?? 0
                 )
                 context.insert(sdRide)
             }
         }
+        refreshFilteredRequests()
     }
     
     private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) {
@@ -242,6 +282,10 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.reviewed = favor.reviewed
                 existing.reviewSkipped = favor.reviewSkipped
                 existing.reviewSkippedAt = favor.reviewSkippedAt
+                existing.posterName = favor.poster?.name
+                existing.posterAvatarUrl = favor.poster?.avatarUrl
+                existing.claimerName = favor.claimer?.name
+                existing.claimerAvatarUrl = favor.claimer?.avatarUrl
             } else {
                 // Insert new
                 let sdFavor = SDFavor(
@@ -262,22 +306,32 @@ final class RequestsDashboardViewModel: ObservableObject {
                     reviewSkippedAt: favor.reviewSkippedAt,
                     createdAt: favor.createdAt,
                     updatedAt: favor.updatedAt,
+                    posterName: favor.poster?.name,
+                    posterAvatarUrl: favor.poster?.avatarUrl,
+                    claimerName: favor.claimer?.name,
+                    claimerAvatarUrl: favor.claimer?.avatarUrl,
                     qaCount: favor.qaCount ?? 0
                 )
                 context.insert(sdFavor)
             }
         }
+        refreshFilteredRequests()
+    }
+
+    private func makeProfile(id: UUID, name: String?, avatarUrl: String?) -> Profile? {
+        guard let name = name, !name.isEmpty else { return nil }
+        return Profile(id: id, name: name, email: "", avatarUrl: avatarUrl)
     }
     
     /// Update filter and reload requests
     func filterRequests(_ newFilter: RequestFilter) {
         filter = newFilter
-        // No need to reload from network, @Query will handle the UI update
+        refreshFilteredRequests()
     }
     
     /// Refresh requests (pull-to-refresh)
     func refreshRequests() async {
-        await loadRequests()
+        await loadRequests(forceRefresh: true)
     }
     
     /// Setup realtime subscription for live updates
@@ -294,18 +348,18 @@ final class RequestsDashboardViewModel: ObservableObject {
                         if let self = self, let context = self.modelContext, 
                            let record = self.extractRecord(from: payload) {
                             // Minimal sync for realtime
-                            await self.loadRequests() 
+                            await self.loadRequests(forceRefresh: true)
                         }
                     }
                 },
                 onUpdate: { [weak self] _ in
                     Task { @MainActor in
-                        await self?.loadRequests()
+                        await self?.loadRequests(forceRefresh: true)
                     }
                 },
                 onDelete: { [weak self] _ in
                     Task { @MainActor in
-                        await self?.loadRequests()
+                        await self?.loadRequests(forceRefresh: true)
                     }
                 }
             )
@@ -317,17 +371,17 @@ final class RequestsDashboardViewModel: ObservableObject {
                 filter: nil,
                 onInsert: { [weak self] _ in
                     Task { @MainActor in
-                        await self?.loadRequests()
+                        await self?.loadRequests(forceRefresh: true)
                     }
                 },
                 onUpdate: { [weak self] _ in
                     Task { @MainActor in
-                        await self?.loadRequests()
+                        await self?.loadRequests(forceRefresh: true)
                     }
                 },
                 onDelete: { [weak self] _ in
                     Task { @MainActor in
-                        await self?.loadRequests()
+                        await self?.loadRequests(forceRefresh: true)
                     }
                 }
             )
@@ -401,6 +455,54 @@ final class RequestsDashboardViewModel: ObservableObject {
             return dict["record"] as? [String: Any] ?? dict
         }
         return nil
+    }
+
+    private func refreshFilteredRequests() {
+        guard let context = modelContext else { return }
+        filteredRides = fetchFilteredRides(in: context)
+        filteredFavors = fetchFilteredFavors(in: context)
+    }
+
+    private func fetchFilteredRides(in context: ModelContext) -> [SDRide] {
+        guard let userId = authService.currentUserId else { return [] }
+
+        let predicate: Predicate<SDRide>
+        switch filter {
+        case .open:
+            predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
+        case .mine:
+            predicate = #Predicate { $0.status != "completed" && ($0.userId == userId || $0.claimedBy == userId) }
+        case .claimed:
+            predicate = #Predicate { $0.claimedBy == userId && $0.status != "completed" }
+        }
+
+        let descriptor = FetchDescriptor<SDRide>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
+        let fetched = (try? context.fetch(descriptor)) ?? []
+        if filter == .mine {
+            return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
+        }
+        return fetched
+    }
+
+    private func fetchFilteredFavors(in context: ModelContext) -> [SDFavor] {
+        guard let userId = authService.currentUserId else { return [] }
+
+        let predicate: Predicate<SDFavor>
+        switch filter {
+        case .open:
+            predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
+        case .mine:
+            predicate = #Predicate { $0.status != "completed" && ($0.userId == userId || $0.claimedBy == userId) }
+        case .claimed:
+            predicate = #Predicate { $0.claimedBy == userId && $0.status != "completed" }
+        }
+
+        let descriptor = FetchDescriptor<SDFavor>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
+        let fetched = (try? context.fetch(descriptor)) ?? []
+        if filter == .mine {
+            return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
+        }
+        return fetched
     }
 }
 

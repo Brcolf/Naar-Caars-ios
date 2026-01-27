@@ -420,10 +420,12 @@ struct FavorDetailView: View {
             
             if favor.claimedBy != nil && favor.status != .open {
                 messageAllParticipantsButton(favor: favor)
+                    .accessibilityIdentifier("favor.messageAllParticipants")
             }
             
             if viewModel.canEdit {
                 addParticipantsButton(favor: favor)
+                    .accessibilityIdentifier("favor.addParticipants")
             }
             
             if viewModel.canEdit {
@@ -432,13 +434,16 @@ struct FavorDetailView: View {
                         SecondaryButton(title: "Mark Complete") {
                             showCompleteSheet = true
                         }
+                        .accessibilityIdentifier("favor.markComplete")
                         .id(RequestDetailAnchor.completeAction.anchorId(for: .favor))
                         .requestHighlight(highlightedAnchor == .completeAction)
                         .onAppear { handleSectionAppeared(.completeAction) }
                     }
                     
                     SecondaryButton(title: "Edit") { showEditFavor = true }
+                        .accessibilityIdentifier("favor.edit")
                     SecondaryButton(title: "Delete") { showDeleteAlert = true }
+                        .accessibilityIdentifier("favor.delete")
                 }
             }
         }
@@ -627,7 +632,7 @@ struct FavorDetailView: View {
                 } catch {
                     print("🗺️ [FavorDetailView] Apple Maps failed: \(error.localizedDescription)")
                     // Fallback to simple URL
-                    if let url = URL(string: "http://maps.apple.com/?q=\(location)") {
+                    if let url = URL(string: "http://maps.apple.com/?daddr=\(location)") {
                         await UIApplication.shared.open(url)
                     }
                 }

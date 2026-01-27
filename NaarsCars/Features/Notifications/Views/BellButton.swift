@@ -6,13 +6,19 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct BellButton: View {
     @ObservedObject private var badgeManager = BadgeCountManager.shared
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred()
+            action()
+        }) {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: "bell")
                     .font(.title3)
@@ -33,6 +39,7 @@ struct BellButton: View {
             }
         }
         .accessibilityLabel("Notifications")
+        .accessibilityIdentifier("bell.button")
     }
 
     private var badgeText: String {

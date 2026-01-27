@@ -197,6 +197,7 @@ struct MessageDetailsPopup: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Conversation Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -19,7 +19,7 @@ final class RidesDashboardViewModelTests: XCTestCase {
     
     func testLoadRides_Success() async {
         // Given: ViewModel is initialized
-        XCTAssertEqual(viewModel.rides.count, 0, "Initial rides should be empty")
+        XCTAssertEqual(viewModel.getFilteredRides(sdRides: []).count, 0, "Initial rides should be empty")
         XCTAssertFalse(viewModel.isLoading, "Should not be loading initially")
         
         // When: Loading rides

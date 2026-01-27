@@ -19,7 +19,6 @@ final class TownHallVoteService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     
     // MARK: - Initialization
     
@@ -96,9 +95,6 @@ final class TownHallVoteService {
                 .insert(newVote)
                 .execute()
         }
-        
-        // Invalidate post cache to refresh vote counts
-        await cacheManager.invalidateTownHallPosts()
         
         print("✅ [TownHallVoteService] Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
     }

@@ -20,7 +20,6 @@ final class NotificationService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     
     // MARK: - Initialization
     
@@ -33,16 +32,7 @@ final class NotificationService {
     /// - Returns: Array of notifications ordered by pinned first, then createdAt
     /// - Throws: AppError if fetch fails
     func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
-        // Check cache first
-        if !forceRefresh,
-           let cached = await cacheManager.getCachedNotifications(userId: userId),
-           !cached.isEmpty {
-            print("✅ [NotificationService] Cache hit for notifications. Returning \(cached.count) items.")
-            return cached
-        }
-        
-        print("🔄 [NotificationService] Cache miss for notifications. Fetching from network...")
-        
+        _ = forceRefresh
         let response = try await supabase
             .from("notifications")
             .select("*")
@@ -87,9 +77,6 @@ final class NotificationService {
         do {
             let decoded: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
             let notifications = NotificationGrouping.filterBellNotifications(from: decoded)
-            
-            // Cache results
-            await cacheManager.cacheNotifications(userId: userId, notifications)
             
             print("✅ [NotificationService] Fetched \(notifications.count) notifications from network.")
             return notifications
@@ -142,11 +129,6 @@ final class NotificationService {
             .eq("id", value: notificationId.uuidString)
             .execute()
         
-        // Invalidate cache
-        if let userId = AuthService.shared.currentUserId {
-            await cacheManager.invalidateNotifications(userId: userId)
-        }
-        
         print("✅ [NotificationService] Marked notification \(notificationId) as read")
     }
     
@@ -159,9 +141,6 @@ final class NotificationService {
             .update(["read": true])
             .eq("user_id", value: userId.uuidString)
             .execute()
-        
-        // Invalidate cache
-        await cacheManager.invalidateNotifications(userId: userId)
         
         print("✅ [NotificationService] Marked all notifications as read for user \(userId)")
     }
@@ -177,8 +156,6 @@ final class NotificationService {
             .neq("type", value: NotificationType.message.rawValue)
             .neq("type", value: NotificationType.addedToConversation.rawValue)
             .execute()
-        
-        await cacheManager.invalidateNotifications(userId: userId)
         
         print("✅ [NotificationService] Marked all bell notifications as read for user \(userId)")
     }
@@ -221,7 +198,6 @@ final class NotificationService {
             let decoder = JSONDecoder()
             let updatedCount = try decoder.decode(Int.self, from: response.data)
 
-            await cacheManager.invalidateNotifications(userId: userId)
             print("✅ [NotificationService] Marked \(updatedCount) request notifications read for \(requestType) \(requestId)")
             return updatedCount
         } catch {
@@ -268,9 +244,6 @@ final class NotificationService {
             return notificationId
         }
         _ = try await task.value
-        
-        // Invalidate cache for this user
-        await cacheManager.invalidateNotifications(userId: userId)
         
         print("✅ [NotificationService] Sent approval notification to user \(userId)")
     }

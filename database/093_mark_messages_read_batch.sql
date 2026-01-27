@@ -15,3 +15,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION mark_messages_read_batch(UUID[], UUID) TO authenticated;
 
+

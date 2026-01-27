@@ -117,3 +117,4 @@ COMMENT ON FUNCTION admin_reject_pending_user IS
 'Rejects a pending user by deleting their profile. Only admins can call this. 
 Returns JSON with success status and error message if failed.';
 
+

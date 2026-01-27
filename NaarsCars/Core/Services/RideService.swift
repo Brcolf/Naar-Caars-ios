@@ -20,7 +20,6 @@ final class RideService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     
     // MARK: - Initialization
     
@@ -29,7 +28,7 @@ final class RideService {
     // MARK: - Ride Fetching
     
     /// Fetch rides with optional filters
-    /// Checks cache first, then fetches from network if needed
+    /// Fetches rides from the network with optional filters
     /// - Parameters:
     ///   - status: Optional status filter
     ///   - userId: Optional user ID filter (rides posted by this user)
@@ -39,29 +38,10 @@ final class RideService {
     func fetchRides(
         status: RideStatus? = nil,
         userId: UUID? = nil,
-        claimedBy: UUID? = nil
+        claimedBy: UUID? = nil,
+        forceRefresh: Bool = false
     ) async throws -> [Ride] {
-        // Check cache first
-        if let cachedRides = await cacheManager.getCachedRides() {
-            // Apply filters to cached data
-            var filtered = cachedRides
-            
-            if let status = status {
-                filtered = filtered.filter { $0.status == status }
-            }
-            if let userId = userId {
-                filtered = filtered.filter { $0.userId == userId }
-            }
-            if let claimedBy = claimedBy {
-                filtered = filtered.filter { $0.claimedBy == claimedBy }
-            }
-            
-            // If cache hit and we have results, return cached data
-            if !filtered.isEmpty {
-                return filtered.sorted { $0.date < $1.date }
-            }
-        }
-        
+        _ = forceRefresh
         // Build query
         var query = supabase
             .from("rides")
@@ -88,9 +68,6 @@ final class RideService {
         
         // Enrich with profiles
         let enrichedRides = await enrichRidesWithProfiles(rides)
-        
-        // Cache results
-        await cacheManager.cacheRides(enrichedRides)
         
         return enrichedRides
     }
@@ -176,9 +153,6 @@ final class RideService {
         
         let ride: Ride = try createDecoder().decode(Ride.self, from: response.data)
         
-        // Invalidate cache
-        await cacheManager.invalidateRides()
-        
         // Calculate and save estimated cost asynchronously (don't block ride creation)
         // Use Task {} to run on MainActor since MapService is @MainActor
         // This allows the ride to be returned immediately while cost calculation happens in background
@@ -227,9 +201,6 @@ final class RideService {
                 .execute()
             
             print("✅ [RideService] Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(rideId)")
-            
-            // Invalidate cache so the updated ride is fetched next time
-            await cacheManager.invalidateRides()
             
         } catch {
             // If update fails, just log (ride is still created)
@@ -350,9 +321,6 @@ final class RideService {
             }
         }
         
-        // Invalidate cache
-        await cacheManager.invalidateRides()
-        
         return ride
     }
     
@@ -368,8 +336,6 @@ final class RideService {
             .eq("id", value: id.uuidString)
             .execute()
         
-        // Invalidate cache
-        await cacheManager.invalidateRides()
     }
     
     // MARK: - Q&A Operations
@@ -608,9 +574,6 @@ final class RideService {
             .from("ride_participants")
             .insert(inserts)
             .execute()
-        
-        // Invalidate cache
-        await cacheManager.invalidateRides()
         
         print("✅ [RideService] Added \(newUserIds.count) participant(s) to ride \(rideId)")
     }

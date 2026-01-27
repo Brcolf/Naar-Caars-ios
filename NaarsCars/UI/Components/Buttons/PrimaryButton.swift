@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// Primary action button with loading state
 struct PrimaryButton: View {
@@ -15,7 +16,12 @@ struct PrimaryButton: View {
     var isDisabled: Bool = false
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred()
+            action()
+        }) {
             HStack {
                 if isLoading {
                     ProgressView()

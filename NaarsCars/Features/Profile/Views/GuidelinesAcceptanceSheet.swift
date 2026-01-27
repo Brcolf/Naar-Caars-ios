@@ -127,6 +127,7 @@ struct GuidelinesAcceptanceSheet: View {
                         .padding()
                     }
                     .coordinateSpace(name: "scroll")
+                    .accessibilityIdentifier("guidelines.scroll")
                     .onAppear {
                         print("📜 [Guidelines] ScrollView appeared - user must scroll to bottom to accept")
                     }
@@ -157,6 +158,7 @@ struct GuidelinesAcceptanceSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!hasScrolledToBottom || isAccepting)
+                    .accessibilityIdentifier("guidelines.accept")
                 }
                 .padding()
                 .background(Color(.systemBackground))

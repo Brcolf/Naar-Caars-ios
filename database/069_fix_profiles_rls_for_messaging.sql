@@ -55,3 +55,4 @@ CREATE POLICY "profiles_select_admin" ON public.profiles
 -- 5. Application layer (ProfileService) handles additional authorization
 --    and controls which fields are displayed in different contexts
 
+

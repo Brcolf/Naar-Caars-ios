@@ -88,6 +88,7 @@ struct BroadcastView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Send Announcement")
             .navigationBarTitleDisplayMode(.inline)
             .alert("Send Broadcast", isPresented: $showingConfirmation) {

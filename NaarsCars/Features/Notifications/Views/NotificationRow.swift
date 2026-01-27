@@ -92,6 +92,7 @@ struct NotificationRow: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("notifications.row")
     }
 
     private var isRead: Bool {

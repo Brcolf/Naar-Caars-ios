@@ -43,3 +43,4 @@ $$ LANGUAGE plpgsql;
 
 GRANT EXECUTE ON FUNCTION mark_request_notifications_read(TEXT, UUID, TEXT[], BOOLEAN) TO authenticated;
 
+

@@ -41,6 +41,7 @@ struct SignupDetailsView: View {
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
+                            .accessibilityIdentifier("signup.name")
                             .onChange(of: viewModel.name) { _, _ in
                                 if viewModel.nameError != nil {
                                     viewModel.nameError = nil
@@ -65,6 +66,7 @@ struct SignupDetailsView: View {
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .accessibilityIdentifier("signup.email")
                             .onChange(of: viewModel.email) { _, _ in
                                 if viewModel.emailError != nil {
                                     viewModel.emailError = nil
@@ -86,6 +88,7 @@ struct SignupDetailsView: View {
                         
                         SecureField("Minimum 8 characters", text: $viewModel.password)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("signup.password")
                             .onChange(of: viewModel.password) { _, _ in
                                 if viewModel.passwordError != nil {
                                     viewModel.passwordError = nil
@@ -112,10 +115,12 @@ struct SignupDetailsView: View {
                         TextField("e.g., 2020 Honda Civic", text: $viewModel.car)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.words)
+                            .accessibilityIdentifier("signup.car")
                     }
                 }
                 .padding(.horizontal)
             }
+            .scrollDismissesKeyboard(.interactively)
             
             // Error message
             if let errorMessage = viewModel.errorMessage {
@@ -171,6 +176,7 @@ struct SignupDetailsView: View {
                     isLoading: viewModel.isLoading,
                     isDisabled: viewModel.isLoading
                 )
+                .accessibilityIdentifier("signup.createAccount")
                 if viewModel.isLoading {
                     Text("Creating your account...")
                         .font(.caption)

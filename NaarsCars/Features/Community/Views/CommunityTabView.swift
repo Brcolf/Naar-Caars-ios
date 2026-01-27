@@ -91,6 +91,7 @@ struct CommunityHeaderView: View {
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
+            .accessibilityIdentifier("community.segmented")
         }
         .padding(.bottom, 12)
         .background(Color(.systemBackground))

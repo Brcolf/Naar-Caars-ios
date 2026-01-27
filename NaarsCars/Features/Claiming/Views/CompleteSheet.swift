@@ -46,10 +46,12 @@ struct CompleteSheet: View {
                         onConfirm()
                         dismiss()
                     }
+                    .accessibilityIdentifier("complete.confirm")
                     
                     SecondaryButton(title: "Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("complete.cancel")
                 }
                 .padding(.horizontal)
                 

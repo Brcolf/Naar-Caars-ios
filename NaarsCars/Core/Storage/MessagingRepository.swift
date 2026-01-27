@@ -16,6 +16,10 @@ final class MessagingRepository {
     private var modelContext: ModelContext?
     private let messageService = MessageService.shared
     
+    var isConfigured: Bool {
+        modelContext != nil
+    }
+    
     private init() {}
     
     /// Set up the model context for SwiftData operations

@@ -233,9 +233,7 @@ struct TypingUser: Identifiable, Equatable, Sendable {
     }
 }
 
-// MARK: - Blocked User
-
-/// Model for a blocked user
+// MARK: - Blocked User/// Model for a blocked user
 struct BlockedUser: Codable, Identifiable, Sendable {
     var id: UUID { blockedId }
     let blockedId: UUID

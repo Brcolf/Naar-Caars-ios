@@ -49,3 +49,4 @@ struct SkeletonMessageRow: View {
     .padding()
 }
 
+

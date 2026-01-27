@@ -65,3 +65,4 @@ UPDATE storage.buckets SET public = true WHERE id = 'town-hall-images';
 -- WHERE tablename = 'objects' AND schemaname = 'storage';
 -- ============================================================================
 
+

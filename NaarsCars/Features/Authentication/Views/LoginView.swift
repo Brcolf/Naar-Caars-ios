@@ -45,6 +45,7 @@ struct LoginView: View {
                             .textContentType(.emailAddress)
                             .autocapitalization(.none)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("login.email")
                     }
                     
                     // Password field
@@ -56,6 +57,7 @@ struct LoginView: View {
                         SecureField("auth_password_placeholder".localized, text: $viewModel.password)
                             .textContentType(.password)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("login.password")
                     }
                     
                     // Error message
@@ -82,6 +84,7 @@ struct LoginView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(viewModel.isLoading || viewModel.email.isEmpty || viewModel.password.isEmpty)
+                .accessibilityIdentifier("login.submit")
                     
                     // Forgot password
                     Button("auth_forgot_password".localized) {
@@ -89,6 +92,7 @@ struct LoginView: View {
                     }
                     .font(.caption)
                     .foregroundColor(.blue)
+                .accessibilityIdentifier("login.forgot")
                     
                     // Divider
                     HStack {
@@ -142,6 +146,7 @@ struct LoginView: View {
                     }
                     .font(.caption)
                     .foregroundColor(.blue)
+                    .accessibilityIdentifier("login.signup")
                 }
                 .padding(.top)
             }

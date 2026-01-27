@@ -26,7 +26,9 @@ actor ConversationDisplayNameCache {
     // MARK: - Initialization
     
     private init() {
-        loadFromDisk()
+        Task {
+            await loadFromDisk()
+        }
     }
     
     // MARK: - Public Methods
@@ -147,7 +149,7 @@ actor ConversationDisplayNameCache {
     
     // MARK: - Private Methods
     
-    private func loadFromDisk() {
+    private func loadFromDisk() async {
         // Load cache dictionary
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
               let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {

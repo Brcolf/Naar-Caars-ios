@@ -68,38 +68,26 @@ final class ProfileService {
         name: String? = nil,
         phoneNumber: String? = nil,
         car: String? = nil,
-        avatarUrl: String? = nil
+        avatarUrl: String? = nil,
+        shouldUpdateAvatar: Bool = false
     ) async throws {
-        // Create Codable struct for Supabase update
-        struct ProfileUpdate: Codable {
-            let id: UUID // Include ID to satisfy RLS check if needed
-            let name: String?
-            let phoneNumber: String?
-            let car: String?
-            let avatarUrl: String?
-            let updatedAt: String
-            
-            enum CodingKeys: String, CodingKey {
-                case id
-                case name
-                case phoneNumber = "phone_number"
-                case car
-                case avatarUrl = "avatar_url"
-                case updatedAt = "updated_at"
-            }
-        }
-        
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        let update = ProfileUpdate(
-            id: userId,
-            name: name,
-            phoneNumber: phoneNumber,
-            car: car,
-            avatarUrl: avatarUrl,
-            updatedAt: dateFormatter.string(from: Date())
-        )
+
+        var update: [String: AnyCodable] = [
+            "id": AnyCodable(userId.uuidString),
+            "updated_at": AnyCodable(dateFormatter.string(from: Date())),
+            "phone_number": AnyCodable(phoneNumber),
+            "car": AnyCodable(car)
+        ]
+
+        if let name = name {
+            update["name"] = AnyCodable(name)
+        }
+
+        if shouldUpdateAvatar {
+            update["avatar_url"] = AnyCodable(avatarUrl)
+        }
         
         try await supabase
             .from("profiles")

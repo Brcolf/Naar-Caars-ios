@@ -21,7 +21,9 @@ final class CreateRideViewModelTests: XCTestCase {
         // Given: Form with missing pickup
         viewModel.pickup = ""
         viewModel.destination = "Destination"
-        viewModel.time = "14:00"
+        viewModel.hour = 2
+        viewModel.minute = 0
+        viewModel.isAM = false
         viewModel.date = Date()
         viewModel.seats = 1
         
@@ -37,7 +39,9 @@ final class CreateRideViewModelTests: XCTestCase {
         // Given: Form with past date
         viewModel.pickup = "Pickup Location"
         viewModel.destination = "Destination"
-        viewModel.time = "14:00"
+        viewModel.hour = 2
+        viewModel.minute = 0
+        viewModel.isAM = false
         viewModel.date = Date().addingTimeInterval(-86400) // Yesterday
         viewModel.seats = 1
         
@@ -53,7 +57,9 @@ final class CreateRideViewModelTests: XCTestCase {
         // Given: Valid form data
         viewModel.pickup = "Test Pickup"
         viewModel.destination = "Test Destination"
-        viewModel.time = "14:00"
+        viewModel.hour = 2
+        viewModel.minute = 0
+        viewModel.isAM = false
         viewModel.date = Date().addingTimeInterval(86400) // Tomorrow
         viewModel.seats = 2
         

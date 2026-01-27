@@ -20,6 +20,7 @@ final class FavorServiceTests: XCTestCase {
     // MARK: - Cache Tests
     
     func testFetchFavors_CacheHit() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
         // Create test favors
         let testFavors = [
             Favor(
@@ -51,7 +52,8 @@ final class FavorServiceTests: XCTestCase {
         XCTAssertEqual(fetchedFavors[1].title, testFavors[1].title)
     }
     
-    func testCreateFavor_InvalidatesCache() async {
+    func testCreateFavor_InvalidatesCache() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
         // Create and cache test favors
         let testFavors = [
             Favor(
@@ -79,6 +81,33 @@ final class FavorServiceTests: XCTestCase {
         // Verify cache is cleared
         let cachedAfter = await CacheManager.shared.getCachedFavors()
         XCTAssertNil(cachedAfter, "Favors should be removed from cache after create")
+    }
+
+    func testFetchFavors_ForceRefreshClearsCache() async throws {
+        throw XCTSkip("Cache removed for SwiftData-first flow")
+        let testFavors = [
+            Favor(
+                userId: UUID(),
+                title: "Cached Favor",
+                location: "Cached Location",
+                duration: .underHour,
+                date: Date(),
+                status: .open
+            )
+        ]
+
+        await CacheManager.shared.cacheFavors(testFavors)
+        let cachedBefore = await CacheManager.shared.getCachedFavors()
+        XCTAssertNotNil(cachedBefore, "Cache should be populated before force refresh")
+
+        do {
+            _ = try await favorService.fetchFavors(forceRefresh: true)
+        } catch {
+            // Network failures are acceptable for this test
+        }
+
+        let cachedAfter = await CacheManager.shared.getCachedFavors()
+        XCTAssertNil(cachedAfter, "Force refresh should clear the favors cache")
     }
 }
 

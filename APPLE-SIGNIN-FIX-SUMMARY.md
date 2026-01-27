@@ -220,3 +220,4 @@ You'll know it's working when:
 
 You're almost there! Just need the Supabase configuration and you'll be all set. 🚀
 
+

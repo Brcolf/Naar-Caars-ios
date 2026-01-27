@@ -5,7 +5,6 @@
 
 import Foundation
 import SwiftData
-import Realtime
 
 @MainActor
 final class MessagingSyncEngine {
@@ -16,6 +15,12 @@ final class MessagingSyncEngine {
     private let authService = AuthService.shared
     private var modelContext: ModelContext?
     
+    private enum MessageEvent: String {
+        case insert
+        case update
+        case delete
+    }
+    
     private init() {}
     
     func setup(modelContext: ModelContext) {
@@ -23,7 +28,6 @@ final class MessagingSyncEngine {
     }
     
     func startSync() {
-        setupConversationsSubscription()
         setupMessagesSubscription()
         
         // Initial sync
@@ -35,12 +39,17 @@ final class MessagingSyncEngine {
         }
     }
 
-    private func handleIncomingMessage(_ payload: Any) {
-        guard let message = MessagingMapper.parseMessageFromPayload(payload) else { return }
+    private func handleIncomingMessage(_ payload: Any, event: MessageEvent) {
+        print("🔴 [MessagingSyncEngine] Received realtime payload: \(type(of: payload))")
+        guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
+            print("⚠️ [MessagingSyncEngine] Failed to parse realtime message payload")
+            return
+        }
         
         Task {
             do {
                 try repository.upsertMessage(message)
+                try repository.save()
                 
                 // Media Pre-caching
                 if let imageUrl = message.imageUrl {
@@ -49,45 +58,36 @@ final class MessagingSyncEngine {
                 if let audioUrl = message.audioUrl {
                     precacheMedia(url: audioUrl)
                 }
-                
-                NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: message.conversationId)
+
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("conversationUpdated"),
+                    object: message.conversationId,
+                    userInfo: [
+                        "message": message,
+                        "event": event.rawValue
+                    ]
+                )
             } catch {
                 print("🔴 [MessagingSyncEngine] Error upserting realtime message: \(error)")
             }
         }
     }
 
-    private func setupConversationsSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "conversations:sync",
-                table: "conversations",
-                onInsert: { [weak self] _ in
-                    self?.triggerConversationsSync()
-                },
-                onUpdate: { [weak self] _ in
-                    self?.triggerConversationsSync()
-                }
-            )
-        }
-    }
-    
     private func setupMessagesSubscription() {
         Task {
             await realtimeManager.subscribe(
                 channelName: "messages:sync",
                 table: "messages",
                 onInsert: { [weak self] payload in
-                    self?.handleIncomingMessage(payload)
+                    self?.handleIncomingMessage(payload, event: .insert)
+                },
+                onUpdate: { [weak self] payload in
+                    self?.handleIncomingMessage(payload, event: .update)
+                },
+                onDelete: { [weak self] payload in
+                    self?.handleIncomingMessage(payload, event: .delete)
                 }
             )
-        }
-    }
-    
-    private func triggerConversationsSync() {
-        guard let userId = authService.currentUserId else { return }
-        Task {
-            try? await repository.syncConversations(userId: userId)
         }
     }
 

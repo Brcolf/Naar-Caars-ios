@@ -204,6 +204,7 @@ struct ConversationsListView: View {
                         Image(systemName: "square.and.pencil")
                     }
                     .id("messages.conversationsList.newMessageComposer")
+                    .accessibilityIdentifier("messages.newMessage")
                 }
             }
             .sheet(isPresented: $showNewMessage) {
@@ -388,6 +389,7 @@ struct ConversationsListView: View {
                 isMuted: isMuted
             )
         }
+        .accessibilityIdentifier("messages.conversation.row")
         .id("messages.conversationsList.row(\(conversationDetail.conversation.id))")
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {

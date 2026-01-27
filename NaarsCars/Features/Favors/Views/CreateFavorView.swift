@@ -19,8 +19,10 @@ struct CreateFavorView: View {
             Form {
                 Section("Title & Description") {
                     TextField("Title", text: $viewModel.title)
+                        .accessibilityIdentifier("createFavor.title")
                     TextField("Description (optional)", text: $viewModel.description, axis: .vertical)
                         .lineLimit(3...6)
+                        .accessibilityIdentifier("createFavor.description")
                 }
                 
                 Section("Location & Duration") {
@@ -28,7 +30,8 @@ struct CreateFavorView: View {
                         label: "",
                         placeholder: "Location",
                         text: $viewModel.location,
-                        icon: "mappin.circle.fill"
+                        icon: "mappin.circle.fill",
+                        accessibilityId: "createFavor.location"
                     ) { details in
                         // Optional: Store coordinates for future map integration
                         // viewModel.locationCoordinate = details.coordinate
@@ -39,6 +42,7 @@ struct CreateFavorView: View {
                             Text(duration.displayText).tag(duration)
                         }
                     }
+                    .accessibilityIdentifier("createFavor.duration")
                 }
                 
                 Section("Date & Time") {
@@ -46,6 +50,7 @@ struct CreateFavorView: View {
                         .datePickerStyle(.compact)
                     
                     Toggle("Specify Time", isOn: $viewModel.hasTime)
+                        .accessibilityIdentifier("createFavor.hasTime")
                     
                     if viewModel.hasTime {
                         TimePickerView(
@@ -59,8 +64,10 @@ struct CreateFavorView: View {
                 Section("Details") {
                     TextField("Requirements (optional)", text: $viewModel.requirements, axis: .vertical)
                         .lineLimit(2...4)
+                        .accessibilityIdentifier("createFavor.requirements")
                     
                     TextField("Gift/Compensation (optional)", text: $viewModel.gift)
+                        .accessibilityIdentifier("createFavor.gift")
                 }
                 
                 Section("Participants (Optional)") {
@@ -73,6 +80,7 @@ struct CreateFavorView: View {
                             Image(systemName: "chevron.right")
                         }
                     }
+                    .accessibilityIdentifier("createFavor.participants")
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
                         Text("Maximum 5 participants")
@@ -89,6 +97,7 @@ struct CreateFavorView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Create Favor Request")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -96,6 +105,7 @@ struct CreateFavorView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("createFavor.cancel")
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
@@ -112,6 +122,7 @@ struct CreateFavorView: View {
                         }
                     }
                     .disabled(viewModel.isLoading)
+                    .accessibilityIdentifier("createFavor.post")
                 }
             }
             .sheet(isPresented: $showAddParticipants) {

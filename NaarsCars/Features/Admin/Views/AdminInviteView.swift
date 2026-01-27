@@ -75,6 +75,7 @@ struct AdminInviteView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .accessibilityIdentifier("admin.invite.regular")
                         
                         // Bulk Invite
                         Button(action: {
@@ -111,6 +112,7 @@ struct AdminInviteView: View {
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .accessibilityIdentifier("admin.invite.bulk")
                     }
                     .padding(.horizontal)
                     
@@ -124,6 +126,7 @@ struct AdminInviteView: View {
                                 Text(formatCode(code.code))
                                     .font(.system(.title2, design: .monospaced))
                                     .fontWeight(.semibold)
+                                    .accessibilityIdentifier("admin.invite.code")
                                 
                                 if code.isBulk {
                                     if let expiresAt = code.expiresAt {
@@ -146,6 +149,7 @@ struct AdminInviteView: View {
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                     }
+                                    .accessibilityIdentifier("admin.invite.copy")
                                     
                                     Button(action: {
                                         showShareSheet = true
@@ -157,6 +161,7 @@ struct AdminInviteView: View {
                                         .font(.caption)
                                         .foregroundColor(.blue)
                                     }
+                                    .accessibilityIdentifier("admin.invite.share")
                                 }
                             }
                             .padding()
@@ -278,6 +283,7 @@ private struct BulkInviteSheet: View {
                     },
                     isLoading: isGenerating
                 )
+            .accessibilityIdentifier("admin.bulk.generate")
                 .padding(.horizontal)
                 .padding(.bottom, 32)
             }
@@ -288,6 +294,7 @@ private struct BulkInviteSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("admin.bulk.cancel")
                 }
             }
         }

@@ -14,6 +14,7 @@ struct LocationAutocompleteField: View {
     let placeholder: String
     @Binding var text: String
     let icon: String
+    var accessibilityId: String? = nil
     var onSelect: ((PlaceDetails) -> Void)?
     
     @State private var predictions: [PlacePrediction] = []
@@ -44,6 +45,7 @@ struct LocationAutocompleteField: View {
                     .onChange(of: text) { _, newValue in
                         performSearch(query: newValue)
                     }
+                    .accessibilityIdentifier(accessibilityId ?? "")
                 
                 if isSearching {
                     ProgressView()

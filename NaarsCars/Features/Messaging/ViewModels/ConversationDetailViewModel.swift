@@ -9,7 +9,6 @@ import Foundation
 import UIKit
 import SwiftUI
 internal import Combine
-import Realtime
 
 /// ViewModel for conversation detail
 @MainActor
@@ -19,14 +18,7 @@ final class ConversationDetailViewModel: ObservableObject {
     @Published var isLoadingMore: Bool = false
     @Published var hasMoreMessages: Bool = true
     @Published var error: AppError?
-    @Published var messageText: String = "" {
-        didSet {
-            handleTypingChange()
-        }
-    }
-    
-    /// Users currently typing in this conversation
-    @Published var typingUsers: [TypingUser] = []
+    @Published var messageText: String = ""
     
     /// Count of unread messages (messages not from current user that haven't been read)
     var unreadCount: Int {
@@ -39,33 +31,32 @@ final class ConversationDetailViewModel: ObservableObject {
     let conversationId: UUID
     private let messageService = MessageService.shared
     private let authService = AuthService.shared
-    private let realtimeManager = RealtimeManager.shared
+    private let repository = MessagingRepository.shared
+    private let throttler = Throttler.shared
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 25
     private var oldestMessageId: UUID?
-    
-    // Typing indicator state
-    private var typingTimer: Timer?
-    private var typingRefreshTimer: Timer?
-    private var lastTypingUpdate: Date?
-    private let typingDebounceInterval: TimeInterval = 2.0
+    private var conversationUpdatedObserver: NSObjectProtocol?
     
     init(conversationId: UUID) {
         self.conversationId = conversationId
-        setupRealtimeSubscription()
-        setupTypingIndicatorSubscription()
-        startTypingRefreshTimer()
+        setupLocalObservation()
+        setupConversationUpdatedObserver()
     }
     
     deinit {
-        // Clear typing status on deinit
-        Task.detached { [conversationId] in
-            await RealtimeManager.shared.unsubscribe(channelName: "messages:\(conversationId.uuidString)")
-            await RealtimeManager.shared.unsubscribe(channelName: "typing:\(conversationId.uuidString)")
-            if let userId = await AuthService.shared.currentUserId {
-                await MessageService.shared.clearTypingStatus(conversationId: conversationId, userId: userId)
-            }
+        if let observer = conversationUpdatedObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
+    }
+    
+    private func setupLocalObservation() {
+        repository.getMessagesPublisher(for: conversationId)
+            .sink { [weak self] updatedMessages in
+                guard let self = self, self.repository.isConfigured else { return }
+                self.messages = updatedMessages
+            }
+            .store(in: &cancellables)
     }
     
     func loadMessages() async {
@@ -75,27 +66,28 @@ final class ConversationDetailViewModel: ObservableObject {
         hasMoreMessages = true
         
         do {
-            let fetched = try await messageService.fetchMessages(conversationId: conversationId, limit: pageSize, beforeMessageId: nil)
-            self.messages = fetched
-            oldestMessageId = fetched.first?.id // Oldest message (first in array after reverse)
-            hasMoreMessages = fetched.count == pageSize
-            // Update last_seen and mark as read when loading
-            // This prevents push notifications when user is actively viewing
-            if let userId = authService.currentUserId {
-                // Update last_seen first to mark user as actively viewing
-                try? await messageService.updateLastSeen(conversationId: conversationId, userId: userId)
-                // Then mark messages as read
-                try? await messageService.markAsRead(conversationId: conversationId, userId: userId)
-                
-                // Refresh badge counts after marking messages as read
-                await BadgeCountManager.shared.refreshAllBadges()
-                
-                // Also refresh conversations list to clear unread indicator there
-                NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
-            }
+            let localMessages = try repository.getMessages(for: conversationId)
+            self.messages = localMessages
+            oldestMessageId = localMessages.first?.id
+            hasMoreMessages = localMessages.count == pageSize
         } catch {
-            self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error loading messages: \(error.localizedDescription)")
+            print("⚠️ [ConversationDetailVM] Error loading local messages: \(error.localizedDescription)")
+        }
+        
+        // Update last_seen and mark as read when loading
+        // This prevents push notifications when user is actively viewing
+        if let userId = authService.currentUserId {
+            // Update last_seen first to mark user as actively viewing
+            try? await messageService.updateLastSeen(conversationId: conversationId, userId: userId)
+            // Then mark messages as read
+            try? await messageService.markAsRead(conversationId: conversationId, userId: userId)
+            
+            // Clear badges and local unread count for this conversation
+            await BadgeCountManager.shared.clearMessagesBadge(for: conversationId)
+        }
+        
+        Task { [weak self] in
+            await self?.refreshMessagesInBackground()
         }
         
         isLoading = false
@@ -211,28 +203,67 @@ final class ConversationDetailViewModel: ObservableObject {
         }
     }
     
-    private func setupRealtimeSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "messages:\(conversationId.uuidString)",
-                table: "messages",
-                filter: "conversation_id=eq.\(conversationId.uuidString)",
-                onInsert: { [weak self] payload in
-                    Task { @MainActor [weak self] in
-                        self?.handleRealtimeInsert(payload)
-                    }
-                },
-                onUpdate: { [weak self] payload in
-                    Task { @MainActor [weak self] in
-                        self?.handleRealtimeUpdate(payload)
-                    }
-                },
-                onDelete: { [weak self] payload in
-                    Task { @MainActor [weak self] in
-                        self?.handleRealtimeDelete(payload)
-                    }
+    private func setupConversationUpdatedObserver() {
+        conversationUpdatedObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("conversationUpdated"),
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            if Thread.isMainThread {
+                self.handleConversationUpdatedImmediate(notification)
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.handleConversationUpdatedImmediate(notification)
                 }
-            )
+            }
+        }
+    }
+    
+    private func handleConversationUpdatedImmediate(_ notification: Notification) {
+        guard let updatedId = notificationConversationId(notification),
+              updatedId == conversationId else {
+            return
+        }
+        
+        if let message = notification.userInfo?["message"] as? Message {
+            let event = notification.userInfo?["event"] as? String
+            switch event {
+            case "update":
+                handleMessageUpdate(message)
+            case "delete":
+                handleMessageDelete(message)
+            default:
+                handleNewMessage(message)
+            }
+        }
+        
+        Task { [weak self] in
+            guard let self = self else { return }
+            await self.throttler.run(
+                key: "messages.sync.\(self.conversationId.uuidString)",
+                minimumInterval: 1.0
+            ) {
+                await self.refreshMessagesInBackground()
+            }
+        }
+    }
+
+    private func notificationConversationId(_ notification: Notification) -> UUID? {
+        if let uuid = notification.object as? UUID {
+            return uuid
+        }
+        if let nsuuid = notification.object as? NSUUID {
+            return nsuuid as UUID
+        }
+        return nil
+    }
+    
+    private func refreshMessagesInBackground() async {
+        do {
+            try await repository.syncMessages(conversationId: conversationId)
+        } catch {
+            print("⚠️ [ConversationDetailVM] Background sync failed: \(error.localizedDescription)")
         }
     }
     
@@ -346,317 +377,6 @@ final class ConversationDetailViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Typing Indicators
-    
-    private func setupTypingIndicatorSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "typing:\(conversationId.uuidString)",
-                table: "typing_indicators",
-                filter: "conversation_id=eq.\(conversationId.uuidString)",
-                onInsert: { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        await self?.refreshTypingUsers()
-                    }
-                },
-                onUpdate: { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        await self?.refreshTypingUsers()
-                    }
-                },
-                onDelete: { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        await self?.refreshTypingUsers()
-                    }
-                }
-            )
-        }
-    }
-    
-    private func startTypingRefreshTimer() {
-        // Refresh typing users every 2 seconds to handle stale indicators
-        typingRefreshTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.refreshTypingUsers()
-            }
-        }
-    }
-    
-    private func refreshTypingUsers() async {
-        let users = await messageService.fetchTypingUsers(conversationId: conversationId)
-        if users != typingUsers {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                typingUsers = users
-            }
-        }
-    }
-    
-    private func handleTypingChange() {
-        guard let userId = authService.currentUserId else { return }
-        
-        // Only send typing status if text is not empty
-        if messageText.isEmpty {
-            // Clear typing status
-            typingTimer?.invalidate()
-            typingTimer = nil
-            Task {
-                await messageService.clearTypingStatus(conversationId: conversationId, userId: userId)
-            }
-            return
-        }
-        
-        // Debounce typing updates
-        let now = Date()
-        if let lastUpdate = lastTypingUpdate, now.timeIntervalSince(lastUpdate) < typingDebounceInterval {
-            return
-        }
-        
-        lastTypingUpdate = now
-        
-        // Send typing status
-        Task {
-            await messageService.setTypingStatus(conversationId: conversationId, userId: userId)
-        }
-        
-        // Reset typing timer - clear after 5 seconds of no typing
-        typingTimer?.invalidate()
-        typingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self, let userId = self.authService.currentUserId else { return }
-                await self.messageService.clearTypingStatus(conversationId: self.conversationId, userId: userId)
-            }
-        }
-    }
-    
-    /// Clear typing status when sending a message
-    func clearTypingStatusOnSend() {
-        guard let userId = authService.currentUserId else { return }
-        typingTimer?.invalidate()
-        typingTimer = nil
-        Task {
-            await messageService.clearTypingStatus(conversationId: conversationId, userId: userId)
-        }
-    }
-    
-    /// Handle realtime INSERT - parse message from payload and add to list
-    private func handleRealtimeInsert(_ payload: Any) {
-        guard let message = parseMessageFromPayload(payload) else {
-            print("⚠️ [ConversationDetailVM] Could not parse message from realtime payload, falling back to reload")
-            Task { await loadMessages() }
-            return
-        }
-        
-        // Check for duplicates - don't add if already in list
-        // This handles the case where we sent the message (optimistic UI)
-        if messages.contains(where: { $0.id == message.id }) {
-            print("ℹ️ [ConversationDetailVM] Message \(message.id) already in list (optimistic UI), skipping")
-            return
-        }
-        
-        // Also check if this is our own message by matching text/time (optimistic message has different ID)
-        if let currentUserId = authService.currentUserId,
-           message.fromId == currentUserId {
-            // Check if we have an optimistic message that matches this one
-            let hasOptimistic = messages.contains { existing in
-                existing.fromId == currentUserId &&
-                existing.text == message.text &&
-                abs(existing.createdAt.timeIntervalSince(message.createdAt)) < 10.0
-            }
-            if hasOptimistic {
-                // Replace optimistic with real message
-                if let index = messages.firstIndex(where: { existing in
-                    existing.fromId == currentUserId &&
-                    existing.text == message.text &&
-                    abs(existing.createdAt.timeIntervalSince(message.createdAt)) < 10.0
-                }) {
-                    messages[index] = message
-                    print("✅ [ConversationDetailVM] Replaced optimistic message with real message \(message.id)")
-                }
-                return
-            }
-        }
-        
-        // Add new message from another user
-        var incomingMessage = message
-        if let replyToId = incomingMessage.replyToId,
-           let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
-            incomingMessage.replyToMessage = context
-        }
-        
-        // Enrich message with sender profile immediately if missing (common in realtime payloads)
-        if incomingMessage.sender == nil {
-            Task {
-                if let profile = try? await ProfileService.shared.fetchProfile(userId: incomingMessage.fromId) {
-                    await MainActor.run {
-                        if let index = messages.firstIndex(where: { $0.id == incomingMessage.id }) {
-                            messages[index].sender = profile
-                        } else {
-                            // If not added yet, set it on the local variable before appending
-                            incomingMessage.sender = profile
-                        }
-                    }
-                }
-            }
-        }
-
-        messages.append(incomingMessage)
-        messages.sort { $0.createdAt < $1.createdAt }
-        print("✅ [ConversationDetailVM] Added realtime message \(message.id) from \(message.fromId)")
-
-        // Enrich message with full context from server if still missing fields
-        if incomingMessage.replyToId != nil && incomingMessage.replyToMessage == nil {
-            Task {
-                if let enriched = try? await messageService.fetchMessageById(incomingMessage.id),
-                   let index = messages.firstIndex(where: { $0.id == incomingMessage.id }) {
-                    messages[index] = enriched
-                }
-            }
-        }
-        
-        // Mark as read since user is actively viewing
-        if let userId = authService.currentUserId, message.fromId != userId {
-            Task {
-                try? await messageService.updateLastSeen(conversationId: conversationId, userId: userId)
-                try? await messageService.markAsRead(conversationId: conversationId, userId: userId)
-                // Refresh badges and list after marking as read
-                await BadgeCountManager.shared.refreshAllBadges()
-                NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
-            }
-        }
-        
-        // Post notification to update conversations list
-        NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
-    }
-    
-    /// Handle realtime UPDATE - update message in list
-    private func handleRealtimeUpdate(_ payload: Any) {
-        guard let message = parseMessageFromPayload(payload) else {
-            Task { await loadMessages() }
-            return
-        }
-        
-        if let index = messages.firstIndex(where: { $0.id == message.id }) {
-            messages[index] = message
-            print("✅ [ConversationDetailVM] Updated message \(message.id) via realtime")
-        }
-    }
-    
-    /// Handle realtime DELETE - remove message from list
-    private func handleRealtimeDelete(_ payload: Any) {
-        guard let message = parseMessageFromPayload(payload) else {
-            Task { await loadMessages() }
-            return
-        }
-        
-        messages.removeAll { $0.id == message.id }
-        print("✅ [ConversationDetailVM] Deleted message \(message.id) via realtime")
-    }
-    
-    /// Parse a Message from Supabase realtime payload
-    private func parseMessageFromPayload(_ payload: Any) -> Message? {
-        // Supabase realtime payloads are InsertAction/UpdateAction/DeleteAction
-        // which contain a `record` property with the row data
-        
-        // Try to extract the record dictionary
-        var recordDict: [String: Any]?
-        
-        // Handle different payload types from Supabase Realtime SDK
-        if let insertAction = payload as? Realtime.InsertAction {
-            recordDict = insertAction.record
-        } else if let updateAction = payload as? Realtime.UpdateAction {
-            recordDict = updateAction.record
-        } else if let deleteAction = payload as? Realtime.DeleteAction {
-            recordDict = deleteAction.oldRecord
-        } else if let dict = payload as? [String: Any] {
-            // Fallback: might be a raw dictionary
-            recordDict = dict["record"] as? [String: Any] ?? dict
-        }
-        
-        guard let record = recordDict else {
-            print("⚠️ [ConversationDetailVM] Could not extract record from payload: \(type(of: payload))")
-            return nil
-        }
-        
-        // Parse the message fields
-        guard let idString = record["id"] as? String,
-              let id = UUID(uuidString: idString),
-              let conversationIdString = record["conversation_id"] as? String,
-              let convId = UUID(uuidString: conversationIdString),
-              let fromIdString = record["from_id"] as? String,
-              let fromId = UUID(uuidString: fromIdString),
-              let text = record["text"] as? String else {
-            print("⚠️ [ConversationDetailVM] Missing required fields in record: \(record.keys)")
-            return nil
-        }
-        
-        // Parse optional fields
-        let imageUrl = record["image_url"] as? String
-        let replyToId = (record["reply_to_id"] as? String).flatMap(UUID.init)
-        let messageType = (record["message_type"] as? String).flatMap(MessageType.init(rawValue:))
-        let audioUrl = record["audio_url"] as? String
-        let audioDuration = parseDouble(record["audio_duration"])
-        let latitude = parseDouble(record["latitude"])
-        let longitude = parseDouble(record["longitude"])
-        let locationName = record["location_name"] as? String
-        
-        // Parse read_by array
-        var readBy: [UUID] = []
-        if let readByArray = record["read_by"] as? [String] {
-            readBy = readByArray.compactMap { UUID(uuidString: $0) }
-        }
-        
-        // Parse created_at
-        var createdAt = Date()
-        if let createdAtString = record["created_at"] as? String {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: createdAtString) {
-                createdAt = date
-            } else {
-                // Try without fractional seconds
-                formatter.formatOptions = [.withInternetDateTime]
-                if let date = formatter.date(from: createdAtString) {
-                    createdAt = date
-                }
-            }
-        }
-        
-        return Message(
-            id: id,
-            conversationId: convId,
-            fromId: fromId,
-            text: text,
-            imageUrl: imageUrl,
-            readBy: readBy,
-            createdAt: createdAt,
-            messageType: messageType,
-            replyToId: replyToId,
-            audioUrl: audioUrl,
-            audioDuration: audioDuration,
-            latitude: latitude,
-            longitude: longitude,
-            locationName: locationName,
-            sender: nil, // Sender profile not included in realtime payload
-            reactions: nil
-        )
-    }
-
-    private func parseDouble(_ value: Any?) -> Double? {
-        if let doubleValue = value as? Double {
-            return doubleValue
-        }
-        if let intValue = value as? Int {
-            return Double(intValue)
-        }
-        if let stringValue = value as? String {
-            return Double(stringValue)
-        }
-        return nil
-    }
-    
-    private func unsubscribeFromMessages() async {
-        await realtimeManager.unsubscribe(channelName: "messages:\(conversationId.uuidString)")
-    }
     
     func addReaction(messageId: UUID, reaction: String) async {
         guard let userId = authService.currentUserId else { return }
@@ -719,6 +439,8 @@ final class ConversationDetailViewModel: ObservableObject {
     private func handleMessageDelete(_ deletedMessage: Message) {
         messages.removeAll { $0.id == deletedMessage.id }
     }
+
+    
 }
 
 

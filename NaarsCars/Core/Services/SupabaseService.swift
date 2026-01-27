@@ -28,6 +28,9 @@ final class SupabaseService: ObservableObject {
     
     /// Last connection error
     @Published var lastError: Error?
+
+    private var authStateTask: Task<Void, Never>?
+
     
     // MARK: - Initialization
     
@@ -114,6 +117,42 @@ final class SupabaseService: ObservableObject {
         
         print("✅ [SupabaseService] Client initialized successfully")
         // Credentials are now configured via obfuscated arrays
+
+        // Keep auth session fresh so realtime auth stays valid
+        Task { [client] in
+            await client.auth.startAutoRefresh()
+        }
+
+        startAuthStateObserver()
+
+    }
+
+    private func startAuthStateObserver() {
+        authStateTask?.cancel()
+        authStateTask = Task { [weak self] in
+            guard let self = self else { return }
+            for await (event, session) in await self.client.auth.authStateChanges {
+                await self.handleAuthStateChange(event: event, session: session)
+            }
+        }
+    }
+
+    private func handleAuthStateChange(event: AuthChangeEvent, session: Session?) async {
+        switch event {
+        case .signedOut:
+            Task.detached { [client] in
+                print("🔴 [SupabaseService] Auth signed out; disconnecting realtime")
+                await client.realtimeV2.disconnect()
+            }
+        default:
+            if let token = session?.accessToken, !token.isEmpty {
+                Task.detached { [client] in
+                    print("🔴 [SupabaseService] Auth updated; setting realtime auth (tokenLength=\(token.count))")
+                    await client.realtimeV2.setAuth(token)
+                    await client.realtimeV2.connect()
+                }
+            }
+        }
     }
     
     // MARK: - Connection Testing
@@ -187,5 +226,6 @@ final class SupabaseService: ObservableObject {
             return "❌ Connection failed: \(lastError?.localizedDescription ?? "Unknown error")"
         }
     }
+
 }
 

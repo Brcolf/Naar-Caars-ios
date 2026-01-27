@@ -43,6 +43,7 @@ struct InvitationWorkflowView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("invite.done")
                 }
             }
         }
@@ -83,6 +84,7 @@ struct InvitationWorkflowView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(inviteStatement.isEmpty ? Color.clear : Color.naarsPrimary, lineWidth: 1)
                     )
+                    .accessibilityIdentifier("invite.statement")
                 
                 Text("\(inviteStatement.count) / 500")
                     .font(.caption)
@@ -110,12 +112,14 @@ struct InvitationWorkflowView: View {
                     isLoading: isGenerating
                 )
                 .disabled(inviteStatement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGenerating)
+                .accessibilityIdentifier("invite.generate")
                 .padding(.horizontal)
                 
                 Button("Cancel") {
                     dismiss()
                 }
                 .foregroundColor(.secondary)
+                .accessibilityIdentifier("invite.cancel")
                 .padding(.horizontal)
             }
         }
@@ -154,6 +158,7 @@ struct InvitationWorkflowView: View {
                     .frame(maxWidth: .infinity)
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
+                    .accessibilityIdentifier("invite.generatedCode")
                 
                 // Action buttons
                 HStack(spacing: 12) {
@@ -170,6 +175,7 @@ struct InvitationWorkflowView: View {
                         .foregroundColor(.blue)
                         .cornerRadius(12)
                     }
+                    .accessibilityIdentifier("invite.copy")
                     
                     Button(action: {
                         showShareSheet = true
@@ -184,6 +190,7 @@ struct InvitationWorkflowView: View {
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
+                    .accessibilityIdentifier("invite.share")
                 }
             }
             .padding()

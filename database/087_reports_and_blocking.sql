@@ -253,3 +253,4 @@ BEGIN
     RAISE NOTICE 'Created functions: is_user_blocked, submit_report, block_user, unblock_user, get_blocked_users';
 END $$;
 
+

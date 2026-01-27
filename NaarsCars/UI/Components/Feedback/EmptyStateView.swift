@@ -69,4 +69,3 @@ struct EmptyStateView: View {
         customImage: "SupremeLeader"
     )
 }
-

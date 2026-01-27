@@ -943,3 +943,4 @@ The existing periodic check in `PendingApprovalView` already handles this - when
 - pg_cron requires Supabase Pro plan or self-hosted - will verify access before implementing
 - All triggers use `SECURITY DEFINER` to bypass RLS when creating notifications for other users
 
+

@@ -50,6 +50,7 @@ struct LanguageSettingsView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("language_settings_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .alert("language_restart_alert_title".localized, isPresented: $showRestartAlert) {

@@ -147,10 +147,12 @@ struct MyProfileView: View {
                         } label: {
                             Image(systemName: "gearshape")
                         }
+                        .accessibilityIdentifier("profile.settings")
                         
                         Button("Edit") {
                             showEditProfile = true
                         }
+                        .accessibilityIdentifier("profile.edit")
                     }
                 }
             }
@@ -297,6 +299,7 @@ struct MyProfileView: View {
                     .font(.subheadline)
                     .foregroundColor(.red)
             }
+            .accessibilityIdentifier("profile.signout")
         }
         .padding()
         .photosPicker(
@@ -529,6 +532,7 @@ struct MyProfileView: View {
             .background(Color(.systemGray6))
             .cornerRadius(12)
         }
+        .accessibilityIdentifier("profile.adminPanel")
     }
 
     // MARK: - Notifications Link
@@ -549,6 +553,7 @@ struct MyProfileView: View {
             .background(Color(.systemGray6))
             .cornerRadius(12)
         }
+        .accessibilityIdentifier("profile.notifications")
     }
     
 }

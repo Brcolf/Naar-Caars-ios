@@ -158,6 +158,7 @@ struct UserSearchView: View {
                         dismiss()
                         onDismiss()
                     }
+                    .accessibilityIdentifier("userSearch.cancel")
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(actionButtonTitle) {
@@ -166,6 +167,7 @@ struct UserSearchView: View {
                         onDismiss()
                     }
                     .disabled(selectedUserIds.isEmpty)
+                    .accessibilityIdentifier("userSearch.done")
                 }
             }
         }
@@ -305,6 +307,7 @@ private struct UserSearchRow: View {
         }
         .disabled(isExcluded)
         .opacity(isExcluded ? 0.5 : 1.0)
+        .accessibilityIdentifier("userSearch.row.\(profile.email)")
     }
 }
 
@@ -324,6 +327,7 @@ private struct SearchBar: View {
                 .focused(isFocused)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                .accessibilityIdentifier("userSearch.searchField")
             
             if !text.isEmpty {
                 Button {

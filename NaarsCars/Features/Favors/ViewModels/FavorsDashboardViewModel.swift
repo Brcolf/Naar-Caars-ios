@@ -91,13 +91,13 @@ final class FavorsDashboardViewModel: ObservableObject {
     }
     
     /// Load favors based on current filter
-    func loadFavors() async {
+    func loadFavors(forceRefresh: Bool = false) async {
         isLoading = true
         error = nil
         defer { isLoading = false }
         
         do {
-            let fetchedFavors = try await favorService.fetchFavors()
+            let fetchedFavors = try await favorService.fetchFavors(forceRefresh: forceRefresh)
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -160,9 +160,7 @@ final class FavorsDashboardViewModel: ObservableObject {
     
     /// Refresh favors (pull-to-refresh)
     func refreshFavors() async {
-        // Invalidate cache to force fresh fetch
-        await CacheManager.shared.invalidateFavors()
-        await loadFavors()
+        await loadFavors(forceRefresh: true)
     }
     
     /// Setup realtime subscription for live updates

@@ -183,42 +183,32 @@ final class CacheManagerTests: XCTestCase {
     // MARK: - Conversations Cache Tests
     
     func testConversationCacheReturnsNilWhenEmpty() async {
-        let conversationId = UUID()
-        let cached = await cacheManager.getCachedConversation(id: conversationId)
+        let userId = UUID()
+        let cached = await cacheManager.getCachedConversations(userId: userId)
         XCTAssertNil(cached, "Cache should return nil when empty")
     }
     
     func testConversationCacheReturnsValueBeforeTTLExpires() async {
-        let conversation = Conversation(
-            id: UUID(),
-            rideId: nil,
-            favorId: nil,
-            createdBy: UUID(),
-            createdAt: Date(),
-            updatedAt: Date()
-        )
+        let userId = UUID()
+        let conversation = Conversation(createdBy: userId)
+        let details = ConversationWithDetails(conversation: conversation)
         
-        await cacheManager.cacheConversation(conversation)
-        let cached = await cacheManager.getCachedConversation(id: conversation.id)
+        await cacheManager.cacheConversations(userId: userId, [details])
+        let cached = await cacheManager.getCachedConversations(userId: userId)
         
         XCTAssertNotNil(cached, "Cache should return value before TTL expires")
-        XCTAssertEqual(cached?.id, conversation.id, "Cached conversation should match original")
+        XCTAssertEqual(cached?.first?.conversation.id, conversation.id, "Cached conversation should match original")
     }
     
     func testConversationCacheReturnsNilAfterInvalidation() async {
-        let conversation = Conversation(
-            id: UUID(),
-            rideId: nil,
-            favorId: nil,
-            createdBy: UUID(),
-            createdAt: Date(),
-            updatedAt: Date()
-        )
+        let userId = UUID()
+        let conversation = Conversation(createdBy: userId)
+        let details = ConversationWithDetails(conversation: conversation)
         
-        await cacheManager.cacheConversation(conversation)
-        await cacheManager.invalidateConversation(id: conversation.id)
+        await cacheManager.cacheConversations(userId: userId, [details])
+        await cacheManager.invalidateConversations(userId: userId)
         
-        let cached = await cacheManager.getCachedConversation(id: conversation.id)
+        let cached = await cacheManager.getCachedConversations(userId: userId)
         XCTAssertNil(cached, "Cache should return nil after invalidation")
     }
     

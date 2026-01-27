@@ -46,4 +46,3 @@ extension Bundle {
         "\(appVersion) (\(buildNumber))"
     }
 }
-

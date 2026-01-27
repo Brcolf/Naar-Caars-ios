@@ -41,6 +41,12 @@ actor CacheManager {
     // Notifications cache: [UUID: CacheEntry<[AppNotification]>] (keyed by userId)
     private var notificationsCache: [UUID: CacheEntry<[AppNotification]>] = [:]
     
+    // Conversations cache: [UUID: CacheEntry<[ConversationWithDetails]>] (keyed by userId)
+    private var conversationsCache: [UUID: CacheEntry<[ConversationWithDetails]>] = [:]
+
+    // Messages cache: [UUID: CacheEntry<[Message]>] (keyed by conversationId)
+    private var messagesCache: [UUID: CacheEntry<[Message]>] = [:]
+
     // Town hall posts cache: CacheEntry<[TownHallPost]>
     private var townHallPostsCache: CacheEntry<[TownHallPost]>?
     
@@ -145,6 +151,56 @@ actor CacheManager {
     func invalidateNotifications(userId: UUID) {
         notificationsCache.removeValue(forKey: userId)
     }
+
+    // MARK: - Conversations Cache
+
+    /// Get cached conversations for a user, returns nil if not cached or expired
+    func getCachedConversations(userId: UUID) -> [ConversationWithDetails]? {
+        guard let entry = conversationsCache[userId], !entry.isExpired else {
+            conversationsCache.removeValue(forKey: userId)
+            return nil
+        }
+        return entry.value
+    }
+
+    /// Cache conversations for a user with 1-minute TTL
+    func cacheConversations(userId: UUID, _ conversations: [ConversationWithDetails]) {
+        conversationsCache[userId] = CacheEntry(
+            value: conversations,
+            timestamp: Date(),
+            ttl: 60 // 1 minute
+        )
+    }
+
+    /// Invalidate conversations cache for a user
+    func invalidateConversations(userId: UUID) {
+        conversationsCache.removeValue(forKey: userId)
+    }
+
+    // MARK: - Messages Cache
+
+    /// Get cached messages for a conversation, returns nil if not cached or expired
+    func getCachedMessages(conversationId: UUID) -> [Message]? {
+        guard let entry = messagesCache[conversationId], !entry.isExpired else {
+            messagesCache.removeValue(forKey: conversationId)
+            return nil
+        }
+        return entry.value
+    }
+
+    /// Cache messages for a conversation with 30-second TTL
+    func cacheMessages(conversationId: UUID, _ messages: [Message]) {
+        messagesCache[conversationId] = CacheEntry(
+            value: messages,
+            timestamp: Date(),
+            ttl: 30 // 30 seconds
+        )
+    }
+
+    /// Invalidate messages cache for a conversation
+    func invalidateMessages(conversationId: UUID) {
+        messagesCache.removeValue(forKey: conversationId)
+    }
     
     // MARK: - Town Hall Posts Cache
     
@@ -180,6 +236,8 @@ actor CacheManager {
         favorsCache = nil
         notificationsCache.removeAll()
         townHallPostsCache = nil
+        conversationsCache.removeAll()
+        messagesCache.removeAll()
     }
 }
 

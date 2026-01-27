@@ -469,10 +469,12 @@ struct RideDetailView: View {
             
             if ride.claimedBy != nil && ride.status != .open {
                 messageAllParticipantsButton(ride: ride)
+                    .accessibilityIdentifier("ride.messageAllParticipants")
             }
             
             if viewModel.canEdit {
                 addParticipantsButton(ride: ride)
+                    .accessibilityIdentifier("ride.addParticipants")
             }
             
             if viewModel.canEdit {
@@ -481,13 +483,16 @@ struct RideDetailView: View {
                         SecondaryButton(title: "Mark Complete") {
                             showCompleteSheet = true
                         }
+                        .accessibilityIdentifier("ride.markComplete")
                         .id(RequestDetailAnchor.completeAction.anchorId(for: .ride))
                         .requestHighlight(highlightedAnchor == .completeAction)
                         .onAppear { handleSectionAppeared(.completeAction) }
                     }
                     
                     SecondaryButton(title: "Edit") { showEditRide = true }
+                        .accessibilityIdentifier("ride.edit")
                     SecondaryButton(title: "Delete") { showDeleteAlert = true }
+                        .accessibilityIdentifier("ride.delete")
                 }
             }
         }
@@ -686,7 +691,7 @@ struct RideDetailView: View {
                 } catch {
                     print("🗺️ [RideDetailView] Apple Maps multi-stop failed: \(error.localizedDescription)")
                     // Fallback to simple URL if geocoding fails
-                    if let url = URL(string: "http://maps.apple.com/?saddr=Current+Location&daddr=\(pickup)&daddr=\(destination)") {
+                    if let url = URL(string: "http://maps.apple.com/?saddr=\(pickup)&daddr=\(destination)") {
                         await UIApplication.shared.open(url)
                     }
                 }

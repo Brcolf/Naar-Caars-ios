@@ -47,6 +47,7 @@ struct SignupInviteCodeView: View {
                         .textInputAutocapitalization(.characters)
                         .textFieldStyle(.roundedBorder)
                         .disabled(isValidating)
+                        .accessibilityIdentifier("signup.inviteCode")
                 }
                 .padding(.horizontal)
                 
@@ -75,9 +76,11 @@ struct SignupInviteCodeView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(isValidating || inviteCode.isEmpty)
                 .padding(.horizontal)
+                .accessibilityIdentifier("signup.inviteNext")
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Sign Up")
         .navigationDestination(isPresented: $showMethodChoice) {
             if let code = validatedCode {

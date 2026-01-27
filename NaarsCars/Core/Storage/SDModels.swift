@@ -114,11 +114,17 @@ final class SDRide {
     var createdAt: Date
     var updatedAt: Date
     
+    // Cached profile metadata for list views
+    var posterName: String?
+    var posterAvatarUrl: String?
+    var claimerName: String?
+    var claimerAvatarUrl: String?
+
     // Relationships (stored as simple UUIDs for now to avoid complex Profile sync)
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -137,6 +143,10 @@ final class SDRide {
         self.estimatedCost = estimatedCost
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.posterName = posterName
+        self.posterAvatarUrl = posterAvatarUrl
+        self.claimerName = claimerName
+        self.claimerAvatarUrl = claimerAvatarUrl
         self.participantIds = participantIds
         self.qaCount = qaCount
     }
@@ -162,11 +172,17 @@ final class SDFavor {
     var createdAt: Date
     var updatedAt: Date
     
+    // Cached profile metadata for list views
+    var posterName: String?
+    var posterAvatarUrl: String?
+    var claimerName: String?
+    var claimerAvatarUrl: String?
+
     // Relationships
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.title = title
@@ -184,6 +200,10 @@ final class SDFavor {
         self.reviewSkippedAt = reviewSkippedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.posterName = posterName
+        self.posterAvatarUrl = posterAvatarUrl
+        self.claimerName = claimerName
+        self.claimerAvatarUrl = claimerAvatarUrl
         self.participantIds = participantIds
         self.qaCount = qaCount
     }

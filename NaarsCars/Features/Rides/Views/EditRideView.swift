@@ -56,6 +56,7 @@ struct EditRideView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Edit Ride Request")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

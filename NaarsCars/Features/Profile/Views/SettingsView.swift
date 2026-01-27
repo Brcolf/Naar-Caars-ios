@@ -528,6 +528,7 @@ struct SettingsView: View {
                     Text("About")
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

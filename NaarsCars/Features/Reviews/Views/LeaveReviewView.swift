@@ -128,6 +128,7 @@ struct LeaveReviewView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Leave Review")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

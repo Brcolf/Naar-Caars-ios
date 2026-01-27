@@ -271,3 +271,4 @@ The "Unacceptable audience" error means Supabase doesn't recognize your Bundle I
 
 The key field is **Authorized Client IDs** - this tells Supabase to accept tokens with your Bundle ID as the audience, which is what Apple issues for native iOS apps.
 
+

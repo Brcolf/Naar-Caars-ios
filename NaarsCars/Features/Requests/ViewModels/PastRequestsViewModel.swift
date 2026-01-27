@@ -105,9 +105,6 @@ final class PastRequestsViewModel: ObservableObject {
     /// Refresh past requests
     /// - Parameter filter: Filter type
     func refreshRequests(filter: PastRequestsView.PastRequestFilter) async {
-        // Invalidate cache to force fresh fetch
-        await CacheManager.shared.invalidateRides()
-        await CacheManager.shared.invalidateFavors()
         await loadRequests(filter: filter)
     }
 }

@@ -208,3 +208,4 @@ The new `profiles_select_authenticated` policy is safe because:
 - Conversation loading should be significantly faster
 - Reduced error logging and exception handling overhead
 
+

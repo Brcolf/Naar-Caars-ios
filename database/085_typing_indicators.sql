@@ -255,3 +255,4 @@ BEGIN
     RAISE NOTICE 'Created functions: set_typing_status, clear_typing_status, get_typing_users, cleanup_stale_typing_indicators';
 END $$;
 
+

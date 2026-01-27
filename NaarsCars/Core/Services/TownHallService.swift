@@ -20,7 +20,6 @@ final class TownHallService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     private let rateLimiter = RateLimiter.shared
     
     // MARK: - Initialization
@@ -36,14 +35,6 @@ final class TownHallService {
     /// - Returns: Array of posts ordered by createdAt descending
     /// - Throws: AppError if fetch fails
     func fetchPosts(limit: Int = 20, offset: Int = 0) async throws -> [TownHallPost] {
-        // For first page (offset = 0), check cache first
-        if offset == 0, let cached = await cacheManager.getCachedTownHallPosts(), !cached.isEmpty {
-            print("✅ [TownHallService] Cache hit for town hall posts. Returning \(cached.count) items.")
-            return cached
-        }
-        
-        print("🔄 [TownHallService] Cache miss for town hall posts. Fetching from network...")
-        
         let response = try await supabase
             .from("town_hall_posts")
             .select()
@@ -63,11 +54,6 @@ final class TownHallService {
             posts = await enrichPostsWithVotesAndComments(posts, userId: userId)
         } else {
             posts = await enrichPostsWithVotesAndComments(posts, userId: nil)
-        }
-        
-        // Cache first page only
-        if offset == 0 {
-            await cacheManager.cacheTownHallPosts(posts)
         }
         
         print("✅ [TownHallService] Fetched \(posts.count) posts from network.")
@@ -132,9 +118,6 @@ final class TownHallService {
             post.author = author
         }
         
-        // Invalidate cache
-        await cacheManager.invalidateTownHallPosts()
-        
         print("✅ [TownHallService] Created post: \(post.id)")
         return post
     }
@@ -175,9 +158,6 @@ final class TownHallService {
             post.author = author
         }
         
-        // Invalidate cache
-        await cacheManager.invalidateTownHallPosts()
-        
         print("✅ [TownHallService] Created system post: \(post.id)")
         return post
     }
@@ -215,9 +195,6 @@ final class TownHallService {
             .delete()
             .eq("id", value: postId.uuidString)
             .execute()
-        
-        // Invalidate cache
-        await cacheManager.invalidateTownHallPosts()
         
         print("✅ [TownHallService] Deleted post: \(postId)")
     }
@@ -303,9 +280,6 @@ final class TownHallService {
                 .insert(voteInsert)
                 .execute()
         }
-        
-        // Invalidate post cache to refresh vote counts
-        await cacheManager.invalidateTownHallPosts()
         
         print("✅ [TownHallService] Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
     }

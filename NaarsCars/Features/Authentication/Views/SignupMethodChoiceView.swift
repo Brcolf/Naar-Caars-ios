@@ -92,6 +92,7 @@ struct SignupMethodChoiceView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal)
+                .accessibilityIdentifier("signup.method.email")
                 
                 if appleSignInViewModel.isLoading {
                     ProgressView()

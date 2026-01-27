@@ -20,7 +20,6 @@ final class ClaimService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     private let rateLimiter = RateLimiter.shared
     
     // MARK: - Initialization
@@ -97,13 +96,6 @@ final class ClaimService {
             requestId: requestId,
             claimerId: claimerId
         )
-        
-        // Invalidate caches
-        if requestType == "ride" {
-            await cacheManager.invalidateRides()
-        } else {
-            await cacheManager.invalidateFavors()
-        }
         
         return conversationId
     }
@@ -183,12 +175,6 @@ final class ClaimService {
             requestId: requestId
         )
         
-        // Invalidate caches
-        if requestType == "ride" {
-            await cacheManager.invalidateRides()
-        } else {
-            await cacheManager.invalidateFavors()
-        }
     }
     
     // MARK: - Complete Request
@@ -240,13 +226,6 @@ final class ClaimService {
             .update(updates)
             .eq("id", value: requestId.uuidString)
             .execute()
-        
-        // Invalidate caches
-        if requestType == "ride" {
-            await cacheManager.invalidateRides()
-        } else {
-            await cacheManager.invalidateFavors()
-        }
         
         // Note: Review prompt will be handled by the UI layer
     }

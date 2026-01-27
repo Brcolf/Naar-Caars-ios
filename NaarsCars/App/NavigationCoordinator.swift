@@ -35,6 +35,8 @@ final class NavigationCoordinator: ObservableObject {
     @Published var showReviewPrompt: Bool = false
     @Published var reviewPromptRideId: UUID?
     @Published var reviewPromptFavorId: UUID?
+    @Published var pendingDeepLink: DeepLink?
+    @Published var showDeepLinkConfirmation: Bool = false
     
     // MARK: - Tab Enum
     
@@ -76,9 +78,30 @@ final class NavigationCoordinator: ObservableObject {
     /// Navigate to a deep link destination
     /// - Parameter deepLink: The deep link to navigate to
     func navigate(to deepLink: DeepLink) {
-        // Reset any existing navigation state first
-        resetNavigation()
-        
+        if shouldConfirmDeepLink(for: deepLink) {
+            pendingDeepLink = deepLink
+            showDeepLinkConfirmation = true
+            return
+        }
+
+        applyDeepLink(deepLink)
+    }
+
+    func applyPendingDeepLink() {
+        guard let deepLink = pendingDeepLink else { return }
+        pendingDeepLink = nil
+        showDeepLinkConfirmation = false
+        applyDeepLink(deepLink)
+    }
+
+    func cancelPendingDeepLink() {
+        pendingDeepLink = nil
+        showDeepLinkConfirmation = false
+    }
+
+    private func applyDeepLink(_ deepLink: DeepLink) {
+        clearConflictingNavigation(for: deepLink)
+
         switch deepLink {
         case .dashboard:
             selectedTab = .requests
@@ -137,6 +160,83 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         print("📍 [NavigationCoordinator] Navigating to: \(deepLink)")
+    }
+
+    private func clearConflictingNavigation(for deepLink: DeepLink) {
+        switch deepLink {
+        case .ride:
+            navigateToFavor = nil
+            requestNavigationTarget = nil
+        case .favor:
+            navigateToRide = nil
+            requestNavigationTarget = nil
+        case .conversation:
+            conversationScrollTarget = nil
+        case .profile:
+            profileScrollTarget = nil
+        case .townHall, .townHallPostComments, .townHallPostHighlight:
+            townHallNavigationTarget = nil
+        case .adminPanel, .pendingUsers:
+            navigateToAdminPanel = false
+            navigateToPendingUsers = false
+        case .notifications, .announcements:
+            announcementsNavigationTarget = nil
+        case .dashboard, .enterApp, .unknown:
+            break
+        }
+
+        requestNavigationTarget = nil
+        profileScrollTarget = nil
+        conversationScrollTarget = nil
+    }
+
+    private func shouldConfirmDeepLink(for deepLink: DeepLink) -> Bool {
+        guard hasActiveNavigation else { return false }
+        return !isSameDeepLink(deepLink)
+    }
+
+    private var hasActiveNavigation: Bool {
+        navigateToRide != nil ||
+        navigateToFavor != nil ||
+        navigateToConversation != nil ||
+        navigateToProfile != nil ||
+        townHallNavigationTarget != nil ||
+        navigateToAdminPanel ||
+        navigateToPendingUsers ||
+        navigateToNotifications ||
+        announcementsNavigationTarget != nil ||
+        requestNavigationTarget != nil ||
+        conversationScrollTarget != nil ||
+        profileScrollTarget != nil
+    }
+
+    private func isSameDeepLink(_ deepLink: DeepLink) -> Bool {
+        switch deepLink {
+        case .ride(let id):
+            return navigateToRide == id
+        case .favor(let id):
+            return navigateToFavor == id
+        case .conversation(let id):
+            return navigateToConversation == id
+        case .profile(let id):
+            return navigateToProfile == id
+        case .townHallPostComments(let id), .townHallPostHighlight(let id):
+            return townHallNavigationTarget?.postId == id
+        case .townHall:
+            return selectedTab == .community
+        case .adminPanel:
+            return navigateToAdminPanel
+        case .pendingUsers:
+            return navigateToPendingUsers
+        case .notifications:
+            return navigateToNotifications
+        case .announcements:
+            return announcementsNavigationTarget != nil
+        case .dashboard, .enterApp:
+            return selectedTab == .requests
+        case .unknown:
+            return false
+        }
     }
     
     /// Show review prompt for a completed request

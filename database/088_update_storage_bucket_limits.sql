@@ -39,3 +39,4 @@ WHERE id = 'profile-avatars';
 -- ============================================================================
 -- SELECT id, name, file_size_limit FROM storage.buckets;
 
+

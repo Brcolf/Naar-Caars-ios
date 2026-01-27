@@ -131,6 +131,16 @@ struct MainTabView: View {
                 }
             )
         }
+        .alert("Open Link?", isPresented: $navigationCoordinator.showDeepLinkConfirmation) {
+            Button("Open", role: .destructive) {
+                navigationCoordinator.applyPendingDeepLink()
+            }
+            Button("Stay", role: .cancel) {
+                navigationCoordinator.cancelPendingDeepLink()
+            }
+        } message: {
+            Text("You have an open screen. Opening this link may discard any in‑progress changes.")
+        }
     }
     
     // MARK: - Helper Methods

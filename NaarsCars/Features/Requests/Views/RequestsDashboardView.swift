@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Unified dashboard view for all requests
 struct RequestsDashboardView: View {
@@ -17,10 +18,6 @@ struct RequestsDashboardView: View {
     @State private var showCreateFavor = false
     @State private var navigateToRide: UUID?
     @State private var navigateToFavor: UUID?
-    
-    // SwiftData Queries for "Zero-Spinner" experience
-    @Query(sort: \SDRide.date, order: .forward) private var sdRides: [SDRide]
-    @Query(sort: \SDFavor.date, order: .forward) private var sdFavors: [SDFavor]
     
     var body: some View {
         NavigationStack {
@@ -63,6 +60,7 @@ struct RequestsDashboardView: View {
                         Image(systemName: "plus")
                             .font(.title3)
                     }
+                    .accessibilityIdentifier("requests.createMenu")
                 }
             }
             .sheet(isPresented: $showCreateRide) {
@@ -112,7 +110,10 @@ struct RequestsDashboardView: View {
     
     @ViewBuilder
     private var listContentView: some View {
-        let filteredRequests = viewModel.getFilteredRequests(rides: sdRides, favors: sdFavors)
+        let filteredRequests = viewModel.getFilteredRequests(
+            rides: viewModel.filteredRides,
+            favors: viewModel.filteredFavors
+        )
         
         if viewModel.isLoading && filteredRequests.isEmpty {
             // Show skeleton loading
@@ -151,6 +152,7 @@ struct RequestsDashboardView: View {
                             RequestCardView(request: request, showsUnseenIndicator: showsUnseenIndicator)
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .accessibilityIdentifier("requests.card")
                     }
                 }
                 .padding()
@@ -225,6 +227,12 @@ struct FilterTile: View {
                 .background(isSelected ? Color.accentColor : Color(.systemGray5))
                 .cornerRadius(12)
         }
+        .accessibilityIdentifier("requests.filter.\(title)")
+        .simultaneousGesture(TapGesture().onEnded {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred()
+        })
         .buttonStyle(PlainButtonStyle())
     }
 }

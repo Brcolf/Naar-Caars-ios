@@ -51,6 +51,7 @@ struct EditProfileView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -58,6 +59,7 @@ struct EditProfileView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("profile.edit.cancel")
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
@@ -67,6 +69,7 @@ struct EditProfileView: View {
                         }
                     }
                     .disabled(viewModel.isSaving)
+                    .accessibilityIdentifier("profile.edit.save")
                 }
             }
             .overlay {
@@ -149,6 +152,7 @@ struct EditProfileView: View {
                 Text("Change Photo")
                     .font(.subheadline)
             }
+            .accessibilityIdentifier("profile.edit.changePhoto")
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical)
@@ -159,6 +163,7 @@ struct EditProfileView: View {
     private func nameField() -> some View {
         TextField("Name", text: $viewModel.name)
             .textInputAutocapitalization(.words)
+            .accessibilityIdentifier("profile.edit.name")
     }
     
     // MARK: - Phone Field
@@ -167,6 +172,7 @@ struct EditProfileView: View {
         VStack(alignment: .leading, spacing: 8) {
             TextField("Phone Number", text: $viewModel.phoneNumber)
                 .keyboardType(.phonePad)
+                .accessibilityIdentifier("profile.edit.phone")
                 .onChange(of: viewModel.phoneNumber) { oldValue, newValue in
                     // Real-time phone formatting
                     let formatted = formatPhoneNumber(newValue)
@@ -192,6 +198,7 @@ struct EditProfileView: View {
     private func carField() -> some View {
         TextField("Car Description", text: $viewModel.car, axis: .vertical)
             .lineLimit(3...6)
+            .accessibilityIdentifier("profile.edit.car")
     }
     
     // MARK: - Helper Methods

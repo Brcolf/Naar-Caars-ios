@@ -93,210 +93,8 @@ struct ConversationDetailView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Messages list
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        // Top anchor for infinite scrolling
-                        Color.clear
-                            .frame(height: 2)
-                            .onAppear {
-                                if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
-                                    print("🔄 [ConversationDetail] Reached top, loading more messages")
-                                    Task {
-                                        await viewModel.loadMoreMessages()
-                                    }
-                                }
-                            }
+            messagesListView
 
-                        // No more messages indicator
-                        if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
-                            VStack(spacing: 8) {
-                                Image(systemName: "lock.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
-                                Text("Beginning of Conversation")
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 20)
-                            .frame(maxWidth: .infinity)
-                        }
-                        
-                        if viewModel.isLoadingMore {
-                            ProgressView()
-                                .padding(.vertical, 12)
-                                .frame(maxWidth: .infinity)
-                        }
-                        
-                        if viewModel.isLoading && viewModel.messages.isEmpty {
-                            ProgressView()
-                                .padding()
-                        } else if viewModel.messages.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "message.fill")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.secondary)
-                                Text("No messages yet")
-                                    .font(.naarsBody)
-                                    .foregroundColor(.secondary)
-                                Text("Start the conversation!")
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding()
-                        } else {
-                            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                                let isFirst = isFirstInSeries(at: index)
-                                let isLast = isLastInSeries(at: index)
-                                let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
-                                
-                                VStack(spacing: 0) {
-                                    // Date separator
-                                    if shouldShowDateSeparator {
-                                        DateSeparatorView(date: message.createdAt)
-                                            .padding(.vertical, 16)
-                                    }
-                                    
-                                    createMessageBubble(
-                                        message: message,
-                                        isFirst: isFirst,
-                                        isLast: isLast
-                                    )
-                                }
-                                .onAppear {
-                                    viewModel.trackMessageVisible(message)
-                                }
-                                .id(messageAnchorId(message.id))
-                            }
-                        }
-                        
-                        // Typing indicator (inline)
-                        if !viewModel.typingUsers.isEmpty {
-                            typingIndicatorInline
-                                .padding(.horizontal)
-                        }
-                        
-                        // Invisible spacer at bottom for scroll detection
-                        Color.clear
-                            .frame(height: 1)
-                            .id(threadBottomAnchorId)
-                            .onAppear {
-                                isAtBottom = true
-                                showScrollToBottom = false
-                            }
-                            .onDisappear {
-                                isAtBottom = false
-                            }
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .onAppear {
-                    scrollProxy = proxy
-                }
-                .onChange(of: isInputFocused) { _, isFocused in
-                    if isFocused {
-                        // Scroll to bottom when keyboard appears
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 100_000_000) // Reduced delay for snappier feel
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
-                            }
-                        }
-                    }
-                }
-                .onChange(of: viewModel.messages.count) { oldCount, newCount in
-                    // Track new messages for animation
-                    if newCount > oldCount {
-                        let newMessages = viewModel.messages.suffix(newCount - oldCount)
-                        for message in newMessages {
-                            newMessageIds.insert(message.id)
-                        }
-                        // Clear animation flags after delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            newMessageIds.removeAll()
-                        }
-                    }
-                    
-                    // Always scroll to bottom when a new message is sent by current user
-                    let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
-                    
-                    if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore {
-                        if let lastMessage = viewModel.messages.last {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo(messageAnchorId(lastMessage.id), anchor: .bottom)
-                            }
-                        }
-                        showScrollToBottom = false
-                        print("⬇️ [ConversationDetail] Auto-scroll to bottom")
-                    } else if newCount > oldCount {
-                        showScrollToBottom = true
-                        print("⬆️ [ConversationDetail] New messages while scrolled up")
-                    }
-                    
-                    // Update last_seen when new messages arrive while viewing
-                    Task {
-                        if let userId = AuthService.shared.currentUserId {
-                            try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
-                        }
-                    }
-
-                    handleConversationScrollTarget(with: proxy)
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                // Scroll to bottom button
-                if showScrollToBottom {
-                    ScrollToBottomButton(
-                        unreadCount: viewModel.unreadCount,
-                        action: {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                scrollProxy?.scrollTo(threadBottomAnchorId, anchor: .bottom)
-                            }
-                            showScrollToBottom = false
-                        }
-                    )
-                    .id("messages.thread.scrollToBottomButton")
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 8)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .overlay(alignment: .center) {
-                // Reaction picker overlay (centered on screen)
-                if showReactionPicker {
-                    VStack {
-                        Spacer()
-                        ReactionPicker(
-                            onReactionSelected: { reaction in
-                                if let messageId = reactionPickerMessageId {
-                                    Task {
-                                        await viewModel.addReaction(messageId: messageId, reaction: reaction)
-                                    }
-                                }
-                                showReactionPicker = false
-                                reactionPickerMessageId = nil
-                            },
-                            onDismiss: {
-                                showReactionPicker = false
-                                reactionPickerMessageId = nil
-                            }
-                        )
-                        .padding(.bottom, 100) // Position above input bar
-                        Spacer()
-                    }
-                    .background(Color.black.opacity(0.3))
-                    .transition(.scale.combined(with: .opacity))
-                    .onTapGesture {
-                        showReactionPicker = false
-                        reactionPickerMessageId = nil
-                    }
-                }
-            }
-            
             // Input bar
             MessageInputBar(
                 text: $viewModel.messageText,
@@ -305,7 +103,6 @@ struct ConversationDetailView: View {
                     let textToSend = viewModel.messageText
                     viewModel.messageText = ""
                     Task {
-                        viewModel.clearTypingStatusOnSend()
                         await viewModel.sendMessage(textOverride: textToSend, image: imageToSend, replyToId: replyingToMessage?.id)
                         imageToSend = nil
                         // Clear reply context after sending
@@ -519,6 +316,218 @@ struct ConversationDetailView: View {
         )
     }
     
+
+    private var messagesListView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    messagesHeaderView
+                    messagesBodyView
+                    messagesBottomSpacerView
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+            .accessibilityIdentifier("messages.thread.scroll")
+            .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                scrollProxy = proxy
+            }
+            .onChange(of: isInputFocused) { _, isFocused in
+                if isFocused {
+                    // Scroll to bottom when keyboard appears
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 100_000_000) // Reduced delay for snappier feel
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .onChange(of: viewModel.messages.count) { oldCount, newCount in
+                // Track new messages for animation
+                if newCount > oldCount {
+                    let newMessages = viewModel.messages.suffix(newCount - oldCount)
+                    for message in newMessages {
+                        newMessageIds.insert(message.id)
+                    }
+                    // Clear animation flags after delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        newMessageIds.removeAll()
+                    }
+                }
+
+                // Always scroll to bottom when a new message is sent by current user
+                let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
+
+                if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore {
+                    if let lastMessage = viewModel.messages.last {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo(messageAnchorId(lastMessage.id), anchor: .bottom)
+                        }
+                    }
+                    showScrollToBottom = false
+                    print("⬇️ [ConversationDetail] Auto-scroll to bottom")
+                } else if newCount > oldCount {
+                    showScrollToBottom = true
+                    print("⬆️ [ConversationDetail] New messages while scrolled up")
+                }
+
+                // Update last_seen when new messages arrive while viewing
+                Task {
+                    if let userId = AuthService.shared.currentUserId {
+                        try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
+                    }
+                }
+
+                handleConversationScrollTarget(with: proxy)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            // Scroll to bottom button
+            if showScrollToBottom {
+                ScrollToBottomButton(
+                    unreadCount: viewModel.unreadCount,
+                    action: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            scrollProxy?.scrollTo(threadBottomAnchorId, anchor: .bottom)
+                        }
+                        showScrollToBottom = false
+                    }
+                )
+                .id("messages.thread.scrollToBottomButton")
+                .padding(.trailing, 16)
+                .padding(.bottom, 8)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .overlay(alignment: .center) {
+            // Reaction picker overlay (centered on screen)
+            if showReactionPicker {
+                VStack {
+                    Spacer()
+                    ReactionPicker(
+                        onReactionSelected: { reaction in
+                            if let messageId = reactionPickerMessageId {
+                                Task {
+                                    await viewModel.addReaction(messageId: messageId, reaction: reaction)
+                                }
+                            }
+                            showReactionPicker = false
+                            reactionPickerMessageId = nil
+                        },
+                        onDismiss: {
+                            showReactionPicker = false
+                            reactionPickerMessageId = nil
+                        }
+                    )
+                    .padding(.bottom, 100) // Position above input bar
+                    Spacer()
+                }
+                .background(Color.black.opacity(0.3))
+                .transition(.scale.combined(with: .opacity))
+                .onTapGesture {
+                    showReactionPicker = false
+                    reactionPickerMessageId = nil
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var messagesHeaderView: some View {
+        // Top anchor for infinite scrolling
+        Color.clear
+            .frame(height: 2)
+            .onAppear {
+                if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
+                    print("🔄 [ConversationDetail] Reached top, loading more messages")
+                    Task {
+                        await viewModel.loadMoreMessages()
+                    }
+                }
+            }
+
+        // No more messages indicator
+        if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                Text("Beginning of Conversation")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
+        }
+
+        if viewModel.isLoadingMore {
+            ProgressView()
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var messagesBodyView: some View {
+        if viewModel.isLoading && viewModel.messages.isEmpty {
+            ProgressView()
+                .padding()
+        } else if viewModel.messages.isEmpty {
+            VStack(spacing: 16) {
+                Image(systemName: "message.fill")
+                    .font(.system(size: 50))
+                    .foregroundColor(.secondary)
+                Text("No messages yet")
+                    .font(.naarsBody)
+                    .foregroundColor(.secondary)
+                Text("Start the conversation!")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+        } else {
+            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                let isFirst = isFirstInSeries(at: index)
+                let isLast = isLastInSeries(at: index)
+                let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
+
+                VStack(spacing: 0) {
+                    // Date separator
+                    if shouldShowDateSeparator {
+                        DateSeparatorView(date: message.createdAt)
+                            .padding(.vertical, 16)
+                    }
+
+                    createMessageBubble(
+                        message: message,
+                        isFirst: isFirst,
+                        isLast: isLast
+                    )
+                }
+                .id(messageAnchorId(message.id))
+            }
+        }
+    }
+
+    
+
+    private var messagesBottomSpacerView: some View {
+        // Invisible spacer at bottom for scroll detection
+        Color.clear
+            .frame(height: 1)
+            .id(threadBottomAnchorId)
+            .onAppear {
+                isAtBottom = true
+                showScrollToBottom = false
+            }
+            .onDisappear {
+                isAtBottom = false
+            }
+    }
+
     private func showReactionDetails(for message: Message) {
         reactionDetailsMessage = message
         showReactionDetails = true
@@ -641,52 +650,6 @@ struct ConversationDetailView: View {
     }
     
     // MARK: - Inline Typing Indicator
-    
-    private var typingIndicatorInline: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            // Simple avatar placeholder
-            Circle()
-                .fill(Color(.systemGray4))
-                .frame(width: 28, height: 28)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(typingText)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                
-                // Animated dots
-                HStack(spacing: 4) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        Circle()
-                            .fill(Color(.systemGray3))
-                            .frame(width: 8, height: 8)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(.systemGray5))
-                )
-            }
-            
-            Spacer()
-        }
-        .padding(.vertical, 4)
-    }
-    
-    private var typingText: String {
-        let users = viewModel.typingUsers
-        switch users.count {
-        case 1:
-            return "\(users[0].name) is typing..."
-        case 2:
-            return "\(users[0].name) and \(users[1].name) are typing..."
-        default:
-            return "\(users[0].name) and \(users.count - 1) others are typing..."
-        }
-    }
     
     // MARK: - Inline Image Viewer
     
@@ -952,6 +915,7 @@ struct ScrollToBottomButton: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("messages.scrollToBottom")
     }
 }
 
@@ -1034,6 +998,8 @@ struct ReportMessageSheet: View {
     @State private var selectedReportType: MessageService.ReportType = .other
     @State private var description = ""
     @State private var isSubmitting = false
+    @State private var showBlockConfirmation = false
+    @State private var blockError: String?
     
     private let reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] = [
         (.spam, "Spam", "exclamationmark.bubble"),
@@ -1108,7 +1074,7 @@ struct ReportMessageSheet: View {
                 // Block user option
                 Section {
                     Button {
-                        // TODO: Implement block user from report flow
+                        showBlockConfirmation = true
                     } label: {
                         HStack {
                             Image(systemName: "person.crop.circle.badge.xmark")
@@ -1121,6 +1087,7 @@ struct ReportMessageSheet: View {
                     Text("You won't see messages from this user anymore.")
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Report Message")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1139,6 +1106,36 @@ struct ReportMessageSheet: View {
                     .disabled(isSubmitting)
                 }
             }
+        }
+        .alert("Block User", isPresented: $showBlockConfirmation) {
+            Button("Block", role: .destructive) {
+                Task {
+                    guard let currentUserId = AuthService.shared.currentUserId else {
+                        blockError = "You must be signed in to block users."
+                        return
+                    }
+                    do {
+                        try await MessageService.shared.blockUser(
+                            blockerId: currentUserId,
+                            blockedId: message.fromId,
+                            reason: "Blocked from message report"
+                        )
+                    } catch {
+                        blockError = "Unable to block this user. Please try again."
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You won't see messages from this user anymore.")
+        }
+        .alert("Block Failed", isPresented: Binding(
+            get: { blockError != nil },
+            set: { if !$0 { blockError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(blockError ?? "")
         }
         .presentationDetents([.medium, .large])
     }

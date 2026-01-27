@@ -33,17 +33,17 @@ final class MyProfileViewModelTests: XCTestCase {
         // Verify properties are accessible
         XCTAssertNotNil(viewModel.profile)
         XCTAssertNotNil(viewModel.reviews)
-        XCTAssertNotNil(viewModel.inviteCodes)
+        XCTAssertNotNil(viewModel.currentInviteCode)
     }
     
     func testGenerateInviteCode_RateLimited_ThrowsError() async {
         let testUserId = UUID()
         
         // Generate first code (should succeed)
-        await viewModel.generateInviteCode(userId: testUserId)
+        await viewModel.generateInviteCode(userId: testUserId, inviteStatement: "Test invite")
         
         // Immediately try to generate another (should be rate limited)
-        await viewModel.generateInviteCode(userId: testUserId)
+        await viewModel.generateInviteCode(userId: testUserId, inviteStatement: "Test invite")
         
         // Verify error is set
         // Note: Rate limiter uses 10 second interval, so second call should fail

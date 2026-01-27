@@ -84,15 +84,20 @@ final class NotificationsListViewModel: ObservableObject {
         error = nil
         
         do {
-            let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: forceRefresh)
+            if let context = modelContext {
+                refreshUnreadCount(from: context, userId: userId)
+            }
+            
+            let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
             
             // Sync to SwiftData
             if let context = modelContext {
                 syncNotificationsToSwiftData(fetched, in: context)
                 try? context.save()
+                refreshUnreadCount(from: context, userId: userId)
+            } else {
+                self.unreadCount = fetched.filter { !$0.read }.count
             }
-            
-            self.unreadCount = try await notificationService.fetchUnreadCount(userId: userId)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
             print("🔴 Error loading notifications: \(error.localizedDescription)")
@@ -140,8 +145,6 @@ final class NotificationsListViewModel: ObservableObject {
     }
     
     func refreshNotifications() async {
-        guard let userId = authService.currentUserId else { return }
-        await CacheManager.shared.invalidateNotifications(userId: userId)
         await loadNotifications(forceRefresh: true)
     }
     
@@ -149,6 +152,7 @@ final class NotificationsListViewModel: ObservableObject {
         guard !notification.read else { return }
         
         do {
+            markNotificationsReadLocally([notification.id])
             try await notificationService.markAsRead(notificationId: notification.id)
             await loadNotifications() // Reload to update UI
             await badgeManager.refreshAllBadges(reason: "notificationMarkedRead")
@@ -162,12 +166,47 @@ final class NotificationsListViewModel: ObservableObject {
         guard let userId = authService.currentUserId else { return }
         
         do {
+            markAllBellNotificationsReadLocally()
             try await notificationService.markAllBellNotificationsAsRead(userId: userId)
             await loadNotifications() // Reload to update UI
             await badgeManager.refreshAllBadges(reason: "notificationsMarkAllRead")
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
             print("🔴 Error marking all notifications as read: \(error.localizedDescription)")
+        }
+    }
+
+    private func markAllBellNotificationsReadLocally() {
+        guard let context = modelContext, let userId = authService.currentUserId else { return }
+        let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.userId == userId })
+        if let notifications = try? context.fetch(fetchDescriptor) {
+            for notification in notifications {
+                guard let type = NotificationType(rawValue: notification.type),
+                      !NotificationGrouping.messageTypes.contains(type) else { continue }
+                notification.read = true
+            }
+            try? context.save()
+            refreshUnreadCount(from: context, userId: userId)
+        }
+    }
+
+    private func markNotificationsReadLocally(_ ids: [UUID]) {
+        guard let context = modelContext, let userId = authService.currentUserId else { return }
+        for id in ids {
+            let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.id == id })
+            if let notification = try? context.fetch(fetchDescriptor).first {
+                notification.read = true
+            }
+        }
+        try? context.save()
+        refreshUnreadCount(from: context, userId: userId)
+    }
+
+    private func refreshUnreadCount(from context: ModelContext, userId: UUID) {
+        let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.userId == userId })
+        if let notifications = try? context.fetch(fetchDescriptor) {
+            let filtered = getFilteredNotifications(sdNotifications: notifications)
+            unreadCount = filtered.filter { !$0.read }.count
         }
     }
 
@@ -212,6 +251,7 @@ final class NotificationsListViewModel: ObservableObject {
 
         Task { [weak self] in
             guard let self = self, !Task.isCancelled else { return }
+            self.markNotificationsReadLocally(notificationsToMark.map { $0.id })
             for notification in notificationsToMark {
                 try? await self.notificationService.markAsRead(notificationId: notification.id)
             }
@@ -357,9 +397,6 @@ final class NotificationsListViewModel: ObservableObject {
                     Task { @MainActor [weak self] in
                         guard let self = self, !Task.isCancelled else { return }
                         guard self.shouldProcessRealtimePayload(payload) else { return }
-                        if let userId = self.authService.currentUserId {
-                            await CacheManager.shared.invalidateNotifications(userId: userId)
-                        }
                         await self.loadNotifications(forceRefresh: true)
                         await self.badgeManager.refreshAllBadges(reason: "notificationInsertRealtime")
                     }
@@ -368,9 +405,6 @@ final class NotificationsListViewModel: ObservableObject {
                     Task { @MainActor [weak self] in
                         guard let self = self, !Task.isCancelled else { return }
                         guard self.shouldProcessRealtimePayload(payload) else { return }
-                        if let userId = self.authService.currentUserId {
-                            await CacheManager.shared.invalidateNotifications(userId: userId)
-                        }
                         await self.loadNotifications(forceRefresh: true)
                         await self.badgeManager.refreshAllBadges(reason: "notificationUpdateRealtime")
                     }
@@ -379,9 +413,6 @@ final class NotificationsListViewModel: ObservableObject {
                     Task { @MainActor [weak self] in
                         guard let self = self, !Task.isCancelled else { return }
                         guard self.shouldProcessRealtimePayload(payload) else { return }
-                        if let userId = self.authService.currentUserId {
-                            await CacheManager.shared.invalidateNotifications(userId: userId)
-                        }
                         await self.loadNotifications(forceRefresh: true)
                         await self.badgeManager.refreshAllBadges(reason: "notificationDeleteRealtime")
                     }

@@ -20,7 +20,6 @@ final class TownHallCommentService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
-    private let cacheManager = CacheManager.shared
     private let rateLimiter = RateLimiter.shared
     
     // MARK: - Initialization
@@ -128,9 +127,6 @@ final class TownHallCommentService {
             comment.author = author
         }
         
-        // Invalidate post cache to refresh comment count
-        await cacheManager.invalidateTownHallPosts()
-        
         print("✅ [TownHallCommentService] Created comment: \(comment.id)")
         return comment
     }
@@ -218,9 +214,6 @@ final class TownHallCommentService {
             reply.author = author
         }
         
-        // Invalidate post cache to refresh comment count
-        await cacheManager.invalidateTownHallPosts()
-        
         print("✅ [TownHallCommentService] Created reply: \(reply.id)")
         return reply
     }
@@ -260,9 +253,6 @@ final class TownHallCommentService {
             .delete()
             .eq("id", value: commentId.uuidString)
             .execute()
-        
-        // Invalidate post cache to refresh comment count
-        await cacheManager.invalidateTownHallPosts()
         
         print("✅ [TownHallCommentService] Deleted comment: \(commentId)")
     }

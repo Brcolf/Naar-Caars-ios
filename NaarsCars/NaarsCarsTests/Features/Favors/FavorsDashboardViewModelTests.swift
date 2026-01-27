@@ -19,7 +19,7 @@ final class FavorsDashboardViewModelTests: XCTestCase {
     
     func testLoadFavors_Success() async {
         // Given: ViewModel is initialized
-        XCTAssertEqual(viewModel.favors.count, 0, "Initial favors should be empty")
+        XCTAssertEqual(viewModel.getFilteredFavors(sdFavors: []).count, 0, "Initial favors should be empty")
         XCTAssertFalse(viewModel.isLoading, "Should not be loading initially")
         
         // When: Loading favors

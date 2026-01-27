@@ -1,0 +1,1 @@
+/Users/bcolf/Documents/naars-cars-ios/NaarsCars/NaarsCarsTests/Features/Rides/RideDetailViewModelTests.swift

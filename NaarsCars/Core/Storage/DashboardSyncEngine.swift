@@ -20,6 +20,9 @@ final class DashboardSyncEngine {
     private let authService = AuthService.shared
     
     private var modelContext: ModelContext?
+    private var ridesSyncTask: Task<Void, Never>?
+    private var favorsSyncTask: Task<Void, Never>?
+    private var notificationsSyncTask: Task<Void, Never>?
     
     private init() {}
     
@@ -46,8 +49,8 @@ final class DashboardSyncEngine {
         
         do {
             // Parallel fetch
-            async let ridesTask = rideService.fetchRides()
-            async let favorsTask = favorService.fetchFavors()
+            async let ridesTask = rideService.fetchRides(forceRefresh: true)
+            async let favorsTask = favorService.fetchFavors(forceRefresh: true)
             async let notificationsTask = notificationService.fetchNotifications(userId: userId, forceRefresh: true)
             
             let (rides, favors, notifications) = try await (ridesTask, favorsTask, notificationsTask)
@@ -107,8 +110,11 @@ final class DashboardSyncEngine {
     // MARK: - Sync Triggers
     
     private func triggerRidesSync() {
-        Task {
-            if let rides = try? await rideService.fetchRides(), let context = modelContext {
+        ridesSyncTask?.cancel()
+        ridesSyncTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            if let rides = try? await rideService.fetchRides(forceRefresh: true), let context = modelContext {
                 syncRides(rides, in: context)
                 try? context.save()
             }
@@ -116,8 +122,11 @@ final class DashboardSyncEngine {
     }
     
     private func triggerFavorsSync() {
-        Task {
-            if let favors = try? await favorService.fetchFavors(), let context = modelContext {
+        favorsSyncTask?.cancel()
+        favorsSyncTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            if let favors = try? await favorService.fetchFavors(forceRefresh: true), let context = modelContext {
                 syncFavors(favors, in: context)
                 try? context.save()
             }
@@ -125,8 +134,10 @@ final class DashboardSyncEngine {
     }
     
     private func triggerNotificationsSync() {
-        Task {
-            guard let userId = authService.currentUserId else { return }
+        notificationsSyncTask?.cancel()
+        notificationsSyncTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled, let userId = authService.currentUserId else { return }
             if let notifications = try? await notificationService.fetchNotifications(userId: userId, forceRefresh: true),
                let context = modelContext {
                 syncNotifications(notifications, in: context)
@@ -163,6 +174,10 @@ final class DashboardSyncEngine {
                     estimatedCost: ride.estimatedCost,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
+                    posterName: ride.poster?.name,
+                    posterAvatarUrl: ride.poster?.avatarUrl,
+                    claimerName: ride.claimer?.name,
+                    claimerAvatarUrl: ride.claimer?.avatarUrl,
                     qaCount: ride.qaCount ?? 0
                 )
                 context.insert(sdRide)
@@ -195,6 +210,10 @@ final class DashboardSyncEngine {
                     reviewSkippedAt: favor.reviewSkippedAt,
                     createdAt: favor.createdAt,
                     updatedAt: favor.updatedAt,
+                    posterName: favor.poster?.name,
+                    posterAvatarUrl: favor.poster?.avatarUrl,
+                    claimerName: favor.claimer?.name,
+                    claimerAvatarUrl: favor.claimer?.avatarUrl,
                     qaCount: favor.qaCount ?? 0
                 )
                 context.insert(sdFavor)
@@ -249,6 +268,10 @@ final class DashboardSyncEngine {
         sd.reviewSkipped = ride.reviewSkipped
         sd.reviewSkippedAt = ride.reviewSkippedAt
         sd.estimatedCost = ride.estimatedCost
+        sd.posterName = ride.poster?.name
+        sd.posterAvatarUrl = ride.poster?.avatarUrl
+        sd.claimerName = ride.claimer?.name
+        sd.claimerAvatarUrl = ride.claimer?.avatarUrl
     }
     
     private func updateSDFavor(_ sd: SDFavor, with favor: Favor) {
@@ -267,6 +290,10 @@ final class DashboardSyncEngine {
         sd.reviewed = favor.reviewed
         sd.reviewSkipped = favor.reviewSkipped
         sd.reviewSkippedAt = favor.reviewSkippedAt
+        sd.posterName = favor.poster?.name
+        sd.posterAvatarUrl = favor.poster?.avatarUrl
+        sd.claimerName = favor.claimer?.name
+        sd.claimerAvatarUrl = favor.claimer?.avatarUrl
     }
 }
 

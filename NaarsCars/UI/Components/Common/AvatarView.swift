@@ -46,6 +46,7 @@ struct AvatarView: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .accessibilityLabel("Avatar for \(name)")
     }
     
     private var initialsView: some View {

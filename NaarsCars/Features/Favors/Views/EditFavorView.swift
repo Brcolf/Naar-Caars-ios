@@ -69,6 +69,7 @@ struct EditFavorView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Edit Favor Request")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
