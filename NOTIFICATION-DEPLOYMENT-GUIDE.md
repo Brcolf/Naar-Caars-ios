@@ -13,56 +13,26 @@ Before deploying, ensure you have:
 
 ## Step 1: Deploy Database Migrations
 
-Run these migrations in order via Supabase SQL Editor:
+If you use Supabase CLI, migrations apply automatically in timestamp order.
+If running manually in SQL Editor, apply these in order:
 
-### 1.1 Run Schema Migration (076)
-
-```bash
-# File: database/076_notification_system_overhaul.sql
-# This adds:
-# - notify_town_hall column to profiles
-# - town_hall_post_id and source_user_id to notifications
-# - notification_queue table for batching
-# - completion_reminders table
-# - town_hall_post_interactions table
-# - Helper functions: should_notify_user, create_notification, queue_push_notification
-```
-
-Go to Supabase Dashboard → SQL Editor → Run the contents of `076_notification_system_overhaul.sql`
-
-### 1.2 Run Triggers Migration (077)
-
-```bash
-# File: database/077_notification_triggers.sql
-# This adds triggers for:
-# - New ride/favor → notify all users
-# - Ride/favor claimed/unclaimed/completed → notify requestor + co-requestors
-# - Q&A activity → notify requestor + co-requestors (only if not claimed)
-# - Town Hall post → queue batched notification
-# - Town Hall comment/vote → notify poster + interactors
-# - New pending user → notify all admins
-# - User approved → notify user
-# - Added to conversation → notify user
-```
-
-Go to Supabase Dashboard → SQL Editor → Run the contents of `077_notification_triggers.sql`
-
-### 1.3 Run pg_cron Migration (078)
-
-```bash
-# File: database/078_pg_cron_notification_jobs.sql
-# This adds:
-# - handle_completion_response function (for Yes/No from notification)
-# - process_completion_reminders function
-# - process_batched_notifications function
-# - last_used_at column to push_tokens
-```
-
-Go to Supabase Dashboard → SQL Editor → Run the contents of `078_pg_cron_notification_jobs.sql`
+1. `supabase/migrations/20260120_0000_notification_system_base.sql`
+2. `supabase/migrations/20260121101500_notification_system_fixes.sql`
+3. `supabase/migrations/20260126_0001_push_tokens.sql`
+4. `supabase/migrations/20260126_0002_get_badge_counts.sql`
+5. `supabase/migrations/20260126_0003_mark_request_notifications_read.sql`
+6. `supabase/migrations/20260126_0004_town_hall_vote_trigger.sql`
+7. `supabase/migrations/20260126_0005_notification_queue_processing.sql`
+8. `supabase/migrations/20260126_0006_notifications_review_id.sql`
+9. `supabase/migrations/20260126_0007_realtime_messaging.sql`
+10. `supabase/migrations/20260126_0008_completion_reminders.sql`
 
 ---
 
-## Step 2: Enable pg_cron (Supabase Pro Required)
+## Step 2: Enable Server Scheduling (Required)
+
+Completion reminders must be server-scheduled to deliver even when the app is not opened.
+Choose one of the options below.
 
 ### Option A: Supabase Pro Plan
 
@@ -121,10 +91,17 @@ Go to Supabase Dashboard → Database → Webhooks:
 2. Configure:
    - **Name**: `notification-queue-processor`
    - **Table**: `notification_queue`
-   - **Events**: INSERT
+   - **Events**: INSERT, UPDATE
    - **Type**: Supabase Edge Functions
    - **Function**: `send-notification`
 3. Save
+
+3. Configure message webhook (if using `send-message-push`):
+   - **Name**: `message-push-processor`
+   - **Table**: `messages`
+   - **Events**: INSERT
+   - **Type**: Supabase Edge Functions
+   - **Function**: `send-message-push`
 
 ---
 
