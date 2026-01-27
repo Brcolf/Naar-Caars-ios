@@ -18,6 +18,9 @@ build-output.log
 .idea/
 .vscode/
 
+# Git worktrees
+.worktrees/
+
 # Node modules (if any)
 node_modules/
 
