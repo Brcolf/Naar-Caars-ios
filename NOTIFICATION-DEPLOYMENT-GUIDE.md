@@ -100,7 +100,7 @@ Go to Supabase Dashboard → Database → Webhooks:
    - **Name**: `message-push-processor`
    - **Table**: `messages`
    - **Events**: INSERT
-   - **Type**: Supabase Edge Functions
+   - **Type**: Supabase Edge Functions (preferred) or HTTP Request (legacy)
    - **Function**: `send-message-push`
 
 ---

@@ -16,6 +16,29 @@ Then click **"Create a new hook"** and fill in:
 
 ## Copy & Paste Configuration
 
+### Option A (Recommended): Edge Function webhook
+
+Use this when the Dashboard auto-selects Edge Function type.
+
+**Name**
+```
+message_push_webhook
+```
+
+**Table**
+Select: **`messages`**
+
+**Events**
+Check: ✅ **INSERT** only
+
+**Type**
+Select: **Supabase Edge Functions**
+
+**Function**
+Select: **`send-message-push`**
+
+No URL, headers, or body template required.
+
 ### Name
 ```
 message_push_webhook

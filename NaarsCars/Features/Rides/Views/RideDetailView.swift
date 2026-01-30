@@ -285,7 +285,7 @@ struct RideDetailView: View {
                 if let estimatedCost = ride.estimatedCost {
                     Divider()
                     HStack {
-                        Label("Estimated Rideshare Cost", systemImage: "dollarsign.circle.fill")
+                        Label("Estimated Rideshare Savings", systemImage: "dollarsign.circle.fill")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         Spacer()

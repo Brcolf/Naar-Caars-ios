@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftData
+import Realtime
 
 @MainActor
 final class MessagingSyncEngine {
@@ -41,6 +42,15 @@ final class MessagingSyncEngine {
 
     private func handleIncomingMessage(_ payload: Any, event: MessageEvent) {
         print("🔴 [MessagingSyncEngine] Received realtime payload: \(type(of: payload))")
+        if event == .update,
+           let updateAction = payload as? UpdateAction,
+           Self.shouldIgnoreReadByUpdate(
+               record: updateAction.record,
+               oldRecord: updateAction.oldRecord,
+               currentUserId: authService.currentUserId
+           ) {
+            return
+        }
         guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
             print("⚠️ [MessagingSyncEngine] Failed to parse realtime message payload")
             return
@@ -89,6 +99,40 @@ final class MessagingSyncEngine {
                 }
             )
         }
+    }
+
+    static func shouldIgnoreReadByUpdate(
+        record: [String: AnyJSON],
+        oldRecord: [String: AnyJSON],
+        currentUserId: UUID?
+    ) -> Bool {
+        guard let currentUserId else { return false }
+
+        var strippedRecord = record
+        strippedRecord.removeValue(forKey: "read_by")
+        strippedRecord.removeValue(forKey: "updated_at")
+
+        var strippedOldRecord = oldRecord
+        strippedOldRecord.removeValue(forKey: "read_by")
+        strippedOldRecord.removeValue(forKey: "updated_at")
+
+        guard strippedRecord == strippedOldRecord else { return false }
+
+        let oldReadBy = readBySet(oldRecord["read_by"])
+        let newReadBy = readBySet(record["read_by"])
+        guard oldReadBy != newReadBy else { return false }
+
+        return !oldReadBy.contains(currentUserId) && newReadBy.contains(currentUserId)
+    }
+
+    private static func readBySet(_ value: AnyJSON?) -> Set<UUID> {
+        guard case let .array(items)? = value else { return [] }
+        return Set(items.compactMap { item in
+            if case let .string(raw) = item {
+                return UUID(uuidString: raw)
+            }
+            return nil
+        })
     }
 
     private func precacheMedia(url: String) {

@@ -473,6 +473,7 @@ struct MessageBubble: View {
         Text(message.text)
             .font(.naarsBody)
             .foregroundColor(isFromCurrentUser ? .white : .primary)
+            .multilineTextAlignment(.leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(bubbleBackground)

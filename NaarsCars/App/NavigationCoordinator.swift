@@ -380,6 +380,16 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("dismissNotificationsSheet"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.navigateToNotifications = false
+            }
+        }
+
+        NotificationCenter.default.addObserver(
             forName: NSNotification.Name("navigateToAnnouncements"),
             object: nil,
             queue: .main

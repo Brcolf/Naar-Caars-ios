@@ -21,20 +21,8 @@ struct RequestsDashboardView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Filter tiles (Open Requests, My Requests, Claimed by Me)
-                FilterTilesView(selectedFilter: $viewModel.filter) { newFilter in
-                    viewModel.filterRequests(newFilter)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
-                .background(Color(.systemBackground))
-                
-                Divider()
-                
-                // List Content (map view removed)
-                listContentView
-            }
+            // List Content (map view removed)
+            listContentView
             .id("app.entry.enterApp")
             .navigationTitle("Requests")
             .toolbar {
@@ -115,52 +103,76 @@ struct RequestsDashboardView: View {
             favors: viewModel.filteredFavors
         )
         
-        if viewModel.isLoading && filteredRequests.isEmpty {
-            // Show skeleton loading
-            ScrollView {
-                VStack(spacing: 16) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        SkeletonRequestCard()
-                    }
-                }
-                .padding()
-            }
-        } else if let error = viewModel.error {
-            ErrorView(
-                error: error,
-                retryAction: {
-                    Task {
-                        await viewModel.loadRequests()
-                    }
-                }
-            )
-        } else if filteredRequests.isEmpty {
-            EmptyStateView(
-                icon: "list.bullet.rectangle",
-                title: "No Requests Available",
-                message: filterEmptyMessage,
-                actionTitle: nil,
-                action: nil,
-                customImage: "naars_requests_icon"
-            )
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    ForEach(filteredRequests) { request in
-                        let showsUnseenIndicator = viewModel.unseenRequestKeys.contains(request.notificationKey)
-                        NavigationLink(destination: destinationView(for: request)) {
-                            RequestCardView(request: request, showsUnseenIndicator: showsUnseenIndicator)
+        ScrollView {
+            LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                Section(header: filterHeaderView) {
+                    if viewModel.isLoading && filteredRequests.isEmpty {
+                        // Show skeleton loading
+                        VStack(spacing: 16) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                SkeletonRequestCard()
+                            }
                         }
-                        .buttonStyle(PlainButtonStyle())
-                        .accessibilityIdentifier("requests.card")
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                    } else if let error = viewModel.error {
+                        ErrorView(
+                            error: error,
+                            retryAction: {
+                                Task {
+                                    await viewModel.loadRequests()
+                                }
+                            }
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal)
+                        .padding(.top, 24)
+                    } else if filteredRequests.isEmpty {
+                        EmptyStateView(
+                            icon: "list.bullet.rectangle",
+                            title: "No Requests Available",
+                            message: filterEmptyMessage,
+                            actionTitle: nil,
+                            action: nil,
+                            customImage: "naars_requests_icon"
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal)
+                        .padding(.top, 24)
+                    } else {
+                        ForEach(filteredRequests) { request in
+                            let showsUnseenIndicator = viewModel.unseenRequestKeys.contains(request.notificationKey)
+                            NavigationLink(destination: destinationView(for: request)) {
+                                RequestCardView(request: request, showsUnseenIndicator: showsUnseenIndicator)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .accessibilityIdentifier("requests.card")
+                            .padding(.horizontal)
+                        }
+                        .padding(.top, 4)
                     }
                 }
-                .padding()
-            }
-            .refreshable {
-                await viewModel.refreshRequests()
             }
         }
+        .accessibilityIdentifier("requests.scroll")
+        .refreshable {
+            await viewModel.refreshRequests()
+        }
+    }
+
+    private var filterHeaderView: some View {
+        VStack(spacing: 0) {
+            // Filter tiles (Open Requests, My Requests, Claimed by Me)
+            FilterTilesView(selectedFilter: $viewModel.filter) { newFilter in
+                viewModel.filterRequests(newFilter)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
+
+            Divider()
+        }
+        .background(Color(.systemBackground))
     }
     
     // MARK: - Helper Methods

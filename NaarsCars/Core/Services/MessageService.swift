@@ -27,6 +27,32 @@ final class MessageService {
     // MARK: - Initialization
     
     private init() {}
+
+    struct MessageReadByRow: Decodable, Equatable {
+        let id: UUID
+        let readBy: [UUID]
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case readBy = "read_by"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(UUID.self, forKey: .id)
+            readBy = try container.decodeIfPresent([UUID].self, forKey: .readBy) ?? []
+        }
+    }
+
+    static func decodeUnreadMessages(from data: Data) throws -> [MessageReadByRow] {
+        try JSONDecoder().decode([MessageReadByRow].self, from: data)
+    }
+
+    /// Build a PostgREST filter for unread read_by arrays.
+    /// Includes null read_by and arrays that don't contain the user.
+    static func unreadReadByFilter(userId: UUID) -> String {
+        "read_by.is.null,read_by.not.cs.{\(userId.uuidString)}"
+    }
     
     // MARK: - Conversations
     
@@ -193,7 +219,8 @@ final class MessageService {
                 .from("messages")
                 .select("id")
                 .eq("conversation_id", value: conversationId.uuidString)
-                .not("read_by", operator: .cs, value: userId.uuidString)
+                .neq("from_id", value: userId.uuidString)
+                .or(Self.unreadReadByFilter(userId: userId))
                 .execute()
             
             let unreadMessages = try? JSONDecoder().decode([MessageId].self, from: response.data)
@@ -1189,20 +1216,11 @@ final class MessageService {
             .from("messages")
             .select("id, read_by")
             .eq("conversation_id", value: conversationId.uuidString)
-            .not("read_by", operator: .cs, value: userId.uuidString)
+            .neq("from_id", value: userId.uuidString)
+            .or(Self.unreadReadByFilter(userId: userId))
             .execute()
         
-        struct MessageReadBy: Codable {
-            let id: UUID
-            let readBy: [UUID]
-            
-            enum CodingKeys: String, CodingKey {
-                case id
-                case readBy = "read_by"
-            }
-        }
-        
-        let unreadMessages: [MessageReadBy] = try JSONDecoder().decode([MessageReadBy].self, from: unreadResponse.data)
+        let unreadMessages = try Self.decodeUnreadMessages(from: unreadResponse.data)
         
         if !unreadMessages.isEmpty {
             let messageIds = unreadMessages.map { $0.id.uuidString }

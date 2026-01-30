@@ -57,6 +57,31 @@ final class NaarsCarsUITests: XCTestCase {
     }
 
     @MainActor
+    func testRequestsPullToRefreshMovesFilters() throws {
+        let app = launchApp()
+        loginIfNeeded(app: app, email: "alice@test.com", password: "TestPassword123!")
+        handleGuidelinesIfNeeded(app: app)
+
+        openTab(app: app, label: "Requests")
+
+        let filterButton = app.buttons["requests.filter.Open Requests"].firstMatch
+        XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
+
+        let scrollView = app.scrollViews["requests.scroll"]
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 10))
+
+        let startY = filterButton.frame.minY
+        let dragStart = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        let dragEnd = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        dragStart.press(forDuration: 0.1, thenDragTo: dragEnd)
+
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        let endY = filterButton.frame.minY
+
+        XCTAssertGreaterThan(endY, startY + 1, "Filter tiles should move down during pull-to-refresh")
+    }
+
+    @MainActor
     func testMessagingFlow() throws {
         let app = launchApp()
         loginIfNeeded(app: app, email: "alice@test.com", password: "TestPassword123!")
@@ -119,11 +144,17 @@ final class NaarsCarsUITests: XCTestCase {
 
         openTab(app: app, label: "Community")
 
+        let header = app.otherElements["community.header"]
+        XCTAssertTrue(header.waitForExistence(timeout: 5))
+
         let segmented = app.segmentedControls["community.segmented"]
-        if segmented.waitForExistence(timeout: 5) {
-            segmented.buttons["Leaderboard"].tap()
-            segmented.buttons["Town Hall"].tap()
-        }
+        XCTAssertTrue(segmented.waitForExistence(timeout: 5))
+        XCTAssertFalse(header.images["naars_community_icon"].exists)
+        XCTAssertFalse(app.staticTexts["Share with the Community"].exists)
+        XCTAssertFalse(app.staticTexts["What's on your mind?"].exists)
+
+        segmented.buttons["Leaderboard"].tap()
+        segmented.buttons["Town Hall"].tap()
 
         app.swipeUp()
         app.swipeDown()

@@ -23,7 +23,17 @@ However, since webhooks trigger once per INSERT, we need to either:
 
 ## Webhook Configuration
 
-### Basic Webhook Setup
+### Option A (Recommended): Edge Function webhook
+
+1. Go to Supabase Dashboard → Database → Webhooks
+2. Create new webhook:
+   - **Name**: `message_push_webhook`
+   - **Table**: `messages`
+   - **Events**: `INSERT`
+   - **Type**: **Supabase Edge Functions**
+   - **Function**: `send-message-push`
+
+### Option B: HTTP Request webhook
 
 1. Go to Supabase Dashboard → Database → Webhooks
 2. Create new webhook:

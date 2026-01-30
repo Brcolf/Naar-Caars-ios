@@ -34,11 +34,38 @@ final class ConversationsListViewModel: ObservableObject {
     private func setupLocalObservation() {
         repository.getConversationsPublisher()
             .sink { [weak self] updatedConversations in
-                withAnimation(.easeInOut) {
-                    self?.conversations = updatedConversations
-                }
+                self?.applyLocalConversations(updatedConversations, animated: false)
             }
             .store(in: &cancellables)
+    }
+
+    static func shouldShowLoading(conversations: [ConversationWithDetails]) -> Bool {
+        conversations.isEmpty
+    }
+
+    func applyLocalConversations(_ updatedConversations: [ConversationWithDetails], animated: Bool = false) {
+        let mergedConversations = updatedConversations.map { updated in
+            guard updated.otherParticipants.isEmpty,
+                  let existing = conversations.first(where: { $0.id == updated.id }),
+                  !existing.otherParticipants.isEmpty else {
+                return updated
+            }
+            return ConversationWithDetails(
+                conversation: updated.conversation,
+                lastMessage: updated.lastMessage,
+                unreadCount: updated.unreadCount,
+                otherParticipants: existing.otherParticipants
+            )
+        }
+
+        guard mergedConversations != conversations else { return }
+        if animated {
+            withAnimation(.easeInOut) {
+                conversations = mergedConversations
+            }
+        } else {
+            conversations = mergedConversations
+        }
     }
     
     private func setupUnreadCountObservers() {
@@ -91,18 +118,23 @@ final class ConversationsListViewModel: ObservableObject {
     deinit {}
     
     func loadConversations() async {
+        let showLoading = Self.shouldShowLoading(conversations: conversations)
+        if showLoading {
+            isLoading = true
+            defer { isLoading = false }
+        }
+
         guard let userId = authService.currentUserId else {
             error = .notAuthenticated
             return
         }
         
-        isLoading = true
         error = nil
         
         // 1. Load from local SwiftData immediately
         do {
             let localConversations = try repository.getConversations()
-            self.conversations = localConversations
+            applyLocalConversations(localConversations, animated: false)
             print("📱 [ConversationsListVM] Loaded \(conversations.count) conversations from local storage")
             
             // Hydrate profiles for local conversations
@@ -117,7 +149,7 @@ final class ConversationsListViewModel: ObservableObject {
                 try await repository.syncConversations(userId: userId)
                 // Re-fetch local data after sync to update UI
                 let updatedConversations = try repository.getConversations()
-                self.conversations = updatedConversations
+                self.applyLocalConversations(updatedConversations, animated: false)
                 
                 // Hydrate profiles for updated conversations
                 await hydrateProfiles(for: updatedConversations)
@@ -125,8 +157,6 @@ final class ConversationsListViewModel: ObservableObject {
                 print("🔴 [ConversationsListVM] Error syncing conversations: \(error)")
             }
         }
-        
-        isLoading = false
     }
 
     private func hydrateProfiles(for conversations: [ConversationWithDetails]) async {
@@ -159,7 +189,7 @@ final class ConversationsListViewModel: ObservableObject {
         }
         
         if hasChanges {
-            self.conversations = updatedConversations
+            applyLocalConversations(updatedConversations, animated: false)
         }
     }
     

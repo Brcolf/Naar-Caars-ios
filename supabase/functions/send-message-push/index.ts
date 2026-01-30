@@ -78,6 +78,24 @@ serve(async (req) => {
         }
       }
     }
+
+    const eventType = resolveEventType(payload)
+    if (eventType && eventType !== 'INSERT') {
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'unsupported_event', eventType }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const tableName = resolveTableName(payload)
+    if (tableName && tableName !== 'messages') {
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'unsupported_table', tableName }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const normalizedPayload = normalizeWebhookPayload(payload)
     
     // If webhook provides full payload, use it; otherwise fetch from database
     let recipient_user_id: string
@@ -99,7 +117,7 @@ serve(async (req) => {
       // Partial payload from database webhook - fetch additional data
       // Database webhook provides NEW row, so we have message data
       // Handle different possible payload formats
-      const messageData = payload
+      const messageData = normalizedPayload
       
       // Try multiple possible field names
       message_id = messageData.id || messageData.message_id || messageData.messageId
@@ -285,6 +303,33 @@ serve(async (req) => {
     )
   }
 })
+
+function normalizeWebhookPayload(payload: any): any {
+  if (!payload || typeof payload !== 'object') {
+    return payload
+  }
+  if (payload.record) {
+    return payload.record
+  }
+  if (payload.new) {
+    return payload.new
+  }
+  if (payload.data?.record) {
+    return payload.data.record
+  }
+  if (payload.data?.new) {
+    return payload.data.new
+  }
+  return payload
+}
+
+function resolveEventType(payload: any): string | undefined {
+  return payload?.type || payload?.eventType || payload?.event_type || payload?.data?.type || payload?.data?.eventType || payload?.data?.event_type
+}
+
+function resolveTableName(payload: any): string | undefined {
+  return payload?.table || payload?.data?.table || payload?.table_name || payload?.data?.table_name
+}
 
 async function sendPushToRecipient(
   recipientUserId: string,

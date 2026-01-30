@@ -33,7 +33,7 @@ struct BellButton: View {
                         .padding(.vertical, 2)
                         .background(Color.red)
                         .clipShape(Capsule())
-                        .offset(x: 8, y: -6)
+                        .offset(x: 6, y: -2)
                         .id("app.chrome.bellBadge")
                 }
             }

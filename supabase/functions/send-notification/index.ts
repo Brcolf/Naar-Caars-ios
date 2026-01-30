@@ -83,6 +83,35 @@ serve(async (req) => {
       // Handle completion reminder response (Yes/No)
       return await handleCompletionResponse(supabase, requestData)
     } else {
+      const eventType = resolveEventType(requestData)
+      const tableName = resolveTableName(requestData)
+      if (tableName && tableName !== 'notification_queue') {
+        return new Response(
+          JSON.stringify({ skipped: true, reason: 'unsupported_table', tableName }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (eventType && eventType !== 'INSERT' && eventType !== 'UPDATE') {
+        return new Response(
+          JSON.stringify({ skipped: true, reason: 'unsupported_event', eventType }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (eventType === 'UPDATE') {
+        const record = resolveRecord(requestData)
+        const oldRecord = resolveOldRecord(requestData)
+        const processedTransition = record?.processed_at && !oldRecord?.processed_at && !record?.sent_at
+
+        if (!processedTransition) {
+          return new Response(
+            JSON.stringify({ skipped: true, reason: 'ignored_update' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+
       // Process notification queue
       return await processNotificationQueue(supabase)
     }
@@ -416,6 +445,21 @@ async function createAPNsJWT(teamId: string, keyId: string, key: string): Promis
   return jwt
 }
 
+function resolveEventType(payload: any): string | undefined {
+  return payload?.type || payload?.eventType || payload?.event_type || payload?.data?.type || payload?.data?.eventType || payload?.data?.event_type
+}
+
+function resolveTableName(payload: any): string | undefined {
+  return payload?.table || payload?.table_name || payload?.data?.table || payload?.data?.table_name
+}
+
+function resolveRecord(payload: any): any {
+  return payload?.record || payload?.data?.record || payload?.new || payload?.data?.new || payload
+}
+
+function resolveOldRecord(payload: any): any {
+  return payload?.old_record || payload?.data?.old_record || payload?.old || payload?.data?.old
+}
 async function importECPrivateKey(pemKey: string): Promise<CryptoKey> {
   // Remove PEM headers/footers and whitespace
   const keyData = pemKey

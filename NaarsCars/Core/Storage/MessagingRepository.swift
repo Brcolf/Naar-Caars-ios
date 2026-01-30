@@ -74,14 +74,10 @@ final class MessagingRepository {
                 existing.updatedAt = remote.conversation.updatedAt
                 existing.unreadCount = remote.unreadCount
                 existing.participantIds = participantIds
-                
-                // CRITICAL: Refresh unread count locally based on new messages
-                updateUnreadCount(for: existing)
             } else {
                 let newSDConv = MessagingMapper.mapToSDConversation(remote.conversation, participantIds: participantIds)
                 newSDConv.unreadCount = remote.unreadCount
                 modelContext.insert(newSDConv)
-                updateUnreadCount(for: newSDConv)
             }
             
             // Also sync the last message if available
@@ -235,6 +231,7 @@ final class MessagingRepository {
         let existing = try modelContext.fetch(fetchDescriptor).first
         
         if let existing = existing {
+            let previousReadBy = existing.readBy
             existing.text = message.text
             existing.readBy = message.readBy
             existing.imageUrl = message.imageUrl
@@ -245,9 +242,16 @@ final class MessagingRepository {
             existing.locationName = message.locationName
             existing.isPending = false // If it's from sync, it's not pending
             
-            // Update unread count for conversation if readBy changed
-            if let sdConv = existing.conversation {
-                updateUnreadCount(for: sdConv)
+            // Update unread count incrementally to avoid rescanning all messages
+            if let sdConv = existing.conversation,
+               let currentUserId = AuthService.shared.currentUserId {
+                sdConv.unreadCount = Self.updatedUnreadCount(
+                    currentCount: sdConv.unreadCount,
+                    fromId: message.fromId,
+                    currentUserId: currentUserId,
+                    previousReadBy: previousReadBy,
+                    newReadBy: message.readBy
+                )
             }
         } else {
             let newSDMessage = MessagingMapper.mapToSDMessage(message)
@@ -261,11 +265,48 @@ final class MessagingRepository {
                 if message.createdAt > sdConv.updatedAt {
                     sdConv.updatedAt = message.createdAt
                 }
-                updateUnreadCount(for: sdConv)
+                if let currentUserId = AuthService.shared.currentUserId {
+                    sdConv.unreadCount = Self.updatedUnreadCountForInsert(
+                        currentCount: sdConv.unreadCount,
+                        fromId: message.fromId,
+                        currentUserId: currentUserId,
+                        readBy: message.readBy
+                    )
+                }
             }
             
             modelContext.insert(newSDMessage)
         }
+    }
+
+    static func updatedUnreadCount(
+        currentCount: Int,
+        fromId: UUID,
+        currentUserId: UUID,
+        previousReadBy: [UUID],
+        newReadBy: [UUID]
+    ) -> Int {
+        guard fromId != currentUserId else { return currentCount }
+        let didRead = previousReadBy.contains(currentUserId)
+        let nowRead = newReadBy.contains(currentUserId)
+        if !didRead && nowRead {
+            return max(currentCount - 1, 0)
+        }
+        if didRead && !nowRead {
+            return currentCount + 1
+        }
+        return currentCount
+    }
+
+    static func updatedUnreadCountForInsert(
+        currentCount: Int,
+        fromId: UUID,
+        currentUserId: UUID,
+        readBy: [UUID]
+    ) -> Int {
+        guard fromId != currentUserId else { return currentCount }
+        guard !readBy.contains(currentUserId) else { return currentCount }
+        return currentCount + 1
     }
 
     func fetchSDMessage(id: UUID) throws -> SDMessage? {

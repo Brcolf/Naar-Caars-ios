@@ -75,14 +75,7 @@ struct CommunityHeaderView: View {
     @Binding var selectedView: CommunityTabView.CommunityView
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Fun icon at the top
-            Image("naars_community_icon")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 60)
-                .padding(.top, 8)
-            
+        VStack(spacing: 0) {
             // Segmented picker
             Picker("Community View", selection: $selectedView) {
                 ForEach(CommunityTabView.CommunityView.allCases, id: \.self) { view in
@@ -90,11 +83,14 @@ struct CommunityHeaderView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .padding(.top, 8)
             .padding(.horizontal)
             .accessibilityIdentifier("community.segmented")
         }
         .padding(.bottom, 12)
         .background(Color(.systemBackground))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("community.header")
     }
 }
 

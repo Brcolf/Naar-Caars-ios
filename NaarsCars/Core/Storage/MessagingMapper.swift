@@ -180,10 +180,12 @@ struct MessagingMapper {
     }
 
     private static func normalizeValue(_ value: Any?) -> Any? {
+        guard let value else { return nil }
+        if value is NSNull { return nil }
         if let anyJSON = value as? AnyJSON {
             return decodeAnyJSON(anyJSON)
         }
-        if let anyHashable = value as? AnyHashable {
+        if type(of: value) == AnyHashable.self, let anyHashable = value as? AnyHashable {
             return normalizeValue(anyHashable.base)
         }
         return value

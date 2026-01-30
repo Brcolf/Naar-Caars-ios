@@ -42,48 +42,10 @@ struct TownHallFeedView: View {
     }
     
     private var mainContent: some View {
-        VStack(spacing: 0) {
-            postComposerSection
-            Divider()
-            postsFeedContent
-        }
+        postsFeedContent
     }
     
     // MARK: - View Components
-    
-    private var postComposerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Share with the Community")
-                .font(.naarsHeadline)
-                .padding(.horizontal)
-                .padding(.top)
-            
-            HStack(spacing: 12) {
-                Text("What's on your mind?")
-                    .font(.naarsBody)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                    .onTapGesture {
-                        showCreatePost = true
-                    }
-                
-                Button {
-                    showCreatePost = true
-                } label: {
-                    Image(systemName: "photo")
-                        .font(.title3)
-                        .foregroundColor(.naarsPrimary)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.bottom)
-        }
-        .background(Color(.systemBackground))
-    }
     
     @ViewBuilder
     private var postsFeedContent: some View {

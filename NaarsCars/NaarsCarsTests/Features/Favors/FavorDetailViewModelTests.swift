@@ -22,6 +22,9 @@ final class FavorDetailViewModelTests: XCTestCase {
             userId: UUID(),
             title: "Test Favor",
             description: "Need help",
+            location: "Test Location",
+            duration: .notSure,
+            date: Date(),
             status: .open,
             claimedBy: nil
         )
@@ -35,7 +38,10 @@ final class FavorDetailViewModelTests: XCTestCase {
             userId: UUID(),
             title: "Test Favor",
             description: "Need help",
-            status: .claimed,
+            location: "Test Location",
+            duration: .notSure,
+            date: Date(),
+            status: .confirmed,
             claimedBy: UUID()
         )
         viewModel.favor = testFavor
