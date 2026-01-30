@@ -137,6 +137,15 @@ final class MessagingRepository {
         // We'll need to update MessageService to support fetching by timestamp, 
         // but for now we'll fetch the last 25 as a safety net.
         let remoteMessages = try await messageService.fetchMessages(conversationId: conversationId)
+
+#if DEBUG
+        let replyIds = remoteMessages.filter { $0.replyToId != nil }.count
+        let replyContexts = remoteMessages.filter { $0.replyToMessage != nil }.count
+        print("🧵 [ReplyThreadDebug] sync(remote) total=\(remoteMessages.count) replyToId=\(replyIds) replyContext=\(replyContexts)")
+        if let sample = remoteMessages.first(where: { $0.replyToId != nil }) {
+            print("🧵 [ReplyThreadDebug] remote sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
+        }
+#endif
         
         for remote in remoteMessages {
             try upsertMessage(remote)

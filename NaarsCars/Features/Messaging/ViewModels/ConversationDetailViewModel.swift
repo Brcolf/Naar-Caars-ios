@@ -37,6 +37,9 @@ final class ConversationDetailViewModel: ObservableObject {
     private let pageSize = 25
     private var oldestMessageId: UUID?
     private var conversationUpdatedObserver: NSObjectProtocol?
+#if DEBUG
+    private var lastReplyDebugSnapshot: (total: Int, replyIds: Int, replyContexts: Int) = (-1, -1, -1)
+#endif
     
     init(conversationId: UUID) {
         self.conversationId = conversationId
@@ -55,6 +58,9 @@ final class ConversationDetailViewModel: ObservableObject {
             .sink { [weak self] updatedMessages in
                 guard let self = self, self.repository.isConfigured else { return }
                 self.messages = updatedMessages
+#if DEBUG
+                self.logReplyDebugSnapshot(source: "publisher(local)", messages: updatedMessages)
+#endif
             }
             .store(in: &cancellables)
     }
@@ -70,6 +76,9 @@ final class ConversationDetailViewModel: ObservableObject {
             self.messages = localMessages
             oldestMessageId = localMessages.first?.id
             hasMoreMessages = localMessages.count == pageSize
+#if DEBUG
+            logReplyDebugSnapshot(source: "loadMessages(local)", messages: localMessages)
+#endif
         } catch {
             print("⚠️ [ConversationDetailVM] Error loading local messages: \(error.localizedDescription)")
         }
@@ -266,6 +275,20 @@ final class ConversationDetailViewModel: ObservableObject {
             print("⚠️ [ConversationDetailVM] Background sync failed: \(error.localizedDescription)")
         }
     }
+
+#if DEBUG
+    private func logReplyDebugSnapshot(source: String, messages: [Message]) {
+        let replyIds = messages.filter { $0.replyToId != nil }.count
+        let replyContexts = messages.filter { $0.replyToMessage != nil }.count
+        let snapshot = (total: messages.count, replyIds: replyIds, replyContexts: replyContexts)
+        guard snapshot != lastReplyDebugSnapshot else { return }
+        lastReplyDebugSnapshot = snapshot
+        print("🧵 [ReplyThreadDebug] \(source) total=\(snapshot.total) replyToId=\(snapshot.replyIds) replyContext=\(snapshot.replyContexts)")
+        if let sample = messages.first(where: { $0.replyToId != nil }) {
+            print("🧵 [ReplyThreadDebug] sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
+        }
+    }
+#endif
     
     // MARK: - Audio Messages
     
