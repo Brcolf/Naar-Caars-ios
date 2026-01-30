@@ -18,11 +18,10 @@ final class NotificationsListViewModelTests: XCTestCase {
     }
     
     /// Test that loadNotifications loads notifications successfully
-    func testLoadNotifications() async {
+    func testLoadNotifications() async throws {
         // Given: An authenticated user
         guard AuthService.shared.currentUserId != nil else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Loading notifications
@@ -31,7 +30,8 @@ final class NotificationsListViewModelTests: XCTestCase {
         // Then: Notifications should be loaded (or error set if failed)
         // Note: In a real scenario, you'd mock NotificationService
         // For now, we verify the method completes without crashing
-        XCTAssertNotNil(viewModel.notifications, "Notifications array should be initialized")
+        XCTAssertFalse(viewModel.isLoading, "Loading should be false after completion")
+        XCTAssertGreaterThanOrEqual(viewModel.unreadCount, 0, "Unread count should be non-negative")
         
         // If there's an error, it should be set
         if let error = viewModel.error {
@@ -44,11 +44,10 @@ final class NotificationsListViewModelTests: XCTestCase {
     }
     
     /// Test that loadNotifications sets loading state correctly
-    func testLoadNotifications_LoadingState() async {
+    func testLoadNotifications_LoadingState() async throws {
         // Given: An authenticated user
         guard AuthService.shared.currentUserId != nil else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Starting to load notifications
@@ -66,11 +65,10 @@ final class NotificationsListViewModelTests: XCTestCase {
     }
     
     /// Test that refreshNotifications invalidates cache and reloads
-    func testRefreshNotifications_InvalidatesCache() async {
+    func testRefreshNotifications_InvalidatesCache() async throws {
         // Given: An authenticated user
         guard AuthService.shared.currentUserId != nil else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Refreshing notifications
@@ -82,19 +80,19 @@ final class NotificationsListViewModelTests: XCTestCase {
     }
     
     /// Test that markAsRead updates notification
-    func testMarkAsRead_UpdatesNotification() async {
+    func testMarkAsRead_UpdatesNotification() async throws {
         // Given: An authenticated user and a notification
-        guard AuthService.shared.currentUserId != nil else {
-            XCTSkip("No authenticated user for testing")
-            return
+        guard let userId = AuthService.shared.currentUserId else {
+            throw XCTSkip("No authenticated user for testing")
         }
-        
-        // Load notifications first
-        await viewModel.loadNotifications()
-        
-        guard let unreadNotification = viewModel.notifications.first(where: { !$0.read }) else {
-            XCTSkip("No unread notifications to test")
-            return
+
+        let notifications = try? await NotificationService.shared.fetchNotifications(
+            userId: userId,
+            forceRefresh: true
+        )
+
+        guard let unreadNotification = notifications?.first(where: { !$0.read }) else {
+            throw XCTSkip("No unread notifications to test")
         }
         
         // When: Marking as read
@@ -106,11 +104,10 @@ final class NotificationsListViewModelTests: XCTestCase {
     }
     
     /// Test that markAllAsRead marks all notifications as read
-    func testMarkAllAsRead_MarksAllAsRead() async {
+    func testMarkAllAsRead_MarksAllAsRead() async throws {
         // Given: An authenticated user
         guard AuthService.shared.currentUserId != nil else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Marking all as read

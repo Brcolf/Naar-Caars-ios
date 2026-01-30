@@ -850,14 +850,19 @@ final class ConversationParticipantsViewModel: ObservableObject {
             }
             
             // 4. Fetch profiles for each participant
+            let existingParticipants = participants
             var profiles: [Profile] = []
             for userId in freshParticipantIds {
                 if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
                     profiles.append(profile)
+                } else if let existing = existingParticipants.first(where: { $0.id == userId }) {
+                    profiles.append(existing)
                 }
             }
-            
-            self.participants = profiles
+
+            if !profiles.isEmpty || freshParticipantIds.isEmpty {
+                self.participants = profiles
+            }
         } catch {
             self.error = AppError.processingError("Failed to load participants: \(error.localizedDescription)")
             print("🔴 Error loading participants: \(error.localizedDescription)")
