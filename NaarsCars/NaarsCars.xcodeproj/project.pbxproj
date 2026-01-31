@@ -281,6 +281,9 @@
 		F7015B8EE2604E17810A88DD /* SecondaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9CBBEBE4127414D8A8CA26C /* SecondaryButton.swift */; };
 		FA2BBF9801DF4FA8810D2A2C /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E5C134F01A4B3E9C064014 /* EditProfileView.swift */; };
 		FE8BE874EE8F4C9F8C610393 /* (null) in Sources */ = {isa = PBXBuildFile; };
+		FB3400ECF3C94500BFA999EC /* PromptModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A7626088EB4EEA92769463 /* PromptModels.swift */; };
+		0C6159EB517240BB98866104 /* PromptQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C74567335D747008AFF1A27 /* PromptQueue.swift */; };
+		F20784961007464C82C09B9F /* PromptQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA83FF7E3554BDE8735846E /* PromptQueueTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -623,6 +626,9 @@
 		F6CC1F9ACBA66945C7ACCD5A /* NotificationRepository.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationRepository.swift; sourceTree = "<group>"; };
 		FD08F9069CD249488F6D29FC /* Features/Rides/ViewModels/RidesDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/ViewModels/RidesDashboardViewModel.swift; sourceTree = "<group>"; };
 		FD26EB8EAA724DBEA94FE07E /* UserAvatarLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserAvatarLink.swift; sourceTree = "<group>"; };
+		D0A7626088EB4EEA92769463 /* PromptModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModels.swift; sourceTree = "<group>"; };
+		1C74567335D747008AFF1A27 /* PromptQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptQueue.swift; sourceTree = "<group>"; };
+		6BA83FF7E3554BDE8735846E /* PromptQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptQueueTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -921,6 +927,15 @@
 			path = Reviews;
 			sourceTree = "<group>";
 		};
+		A5A425C88A4C4940ADE819AB /* Prompts */ = {
+			isa = PBXGroup;
+			children = (
+				D0A7626088EB4EEA92769463 /* PromptModels.swift */,
+				1C74567335D747008AFF1A27 /* PromptQueue.swift */,
+			);
+			path = Prompts;
+			sourceTree = "<group>";
+		};
 		AC9DDD162F2B1379003465D3 /* Storage */ = {
 			isa = PBXGroup;
 			children = (
@@ -1165,6 +1180,7 @@
 		ACDCBDF32F0B77A600956D1C /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				A5A425C88A4C4940ADE819AB /* Prompts */,
 				AC8197BA2F14C2C1003BB08B /* Reviews */,
 				ACBF4ACC2F12CAFF006A7C8A /* Community */,
 				ACBF4AD12F12CAFF006A7C8A /* Requests */,
@@ -1564,6 +1580,7 @@
 		ACDCBE162F0B799D00956D1C /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				325B966833854F288E03A425 /* Prompts */,
 				AC9DDD1A2F2B139C003465D3 /* Claiming */,
 				AC9DDD1E2F2B139C003465D3 /* Favors */,
 				AC9DDD202F2B139C003465D3 /* Leaderboards */,
@@ -1610,6 +1627,14 @@
 				C15A09E880A74ED5B394100A /* PublicProfileViewModelTests.swift */,
 			);
 			path = Profile;
+			sourceTree = "<group>";
+		};
+		325B966833854F288E03A425 /* Prompts */ = {
+			isa = PBXGroup;
+			children = (
+				6BA83FF7E3554BDE8735846E /* PromptQueueTests.swift */,
+			);
+			path = Prompts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1944,6 +1969,8 @@
 				AC8197BC2F14C2C1003BB08B /* LeaveReviewView.swift in Sources */,
 				AC8197BD2F14C2C1003BB08B /* ReviewPromptManager.swift in Sources */,
 				AC8197BE2F14C2C1003BB08B /* ReviewPromptSheet.swift in Sources */,
+				FB3400ECF3C94500BFA999EC /* PromptModels.swift in Sources */,
+				0C6159EB517240BB98866104 /* PromptQueue.swift in Sources */,
 				ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */,
 				AC4F1E202F23497B00CC5DBA /* PersistentImageService.swift in Sources */,
 				AC305F1C2F0DB85B0063AFDF /* NotificationBadge.swift in Sources */,
@@ -2006,6 +2033,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F20784961007464C82C09B9F /* PromptQueueTests.swift in Sources */,
 				ACDCBE112F0B797200956D1C /* NaarsCarsTests.swift in Sources */,
 				B4A1D20E9F3B4E2CA1B2C3D7 /* Features/Messaging/InAppToastManagerTests.swift in Sources */,
 				B4A1D20E9F3B4E2CA1B2C3D9 /* Features/Favors/FavorDetailViewModelTests.swift in Sources */,
