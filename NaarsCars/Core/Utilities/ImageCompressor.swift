@@ -16,8 +16,8 @@ enum ImagePreset {
     /// Maximum dimension (longest side) in pixels
     var maxDimension: CGFloat {
         switch self {
-        case .avatar: return 400
-        case .messageImage: return 1200
+        case .avatar: return 1024
+        case .messageImage: return 2048
         case .fullSize: return 2000
         }
     }
@@ -25,17 +25,17 @@ enum ImagePreset {
     /// Maximum file size in bytes
     var maxBytes: Int {
         switch self {
-        case .avatar: return 500 * 1024           // 500KB
-        case .messageImage: return 800 * 1024     // 800KB (safe for Supabase storage limits)
-        case .fullSize: return 2 * 1024 * 1024    // 2MB
+        case .avatar: return 1 * 1024 * 1024          // 1MB
+        case .messageImage: return 2_621_440          // 2.5MB (Town Hall + messaging)
+        case .fullSize: return 2 * 1024 * 1024        // 2MB
         }
     }
     
     /// Initial JPEG quality (0.0 to 1.0)
     var initialQuality: CGFloat {
         switch self {
-        case .avatar: return 0.7
-        case .messageImage: return 0.6
+        case .avatar: return 0.8
+        case .messageImage: return 0.75
         case .fullSize: return 0.8
         }
     }
