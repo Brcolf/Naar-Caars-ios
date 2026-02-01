@@ -7,6 +7,10 @@ struct CompletionPrompt: Identifiable, Equatable {
     let requestId: UUID
     let requestTitle: String
     let dueAt: Date
+    
+    var sortDate: Date {
+        dueAt
+    }
 }
 
 struct ReviewPrompt: Identifiable, Equatable {
@@ -17,6 +21,10 @@ struct ReviewPrompt: Identifiable, Equatable {
     let fulfillerId: UUID
     let fulfillerName: String
     let createdAt: Date
+    
+    var sortDate: Date {
+        createdAt
+    }
 }
 
 enum PromptItem: Identifiable, Equatable {
