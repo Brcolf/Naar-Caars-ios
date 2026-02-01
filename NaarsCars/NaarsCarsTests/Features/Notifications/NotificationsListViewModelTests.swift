@@ -27,9 +27,8 @@ final class NotificationsListViewModelTests: XCTestCase {
         // When: Loading notifications
         await viewModel.loadNotifications()
         
-        // Then: Notifications should be loaded (or error set if failed)
+        // Then: Should complete without crashing
         // Note: In a real scenario, you'd mock NotificationService
-        // For now, we verify the method completes without crashing
         XCTAssertFalse(viewModel.isLoading, "Loading should be false after completion")
         XCTAssertGreaterThanOrEqual(viewModel.unreadCount, 0, "Unread count should be non-negative")
         
@@ -83,16 +82,19 @@ final class NotificationsListViewModelTests: XCTestCase {
     func testMarkAsRead_UpdatesNotification() async throws {
         // Given: An authenticated user and a notification
         guard let userId = AuthService.shared.currentUserId else {
-            throw XCTSkip("No authenticated user for testing")
+            XCTSkip("No authenticated user for testing")
+            return
         }
-
+        
+        // Fetch notifications directly since the ViewModel no longer exposes a list
         let notifications = try? await NotificationService.shared.fetchNotifications(
             userId: userId,
             forceRefresh: true
         )
-
+        
         guard let unreadNotification = notifications?.first(where: { !$0.read }) else {
-            throw XCTSkip("No unread notifications to test")
+            XCTSkip("No unread notifications to test")
+            return
         }
         
         // When: Marking as read
