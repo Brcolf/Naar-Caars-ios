@@ -41,6 +41,9 @@ struct ConversationDetailView: View {
     // Reply state
     @State private var replyingToMessage: ReplyContext?
     
+    // Thread view state
+    @State private var activeThreadParent: ThreadParent?
+    
     // Image viewer state
     @State private var selectedImageUrl: URL?
     @State private var showImageViewer = false
@@ -168,6 +171,15 @@ struct ConversationDetailView: View {
                 }
             }
         }
+        .fullScreenCover(item: $activeThreadParent) { parent in
+            MessageThreadView(
+                conversationId: conversationId,
+                parentMessageId: parent.id,
+                conversationViewModel: viewModel,
+                isGroup: isGroup,
+                totalParticipants: totalParticipantsCount
+            )
+        }
         .photosPicker(
             isPresented: $showImagePicker,
             selection: $selectedImage,
@@ -272,15 +284,17 @@ struct ConversationDetailView: View {
     private var isGroup: Bool {
         participantsViewModel.participants.count > 2
     }
+
+    private var totalParticipantsCount: Int {
+        max(
+            participantsViewModel.participants.count,
+            (conversationDetail?.otherParticipants.count ?? 0) + 1
+        )
+    }
     
     /// Create a message bubble with all handlers
     @ViewBuilder
     private func createMessageBubble(message: Message, isFirst: Bool, isLast: Bool) -> some View {
-        let totalParticipants = max(
-            participantsViewModel.participants.count,
-            (conversationDetail?.otherParticipants.count ?? 0) + 1
-        )
-        
         MessageBubble(
             message: message,
             isFromCurrentUser: isFromCurrentUser(message),
@@ -288,7 +302,7 @@ struct ConversationDetailView: View {
             isFirstInSeries: isFirst,
             isLastInSeries: isLast,
             shouldAnimate: newMessageIds.contains(message.id),
-            totalParticipants: totalParticipants,
+            totalParticipants: totalParticipantsCount,
             onLongPress: {
                 reactionPickerMessageId = message.id
                 showReactionPicker = true
@@ -310,7 +324,7 @@ struct ConversationDetailView: View {
                 showReportSheet = true
             },
             onReplyPreviewTap: { replyId in
-                scrollToMessage(replyId)
+                activeThreadParent = ThreadParent(id: replyId)
             },
             isHighlighted: highlightedMessageId == message.id
         )
@@ -493,6 +507,7 @@ struct ConversationDetailView: View {
                 let isFirst = isFirstInSeries(at: index)
                 let isLast = isLastInSeries(at: index)
                 let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
+                let replyChain = replyChainContext(at: index)
 
                 VStack(spacing: 0) {
                     // Date separator
@@ -506,6 +521,17 @@ struct ConversationDetailView: View {
                         isFirst: isFirst,
                         isLast: isLast
                     )
+                    .overlay(alignment: .leading) {
+                        if let replyChain = replyChain {
+                            ReplyThreadSpineView(
+                                showTop: replyChain.hasPrevious,
+                                showBottom: replyChain.hasNext
+                            )
+                            .frame(width: 12)
+                            .offset(x: -6)
+                            .padding(.vertical, 6)
+                        }
+                    }
                 }
                 .id(messageAnchorId(message.id))
             }
@@ -632,6 +658,21 @@ struct ConversationDetailView: View {
         }
         
         return false
+    }
+
+    private struct ReplyChainContext {
+        let hasPrevious: Bool
+        let hasNext: Bool
+    }
+
+    private func replyChainContext(at index: Int) -> ReplyChainContext? {
+        let currentMessage = viewModel.messages[index]
+        guard let replyToId = currentMessage.replyToId else { return nil }
+
+        let hasPrevious = index > 0 && viewModel.messages[index - 1].replyToId == replyToId
+        let hasNext = index < viewModel.messages.count - 1 && viewModel.messages[index + 1].replyToId == replyToId
+
+        return ReplyChainContext(hasPrevious: hasPrevious, hasNext: hasNext)
     }
     
     /// Check if we should show a date separator before this message
@@ -874,6 +915,28 @@ struct DateSeparatorView: View {
             VStack { Divider() }
         }
         .padding(.horizontal)
+    }
+}
+
+// MARK: - Reply Thread Spine
+
+struct ReplyThreadSpineView: View {
+    let showTop: Bool
+    let showBottom: Bool
+
+    var body: some View {
+        GeometryReader { geometry in
+            let height = geometry.size.height
+            let topInset = showTop ? 0 : height * 0.35
+            let bottomInset = showBottom ? height : height * 0.65
+
+            Path { path in
+                let x = geometry.size.width / 2
+                path.move(to: CGPoint(x: x, y: topInset))
+                path.addLine(to: CGPoint(x: x, y: bottomInset))
+            }
+            .stroke(Color.secondary.opacity(0.35), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        }
     }
 }
 
@@ -1138,6 +1201,308 @@ struct ReportMessageSheet: View {
             Text(blockError ?? "")
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - Thread View
+
+private struct ThreadParent: Identifiable {
+    let id: UUID
+}
+
+@MainActor
+final class MessageThreadViewModel: ObservableObject {
+    @Published var parentMessage: Message?
+    @Published var replies: [Message] = []
+    @Published var isLoading = false
+    @Published var error: AppError?
+
+    private let conversationId: UUID
+    private let parentMessageId: UUID
+    private let messageService = MessageService.shared
+
+    init(conversationId: UUID, parentMessageId: UUID) {
+        self.conversationId = conversationId
+        self.parentMessageId = parentMessageId
+    }
+
+    func loadThread(seedMessages: [Message] = []) async {
+        isLoading = true
+        error = nil
+
+        if let seedParent = seedMessages.first(where: { $0.id == parentMessageId }) {
+            parentMessage = seedParent
+        }
+
+        if replies.isEmpty {
+            replies = seedMessages.filter { $0.replyToId == parentMessageId }
+        }
+
+        do {
+            parentMessage = try await messageService.fetchMessageById(parentMessageId)
+            replies = try await messageService.fetchReplies(
+                conversationId: conversationId,
+                replyToId: parentMessageId
+            )
+        } catch {
+            self.error = AppError.processingError(error.localizedDescription)
+        }
+
+        isLoading = false
+    }
+
+    func mergeReplies(from messages: [Message]) {
+        if let parent = messages.first(where: { $0.id == parentMessageId }) {
+            parentMessage = parent
+        }
+
+        let matching = messages.filter { $0.replyToId == parentMessageId }
+        guard !matching.isEmpty else { return }
+
+        var merged = replies
+        let existingIds = Set(merged.map { $0.id })
+        for message in matching where !existingIds.contains(message.id) {
+            merged.append(message)
+        }
+        merged.sort { $0.createdAt < $1.createdAt }
+        replies = merged
+    }
+}
+
+struct MessageThreadView: View {
+    let conversationId: UUID
+    let parentMessageId: UUID
+    @ObservedObject var conversationViewModel: ConversationDetailViewModel
+    let isGroup: Bool
+    let totalParticipants: Int
+
+    @StateObject private var viewModel: MessageThreadViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var messageText = ""
+    @State private var imageToSend: UIImage?
+    @State private var showImagePicker = false
+    @State private var selectedImage: PhotosPickerItem?
+
+    init(
+        conversationId: UUID,
+        parentMessageId: UUID,
+        conversationViewModel: ConversationDetailViewModel,
+        isGroup: Bool,
+        totalParticipants: Int
+    ) {
+        self.conversationId = conversationId
+        self.parentMessageId = parentMessageId
+        self.conversationViewModel = conversationViewModel
+        self.isGroup = isGroup
+        self.totalParticipants = totalParticipants
+        _viewModel = StateObject(wrappedValue: MessageThreadViewModel(
+            conversationId: conversationId,
+            parentMessageId: parentMessageId
+        ))
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                threadHeader
+                Divider()
+                threadContent
+                Divider()
+                MessageInputBar(
+                    text: $messageText,
+                    imageToSend: $imageToSend,
+                    onSend: {
+                        let textToSend = messageText
+                        let image = imageToSend
+                        messageText = ""
+                        imageToSend = nil
+                        Task {
+                            await conversationViewModel.sendMessage(
+                                textOverride: textToSend,
+                                image: image,
+                                replyToId: parentMessageId
+                            )
+                        }
+                    },
+                    onImagePickerTapped: {
+                        showImagePicker = true
+                    },
+                    isDisabled: !hasParentMessage || (messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil),
+                    replyingTo: nil,
+                    onCancelReply: nil,
+                    onAudioRecorded: { audioURL, duration in
+                        Task {
+                            await conversationViewModel.sendAudioMessage(
+                                audioURL: audioURL,
+                                duration: duration,
+                                replyToId: parentMessageId
+                            )
+                        }
+                    },
+                    onLocationShare: { latitude, longitude, name in
+                        Task {
+                            await conversationViewModel.sendLocationMessage(
+                                latitude: latitude,
+                                longitude: longitude,
+                                locationName: name,
+                                replyToId: parentMessageId
+                            )
+                        }
+                    }
+                )
+            }
+            .background(.ultraThinMaterial)
+        }
+        .photosPicker(
+            isPresented: $showImagePicker,
+            selection: $selectedImage,
+            matching: .images
+        )
+        .onChange(of: selectedImage) { _, newValue in
+            Task {
+                if let item = newValue, let data = try? await item.loadTransferable(type: Data.self) {
+                    imageToSend = UIImage(data: data)
+                } else {
+                    imageToSend = nil
+                }
+            }
+        }
+        .task {
+            await viewModel.loadThread(seedMessages: conversationViewModel.messages)
+        }
+        .onReceive(conversationViewModel.$messages) { messages in
+            viewModel.mergeReplies(from: messages)
+        }
+    }
+
+    private var hasParentMessage: Bool {
+        viewModel.parentMessage != nil
+    }
+
+    private var threadHeader: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+            }
+            Spacer()
+            Text("Thread")
+                .font(.naarsBody)
+                .fontWeight(.semibold)
+            Spacer()
+            Color.clear.frame(width: 24)
+        }
+        .padding()
+    }
+
+    private var threadContent: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    parentMessageView
+
+                    if !viewModel.replies.isEmpty {
+                        ForEach(Array(viewModel.replies.enumerated()), id: \.element.id) { index, message in
+                            let isFirst = isFirstInSeries(messages: viewModel.replies, index: index)
+                            let isLast = isLastInSeries(messages: viewModel.replies, index: index)
+
+                            MessageBubble(
+                                message: message,
+                                isFromCurrentUser: isFromCurrentUser(message),
+                                showAvatar: isGroup && !isFromCurrentUser(message),
+                                isFirstInSeries: isFirst,
+                                isLastInSeries: isLast,
+                                totalParticipants: totalParticipants,
+                                showReplyPreview: false
+                            )
+                            .padding(.vertical, 2)
+                        }
+                    } else if !viewModel.isLoading {
+                        Text("No replies yet")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 16)
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("thread.bottom")
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+            .onChange(of: viewModel.replies.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo("thread.bottom", anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var parentMessageView: some View {
+        if let parentMessage = viewModel.parentMessage {
+            MessageBubble(
+                message: parentMessage,
+                isFromCurrentUser: isFromCurrentUser(parentMessage),
+                showAvatar: isGroup && !isFromCurrentUser(parentMessage),
+                isFirstInSeries: true,
+                isLastInSeries: true,
+                totalParticipants: totalParticipants
+            )
+            .padding(.vertical, 6)
+        } else if viewModel.isLoading {
+            ProgressView()
+                .padding(.vertical, 16)
+        } else if let error = viewModel.error {
+            ErrorView(
+                error: error.localizedDescription,
+                retryAction: {
+                    Task { await viewModel.loadThread(seedMessages: conversationViewModel.messages) }
+                }
+            )
+            .padding(.vertical, 16)
+        } else {
+            Text("Original message unavailable")
+                .font(.naarsCaption)
+                .foregroundColor(.secondary)
+                .padding(.vertical, 16)
+        }
+    }
+
+    private func isFromCurrentUser(_ message: Message) -> Bool {
+        message.fromId == AuthService.shared.currentUserId
+    }
+
+    private func isFirstInSeries(messages: [Message], index: Int) -> Bool {
+        guard index > 0 else { return true }
+        let currentMessage = messages[index]
+        let previousMessage = messages[index - 1]
+
+        if currentMessage.fromId != previousMessage.fromId {
+            return true
+        }
+
+        let timeDiff = currentMessage.createdAt.timeIntervalSince(previousMessage.createdAt)
+        return timeDiff > 300
+    }
+
+    private func isLastInSeries(messages: [Message], index: Int) -> Bool {
+        guard index < messages.count - 1 else { return true }
+        let currentMessage = messages[index]
+        let nextMessage = messages[index + 1]
+
+        if currentMessage.fromId != nextMessage.fromId {
+            return true
+        }
+
+        let timeDiff = nextMessage.createdAt.timeIntervalSince(currentMessage.createdAt)
+        return timeDiff > 300
     }
 }
 

@@ -860,55 +860,80 @@ final class MessageService {
         // Reverse to get oldest first (for display - newest at bottom)
         messages.reverse()
         
-        // Fetch reactions for messages
-        let messageIds = messages.map { $0.id.uuidString }
-        if !messageIds.isEmpty {
-            let reactionsResponse = try? await supabase
-                .from("message_reactions")
-                .select()
-                .in("message_id", values: messageIds)
-                .execute()
-            
-            if let reactionsData = reactionsResponse?.data {
-                let reactions: [MessageReaction] = (try? decoder.decode([MessageReaction].self, from: reactionsData)) ?? []
-                
-                // Group reactions by message ID
-                var reactionsDict: [UUID: [String: [UUID]]] = [:]
-                for reaction in reactions {
-                    if reactionsDict[reaction.messageId] == nil {
-                        reactionsDict[reaction.messageId] = [:]
-                    }
-                    if reactionsDict[reaction.messageId]?[reaction.reaction] == nil {
-                        reactionsDict[reaction.messageId]?[reaction.reaction] = []
-                    }
-                    reactionsDict[reaction.messageId]?[reaction.reaction]?.append(reaction.userId)
-                }
-                
-                // Attach reactions to messages
-                for i in 0..<messages.count {
-                    if let reactionDict = reactionsDict[messages[i].id] {
-                        messages[i].reactions = MessageReactions(reactions: reactionDict)
-                    }
-                }
-            }
-        }
-        
-        // Populate reply contexts (if any)
-        let replyIds = Array(Set(messages.compactMap { $0.replyToId }))
-        if !replyIds.isEmpty {
-            if let replyContexts = try? await fetchReplyContexts(for: replyIds) {
-                for index in messages.indices {
-                    if let replyId = messages[index].replyToId,
-                       let context = replyContexts[replyId] {
-                        messages[index].replyToMessage = context
-                    }
-                }
-            }
-        }
+        await enrichMessages(&messages)
         
         // Cache results (only cache if this is the initial load, not pagination)
         AppLogger.network.info("Fetched \(messages.count) messages from network.")
         return messages
+    }
+
+    /// Fetch replies to a single message (ordered oldest first)
+    func fetchReplies(conversationId: UUID, replyToId: UUID) async throws -> [Message] {
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("reply_to_id", value: replyToId.uuidString)
+            .order("created_at", ascending: true)
+            .execute()
+        
+        let decoder = createDateDecoder()
+        var messages = try decoder.decode([Message].self, from: response.data)
+        await enrichMessages(&messages)
+        return messages
+    }
+
+    private func enrichMessages(_ messages: inout [Message]) async {
+        await attachReactions(to: &messages)
+        await attachReplyContexts(to: &messages)
+    }
+
+    private func attachReactions(to messages: inout [Message]) async {
+        let messageIds = messages.map { $0.id.uuidString }
+        guard !messageIds.isEmpty else { return }
+        
+        let reactionsResponse = try? await supabase
+            .from("message_reactions")
+            .select()
+            .in("message_id", values: messageIds)
+            .execute()
+        
+        guard let reactionsData = reactionsResponse?.data else { return }
+        let decoder = createDateDecoder()
+        let reactions: [MessageReaction] = (try? decoder.decode([MessageReaction].self, from: reactionsData)) ?? []
+        
+        // Group reactions by message ID
+        var reactionsDict: [UUID: [String: [UUID]]] = [:]
+        for reaction in reactions {
+            if reactionsDict[reaction.messageId] == nil {
+                reactionsDict[reaction.messageId] = [:]
+            }
+            if reactionsDict[reaction.messageId]?[reaction.reaction] == nil {
+                reactionsDict[reaction.messageId]?[reaction.reaction] = []
+            }
+            reactionsDict[reaction.messageId]?[reaction.reaction]?.append(reaction.userId)
+        }
+        
+        // Attach reactions to messages
+        for index in messages.indices {
+            if let reactionDict = reactionsDict[messages[index].id] {
+                messages[index].reactions = MessageReactions(reactions: reactionDict)
+            }
+        }
+    }
+
+    private func attachReplyContexts(to messages: inout [Message]) async {
+        let replyIds = Array(Set(messages.compactMap { $0.replyToId }))
+        guard !replyIds.isEmpty else { return }
+        
+        if let replyContexts = try? await fetchReplyContexts(for: replyIds) {
+            for index in messages.indices {
+                if let replyId = messages[index].replyToId,
+                   let context = replyContexts[replyId] {
+                    messages[index].replyToMessage = context
+                }
+            }
+        }
     }
 
     /// Fetch reply contexts for a set of message IDs
@@ -963,14 +988,9 @@ final class MessageService {
         
         let decoder = createDateDecoder()
         var message = try decoder.decode(Message.self, from: response.data)
-        
-        if let replyId = message.replyToId {
-            if let replyContext = try? await fetchReplyContexts(for: [replyId])[replyId] {
-                message.replyToMessage = replyContext
-            }
-        }
-        
-        return message
+        var messages = [message]
+        await enrichMessages(&messages)
+        return messages.first ?? message
     }
     
     /// Upload message image to storage

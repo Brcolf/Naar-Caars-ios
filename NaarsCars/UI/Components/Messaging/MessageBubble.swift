@@ -30,6 +30,9 @@ struct MessageBubble: View {
     
     /// Total participant count for group read receipts
     var totalParticipants: Int = 2
+
+    /// Whether to show the reply preview (for thread views)
+    var showReplyPreview: Bool = true
     
     var onLongPress: (() -> Void)? = nil
     var onReactionTap: ((String) -> Void)? = nil
@@ -256,7 +259,7 @@ struct MessageBubble: View {
                 }
                 
                 // Replied-to message preview
-                if let replyContext = message.replyToMessage {
+                if showReplyPreview, let replyContext = message.replyToMessage {
                     Button {
                         onReplyPreviewTap?(replyContext.id)
                     } label: {
