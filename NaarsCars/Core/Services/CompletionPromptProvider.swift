@@ -23,7 +23,7 @@ final class CompletionPromptProvider: CompletionPromptProviding {
             .order("scheduled_for", ascending: true)
             .execute()
 
-        let decoder = ISO8601JSONDecoder()
+        let decoder = JSONDecoderFactory.createSupabaseDecoder()
         let reminders = try decoder.decode([CompletionReminder].self, from: response.data)
         return try await buildPrompts(from: reminders)
     }
@@ -39,7 +39,7 @@ final class CompletionPromptProvider: CompletionPromptProviding {
             .limit(1)
             .execute()
 
-        let decoder = ISO8601JSONDecoder()
+        let decoder = JSONDecoderFactory.createSupabaseDecoder()
         let reminders = try decoder.decode([CompletionReminder].self, from: response.data)
         return try await buildPrompts(from: reminders).first
     }
@@ -87,18 +87,3 @@ private struct CompletionReminder: Decodable {
     }
 }
 
-private final class ISO8601JSONDecoder: JSONDecoder {
-    override init() {
-        super.init()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let value = try container.decode(String.self)
-            if let date = formatter.date(from: value) { return date }
-            let fallback = ISO8601DateFormatter()
-            if let date = fallback.date(from: value) { return date }
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date \(value)")
-        }
-    }
-}
