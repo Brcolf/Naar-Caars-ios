@@ -33,6 +33,9 @@ struct MessageBubble: View {
 
     /// Whether to show the reply preview (for thread views)
     var showReplyPreview: Bool = true
+
+    /// Optional reply spine details for main thread threading
+    var replySpine: (showTop: Bool, showBottom: Bool)? = nil
     
     var onLongPress: (() -> Void)? = nil
     var onReactionTap: ((String) -> Void)? = nil
@@ -58,6 +61,13 @@ struct MessageBubble: View {
     private let waveformHeights: [CGFloat] = [10, 14, 18, 12, 22, 16, 20, 12, 24, 14, 18, 10, 16, 22, 12, 20, 14, 18, 12, 16]
     private let bubbleMaxWidth: CGFloat = UIScreen.main.bounds.width * 0.7
     private let replyPreviewMaxWidth: CGFloat = UIScreen.main.bounds.width * 0.75
+
+    private var replySpineOffset: CGFloat {
+        if isFromCurrentUser {
+            return 6
+        }
+        return showAvatar ? -22 : -6
+    }
     
     /// Extract URLs from message text
     private var detectedURLs: [URL] {
@@ -343,6 +353,17 @@ struct MessageBubble: View {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.naarsPrimary.opacity(isHighlighted ? 0.6 : 0), lineWidth: 1.5)
             )
+            .overlay(alignment: isFromCurrentUser ? .trailing : .leading) {
+                if let replySpine = replySpine {
+                    ReplyThreadSpineView(
+                        showTop: replySpine.showTop,
+                        showBottom: replySpine.showBottom
+                    )
+                    .frame(width: 10)
+                    .offset(x: replySpineOffset)
+                    .padding(.vertical, 6)
+                }
+            }
             .animation(.easeInOut(duration: 0.2), value: isHighlighted)
             
             if !isFromCurrentUser {

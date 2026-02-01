@@ -47,11 +47,11 @@ struct RideDetailView: View {
                     }
                 }
                 .padding()
-                .onChange(of: navigationCoordinator.requestNavigationTarget) { _, target in
-                    guard let target,
-                          target.requestType == .ride,
-                          target.requestId == rideId else { return }
-                    handleRequestNavigation(target, proxy: proxy)
+                .onChange(of: navigationCoordinator.requestNavigationTarget) { _, _ in
+                    handlePendingRequestNavigation(proxy: proxy)
+                }
+                .onAppear {
+                    handlePendingRequestNavigation(proxy: proxy)
                 }
             }
         }
@@ -89,10 +89,7 @@ struct RideDetailView: View {
                     onConfirm: {
                         Task {
                             do {
-                                _ = try await claimViewModel.claim(requestType: "ride", requestId: ride.id)
-                                if let conversationId = claimViewModel.conversationId {
-                                    navigateToConversation = conversationId
-                                }
+                                try await claimViewModel.claim(requestType: "ride", requestId: ride.id)
                                 await viewModel.loadRide(id: rideId)
                             } catch {
                                 // Error handled in viewModel
@@ -490,6 +487,13 @@ struct RideDetailView: View {
         
         navigationCoordinator.requestNavigationTarget = nil
         print("📍 [RideDetailView] Deep link to \(target.anchor.rawValue)")
+    }
+
+    private func handlePendingRequestNavigation(proxy: ScrollViewProxy) {
+        guard let target = navigationCoordinator.consumeRequestNavigationTarget(for: .ride, requestId: rideId) else {
+            return
+        }
+        handleRequestNavigation(target, proxy: proxy)
     }
     
     private func highlightSection(_ anchor: RequestDetailAnchor) {

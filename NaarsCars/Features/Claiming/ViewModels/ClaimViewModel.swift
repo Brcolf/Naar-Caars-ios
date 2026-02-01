@@ -19,7 +19,6 @@ final class ClaimViewModel: ObservableObject {
     @Published var error: String?
     @Published var showPhoneRequired: Bool = false
     @Published var showPushPermissionPrompt: Bool = false
-    @Published var conversationId: UUID?
     
     // MARK: - Private Properties
     
@@ -48,9 +47,8 @@ final class ClaimViewModel: ObservableObject {
     /// - Parameters:
     ///   - requestType: "ride" or "favor"
     ///   - requestId: Request ID
-    /// - Returns: Conversation ID if successful
     /// - Throws: AppError if claim fails
-    func claim(requestType: String, requestId: UUID) async throws -> UUID {
+    func claim(requestType: String, requestId: UUID) async throws {
         guard let claimerId = authService.currentUserId else {
             throw AppError.notAuthenticated
         }
@@ -73,18 +71,14 @@ final class ClaimViewModel: ObservableObject {
                 "request_id": requestId.uuidString
             ])
             
-            let conversationId = try await claimService.claimRequest(
+            try await claimService.claimRequest(
                 requestType: requestType,
                 requestId: requestId,
                 claimerId: claimerId
             )
-            
-            self.conversationId = conversationId
-            
+
             // Request push notification permission after first successful claim
             await requestPushPermissionIfNeeded()
-            
-            return conversationId
         } catch {
             // Record non-fatal error
             CrashReportingService.shared.recordClaimingError(

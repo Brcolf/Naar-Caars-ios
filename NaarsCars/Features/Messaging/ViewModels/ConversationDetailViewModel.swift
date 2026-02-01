@@ -58,6 +58,7 @@ final class ConversationDetailViewModel: ObservableObject {
             .sink { [weak self] updatedMessages in
                 guard let self = self, self.repository.isConfigured else { return }
                 self.messages = updatedMessages
+                self.scheduleReplyContextHydration()
 #if DEBUG
                 self.logReplyDebugSnapshot(source: "publisher(local)", messages: updatedMessages)
 #endif
@@ -76,6 +77,7 @@ final class ConversationDetailViewModel: ObservableObject {
             self.messages = localMessages
             oldestMessageId = localMessages.first?.id
             hasMoreMessages = localMessages.count == pageSize
+            scheduleReplyContextHydration()
 #if DEBUG
             logReplyDebugSnapshot(source: "loadMessages(local)", messages: localMessages)
 #endif
@@ -116,6 +118,7 @@ final class ConversationDetailViewModel: ObservableObject {
             self.messages.insert(contentsOf: fetched, at: 0)
             oldestMessageId = fetched.first?.id
             hasMoreMessages = fetched.count == pageSize
+            scheduleReplyContextHydration()
         } catch {
             print("🔴 Error loading more messages: \(error.localizedDescription)")
             // Don't set error here - just log it
@@ -274,6 +277,47 @@ final class ConversationDetailViewModel: ObservableObject {
         } catch {
             print("⚠️ [ConversationDetailVM] Background sync failed: \(error.localizedDescription)")
         }
+    }
+
+    private func scheduleReplyContextHydration() {
+        guard messages.contains(where: { $0.replyToId != nil && $0.replyToMessage == nil }) else { return }
+
+        Task { [weak self] in
+            guard let self = self else { return }
+            await self.throttler.run(
+                key: "messages.replyContext.\(self.conversationId.uuidString)",
+                minimumInterval: 0.5
+            ) {
+                let snapshot = await MainActor.run { self.messages }
+                guard snapshot.contains(where: { $0.replyToId != nil && $0.replyToMessage == nil }) else { return }
+
+                let enriched = await Self.buildReplyContexts(from: snapshot)
+                await MainActor.run {
+                    guard enriched != self.messages else { return }
+                    self.messages = enriched
+#if DEBUG
+                    self.logReplyDebugSnapshot(source: "replyContext(builder)", messages: enriched)
+#endif
+                }
+            }
+        }
+    }
+
+    nonisolated private static func buildReplyContexts(from messages: [Message]) async -> [Message] {
+        let replyParentIds = Set(messages.compactMap { $0.replyToId })
+        guard !replyParentIds.isEmpty else { return messages }
+
+        let messagesById = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+        let senderIds = Set(replyParentIds.compactMap { messagesById[$0]?.fromId })
+        var profilesById: [UUID: Profile] = [:]
+
+        for senderId in senderIds {
+            if let profile = await CacheManager.shared.getCachedProfile(id: senderId) {
+                profilesById[senderId] = profile
+            }
+        }
+
+        return ReplyContextBuilder.applyReplyContexts(messages: messages, profilesById: profilesById)
     }
 
 #if DEBUG
@@ -436,6 +480,7 @@ final class ConversationDetailViewModel: ObservableObject {
         
         messages.append(newMessage)
         messages.sort { $0.createdAt < $1.createdAt }
+        scheduleReplyContextHydration()
         
         // Update last_seen and mark as read if it's not from current user
         // This ensures we don't get push notifications for messages we see in real-time
@@ -456,6 +501,7 @@ final class ConversationDetailViewModel: ObservableObject {
         if let index = messages.firstIndex(where: { $0.id == updatedMessage.id }),
            index < messages.count {
             messages[index] = updatedMessage
+            scheduleReplyContextHydration()
         }
     }
     

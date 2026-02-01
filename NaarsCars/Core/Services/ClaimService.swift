@@ -33,13 +33,12 @@ final class ClaimService {
     ///   - requestType: "ride" or "favor"
     ///   - requestId: Request ID
     ///   - claimerId: User ID of the claimer
-    /// - Returns: Created conversation ID
     /// - Throws: AppError if claim fails
     func claimRequest(
         requestType: String,
         requestId: UUID,
         claimerId: UUID
-    ) async throws -> UUID {
+    ) async throws {
         // Check rate limit (10 seconds between claims)
         let rateLimitKey = "claim_request_\(claimerId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
@@ -73,26 +72,17 @@ final class ClaimService {
             .eq("id", value: requestId.uuidString)
             .execute()
         
-        // Create conversation with poster and claimer
         let posterId = try await getPosterId(requestType: requestType, requestId: requestId)
-        let conversation = try await MessageService.shared.createConversationWithUsers(
-            userIds: [posterId, claimerId],
-            createdBy: posterId,
-            title: nil
-        )
-        let conversationId = conversation.id
         
         // Create notification for poster
         try await createClaimNotification(
             requestType: requestType,
             requestId: requestId,
-            posterId: try await getPosterId(requestType: requestType, requestId: requestId),
+            posterId: posterId,
             claimerId: claimerId
         )
 
         // Completion reminders are server-scheduled via database triggers.
-        
-        return conversationId
     }
     
     // MARK: - Unclaim Request

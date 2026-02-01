@@ -437,6 +437,16 @@ final class NavigationCoordinator: ObservableObject {
     
     // MARK: - Public Methods
     
+    func consumeRequestNavigationTarget(for requestType: RequestType, requestId: UUID) -> RequestNotificationTarget? {
+        guard let target = requestNavigationTarget,
+              target.requestType == requestType,
+              target.requestId == requestId else {
+            return nil
+        }
+        requestNavigationTarget = nil
+        return target
+    }
+
     /// Reset navigation state after navigation completes
     func resetNavigation() {
         navigateToRide = nil

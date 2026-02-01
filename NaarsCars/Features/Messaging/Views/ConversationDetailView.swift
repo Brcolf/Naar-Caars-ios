@@ -294,7 +294,12 @@ struct ConversationDetailView: View {
     
     /// Create a message bubble with all handlers
     @ViewBuilder
-    private func createMessageBubble(message: Message, isFirst: Bool, isLast: Bool) -> some View {
+    private func createMessageBubble(
+        message: Message,
+        isFirst: Bool,
+        isLast: Bool,
+        replyChain: ReplyChainContext? = nil
+    ) -> some View {
         MessageBubble(
             message: message,
             isFromCurrentUser: isFromCurrentUser(message),
@@ -303,6 +308,7 @@ struct ConversationDetailView: View {
             isLastInSeries: isLast,
             shouldAnimate: newMessageIds.contains(message.id),
             totalParticipants: totalParticipantsCount,
+            replySpine: replyChain.map { (showTop: $0.hasPrevious, showBottom: $0.hasNext) },
             onLongPress: {
                 reactionPickerMessageId = message.id
                 showReactionPicker = true
@@ -519,19 +525,9 @@ struct ConversationDetailView: View {
                     createMessageBubble(
                         message: message,
                         isFirst: isFirst,
-                        isLast: isLast
+                        isLast: isLast,
+                        replyChain: replyChain
                     )
-                    .overlay(alignment: .leading) {
-                        if let replyChain = replyChain {
-                            ReplyThreadSpineView(
-                                showTop: replyChain.hasPrevious,
-                                showBottom: replyChain.hasNext
-                            )
-                            .frame(width: 12)
-                            .offset(x: -6)
-                            .padding(.vertical, 6)
-                        }
-                    }
                 }
                 .id(messageAnchorId(message.id))
             }

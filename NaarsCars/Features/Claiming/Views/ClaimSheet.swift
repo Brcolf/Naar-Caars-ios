@@ -35,7 +35,7 @@ struct ClaimSheet: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(8)
                 
-                Text("A conversation will be created so you can coordinate with the poster.")
+                Text("You can message the poster from this request once it's claimed.")
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

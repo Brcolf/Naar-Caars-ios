@@ -47,11 +47,11 @@ struct FavorDetailView: View {
                     }
                 }
                 .padding()
-                .onChange(of: navigationCoordinator.requestNavigationTarget) { _, target in
-                    guard let target,
-                          target.requestType == .favor,
-                          target.requestId == favorId else { return }
-                    handleRequestNavigation(target, proxy: proxy)
+                .onChange(of: navigationCoordinator.requestNavigationTarget) { _, _ in
+                    handlePendingRequestNavigation(proxy: proxy)
+                }
+                .onAppear {
+                    handlePendingRequestNavigation(proxy: proxy)
                 }
             }
         }
@@ -89,10 +89,7 @@ struct FavorDetailView: View {
                     onConfirm: {
                         Task {
                             do {
-                                _ = try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
-                                if let conversationId = claimViewModel.conversationId {
-                                    navigateToConversation = conversationId
-                                }
+                                try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
                                 await viewModel.loadFavor(id: favorId)
                             } catch {
                                 // Error handled in viewModel
@@ -441,6 +438,13 @@ struct FavorDetailView: View {
         
         navigationCoordinator.requestNavigationTarget = nil
         print("📍 [FavorDetailView] Deep link to \(target.anchor.rawValue)")
+    }
+
+    private func handlePendingRequestNavigation(proxy: ScrollViewProxy) {
+        guard let target = navigationCoordinator.consumeRequestNavigationTarget(for: .favor, requestId: favorId) else {
+            return
+        }
+        handleRequestNavigation(target, proxy: proxy)
     }
     
     private func highlightSection(_ anchor: RequestDetailAnchor) {
