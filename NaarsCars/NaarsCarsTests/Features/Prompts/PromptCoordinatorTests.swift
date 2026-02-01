@@ -59,6 +59,53 @@ final class PromptCoordinatorTests: XCTestCase {
         XCTAssertEqual(sideEffects.completionReads.count, 1)
     }
 
+    func testEnqueueCompletionPromptDoesNotRequeueActivePrompt() async throws {
+        let completion = CompletionPrompt(
+            id: UUID(), reminderId: UUID(), requestType: .ride,
+            requestId: UUID(), requestTitle: "Ride", dueAt: Date()
+        )
+        let sideEffects = StubPromptSideEffects()
+        let coordinator = PromptCoordinator(
+            completionProvider: StubCompletionProvider(prompts: [completion]),
+            reviewProvider: StubReviewProvider(prompts: []),
+            sideEffects: sideEffects
+        )
+
+        await coordinator.checkForPendingPrompts(userId: UUID())
+        await coordinator.enqueueCompletionPrompt(
+            requestType: .ride,
+            requestId: completion.requestId,
+            userId: UUID()
+        )
+        try await coordinator.handleCompletionResponse(completed: true)
+
+        XCTAssertNil(coordinator.activePrompt)
+    }
+
+    func testEnqueueReviewPromptDoesNotRequeueActivePrompt() async {
+        let review = ReviewPrompt(
+            id: UUID(), requestType: .ride, requestId: UUID(),
+            requestTitle: "Ride", fulfillerId: UUID(), fulfillerName: "Sam",
+            createdAt: Date()
+        )
+        let sideEffects = StubPromptSideEffects()
+        let coordinator = PromptCoordinator(
+            completionProvider: StubCompletionProvider(prompts: []),
+            reviewProvider: StubReviewProvider(prompts: [review]),
+            sideEffects: sideEffects
+        )
+
+        await coordinator.checkForPendingPrompts(userId: UUID())
+        await coordinator.enqueueReviewPrompt(
+            requestType: .ride,
+            requestId: review.requestId,
+            userId: UUID()
+        )
+        await coordinator.finishReviewPrompt()
+
+        XCTAssertNil(coordinator.activePrompt)
+    }
+
     func testCheckForPendingPromptsDoesNotRequeueActivePrompt() async throws {
         let completion = CompletionPrompt(
             id: UUID(), reminderId: UUID(), requestType: .ride,

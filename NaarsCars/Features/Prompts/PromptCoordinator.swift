@@ -71,6 +71,9 @@ final class PromptCoordinator: ObservableObject {
         if let prompt = try? await completionProvider.fetchCompletionPrompt(
             requestType: requestType, requestId: requestId, userId: userId
         ) {
+            if activePrompt?.id == prompt.id {
+                return
+            }
             queue.enqueue(.completion(prompt))
             await activateNextPromptIfNeeded()
         }
@@ -80,6 +83,9 @@ final class PromptCoordinator: ObservableObject {
         if let prompt = try? await reviewProvider.fetchReviewPrompt(
             requestType: requestType, requestId: requestId, userId: userId
         ) {
+            if activePrompt?.id == prompt.id {
+                return
+            }
             queue.enqueue(.review(prompt))
             await activateNextPromptIfNeeded()
         }
