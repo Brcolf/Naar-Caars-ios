@@ -77,6 +77,7 @@ struct ReviewPromptSheet: View {
             .padding()
             .navigationTitle("Review Request")
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(true)
             .sheet(isPresented: $showLeaveReview) {
                 LeaveReviewView(
                     requestType: requestType,

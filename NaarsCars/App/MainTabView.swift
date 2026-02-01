@@ -13,6 +13,7 @@ struct MainTabView: View {
     @StateObject private var badgeManager = BadgeCountManager.shared
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var reviewPromptManager = ReviewPromptManager.shared
+    @StateObject private var promptCoordinator = PromptCoordinator.shared
     @ObservedObject private var toastManager = InAppToastManager.shared
     @EnvironmentObject var appState: AppState
     @State private var selectedTab = 0
@@ -95,13 +96,15 @@ struct MainTabView: View {
                 }
             }
         }
-        .onChange(of: navigationCoordinator.showReviewPrompt) { _, showPrompt in
-            guard showPrompt else { return }
+        .onChange(of: navigationCoordinator.showReviewPrompt) { _, show in
+            guard show else { return }
             Task { @MainActor in
-                await reviewPromptManager.loadPrompt(
-                    rideId: navigationCoordinator.reviewPromptRideId,
-                    favorId: navigationCoordinator.reviewPromptFavorId
-                )
+                if let userId = AuthService.shared.currentUserId {
+                    let rideId = navigationCoordinator.reviewPromptRideId
+                    let favorId = navigationCoordinator.reviewPromptFavorId
+                    if let rideId { await promptCoordinator.enqueueReviewPrompt(requestType: .ride, requestId: rideId, userId: userId) }
+                    if let favorId { await promptCoordinator.enqueueReviewPrompt(requestType: .favor, requestId: favorId, userId: userId) }
+                }
                 navigationCoordinator.resetReviewPrompt()
             }
         }
@@ -112,6 +115,10 @@ struct MainTabView: View {
             await badgeManager.refreshAllBadges()
             // Check for review prompts
             await reviewPromptManager.checkForPendingPrompts()
+            // Check for pending prompts (completion and review)
+            if let userId = AuthService.shared.currentUserId {
+                await promptCoordinator.checkForPendingPrompts(userId: userId)
+            }
         }
         .overlay(alignment: .top) {
             toastOverlay
@@ -131,6 +138,27 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
             GuidelinesAcceptanceSheet {
                 await acceptGuidelines()
+            }
+        }
+        .fullScreenCover(item: $promptCoordinator.activePrompt) { prompt in
+            switch prompt {
+            case .completion(let completion):
+                CompletionPromptView(
+                    prompt: completion,
+                    onConfirm: { Task { try? await promptCoordinator.handleCompletionResponse(completed: true) } },
+                    onSnooze: { Task { try? await promptCoordinator.handleCompletionResponse(completed: false) } }
+                )
+            case .review(let review):
+                ReviewPromptSheet(
+                    requestType: review.requestType.rawValue,
+                    requestId: review.requestId,
+                    requestTitle: review.requestTitle,
+                    fulfillerId: review.fulfillerId,
+                    fulfillerName: review.fulfillerName,
+                    onReviewSubmitted: { Task { await promptCoordinator.finishReviewPrompt() } },
+                    onReviewSkipped: { Task { await promptCoordinator.finishReviewPrompt() } }
+                )
+                .interactiveDismissDisabled(true)
             }
         }
         .sheet(item: $reviewPromptManager.pendingPrompt) { prompt in
