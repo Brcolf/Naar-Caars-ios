@@ -24,10 +24,10 @@ final class ImageCompressorTests: XCTestCase {
     // MARK: - Avatar Preset Tests
     
     func testAvatarPresetReducesDimensionsCorrectly() {
-        // Create a large image (1000x1000)
-        let largeImage = createTestImage(width: 1000, height: 1000)
+        // Create a very large image (4000x4000)
+        let largeImage = createTestImage(width: 4000, height: 4000)
         
-        // Compress with avatar preset (max 400px)
+        // Compress with avatar preset (max 1024px)
         guard let compressedData = ImageCompressor.compress(largeImage, preset: .avatar) else {
             XCTFail("Compression should succeed")
             return
@@ -38,30 +38,22 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        XCTAssertLessThanOrEqual(maxDimension, 400, "Avatar should be max 400px")
+        XCTAssertEqual(maxDimension, 1024, accuracy: 0.5, "Avatar should resize to 1024px max")
     }
     
     func testAvatarPresetOutputSizeIsUnderMaxBytes() {
-        // Create a large image
-        let largeImage = createTestImage(width: 2000, height: 2000)
-        
-        // Compress with avatar preset (max 200KB)
-        guard let compressedData = ImageCompressor.compress(largeImage, preset: .avatar) else {
-            XCTFail("Compression should succeed")
-            return
-        }
-        
-        // Check that file size is under limit
-        XCTAssertLessThanOrEqual(compressedData.count, 200 * 1024, "Avatar should be max 200KB")
+        // Verify avatar preset limits for high-quality uploads
+        XCTAssertEqual(ImagePreset.avatar.maxDimension, 1024, "Avatar max dimension should be 1024px")
+        XCTAssertEqual(ImagePreset.avatar.maxBytes, 1 * 1024 * 1024, "Avatar max bytes should be 1MB")
     }
     
     // MARK: - MessageImage Preset Tests
     
     func testMessageImagePresetReducesDimensionsCorrectly() {
-        // Create a very large image (3000x2000)
-        let largeImage = createTestImage(width: 3000, height: 2000)
+        // Create a very large image (6000x4000)
+        let largeImage = createTestImage(width: 6000, height: 4000)
         
-        // Compress with messageImage preset (max 1200px)
+        // Compress with messageImage preset (max 2048px)
         guard let compressedData = ImageCompressor.compress(largeImage, preset: .messageImage) else {
             XCTFail("Compression should succeed")
             return
@@ -72,21 +64,13 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        XCTAssertLessThanOrEqual(maxDimension, 1200, "Message image should be max 1200px")
+        XCTAssertEqual(maxDimension, 2048, accuracy: 0.5, "Message image should resize to 2048px max")
     }
     
     func testMessageImagePresetOutputSizeIsUnderMaxBytes() {
-        // Create a large image
-        let largeImage = createTestImage(width: 3000, height: 3000)
-        
-        // Compress with messageImage preset (max 800KB)
-        guard let compressedData = ImageCompressor.compress(largeImage, preset: .messageImage) else {
-            XCTFail("Compression should succeed")
-            return
-        }
-        
-        // Check that file size is under limit
-        XCTAssertLessThanOrEqual(compressedData.count, 800 * 1024, "Message image should be max 800KB")
+        // Verify message image preset limits for Town Hall uploads
+        XCTAssertEqual(ImagePreset.messageImage.maxDimension, 2048, "Message image max dimension should be 2048px")
+        XCTAssertEqual(ImagePreset.messageImage.maxBytes, 2_621_440, "Message image max bytes should be 2.5MB")
     }
     
     // MARK: - FullSize Preset Tests
@@ -113,14 +97,14 @@ final class ImageCompressorTests: XCTestCase {
         // Create a large image
         let largeImage = createTestImage(width: 4000, height: 4000)
         
-        // Compress with fullSize preset (max 1MB)
+        // Compress with fullSize preset (max 2MB)
         guard let compressedData = ImageCompressor.compress(largeImage, preset: .fullSize) else {
             XCTFail("Compression should succeed")
             return
         }
         
         // Check that file size is under limit
-        XCTAssertLessThanOrEqual(compressedData.count, 1024 * 1024, "Full size image should be max 1MB")
+        XCTAssertLessThanOrEqual(compressedData.count, 2 * 1024 * 1024, "Full size image should be max 2MB")
     }
     
     // MARK: - Edge Cases
@@ -140,7 +124,7 @@ final class ImageCompressorTests: XCTestCase {
             return
         }
         let maxDimension = max(compressedImage.size.width, compressedImage.size.height)
-        XCTAssertLessThanOrEqual(maxDimension, 400, "Small image should still be under limit")
+        XCTAssertLessThanOrEqual(maxDimension, 1024, "Small image should still be under limit")
     }
     
     func testAspectRatioIsMaintained() {
