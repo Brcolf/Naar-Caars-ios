@@ -58,6 +58,26 @@ final class PromptCoordinatorTests: XCTestCase {
         try await coordinator.handleCompletionResponse(completed: true)
         XCTAssertEqual(sideEffects.completionReads.count, 1)
     }
+
+    func testCheckForPendingPromptsDoesNotRequeueActivePrompt() async throws {
+        let completion = CompletionPrompt(
+            id: UUID(), reminderId: UUID(), requestType: .ride,
+            requestId: UUID(), requestTitle: "Ride", dueAt: Date()
+        )
+        let sideEffects = StubPromptSideEffects()
+        let coordinator = PromptCoordinator(
+            completionProvider: StubCompletionProvider(prompts: [completion]),
+            reviewProvider: StubReviewProvider(prompts: []),
+            sideEffects: sideEffects
+        )
+
+        await coordinator.checkForPendingPrompts(userId: UUID())
+        // Refresh while active prompt is showing
+        await coordinator.checkForPendingPrompts(userId: UUID())
+        // Completing should not re-show the same prompt
+        try await coordinator.handleCompletionResponse(completed: true)
+        XCTAssertNil(coordinator.activePrompt)
+    }
 }
 
 private final class StubCompletionProvider: CompletionPromptProviding {

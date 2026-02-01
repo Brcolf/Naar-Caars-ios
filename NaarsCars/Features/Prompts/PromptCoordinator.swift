@@ -47,11 +47,20 @@ final class PromptCoordinator: ObservableObject {
 
     func checkForPendingPrompts(userId: UUID) async {
         do {
+            let activePromptId = activePrompt?.id
             let completion = try await completionProvider.fetchDueCompletionPrompts(userId: userId)
             let reviews = try await reviewProvider.fetchPendingReviewPrompts(userId: userId)
             queue = PromptQueue()
-            completion.forEach { queue.enqueue(.completion($0)) }
-            reviews.forEach { queue.enqueue(.review($0)) }
+            completion.forEach { 
+                if $0.id != activePromptId {
+                    queue.enqueue(.completion($0))
+                }
+            }
+            reviews.forEach { 
+                if $0.id != activePromptId {
+                    queue.enqueue(.review($0))
+                }
+            }
             await activateNextPromptIfNeeded()
         } catch {
             print("❌ [PromptCoordinator] Failed to load prompts: \(error.localizedDescription)")
@@ -98,50 +107,5 @@ final class PromptCoordinator: ObservableObject {
             await sideEffects.markReviewNotificationsRead(requestType: prompt.requestType, requestId: prompt.requestId)
             await sideEffects.refreshBadges(reason: "reviewPromptShown")
         }
-    }
-}
-
-// MARK: - Concrete Implementations (stubs for now)
-
-final class CompletionPromptProvider: CompletionPromptProviding {
-    func fetchDueCompletionPrompts(userId: UUID) async throws -> [CompletionPrompt] {
-        // TODO: Implement in Task 3
-        return []
-    }
-    
-    func fetchCompletionPrompt(requestType: RequestType, requestId: UUID, userId: UUID) async throws -> CompletionPrompt? {
-        // TODO: Implement in Task 3
-        return nil
-    }
-}
-
-final class ReviewPromptProvider: ReviewPromptProviding {
-    func fetchPendingReviewPrompts(userId: UUID) async throws -> [ReviewPrompt] {
-        // TODO: Implement in Task 3
-        return []
-    }
-    
-    func fetchReviewPrompt(requestType: RequestType, requestId: UUID, userId: UUID) async throws -> ReviewPrompt? {
-        // TODO: Implement in Task 3
-        return nil
-    }
-}
-
-@MainActor
-final class DefaultPromptSideEffects: PromptSideEffects {
-    func markReviewNotificationsRead(requestType: RequestType, requestId: UUID) async {
-        // TODO: Implement in Task 4
-    }
-    
-    func markCompletionNotificationsRead(requestType: RequestType, requestId: UUID) async {
-        // TODO: Implement in Task 4
-    }
-    
-    func refreshBadges(reason: String) async {
-        // TODO: Implement in Task 4
-    }
-    
-    func sendCompletionResponse(reminderId: UUID, completed: Bool) async throws {
-        // TODO: Implement in Task 4
     }
 }
