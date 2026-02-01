@@ -18,6 +18,8 @@ struct RequestsDashboardView: View {
     @State private var showCreateFavor = false
     @State private var navigateToRide: UUID?
     @State private var navigateToFavor: UUID?
+    @State private var highlightedRequestKey: String?
+    @State private var highlightWorkItem: DispatchWorkItem?
     
     var body: some View {
         NavigationStack {
@@ -103,67 +105,92 @@ struct RequestsDashboardView: View {
             favors: viewModel.filteredFavors
         )
         
-        ScrollView {
-            LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
-                Section(header: filterHeaderView) {
-                    if viewModel.isLoading && filteredRequests.isEmpty {
-                        // Show skeleton loading
-                        VStack(spacing: 16) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                SkeletonRequestCard()
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                    } else if let error = viewModel.error {
-                        ErrorView(
-                            error: error,
-                            retryAction: {
-                                Task {
-                                    await viewModel.loadRequests()
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                    Section(header: filterHeaderView) {
+                        if viewModel.isLoading && filteredRequests.isEmpty {
+                            // Show skeleton loading
+                            VStack(spacing: 16) {
+                                ForEach(0..<3, id: \.self) { _ in
+                                    SkeletonRequestCard()
                                 }
                             }
-                        )
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal)
-                        .padding(.top, 24)
-                    } else if filteredRequests.isEmpty {
-                        EmptyStateView(
-                            icon: "list.bullet.rectangle",
-                            title: "No Requests Available",
-                            message: filterEmptyMessage,
-                            actionTitle: nil,
-                            action: nil,
-                            customImage: "naars_requests_icon"
-                        )
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal)
-                        .padding(.top, 24)
-                    } else {
-                        ForEach(filteredRequests) { request in
-                            let showsUnseenIndicator = viewModel.unseenRequestKeys.contains(request.notificationKey)
-                            NavigationLink(destination: destinationView(for: request)) {
-                                RequestCardView(request: request, showsUnseenIndicator: showsUnseenIndicator)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .accessibilityIdentifier("requests.card")
                             .padding(.horizontal)
+                            .padding(.top, 16)
+                        } else if let error = viewModel.error {
+                            ErrorView(
+                                error: error,
+                                retryAction: {
+                                    Task {
+                                        await viewModel.loadRequests()
+                                    }
+                                }
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal)
+                            .padding(.top, 24)
+                        } else if filteredRequests.isEmpty {
+                            EmptyStateView(
+                                icon: "list.bullet.rectangle",
+                                title: "No Requests Available",
+                                message: filterEmptyMessage,
+                                actionTitle: nil,
+                                action: nil,
+                                customImage: "naars_requests_icon"
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal)
+                            .padding(.top, 24)
+                        } else {
+                            ForEach(filteredRequests) { request in
+                                let unreadCount = viewModel.requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0
+                                let isHighlighted = highlightedRequestKey == request.notificationKey
+                                NavigationLink(destination: destinationView(for: request)) {
+                                    RequestCardView(request: request, unreadCount: unreadCount)
+                                }
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    if let target = viewModel.notificationTarget(for: request) {
+                                        navigationCoordinator.requestNavigationTarget = target
+                                    }
+                                })
+                                .buttonStyle(PlainButtonStyle())
+                                .accessibilityIdentifier("requests.card")
+                                .padding(.horizontal)
+                                .id(request.notificationKey)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(
+                                            Color.accentColor.opacity(0.6),
+                                            lineWidth: isHighlighted ? 2 : 0
+                                        )
+                                )
+                                .animation(.easeInOut(duration: 0.2), value: isHighlighted)
+                            }
+                            .padding(.top, 4)
                         }
-                        .padding(.top, 4)
                     }
                 }
             }
-        }
-        .accessibilityIdentifier("requests.scroll")
-        .refreshable {
-            await viewModel.refreshRequests()
+            .accessibilityIdentifier("requests.scroll")
+            .refreshable {
+                await viewModel.refreshRequests()
+            }
+            .onChange(of: navigationCoordinator.requestListScrollKey) { _, key in
+                guard let key else { return }
+                scrollToRequest(key, proxy: proxy)
+                navigationCoordinator.requestListScrollKey = nil
+            }
         }
     }
 
     private var filterHeaderView: some View {
         VStack(spacing: 0) {
             // Filter tiles (Open Requests, My Requests, Claimed by Me)
-            FilterTilesView(selectedFilter: $viewModel.filter) { newFilter in
+            FilterTilesView(
+                selectedFilter: $viewModel.filter,
+                badgeCounts: viewModel.filterBadgeCounts
+            ) { newFilter in
                 viewModel.filterRequests(newFilter)
             }
             .padding(.horizontal)
@@ -197,12 +224,32 @@ struct RequestsDashboardView: View {
             return "You haven't claimed any requests yet. Browse all requests to find one to help with!"
         }
     }
+
+    private func scrollToRequest(_ key: String, proxy: ScrollViewProxy) {
+        withAnimation(.easeInOut) {
+            proxy.scrollTo(key, anchor: .center)
+        }
+        highlightRequest(key)
+    }
+
+    private func highlightRequest(_ key: String) {
+        highlightWorkItem?.cancel()
+        highlightedRequestKey = key
+        let workItem = DispatchWorkItem {
+            if highlightedRequestKey == key {
+                highlightedRequestKey = nil
+            }
+        }
+        highlightWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: workItem)
+    }
 }
 
 // MARK: - Filter Tiles View
 
 struct FilterTilesView: View {
     @Binding var selectedFilter: RequestFilter
+    let badgeCounts: [RequestFilter: Int]
     let onFilterChanged: (RequestFilter) -> Void
     
     var body: some View {
@@ -210,7 +257,8 @@ struct FilterTilesView: View {
             ForEach(RequestFilter.allCases, id: \.self) { filter in
                 FilterTile(
                     title: filter.rawValue,
-                    isSelected: selectedFilter == filter
+                    isSelected: selectedFilter == filter,
+                    badgeCount: badgeCounts[filter] ?? 0
                 ) {
                     selectedFilter = filter
                     onFilterChanged(filter)
@@ -226,18 +274,37 @@ struct FilterTilesView: View {
 struct FilterTile: View {
     let title: String
     let isSelected: Bool
+    let badgeCount: Int
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundColor(isSelected ? .white : .primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(isSelected ? Color.accentColor : Color(.systemGray5))
-                .cornerRadius(12)
+            ZStack {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundColor(isSelected ? .white : .primary)
+                    .frame(maxWidth: .infinity)
+                
+                HStack {
+                    Spacer()
+                    if let badgeText {
+                        Text(badgeText)
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red)
+                            .clipShape(Capsule())
+                            .accessibilityLabel("\(badgeCount) unseen notifications")
+                    }
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(isSelected ? Color.accentColor : Color(.systemGray5))
+            .cornerRadius(12)
         }
         .accessibilityIdentifier("requests.filter.\(title)")
         .simultaneousGesture(TapGesture().onEnded {
@@ -247,21 +314,26 @@ struct FilterTile: View {
         })
         .buttonStyle(PlainButtonStyle())
     }
+
+    private var badgeText: String? {
+        guard badgeCount > 0 else { return nil }
+        return badgeCount > 9 ? "9+" : "\(badgeCount)"
+    }
 }
 
 // MARK: - Request Card View
 
 struct RequestCardView: View {
     let request: RequestItem
-    let showsUnseenIndicator: Bool
+    let unreadCount: Int
     
     var body: some View {
         Group {
             switch request {
             case .ride(let ride):
-                RideCard(ride: ride, showsUnseenIndicator: showsUnseenIndicator)
+                RideCard(ride: ride, unreadCount: unreadCount)
             case .favor(let favor):
-                FavorCard(favor: favor, showsUnseenIndicator: showsUnseenIndicator)
+                FavorCard(favor: favor, unreadCount: unreadCount)
             }
         }
     }

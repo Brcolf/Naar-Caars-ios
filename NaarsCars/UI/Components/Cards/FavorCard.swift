@@ -10,7 +10,7 @@ import SwiftUI
 /// Card component for displaying favor requests
 struct FavorCard: View {
     let favor: Favor
-    var showsUnseenIndicator: Bool = false
+    var unreadCount: Int = 0
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -40,11 +40,16 @@ struct FavorCard: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    if showsUnseenIndicator {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .accessibilityLabel("Unseen request activity")
+                    if let badgeText {
+                        Text(badgeText)
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red)
+                            .clipShape(Capsule())
+                            .accessibilityLabel("\(unreadCount) unseen notifications")
                     }
                     
                     // Status badge
@@ -135,6 +140,11 @@ struct FavorCard: View {
         .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Favor \(favor.title) at \(favor.location)")
+    }
+
+    private var badgeText: String? {
+        guard unreadCount > 0 else { return nil }
+        return unreadCount > 9 ? "9+" : "\(unreadCount)"
     }
 }
 
