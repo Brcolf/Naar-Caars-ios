@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4CB804EE388840589F935D34 /* PromptCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F276C77E68740EFBB9E1D03 /* PromptCoordinatorTests.swift */; };
+		A363E8FA2EE64030993F0E14 /* PromptCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0AC61CCABB4A4AA9B9B52F /* PromptCoordinator.swift */; };
 		06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6919D6DE589147EA882BA5C2 /* View+Extensions.swift */; };
 		06B825CE696F4C0C8ACDF684 /* ReviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB065E554FDA4FA8B5E480EB /* ReviewCard.swift */; };
 		09248758DAA4444AB0B1BC46 /* Features/Messaging/Views/ConversationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0943F03887024518AC1832A8 /* Features/Messaging/Views/ConversationsListView.swift */; };
@@ -305,6 +307,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		5F276C77E68740EFBB9E1D03 /* PromptCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCoordinatorTests.swift; sourceTree = "<group>"; };
+		BC0AC61CCABB4A4AA9B9B52F /* PromptCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCoordinator.swift; sourceTree = "<group>"; };
 		0203B70350D9463DBB993A31 /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		0356C00D127342B5A0288362 /* UI/Components/Cards/FavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/FavorCard.swift; sourceTree = "<group>"; };
 		0906EEC44D2F48B3B14B5D07 /* CreateRideViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRideViewModelTests.swift; sourceTree = "<group>"; };
@@ -932,6 +936,8 @@
 		A5A425C88A4C4940ADE819AB /* Prompts */ = {
 			isa = PBXGroup;
 			children = (
+				5F276C77E68740EFBB9E1D03 /* PromptCoordinatorTests.swift */,
+				BC0AC61CCABB4A4AA9B9B52F /* PromptCoordinator.swift */,
 				D0A7626088EB4EEA92769463 /* PromptModels.swift */,
 				1C74567335D747008AFF1A27 /* PromptQueue.swift */,
 			);
@@ -1636,6 +1642,7 @@
 			children = (
 				6BA83FF7E3554BDE8735846E /* PromptQueueTests.swift */,
 				DC65578777D3482FAB1B2D57 /* PromptModelsTests.swift */,
+				5F276C77E68740EFBB9E1D03 /* PromptCoordinatorTests.swift */,
 			);
 			path = Prompts;
 			sourceTree = "<group>";
@@ -1974,6 +1981,7 @@
 				AC8197BE2F14C2C1003BB08B /* ReviewPromptSheet.swift in Sources */,
 				FB3400ECF3C94500BFA999EC /* PromptModels.swift in Sources */,
 				0C6159EB517240BB98866104 /* PromptQueue.swift in Sources */,
+				A363E8FA2EE64030993F0E14 /* PromptCoordinator.swift in Sources */,
 				ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */,
 				AC4F1E202F23497B00CC5DBA /* PersistentImageService.swift in Sources */,
 				AC305F1C2F0DB85B0063AFDF /* NotificationBadge.swift in Sources */,
@@ -2036,6 +2044,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4CB804EE388840589F935D34 /* PromptCoordinatorTests.swift in Sources */,
 				F20784961007464C82C09B9F /* PromptQueueTests.swift in Sources */,
 				A891C6D6BC044E179A160A11 /* PromptModelsTests.swift in Sources */,
 				ACDCBE112F0B797200956D1C /* NaarsCarsTests.swift in Sources */,
