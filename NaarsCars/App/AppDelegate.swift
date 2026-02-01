@@ -150,7 +150,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Mark the specific notification as read when tapped (if available)
         if let notificationIdString = userInfo["notification_id"] as? String,
            let notificationId = UUID(uuidString: notificationIdString) {
-            if notificationType != "review_request" && notificationType != "review_reminder" {
+            if !Self.shouldSkipAutoRead(for: notificationType) {
                 Task { @MainActor in
                     try? await NotificationService.shared.markAsRead(notificationId: notificationId)
                 }
@@ -166,6 +166,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         // Handle deep link navigation
         handleDeepLink(deepLink, userInfo: userInfo)
+        
+        // Post completion prompt if needed (after deep link handling)
+        if Self.shouldShowCompletionPrompt(for: notificationType) {
+            postCompletionPrompt(from: userInfo)
+        }
         
         completionHandler()
     }
@@ -374,11 +379,32 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
+    private func postCompletionPrompt(from userInfo: [AnyHashable: Any]) {
+        if let rideIdString = userInfo["ride_id"] as? String,
+           let rideId = UUID(uuidString: rideIdString) {
+            NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["rideId": rideId])
+        } else if let favorIdString = userInfo["favor_id"] as? String,
+                  let favorId = UUID(uuidString: favorIdString) {
+            NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["favorId": favorId])
+        }
+    }
+
     static func shouldShowReviewPrompt(for notificationType: String?) -> Bool {
         guard let notificationType else {
             return false
         }
         return notificationType == "review_request" || notificationType == "review_reminder"
+    }
+
+    static func shouldShowCompletionPrompt(for notificationType: String?) -> Bool {
+        notificationType == "completion_reminder"
+    }
+
+    static func shouldSkipAutoRead(for notificationType: String?) -> Bool {
+        guard let notificationType else { return false }
+        return notificationType == "review_request" ||
+               notificationType == "review_reminder" ||
+               notificationType == "completion_reminder"
     }
 }
 

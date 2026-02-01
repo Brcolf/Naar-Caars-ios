@@ -538,6 +538,7 @@ final class PushNotificationService: NSObject, ObservableObject {
 
 extension Notification.Name {
     static let showReviewPrompt = Notification.Name("showReviewPrompt")
+    static let showCompletionPrompt = Notification.Name("showCompletionPrompt")
     static let dismissNotificationsSurface = Notification.Name("dismissNotificationsSurface")
     static let conversationUnreadCountsUpdated = Notification.Name("conversationUnreadCountsUpdated")
 }

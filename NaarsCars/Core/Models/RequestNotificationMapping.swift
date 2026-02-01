@@ -105,20 +105,20 @@ enum RequestNotificationMapping {
                 return .init(
                     requestType: .ride,
                     requestId: rideId,
-                    anchor: .completeSheet,
+                    anchor: .mainTop,
                     scrollAnchor: nil,
-                    highlightAnchor: .completeAction,
-                    shouldAutoClear: true
+                    highlightAnchor: nil,
+                    shouldAutoClear: false
                 )
             }
             if let favorId {
                 return .init(
                     requestType: .favor,
                     requestId: favorId,
-                    anchor: .completeSheet,
+                    anchor: .mainTop,
                     scrollAnchor: nil,
-                    highlightAnchor: .completeAction,
-                    shouldAutoClear: true
+                    highlightAnchor: nil,
+                    shouldAutoClear: false
                 )
             }
         case .qaActivity, .qaQuestion, .qaAnswer:

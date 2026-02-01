@@ -19,7 +19,6 @@ struct RideDetailView: View {
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
     @State private var showUnclaimSheet = false
-    @State private var showCompleteSheet = false
     @State private var showReviewSheet = false
     @State private var showPhoneRequired = false
     @State private var navigateToProfile = false
@@ -121,26 +120,6 @@ struct RideDetailView: View {
                     }
                 )
                 .id(RequestDetailAnchor.unclaimSheet.anchorId(for: .ride))
-            }
-        }
-        .sheet(isPresented: $showCompleteSheet) {
-            if let ride = viewModel.ride {
-                CompleteSheet(
-                    requestType: "ride",
-                    requestTitle: "\(ride.pickup) → \(ride.destination)",
-                    onConfirm: {
-                        Task {
-                            do {
-                                try await claimViewModel.complete(requestType: "ride", requestId: ride.id)
-                                await viewModel.loadRide(id: rideId)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
-                    }
-                )
-                .id(RequestDetailAnchor.completeSheet.anchorId(for: .ride))
-                .onAppear { handleSectionAppeared(.completeSheet) }
             }
         }
         .sheet(isPresented: $showReviewSheet) {
@@ -478,16 +457,6 @@ struct RideDetailView: View {
             
             if viewModel.canEdit {
                 HStack(spacing: 16) {
-                    if ride.status == .confirmed {
-                        SecondaryButton(title: "Mark Complete") {
-                            showCompleteSheet = true
-                        }
-                        .accessibilityIdentifier("ride.markComplete")
-                        .id(RequestDetailAnchor.completeAction.anchorId(for: .ride))
-                        .requestHighlight(highlightedAnchor == .completeAction)
-                        .onAppear { handleSectionAppeared(.completeAction) }
-                    }
-                    
                     SecondaryButton(title: "Edit") { showEditRide = true }
                         .accessibilityIdentifier("ride.edit")
                     SecondaryButton(title: "Delete") { showDeleteAlert = true }
@@ -517,10 +486,6 @@ struct RideDetailView: View {
             withAnimation(.easeInOut) {
                 proxy.scrollTo(scrollId, anchor: .top)
             }
-        }
-        
-        if target.anchor == .completeSheet {
-            showCompleteSheet = true
         }
         
         navigationCoordinator.requestNavigationTarget = nil

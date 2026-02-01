@@ -287,8 +287,19 @@ final class NotificationsListViewModel: ObservableObject {
 
         // 2. Fallback to generic type-based navigation
         switch notification.type {
+        case .completionReminder:
+            if let rideId = notification.rideId {
+                coordinator.selectedTab = .requests
+                coordinator.navigateToRide = rideId
+                NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["rideId": rideId])
+            } else if let favorId = notification.favorId {
+                coordinator.selectedTab = .requests
+                coordinator.navigateToFavor = favorId
+                NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["favorId": favorId])
+            }
+
         case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted,
-             .qaActivity, .qaQuestion, .qaAnswer, .completionReminder:
+             .qaActivity, .qaQuestion, .qaAnswer:
             if let rideId = notification.rideId {
                 coordinator.selectedTab = .requests
                 coordinator.navigateToRide = rideId
@@ -375,7 +386,7 @@ final class NotificationsListViewModel: ObservableObject {
 
     private func shouldMarkReadOnTap(_ type: NotificationType) -> Bool {
         switch type {
-        case .reviewRequest, .reviewReminder:
+        case .reviewRequest, .reviewReminder, .completionReminder:
             return false
         default:
             return true

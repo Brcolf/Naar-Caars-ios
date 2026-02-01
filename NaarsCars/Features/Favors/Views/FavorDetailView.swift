@@ -19,7 +19,6 @@ struct FavorDetailView: View {
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
     @State private var showUnclaimSheet = false
-    @State private var showCompleteSheet = false
     @State private var showReviewSheet = false
     @State private var showPhoneRequired = false
     @State private var navigateToProfile = false
@@ -121,26 +120,6 @@ struct FavorDetailView: View {
                     }
                 )
                 .id(RequestDetailAnchor.unclaimSheet.anchorId(for: .favor))
-            }
-        }
-        .sheet(isPresented: $showCompleteSheet) {
-            if let favor = viewModel.favor {
-                CompleteSheet(
-                    requestType: "favor",
-                    requestTitle: favor.title,
-                    onConfirm: {
-                        Task {
-                            do {
-                                try await claimViewModel.complete(requestType: "favor", requestId: favor.id)
-                                await viewModel.loadFavor(id: favorId)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
-                    }
-                )
-                .id(RequestDetailAnchor.completeSheet.anchorId(for: .favor))
-                .onAppear { handleSectionAppeared(.completeSheet) }
             }
         }
         .sheet(isPresented: $showReviewSheet) {
@@ -429,16 +408,6 @@ struct FavorDetailView: View {
             
             if viewModel.canEdit {
                 HStack(spacing: 16) {
-                    if favor.status == .confirmed {
-                        SecondaryButton(title: "Mark Complete") {
-                            showCompleteSheet = true
-                        }
-                        .accessibilityIdentifier("favor.markComplete")
-                        .id(RequestDetailAnchor.completeAction.anchorId(for: .favor))
-                        .requestHighlight(highlightedAnchor == .completeAction)
-                        .onAppear { handleSectionAppeared(.completeAction) }
-                    }
-                    
                     SecondaryButton(title: "Edit") { showEditFavor = true }
                         .accessibilityIdentifier("favor.edit")
                     SecondaryButton(title: "Delete") { showDeleteAlert = true }
@@ -468,10 +437,6 @@ struct FavorDetailView: View {
             withAnimation(.easeInOut) {
                 proxy.scrollTo(scrollId, anchor: .top)
             }
-        }
-        
-        if target.anchor == .completeSheet {
-            showCompleteSheet = true
         }
         
         navigationCoordinator.requestNavigationTarget = nil

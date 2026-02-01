@@ -9,7 +9,16 @@ import Foundation
 
 extension ReviewService {
     
-    /// Find requests that need review prompts (30 minutes after request time)
+    /// Check if a review prompt is eligible based on event time
+    /// - Parameters:
+    ///   - eventTime: The time of the event (ride/favor)
+    ///   - now: Current time
+    /// - Returns: True if prompt is eligible (event time has passed)
+    nonisolated static func isReviewPromptEligible(eventTime: Date, now: Date) -> Bool {
+        return now >= eventTime
+    }
+    
+    /// Find requests that need review prompts (immediately after event time)
     /// - Parameter userId: User ID of the poster
     /// - Returns: Array of (requestType, requestId, requestTitle, fulfillerId, fulfillerName) tuples
     func findPendingReviewPrompts(userId: UUID) async throws -> [(requestType: String, requestId: UUID, requestTitle: String, fulfillerId: UUID, fulfillerName: String)] {
@@ -28,7 +37,6 @@ extension ReviewService {
             .filter { $0.status == .completed && $0.claimedBy != nil && !$0.reviewed && ($0.reviewSkipped == nil || $0.reviewSkipped == false) }
         
         let now = Date()
-        let thirtyMinutesInSeconds: TimeInterval = 30 * 60
         
         // Check rides
         for ride in completedRides {
@@ -37,9 +45,8 @@ extension ReviewService {
                 continue
             }
             
-            // Check if 30 minutes have passed since event time
-            let timeSinceEvent = now.timeIntervalSince(eventTime)
-            guard timeSinceEvent >= thirtyMinutesInSeconds else {
+            // Check if prompt is eligible (event time has passed)
+            guard Self.isReviewPromptEligible(eventTime: eventTime, now: now) else {
                 continue
             }
             
@@ -74,17 +81,15 @@ extension ReviewService {
                 eventTime = favor.date
             }
             
-            // Check if 30 minutes have passed since event time
-            let timeSinceEvent = now.timeIntervalSince(eventTime)
-            guard timeSinceEvent >= thirtyMinutesInSeconds else {
+            // Check if prompt is eligible (event time has passed)
+            guard Self.isReviewPromptEligible(eventTime: eventTime, now: now) else {
                 continue
             }
             
-            // Check if can still review (within 7 days) - skip check for now since we're checking 30 min after event time
-            // The 7-day window is for past requests, not for the 30-minute prompt
-            // guard try await reviewService.canStillReview(requestType: "favor", requestId: favor.id) else {
-            //     continue
-            // }
+            // Check if can still review (within 7 days)
+            guard try await canStillReview(requestType: "favor", requestId: favor.id) else {
+                continue
+            }
             
             // Get fulfiller profile
             guard let fulfillerId = favor.claimedBy else { continue }

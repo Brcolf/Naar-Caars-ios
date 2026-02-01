@@ -30,4 +30,12 @@ final class AppDelegateNotificationHandlingTests: XCTestCase {
     func testAppRefreshTaskFromAny_ReturnsNilForUnexpectedType() {
         XCTAssertNil(AppDelegate.appRefreshTask(from: NSObject()))
     }
+
+    func testShouldShowCompletionPrompt_ForCompletionReminder() {
+        XCTAssertTrue(AppDelegate.shouldShowCompletionPrompt(for: "completion_reminder"))
+    }
+
+    func testShouldSkipAutoRead_ForCompletionReminder() {
+        XCTAssertTrue(AppDelegate.shouldSkipAutoRead(for: "completion_reminder"))
+    }
 }

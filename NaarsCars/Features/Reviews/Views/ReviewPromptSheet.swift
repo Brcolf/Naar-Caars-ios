@@ -2,12 +2,12 @@
 //  ReviewPromptSheet.swift
 //  NaarsCars
 //
-//  Review prompt sheet that appears 30 minutes after request time
+//  Review prompt sheet that appears immediately after completion
 //
 
 import SwiftUI
 
-/// Review prompt sheet that appears 30 minutes after request time
+/// Review prompt sheet that appears immediately after completion
 struct ReviewPromptSheet: View {
     @Environment(\.dismiss) private var dismiss
     

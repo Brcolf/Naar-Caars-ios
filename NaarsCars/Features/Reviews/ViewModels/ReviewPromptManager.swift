@@ -2,14 +2,14 @@
 //  ReviewPromptManager.swift
 //  NaarsCars
 //
-//  Manager for review prompts (30 minutes after request time)
+//  Manager for review prompts (immediately after event time)
 //
 
 import Foundation
 internal import Combine
 
 /// Manager for review prompts
-/// Checks for pending reviews 30 minutes after request time
+/// Checks for pending reviews immediately after event time
 @MainActor
 final class ReviewPromptManager: ObservableObject {
     

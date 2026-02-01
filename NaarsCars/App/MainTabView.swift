@@ -12,7 +12,6 @@ import SwiftUI
 struct MainTabView: View {
     @StateObject private var badgeManager = BadgeCountManager.shared
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
-    @StateObject private var reviewPromptManager = ReviewPromptManager.shared
     @StateObject private var promptCoordinator = PromptCoordinator.shared
     @ObservedObject private var toastManager = InAppToastManager.shared
     @EnvironmentObject var appState: AppState
@@ -113,8 +112,6 @@ struct MainTabView: View {
             checkGuidelinesAcceptance()
             // Refresh badges on appear
             await badgeManager.refreshAllBadges()
-            // Check for review prompts
-            await reviewPromptManager.checkForPendingPrompts()
             // Check for pending prompts (completion and review)
             if let userId = AuthService.shared.currentUserId {
                 await promptCoordinator.checkForPendingPrompts(userId: userId)
@@ -158,31 +155,7 @@ struct MainTabView: View {
                     onReviewSubmitted: { Task { await promptCoordinator.finishReviewPrompt() } },
                     onReviewSkipped: { Task { await promptCoordinator.finishReviewPrompt() } }
                 )
-                .interactiveDismissDisabled(true)
             }
-        }
-        .sheet(item: $reviewPromptManager.pendingPrompt) { prompt in
-            ReviewPromptSheet(
-                requestType: prompt.requestType,
-                requestId: prompt.requestId,
-                requestTitle: prompt.requestTitle,
-                fulfillerId: prompt.fulfillerId,
-                fulfillerName: prompt.fulfillerName,
-                onReviewSubmitted: {
-                    reviewPromptManager.clearPrompt()
-                    // Check for next prompt
-                    Task {
-                        await reviewPromptManager.checkForPendingPrompts()
-                    }
-                },
-                onReviewSkipped: {
-                    reviewPromptManager.clearPrompt()
-                    // Check for next prompt
-                    Task {
-                        await reviewPromptManager.checkForPendingPrompts()
-                    }
-                }
-            )
         }
         .alert("Open Link?", isPresented: $navigationCoordinator.showDeepLinkConfirmation) {
             Button("Open", role: .destructive) {
