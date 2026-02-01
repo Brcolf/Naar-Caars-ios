@@ -10,6 +10,12 @@ import SwiftData
 internal import Combine
 import Realtime
 
+struct RequestNotificationSummary {
+    let unreadCount: Int
+    let latestUnreadType: NotificationType
+    let latestUnreadAt: Date
+}
+
 /// ViewModel for unified requests dashboard
 @MainActor
 final class RequestsDashboardViewModel: ObservableObject {
@@ -20,6 +26,8 @@ final class RequestsDashboardViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published var unseenRequestKeys: Set<String> = []
+    @Published var requestNotificationSummaries: [String: RequestNotificationSummary] = [:]
+    @Published var filterBadgeCounts: [RequestFilter: Int] = [:]
     @Published var filteredRides: [SDRide] = []
     @Published var filteredFavors: [SDFavor] = []
     
@@ -52,8 +60,13 @@ final class RequestsDashboardViewModel: ObservableObject {
     }
     
     /// Get filtered requests from SwiftData models
-    func getFilteredRequests(rides: [SDRide], favors: [SDFavor]) -> [RequestItem] {
+    func getFilteredRequests(
+        rides: [SDRide],
+        favors: [SDFavor],
+        filterOverride: RequestFilter? = nil
+    ) -> [RequestItem] {
         guard let userId = authService.currentUserId else { return [] }
+        let activeFilter = filterOverride ?? filter
         
         // 1. Convert SDRide/SDFavor to Ride/Favor (minimal conversion for UI)
         // In a full implementation, we'd have a way to convert SD models back to domain models
@@ -143,7 +156,7 @@ final class RequestsDashboardViewModel: ObservableObject {
         allRequests = rideItems + favorItems
         
         // 2. Apply filtering
-        switch filter {
+        switch activeFilter {
         case .open:
             // Open Requests: Show unclaimed requests that user is NOT participating in
             allRequests = allRequests.filter { request in
@@ -322,11 +335,63 @@ final class RequestsDashboardViewModel: ObservableObject {
         guard let name = name, !name.isEmpty else { return nil }
         return Profile(id: id, name: name, email: "", avatarUrl: avatarUrl)
     }
+
+    private func resolveRequestTarget(
+        requestType: RequestType,
+        requestId: UUID,
+        latestType: NotificationType
+    ) -> RequestNotificationTarget {
+        let mapped: RequestNotificationTarget?
+        switch requestType {
+        case .ride:
+            mapped = RequestNotificationMapping.target(
+                for: latestType,
+                rideId: requestId,
+                favorId: nil
+            )
+        case .favor:
+            mapped = RequestNotificationMapping.target(
+                for: latestType,
+                rideId: nil,
+                favorId: requestId
+            )
+        }
+
+        if let mapped { return mapped }
+
+        return RequestNotificationTarget(
+            requestType: requestType,
+            requestId: requestId,
+            anchor: .mainTop,
+            scrollAnchor: nil,
+            highlightAnchor: .mainTop,
+            shouldAutoClear: true
+        )
+    }
     
     /// Update filter and reload requests
     func filterRequests(_ newFilter: RequestFilter) {
         filter = newFilter
         refreshFilteredRequests()
+    }
+
+    func notificationTarget(for request: RequestItem) -> RequestNotificationTarget? {
+        guard let summary = requestNotificationSummaries[request.notificationKey] else { return nil }
+
+        switch request {
+        case .ride(let ride):
+            return resolveRequestTarget(
+                requestType: .ride,
+                requestId: ride.id,
+                latestType: summary.latestUnreadType
+            )
+        case .favor(let favor):
+            return resolveRequestTarget(
+                requestType: .favor,
+                requestId: favor.id,
+                latestType: summary.latestUnreadType
+            )
+        }
     }
     
     /// Refresh requests (pull-to-refresh)
@@ -427,6 +492,8 @@ final class RequestsDashboardViewModel: ObservableObject {
     private func refreshUnseenRequestKeys() async {
         guard let userId = authService.currentUserId else {
             unseenRequestKeys = []
+            requestNotificationSummaries = [:]
+            filterBadgeCounts = [:]
             return
         }
 
@@ -436,7 +503,10 @@ final class RequestsDashboardViewModel: ObservableObject {
             
             // Check if we are still on the main actor and not cancelled before updating published properties
             if !Task.isCancelled {
-                unseenRequestKeys = NotificationGrouping.unreadRequestKeys(from: notifications)
+                let summaries = buildRequestNotificationSummaries(from: notifications)
+                requestNotificationSummaries = summaries
+                unseenRequestKeys = Set(summaries.keys)
+                refreshFilterBadgeCounts()
                 print("🔔 [RequestsDashboardViewModel] Unseen request keys: \(unseenRequestKeys.count)")
             }
         } catch {
@@ -445,6 +515,42 @@ final class RequestsDashboardViewModel: ObservableObject {
                 print("⚠️ [RequestsDashboardViewModel] Failed to refresh request keys: \(error)")
             }
         }
+    }
+
+    private func buildRequestNotificationSummaries(
+        from notifications: [AppNotification]
+    ) -> [String: RequestNotificationSummary] {
+        var summaries: [String: RequestNotificationSummary] = [:]
+
+        for notification in notifications where !notification.read {
+            guard let key = NotificationGrouping.requestKey(for: notification) else { continue }
+            let createdAt = notification.createdAt
+
+            if let existing = summaries[key] {
+                let unreadCount = existing.unreadCount + 1
+                if createdAt > existing.latestUnreadAt {
+                    summaries[key] = RequestNotificationSummary(
+                        unreadCount: unreadCount,
+                        latestUnreadType: notification.type,
+                        latestUnreadAt: createdAt
+                    )
+                } else {
+                    summaries[key] = RequestNotificationSummary(
+                        unreadCount: unreadCount,
+                        latestUnreadType: existing.latestUnreadType,
+                        latestUnreadAt: existing.latestUnreadAt
+                    )
+                }
+            } else {
+                summaries[key] = RequestNotificationSummary(
+                    unreadCount: 1,
+                    latestUnreadType: notification.type,
+                    latestUnreadAt: createdAt
+                )
+            }
+        }
+
+        return summaries
     }
     
     private func extractRecord(from payload: Any) -> [String: Any]? {
@@ -461,13 +567,18 @@ final class RequestsDashboardViewModel: ObservableObject {
         guard let context = modelContext else { return }
         filteredRides = fetchFilteredRides(in: context)
         filteredFavors = fetchFilteredFavors(in: context)
+        refreshFilterBadgeCounts()
     }
 
-    private func fetchFilteredRides(in context: ModelContext) -> [SDRide] {
+    private func fetchFilteredRides(
+        in context: ModelContext,
+        filterOverride: RequestFilter? = nil
+    ) -> [SDRide] {
         guard let userId = authService.currentUserId else { return [] }
+        let activeFilter = filterOverride ?? filter
 
         let predicate: Predicate<SDRide>
-        switch filter {
+        switch activeFilter {
         case .open:
             predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
@@ -478,17 +589,21 @@ final class RequestsDashboardViewModel: ObservableObject {
 
         let descriptor = FetchDescriptor<SDRide>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
-        if filter == .mine {
+        if activeFilter == .mine {
             return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
         }
         return fetched
     }
 
-    private func fetchFilteredFavors(in context: ModelContext) -> [SDFavor] {
+    private func fetchFilteredFavors(
+        in context: ModelContext,
+        filterOverride: RequestFilter? = nil
+    ) -> [SDFavor] {
         guard let userId = authService.currentUserId else { return [] }
+        let activeFilter = filterOverride ?? filter
 
         let predicate: Predicate<SDFavor>
-        switch filter {
+        switch activeFilter {
         case .open:
             predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
@@ -499,10 +614,33 @@ final class RequestsDashboardViewModel: ObservableObject {
 
         let descriptor = FetchDescriptor<SDFavor>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
-        if filter == .mine {
+        if activeFilter == .mine {
             return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
         }
         return fetched
+    }
+
+    private func refreshFilterBadgeCounts() {
+        guard let context = modelContext else {
+            filterBadgeCounts = [:]
+            return
+        }
+
+        var counts: [RequestFilter: Int] = [:]
+        for filterCase in RequestFilter.allCases {
+            let rides = fetchFilteredRides(in: context, filterOverride: filterCase)
+            let favors = fetchFilteredFavors(in: context, filterOverride: filterCase)
+            let requests = getFilteredRequests(
+                rides: rides,
+                favors: favors,
+                filterOverride: filterCase
+            )
+            let unreadTotal = requests.reduce(0) { total, request in
+                total + (requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0)
+            }
+            counts[filterCase] = unreadTotal
+        }
+        filterBadgeCounts = counts
     }
 }
 

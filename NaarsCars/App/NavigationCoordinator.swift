@@ -23,6 +23,7 @@ final class NavigationCoordinator: ObservableObject {
     @Published var navigateToRide: UUID?
     @Published var navigateToFavor: UUID?
     @Published var requestNavigationTarget: RequestNotificationTarget?
+    @Published var requestListScrollKey: String?
     @Published var navigateToConversation: UUID?
     @Published var conversationScrollTarget: ConversationScrollTarget?
     @Published var navigateToProfile: UUID?
@@ -186,6 +187,7 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         requestNavigationTarget = nil
+        requestListScrollKey = nil
         profileScrollTarget = nil
         conversationScrollTarget = nil
     }
@@ -268,6 +270,7 @@ final class NavigationCoordinator: ObservableObject {
                 if let target = Self.requestTarget(from: userInfo, requestId: rideId, requestType: .ride) {
                     self.requestNavigationTarget = target
                 }
+                self.requestListScrollKey = "ride:\(rideId)"
             }
         }
         
@@ -286,6 +289,7 @@ final class NavigationCoordinator: ObservableObject {
                 if let target = Self.requestTarget(from: userInfo, requestId: favorId, requestType: .favor) {
                     self.requestNavigationTarget = target
                 }
+                self.requestListScrollKey = "favor:\(favorId)"
             }
         }
         
@@ -443,6 +447,7 @@ final class NavigationCoordinator: ObservableObject {
         navigateToAdminPanel = false
         navigateToPendingUsers = false
         navigateToNotifications = false
+        requestListScrollKey = nil
         profileScrollTarget = nil
         announcementsNavigationTarget = nil
         requestNavigationTarget = nil
