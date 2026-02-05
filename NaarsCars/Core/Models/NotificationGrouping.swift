@@ -64,13 +64,61 @@ enum NotificationGrouping {
         .townHallPost, .townHallComment, .townHallReaction
     ]
 
+    /// Age threshold for archiving read notifications (24 hours)
+    static let staleThreshold: TimeInterval = 24 * 60 * 60
+
+    // MARK: - Bell Feed Filtering
+
     static func filterBellNotifications(from notifications: [AppNotification]) -> [AppNotification] {
         notifications.filter { !messageTypes.contains($0.type) }
     }
 
+    /// Remove stale notifications from the bell feed.
+    /// A notification is stale when it is read and older than 24 hours.
+    /// Announcements are handled separately (see `pruneAnnouncements`).
+    static func archiveStale(from notifications: [AppNotification], now: Date = Date()) -> [AppNotification] {
+        let cutoff = now.addingTimeInterval(-staleThreshold)
+        return notifications.filter { notification in
+            // Announcements are pruned by a dedicated pass; keep all here.
+            if announcementTypes.contains(notification.type) { return true }
+            // Unread notifications always survive.
+            if !notification.read { return true }
+            // Read notifications within the last 24h survive.
+            return notification.createdAt > cutoff
+        }
+    }
+
+    /// Keep only the single most-recent non-stale announcement.
+    /// If there are no non-stale announcements, keep the most recent one
+    /// regardless, so the user always sees the latest announcement.
+    static func pruneAnnouncements(from notifications: [AppNotification], now: Date = Date()) -> [AppNotification] {
+        let cutoff = now.addingTimeInterval(-staleThreshold)
+
+        let announcements = notifications
+            .filter { announcementTypes.contains($0.type) }
+            .sorted { $0.createdAt > $1.createdAt }
+
+        let nonAnnouncements = notifications.filter { !announcementTypes.contains($0.type) }
+
+        // Find the most recent non-stale announcement (unread, or read within 24h)
+        let nonStale = announcements.first { !$0.read || $0.createdAt > cutoff }
+        // Fall back to the absolute most recent if every announcement is stale
+        let keeper = nonStale ?? announcements.first
+
+        if let keeper {
+            return nonAnnouncements + [keeper]
+        }
+        return nonAnnouncements
+    }
+
+    // MARK: - Grouping
+
     static func groupBellNotifications(from notifications: [AppNotification]) -> [NotificationGroup] {
         let filtered = filterBellNotifications(from: notifications)
-        let grouped = Dictionary(grouping: filtered) { notification in
+        let fresh = archiveStale(from: filtered)
+        let pruned = pruneAnnouncements(from: fresh)
+
+        let grouped = Dictionary(grouping: pruned) { notification in
             groupKey(for: notification)
         }
         return grouped
@@ -102,6 +150,8 @@ enum NotificationGrouping {
 
         return "notification:\(notification.id)"
     }
+
+    // MARK: - Badge Helpers
 
     static func requestKey(for notification: AppNotification) -> String? {
         guard requestBadgeTypes.contains(notification.type) else { return nil }

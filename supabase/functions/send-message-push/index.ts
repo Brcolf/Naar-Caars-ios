@@ -3,7 +3,7 @@
 // Called via Supabase Database Webhook or HTTP request
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +28,7 @@ interface APNsPayload {
     sound: string
     badge: number
     priority: number
+    category?: string
   }
   type: string
   conversation_id: string
@@ -356,15 +357,22 @@ async function sendPushToRecipient(
     return { sent: false, skipped: true, reason: 'no_tokens' }
   }
 
-  // Get unread message count for badge
-  const { count: unreadCount } = await supabase
+  // Get unread message count for badge (all conversations, not just this one)
+  const { count: unreadMessageCount } = await supabase
     .from('messages')
     .select('id', { count: 'exact', head: true })
-    .eq('conversation_id', conversationId)
     .neq('from_id', recipientUserId)
     .not('read_by', 'cs', `{${recipientUserId}}`)
 
-  const badgeCount = (unreadCount ?? 0) + 1 // Add 1 for the new message
+  // Get unread notification count for badge (non-message notifications)
+  const { count: unreadNotificationCount } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', recipientUserId)
+    .eq('read', false)
+    .not('type', 'in', '("message","added_to_conversation")')
+
+  const badgeCount = (unreadMessageCount ?? 0) + (unreadNotificationCount ?? 0)
 
   // Prepare APNs payload
   const apnsPayload: APNsPayload = {
@@ -375,7 +383,8 @@ async function sendPushToRecipient(
       },
       sound: 'default',
       badge: badgeCount,
-      priority: 10 // High priority for immediate delivery
+      priority: 10, // High priority for immediate delivery
+      category: 'MESSAGE'
     },
     type: 'message',
     conversation_id: conversationId,

@@ -74,7 +74,31 @@ BEGIN
       AND type IN ('town_hall_post', 'town_hall_comment', 'town_hall_reaction');
 
     -- Bell: unread grouped bell-feed notifications (non-message)
-    WITH bell_groups AS (
+    -- Applies stale archival: read notifications older than 24h are excluded.
+    -- For announcements, only the most recent non-stale one is counted.
+    WITH bell_fresh AS (
+        SELECT *
+        FROM notifications
+        WHERE user_id = v_user_id
+          AND type NOT IN ('message', 'added_to_conversation')
+          AND (read = false OR created_at > NOW() - INTERVAL '24 hours')
+    ),
+    -- Keep only the single most-recent announcement (matching client-side pruneAnnouncements)
+    latest_announcement AS (
+        SELECT id
+        FROM bell_fresh
+        WHERE type IN ('announcement', 'admin_announcement', 'broadcast')
+        ORDER BY created_at DESC
+        LIMIT 1
+    ),
+    bell_pruned AS (
+        SELECT * FROM bell_fresh
+        WHERE type NOT IN ('announcement', 'admin_announcement', 'broadcast')
+        UNION ALL
+        SELECT bf.* FROM bell_fresh bf
+        WHERE bf.id IN (SELECT id FROM latest_announcement)
+    ),
+    bell_groups AS (
         SELECT
             CASE
                 WHEN type IN ('announcement', 'admin_announcement', 'broadcast')
@@ -101,9 +125,7 @@ BEGIN
                 ELSE 'notification:' || id::text
             END AS group_key,
             BOOL_OR(read = false) AS has_unread
-        FROM notifications
-        WHERE user_id = v_user_id
-          AND type NOT IN ('message', 'added_to_conversation')
+        FROM bell_pruned
         GROUP BY group_key
     )
     SELECT COUNT(*)

@@ -36,33 +36,30 @@ struct DeepLinkParser {
         }
         
         switch type {
-        // Ride notifications - navigate to ride detail
+        // Request notifications (rides + favors + shared types like Q&A, reviews, completion)
+        // Checks ride_id first, then favor_id, then falls back to dashboard for new requests.
         case "new_ride", "ride_claimed", "ride_unclaimed", "ride_update", "ride_completed",
-             "completion_reminder", "review_request", "review_reminder", "qa_activity", "qa_question", "qa_answer":
+             "new_favor", "favor_claimed", "favor_unclaimed", "favor_update", "favor_completed",
+             "completion_reminder", "review_request", "review_reminder", "review",
+             "qa_activity", "qa_question", "qa_answer":
             if let rideIdString = userInfo["ride_id"] as? String,
                let rideId = UUID(uuidString: rideIdString) {
                 return .ride(id: rideId)
             }
-            // Check for favor_id as well for completion_reminder and review_request
             if let favorIdString = userInfo["favor_id"] as? String,
                let favorId = UUID(uuidString: favorIdString) {
                 return .favor(id: favorId)
             }
-            // If new_ride with no specific ID, go to dashboard
-            if type == "new_ride" {
+            // New requests without a specific ID go to dashboard
+            if type == "new_ride" || type == "new_favor" {
                 return .dashboard
             }
-            
-        // Favor notifications - navigate to favor detail
-        case "new_favor", "favor_claimed", "favor_unclaimed", "favor_update", "favor_completed",
-             "completion_reminder", "review_request", "review_reminder", "qa_activity", "qa_question", "qa_answer":
-            if let favorIdString = userInfo["favor_id"] as? String,
-               let favorId = UUID(uuidString: favorIdString) {
-                return .favor(id: favorId)
-            }
-            // If new_favor with no specific ID, go to dashboard
-            if type == "new_favor" {
-                return .dashboard
+
+        // Review received - navigate to own profile reviews
+        case "review_received":
+            if let userIdString = userInfo["user_id"] as? String,
+               let userId = UUID(uuidString: userIdString) {
+                return .profile(id: userId)
             }
             
         // Message notifications - navigate to conversation
@@ -102,11 +99,12 @@ struct DeepLinkParser {
             
         // User approved - navigate to main app
         case "user_approved", "enter_app":
-            if userInfo["action"] as? String == "enter_app" {
-                return .enterApp
-            }
             return .enterApp
 
+        // User rejected - no destination (user cannot enter the app)
+        case "user_rejected":
+            return .notifications
+            
         case "dashboard":
             return .dashboard
             

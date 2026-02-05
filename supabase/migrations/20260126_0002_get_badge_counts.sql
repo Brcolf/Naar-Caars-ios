@@ -70,7 +70,30 @@ begin
       and type in ('town_hall_post', 'town_hall_comment', 'town_hall_reaction');
 
     -- Bell: unread grouped bell-feed notifications (non-message)
-    with bell_groups as (
+    -- Applies stale archival: read notifications older than 24h are excluded.
+    -- For announcements, only the most recent non-stale one is counted.
+    with bell_fresh as (
+        select *
+        from notifications
+        where user_id = v_user_id
+          and type not in ('message', 'added_to_conversation')
+          and (read = false or created_at > now() - interval '24 hours')
+    ),
+    latest_announcement as (
+        select id
+        from bell_fresh
+        where type in ('announcement', 'admin_announcement', 'broadcast')
+        order by created_at desc
+        limit 1
+    ),
+    bell_pruned as (
+        select * from bell_fresh
+        where type not in ('announcement', 'admin_announcement', 'broadcast')
+        union all
+        select bf.* from bell_fresh bf
+        where bf.id in (select id from latest_announcement)
+    ),
+    bell_groups as (
         select
             case
                 when type in ('announcement', 'admin_announcement', 'broadcast')
@@ -97,9 +120,7 @@ begin
                 else 'notification:' || id::text
             end as group_key,
             bool_or(read = false) as has_unread
-        from notifications
-        where user_id = v_user_id
-          and type not in ('message', 'added_to_conversation')
+        from bell_pruned
         group by group_key
     )
     select count(*)

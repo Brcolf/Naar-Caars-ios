@@ -134,14 +134,33 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let notificationType = userInfo["type"] as? String
         PushNotificationService.shared.recordLastPushPayload(userInfo)
         
-        // Handle actionable responses (Yes/No) without opening the app
+        // Handle actionable responses without opening the app
         if response.actionIdentifier != UNNotificationDefaultActionIdentifier &&
             response.actionIdentifier != UNNotificationDismissActionIdentifier {
             Task { @MainActor in
-                await PushNotificationService.shared.handleNotificationAction(
-                    actionIdentifier: response.actionIdentifier,
-                    userInfo: userInfo
-                )
+                switch response.actionIdentifier {
+                case NotificationAction.reply.rawValue:
+                    // Quick-reply from message notification
+                    if let textResponse = response as? UNTextInputNotificationResponse {
+                        await PushNotificationService.shared.handleMessageReply(
+                            replyText: textResponse.userText,
+                            userInfo: userInfo
+                        )
+                    }
+                case NotificationAction.markRead.rawValue:
+                    // Mark conversation as read from notification
+                    await PushNotificationService.shared.handleMessageMarkRead(userInfo: userInfo)
+                case NotificationAction.viewRequest.rawValue:
+                    // View Details opens the app and deep-links (foreground option)
+                    let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+                    self.handleDeepLink(deepLink, userInfo: userInfo)
+                default:
+                    // Completion reminder Yes/No actions
+                    await PushNotificationService.shared.handleNotificationAction(
+                        actionIdentifier: response.actionIdentifier,
+                        userInfo: userInfo
+                    )
+                }
                 completionHandler()
             }
             return

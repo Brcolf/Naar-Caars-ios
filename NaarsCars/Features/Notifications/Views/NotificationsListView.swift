@@ -105,6 +105,16 @@ struct NotificationsListView: View {
                     }
                 }
             }
+            
+            // Archived-notification hint
+            Section {
+                Text("Older notifications are automatically archived")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
         }
         .listStyle(.plain)
         .refreshable { await viewModel.refreshNotifications() }

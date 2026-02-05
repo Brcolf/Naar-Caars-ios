@@ -176,13 +176,19 @@ final class NotificationsListViewModel: ObservableObject {
         }
     }
 
+    /// Types that require explicit user action and should NOT be bulk-marked as read
+    private static let bulkReadExcludedTypes: Set<NotificationType> = [
+        .reviewRequest, .reviewReminder, .completionReminder
+    ]
+
     private func markAllBellNotificationsReadLocally() {
         guard let context = modelContext, let userId = authService.currentUserId else { return }
         let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.userId == userId })
         if let notifications = try? context.fetch(fetchDescriptor) {
             for notification in notifications {
                 guard let type = NotificationType(rawValue: notification.type),
-                      !NotificationGrouping.messageTypes.contains(type) else { continue }
+                      !NotificationGrouping.messageTypes.contains(type),
+                      !Self.bulkReadExcludedTypes.contains(type) else { continue }
                 notification.read = true
             }
             try? context.save()
@@ -366,12 +372,31 @@ final class NotificationsListViewModel: ObservableObject {
             coordinator.selectedTab = .profile
             coordinator.navigateToPendingUsers = true
 
+        case .review:
+            // Generic review type - navigate to the associated request if available
+            if let rideId = notification.rideId {
+                coordinator.selectedTab = .requests
+                coordinator.navigateToRide = rideId
+            } else if let favorId = notification.favorId {
+                coordinator.selectedTab = .requests
+                coordinator.navigateToFavor = favorId
+            } else {
+                // No associated request - show profile reviews
+                coordinator.selectedTab = .profile
+                coordinator.profileScrollTarget = "profile.myProfile.reviewsSection"
+            }
+
         case .reviewReceived:
             coordinator.selectedTab = .profile
             coordinator.profileScrollTarget = "profile.myProfile.reviewsSection"
 
         case .userApproved:
             coordinator.navigate(to: .enterApp)
+
+        case .userRejected:
+            // Rejected users see the notification but cannot navigate further.
+            // The notification serves as an informational notice only.
+            break
 
         case .adminAnnouncement, .announcement, .broadcast:
             handleAnnouncementTap(notification)

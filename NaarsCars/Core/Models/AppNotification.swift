@@ -42,6 +42,9 @@ enum NotificationType: String, Codable {
     case reviewRequest = "review_request"
     
     // Town Hall
+    // Note: Town Hall votes/reactions create in-app notifications only (no push).
+    // This is intentional to avoid push notification overload from high-volume
+    // upvote activity. Users see reactions in their bell feed when they open the app.
     case townHallPost = "town_hall_post"
     case townHallComment = "town_hall_comment"
     case townHallReaction = "town_hall_reaction"
@@ -116,12 +119,11 @@ enum NotificationType: String, Codable {
             return "notifyRideUpdates"
         case .qaActivity, .qaQuestion, .qaAnswer:
             return "notifyQaActivity"
-        case .review, .reviewReceived, .reviewReminder, .reviewRequest:
+        case .review, .reviewReceived, .reviewReminder, .reviewRequest,
+             .completionReminder:
             return "notifyReviewReminders"
         case .townHallPost, .townHallComment, .townHallReaction:
             return "notifyTownHall"
-        case .completionReminder:
-            return "notifyReviewReminders"  // Grouped with reviews
         // Non-disableable types return nil
         default:
             return nil

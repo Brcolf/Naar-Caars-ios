@@ -4,7 +4,7 @@
 // Called via Supabase Database Webhook or scheduled cron
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -317,6 +317,8 @@ async function sendPushToUser(
     apnsPayload.aps.category = NOTIFICATION_CATEGORIES.completion_reminder
   } else if (notificationType === 'message') {
     apnsPayload.aps.category = NOTIFICATION_CATEGORIES.message
+  } else if (notificationType === 'new_ride' || notificationType === 'new_favor') {
+    apnsPayload.aps.category = NOTIFICATION_CATEGORIES.new_request
   }
 
   // Send push to all devices for this user

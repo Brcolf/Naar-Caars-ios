@@ -31,14 +31,24 @@ final class NotificationService {
     /// - Parameter userId: The user ID
     /// - Returns: Array of notifications ordered by pinned first, then createdAt
     /// - Throws: AppError if fetch fails
+    /// Notifications older than this are not fetched from the server.
+    /// Unread notifications are always relevant, but we rely on the server
+    /// returning recent rows plus any unread ones. 30 days is a generous
+    /// window that keeps the payload small while covering all realistic cases.
+    private static let fetchHorizonDays: Int = 30
+
     func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
         _ = forceRefresh
+        let horizon = Calendar.current.date(byAdding: .day, value: -Self.fetchHorizonDays, to: Date()) ?? Date()
+        let horizonString = ISO8601DateFormatter().string(from: horizon)
+
         let response = try await supabase
             .from("notifications")
             .select("*")
             .eq("user_id", value: userId.uuidString)
             .neq("type", value: NotificationType.message.rawValue)
             .neq("type", value: NotificationType.addedToConversation.rawValue)
+            .or("read.eq.false,created_at.gte.\(horizonString)")
             .order("pinned", ascending: false)
             .order("created_at", ascending: false)
             .execute()
@@ -145,7 +155,9 @@ final class NotificationService {
         print("✅ [NotificationService] Marked all notifications as read for user \(userId)")
     }
 
-    /// Mark all bell notifications (non-message) as read for a user
+    /// Mark all bell notifications (non-message) as read for a user.
+    /// Excludes actionable types (review requests, completion reminders) that
+    /// require explicit user action before they should be dismissed.
     /// - Parameter userId: The user ID
     /// - Throws: AppError if update fails
     func markAllBellNotificationsAsRead(userId: UUID) async throws {
@@ -155,6 +167,9 @@ final class NotificationService {
             .eq("user_id", value: userId.uuidString)
             .neq("type", value: NotificationType.message.rawValue)
             .neq("type", value: NotificationType.addedToConversation.rawValue)
+            .neq("type", value: NotificationType.reviewRequest.rawValue)
+            .neq("type", value: NotificationType.reviewReminder.rawValue)
+            .neq("type", value: NotificationType.completionReminder.rawValue)
             .execute()
         
         print("✅ [NotificationService] Marked all bell notifications as read for user \(userId)")

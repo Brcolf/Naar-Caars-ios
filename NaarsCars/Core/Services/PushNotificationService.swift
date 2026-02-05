@@ -17,6 +17,9 @@ internal import Combine
 enum NotificationAction: String {
     case yesCompleted = "COMPLETE_YES"
     case noNotYet = "COMPLETE_NO"
+    case reply = "MESSAGE_REPLY"
+    case markRead = "MESSAGE_MARK_READ"
+    case viewRequest = "VIEW_REQUEST"
 }
 
 /// Notification category identifiers
@@ -80,18 +83,38 @@ final class PushNotificationService: NSObject, ObservableObject {
             options: [.customDismissAction]
         )
         
-        // Message category (for future quick reply support)
+        // Message category with quick-reply and mark-read actions
+        let replyAction = UNTextInputNotificationAction(
+            identifier: NotificationAction.reply.rawValue,
+            title: "Reply",
+            options: [],
+            textInputButtonTitle: "Send",
+            textInputPlaceholder: "Type a reply…"
+        )
+        
+        let markReadAction = UNNotificationAction(
+            identifier: NotificationAction.markRead.rawValue,
+            title: "Mark as Read",
+            options: []
+        )
+        
         let messageCategory = UNNotificationCategory(
             identifier: NotificationCategory.message.rawValue,
-            actions: [],
+            actions: [replyAction, markReadAction],
             intentIdentifiers: [],
             options: []
         )
         
-        // New Request category
+        // New Request category with view action
+        let viewRequestAction = UNNotificationAction(
+            identifier: NotificationAction.viewRequest.rawValue,
+            title: "View Details",
+            options: [.foreground]
+        )
+        
         let newRequestCategory = UNNotificationCategory(
             identifier: NotificationCategory.newRequest.rawValue,
-            actions: [],
+            actions: [viewRequestAction],
             intentIdentifiers: [],
             options: []
         )
@@ -266,6 +289,19 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
     
     // MARK: - Local Notifications
+    //
+    // Note on notification_id: Local notifications (completion reminders, message
+    // banners) do not carry a server-side notification_id because the local
+    // notification is scheduled independently of the notifications table row.
+    // This means tapping a local notification cannot directly mark the server
+    // row as read via notification_id. This is mitigated by:
+    //   - Completion reminders: handled via reminder_id and the
+    //     handle_completion_response RPC, which manages state independently.
+    //   - Message banners: navigating to the conversation marks messages as read,
+    //     and get_badge_counts auto-cleans stale message notification rows.
+    //
+    // The same applies to message pushes from send-message-push, which don't
+    // include notification_id. Navigation to the conversation handles cleanup.
     
     // MARK: - Completion Reminder Local Notifications
     
@@ -502,6 +538,57 @@ final class PushNotificationService: NSObject, ObservableObject {
             }
         } catch {
             print("🔴 [PushNotificationService] Failed to send completion response: \(error)")
+        }
+    }
+    
+    // MARK: - Message Quick-Reply
+    
+    /// Handle quick-reply action from a message notification
+    /// - Parameters:
+    ///   - replyText: The text the user typed in the notification reply field
+    ///   - userInfo: The notification payload (must contain conversation_id)
+    func handleMessageReply(replyText: String, userInfo: [AnyHashable: Any]) async {
+        guard let conversationIdString = userInfo["conversation_id"] as? String,
+              let conversationId = UUID(uuidString: conversationIdString),
+              let userId = AuthService.shared.currentUserId else {
+            Log.push("Missing conversation_id or user for quick reply", type: .error)
+            return
+        }
+        
+        let trimmed = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        do {
+            _ = try await MessageService.shared.sendMessage(
+                conversationId: conversationId,
+                fromId: userId,
+                text: trimmed
+            )
+            Log.push("Quick reply sent to conversation \(conversationId)")
+        } catch {
+            Log.push("Quick reply failed: \(error.localizedDescription)", type: .error)
+        }
+    }
+    
+    /// Handle mark-as-read action from a message notification
+    /// - Parameter userInfo: The notification payload (must contain conversation_id)
+    func handleMessageMarkRead(userInfo: [AnyHashable: Any]) async {
+        guard let conversationIdString = userInfo["conversation_id"] as? String,
+              let conversationId = UUID(uuidString: conversationIdString),
+              let userId = AuthService.shared.currentUserId else {
+            Log.push("Missing conversation_id or user for mark-read", type: .error)
+            return
+        }
+        
+        do {
+            try await MessageService.shared.markAsRead(
+                conversationId: conversationId,
+                userId: userId
+            )
+            await BadgeCountManager.shared.refreshAllBadges(reason: "messageMarkedReadFromNotification")
+            Log.push("Marked conversation \(conversationId) as read from notification")
+        } catch {
+            Log.push("Mark-read from notification failed: \(error.localizedDescription)", type: .error)
         }
     }
     
