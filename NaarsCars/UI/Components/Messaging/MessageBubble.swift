@@ -869,12 +869,12 @@ struct ReplyPreviewView: View {
                     if hasImage {
                         Image(systemName: "photo")
                             .font(.naarsCaption)
-                            .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                            .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .primary.opacity(0.6))
                     }
                     
                     Text(text.isEmpty ? "Photo" : text)
                         .font(.naarsFootnote)
-                        .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                        .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .primary.opacity(0.6))
                         .lineLimit(3)
                 }
             }
@@ -886,7 +886,7 @@ struct ReplyPreviewView: View {
         .frame(maxWidth: 260)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color.naarsCardBackground)
+                .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color(.systemGray5))
         )
     }
 }

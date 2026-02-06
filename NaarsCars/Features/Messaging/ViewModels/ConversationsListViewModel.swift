@@ -185,6 +185,9 @@ final class ConversationsListViewModel: ObservableObject {
                 let updatedConversations = try repository.getConversations()
                 self.applyLocalConversations(updatedConversations, animated: false)
                 
+                // Set the pagination offset to match what we have loaded
+                currentOffset = self.conversations.count
+                
                 // Hydrate profiles for updated conversations
                 await hydrateProfiles(for: updatedConversations)
             } catch {
@@ -268,8 +271,10 @@ final class ConversationsListViewModel: ObservableObject {
     }
     
     func refreshConversations() async {
-        guard let userId = authService.currentUserId else { return }
-        // (Cache invalidation removed as part of SwiftData migration)
+        guard let _ = authService.currentUserId else { return }
+        // Reset pagination state so loadMore works correctly after refresh
+        currentOffset = 0
+        hasMoreConversations = true
         await loadConversations()
     }
 
