@@ -65,7 +65,8 @@ final class BroadcastViewModel: ObservableObject {
                 pinToNotifications: pinToNotifications
             )
             
-            successMessage = "Broadcast sent successfully!"
+            HapticManager.success()
+            successMessage = "admin_broadcast_success".localized
             
             // Clear form after success
             title = ""
@@ -81,7 +82,7 @@ final class BroadcastViewModel: ObservableObject {
             }
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [BroadcastViewModel] Error sending broadcast: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error sending broadcast: \(error.localizedDescription)")
         }
     }
 }

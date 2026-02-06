@@ -41,11 +41,11 @@ final class CreateFavorViewModel: ObservableObject {
     /// - Returns: Error message if validation fails, nil if valid
     func validateForm() -> String? {
         if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Title is required"
+            return "favor_error_title_required".localized
         }
         
         if location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Location is required"
+            return "favor_error_location_required".localized
         }
         
         // Validate date is not in the past
@@ -54,7 +54,7 @@ final class CreateFavorViewModel: ObservableObject {
         let selectedDate = calendar.startOfDay(for: date)
         
         if selectedDate < today {
-            return "Date cannot be in the past"
+            return "favor_error_date_in_past".localized
         }
         
         return nil

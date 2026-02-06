@@ -29,16 +29,16 @@ struct ReviewPromptSheet: View {
                     .font(.system(size: 60))
                     .foregroundColor(.yellow)
                 
-                Text("Leave a Review")
-                    .font(.title2)
+                Text("review_prompt_heading".localized)
+                    .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("Your request has been completed!")
-                    .font(.body)
+                Text("review_prompt_completed".localized)
+                    .font(.naarsBody)
                     .foregroundColor(.secondary)
                 
-                Text("Please take a moment to review \(fulfillerName) for their help.")
-                    .font(.body)
+                Text("review_prompt_ask".localized(with: fulfillerName))
+                    .font(.naarsBody)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
@@ -46,25 +46,25 @@ struct ReviewPromptSheet: View {
                 // Request Summary
                 VStack(alignment: .leading, spacing: 8) {
                     Text(requestTitle)
-                        .font(.headline)
+                        .font(.naarsHeadline)
                         .foregroundColor(.primary)
                     
-                    Text("Completed")
-                        .font(.caption)
+                    Text("review_prompt_status_completed".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6))
+                .background(Color.naarsCardBackground)
                 .cornerRadius(8)
                 .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "Leave Review") {
+                    PrimaryButton(title: "review_prompt_leave_review".localized) {
                         showLeaveReview = true
                     }
                     
-                    SecondaryButton(title: "Skip for now") {
+                    SecondaryButton(title: "review_prompt_skip".localized) {
                         Task {
                             await skipReview()
                         }
@@ -75,7 +75,7 @@ struct ReviewPromptSheet: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Review Request")
+            .navigationTitle("review_prompt_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(true)
             .sheet(isPresented: $showLeaveReview) {
@@ -110,7 +110,7 @@ struct ReviewPromptSheet: View {
             onReviewSkipped?()
             dismiss()
         } catch {
-            print("❌ Error skipping review: \(error.localizedDescription)")
+            AppLogger.error("reviews", "Error skipping review: \(error.localizedDescription)")
         }
     }
 }

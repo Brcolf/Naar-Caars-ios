@@ -100,7 +100,7 @@ final class NotificationsListViewModel: ObservableObject {
             }
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error loading notifications: \(error.localizedDescription)")
+            AppLogger.error("notifications", "Error loading notifications: \(error.localizedDescription)")
         }
         
         isLoading = false
@@ -158,7 +158,7 @@ final class NotificationsListViewModel: ObservableObject {
             await badgeManager.refreshAllBadges(reason: "notificationMarkedRead")
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error marking notification as read: \(error.localizedDescription)")
+            AppLogger.error("notifications", "Error marking notification as read: \(error.localizedDescription)")
         }
     }
     
@@ -172,7 +172,7 @@ final class NotificationsListViewModel: ObservableObject {
             await badgeManager.refreshAllBadges(reason: "notificationsMarkAllRead")
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error marking all notifications as read: \(error.localizedDescription)")
+            AppLogger.error("notifications", "Error marking all notifications as read: \(error.localizedDescription)")
         }
     }
 
@@ -248,7 +248,7 @@ final class NotificationsListViewModel: ObservableObject {
         // Post notification to dismiss the bell dropdown/sheet
         NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
         
-        print("🔔 [NotificationsListViewModel] Announcement tapped: \(notification.id)")
+        AppLogger.info("notifications", "[NotificationsListViewModel] Announcement tapped: \(notification.id)")
     }
 
     private func markGroupAsRead(_ group: NotificationGroup) {
@@ -275,7 +275,7 @@ final class NotificationsListViewModel: ObservableObject {
             rideId: notification.rideId,
             favorId: notification.favorId
         ) {
-            print("📍 [NotificationsListVM] Request target found: \(target.anchor.rawValue)")
+            AppLogger.info("notifications", "[NotificationsListVM] Request target found: \(target.anchor.rawValue)")
             coordinator.selectedTab = .requests
             
             // Set the detailed navigation target FIRST

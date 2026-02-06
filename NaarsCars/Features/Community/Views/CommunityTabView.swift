@@ -13,8 +13,8 @@ struct CommunityTabView: View {
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     
     enum CommunityView: String, CaseIterable {
-        case townHall = "Town Hall"
-        case leaderboard = "Leaderboard"
+        case townHall = "community_town_hall"
+        case leaderboard = "community_leaderboard"
         
         var localizedKey: String {
             switch self {
@@ -44,12 +44,12 @@ struct CommunityTabView: View {
                     }
                 }
             }
-            .navigationTitle("Community")
+            .navigationTitle("community_title".localized)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     BellButton {
                         navigationCoordinator.navigateToNotifications = true
-                        print("🔔 [CommunityTabView] Bell tapped")
+                        AppLogger.info("community", "Bell tapped")
                     }
                 }
             }
@@ -79,7 +79,7 @@ struct CommunityHeaderView: View {
             // Segmented picker
             Picker("Community View", selection: $selectedView) {
                 ForEach(CommunityTabView.CommunityView.allCases, id: \.self) { view in
-                    Text(view.rawValue).tag(view)
+                    Text(view.rawValue.localized).tag(view)
                 }
             }
             .pickerStyle(.segmented)
@@ -88,7 +88,7 @@ struct CommunityHeaderView: View {
             .accessibilityIdentifier("community.segmented")
         }
         .padding(.bottom, 12)
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("community.header")
     }

@@ -19,6 +19,7 @@ struct InvitationWorkflowView: View {
     @State private var generatedCode: InviteCode?
     @State private var showCopiedToast = false
     @State private var showShareSheet = false
+    @State private var showSuccess = false
     
     let userId: UUID
     let onCodeGenerated: (InviteCode) -> Void
@@ -40,13 +41,14 @@ struct InvitationWorkflowView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("common_done".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("invite.done")
                 }
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
     
     // MARK: - Input Form View
@@ -59,12 +61,12 @@ struct InvitationWorkflowView: View {
                     .font(.system(size: 48))
                     .foregroundColor(.naarsPrimary)
                 
-                Text("Create Invite")
-                    .font(.title2)
+                Text("invite_create".localized)
+                    .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("Tell us about who you're inviting")
-                    .font(.subheadline)
+                Text("invite_tell_us".localized)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -72,13 +74,13 @@ struct InvitationWorkflowView: View {
             
             // Statement input
             VStack(alignment: .leading, spacing: 8) {
-                Text("Who are you inviting and why?")
-                    .font(.headline)
+                Text("invite_who_and_why".localized)
+                    .font(.naarsHeadline)
                 
                 TextEditor(text: $inviteStatement)
                     .frame(minHeight: 120)
                     .padding(8)
-                    .background(Color(.systemGray6))
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(8)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
@@ -87,7 +89,7 @@ struct InvitationWorkflowView: View {
                     .accessibilityIdentifier("invite.statement")
                 
                 Text("\(inviteStatement.count) / 500")
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -95,15 +97,15 @@ struct InvitationWorkflowView: View {
             
             if let error = errorMessage {
                 Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsError)
                     .padding(.horizontal)
             }
             
             // Action buttons
             VStack(spacing: 12) {
                 PrimaryButton(
-                    title: "Generate Invite Code",
+                    title: "invite_generate_code".localized,
                     action: {
                         Task {
                             await generateCode()
@@ -115,7 +117,7 @@ struct InvitationWorkflowView: View {
                 .accessibilityIdentifier("invite.generate")
                 .padding(.horizontal)
                 
-                Button("Cancel") {
+                Button("common_cancel".localized) {
                     dismiss()
                 }
                 .foregroundColor(.secondary)
@@ -135,12 +137,12 @@ struct InvitationWorkflowView: View {
                     .font(.system(size: 48))
                     .foregroundColor(.green)
                 
-                Text("Invite Code Generated!")
-                    .font(.title2)
+                Text("invite_code_generated".localized)
+                    .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("Share this code with someone you'd like to invite")
-                    .font(.subheadline)
+                Text("invite_share_prompt".localized)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -148,15 +150,15 @@ struct InvitationWorkflowView: View {
             
             // Code display
             VStack(spacing: 16) {
-                Text("Your Invite Code")
-                    .font(.headline)
+                Text("invite_your_code".localized)
+                    .font(.naarsHeadline)
                 
                 Text(formatCode(code.code))
                     .font(.system(.title, design: .monospaced))
                     .fontWeight(.bold)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color(.systemGray6))
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(12)
                     .accessibilityIdentifier("invite.generatedCode")
                 
@@ -167,12 +169,12 @@ struct InvitationWorkflowView: View {
                     }) {
                         HStack {
                             Image(systemName: "doc.on.doc")
-                            Text("Copy")
+                            Text("invite_copy".localized)
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(.systemGray6))
-                        .foregroundColor(.blue)
+                        .background(Color.naarsCardBackground)
+                        .foregroundColor(.naarsPrimary)
                         .cornerRadius(12)
                     }
                     .accessibilityIdentifier("invite.copy")
@@ -182,7 +184,7 @@ struct InvitationWorkflowView: View {
                     }) {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
-                            Text("Share")
+                            Text("invite_share".localized)
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -194,7 +196,7 @@ struct InvitationWorkflowView: View {
                 }
             }
             .padding()
-            .background(Color(.systemBackground))
+            .background(Color.naarsBackgroundSecondary)
             .cornerRadius(12)
             .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
         }
@@ -205,8 +207,8 @@ struct InvitationWorkflowView: View {
             Group {
                 if showCopiedToast {
                     VStack {
-                        Text("Copied!")
-                            .font(.caption)
+                        Text("invite_copied".localized)
+                            .font(.naarsCaption)
                             .padding(12)
                             .background(Color(.systemGray))
                             .foregroundColor(.white)
@@ -234,12 +236,12 @@ struct InvitationWorkflowView: View {
         let trimmed = inviteStatement.trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !trimmed.isEmpty else {
-            errorMessage = "Please provide a statement about who you're inviting"
+            errorMessage = "invite_statement_required".localized
             return
         }
         
         guard trimmed.count <= 500 else {
-            errorMessage = "Statement must be 500 characters or less"
+            errorMessage = "invite_statement_too_long".localized
             return
         }
         
@@ -254,9 +256,11 @@ struct InvitationWorkflowView: View {
             
             // Success - show code with share options
             generatedCode = code
+            showSuccess = true
+            HapticManager.success()
             onCodeGenerated(code)
         } catch {
-            errorMessage = (error as? AppError)?.errorDescription ?? "Failed to generate invite code"
+            errorMessage = (error as? AppError)?.errorDescription ?? "invite_generate_failed".localized
         }
         
         isGenerating = false
@@ -265,13 +269,7 @@ struct InvitationWorkflowView: View {
     // MARK: - Helper Methods
     
     private func formatCode(_ code: String) -> String {
-        let chars = Array(code)
-        if code.count == 10 {
-            return "\(String(chars[0...3])) · \(String(chars[4...7])) · \(String(chars[8...9]))"
-        } else if code.count == 8 {
-            return "\(String(chars[0...3])) · \(String(chars[4...7]))"
-        }
-        return code
+        InviteCodeFormatter.formatCode(code)
     }
     
     private func copyCode(_ code: String) {
@@ -284,17 +282,7 @@ struct InvitationWorkflowView: View {
     }
     
     private func generateShareMessage(_ code: String) -> String {
-        let deepLink = "https://naarscars.com/signup?code=\(code)"
-        let appStoreLink = "https://apps.apple.com/app/naars-cars"
-        
-        return """
-        Join me on Naar's Cars! 🚗
-        
-        Sign up here: \(deepLink)
-        
-        Or download the app and enter code: \(code)
-        \(appStoreLink)
-        """
+        InviteCodeFormatter.generateShareMessage(code)
     }
 }
 

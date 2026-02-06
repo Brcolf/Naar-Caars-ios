@@ -27,12 +27,12 @@ struct AdminInviteView: View {
                             .font(.system(size: 48))
                             .foregroundColor(.naarsPrimary)
                         
-                        Text("Generate Invite Code")
-                            .font(.title2)
+                        Text("admin_generate_invite_code".localized)
+                            .font(.naarsTitle2)
                             .fontWeight(.semibold)
                         
-                        Text("Create a code to invite new members")
-                            .font(.subheadline)
+                        Text("admin_invite_create_code".localized)
+                            .font(.naarsSubheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                     }
@@ -47,15 +47,15 @@ struct AdminInviteView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
                                     Image(systemName: "person.crop.circle.badge.plus")
-                                        .font(.title2)
+                                        .font(.naarsTitle2)
                                         .foregroundColor(.naarsPrimary)
                                     
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text("Regular Invite")
-                                            .font(.headline)
+                                        Text("admin_invite_regular".localized)
+                                            .font(.naarsHeadline)
                                         
-                                        Text("Single-use code with invitation statement")
-                                            .font(.caption)
+                                        Text("admin_invite_regular_desc".localized)
+                                            .font(.naarsCaption)
                                             .foregroundColor(.secondary)
                                     }
                                     
@@ -67,7 +67,7 @@ struct AdminInviteView: View {
                             }
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemBackground))
+                            .background(Color.naarsBackgroundSecondary)
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
@@ -84,15 +84,15 @@ struct AdminInviteView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
                                     Image(systemName: "person.3.fill")
-                                        .font(.title2)
+                                        .font(.naarsTitle2)
                                         .foregroundColor(.naarsPrimary)
                                     
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text("Bulk Invite")
-                                            .font(.headline)
+                                        Text("admin_invite_bulk".localized)
+                                            .font(.naarsHeadline)
                                         
-                                        Text("Multi-use code (expires in 48 hours)")
-                                            .font(.caption)
+                                        Text("admin_invite_bulk_desc".localized)
+                                            .font(.naarsCaption)
                                             .foregroundColor(.secondary)
                                     }
                                     
@@ -104,7 +104,7 @@ struct AdminInviteView: View {
                             }
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemBackground))
+                            .background(Color.naarsBackgroundSecondary)
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
@@ -119,8 +119,8 @@ struct AdminInviteView: View {
                     // Generated Code Display
                     if let code = generatedCode {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Generated Code")
-                                .font(.headline)
+                            Text("admin_invite_generated_code".localized)
+                                .font(.naarsHeadline)
                             
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(formatCode(code.code))
@@ -131,7 +131,7 @@ struct AdminInviteView: View {
                                 if code.isBulk {
                                     if let expiresAt = code.expiresAt {
                                         Text("Expires: \(expiresAt.dateString) at \(expiresAt.timeString)")
-                                            .font(.caption)
+                                            .font(.naarsCaption)
                                             .foregroundColor(.secondary)
                                     }
                                 }
@@ -144,10 +144,10 @@ struct AdminInviteView: View {
                                     }) {
                                         HStack {
                                             Image(systemName: "doc.on.doc")
-                                            Text("Copy")
+                                            Text("admin_invite_copy".localized)
                                         }
-                                        .font(.caption)
-                                        .foregroundColor(.blue)
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.naarsPrimary)
                                     }
                                     .accessibilityIdentifier("admin.invite.copy")
                                     
@@ -156,16 +156,16 @@ struct AdminInviteView: View {
                                     }) {
                                         HStack {
                                             Image(systemName: "square.and.arrow.up")
-                                            Text("Share")
+                                            Text("admin_invite_share".localized)
                                         }
-                                        .font(.caption)
-                                        .foregroundColor(.blue)
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.naarsPrimary)
                                     }
                                     .accessibilityIdentifier("admin.invite.share")
                                 }
                             }
                             .padding()
-                            .background(Color(.systemGray6))
+                            .background(Color.naarsCardBackground)
                             .cornerRadius(12)
                         }
                         .padding(.horizontal)
@@ -173,7 +173,7 @@ struct AdminInviteView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Invite Codes")
+            .navigationTitle("admin_invite_codes".localized)
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showRegularInviteWorkflow) {
                 if let userId = AuthService.shared.currentUserId {
@@ -200,39 +200,14 @@ struct AdminInviteView: View {
     }
     
     private func formatCode(_ code: String) -> String {
-        let chars = Array(code)
-        if code.count == 10 {
-            return "\(String(chars[0...3])) · \(String(chars[4...7])) · \(String(chars[8...9]))"
-        } else if code.count == 8 {
-            return "\(String(chars[0...3])) · \(String(chars[4...7]))"
-        }
-        return code
+        InviteCodeFormatter.formatCode(code)
     }
     
     private func generateShareMessage(_ code: String, isBulk: Bool) -> String {
-        let deepLink = "https://naarscars.com/signup?code=\(code)"
-        let appStoreLink = "https://apps.apple.com/app/naars-cars" // TODO: Replace with actual link
-        
         if isBulk {
-            return """
-            Join Naar's Cars! 🚗
-            
-            Sign up here: \(deepLink)
-            
-            Or download the app and enter code: \(code)
-            \(appStoreLink)
-            
-            This code can be used by multiple people and expires in 48 hours.
-            """
+            return InviteCodeFormatter.generateBulkShareMessage(code)
         } else {
-            return """
-            Join me on Naar's Cars! 🚗
-            
-            Sign up here: \(deepLink)
-            
-            Or download the app and enter code: \(code)
-            \(appStoreLink)
-            """
+            return InviteCodeFormatter.generateShareMessage(code)
         }
     }
 }
@@ -253,12 +228,12 @@ private struct BulkInviteSheet: View {
                         .font(.system(size: 48))
                         .foregroundColor(.naarsPrimary)
                     
-                    Text("Bulk Invite Code")
-                        .font(.title2)
+                    Text("admin_invite_bulk_code".localized)
+                        .font(.naarsTitle2)
                         .fontWeight(.semibold)
                     
-                    Text("This code can be used by multiple people and will expire in 48 hours")
-                        .font(.subheadline)
+                    Text("admin_invite_bulk_code_desc".localized)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
@@ -267,15 +242,15 @@ private struct BulkInviteSheet: View {
                 
                 if let error = errorMessage {
                     Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsError)
                         .padding(.horizontal)
                 }
                 
                 Spacer()
                 
                 PrimaryButton(
-                    title: "Generate Bulk Code",
+                    title: "admin_invite_generate_bulk".localized,
                     action: {
                         Task {
                             await generateBulkCode()
@@ -287,11 +262,11 @@ private struct BulkInviteSheet: View {
                 .padding(.horizontal)
                 .padding(.bottom, 32)
             }
-            .navigationTitle("Bulk Invite")
+            .navigationTitle("admin_invite_bulk".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("admin.bulk.cancel")
@@ -302,7 +277,7 @@ private struct BulkInviteSheet: View {
     
     private func generateBulkCode() async {
         guard let userId = AuthService.shared.currentUserId else {
-            errorMessage = "Not signed in"
+            errorMessage = "admin_invite_not_signed_in".localized
             return
         }
         
@@ -314,7 +289,7 @@ private struct BulkInviteSheet: View {
             onCodeGenerated(code)
             dismiss()
         } catch {
-            errorMessage = (error as? AppError)?.errorDescription ?? "Failed to generate bulk code"
+            errorMessage = (error as? AppError)?.errorDescription ?? "admin_invite_bulk_failed".localized
         }
         
         isGenerating = false

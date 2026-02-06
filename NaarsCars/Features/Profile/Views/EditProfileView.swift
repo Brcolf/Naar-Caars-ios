@@ -14,6 +14,7 @@ struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPhoneDisclosure = false
     @State private var showPhotoPermissionAlert = false
+    @State private var showSuccess = false
     
     init(profile: Profile) {
         _viewModel = StateObject(wrappedValue: EditProfileViewModel(profile: profile))
@@ -38,32 +39,32 @@ struct EditProfileView: View {
                 if let error = viewModel.error {
                     Section {
                         Text(error.localizedDescription)
-                            .foregroundColor(.red)
-                            .font(.caption)
+                            .foregroundColor(.naarsError)
+                            .font(.naarsCaption)
                     }
                 }
                 
                 if let validationError = viewModel.validationError {
                     Section {
                         Text(validationError)
-                            .foregroundColor(.red)
-                            .font(.caption)
+                            .foregroundColor(.naarsError)
+                            .font(.naarsCaption)
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Edit Profile")
+            .navigationTitle("edit_profile_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("profile.edit.cancel")
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("edit_profile_save".localized) {
                         Task {
                             await saveProfile()
                         }
@@ -80,34 +81,38 @@ struct EditProfileView: View {
                     VStack {
                         ProgressView()
                         if viewModel.isUploadingAvatar {
-                            Text("Uploading avatar...")
+                            Text("edit_profile_uploading_avatar".localized)
                                 .padding(.top)
                         } else {
-                            Text("Saving...")
+                            Text("edit_profile_saving".localized)
                                 .padding(.top)
                         }
                     }
                     .padding()
-                    .background(Color(.systemBackground))
+                    .background(Color.naarsBackgroundSecondary)
                     .cornerRadius(12)
                 }
             }
-            .alert("Phone Number Visibility", isPresented: $showPhoneDisclosure) {
-                Button("Cancel", role: .cancel) {}
-                Button("Yes, Save Number") {
+            .alert("edit_profile_phone_visibility".localized, isPresented: $showPhoneDisclosure) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("edit_profile_save_number".localized) {
                     Task {
                         let success = await viewModel.confirmAndSave()
                         if success {
-                            dismiss()
+                            showSuccess = true
+                            HapticManager.success()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                dismiss()
+                            }
                         }
                     }
                 }
             } message: {
-                Text("Your phone number will be visible to other Naar's Cars members to coordinate rides and favors. Continue?")
+                Text("edit_profile_phone_disclosure".localized)
             }
-            .alert("Photo Access Required", isPresented: $showPhotoPermissionAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Open Settings") {
+            .alert("edit_profile_photo_access_required".localized, isPresented: $showPhotoPermissionAlert) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("edit_profile_open_settings".localized) {
                     if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
                         Task { @MainActor in
                             await UIApplication.shared.open(settingsUrl)
@@ -115,9 +120,10 @@ struct EditProfileView: View {
                     }
                 }
             } message: {
-                Text("To change your profile photo, please enable photo access in Settings.")
+                Text("edit_profile_photo_access_message".localized)
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
     
     // MARK: - Avatar Section
@@ -149,8 +155,8 @@ struct EditProfileView: View {
                 ),
                 matching: .images
             ) {
-                Text("Change Photo")
-                    .font(.subheadline)
+                Text("edit_profile_change_photo".localized)
+                    .font(.naarsSubheadline)
             }
             .accessibilityIdentifier("profile.edit.changePhoto")
         }
@@ -161,7 +167,7 @@ struct EditProfileView: View {
     // MARK: - Name Field
     
     private func nameField() -> some View {
-        TextField("Name", text: $viewModel.name)
+        TextField("edit_profile_name".localized, text: $viewModel.name)
             .textInputAutocapitalization(.words)
             .accessibilityIdentifier("profile.edit.name")
     }
@@ -170,7 +176,7 @@ struct EditProfileView: View {
     
     private func phoneField() -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Phone Number", text: $viewModel.phoneNumber)
+            TextField("edit_profile_phone_number".localized, text: $viewModel.phoneNumber)
                 .keyboardType(.phonePad)
                 .accessibilityIdentifier("profile.edit.phone")
                 .onChange(of: viewModel.phoneNumber) { oldValue, newValue in
@@ -185,9 +191,9 @@ struct EditProfileView: View {
             HStack(spacing: 8) {
                 Image(systemName: "info.circle")
                     .foregroundColor(.secondary)
-                    .font(.caption)
-                Text("Your phone number will be visible to community members for ride coordination.")
-                    .font(.caption)
+                    .font(.naarsCaption)
+                Text("edit_profile_phone_info".localized)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
         }
@@ -196,7 +202,7 @@ struct EditProfileView: View {
     // MARK: - Car Field
     
     private func carField() -> some View {
-        TextField("Car Description", text: $viewModel.car, axis: .vertical)
+        TextField("edit_profile_car_description".localized, text: $viewModel.car, axis: .vertical)
             .lineLimit(3...6)
             .accessibilityIdentifier("profile.edit.car")
     }
@@ -236,7 +242,11 @@ struct EditProfileView: View {
                 showPhoneDisclosure = true
             }
         } else {
-            dismiss()
+            showSuccess = true
+            HapticManager.success()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                dismiss()
+            }
         }
     }
 }

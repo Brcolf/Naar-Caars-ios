@@ -19,13 +19,13 @@ struct PendingUsersView: View {
         NavigationStack {
             Group {
                 if viewModel.isLoading && viewModel.pendingUsers.isEmpty {
-                    ProgressView("Loading pending users...")
+                    ProgressView("admin_loading_pending".localized)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.pendingUsers.isEmpty {
                     EmptyStateView(
                         icon: "checkmark.circle.fill",
-                        title: "No Pending Users",
-                        message: "All users have been approved."
+                        title: "admin_no_pending_users".localized,
+                        message: "admin_all_approved".localized
                     )
                 } else {
                     List {
@@ -50,7 +50,7 @@ struct PendingUsersView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Pending Approvals")
+            .navigationTitle("admin_pending_approvals".localized)
             .navigationBarTitleDisplayMode(.large)
             .id("profile.admin.pendingUsersList")
             .task {
@@ -59,12 +59,12 @@ struct PendingUsersView: View {
             .refreshable {
                 await viewModel.loadPendingUsers()
             }
-            .alert("Approve User", isPresented: $showingApproveConfirmation) {
-                Button("Cancel", role: .cancel) {
+            .alert("admin_approve_user".localized, isPresented: $showingApproveConfirmation) {
+                Button("common_cancel".localized, role: .cancel) {
                     userToApprove = nil
                     showingApproveConfirmation = false
                 }
-                Button("Approve", role: .none) {
+                Button("admin_approve".localized, role: .none) {
                     let userId = userToApprove
                     userToApprove = nil
                     showingApproveConfirmation = false
@@ -75,14 +75,14 @@ struct PendingUsersView: View {
                     }
                 }
             } message: {
-                Text("Are you sure you want to approve this user? They will be able to access all app features.")
+                Text("admin_approve_confirmation".localized)
             }
-            .alert("Reject User", isPresented: $showingRejectConfirmation) {
-                Button("Cancel", role: .cancel) {
+            .alert("admin_reject_user".localized, isPresented: $showingRejectConfirmation) {
+                Button("common_cancel".localized, role: .cancel) {
                     userToReject = nil
                     showingRejectConfirmation = false
                 }
-                Button("Reject", role: .destructive) {
+                Button("admin_reject".localized, role: .destructive) {
                     let userId = userToReject
                     userToReject = nil
                     showingRejectConfirmation = false
@@ -93,7 +93,7 @@ struct PendingUsersView: View {
                     }
                 }
             } message: {
-                Text("Are you sure you want to reject this user? Their account will be deleted.")
+                Text("admin_reject_confirmation".localized)
             }
         }
     }
@@ -127,11 +127,11 @@ private struct PendingUserRow: View {
                     
                     // Show invited by info if available
                     if let inviter = inviter {
-                        Text("Invited by: \(inviter.name)")
+                        Text("admin_invited_by".localized(with: inviter.name))
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     } else if user.invitedBy != nil {
-                        Text("Invited by: Unknown")
+                        Text("admin_invited_by".localized(with: "townhall_unknown".localized))
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
@@ -143,7 +143,7 @@ private struct PendingUserRow: View {
             // Action buttons
             HStack(spacing: 12) {
                 Button(action: onReject) {
-                    Text("Reject")
+                    Text("admin_reject".localized)
                         .font(.naarsBody)
                         .foregroundColor(.naarsError)
                         .frame(maxWidth: .infinity)
@@ -154,7 +154,7 @@ private struct PendingUserRow: View {
                 .buttonStyle(PlainButtonStyle())
                 
                 Button(action: onApprove) {
-                    Text("Approve")
+                    Text("admin_approve".localized)
                         .font(.naarsBody)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
@@ -167,7 +167,7 @@ private struct PendingUserRow: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)

@@ -73,7 +73,7 @@ final class ReviewPromptManager: ObservableObject {
                 pendingPrompt = nil
             }
         } catch {
-            print("❌ Error checking for review prompts: \(error.localizedDescription)")
+            AppLogger.error("reviews", "Error checking for review prompts: \(error.localizedDescription)")
             pendingPrompt = nil
         }
     }
@@ -123,7 +123,7 @@ final class ReviewPromptManager: ObservableObject {
                 return
             }
         } catch {
-            print("❌ Error loading review prompt: \(error.localizedDescription)")
+            AppLogger.error("reviews", "Error loading review prompt: \(error.localizedDescription)")
             pendingPrompt = nil
         }
     }

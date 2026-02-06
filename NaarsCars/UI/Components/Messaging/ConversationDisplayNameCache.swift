@@ -38,7 +38,7 @@ actor ConversationDisplayNameCache {
         do {
             let key = conversationId.uuidString
             guard let name = cache[key] else {
-                print("💾 [DisplayNameCache] Cache MISS for conversation: \(conversationId)")
+                AppLogger.info("messaging", "Cache MISS for conversation: \(conversationId)")
                 return nil
             }
             
@@ -48,10 +48,10 @@ actor ConversationDisplayNameCache {
             }
             accessOrder.append(key)
             
-            print("💾 [DisplayNameCache] Cache HIT for conversation: \(conversationId) -> '\(name)'")
+            AppLogger.info("messaging", "Cache HIT for conversation: \(conversationId) -> '\(name)'")
             return name
         } catch {
-            print("🔴 [DisplayNameCache] Error getting display name for \(conversationId): \(error)")
+            AppLogger.error("messaging", "Error getting display name for \(conversationId): \(error)")
             return nil
         }
     }
@@ -75,16 +75,16 @@ actor ConversationDisplayNameCache {
                 if let oldestKey = accessOrder.first {
                     cache.removeValue(forKey: oldestKey)
                     accessOrder.removeFirst()
-                    print("🗑️ [DisplayNameCache] Evicted oldest entry to maintain size limit: \(oldestKey)")
+                    AppLogger.info("messaging", "Evicted oldest cache entry: \(oldestKey)")
                 } else {
                     break
                 }
             }
             
             saveToDisk()
-            print("💾 [DisplayNameCache] Cached name for conversation \(conversationId): '\(name)' (cache size: \(cache.count))")
+            AppLogger.info("messaging", "Cached name for conversation \(conversationId): '\(name)' (cache size: \(cache.count))")
         } catch {
-            print("🔴 [DisplayNameCache] Error setting display name for \(conversationId): \(error)")
+            AppLogger.error("messaging", "Error setting display name for \(conversationId): \(error)")
         }
     }
     
@@ -107,16 +107,16 @@ actor ConversationDisplayNameCache {
                 if let oldestKey = accessOrder.first {
                     cache.removeValue(forKey: oldestKey)
                     accessOrder.removeFirst()
-                    print("🗑️ [DisplayNameCache] Evicted oldest entry to maintain size limit: \(oldestKey)")
+                    AppLogger.info("messaging", "Evicted oldest cache entry: \(oldestKey)")
                 } else {
                     break
                 }
             }
             
             saveToDisk()
-            print("💾 [DisplayNameCache] Cached \(names.count) conversation names (cache size: \(cache.count))")
+            AppLogger.info("messaging", "Cached \(names.count) conversation names (cache size: \(cache.count))")
         } catch {
-            print("🔴 [DisplayNameCache] Error batch setting display names: \(error)")
+            AppLogger.error("messaging", "Error batch setting display names: \(error)")
         }
     }
     
@@ -136,7 +136,7 @@ actor ConversationDisplayNameCache {
         }
         
         saveToDisk()
-        print("🗑️ [DisplayNameCache] Removed cached name for conversation \(conversationId)")
+        AppLogger.info("messaging", "Removed cached name for conversation \(conversationId)")
     }
     
     /// Clear all cached names
@@ -144,7 +144,7 @@ actor ConversationDisplayNameCache {
         cache.removeAll()
         accessOrder.removeAll()
         saveToDisk()
-        print("🗑️ [DisplayNameCache] Cleared all cached names")
+        AppLogger.info("messaging", "Cleared all cached names")
     }
     
     // MARK: - Private Methods
@@ -153,7 +153,7 @@ actor ConversationDisplayNameCache {
         // Load cache dictionary
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
               let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {
-            print("📂 [DisplayNameCache] No cached names found on disk")
+            AppLogger.info("messaging", "No cached names found on disk")
             return
         }
         
@@ -168,13 +168,13 @@ actor ConversationDisplayNameCache {
             accessOrder = Array(cache.keys)
         }
         
-        print("📂 [DisplayNameCache] Loaded \(cache.count) cached names from disk")
+        AppLogger.info("messaging", "Loaded \(cache.count) cached names from disk")
     }
     
     private func saveToDisk() {
         // Save cache dictionary
         guard let data = try? JSONEncoder().encode(cache) else {
-            print("🔴 [DisplayNameCache] Failed to encode cache")
+            AppLogger.error("messaging", "Failed to encode cache")
             return
         }
         UserDefaults.standard.set(data, forKey: userDefaultsKey)

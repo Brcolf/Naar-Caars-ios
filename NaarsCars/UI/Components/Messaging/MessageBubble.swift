@@ -37,14 +37,21 @@ struct MessageBubble: View {
     /// Optional reply spine details for main thread threading
     var replySpine: (showTop: Bool, showBottom: Bool)? = nil
     
+    /// Whether this message failed to send
+    var isFailed: Bool = false
+    
     var onLongPress: (() -> Void)? = nil
     var onReactionTap: ((String) -> Void)? = nil
     var onReply: (() -> Void)? = nil
     var onCopy: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
+    var onEdit: (() -> Void)? = nil
+    var onUnsend: (() -> Void)? = nil
     var onImageTap: ((URL) -> Void)? = nil
     var onReport: (() -> Void)? = nil
     var onReplyPreviewTap: ((UUID) -> Void)? = nil
+    /// Callback when a failed message is tapped for retry
+    var onRetry: (() -> Void)? = nil
     var isHighlighted: Bool = false
     
     // Animation states
@@ -96,6 +103,7 @@ struct MessageBubble: View {
     
     /// Read receipt status
     private enum ReadStatus {
+        case failed     // Message failed to send
         case sending    // No read_by yet (optimistic)
         case sent       // Only sender in read_by
         case delivered  // At least one other person received
@@ -103,13 +111,20 @@ struct MessageBubble: View {
     }
     
     private var readStatus: ReadStatus {
-        let readCount = message.readBy.count
+        // Check if the message is marked as failed
+        if isFailed {
+            return .failed
+        }
         
-        if readCount == 0 {
+        // Filter out the sender to correctly calculate who else has read the message
+        let readByOthers = message.readBy.filter { $0 != message.fromId }
+        let otherParticipants = max(totalParticipants - 1, 0)
+        
+        if message.readBy.isEmpty {
             return .sending
-        } else if readCount == 1 {
+        } else if readByOthers.isEmpty {
             return .sent
-        } else if readCount >= totalParticipants {
+        } else if otherParticipants > 0 && readByOthers.count >= otherParticipants {
             return .read
         } else {
             return .delivered
@@ -120,32 +135,37 @@ struct MessageBubble: View {
     private var readReceiptIndicator: some View {
         Group {
             switch readStatus {
+            case .failed:
+                // Red exclamation circle for failed
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.naarsFootnote)
+                    .foregroundColor(.red)
             case .sending:
                 // Clock icon for sending
                 Image(systemName: "clock")
-                    .font(.system(size: 10))
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary.opacity(0.6))
             case .sent:
                 // Single checkmark for sent
                 Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.naarsCaption).fontWeight(.semibold)
                     .foregroundColor(.secondary)
             case .delivered:
                 // Double checkmark (gray) for delivered
                 HStack(spacing: -4) {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.naarsCaption).fontWeight(.semibold)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.naarsCaption).fontWeight(.semibold)
                 }
                 .foregroundColor(.secondary)
             case .read:
                 // Double checkmark (blue) for read
                 HStack(spacing: -4) {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.naarsCaption).fontWeight(.semibold)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.naarsCaption).fontWeight(.semibold)
                 }
                 .foregroundColor(.naarsPrimary)
             }
@@ -153,7 +173,10 @@ struct MessageBubble: View {
     }
     
     var body: some View {
-        if isSystemMessage {
+        if message.isUnsent {
+            unsentMessageView
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        } else if isSystemMessage {
             systemMessageView
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
         } else {
@@ -173,6 +196,34 @@ struct MessageBubble: View {
         }
     }
     
+    // MARK: - Unsent Message View
+    
+    private var unsentMessageView: some View {
+        HStack {
+            if isFromCurrentUser { Spacer(minLength: 60) }
+            
+            HStack(spacing: 6) {
+                Image(systemName: "nosign")
+                    .font(.naarsFootnote)
+                    .foregroundColor(.secondary)
+                
+                Text(isFromCurrentUser ? "messaging_you_unsent_a_message".localized : "messaging_this_message_was_unsent".localized)
+                    .font(.naarsCaption)
+                    .italic()
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(Color(.systemGray4), lineWidth: 1)
+            )
+            
+            if !isFromCurrentUser { Spacer(minLength: 60) }
+        }
+        .padding(.vertical, isLastInSeries ? 8 : 2)
+    }
+    
     // MARK: - System Message View
     
     private var systemMessageView: some View {
@@ -182,7 +233,7 @@ struct MessageBubble: View {
             HStack(spacing: 6) {
                 // Icon based on message type
                 Image(systemName: systemMessageIcon)
-                    .font(.system(size: 10))
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
                 
                 Text(message.text)
@@ -194,7 +245,7 @@ struct MessageBubble: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(Color(.systemGray6))
+                    .fill(Color.naarsCardBackground)
             )
             
             Spacer()
@@ -220,11 +271,11 @@ struct MessageBubble: View {
     // MARK: - Regular Message View
     
     private var regularMessageView: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .bottom, spacing: Constants.Spacing.sm) {
             // Reply indicator (shown when swiping)
             if !isFromCurrentUser && swipeOffset > 20 {
                 Image(systemName: "arrowshape.turn.up.left.fill")
-                    .font(.system(size: 16))
+                    .font(.naarsCallout)
                     .foregroundColor(.naarsPrimary)
                     .opacity(min(1.0, swipeOffset / swipeThreshold))
                     .scaleEffect(min(1.0, swipeOffset / swipeThreshold))
@@ -286,7 +337,7 @@ struct MessageBubble: View {
                 }
                 
                 // Message content
-                VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
+                VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: Constants.Spacing.xs) {
                     // Audio message
                     if message.isAudioMessage, let audioUrl = message.audioUrl {
                         audioMessageView(audioUrl: audioUrl, duration: message.audioDuration ?? 0)
@@ -323,12 +374,38 @@ struct MessageBubble: View {
                     reactionsView(reactions: reactions)
                 }
                 
+                // Failed state: show retry prompt
+                if isFailed && isFromCurrentUser {
+                    HStack(spacing: Constants.Spacing.xs) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.naarsFootnote)
+                            .foregroundColor(.red)
+                        Text("messaging_not_sent_tap_to_retry".localized)
+                            .font(.naarsCaption).fontWeight(.medium)
+                            .foregroundColor(.red)
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.top, 2)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Message failed to send")
+                    .accessibilityHint("Double-tap to retry sending this message")
+                    .onTapGesture {
+                        onRetry?()
+                    }
+                }
                 // Timestamp and read receipt (only for last message in series)
-                if isLastInSeries || showTimestampOverride {
-                    HStack(spacing: 4) {
+                else if isLastInSeries || showTimestampOverride {
+                    HStack(spacing: Constants.Spacing.xs) {
                         Text(message.createdAt.messageTimestampString)
-                            .font(.system(size: 11))
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
+                        
+                        // Edited indicator
+                        if message.isEdited {
+                            Text("messaging_edited".localized)
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
                         
                         // Read receipt indicator (only for sent messages)
                         if isFromCurrentUser {
@@ -336,8 +413,9 @@ struct MessageBubble: View {
                         }
                         
                         if isFromCurrentUser && totalParticipants > 2 && readStatus == .read {
-                            Text("Read by \(max(message.readBy.count - 1, 0))")
-                                .font(.system(size: 11))
+                            let readByOthersCount = message.readBy.filter { $0 != message.fromId }.count
+                            Text(String(format: "messaging_read_by_count".localized, readByOthersCount))
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -364,6 +442,7 @@ struct MessageBubble: View {
                     .padding(.vertical, 6)
                 }
             }
+            .opacity(isFailed ? 0.7 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isHighlighted)
             
             if !isFromCurrentUser {
@@ -373,7 +452,7 @@ struct MessageBubble: View {
             // Reply indicator (shown when swiping from right)
             if isFromCurrentUser && swipeOffset < -20 {
                 Image(systemName: "arrowshape.turn.up.left.fill")
-                    .font(.system(size: 16))
+                    .font(.naarsCallout)
                     .foregroundColor(.naarsPrimary)
                     .opacity(min(1.0, abs(swipeOffset) / swipeThreshold))
                     .scaleEffect(min(1.0, abs(swipeOffset) / swipeThreshold))
@@ -451,7 +530,25 @@ struct MessageBubble: View {
                 }
             }
             
+            // Edit (only for own text messages)
+            if isFromCurrentUser, onEdit != nil, !message.text.isEmpty, !message.isAudioMessage, !message.isLocationMessage {
+                Button {
+                    onEdit?()
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+            }
+            
             Divider()
+            
+            // Unsend (only for own messages within 15 minutes)
+            if isFromCurrentUser, onUnsend != nil, message.canUnsend {
+                Button(role: .destructive) {
+                    onUnsend?()
+                } label: {
+                    Label("Unsend", systemImage: "arrow.uturn.backward")
+                }
+            }
             
             // Delete (only for own messages)
             if isFromCurrentUser && onDelete != nil {
@@ -526,7 +623,7 @@ struct MessageBubble: View {
                         .frame(width: 200, height: 150)
                         .overlay(ProgressView())
                         .onAppear {
-                            print("📸 [MessageBubble] Loading image from: \(url.absoluteString)")
+                            AppLogger.info("messaging", "Loading image from: \(url.absoluteString)")
                         }
                 case .success(let image):
                     image
@@ -537,7 +634,7 @@ struct MessageBubble: View {
                         .overlay(
                             // Subtle zoom icon hint
                             Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.naarsSubheadline).fontWeight(.medium)
                                 .foregroundColor(.white)
                                 .padding(8)
                                 .background(Circle().fill(Color.black.opacity(0.4)))
@@ -550,7 +647,7 @@ struct MessageBubble: View {
                         .fill(Color(.systemGray5))
                         .frame(width: 150, height: 100)
                         .overlay(
-                            VStack(spacing: 4) {
+                            VStack(spacing: Constants.Spacing.xs) {
                                 Image(systemName: "photo")
                                     .foregroundColor(.secondary)
                                 Text("Failed to load")
@@ -559,8 +656,7 @@ struct MessageBubble: View {
                             }
                         )
                         .onAppear {
-                            print("🔴 [MessageBubble] Failed to load image from: \(url.absoluteString)")
-                            print("🔴 [MessageBubble] Error: \(error.localizedDescription)")
+                            AppLogger.error("messaging", "Failed to load image from: \(url.absoluteString) - \(error.localizedDescription)")
                         }
                 @unknown default:
                     EmptyView()
@@ -605,7 +701,7 @@ struct MessageBubble: View {
             
             // Duration
             Text(durationLabel(totalDuration: totalDuration, progress: progress))
-                .font(.system(size: 12, weight: .medium))
+                .font(.naarsFootnote).fontWeight(.medium)
                 .foregroundColor(isFromCurrentUser ? .white.opacity(0.8) : .secondary)
         }
         .padding(.horizontal, 12)
@@ -652,18 +748,18 @@ struct MessageBubble: View {
                 // Location name
                 HStack(spacing: 6) {
                     Image(systemName: "location.fill")
-                        .font(.system(size: 12))
+                        .font(.naarsFootnote)
                         .foregroundColor(.naarsPrimary)
                     
                     Text(name ?? "Shared Location")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.naarsFootnote).fontWeight(.medium)
                         .foregroundColor(.primary)
                         .lineLimit(2)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .frame(width: 200, alignment: .leading)
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
@@ -677,7 +773,7 @@ struct MessageBubble: View {
     // MARK: - Reactions View
     
     private func reactionsView(reactions: MessageReactions) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Constants.Spacing.xs) {
             ForEach(reactions.sortedReactions.prefix(5), id: \.reaction) { reactionData in
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .light)
@@ -686,10 +782,10 @@ struct MessageBubble: View {
                 }) {
                     HStack(spacing: 2) {
                         Text(reactionData.reaction)
-                            .font(.system(size: 14))
+                            .font(.naarsSubheadline)
                         if reactionData.count > 1 {
                             Text("\(reactionData.count)")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.naarsCaption).fontWeight(.medium)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -702,6 +798,8 @@ struct MessageBubble: View {
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("\(reactionData.reaction) reaction, \(reactionData.count)")
+                .accessibilityHint("Double-tap to toggle this reaction")
             }
         }
         .padding(.top, 4)
@@ -728,7 +826,7 @@ struct LocationSnapshotView: View {
             }
             
             Image(systemName: "mappin.circle.fill")
-                .font(.system(size: 28))
+                .font(.naarsTitle)
                 .foregroundColor(.red)
                 .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 2)
         }
@@ -738,171 +836,6 @@ struct LocationSnapshotView: View {
                 snapshotImage = await MapSnapshotCache.shared.snapshot(for: coordinate)
             }
         }
-    }
-}
-
-@MainActor
-final class MapSnapshotCache {
-    static let shared = MapSnapshotCache()
-    private let cache = NSCache<NSString, UIImage>()
-    
-    private init() {}
-    
-    func snapshot(for coordinate: CLLocationCoordinate2D) async -> UIImage? {
-        let key = "\(coordinate.latitude),\(coordinate.longitude)" as NSString
-        if let cached = cache.object(forKey: key) {
-            return cached
-        }
-        
-        let options = MKMapSnapshotter.Options()
-        options.region = MKCoordinateRegion(
-            center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )
-        options.size = CGSize(width: 200, height: 120)
-        options.scale = UIScreen.main.scale
-        options.mapType = .standard
-        
-        let snapshotter = MKMapSnapshotter(options: options)
-        do {
-            let snapshot = try await snapshotter.start()
-            cache.setObject(snapshot.image, forKey: key)
-            return snapshot.image
-        } catch {
-            return nil
-        }
-    }
-}
-
-// MARK: - Audio Playback Manager
-
-@MainActor
-final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
-    static let shared = MessageAudioPlayer()
-    
-    @Published private(set) var isPlaying = false
-    @Published private(set) var progress: Double = 0
-    @Published private(set) var duration: Double = 0
-    @Published private(set) var currentUrl: URL?
-    
-    private var player: AVAudioPlayer?
-    private var progressTimer: Timer?
-    private var cachedFiles: [URL: URL] = [:]
-    
-    private override init() {
-        super.init()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAudioInterruption(_:)),
-            name: AVAudioSession.interruptionNotification,
-            object: nil
-        )
-    }
-    
-    func togglePlayback(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        
-        if isPlaying, currentUrl == url {
-            pause()
-        } else {
-            Task { await play(url: url) }
-        }
-    }
-    
-    private func play(url: URL) async {
-        stop()
-        
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playback, mode: .default, options: [.duckOthers])
-            try? session.setActive(true)
-            
-            let playableUrl = try await resolvePlayableUrl(for: url)
-            let audioPlayer = try AVAudioPlayer(contentsOf: playableUrl)
-            audioPlayer.delegate = self
-            audioPlayer.prepareToPlay()
-            
-            player = audioPlayer
-            currentUrl = url
-            duration = audioPlayer.duration
-            audioPlayer.play()
-            
-            isPlaying = true
-            startProgressTimer()
-        } catch {
-            stop()
-        }
-    }
-    
-    private func pause() {
-        player?.pause()
-        isPlaying = false
-        stopProgressTimer()
-    }
-    
-    private func stop() {
-        player?.stop()
-        player = nil
-        isPlaying = false
-        progress = 0
-        duration = 0
-        currentUrl = nil
-        stopProgressTimer()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-    
-    private func startProgressTimer() {
-        stopProgressTimer()
-        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, let player = self.player else { return }
-            if player.duration > 0 {
-                self.progress = player.currentTime / player.duration
-            }
-        }
-    }
-    
-    private func stopProgressTimer() {
-        progressTimer?.invalidate()
-        progressTimer = nil
-    }
-    
-    private func resolvePlayableUrl(for url: URL) async throws -> URL {
-        if url.isFileURL {
-            return url
-        }
-        
-        if let cached = cachedFiles[url] {
-            return cached
-        }
-        
-        let (data, _) = try await URLSession.shared.data(from: url)
-        let fileName = "audio-\(abs(url.absoluteString.hashValue)).m4a"
-        let fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        try data.write(to: fileUrl, options: .atomic)
-        cachedFiles[url] = fileUrl
-        return fileUrl
-    }
-    
-    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor in
-            self.stop()
-        }
-    }
-    
-    @objc private func handleAudioInterruption(_ notification: Notification) {
-        guard let info = notification.userInfo,
-              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
-        
-        if type == .began {
-            pause()
-        }
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
     }
 }
 
@@ -916,7 +849,7 @@ struct ReplyPreviewView: View {
     let isFromCurrentUser: Bool
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Constants.Spacing.sm) {
             // Vertical accent bar
             RoundedRectangle(cornerRadius: 2)
                 .fill(isFromCurrentUser ? Color.white.opacity(0.6) : Color.naarsPrimary)
@@ -925,20 +858,20 @@ struct ReplyPreviewView: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Sender name
                 Text(senderName)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.naarsFootnote).fontWeight(.semibold)
                     .foregroundColor(isFromCurrentUser ? .white.opacity(0.9) : .naarsPrimary)
                     .lineLimit(1)
                 
                 // Preview content
-                HStack(spacing: 4) {
+                HStack(spacing: Constants.Spacing.xs) {
                     if hasImage {
                         Image(systemName: "photo")
-                            .font(.system(size: 11))
+                            .font(.naarsCaption)
                             .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
                     }
                     
                     Text(text.isEmpty ? "Photo" : text)
-                        .font(.system(size: 12))
+                        .font(.naarsFootnote)
                         .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
                         .lineLimit(3)
                 }
@@ -951,7 +884,7 @@ struct ReplyPreviewView: View {
         .frame(maxWidth: 260)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color(.systemGray6))
+                .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color.naarsCardBackground)
         )
     }
 }
@@ -1023,7 +956,7 @@ struct BubbleShape: Shape {
 // MARK: - Preview
 
 #Preview("Regular Messages") {
-    VStack(spacing: 16) {
+    VStack(spacing: Constants.Spacing.md) {
         // Received message with avatar
         MessageBubble(
             message: Message(

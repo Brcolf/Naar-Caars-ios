@@ -14,6 +14,7 @@ struct NotificationsListView: View {
     @StateObject private var viewModel = NotificationsListViewModel()
     @EnvironmentObject var appState: AppState
     @State private var announcementNavigationTarget: AnnouncementNavigationTarget?
+    @State private var toastMessage: String? = nil
     
     // SwiftData Query for "Zero-Spinner" experience
     @Query(sort: \SDNotification.createdAt, order: .reverse) private var sdNotifications: [SDNotification]
@@ -21,13 +22,17 @@ struct NotificationsListView: View {
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle("Notifications")
+                .navigationTitle("notifications_title".localized)
                 .id("bell.notificationsList")
                 .toolbar {
                     if !viewModel.getNotificationGroups(sdNotifications: sdNotifications).isEmpty && viewModel.unreadCount > 0 {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Mark All Read") {
-                                Task { await viewModel.markAllAsRead() }
+                            Button("notifications_mark_all_read".localized) {
+                                HapticManager.success()
+                                Task {
+                                    await viewModel.markAllAsRead()
+                                    toastMessage = "All caught up!"
+                                }
                             }
                             .font(.naarsBody)
                             .id("bell.notificationsList.markAllRead")
@@ -42,9 +47,10 @@ struct NotificationsListView: View {
                     AnnouncementsView(scrollToNotificationId: target.id)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .dismissNotificationsSurface)) { _ in
-                    print("🔔 [NotificationsListView] Dismissing notifications surface")
+                    AppLogger.info("notifications", "[NotificationsListView] Dismissing notifications surface")
                     NotificationCenter.default.post(name: NSNotification.Name("dismissNotificationsSheet"), object: nil)
                 }
+                .toast(message: $toastMessage)
         }
     }
     
@@ -71,8 +77,8 @@ struct NotificationsListView: View {
         } else if groups.isEmpty {
             EmptyStateView(
                 icon: "bell.fill",
-                title: "No Notifications",
-                message: "You're all caught up! New notifications will appear here.",
+                title: "notifications_no_notifications".localized,
+                message: "notifications_all_caught_up".localized,
                 actionTitle: nil,
                 action: nil
             )
@@ -108,7 +114,7 @@ struct NotificationsListView: View {
             
             // Archived-notification hint
             Section {
-                Text("Older notifications are automatically archived")
+                Text("notifications_archived_hint".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
@@ -144,9 +150,9 @@ struct NotificationsListView: View {
     private func dayString(_ date: Date) -> String {
         let formatter = DateFormatter()
         if Calendar.current.isDateInToday(date) {
-            return "Today"
+            return "notifications_today".localized
         } else if Calendar.current.isDateInYesterday(date) {
-            return "Yesterday"
+            return "notifications_yesterday".localized
         } else {
             formatter.dateFormat = "EEEE, MMM d"
             return formatter.string(from: date)
@@ -183,7 +189,7 @@ struct SkeletonNotificationRow: View {
             Spacer()
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }

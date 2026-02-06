@@ -13,22 +13,27 @@ struct CreateFavorView: View {
     @Environment(\.dismiss) private var dismiss
     var onFavorCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Title & Description") {
-                    TextField("Title", text: $viewModel.title)
+                Section("favor_create_section_title_description".localized) {
+                    TextField("favor_create_title_placeholder".localized, text: $viewModel.title)
                         .accessibilityIdentifier("createFavor.title")
-                    TextField("Description (optional)", text: $viewModel.description, axis: .vertical)
+                        .accessibilityLabel("Favor title")
+                        .accessibilityHint("Enter a short title for this favor")
+                    TextField("favor_create_description_placeholder".localized, text: $viewModel.description, axis: .vertical)
                         .lineLimit(3...6)
                         .accessibilityIdentifier("createFavor.description")
+                        .accessibilityLabel("Description")
+                        .accessibilityHint("Describe what you need help with")
                 }
                 
-                Section("Location & Duration") {
+                Section("favor_create_section_location_duration".localized) {
                     LocationAutocompleteField(
                         label: "",
-                        placeholder: "Location",
+                        placeholder: "favor_create_location_placeholder".localized,
                         text: $viewModel.location,
                         icon: "mappin.circle.fill",
                         accessibilityId: "createFavor.location"
@@ -36,21 +41,26 @@ struct CreateFavorView: View {
                         // Optional: Store coordinates for future map integration
                         // viewModel.locationCoordinate = details.coordinate
                     }
+                    .accessibilityLabel("Location")
+                    .accessibilityHint("Enter where this favor takes place")
                     
-                    Picker("Duration", selection: $viewModel.duration) {
+                    Picker("favor_create_duration".localized, selection: $viewModel.duration) {
                         ForEach(FavorDuration.allCases, id: \.self) { duration in
                             Text(duration.displayText).tag(duration)
                         }
                     }
                     .accessibilityIdentifier("createFavor.duration")
+                    .accessibilityHint("Select how long this favor will take")
                 }
                 
-                Section("Date & Time") {
-                    DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
+                Section("favor_create_section_date_time".localized) {
+                    DatePicker("favor_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
+                        .accessibilityHint("Select the date for this favor")
                     
-                    Toggle("Specify Time", isOn: $viewModel.hasTime)
+                    Toggle("favor_create_specify_time".localized, isOn: $viewModel.hasTime)
                         .accessibilityIdentifier("createFavor.hasTime")
+                        .accessibilityHint("Enable to set a specific time for this favor")
                     
                     if viewModel.hasTime {
                         TimePickerView(
@@ -58,33 +68,41 @@ struct CreateFavorView: View {
                             minute: $viewModel.minute,
                             isAM: $viewModel.isAM
                         )
+                        .accessibilityLabel("Favor time")
+                        .accessibilityHint("Set the time for this favor")
                     }
                 }
                 
-                Section("Details") {
-                    TextField("Requirements (optional)", text: $viewModel.requirements, axis: .vertical)
+                Section("favor_create_section_details".localized) {
+                    TextField("favor_create_requirements_placeholder".localized, text: $viewModel.requirements, axis: .vertical)
                         .lineLimit(2...4)
                         .accessibilityIdentifier("createFavor.requirements")
+                        .accessibilityLabel("Requirements")
+                        .accessibilityHint("List any special requirements for this favor")
                     
-                    TextField("Gift/Compensation (optional)", text: $viewModel.gift)
+                    TextField("favor_create_gift_placeholder".localized, text: $viewModel.gift)
                         .accessibilityIdentifier("createFavor.gift")
+                        .accessibilityLabel("Gift or thank-you")
+                        .accessibilityHint("Optionally offer a gift for the helper")
                 }
                 
-                Section("Participants (Optional)") {
+                Section("favor_create_section_participants".localized) {
                     Button {
                         showAddParticipants = true
                     } label: {
                         HStack {
-                            Text(viewModel.selectedParticipantIds.isEmpty ? "Add Participants" : "\(viewModel.selectedParticipantIds.count) Participant\(viewModel.selectedParticipantIds.count == 1 ? "" : "s") Selected")
+                            Text(viewModel.selectedParticipantIds.isEmpty ? "favor_create_add_participants".localized : "favor_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
                             Spacer()
                             Image(systemName: "chevron.right")
                         }
                     }
                     .accessibilityIdentifier("createFavor.participants")
+                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "Add participants" : "\(viewModel.selectedParticipantIds.count) participants selected")
+                    .accessibilityHint("Double-tap to select participants for this favor")
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
-                        Text("Maximum 5 participants")
-                            .font(.caption)
+                        Text("favor_create_max_participants".localized)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -98,24 +116,30 @@ struct CreateFavorView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Create Favor Request")
+            .navigationTitle("favor_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("favor_create_cancel".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("createFavor.cancel")
+                    .accessibilityLabel("Cancel")
+                    .accessibilityHint("Dismiss without creating a favor")
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Post") {
+                    Button("favor_create_post".localized) {
                         Task {
                             do {
                                 let favor = try await viewModel.createFavor()
                                 // Call callback with created favor ID before dismissing
                                 onFavorCreated?(favor.id)
-                                dismiss()
+                                showSuccess = true
+                                HapticManager.success()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    dismiss()
+                                }
                             } catch {
                                 // Error is already set in viewModel
                             }
@@ -123,6 +147,8 @@ struct CreateFavorView: View {
                     }
                     .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createFavor.post")
+                    .accessibilityLabel("Post favor")
+                    .accessibilityHint("Double-tap to submit this favor request")
                 }
             }
             .sheet(isPresented: $showAddParticipants) {
@@ -136,6 +162,7 @@ struct CreateFavorView: View {
             }
             .trackScreen("CreateFavor")
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
 }
 

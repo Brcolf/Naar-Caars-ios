@@ -2,7 +2,7 @@
 //  MessageService.swift
 //  NaarsCars
 //
-//  Service for message and conversation operations
+//  Service for core message operations
 //
 
 import Foundation
@@ -10,8 +10,8 @@ import Supabase
 import UIKit
 import OSLog
 
-/// Service for message and conversation operations
-/// Handles fetching, sending messages, and managing conversations
+/// Service for core message operations
+/// Handles sending, fetching, pagination, and managing individual messages
 @MainActor
 final class MessageService {
     
@@ -27,757 +27,16 @@ final class MessageService {
     // MARK: - Initialization
     
     private init() {}
-
-    struct MessageReadByRow: Decodable, Equatable {
-        let id: UUID
-        let readBy: [UUID]
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case readBy = "read_by"
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try container.decode(UUID.self, forKey: .id)
-            readBy = try container.decodeIfPresent([UUID].self, forKey: .readBy) ?? []
-        }
-    }
-
-    static func decodeUnreadMessages(from data: Data) throws -> [MessageReadByRow] {
-        try JSONDecoder().decode([MessageReadByRow].self, from: data)
-    }
-
-    /// Build a PostgREST filter for unread read_by arrays.
-    /// Includes null read_by and arrays that don't contain the user.
-    static func unreadReadByFilter(userId: UUID) -> String {
-        "read_by.is.null,read_by.not.cs.{\(userId.uuidString)}"
-    }
-    
-    // MARK: - Conversations
-    
-    /// Fetch conversations for a user with pagination
-    /// - Parameters:
-    ///   - userId: The user ID
-    ///   - limit: Maximum number of conversations to fetch (default: 10)
-    ///   - offset: Number of conversations to skip (for pagination)
-    /// - Returns: Array of conversations with details
-    /// - Throws: AppError if fetch fails
-    func fetchConversations(userId: UUID, limit: Int = 10, offset: Int = 0) async throws -> [ConversationWithDetails] {
-        do {
-            if let rpcConversations = try? await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset),
-               !rpcConversations.isEmpty {
-                AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
-                return rpcConversations
-            }
-
-            // Get user's conversation IDs from conversation_participants
-            // (RLS is disabled on this table, so we can query it directly)
-            // This query uses an index on user_id, so it's efficient even with many conversations
-            let participantsResponse = try await supabase
-                .from("conversation_participants")
-                .select("conversation_id")
-                .eq("user_id", value: userId.uuidString)
-                .execute()
-            
-            struct ParticipantRow: Codable {
-                let conversationId: UUID
-                enum CodingKeys: String, CodingKey {
-                    case conversationId = "conversation_id"
-                }
-            }
-            
-            let participantRows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
-            let participantConversationIds = Set(participantRows.map { $0.conversationId })
-            
-            // Get conversations where user is creator
-            let createdConversationsResponse = try? await supabase
-                .from("conversations")
-                .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
-                .eq("created_by", value: userId.uuidString)
-                .execute()
-            
-            var allConversationIds = participantConversationIds
-            if let createdData = createdConversationsResponse?.data {
-                let decoder = createDateDecoder()
-                let created: [Conversation] = try decoder.decode([Conversation].self, from: createdData)
-                allConversationIds.formUnion(created.map { $0.id })
-            }
-            
-            guard !allConversationIds.isEmpty else { return [] }
-            
-            // Query conversations by IDs with ORDER BY first (chronological, latest first)
-            // PostgreSQL optimizes IN clauses efficiently with indexes on id
-            // IMPORTANT: Order BEFORE pagination to get latest conversations
-            let conversationsResponse = try await supabase
-                .from("conversations")
-                .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
-                .in("id", values: Array(allConversationIds).map { $0.uuidString })
-                .order("updated_at", ascending: false)
-                .range(from: offset, to: offset + limit - 1)
-                .execute()
-            
-            // Decode conversations with custom date decoder
-            let decoder = createDateDecoder()
-            let conversations: [Conversation] = try decoder.decode([Conversation].self, from: conversationsResponse.data)
-            
-            guard !conversations.isEmpty else { return [] }
-            
-            // Fetch details for all conversations in parallel to avoid N+1 query problem
-            // This significantly improves performance when loading multiple conversations
-            let conversationsWithDetails = await withTaskGroup(of: ConversationWithDetails?.self) { group in
-                for conversation in conversations {
-                    group.addTask { [supabase] in
-                        await self.fetchConversationDetails(
-                            conversation: conversation,
-                            userId: userId,
-                            supabase: supabase
-                        )
-                    }
-                }
-                
-                var results: [ConversationWithDetails] = []
-                for await result in group {
-                    if let details = result {
-                        results.append(details)
-                    }
-                }
-                
-                // Sort by updated_at (most recent first) to maintain order after parallel fetch
-                return results.sorted { $0.conversation.updatedAt > $1.conversation.updatedAt }
-            }
-            
-            AppLogger.network.info("Fetched \(conversationsWithDetails.count) conversations from network.")
-            return conversationsWithDetails
-            
-        } catch {
-            // Handle RLS recursion error gracefully
-            let errorString = String(describing: error).lowercased()
-            if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                AppLogger.database.warning("RLS policy recursion detected. Returning empty conversations.")
-                return []
-            }
-            // Re-throw other errors
-            throw error
-        }
-    }
-    
-    /// Fetch details for a single conversation (last message, unread count, participants)
-    /// Used by fetchConversations to parallelize queries
-    /// - Parameters:
-    ///   - conversation: The conversation to fetch details for
-    ///   - userId: The current user ID
-    ///   - supabase: The Supabase client
-    /// - Returns: ConversationWithDetails or nil if fetch fails
-    private func fetchConversationDetails(
-        conversation: Conversation,
-        userId: UUID,
-        supabase: SupabaseClient
-    ) async -> ConversationWithDetails? {
-        // Fetch last message, unread count, and participants in parallel
-        async let lastMessageTask = fetchLastMessage(conversationId: conversation.id, supabase: supabase)
-        async let unreadCountTask = fetchUnreadCount(conversationId: conversation.id, userId: userId, supabase: supabase)
-        async let participantsTask = fetchOtherParticipants(conversationId: conversation.id, userId: userId, supabase: supabase)
-        
-        let (lastMessage, unreadCount, otherParticipants) = await (lastMessageTask, unreadCountTask, participantsTask)
-        
-        return ConversationWithDetails(
-            conversation: conversation,
-            lastMessage: lastMessage,
-            unreadCount: unreadCount,
-            otherParticipants: otherParticipants
-        )
-    }
-    
-    /// Fetch the last message for a conversation
-    private func fetchLastMessage(conversationId: UUID, supabase: SupabaseClient) async -> Message? {
-        do {
-            let response = try await supabase
-                .from("messages")
-                .select("*, sender:profiles!messages_from_id_fkey(*)")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .order("created_at", ascending: false)
-                .limit(1)
-                .single()
-                .execute()
-            
-            let decoder = createDateDecoder()
-            return try? decoder.decode(Message.self, from: response.data)
-        } catch {
-            return nil
-        }
-    }
-    
-    /// Fetch unread message count for a conversation
-    private func fetchUnreadCount(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> Int {
-        struct MessageId: Codable {
-            let id: UUID
-        }
-        
-        do {
-            let response = try await supabase
-                .from("messages")
-                .select("id")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .neq("from_id", value: userId.uuidString)
-                .or(Self.unreadReadByFilter(userId: userId))
-                .execute()
-            
-            let unreadMessages = try? JSONDecoder().decode([MessageId].self, from: response.data)
-            return unreadMessages?.count ?? 0
-        } catch {
-            return 0
-        }
-    }
-    
-    /// Fetch other participants for a conversation (excluding current user)
-    private func fetchOtherParticipants(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> [Profile] {
-        // Use two-step approach for reliability (avoid foreign key join issues)
-        do {
-            // Step 1: Get participant user IDs
-            let participantsResponse = try await supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .neq("user_id", value: userId.uuidString)
-                .is("left_at", value: nil) // Only active participants
-                .execute()
-            
-            struct ParticipantUserId: Codable {
-                let userId: UUID
-                enum CodingKeys: String, CodingKey {
-                    case userId = "user_id"
-                }
-            }
-            
-            let participantIds = try JSONDecoder().decode([ParticipantUserId].self, from: participantsResponse.data)
-            
-            guard !participantIds.isEmpty else { return [] }
-            
-            // Step 2: Fetch profiles for those user IDs
-            let userIdStrings = participantIds.map { $0.userId.uuidString }
-            let profilesResponse = try await supabase
-                .from("profiles")
-                .select("*")
-                .in("id", values: userIdStrings)
-                .execute()
-            
-            let decoder = createDateDecoder()
-            return try decoder.decode([Profile].self, from: profilesResponse.data)
-        } catch {
-            print("Error fetching participants for conversation \(conversationId): \(error.localizedDescription)")
-            
-            // Fallback: try old approach
-            return await fetchParticipantsFallback(conversationId: conversationId, userId: userId, supabase: supabase)
-        }
-    }
-    
-    /// Fallback method to fetch participants when join fails
-    private func fetchParticipantsFallback(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> [Profile] {
-        struct ParticipantUserId: Codable {
-            let userId: UUID
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-            }
-        }
-        
-        do {
-            let response = try await supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .neq("user_id", value: userId.uuidString)
-                .execute()
-            
-            let userIdRows = try JSONDecoder().decode([ParticipantUserId].self, from: response.data)
-            
-            // Fetch profiles in parallel
-            return await withTaskGroup(of: Profile?.self) { group in
-                for row in userIdRows {
-                    group.addTask {
-                        try? await ProfileService.shared.fetchProfile(userId: row.userId)
-                    }
-                }
-                
-                var profiles: [Profile] = []
-                for await profile in group {
-                    if let profile = profile {
-                        profiles.append(profile)
-                    }
-                }
-                return profiles
-            }
-        } catch {
-            AppLogger.database.warning("Error in fallback participant fetch: \(error.localizedDescription)")
-            return []
-        }
-    }
-    
-    /// Get or create direct conversation between two users
-    /// - Parameters:
-    ///   - userId: First user ID
-    ///   - otherUserId: Second user ID
-    /// - Returns: Conversation
-    /// - Throws: AppError if operation fails
-    func getOrCreateDirectConversation(userId: UUID, otherUserId: UUID) async throws -> Conversation {
-        if let existingConversationId = await findDirectConversationId(userId: userId, otherUserId: otherUserId) {
-            if let conversation = try? await fetchConversationById(existingConversationId) {
-                AppLogger.database.debug("Found existing DM conversation via RPC: \(conversation.id)")
-                return conversation
-            }
-        }
-
-        // Check for existing DM conversation by finding conversations where both users are participants
-        // and the conversation has exactly 2 participants
-        let participantsResponse = try? await supabase
-            .from("conversation_participants")
-            .select("conversation_id")
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-        
-        struct ParticipantRow: Codable {
-            let conversationId: UUID
-            enum CodingKeys: String, CodingKey {
-                case conversationId = "conversation_id"
-            }
-        }
-        
-        guard let participantData = participantsResponse?.data,
-              let userConversations = try? JSONDecoder().decode([ParticipantRow].self, from: participantData) else {
-            // No conversations found, create new one
-            return try await createConversationWithUsers(userIds: [userId, otherUserId], createdBy: userId, title: nil)
-        }
-        
-        // Check each conversation to see if it has both users as participants and exactly 2 participants
-        for userConv in userConversations {
-            let otherParticipantsResponse = try? await supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: userConv.conversationId.uuidString)
-                .execute()
-            
-            struct OtherParticipantRow: Codable {
-                let userId: UUID
-                enum CodingKeys: String, CodingKey {
-                    case userId = "user_id"
-                }
-            }
-            
-            if let otherData = otherParticipantsResponse?.data,
-               let otherParticipants = try? JSONDecoder().decode([OtherParticipantRow].self, from: otherData),
-               otherParticipants.count == 2 {
-                // Check if both users are in this conversation
-                let participantIds = Set(otherParticipants.map { $0.userId })
-                if participantIds.contains(userId) && participantIds.contains(otherUserId) {
-                    // Found existing DM conversation
-                    let conversationResponse = try? await supabase
-                        .from("conversations")
-                        .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
-                        .eq("id", value: userConv.conversationId.uuidString)
-                        .single()
-                        .execute()
-                    
-                    if let convData = conversationResponse?.data {
-                        let decoder = createDateDecoder()
-                        if let existing = try? decoder.decode(Conversation.self, from: convData) {
-                            AppLogger.database.debug("Found existing DM conversation: \(existing.id)")
-                            return existing
-                        }
-                    }
-                }
-            }
-        }
-        
-        // No existing DM found, create new one
-        return try await createConversationWithUsers(userIds: [userId, otherUserId], createdBy: userId, title: nil)
-    }
-    
-    /// Create a conversation with specified users
-    /// - Parameters:
-    ///   - userIds: Array of user IDs to include in the conversation
-    ///   - createdBy: User ID creating the conversation
-    ///   - title: Optional title for group conversations
-    /// - Returns: Created conversation
-    /// - Throws: AppError if creation fails
-    func createConversationWithUsers(userIds: [UUID], createdBy: UUID, title: String? = nil) async throws -> Conversation {
-        guard !userIds.isEmpty else {
-            throw AppError.invalidInput("Must provide at least one user ID")
-        }
-        
-        // Create new conversation
-        let newConversation = Conversation(
-            title: title,
-            createdBy: createdBy
-        )
-        
-        // Create conversation - handle RLS recursion errors
-        let conversation: Conversation
-        do {
-            var conversationData: [String: AnyCodable] = [
-                "created_by": AnyCodable(createdBy.uuidString)
-            ]
-            if let title = title, !title.isEmpty {
-                conversationData["title"] = AnyCodable(title)
-            }
-            
-            let response = try await supabase
-                .from("conversations")
-                .insert(conversationData)
-                .select()
-                .single()
-                .execute()
-            
-            // Use same date decoder as fetchConversations
-            let decoder = createDateDecoder()
-            conversation = try decoder.decode(Conversation.self, from: response.data)
-        } catch {
-            // Log the full error for debugging
-            AppLogger.database.error("Error creating conversation: \(error.localizedDescription)")
-            
-            // Check if this is an RLS recursion error
-            let errorString = String(describing: error).lowercased()
-            if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                AppLogger.database.error("RLS recursion detected when creating conversation.")
-                // Re-throw as AppError for better user experience
-                throw AppError.serverError("Cannot create conversation due to database policy issue. Please contact support.")
-            }
-            // Re-throw other errors
-            throw error
-        }
-        
-        // Add all users as participants
-        let participantInserts = userIds.map { userId in
-            [
-                "conversation_id": AnyCodable(conversation.id.uuidString),
-                "user_id": AnyCodable(userId.uuidString)
-            ]
-        }
-        
-        do {
-            try await supabase
-                .from("conversation_participants")
-                .insert(participantInserts)
-                .execute()
-            AppLogger.database.info("Created conversation with \(userIds.count) participant(s)")
-        } catch {
-            // Handle RLS recursion error - check multiple error formats
-            let errorString = String(describing: error).lowercased()
-            if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                AppLogger.database.warning("RLS policy recursion when creating participants.")
-                // Still return the conversation - it was created successfully
-                // Participants will need to be added after RLS policy is fixed
-            } else {
-                // For other errors, log but don't throw - conversation was created
-                AppLogger.database.warning("Error adding participants: \(error.localizedDescription)")
-            }
-        }
-
-        let allUserIds = Array(Set(userIds + [createdBy]))
-        await invalidateConversationCaches(for: allUserIds)
-        
-        return conversation
-    }
-    
-    
-    /// Add participants to an existing conversation
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - userIds: Array of user IDs to add
-    ///   - addedBy: User ID adding the participants
-    ///   - createAnnouncement: Whether to create an announcement message (default: false)
-    /// - Throws: AppError if operation fails
-    func addParticipantsToConversation(
-        conversationId: UUID,
-        userIds: [UUID],
-        addedBy: UUID,
-        createAnnouncement: Bool = false
-    ) async throws {
-        print("📥 [MessageService] addParticipantsToConversation called")
-        print("   Conversation ID: \(conversationId)")
-        print("   User IDs to add: \(userIds)")
-        print("   Added by: \(addedBy)")
-        print("   Create announcement: \(createAnnouncement)")
-        
-        guard !userIds.isEmpty else {
-            print("⚠️ [MessageService] No user IDs provided, returning early")
-            return
-        }
-        
-        // Get conversation to check permissions
-        print("🔍 [MessageService] Fetching conversation details...")
-        let conversationResponse = try await supabase
-            .from("conversations")
-            .select("id, title, created_by")
-            .eq("id", value: conversationId.uuidString)
-            .single()
-            .execute()
-        
-        struct ConversationInfo: Codable {
-            let id: UUID
-            let createdBy: UUID
-            enum CodingKeys: String, CodingKey {
-                case id, createdBy = "created_by"
-            }
-        }
-        
-        let conversationInfo = try JSONDecoder().decode(ConversationInfo.self, from: conversationResponse.data)
-        print("✅ [MessageService] Conversation found, created by: \(conversationInfo.createdBy)")
-        
-        // Check if addedBy has permission to add participants
-        // They can add if:
-        // 1. They are the conversation creator, OR
-        // 2. They are an existing participant
-        var canAdd = false
-        
-        if conversationInfo.createdBy == addedBy {
-            print("✅ [MessageService] User is conversation creator, has permission")
-            canAdd = true
-        } else {
-            print("🔍 [MessageService] User is not creator, checking if they are a participant...")
-            // Check if addedBy is a participant (using simple query that won't recurse)
-            let participantCheck = try? await supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .eq("user_id", value: addedBy.uuidString)
-                .is("left_at", value: nil)
-                .limit(1)
-                .execute()
-            
-            if let data = participantCheck?.data, !data.isEmpty {
-                print("✅ [MessageService] User is a participant, has permission")
-                canAdd = true
-            } else {
-                print("❌ [MessageService] User is not a participant")
-            }
-        }
-        
-        guard canAdd else {
-            print("🔴 [MessageService] Permission denied: user cannot add participants")
-            throw AppError.permissionDenied("You don't have permission to add participants to this conversation")
-        }
-        
-        // Get existing participants to avoid duplicates
-        // Use simple query that won't cause recursion (just check user_id = auth.uid())
-        let existingResponse = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .execute()
-        
-        struct ParticipantRow: Codable {
-            let userId: UUID
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-            }
-        }
-        
-        let existingParticipants: [UUID] = (try? JSONDecoder().decode([ParticipantRow].self, from: existingResponse?.data ?? Data()))?.map { $0.userId } ?? []
-        print("🔍 [MessageService] Existing participants: \(existingParticipants.count)")
-        
-        // Filter out users who are already participants
-        let newUserIds = userIds.filter { !existingParticipants.contains($0) }
-        print("🔍 [MessageService] New users to add (after filtering): \(newUserIds.count)")
-        
-        guard !newUserIds.isEmpty else {
-            print("ℹ️ [MessageService] All users are already participants, nothing to add")
-            AppLogger.database.debug("All users are already participants")
-            return
-        }
-        
-        // Insert new participants
-        let inserts = newUserIds.map { userId in
-            [
-                "conversation_id": AnyCodable(conversationId.uuidString),
-                "user_id": AnyCodable(userId.uuidString)
-            ]
-        }
-        
-        print("📤 [MessageService] Inserting \(newUserIds.count) new participant(s)...")
-        try await supabase
-            .from("conversation_participants")
-            .insert(inserts)
-            .execute()
-        print("✅ [MessageService] Successfully inserted participants")
-        
-        // Create announcement messages if requested
-        if createAnnouncement {
-            print("📢 [MessageService] Creating announcement messages...")
-            // Get profile of added user(s) for announcement
-            for userId in newUserIds {
-                if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                    let announcementText = "\(profile.name) has been added to the conversation"
-                    let announcement = Message(
-                        conversationId: conversationId,
-                        fromId: addedBy, // System message from the person who added
-                        text: announcementText
-                    )
-                    
-                    // Insert announcement message
-                    do {
-                        try await supabase
-                            .from("messages")
-                            .insert(announcement)
-                            .execute()
-                    } catch {
-                        AppLogger.database.warning("Failed to create announcement message: \(error.localizedDescription)")
-                    }
-                }
-            }
-        }
-        
-        AppLogger.database.info("Added \(newUserIds.count) participant(s) to conversation \(conversationId)")
-    }
-    
     
     // MARK: - Private Helpers
     
     /// Create a date decoder with custom date decoding strategy
     private func createDateDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
-    }
-
-    private func fetchConversationsViaRpc(userId: UUID, limit: Int, offset: Int) async throws -> [ConversationWithDetails] {
-        struct ConversationRpcRow: Codable {
-            let conversationId: UUID
-            let createdBy: UUID
-            let title: String?
-            let groupImageUrl: String?
-            let isArchived: Bool?
-            let createdAt: Date
-            let updatedAt: Date
-            let lastMessage: Message?
-            let unreadCount: Int?
-            let otherParticipants: [Profile]?
-
-            enum CodingKeys: String, CodingKey {
-                case conversationId = "conversation_id"
-                case createdBy = "created_by"
-                case title
-                case groupImageUrl = "group_image_url"
-                case isArchived = "is_archived"
-                case createdAt = "created_at"
-                case updatedAt = "updated_at"
-                case lastMessage = "last_message"
-                case unreadCount = "unread_count"
-                case otherParticipants = "other_participants"
-            }
-        }
-
-        let response = try await supabase.rpc(
-            "get_conversations_with_details",
-            params: [
-                "p_user_id": AnyCodable(userId.uuidString),
-                "p_limit": AnyCodable(limit),
-                "p_offset": AnyCodable(offset)
-            ]
-        ).execute()
-
-        let decoder = createDateDecoder()
-        let rows = try decoder.decode([ConversationRpcRow].self, from: response.data)
-        return rows.map { row in
-            let conversation = Conversation(
-                id: row.conversationId,
-                title: row.title,
-                groupImageUrl: row.groupImageUrl,
-                createdBy: row.createdBy,
-                isArchived: row.isArchived ?? false,
-                createdAt: row.createdAt,
-                updatedAt: row.updatedAt
-            )
-            return ConversationWithDetails(
-                conversation: conversation,
-                lastMessage: row.lastMessage,
-                unreadCount: row.unreadCount ?? 0,
-                otherParticipants: row.otherParticipants ?? []
-            )
-        }
-    }
-
-    private func fetchConversationById(_ conversationId: UUID) async throws -> Conversation? {
-        let response = try await supabase
-            .from("conversations")
-            .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
-            .eq("id", value: conversationId.uuidString)
-            .single()
-            .execute()
-
-        let decoder = createDateDecoder()
-        return try decoder.decode(Conversation.self, from: response.data)
-    }
-
-    private func findDirectConversationId(userId: UUID, otherUserId: UUID) async -> UUID? {
-        do {
-            let response = try await supabase.rpc(
-                "find_dm_conversation",
-                params: [
-                    "p_user_a": AnyCodable(userId.uuidString),
-                    "p_user_b": AnyCodable(otherUserId.uuidString)
-                ]
-            ).execute()
-            return decodeSingleUuid(from: response.data)
-        } catch {
-            return nil
-        }
-    }
-
-    private func decodeSingleUuid(from data: Data) -> UUID? {
-        if let id = try? JSONDecoder().decode(UUID.self, from: data) {
-            return id
-        }
-        if let array = try? JSONDecoder().decode([UUID].self, from: data) {
-            return array.first
-        }
-        if let dict = try? JSONDecoder().decode([String: UUID].self, from: data) {
-            return dict.values.first
-        }
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [Any] {
-            for item in json {
-                if let string = item as? String, let uuid = UUID(uuidString: string) {
-                    return uuid
-                }
-                if let dict = item as? [String: Any],
-                   let value = dict["conversation_id"] as? String,
-                   let uuid = UUID(uuidString: value) {
-                    return uuid
-                }
-            }
-        }
-        if let string = String(data: data, encoding: .utf8),
-           let uuid = UUID(uuidString: string.trimmingCharacters(in: CharacterSet(charactersIn: "\""))) {
-            return uuid
-        }
-        return nil
+        DateDecoderFactory.makeMessagingDecoder()
     }
     
-    // MARK: - Messages
+    // MARK: - Fetch Messages
     
-    /// Fetch messages for a conversation
-    /// - Parameter conversationId: The conversation ID
-    /// - Returns: Array of messages ordered by createdAt
-    /// - Throws: AppError if fetch fails
     /// Fetch messages for a conversation with pagination
     /// - Parameters:
     ///   - conversationId: The conversation ID
@@ -867,6 +126,54 @@ final class MessageService {
         return messages
     }
 
+    /// Fetch media messages for a conversation filtered by message type
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - type: The message type to filter by (e.g. "image", "audio", "link")
+    /// - Returns: Array of messages of the given type, ordered newest first
+    func fetchMediaMessages(conversationId: UUID, type: String) async throws -> [Message] {
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("message_type", value: type)
+            .is("deleted_at", value: nil)
+            .order("created_at", ascending: false)
+            .limit(100)
+            .execute()
+        
+        let decoder = createDateDecoder()
+        let messages = try decoder.decode([Message].self, from: response.data)
+        return messages
+    }
+    
+    /// Fetch messages containing URLs for a conversation
+    /// - Parameter conversationId: The conversation ID
+    /// - Returns: Array of text messages containing links, ordered newest first
+    func fetchLinkMessages(conversationId: UUID) async throws -> [Message] {
+        // Fetch text messages and filter client-side for URLs
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("message_type", value: "text")
+            .is("deleted_at", value: nil)
+            .order("created_at", ascending: false)
+            .limit(200)
+            .execute()
+        
+        let decoder = createDateDecoder()
+        let messages = try decoder.decode([Message].self, from: response.data)
+        
+        // Filter for messages that contain URLs
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        return messages.filter { message in
+            guard !message.text.isEmpty else { return false }
+            let range = NSRange(message.text.startIndex..., in: message.text)
+            return (detector?.numberOfMatches(in: message.text, range: range) ?? 0) > 0
+        }
+    }
+    
     /// Fetch replies to a single message (ordered oldest first)
     func fetchReplies(conversationId: UUID, replyToId: UUID) async throws -> [Message] {
         let response = try await supabase
@@ -882,6 +189,24 @@ final class MessageService {
         await enrichMessages(&messages)
         return messages
     }
+
+    /// Fetch a single message by ID with sender join (for realtime enrichment)
+    func fetchMessageById(_ messageId: UUID) async throws -> Message {
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("id", value: messageId.uuidString)
+            .single()
+            .execute()
+        
+        let decoder = createDateDecoder()
+        var message = try decoder.decode(Message.self, from: response.data)
+        var messages = [message]
+        await enrichMessages(&messages)
+        return messages.first ?? message
+    }
+
+    // MARK: - Message Enrichment
 
     private func enrichMessages(_ messages: inout [Message]) async {
         await attachReactions(to: &messages)
@@ -977,84 +302,93 @@ final class MessageService {
         return contexts
     }
 
-    /// Fetch a single message by ID with sender join (for realtime enrichment)
-    func fetchMessageById(_ messageId: UUID) async throws -> Message {
+    // MARK: - Send Messages
+    
+    /// Send a message
+    /// - Parameters:
+    ///   - conversationId: The conversation ID
+    ///   - fromId: The sender's user ID
+    ///   - text: The message text
+    ///   - imageUrl: Optional image URL (if message includes an image)
+    ///   - replyToId: Optional message ID being replied to
+    /// - Returns: The created message
+    /// - Throws: AppError if send fails
+    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, replyToId: UUID? = nil) async throws -> Message {
+        // Security check: Verify user is a participant (RLS is disabled on conversation_participants)
+        let participantCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: fromId.uuidString)
+            .limit(1)
+            .execute()
+        
+        let conversationCheck = try? await supabase
+            .from("conversations")
+            .select("created_by")
+            .eq("id", value: conversationId.uuidString)
+            .eq("created_by", value: fromId.uuidString)
+            .limit(1)
+            .execute()
+        
+        let hasParticipant = participantCheck?.data.isEmpty == false
+        let isCreator = conversationCheck?.data.isEmpty == false
+        let isParticipant = hasParticipant || isCreator
+        
+        guard isParticipant else {
+            throw AppError.permissionDenied("You don't have permission to send messages in this conversation")
+        }
+        
+        // Check rate limit (1 second between messages)
+        let rateLimitKey = "send_message_\(fromId.uuidString)"
+        let canProceed = await rateLimiter.checkAndRecord(
+            action: rateLimitKey,
+            minimumInterval: 1.0
+        )
+        
+        guard canProceed else {
+            throw AppError.rateLimitExceeded("Please wait before sending another message")
+        }
+        
+        let newMessage = Message(
+            conversationId: conversationId,
+            fromId: fromId,
+            text: text,
+            imageUrl: imageUrl,
+            replyToId: replyToId
+        )
+        
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
-            .eq("id", value: messageId.uuidString)
+            .insert(newMessage)
+            .select("*, sender:profiles!messages_from_id_fkey(*), reply_to_id")
             .single()
             .execute()
         
+        // Decode message with joined sender profile
         let decoder = createDateDecoder()
-        var message = try decoder.decode(Message.self, from: response.data)
-        var messages = [message]
-        await enrichMessages(&messages)
-        return messages.first ?? message
-    }
-    
-    /// Upload message image to storage
-    /// - Parameters:
-    ///   - imageData: The image data to upload
-    ///   - conversationId: The conversation ID
-    ///   - fromId: The sender's user ID
-    /// - Returns: Public URL of uploaded image
-    /// - Throws: AppError if upload fails
-    func uploadMessageImage(imageData: Data, conversationId: UUID, fromId: UUID) async throws -> String {
-        // Compress image using messageImage preset
-        guard let uiImage = UIImage(data: imageData) else {
-            throw AppError.invalidInput("Invalid image data")
+        let message: Message
+        do {
+            message = try decoder.decode(Message.self, from: response.data)
+        } catch {
+            // Log the raw response for debugging
+            if let jsonString = String(data: response.data, encoding: .utf8) {
+                AppLogger.database.error("Failed to decode message. Raw JSON: \(jsonString.prefix(200))")
+            }
+            AppLogger.database.error("Decoding error: \(error)")
+            // Try decoding again (might work if error was transient)
+            message = try decoder.decode(Message.self, from: response.data)
         }
         
-        guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .messageImage) else {
-            throw AppError.processingError("Failed to compress image")
-        }
+        // Update conversation updated_at
+        try await supabase
+            .from("conversations")
+            .update(["updated_at": ISO8601DateFormatter().string(from: Date())])
+            .eq("id", value: conversationId.uuidString)
+            .execute()
         
-        // Upload to message-images bucket
-        // Store in a folder per conversation for better organization
-        let fileName = "\(conversationId.uuidString)/\(UUID().uuidString).jpg"
-        
-        try await supabase.storage
-            .from("message-images")
-            .upload(
-                path: fileName,
-                file: compressedData,
-                options: FileOptions(contentType: "image/jpeg", upsert: false)
-            )
-        
-        // Get public URL
-        let publicUrl = try supabase.storage
-            .from("message-images")
-            .getPublicURL(path: fileName)
-        
-        print("📸 [MessageService] Uploaded image, public URL: \(publicUrl.absoluteString)")
-        return publicUrl.absoluteString
-    }
-    
-    /// Upload audio message to storage
-    /// - Parameters:
-    ///   - audioData: The audio file data
-    ///   - conversationId: The conversation ID
-    ///   - fromId: The sender user ID
-    /// - Returns: Public URL of uploaded audio
-    func uploadAudioMessage(audioData: Data, conversationId: UUID, fromId: UUID) async throws -> String {
-        // Upload to audio-messages bucket
-        let fileName = "\(conversationId.uuidString)/\(UUID().uuidString).m4a"
-        
-        try await supabase.storage
-            .from("audio-messages")
-            .upload(
-                path: fileName,
-                file: audioData,
-                options: FileOptions(contentType: "audio/m4a", upsert: false)
-            )
-        
-        // Get public URL
-        let publicUrl = try await supabase.storage
-            .from("audio-messages")
-            .getPublicURL(path: fileName)
-        
-        return publicUrl.absoluteString
+        AppLogger.database.info("Sent message: \(message.id)")
+        return message
     }
     
     /// Send an audio message
@@ -1139,91 +473,51 @@ final class MessageService {
         return message
     }
     
-    /// Send a message
+    // MARK: - Edit & Unsend Messages
+    
+    /// Update a message's text content (edit)
     /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - fromId: The sender's user ID
-    ///   - text: The message text
-    ///   - imageUrl: Optional image URL (if message includes an image)
-    /// - Returns: The created message
-    /// - Throws: AppError if send fails
-    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, replyToId: UUID? = nil) async throws -> Message {
-        // Security check: Verify user is a participant (RLS is disabled on conversation_participants)
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: fromId.uuidString)
-            .limit(1)
-            .execute()
+    ///   - messageId: The ID of the message to edit
+    ///   - newContent: The new text content
+    /// - Throws: AppError if the update fails
+    func updateMessageContent(messageId: UUID, newContent: String) async throws {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let now = formatter.string(from: Date())
         
-        let conversationCheck = try? await supabase
-            .from("conversations")
-            .select("created_by")
-            .eq("id", value: conversationId.uuidString)
-            .eq("created_by", value: fromId.uuidString)
-            .limit(1)
-            .execute()
-        
-        let hasParticipant = participantCheck?.data.isEmpty == false
-        let isCreator = conversationCheck?.data.isEmpty == false
-        let isParticipant = hasParticipant || isCreator
-        
-        guard isParticipant else {
-            throw AppError.permissionDenied("You don't have permission to send messages in this conversation")
-        }
-        
-        // Check rate limit (1 second between messages)
-        let rateLimitKey = "send_message_\(fromId.uuidString)"
-        let canProceed = await rateLimiter.checkAndRecord(
-            action: rateLimitKey,
-            minimumInterval: 1.0
-        )
-        
-        guard canProceed else {
-            throw AppError.rateLimitExceeded("Please wait before sending another message")
-        }
-        
-        let newMessage = Message(
-            conversationId: conversationId,
-            fromId: fromId,
-            text: text,
-            imageUrl: imageUrl,
-            replyToId: replyToId
-        )
-        
-        let response = try await supabase
-            .from("messages")
-            .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(*), reply_to_id")
-            .single()
-            .execute()
-        
-        // Decode message with joined sender profile
-        let decoder = createDateDecoder()
-        let message: Message
-        do {
-            message = try decoder.decode(Message.self, from: response.data)
-        } catch {
-            // Log the raw response for debugging
-            if let jsonString = String(data: response.data, encoding: .utf8) {
-                AppLogger.database.error("Failed to decode message. Raw JSON: \(jsonString.prefix(200))")
-            }
-            AppLogger.database.error("Decoding error: \(error)")
-            // Try decoding again (might work if error was transient)
-            message = try decoder.decode(Message.self, from: response.data)
-        }
-        
-        // Update conversation updated_at
         try await supabase
-            .from("conversations")
-            .update(["updated_at": ISO8601DateFormatter().string(from: Date())])
-            .eq("id", value: conversationId.uuidString)
+            .from("messages")
+            .update([
+                "text": newContent,
+                "edited_at": now
+            ])
+            .eq("id", value: messageId.uuidString)
             .execute()
         
-        AppLogger.database.info("Sent message: \(message.id)")
-        return message
+        AppLogger.database.info("Edited message: \(messageId)")
     }
+    
+    /// Unsend a message (soft delete — clears content and sets deleted_at)
+    /// - Parameter messageId: The ID of the message to unsend
+    /// - Throws: AppError if the update fails
+    func unsendMessage(messageId: UUID) async throws {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let now = formatter.string(from: Date())
+        
+        try await supabase
+            .from("messages")
+            .update([
+                "text": "",
+                "deleted_at": now
+            ])
+            .eq("id", value: messageId.uuidString)
+            .execute()
+        
+        AppLogger.database.info("Unsent message: \(messageId)")
+    }
+    
+    // MARK: - Read Status
     
     /// Mark messages as read
     /// - Parameters:
@@ -1297,534 +591,7 @@ final class MessageService {
         AppLogger.database.debug("Updated last_seen for user \(userId) in conversation \(conversationId)")
     }
     
-    /// Update conversation title (for group conversations)
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - title: The new title (nil to clear)
-    ///   - userId: The user ID making the update (must be a participant)
-    /// - Throws: AppError if update fails
-    func updateConversationTitle(conversationId: UUID, title: String?, userId: UUID) async throws {
-        // Verify user is a participant
-        let participantResponse = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .single()
-            .execute()
-        
-        guard participantResponse != nil else {
-            throw AppError.permissionDenied("You must be a participant to update the conversation title")
-        }
-        
-        // Update the title
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        var updateDict: [String: AnyCodable] = [
-            "updated_at": AnyCodable(dateFormatter.string(from: Date()))
-        ]
-        
-        if let title = title, !title.isEmpty {
-            updateDict["title"] = AnyCodable(title)
-        } else {
-            updateDict["title"] = AnyCodable(nil as String?)
-        }
-        
-        try await supabase
-            .from("conversations")
-            .update(updateDict)
-            .eq("id", value: conversationId.uuidString)
-            .execute()
-        
-        AppLogger.database.info("Updated conversation title")
-    }
-    
-    // MARK: - Message Reactions
-    
-    /// Add a reaction to a message
-    /// - Parameters:
-    ///   - messageId: The message ID
-    ///   - userId: The user ID adding the reaction
-    ///   - reaction: The reaction emoji/text (👍 👎 ❤️ 😂 ‼️ or "HaHa")
-    /// - Throws: AppError if operation fails
-    func addReaction(messageId: UUID, userId: UUID, reaction: String) async throws {
-        // Validate reaction
-        guard MessageReaction.validReactions.contains(reaction) else {
-            throw AppError.invalidInput("Invalid reaction. Must be one of: \(MessageReaction.validReactions.joined(separator: ", "))")
-        }
-        
-        // Check if user is a participant in the conversation
-        let messageResponse = try await supabase
-            .from("messages")
-            .select("conversation_id")
-            .eq("id", value: messageId.uuidString)
-            .single()
-            .execute()
-        
-        struct MessageConversation: Codable {
-            let conversationId: UUID
-            enum CodingKeys: String, CodingKey {
-                case conversationId = "conversation_id"
-            }
-        }
-        
-        let messageConv = try JSONDecoder().decode(MessageConversation.self, from: messageResponse.data)
-        
-        // Check if user is a participant
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: messageConv.conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .limit(1)
-            .execute()
-        
-        guard participantCheck?.data.isEmpty == false else {
-            throw AppError.permissionDenied("You must be a participant to react to messages")
-        }
-        
-        // Insert or update reaction (upsert)
-        let reactionData: [String: AnyCodable] = [
-            "message_id": AnyCodable(messageId.uuidString),
-            "user_id": AnyCodable(userId.uuidString),
-            "reaction": AnyCodable(reaction)
-        ]
-        
-        try await supabase
-            .from("message_reactions")
-            .upsert(reactionData, onConflict: "message_id,user_id")
-            .execute()
-        
-        AppLogger.database.debug("Added reaction \(reaction) to message \(messageId)")
-    }
-    
-    /// Remove a reaction from a message
-    /// - Parameters:
-    ///   - messageId: The message ID
-    ///   - userId: The user ID removing the reaction
-    /// - Throws: AppError if operation fails
-    func removeReaction(messageId: UUID, userId: UUID) async throws {
-        // Get conversation ID for cache invalidation
-        let messageResponse = try? await supabase
-            .from("messages")
-            .select("conversation_id")
-            .eq("id", value: messageId.uuidString)
-            .single()
-            .execute()
-        
-        struct MessageConversation: Codable {
-            let conversationId: UUID
-            enum CodingKeys: String, CodingKey {
-                case conversationId = "conversation_id"
-            }
-        }
-        
-        let conversationId: UUID?
-        if let messageData = messageResponse?.data,
-           let messageConv = try? JSONDecoder().decode(MessageConversation.self, from: messageData) {
-            conversationId = messageConv.conversationId
-        } else {
-            conversationId = nil
-        }
-        
-        // Delete reaction
-        try await supabase
-            .from("message_reactions")
-            .delete()
-            .eq("message_id", value: messageId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-        
-        AppLogger.database.debug("Removed reaction from message \(messageId)")
-    }
-    
-    /// Fetch reactions for a message
-    /// - Parameter messageId: The message ID
-    /// - Returns: MessageReactions object with all reactions
-    /// - Throws: AppError if fetch fails
-    func fetchReactions(messageId: UUID) async throws -> MessageReactions {
-        let response = try await supabase
-            .from("message_reactions")
-            .select()
-            .eq("message_id", value: messageId.uuidString)
-            .execute()
-        
-        let decoder = createDateDecoder()
-        let reactions: [MessageReaction] = try decoder.decode([MessageReaction].self, from: response.data)
-        
-        // Group reactions by reaction type
-        var reactionsDict: [String: [UUID]] = [:]
-        for reaction in reactions {
-            if reactionsDict[reaction.reaction] == nil {
-                reactionsDict[reaction.reaction] = []
-            }
-            reactionsDict[reaction.reaction]?.append(reaction.userId)
-        }
-        
-        let groupedReactions = MessageReactions(reactions: reactionsDict)
-        
-        return groupedReactions
-    }
-    
-    // MARK: - Group Management
-
-    /// Delete a conversation (creator or admin)
-    /// - Parameter id: Conversation ID to delete
-    func deleteConversation(id: UUID) async throws {
-        // Attempt delete; database should cascade to messages/participants if configured.
-        try await supabase
-            .from("conversations")
-            .delete()
-            .eq("id", value: id.uuidString)
-            .execute()
-
-    }
-    
-    /// Leave a conversation (self-removal)
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - userId: The user leaving
-    ///   - createAnnouncement: Whether to create a system message (default: true)
-    /// - Throws: AppError if operation fails
-    func leaveConversation(
-        conversationId: UUID,
-        userId: UUID,
-        createAnnouncement: Bool = true
-    ) async throws {
-        AppLogger.database.info("User \(userId) leaving conversation \(conversationId)")
-        
-        // Verify user is a participant
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id, left_at")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .single()
-            .execute()
-        
-        struct ParticipantStatus: Codable {
-            let userId: UUID
-            let leftAt: Date?
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-                case leftAt = "left_at"
-            }
-        }
-        
-        guard let participantData = participantCheck?.data,
-              let status = try? createDateDecoder().decode(ParticipantStatus.self, from: participantData) else {
-            throw AppError.permissionDenied("You are not a participant in this conversation")
-        }
-        
-        // Check if already left
-        if status.leftAt != nil {
-            AppLogger.database.debug("User already left conversation")
-            return
-        }
-        
-        // Update left_at timestamp
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = formatter.string(from: Date())
-        
-        try await supabase
-            .from("conversation_participants")
-            .update(["left_at": now])
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-        
-        // Create announcement message if requested
-        if createAnnouncement {
-            if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                let announcementText = "\(profile.name) left the conversation"
-                try? await sendSystemMessage(
-                    conversationId: conversationId,
-                    text: announcementText,
-                    fromId: userId
-                )
-            }
-        }
-        
-        AppLogger.database.info("User \(userId) successfully left conversation \(conversationId)")
-    }
-    
-    /// Remove a participant from a conversation (admin/member action)
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - userId: The user ID to remove
-    ///   - removedBy: The user performing the removal
-    ///   - createAnnouncement: Whether to create a system message (default: true)
-    /// - Throws: AppError if operation fails
-    func removeParticipantFromConversation(
-        conversationId: UUID,
-        userId: UUID,
-        removedBy: UUID,
-        createAnnouncement: Bool = true
-    ) async throws {
-        AppLogger.database.info("Removing user \(userId) from conversation \(conversationId) by \(removedBy)")
-        
-        // Verify remover is a participant or creator
-        let removerCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id, left_at")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: removedBy.uuidString)
-            .single()
-            .execute()
-        
-        let conversationCheck = try? await supabase
-            .from("conversations")
-            .select("created_by")
-            .eq("id", value: conversationId.uuidString)
-            .single()
-            .execute()
-        
-        struct CreatorInfo: Codable {
-            let createdBy: UUID
-            enum CodingKeys: String, CodingKey {
-                case createdBy = "created_by"
-            }
-        }
-        
-        let isParticipant = removerCheck?.data.isEmpty == false
-        var isCreator = false
-        if let creatorData = conversationCheck?.data,
-           let creatorInfo = try? JSONDecoder().decode(CreatorInfo.self, from: creatorData) {
-            isCreator = creatorInfo.createdBy == removedBy
-        }
-        
-        guard isParticipant || isCreator else {
-            throw AppError.permissionDenied("You must be a participant to remove others")
-        }
-        
-        // Verify target user is a participant and hasn't left
-        let targetCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id, left_at")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .single()
-            .execute()
-        
-        struct ParticipantStatus: Codable {
-            let userId: UUID
-            let leftAt: Date?
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-                case leftAt = "left_at"
-            }
-        }
-        
-        guard let targetData = targetCheck?.data,
-              let targetStatus = try? createDateDecoder().decode(ParticipantStatus.self, from: targetData),
-              targetStatus.leftAt == nil else {
-            throw AppError.invalidInput("User is not an active participant")
-        }
-        
-        // Update left_at timestamp
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = formatter.string(from: Date())
-        
-        try await supabase
-            .from("conversation_participants")
-            .update(["left_at": now])
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .execute()
-        
-        // Create announcement message if requested
-        if createAnnouncement {
-            let removedProfile = try? await ProfileService.shared.fetchProfile(userId: userId)
-            let removerProfile = try? await ProfileService.shared.fetchProfile(userId: removedBy)
-            
-            let removedName = removedProfile?.name ?? "A user"
-            let removerName = removerProfile?.name ?? "Someone"
-            
-            let announcementText = "\(removerName) removed \(removedName) from the conversation"
-            try? await sendSystemMessage(
-                conversationId: conversationId,
-                text: announcementText,
-                fromId: removedBy
-            )
-        }
-        
-        AppLogger.database.info("Successfully removed user \(userId) from conversation \(conversationId)")
-    }
-    
-    /// Send a system message (announcement)
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - text: The system message text
-    ///   - fromId: The user ID associated with the action
-    /// - Returns: The created message
-    private func sendSystemMessage(
-        conversationId: UUID,
-        text: String,
-        fromId: UUID
-    ) async throws -> Message {
-        let messageData: [String: AnyCodable] = [
-            "conversation_id": AnyCodable(conversationId.uuidString),
-            "from_id": AnyCodable(fromId.uuidString),
-            "text": AnyCodable(text),
-            "message_type": AnyCodable("system")
-        ]
-        
-        let response = try await supabase
-            .from("messages")
-            .insert(messageData)
-            .select()
-            .single()
-            .execute()
-        
-        let decoder = createDateDecoder()
-        return try decoder.decode(Message.self, from: response.data)
-    }
-
-    /// Invalidate conversation caches for a list of users
-    func invalidateConversationCaches(for userIds: [UUID]) async {
-        // Cache layer removed; keep no-op for callers.
-        _ = userIds
-    }
-    
-    // MARK: - Group Image Management
-    
-    /// Upload a group image to storage
-    /// - Parameters:
-    ///   - imageData: The image data to upload
-    ///   - conversationId: The conversation ID
-    /// - Returns: Public URL of uploaded image
-    /// - Throws: AppError if upload fails
-    func uploadGroupImage(imageData: Data, conversationId: UUID) async throws -> String {
-        // Compress image
-        guard let uiImage = UIImage(data: imageData) else {
-            throw AppError.invalidInput("Invalid image data")
-        }
-        
-        guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .avatar) else {
-            throw AppError.processingError("Failed to compress image")
-        }
-        
-        // Upload to group-images bucket
-        let fileName = "\(conversationId.uuidString)/avatar_\(UUID().uuidString).jpg"
-        
-        try await supabase.storage
-            .from("group-images")
-            .upload(
-                path: fileName,
-                file: compressedData,
-                options: FileOptions(contentType: "image/jpeg", upsert: true)
-            )
-        
-        // Get public URL
-        let publicUrl = try await supabase.storage
-            .from("group-images")
-            .getPublicURL(path: fileName)
-        
-        AppLogger.database.info("Uploaded group image for conversation \(conversationId)")
-        return publicUrl.absoluteString
-    }
-    
-    /// Update the group image URL for a conversation
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - imageUrl: The new image URL (nil to remove)
-    ///   - userId: The user making the update (must be a participant)
-    /// - Throws: AppError if update fails
-    func updateGroupImage(
-        conversationId: UUID,
-        imageUrl: String?,
-        userId: UUID
-    ) async throws {
-        // Verify user is a participant
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .limit(1)
-            .execute()
-        
-        guard participantCheck?.data.isEmpty == false else {
-            throw AppError.permissionDenied("You must be a participant to update the group image")
-        }
-        
-        // Update the group image URL
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        var updateDict: [String: AnyCodable] = [
-            "updated_at": AnyCodable(dateFormatter.string(from: Date()))
-        ]
-        
-        if let imageUrl = imageUrl {
-            updateDict["group_image_url"] = AnyCodable(imageUrl)
-        } else {
-            updateDict["group_image_url"] = AnyCodable(nil as String?)
-        }
-        
-        try await supabase
-            .from("conversations")
-            .update(updateDict)
-            .eq("id", value: conversationId.uuidString)
-            .execute()
-        
-        // Create announcement
-        if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-            let announcementText = imageUrl != nil 
-                ? "\(profile.name) updated the group photo"
-                : "\(profile.name) removed the group photo"
-            try? await sendSystemMessage(
-                conversationId: conversationId,
-                text: announcementText,
-                fromId: userId
-            )
-        }
-        
-        AppLogger.database.info("Updated group image for conversation \(conversationId)")
-    }
-    
-    /// Check if user has left a conversation
-    /// - Parameters:
-    ///   - conversationId: The conversation ID
-    ///   - userId: The user ID to check
-    /// - Returns: True if user has left, false if still active
-    func hasUserLeftConversation(conversationId: UUID, userId: UUID) async -> Bool {
-        let response = try? await supabase
-            .from("conversation_participants")
-            .select("left_at")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .single()
-            .execute()
-        
-        struct LeftStatus: Codable {
-            let leftAt: Date?
-            enum CodingKeys: String, CodingKey {
-                case leftAt = "left_at"
-            }
-        }
-        
-        guard let data = response?.data,
-              let status = try? createDateDecoder().decode(LeftStatus.self, from: data) else {
-            return true // Not found = effectively left
-        }
-        
-        return status.leftAt != nil
-    }
-    
     // MARK: - Reporting
-    
-    /// Report type enum
-    enum ReportType: String {
-        case spam
-        case harassment
-        case inappropriateContent = "inappropriate_content"
-        case scam
-        case other
-    }
     
     /// Submit a report for a user
     func reportUser(reporterId: UUID, reportedUserId: UUID, type: ReportType, description: String?) async throws {
@@ -1922,6 +689,76 @@ final class MessageService {
         decoder.dateDecodingStrategy = .iso8601
         
         return try decoder.decode([BlockedUser].self, from: response.data)
+    }
+    
+    // MARK: - Search
+    
+    /// Search messages across all conversations the current user participates in
+    /// - Parameters:
+    ///   - query: The search text (case-insensitive contains)
+    ///   - userId: The current user's ID (used to scope to their conversations)
+    ///   - limit: Maximum number of results (default: 30)
+    /// - Returns: Array of matching messages with sender profile joined
+    /// - Throws: AppError if the search fails
+    func searchMessages(query: String, userId: UUID, limit: Int = 30) async throws -> [Message] {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        
+        // 1. Get all conversation IDs the user participates in
+        let participantsResponse = try await supabase
+            .from("conversation_participants")
+            .select("conversation_id")
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+        
+        struct ParticipantRow: Codable {
+            let conversationId: UUID
+            enum CodingKeys: String, CodingKey {
+                case conversationId = "conversation_id"
+            }
+        }
+        
+        let rows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
+        let conversationIds = rows.map { $0.conversationId.uuidString }
+        
+        guard !conversationIds.isEmpty else { return [] }
+        
+        // 2. Search messages in those conversations using ilike for case-insensitive match
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .in("conversation_id", values: conversationIds)
+            .ilike("text", pattern: "%\(query)%")
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute()
+        
+        let decoder = createDateDecoder()
+        let messages = try decoder.decode([Message].self, from: response.data)
+        return messages
+    }
+    
+    /// Search messages within a specific conversation
+    /// - Parameters:
+    ///   - query: The search text (case-insensitive contains)
+    ///   - conversationId: The conversation to search within
+    ///   - limit: Maximum number of results (default: 50)
+    /// - Returns: Array of matching messages ordered oldest first
+    /// - Throws: AppError if the search fails
+    func searchMessagesInConversation(query: String, conversationId: UUID, limit: Int = 50) async throws -> [Message] {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .ilike("text", pattern: "%\(query)%")
+            .order("created_at", ascending: true)
+            .limit(limit)
+            .execute()
+        
+        let decoder = createDateDecoder()
+        let messages = try decoder.decode([Message].self, from: response.data)
+        return messages
     }
     
     // MARK: - Typing Indicators

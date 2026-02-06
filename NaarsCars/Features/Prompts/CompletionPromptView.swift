@@ -19,7 +19,7 @@ struct CompletionPromptView: View {
                     .font(.system(size: 60))
                     .foregroundColor(.naarsSuccess)
 
-                Text("Is This Complete?")
+                Text("common_is_this_complete".localized)
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
 
@@ -27,14 +27,14 @@ struct CompletionPromptView: View {
                     .font(.naarsHeadline)
                     .multilineTextAlignment(.center)
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(8)
 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "Confirm completed") {
+                    PrimaryButton(title: "common_confirm_completed".localized) {
                         onConfirm()
                     }
-                    SecondaryButton(title: "Not yet") {
+                    SecondaryButton(title: "common_not_yet".localized) {
                         onSnooze()
                     }
                 }
@@ -43,7 +43,7 @@ struct CompletionPromptView: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Complete Request")
+            .navigationTitle("common_complete_request".localized)
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(true)
         }

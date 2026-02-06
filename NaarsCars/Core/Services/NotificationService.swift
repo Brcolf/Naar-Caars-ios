@@ -55,7 +55,7 @@ final class NotificationService {
         
         // Debug: Print raw response
         if let jsonString = String(data: response.data, encoding: .utf8) {
-            print("📄 [NotificationService] Raw response: \(jsonString.prefix(500))")
+            AppLogger.info("notifications", "Raw response: \(jsonString.prefix(500))")
         }
         
         // Configure decoder for date format (Supabase uses ISO8601 with fractional seconds)
@@ -88,22 +88,22 @@ final class NotificationService {
             let decoded: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
             let notifications = NotificationGrouping.filterBellNotifications(from: decoded)
             
-            print("✅ [NotificationService] Fetched \(notifications.count) notifications from network.")
+            AppLogger.info("notifications", "Fetched \(notifications.count) notifications from network")
             return notifications
         } catch {
-            print("🔴 [NotificationService] Decoding error: \(error)")
+            AppLogger.error("notifications", "Decoding error: \(error)")
             if let decodingError = error as? DecodingError {
                 switch decodingError {
                 case .typeMismatch(let type, let context):
-                    print("   Type mismatch: expected \(type), context: \(context)")
+                    AppLogger.error("notifications", "Type mismatch: expected \(type), context: \(context)")
                 case .valueNotFound(let type, let context):
-                    print("   Value not found: \(type), context: \(context)")
+                    AppLogger.error("notifications", "Value not found: \(type), context: \(context)")
                 case .keyNotFound(let key, let context):
-                    print("   Key not found: \(key.stringValue), context: \(context)")
+                    AppLogger.error("notifications", "Key not found: \(key.stringValue), context: \(context)")
                 case .dataCorrupted(let context):
-                    print("   Data corrupted: \(context)")
+                    AppLogger.error("notifications", "Data corrupted: \(context)")
                 @unknown default:
-                    print("   Unknown decoding error")
+                    AppLogger.error("notifications", "Unknown decoding error")
                 }
             }
             throw AppError.processingError("Failed to decode notifications: \(error.localizedDescription)")
@@ -139,7 +139,7 @@ final class NotificationService {
             .eq("id", value: notificationId.uuidString)
             .execute()
         
-        print("✅ [NotificationService] Marked notification \(notificationId) as read")
+        AppLogger.info("notifications", "Marked notification \(notificationId) as read")
     }
     
     /// Mark all notifications as read for a user
@@ -152,7 +152,7 @@ final class NotificationService {
             .eq("user_id", value: userId.uuidString)
             .execute()
         
-        print("✅ [NotificationService] Marked all notifications as read for user \(userId)")
+        AppLogger.info("notifications", "Marked all notifications as read for user \(userId)")
     }
 
     /// Mark all bell notifications (non-message) as read for a user.
@@ -172,7 +172,7 @@ final class NotificationService {
             .neq("type", value: NotificationType.completionReminder.rawValue)
             .execute()
         
-        print("✅ [NotificationService] Marked all bell notifications as read for user \(userId)")
+        AppLogger.info("notifications", "Marked all bell notifications as read for user \(userId)")
     }
 
     /// Mark request-scoped notifications as read for the current user
@@ -213,10 +213,10 @@ final class NotificationService {
             let decoder = JSONDecoder()
             let updatedCount = try decoder.decode(Int.self, from: response.data)
 
-            print("✅ [NotificationService] Marked \(updatedCount) request notifications read for \(requestType) \(requestId)")
+            AppLogger.info("notifications", "Marked \(updatedCount) request notifications read for \(requestType) \(requestId)")
             return updatedCount
         } catch {
-            print("⚠️ [NotificationService] Failed to mark request notifications read: \(error)")
+            AppLogger.warning("notifications", "Failed to mark request notifications read: \(error)")
             return 0
         }
     }
@@ -260,7 +260,7 @@ final class NotificationService {
         }
         _ = try await task.value
         
-        print("✅ [NotificationService] Sent approval notification to user \(userId)")
+        AppLogger.info("notifications", "Sent approval notification to user \(userId)")
     }
 }
 

@@ -20,8 +20,8 @@ struct RequestMapView: View {
     var onRideSelected: ((UUID) -> Void)?
     var onFavorSelected: ((UUID) -> Void)?
     
-    // Seattle center for default region
-    private static let seattleCenter = CLLocationCoordinate2D(latitude: 47.6062, longitude: -122.3321)
+    // Default center for map region
+    private static let defaultCenter = CLLocationCoordinate2D(latitude: Constants.Map.defaultLatitude, longitude: Constants.Map.defaultLongitude)
     
     init(
         filter: RequestFilter = .open,
@@ -33,7 +33,7 @@ struct RequestMapView: View {
         _viewModel = StateObject(wrappedValue: RequestMapViewModel(filter: filter))
         
         let initialRegion = MKCoordinateRegion(
-            center: Self.seattleCenter,
+            center: Self.defaultCenter,
             span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
         )
         _cameraPosition = State(initialValue: .region(initialRegion))
@@ -221,7 +221,7 @@ final class RequestMapViewModel: ObservableObject {
             mapRequests = await mapService.createMapRequests(rides: filteredRides, favors: filteredFavors)
             
         } catch {
-            print("❌ [RequestMapViewModel] Error loading requests: \(error.localizedDescription)")
+            AppLogger.error("map", "Error loading requests: \(error.localizedDescription)")
             mapRequests = []
         }
         

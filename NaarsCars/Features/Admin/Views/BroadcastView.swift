@@ -11,29 +11,30 @@ import SwiftUI
 struct BroadcastView: View {
     @StateObject private var viewModel = BroadcastViewModel()
     @State private var showingConfirmation = false
+    @State private var showSuccess = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Title", text: $viewModel.title)
+                    TextField("admin_broadcast_title".localized, text: $viewModel.title)
                         .font(.naarsBody)
                     
                     TextEditor(text: $viewModel.message)
                         .frame(minHeight: 150)
                         .font(.naarsBody)
                 } header: {
-                    Text("Announcement")
+                    Text("admin_announcement".localized)
                 } footer: {
-                    Text("This will be sent to all approved users.")
+                    Text("admin_announcement_footer".localized)
                 }
                 
                 Section {
-                    Toggle("Pin to notifications (7 days)", isOn: $viewModel.pinToNotifications)
+                    Toggle("admin_pin_toggle".localized, isOn: $viewModel.pinToNotifications)
                         .font(.naarsBody)
                 } footer: {
-                    Text("If enabled, the announcement will appear pinned at the top of users' notification feeds for 7 days.")
+                    Text("admin_pin_footer".localized)
                 }
                 
                 Section {
@@ -46,7 +47,7 @@ struct BroadcastView: View {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             } else {
-                                Text("Send Broadcast")
+                                Text("admin_send_broadcast".localized)
                                     .fontWeight(.semibold)
                             }
                             Spacer()
@@ -62,7 +63,7 @@ struct BroadcastView: View {
                     .padding(.vertical, 8)
                     .background(
                         (viewModel.title.isEmpty || viewModel.message.isEmpty || viewModel.isLoading)
-                        ? Color.gray.opacity(0.3)
+                        ? Color.naarsDivider
                         : Color.naarsPrimary
                     )
                     .cornerRadius(8)
@@ -76,32 +77,27 @@ struct BroadcastView: View {
                     }
                 }
                 
-                if let success = viewModel.successMessage {
-                    Section {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.naarsSuccess)
-                            Text(success)
-                                .font(.naarsCaption)
-                                .foregroundColor(.naarsSuccess)
-                        }
-                    }
-                }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Send Announcement")
+            .navigationTitle("admin_send_announcement".localized)
             .navigationBarTitleDisplayMode(.inline)
-            .alert("Send Broadcast", isPresented: $showingConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Send", role: .none) {
+            .alert("admin_send_broadcast".localized, isPresented: $showingConfirmation) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("admin_send".localized, role: .none) {
                     Task {
                         await viewModel.sendBroadcast()
                     }
                 }
             } message: {
-                Text("This will send an announcement to all approved users. Are you sure you want to proceed?")
+                Text("admin_broadcast_confirmation".localized)
+            }
+            .onChange(of: viewModel.successMessage) { _, newValue in
+                if newValue != nil {
+                    showSuccess = true
+                }
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
 }
 

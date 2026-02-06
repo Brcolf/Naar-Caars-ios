@@ -21,12 +21,12 @@ struct SignupMethodChoiceView: View {
             VStack(spacing: 24) {
                 // Title
                 VStack(spacing: 8) {
-                    Text("Create Your Account")
+                    Text("signup_create_account_title".localized)
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
-                    Text("How would you like to sign up?")
-                        .font(.subheadline)
+                    Text("signup_method_subtitle".localized)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 40)
@@ -62,8 +62,8 @@ struct SignupMethodChoiceView: View {
                     Rectangle()
                         .frame(height: 1)
                         .foregroundColor(.secondary.opacity(0.3))
-                    Text("or")
-                        .font(.caption)
+                    Text("signup_or_divider".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
                     Rectangle()
@@ -78,12 +78,12 @@ struct SignupMethodChoiceView: View {
                 }) {
                     HStack {
                         Image(systemName: "envelope.fill")
-                        Text("Continue with Email")
+                        Text("signup_continue_with_email".localized)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.systemBackground))
+                    .background(Color.naarsBackgroundSecondary)
                     .cornerRadius(12)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -101,7 +101,7 @@ struct SignupMethodChoiceView: View {
             }
             .padding()
         }
-        .navigationTitle("Sign Up")
+        .navigationTitle("signup_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToEmailSignup) {
             SignupDetailsView(
@@ -109,10 +109,10 @@ struct SignupMethodChoiceView: View {
                 validatedInviteCode: inviteCode
             )
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+        .alert("common_error".localized, isPresented: $showError) {
+            Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(appleSignInViewModel.error?.localizedDescription ?? "An error occurred")
+            Text(appleSignInViewModel.error?.localizedDescription ?? "common_error_occurred".localized)
         }
     }
 }

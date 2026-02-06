@@ -44,7 +44,7 @@ final class PendingUsersViewModel: ObservableObject {
             }
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [PendingUsersViewModel] Error loading pending users: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error loading pending users: \(error.localizedDescription)")
         }
     }
     
@@ -69,7 +69,7 @@ final class PendingUsersViewModel: ObservableObject {
                 inviterProfiles[profile.id] = profile
             }
         } catch {
-            print("⚠️ [PendingUsersViewModel] Could not load inviter profiles: \(error.localizedDescription)")
+            AppLogger.warning("admin", "Could not load inviter profiles: \(error.localizedDescription)")
             // Non-critical error - continue without inviter names
         }
     }
@@ -81,7 +81,8 @@ final class PendingUsersViewModel: ObservableObject {
         
         do {
             try await adminService.approveUser(userId: userId)
-            print("✅ [PendingUsersViewModel] Approved user: \(userId)")
+            HapticManager.success()
+            AppLogger.info("admin", "Approved user: \(userId)")
             
             // Reload the list first to ensure we have the latest data
             await loadPendingUsers()
@@ -95,8 +96,8 @@ final class PendingUsersViewModel: ObservableObject {
             await BadgeCountManager.shared.refreshAllBadges()
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [PendingUsersViewModel] Error approving user: \(error.localizedDescription)")
-            print("🔴 [PendingUsersViewModel] Error details: \(error)")
+            AppLogger.error("admin", "Error approving user: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error approving user details: \(error)")
             // Reload list to ensure UI is in sync
             await loadPendingUsers()
         }
@@ -108,8 +109,9 @@ final class PendingUsersViewModel: ObservableObject {
         error = nil
         
         do {
-            print("Admin rejected user: \(userId)")
+            AppLogger.info("admin", "Admin rejected user: \(userId)")
             try await adminService.rejectUser(userId: userId)
+            HapticManager.success()
             
             // Reload the list to verify rejection worked
             // This ensures we get fresh data from the server
@@ -122,7 +124,7 @@ final class PendingUsersViewModel: ObservableObject {
             await BadgeCountManager.shared.refreshAllBadges()
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [PendingUsersViewModel] Error rejecting user: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error rejecting user: \(error.localizedDescription)")
             // Reload list to ensure UI is in sync
             await loadPendingUsers()
         }

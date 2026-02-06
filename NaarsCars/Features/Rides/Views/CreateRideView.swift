@@ -13,25 +13,29 @@ struct CreateRideView: View {
     @Environment(\.dismiss) private var dismiss
     var onRideCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Date & Time") {
-                    DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
+                Section("ride_create_section_date_time".localized) {
+                    DatePicker("ride_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
+                        .accessibilityHint("Select the date for this ride")
                     
                     TimePickerView(
                         hour: $viewModel.hour,
                         minute: $viewModel.minute,
                         isAM: $viewModel.isAM
                     )
+                    .accessibilityLabel("Ride time")
+                    .accessibilityHint("Set the departure time")
                 }
                 
-                Section("Route") {
+                Section("ride_create_section_route".localized) {
                     LocationAutocompleteField(
                         label: "",
-                        placeholder: "Pickup Location",
+                        placeholder: "ride_create_pickup_placeholder".localized,
                         text: $viewModel.pickup,
                         icon: "location.circle.fill",
                         accessibilityId: "createRide.pickup"
@@ -39,10 +43,12 @@ struct CreateRideView: View {
                         // Optional: Store coordinates for future map integration
                         // viewModel.pickupCoordinate = details.coordinate
                     }
+                    .accessibilityLabel("Pickup location")
+                    .accessibilityHint("Enter the pickup address")
                     
                     LocationAutocompleteField(
                         label: "",
-                        placeholder: "Destination",
+                        placeholder: "ride_create_destination_placeholder".localized,
                         text: $viewModel.destination,
                         icon: "mappin.circle.fill",
                         accessibilityId: "createRide.destination"
@@ -50,34 +56,44 @@ struct CreateRideView: View {
                         // Optional: Store coordinates for future map integration
                         // viewModel.destinationCoordinate = details.coordinate
                     }
+                    .accessibilityLabel("Destination")
+                    .accessibilityHint("Enter the destination address")
                 }
                 
-                Section("Details") {
-                    Stepper("Seats: \(viewModel.seats)", value: $viewModel.seats, in: 1...7)
+                Section("ride_create_section_details".localized) {
+                    Stepper("ride_create_seats_count".localized(with: viewModel.seats), value: $viewModel.seats, in: 1...7)
+                        .accessibilityLabel("Available seats, currently \(viewModel.seats)")
+                        .accessibilityHint("Adjust the number of available seats")
                     
-                    TextField("Notes (optional)", text: $viewModel.notes, axis: .vertical)
+                    TextField("ride_create_notes_placeholder".localized, text: $viewModel.notes, axis: .vertical)
                         .lineLimit(3...6)
                         .accessibilityIdentifier("createRide.notes")
+                        .accessibilityLabel("Notes")
+                        .accessibilityHint("Add optional notes about this ride")
                     
-                    TextField("Gift/Compensation (optional)", text: $viewModel.gift)
+                    TextField("ride_create_gift_placeholder".localized, text: $viewModel.gift)
                         .accessibilityIdentifier("createRide.gift")
+                        .accessibilityLabel("Gift or thank-you")
+                        .accessibilityHint("Optionally offer a gift for the driver")
                 }
                 
-                Section("Participants (Optional)") {
+                Section("ride_create_section_participants".localized) {
                     Button {
                         showAddParticipants = true
                     } label: {
                         HStack {
-                            Text(viewModel.selectedParticipantIds.isEmpty ? "Add Participants" : "\(viewModel.selectedParticipantIds.count) Participant\(viewModel.selectedParticipantIds.count == 1 ? "" : "s") Selected")
+                            Text(viewModel.selectedParticipantIds.isEmpty ? "ride_create_add_participants".localized : "ride_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
                             Spacer()
                             Image(systemName: "chevron.right")
                         }
                     }
                     .accessibilityIdentifier("createRide.participants")
+                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "Add participants" : "\(viewModel.selectedParticipantIds.count) participants selected")
+                    .accessibilityHint("Double-tap to select participants for this ride")
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
-                        Text("Maximum 5 participants")
-                            .font(.caption)
+                        Text("ride_create_max_participants".localized)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -91,35 +107,43 @@ struct CreateRideView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Create Ride Request")
+            .navigationTitle("ride_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("ride_create_cancel".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("createRide.cancel")
+                    .accessibilityLabel("Cancel")
+                    .accessibilityHint("Dismiss without creating a ride")
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Post") {
+                    Button("ride_create_post".localized) {
                         Task {
                             do {
-                                print("🔍 [CreateRideView] Starting ride creation...")
+                                AppLogger.info("rides", "[CreateRideView] Starting ride creation...")
                                 let ride = try await viewModel.createRide()
-                                print("✅ [CreateRideView] Ride created successfully: \(ride.id)")
+                                AppLogger.info("rides", "[CreateRideView] Ride created successfully: \(ride.id)")
                                 // Call callback with created ride ID before dismissing
                                 onRideCreated?(ride.id)
-                                dismiss()
+                                showSuccess = true
+                                HapticManager.success()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    dismiss()
+                                }
                             } catch {
-                                print("🔴 [CreateRideView] Error creating ride: \(error.localizedDescription)")
-                                print("🔴 [CreateRideView] Error details: \(error)")
+                                AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
+                                AppLogger.error("rides", "[CreateRideView] Error details: \(error)")
                                 // Error is already set in viewModel
                             }
                         }
                     }
                     .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createRide.post")
+                    .accessibilityLabel("Post ride")
+                    .accessibilityHint("Double-tap to submit this ride request")
                 }
             }
             .sheet(isPresented: $showAddParticipants) {
@@ -133,6 +157,7 @@ struct CreateRideView: View {
             }
             .trackScreen("CreateRide")
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
 }
 

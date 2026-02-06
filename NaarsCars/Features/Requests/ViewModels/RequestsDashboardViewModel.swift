@@ -196,8 +196,8 @@ final class RequestsDashboardViewModel: ObservableObject {
         
         do {
             // Fetch everything from Supabase (Full Mirror Sync)
-            async let ridesTask = rideService.fetchRides(forceRefresh: forceRefresh)
-            async let favorsTask = favorService.fetchFavors(forceRefresh: forceRefresh)
+            async let ridesTask = rideService.fetchRides()
+            async let favorsTask = favorService.fetchFavors()
             
             let rides = try await ridesTask
             let favors = try await favorsTask
@@ -212,7 +212,7 @@ final class RequestsDashboardViewModel: ObservableObject {
             await refreshUnseenRequestKeys()
         } catch {
             self.error = error.localizedDescription
-            print("❌ Error loading requests: \(error)")
+            AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
         }
     }
     
@@ -507,12 +507,12 @@ final class RequestsDashboardViewModel: ObservableObject {
                 requestNotificationSummaries = summaries
                 unseenRequestKeys = Set(summaries.keys)
                 refreshFilterBadgeCounts()
-                print("🔔 [RequestsDashboardViewModel] Unseen request keys: \(unseenRequestKeys.count)")
+                AppLogger.info("requests", "Unseen request keys: \(unseenRequestKeys.count)")
             }
         } catch {
             // Ignore cancellation errors to clean up logs
             if (error as NSError).code != NSURLErrorCancelled {
-                print("⚠️ [RequestsDashboardViewModel] Failed to refresh request keys: \(error)")
+                AppLogger.warning("requests", "Failed to refresh request keys: \(error.localizedDescription)")
             }
         }
     }

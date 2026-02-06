@@ -8,7 +8,6 @@
 import Foundation
 import CoreLocation
 import MapKit
-import Supabase
 #if canImport(WeatherKit)
 import WeatherKit
 #endif
@@ -17,82 +16,9 @@ import WeatherKit
 /// Uses a dynamic pricing algorithm with configurable multipliers
 enum RideCostEstimator {
     
-    // MARK: - Types
-    
-    struct MultiplierBreakdown {
-        let timeOfDay: Double
-        let location: Double
-        let weather: Double
-    }
-    
-    struct RideCostEstimate {
-        let finalPrice: Double
-        let totalMultiplier: Double
-        let estimatedTimeMinutes: Double
-        let distanceMiles: Double
-        let multipliers: MultiplierBreakdown
-    }
-    
-    struct PricingZone {
-        let name: String
-        let multiplier: Double
-        let polygon: [CLLocationCoordinate2D]
-    }
-
-    private struct GeocodingCacheRow: Decodable {
-        let multiplier: Double
-    }
-
-    private struct GeocodingCacheUpsert: Encodable {
-        let latitude: Double
-        let longitude: Double
-        let locationKey: String
-        let multiplier: Double
-        let placemarkData: PlacemarkData?
-
-        enum CodingKeys: String, CodingKey {
-            case latitude
-            case longitude
-            case locationKey = "location_key"
-            case multiplier
-            case placemarkData = "placemark_data"
-        }
-    }
-
-    private struct PlacemarkData: Encodable {
-        let name: String?
-        let thoroughfare: String?
-        let subThoroughfare: String?
-        let locality: String?
-        let subLocality: String?
-        let administrativeArea: String?
-        let subAdministrativeArea: String?
-        let postalCode: String?
-        let country: String?
-        let isoCountryCode: String?
-        let areasOfInterest: [String]?
-        let ocean: String?
-        let inlandWater: String?
-    }
-    
-    enum WeatherCategory {
-        case clear
-        case lightPrecipitation
-        case heavyPrecipitation
-    }
-    
     // MARK: - Pricing Config
     
-    private struct PricingConfig {
-        let baseFare: Double
-        let costPerMile: Double
-        let costPerMinute: Double
-        let minimumFare: Double
-        let maximumFare: Double
-        let weatherTimeoutSeconds: Double
-    }
-    
-    private static let pricing = PricingConfig(
+    static let pricing = PricingConfig(
         baseFare: 2.50,
         costPerMile: 1.75,
         costPerMinute: 0.35,
@@ -101,16 +27,16 @@ enum RideCostEstimator {
         weatherTimeoutSeconds: 2.0
     )
     
-    private static let metersPerMile: Double = 1609.34
+    static let metersPerMile: Double = 1609.34
 
     // MARK: - Geocoding Cache Config
 
-    private static let geocodingCacheTable = "geocoding_cache"
-    private static let geocodingCacheTtlHours: Double = 24
-    private static let geocodingCacheCleanupDays: Int = 7
-    private static let reverseGeocodeTimeoutSeconds: Double = 2.0
-    private static let cacheKeyPrecision: Int = 3
-    private static var geocodingCacheAvailable: Bool?
+    static let geocodingCacheTable = "geocoding_cache"
+    static let geocodingCacheTtlHours: Double = 24
+    static let geocodingCacheCleanupDays: Int = 7
+    static let reverseGeocodeTimeoutSeconds: Double = 2.0
+    static let cacheKeyPrecision: Int = 3
+    static var geocodingCacheAvailable: Bool?
     
     // MARK: - Zone Definitions
     
@@ -292,7 +218,7 @@ enum RideCostEstimator {
                 multipliers: multipliers
             )
         } catch {
-            print("⚠️ [RideCostEstimator] Route calculation failed: \(error.localizedDescription). Returning minimum fare.")
+            AppLogger.warning("rideCost", "Route calculation failed: \(error.localizedDescription). Returning minimum fare.")
             return fallbackEstimate()
         }
     }
@@ -366,7 +292,7 @@ enum RideCostEstimator {
             }
         }
         
-        print("⏰ [RideCostEstimator] Time-of-day multiplier: \(multiplier) (hour: \(hour), weekend: \(isWeekend))")
+        AppLogger.info("rideCost", "Time-of-day multiplier: \(multiplier) (hour: \(hour), weekend: \(isWeekend))")
         return multiplier
     }
     
@@ -397,7 +323,7 @@ enum RideCostEstimator {
         zones: [PricingZone] = pricingZones
     ) -> Double {
         let result = zoneMultiplierResult(pickup: pickup, destination: destination, zones: zones)
-        print("📍 [RideCostEstimator] Location multiplier: \(result.multiplier) (zones: \(result.matchedZones))")
+        AppLogger.info("rideCost", "Location multiplier: \(result.multiplier) (zones: \(result.matchedZones))")
         return result.multiplier
     }
 
@@ -409,7 +335,7 @@ enum RideCostEstimator {
         let result = zoneMultiplierResult(pickup: pickup, destination: destination, zones: zones)
 
         if result.multiplier > 1.0 {
-            print("📍 [RideCostEstimator] Location multiplier: \(result.multiplier) (zones: \(result.matchedZones))")
+            AppLogger.info("rideCost", "Location multiplier: \(result.multiplier) (zones: \(result.matchedZones))")
             return result.multiplier
         }
 
@@ -417,316 +343,10 @@ enum RideCostEstimator {
         async let destinationMultiplier = getReverseGeocodedMultiplier(coordinate: destination)
         let fallbackMultiplier = max(await pickupMultiplier, await destinationMultiplier)
 
-        print("📍 [RideCostEstimator] Location multiplier: \(fallbackMultiplier) (reverse geocoded)")
+        AppLogger.info("rideCost", "Location multiplier: \(fallbackMultiplier) (reverse geocoded)")
         return fallbackMultiplier
     }
 
-    // MARK: - Reverse Geocoding Fallback
-
-    /// Reverse geocoding fallback when no premium zone matches.
-    static func getReverseGeocodedMultiplier(coordinate: CLLocationCoordinate2D) async -> Double {
-        let locationKey = cacheKey(for: coordinate)
-
-        if let cachedMultiplier = await fetchCachedMultiplier(locationKey: locationKey) {
-            print("🗂️ [RideCostEstimator] Cache hit for \(locationKey): \(cachedMultiplier)")
-            return cachedMultiplier
-        }
-
-        guard let placemark = await reverseGeocodePlacemark(for: coordinate) else {
-            print("⚠️ [RideCostEstimator] Reverse geocoding failed for \(locationKey). Defaulting to 1.0.")
-            return 1.0
-        }
-
-        let multiplier = placemarkMultiplier(for: placemark)
-        print("🧭 [RideCostEstimator] Reverse geocoded multiplier: \(multiplier) (\(locationKey))")
-
-        await upsertGeocodingCache(
-            coordinate: coordinate,
-            locationKey: locationKey,
-            multiplier: multiplier,
-            placemark: placemark
-        )
-
-        return multiplier
-    }
-
-    /// Cleanup old cache entries. Call on app launch or periodically.
-    static func cleanupGeocodingCache() async {
-        guard await ensureGeocodingCacheAvailable() else { return }
-
-        let cutoffDate = Date().addingTimeInterval(-Double(geocodingCacheCleanupDays) * 24 * 60 * 60)
-        let cutoffString = isoTimestamp(for: cutoffDate)
-
-        do {
-            let supabase = await MainActor.run { SupabaseService.shared.client }
-            try await supabase
-                .from(geocodingCacheTable)
-                .delete()
-                .lt("created_at", value: cutoffString)
-                .execute()
-
-            print("🧹 [RideCostEstimator] Cleaned geocoding cache entries before \(cutoffString)")
-        } catch {
-            print("⚠️ [RideCostEstimator] Failed to cleanup geocoding cache: \(error.localizedDescription)")
-        }
-    }
-
-    private static func fetchCachedMultiplier(locationKey: String) async -> Double? {
-        guard await ensureGeocodingCacheAvailable() else { return nil }
-
-        let cutoffDate = Date().addingTimeInterval(-geocodingCacheTtlHours * 60 * 60)
-        let cutoffString = isoTimestamp(for: cutoffDate)
-
-        do {
-            let supabase = await MainActor.run { SupabaseService.shared.client }
-            let response = try await supabase
-                .from(geocodingCacheTable)
-                .select("multiplier")
-                .eq("location_key", value: locationKey)
-                .gte("created_at", value: cutoffString)
-                .order("created_at", ascending: false)
-                .limit(1)
-                .execute()
-
-            let rows = try JSONDecoder().decode([GeocodingCacheRow].self, from: response.data)
-            if let cached = rows.first {
-                return cached.multiplier
-            }
-
-            print("🗂️ [RideCostEstimator] Cache miss for \(locationKey)")
-        } catch {
-            if isMissingGeocodingCacheTable(error) {
-                geocodingCacheAvailable = false
-            }
-            print("⚠️ [RideCostEstimator] Cache read failed for \(locationKey): \(error.localizedDescription)")
-        }
-
-        return nil
-    }
-
-    private static func upsertGeocodingCache(
-        coordinate: CLLocationCoordinate2D,
-        locationKey: String,
-        multiplier: Double,
-        placemark: CLPlacemark
-    ) async {
-        guard await ensureGeocodingCacheAvailable() else { return }
-
-        let payload = GeocodingCacheUpsert(
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
-            locationKey: locationKey,
-            multiplier: multiplier,
-            placemarkData: placemarkPayload(from: placemark)
-        )
-
-        do {
-            let supabase = await MainActor.run { SupabaseService.shared.client }
-            try await supabase
-                .from(geocodingCacheTable)
-                .upsert(payload, onConflict: "location_key")
-                .execute()
-
-            print("🗂️ [RideCostEstimator] Cache upserted for \(locationKey)")
-        } catch {
-            if isMissingGeocodingCacheTable(error) {
-                geocodingCacheAvailable = false
-            }
-            print("⚠️ [RideCostEstimator] Cache write failed for \(locationKey): \(error.localizedDescription)")
-        }
-    }
-
-    private static func ensureGeocodingCacheAvailable() async -> Bool {
-        if let available = geocodingCacheAvailable {
-            return available
-        }
-
-        do {
-            let supabase = await MainActor.run { SupabaseService.shared.client }
-            _ = try await supabase
-                .from(geocodingCacheTable)
-                .select("id")
-                .limit(1)
-                .execute()
-
-            geocodingCacheAvailable = true
-            return true
-        } catch {
-            if isMissingGeocodingCacheTable(error) {
-                geocodingCacheAvailable = false
-                print("⚠️ [RideCostEstimator] geocoding_cache table missing. Caching disabled.")
-            } else {
-                print("⚠️ [RideCostEstimator] Cache availability check failed: \(error.localizedDescription)")
-            }
-
-            return false
-        }
-    }
-
-    private static func isMissingGeocodingCacheTable(_ error: Error) -> Bool {
-        guard let postgrestError = error as? PostgrestError else { return false }
-        if postgrestError.code == "42P01" {
-            return true
-        }
-        let message = postgrestError.message.lowercased()
-        return message.contains("geocoding_cache") && message.contains("does not exist")
-    }
-
-    private static func cacheKey(for coordinate: CLLocationCoordinate2D) -> String {
-        let format = "%.\(cacheKeyPrecision)f"
-        let locale = Locale(identifier: "en_US_POSIX")
-        let latString = String(format: format, locale: locale, coordinate.latitude)
-        let lonString = String(format: format, locale: locale, coordinate.longitude)
-        return "\(latString)_\(lonString)"
-    }
-
-    private static func reverseGeocodePlacemark(for coordinate: CLLocationCoordinate2D) async -> CLPlacemark? {
-        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        let result = await withTimeout(seconds: reverseGeocodeTimeoutSeconds) {
-            let geocoder = CLGeocoder()
-            let placemarks = try await geocoder.reverseGeocodeLocation(location)
-            if let placemark = placemarks.first {
-                return placemark
-            }
-            throw NSError(
-                domain: "RideCostEstimator",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "No placemark returned"]
-            )
-        }
-
-        if result == nil {
-            print("⚠️ [RideCostEstimator] Reverse geocoding timed out or returned no placemark.")
-        }
-
-        return result
-    }
-
-    private static func placemarkMultiplier(for placemark: CLPlacemark) -> Double {
-        if isAirportPlacemark(placemark) {
-            return 1.5
-        }
-
-        let normalizedText = normalizedPlacemarkText(for: placemark)
-        if normalizedText.contains("queen anne") {
-            return 1.2
-        }
-        if normalizedText.contains("green lake") {
-            return 1.1
-        }
-        if normalizedText.contains("georgetown") {
-            return 1.1
-        }
-        if normalizedText.contains("west seattle") {
-            return 1.1
-        }
-        if normalizedText.contains("magnolia") {
-            return 1.1
-        }
-
-        if let locality = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !locality.isEmpty {
-            let localityLower = locality.lowercased()
-            if localityLower == "bellevue" || localityLower == "redmond" {
-                return isBusinessDistrict(placemark) ? 1.2 : 1.0
-            }
-
-            let suburbanCities = [
-                "kirkland",
-                "renton",
-                "kent",
-                "federal way",
-                "tacoma",
-                "bellevue",
-                "redmond"
-            ]
-
-            if suburbanCities.contains(localityLower) {
-                return 1.0
-            }
-        } else {
-            return 0.9
-        }
-
-        return 1.0
-    }
-
-    private static func normalizedPlacemarkText(for placemark: CLPlacemark) -> String {
-        [
-            placemark.name,
-            placemark.subLocality,
-            placemark.locality,
-            placemark.thoroughfare,
-            placemark.subThoroughfare,
-            placemark.administrativeArea
-        ]
-        .compactMap { $0?.lowercased() }
-        .joined(separator: " ")
-    }
-
-    private static func isAirportPlacemark(_ placemark: CLPlacemark) -> Bool {
-        let name = placemark.name?.lowercased() ?? ""
-        if name.contains("airport") {
-            return true
-        }
-
-        let areas = placemark.areasOfInterest ?? []
-        return areas.contains { $0.lowercased().contains("airport") }
-    }
-
-    private static func isBusinessDistrict(_ placemark: CLPlacemark) -> Bool {
-        let hints = [
-            placemark.name,
-            placemark.subLocality,
-            placemark.thoroughfare,
-            placemark.areasOfInterest?.joined(separator: " ")
-        ]
-            .compactMap { $0?.lowercased() }
-            .joined(separator: " ")
-
-        let keywords = [
-            "downtown",
-            "city center",
-            "business district",
-            "main st",
-            "main street",
-            "town center",
-            "square",
-            "corporate",
-            "office",
-            "overlake",
-            "bellevue square",
-            "redmond town center",
-            "microsoft"
-        ]
-
-        return keywords.contains { hints.contains($0) }
-    }
-
-    private static func placemarkPayload(from placemark: CLPlacemark) -> PlacemarkData {
-        PlacemarkData(
-            name: placemark.name,
-            thoroughfare: placemark.thoroughfare,
-            subThoroughfare: placemark.subThoroughfare,
-            locality: placemark.locality,
-            subLocality: placemark.subLocality,
-            administrativeArea: placemark.administrativeArea,
-            subAdministrativeArea: placemark.subAdministrativeArea,
-            postalCode: placemark.postalCode,
-            country: placemark.country,
-            isoCountryCode: placemark.isoCountryCode,
-            areasOfInterest: placemark.areasOfInterest,
-            ocean: placemark.ocean,
-            inlandWater: placemark.inlandWater
-        )
-    }
-
-    private static func isoTimestamp(for date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
-    }
-    
     static func weatherMultiplier(for category: WeatherCategory) -> Double {
         let multiplier: Double
         switch category {
@@ -738,7 +358,7 @@ enum RideCostEstimator {
             multiplier = 1.0
         }
         
-        print("🌦️ [RideCostEstimator] Weather multiplier: \(multiplier) (category: \(category))")
+        AppLogger.info("rideCost", "Weather multiplier: \(multiplier) (category: \(category))")
         return multiplier
     }
     
@@ -754,9 +374,9 @@ enum RideCostEstimator {
         let adjustedPrice = basePrice * totalMultiplier
         let finalPrice = applyFareCaps(adjustedPrice)
         
-        print("💵 [RideCostEstimator] Base price: \(roundToTwoDecimals(basePrice))")
-        print("📈 [RideCostEstimator] Total multiplier: \(roundToTwoDecimals(totalMultiplier))")
-        print("✅ [RideCostEstimator] Final price: \(roundToTwoDecimals(finalPrice))")
+        AppLogger.info("rideCost", "Base price: \(roundToTwoDecimals(basePrice))")
+        AppLogger.info("rideCost", "Total multiplier: \(roundToTwoDecimals(totalMultiplier))")
+        AppLogger.info("rideCost", "Final price: \(roundToTwoDecimals(finalPrice))")
         
         return RideCostEstimate(
             finalPrice: roundToTwoDecimals(finalPrice),
@@ -832,16 +452,16 @@ enum RideCostEstimator {
                 return result
             }
             
-            print("⚠️ [RideCostEstimator] Weather lookup timed out. Defaulting to 1.0.")
+            AppLogger.warning("rideCost", "Weather lookup timed out. Defaulting to 1.0.")
         } else {
-            print("⚠️ [RideCostEstimator] WeatherKit unavailable on this OS. Defaulting to 1.0.")
+            AppLogger.warning("rideCost", "WeatherKit unavailable on this OS. Defaulting to 1.0.")
         }
         #endif
         
         return 1.0
     }
     
-    private static func withTimeout<T>(
+    static func withTimeout<T>(
         seconds: Double,
         operation: @escaping () async throws -> T
     ) async -> T? {

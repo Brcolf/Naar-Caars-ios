@@ -31,7 +31,7 @@ struct RequestsDashboardView: View {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {
                         navigationCoordinator.navigateToNotifications = true
-                        print("🔔 [RequestsDashboardView] Bell tapped")
+                        AppLogger.info("requests", "Bell tapped")
                     }
 
                     Menu {
@@ -48,9 +48,11 @@ struct RequestsDashboardView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
-                            .font(.title3)
+                            .font(.naarsTitle3)
                     }
                     .accessibilityIdentifier("requests.createMenu")
+                    .accessibilityLabel("Create new request")
+                    .accessibilityHint("Double-tap to create a new ride or favor request")
                 }
             }
             .sheet(isPresented: $showCreateRide) {
@@ -107,11 +109,11 @@ struct RequestsDashboardView: View {
         
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(spacing: Constants.Spacing.md, pinnedViews: [.sectionHeaders]) {
                     Section(header: filterHeaderView) {
                         if viewModel.isLoading && filteredRequests.isEmpty {
                             // Show skeleton loading
-                            VStack(spacing: 16) {
+                            VStack(spacing: Constants.Spacing.md) {
                                 ForEach(0..<3, id: \.self) { _ in
                                     SkeletonRequestCard()
                                 }
@@ -154,9 +156,10 @@ struct RequestsDashboardView: View {
                                         navigationCoordinator.requestNavigationTarget = target
                                     }
                                 })
-                                .buttonStyle(PlainButtonStyle())
-                                .accessibilityIdentifier("requests.card")
-                                .padding(.horizontal)
+                .buttonStyle(PlainButtonStyle())
+                .accessibilityIdentifier("requests.card")
+                .accessibilityHint("Double-tap to view request details")
+                .padding(.horizontal)
                                 .id(request.notificationKey)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
@@ -195,11 +198,11 @@ struct RequestsDashboardView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
-            .background(Color(.systemBackground))
+            .background(Color.naarsBackgroundSecondary)
 
             Divider()
         }
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
     }
     
     // MARK: - Helper Methods
@@ -253,7 +256,7 @@ struct FilterTilesView: View {
     let onFilterChanged: (RequestFilter) -> Void
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Constants.Spacing.sm) {
             ForEach(RequestFilter.allCases, id: \.self) { filter in
                 FilterTile(
                     title: filter.rawValue,
@@ -281,7 +284,7 @@ struct FilterTile: View {
         Button(action: action) {
             ZStack {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.naarsSubheadline)
                     .fontWeight(isSelected ? .semibold : .regular)
                     .foregroundColor(isSelected ? .white : .primary)
                     .frame(maxWidth: .infinity)
@@ -307,10 +310,10 @@ struct FilterTile: View {
             .cornerRadius(12)
         }
         .accessibilityIdentifier("requests.filter.\(title)")
+        .accessibilityLabel("\(title) filter\(isSelected ? ", selected" : "")")
+        .accessibilityHint("Double-tap to show \(title.lowercased()) requests")
         .simultaneousGesture(TapGesture().onEnded {
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
+            HapticManager.selectionChanged()
         })
         .buttonStyle(PlainButtonStyle())
     }
@@ -349,7 +352,7 @@ struct SkeletonRequestCard: View {
                     .fill(Color(.systemGray4))
                     .frame(width: 40, height: 40)
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemGray4))
                         .frame(width: 120, height: 16)
@@ -372,7 +375,7 @@ struct SkeletonRequestCard: View {
                 .frame(height: 16)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .redacted(reason: .placeholder)

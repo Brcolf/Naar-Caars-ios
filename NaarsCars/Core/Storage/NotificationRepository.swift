@@ -38,7 +38,7 @@ final class NotificationRepository {
             let count = try modelContext.fetchCount(fetchDescriptor)
             return count > 0
         } catch {
-            print("⚠️ [NotificationRepository] Error checking unread notifications: \(error)")
+            AppLogger.warning("notifications", "Error checking unread notifications: \(error)")
             return false
         }
     }
@@ -63,7 +63,7 @@ final class NotificationRepository {
             }
             try modelContext.save()
         } catch {
-            print("⚠️ [NotificationRepository] Error marking read locally: \(error)")
+            AppLogger.warning("notifications", "Error marking read locally: \(error)")
         }
     }
 }

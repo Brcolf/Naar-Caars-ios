@@ -31,7 +31,7 @@ struct ContentView: View {
                 case .ready(let authState):
                     switch authState {
                     case .loading:
-                        LoadingView(message: "Loading...")
+                        LoadingView(message: "app_loading".localized)
                         
                     case .unauthenticated:
                         NavigationStack {
@@ -47,8 +47,8 @@ struct ContentView: View {
                     
                 case .failed(let error):
                     VStack(spacing: 16) {
-                        Text("Error: \(error.localizedDescription)")
-                        Button("Retry") {
+                        Text(String(format: "app_error_format".localized, error.localizedDescription))
+                        Button("app_retry".localized) {
                             Task {
                                 await launchManager.performCriticalLaunch()
                             }
@@ -87,9 +87,9 @@ struct ContentView: View {
         }
         .onChange(of: launchManager.state.id) { oldId, newId in
             // React to state ID changes (e.g., sign out triggers state change)
-            print("🔄 [ContentView] Launch state ID changed from '\(oldId)' to '\(newId)'")
+            AppLogger.info("app", "Launch state ID changed from '\(oldId)' to '\(newId)'")
             if newId.contains("unauthenticated") {
-                print("✅ [ContentView] Switching to login view")
+                AppLogger.info("app", "Switching to login view")
                 // Clear lock state on sign out
                 isLocked = false
                 lastBackgroundDate = nil
@@ -101,7 +101,7 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))) { _ in
             // AppLaunchManager already handles state change on sign out notification
             // Just log for debugging - don't call performCriticalLaunch again
-            print("🔄 [ContentView] Received userDidSignOut notification - AppLaunchManager will update state")
+            AppLogger.info("app", "Received userDidSignOut notification - AppLaunchManager will update state")
             // Clear lock state on sign out
             isLocked = false
             lastBackgroundDate = nil

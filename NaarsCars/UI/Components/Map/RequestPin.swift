@@ -68,7 +68,7 @@ struct Triangle: Shape {
                 ),
                 isSelected: false
             ) {
-                print("Tapped ride pin")
+                AppLogger.info("map", "Tapped ride pin")
             }
             
             RequestPin(
@@ -81,7 +81,7 @@ struct Triangle: Shape {
                 ),
                 isSelected: true
             ) {
-                print("Tapped favor pin")
+                AppLogger.info("map", "Tapped favor pin")
             }
         }
     }

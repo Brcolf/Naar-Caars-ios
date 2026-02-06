@@ -16,7 +16,7 @@ struct AdminPanelView: View {
     var body: some View {
         Group {
             if viewModel.isVerifyingAdmin {
-                ProgressView("Verifying access...")
+                ProgressView("admin_verifying_access".localized)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if viewModel.isAdmin {
                 adminContent
@@ -27,20 +27,22 @@ struct AdminPanelView: View {
                         .font(.system(size: 64))
                         .foregroundColor(.secondary)
                     
-                    Text("Access Denied")
+                    Text("admin_access_denied".localized)
                         .font(.naarsTitle2)
                     
-                    Text("You don't have permission to access the admin panel.")
+                    Text("admin_no_permission".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                     
-                    Button("Back to Profile") {
+                    Button("admin_back_to_profile".localized) {
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
                     .padding(.top)
+                    .accessibilityLabel("Back to profile")
+                    .accessibilityHint("Double-tap to return to your profile")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear {
@@ -48,7 +50,7 @@ struct AdminPanelView: View {
                 }
             }
         }
-        .navigationTitle("Admin Panel")
+        .navigationTitle("admin_panel_title".localized)
         .task {
             // Verify admin access when view first appears (only once due to hasVerified flag)
             await viewModel.verifyAdminAccess()
@@ -79,26 +81,26 @@ struct AdminPanelView: View {
     @ViewBuilder
     private var statsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Stats")
+            Text("admin_stats".localized)
                 .font(.naarsTitle3)
             
             HStack(spacing: 16) {
                 StatCard(
-                    title: "Pending",
+                    title: "admin_stat_pending".localized,
                     value: "\(viewModel.pendingCount)",
                     icon: "clock.fill",
                     color: .naarsWarning
                 )
                 
                 StatCard(
-                    title: "Members",
+                    title: "admin_stat_members".localized,
                     value: "\(viewModel.totalMembers)",
                     icon: "person.3.fill",
                     color: .naarsPrimary
                 )
                 
                 StatCard(
-                    title: "Active",
+                    title: "admin_stat_active".localized,
                     value: "\(viewModel.activeMembers)",
                     icon: "checkmark.circle.fill",
                     color: .naarsSuccess
@@ -110,21 +112,21 @@ struct AdminPanelView: View {
     @ViewBuilder
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Quick Actions")
+            Text("admin_quick_actions".localized)
                 .font(.naarsTitle3)
             
             NavigationLink(destination: BroadcastView()) {
                 HStack {
                     Image(systemName: "megaphone.fill")
                         .foregroundColor(.naarsPrimary)
-                    Text("Send Announcement")
+                    Text("admin_send_announcement".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
@@ -132,19 +134,21 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.broadcast")
+            .accessibilityLabel("Send announcement")
+            .accessibilityHint("Double-tap to compose a broadcast announcement")
             
             NavigationLink(destination: AdminInviteView()) {
                 HStack {
                     Image(systemName: "person.2.badge.plus")
                         .foregroundColor(.naarsPrimary)
-                    Text("Generate Invite Code")
+                    Text("admin_generate_invite_code".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
@@ -152,20 +156,22 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.inviteCodes")
+            .accessibilityLabel("Generate invite code")
+            .accessibilityHint("Double-tap to create a new invite code")
         }
     }
     
     @ViewBuilder
     private var navigationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Management")
+            Text("admin_management".localized)
                 .font(.naarsTitle3)
             
             NavigationLink(destination: PendingUsersView()) {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.naarsWarning)
-                    Text("Pending Approvals")
+                    Text("admin_pending_approvals".localized)
                     if viewModel.pendingCount > 0 {
                         Spacer()
                         Text("\(viewModel.pendingCount)")
@@ -179,10 +185,10 @@ struct AdminPanelView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
@@ -190,19 +196,21 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.pendingUsers")
+            .accessibilityLabel("Pending approvals\(viewModel.pendingCount > 0 ? ", \(viewModel.pendingCount) pending" : "")")
+            .accessibilityHint("Double-tap to review pending user approvals")
             
             NavigationLink(destination: UserManagementView()) {
                 HStack {
                     Image(systemName: "person.3.fill")
                         .foregroundColor(.naarsPrimary)
-                    Text("All Members")
+                    Text("admin_all_members".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
@@ -210,20 +218,22 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.userManagement")
+            .accessibilityLabel("All members")
+            .accessibilityHint("Double-tap to manage community members")
         }
     }
     
     @ViewBuilder
     private var devToolsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Developer Tools")
+            Text("admin_developer_tools".localized)
                 .font(.naarsTitle3)
             
             NavigationLink(destination: DevNotificationTestView()) {
                 HStack {
                     Image(systemName: "hammer.fill")
                         .foregroundColor(.orange)
-                    Text("Notification Tester")
+                    Text("admin_notification_tester".localized)
                     Spacer()
                     Text("DEV")
                         .font(.naarsCaption)
@@ -234,16 +244,18 @@ struct AdminPanelView: View {
                         .cornerRadius(4)
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.orange.opacity(0.5), lineWidth: 1)
                 )
             }
+            .accessibilityLabel("Notification tester")
+            .accessibilityHint("Double-tap to open the developer notification testing tool")
         }
     }
 }
@@ -258,7 +270,7 @@ private struct StatCard: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.title2)
+                .font(.naarsTitle2)
                 .foregroundColor(color)
             
             Text(value)
@@ -271,12 +283,14 @@ private struct StatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color(.separator), lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value)")
     }
 }
 

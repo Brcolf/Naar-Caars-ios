@@ -51,7 +51,7 @@ final class RideDetailViewModel: ObservableObject {
             qaItems = fetchedQA
         } catch {
             self.error = error.localizedDescription
-            print("❌ Error loading ride: \(error)")
+            AppLogger.error("rides", "Error loading ride: \(error)")
         }
     }
     
@@ -59,12 +59,12 @@ final class RideDetailViewModel: ObservableObject {
     /// - Parameter question: Question text
     func postQuestion(_ question: String) async {
         guard canAskQuestions else {
-            error = "Questions are disabled after a request is claimed"
+            error = "ride_edit_questions_disabled".localized
             return
         }
         guard let rideId = ride?.id,
               let userId = authService.currentUserId else {
-            error = "Not authenticated"
+            error = "common_not_authenticated".localized
             return
         }
         
@@ -77,6 +77,7 @@ final class RideDetailViewModel: ObservableObject {
             )
             
             qaItems.append(qa)
+            HapticManager.lightImpact()
         } catch {
             self.error = error.localizedDescription
         }

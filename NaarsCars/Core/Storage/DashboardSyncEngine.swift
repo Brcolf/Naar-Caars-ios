@@ -49,8 +49,8 @@ final class DashboardSyncEngine {
         
         do {
             // Parallel fetch
-            async let ridesTask = rideService.fetchRides(forceRefresh: true)
-            async let favorsTask = favorService.fetchFavors(forceRefresh: true)
+            async let ridesTask = rideService.fetchRides()
+            async let favorsTask = favorService.fetchFavors()
             async let notificationsTask = notificationService.fetchNotifications(userId: userId, forceRefresh: true)
             
             let (rides, favors, notifications) = try await (ridesTask, favorsTask, notificationsTask)
@@ -62,7 +62,7 @@ final class DashboardSyncEngine {
                 try? context.save()
             }
         } catch {
-            print("🔴 [DashboardSyncEngine] Error during full sync: \(error)")
+            AppLogger.error("sync", "Error during full sync: \(error)")
         }
     }
     
@@ -114,7 +114,7 @@ final class DashboardSyncEngine {
         ridesSyncTask = Task {
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            if let rides = try? await rideService.fetchRides(forceRefresh: true), let context = modelContext {
+            if let rides = try? await rideService.fetchRides(), let context = modelContext {
                 syncRides(rides, in: context)
                 try? context.save()
             }
@@ -126,7 +126,7 @@ final class DashboardSyncEngine {
         favorsSyncTask = Task {
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
-            if let favors = try? await favorService.fetchFavors(forceRefresh: true), let context = modelContext {
+            if let favors = try? await favorService.fetchFavors(), let context = modelContext {
                 syncFavors(favors, in: context)
                 try? context.save()
             }

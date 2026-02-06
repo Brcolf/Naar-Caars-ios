@@ -25,10 +25,10 @@ struct LanguageSettingsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(language.localizedName)
                                     .foregroundColor(.primary)
-                                    .font(.body)
+                                    .font(.naarsBody)
                                 if language.code != "system" && language.localizedName != language.name {
                                     Text(language.name)
-                                        .font(.caption)
+                                        .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -38,7 +38,7 @@ struct LanguageSettingsView: View {
                             if language.code == localizationManager.appLanguage {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.accentColor)
-                                    .font(.body)
+                                    .font(.naarsBody)
                             }
                         }
                     }
@@ -46,7 +46,7 @@ struct LanguageSettingsView: View {
                 }
             } footer: {
                 Text("language_restart_required".localized)
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
         }
@@ -54,18 +54,14 @@ struct LanguageSettingsView: View {
         .navigationTitle("language_settings_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .alert("language_restart_alert_title".localized, isPresented: $showRestartAlert) {
-            Button("language_restart_now".localized) {
-                if let language = pendingLanguage {
-                    localizationManager.setLanguage(language)
-                    // Force app restart by exiting
-                    exit(0)
-                }
-            }
-            Button("common_later".localized, role: .cancel) {
+            Button("common_ok".localized) {
                 if let language = pendingLanguage {
                     localizationManager.setLanguage(language)
                     dismiss()
                 }
+            }
+            Button("common_cancel".localized, role: .cancel) {
+                pendingLanguage = nil
             }
         } message: {
             Text("language_restart_alert_message".localized)

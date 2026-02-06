@@ -125,7 +125,7 @@ final class TownHallSyncEngine {
         do {
             try repository.upsertPosts([post])
         } catch {
-            print("🔴 [TownHallSyncEngine] Failed to upsert post: \(error)")
+            AppLogger.error("sync", "Failed to upsert post: \(error)")
         }
 
         triggerPostsRefresh()
@@ -140,7 +140,7 @@ final class TownHallSyncEngine {
         do {
             try repository.deletePost(id: id)
         } catch {
-            print("🔴 [TownHallSyncEngine] Failed to delete post: \(error)")
+            AppLogger.error("sync", "Failed to delete post: \(error)")
         }
 
         triggerPostsRefresh()
@@ -155,7 +155,7 @@ final class TownHallSyncEngine {
         do {
             try repository.upsertComments([comment])
         } catch {
-            print("🔴 [TownHallSyncEngine] Failed to upsert comment: \(error)")
+            AppLogger.error("sync", "Failed to upsert comment: \(error)")
         }
 
         triggerCommentsRefresh(postId: comment.postId)
@@ -172,7 +172,7 @@ final class TownHallSyncEngine {
         do {
             try repository.deleteComment(id: id)
         } catch {
-            print("🔴 [TownHallSyncEngine] Failed to delete comment: \(error)")
+            AppLogger.error("sync", "Failed to delete comment: \(error)")
         }
 
         triggerCommentsRefresh(postId: postId)
@@ -208,7 +208,7 @@ final class TownHallSyncEngine {
                 let posts = try await townHallService.fetchPosts()
                 try repository.upsertPosts(posts)
             } catch {
-                print("🔴 [TownHallSyncEngine] Failed to refresh posts: \(error)")
+                AppLogger.error("sync", "Failed to refresh posts: \(error)")
             }
         }
     }
@@ -222,7 +222,7 @@ final class TownHallSyncEngine {
                 let comments = try await commentService.fetchComments(for: postId)
                 try repository.upsertComments(comments)
             } catch {
-                print("🔴 [TownHallSyncEngine] Failed to refresh comments: \(error)")
+                AppLogger.error("sync", "Failed to refresh comments: \(error)")
             }
         }
     }

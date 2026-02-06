@@ -125,7 +125,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             newRequestCategory
         ])
         
-        print("✅ [PushNotificationService] Notification categories configured")
+        AppLogger.info("push", "Notification categories configured")
     }
     
     // MARK: - Permission
@@ -188,7 +188,7 @@ final class PushNotificationService: NSObject, ObservableObject {
                 .eq("user_id", value: userId.uuidString)
                 .execute()
             
-            print("✅ [PushNotificationService] Updated device token for user \(userId)")
+            AppLogger.info("push", "Updated device token for user \(userId)")
         } else {
             // Insert new token
             try await supabase
@@ -201,7 +201,7 @@ final class PushNotificationService: NSObject, ObservableObject {
                 ])
                 .execute()
             
-            print("✅ [PushNotificationService] Registered device token for user \(userId)")
+            AppLogger.info("push", "Registered device token for user \(userId)")
         }
 
         // Record last registered state for re-registration checks
@@ -222,7 +222,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             .eq("user_id", value: userId.uuidString)
             .execute()
         
-        print("✅ [PushNotificationService] Removed device token for user \(userId)")
+        AppLogger.info("push", "Removed device token for user \(userId)")
     }
 
     /// Store the latest APNs device token locally for later registration
@@ -323,7 +323,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         // Check if we have permission first
         let settings = await notificationCenter.notificationSettings()
         guard settings.authorizationStatus == .authorized else {
-            print("ℹ️ [PushNotificationService] Notification permission not granted, skipping completion reminder")
+            AppLogger.warning("push", "Notification permission not granted, skipping completion reminder")
             return
         }
         
@@ -364,9 +364,9 @@ final class PushNotificationService: NSObject, ObservableObject {
         do {
             try await notificationCenter.add(request)
             let scheduledDate = Date().addingTimeInterval(finalInterval)
-            print("✅ [PushNotificationService] Scheduled completion reminder for \(scheduledDate)")
+            AppLogger.info("push", "Scheduled completion reminder for \(scheduledDate)")
         } catch {
-            print("🔴 [PushNotificationService] Failed to schedule completion reminder: \(error.localizedDescription)")
+            AppLogger.error("push", "Failed to schedule completion reminder: \(error.localizedDescription)")
         }
     }
     
@@ -375,7 +375,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     func cancelCompletionReminder(reminderId: UUID) {
         let identifier = "completion-reminder-\(reminderId.uuidString)"
         notificationCenter.removePendingNotificationRequests(withIdentifiers: [identifier])
-        print("✅ [PushNotificationService] Cancelled completion reminder \(reminderId)")
+        AppLogger.info("push", "Cancelled completion reminder \(reminderId)")
     }
     
     /// Reschedule a completion reminder for 1 hour later (when user taps "No")
@@ -415,7 +415,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         // Check if we have permission first
         let settings = await notificationCenter.notificationSettings()
         guard settings.authorizationStatus == .authorized else {
-            print("ℹ️ [PushNotificationService] Notification permission not granted, skipping local notification")
+            AppLogger.warning("push", "Notification permission not granted, skipping local notification")
             return
         }
         
@@ -437,9 +437,9 @@ final class PushNotificationService: NSObject, ObservableObject {
         
         do {
             try await notificationCenter.add(request)
-            print("✅ [PushNotificationService] Showed local notification for message from \(senderName)")
+            AppLogger.info("push", "Showed local notification for message from \(senderName)")
         } catch {
-            print("🔴 [PushNotificationService] Failed to show local notification: \(error.localizedDescription)")
+            AppLogger.error("push", "Failed to show local notification: \(error.localizedDescription)")
         }
     }
     
@@ -451,7 +451,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     func handleNotificationTap(userInfo: [AnyHashable: Any]) -> DeepLink? {
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         if case .unknown = deepLink {
-            print("⚠️ [PushNotificationService] Unknown deep link from payload")
+            AppLogger.warning("push", "Unknown deep link from payload")
             return nil
         }
         return deepLink
@@ -462,7 +462,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     ///   - actionIdentifier: The action that was tapped
     ///   - userInfo: The notification payload
     func handleNotificationAction(actionIdentifier: String, userInfo: [AnyHashable: Any]) async {
-        print("📱 [PushNotificationService] Handling action: \(actionIdentifier)")
+        AppLogger.info("push", "Handling action: \(actionIdentifier)")
 
         if let notificationIdString = userInfo["notification_id"] as? String,
            let notificationId = UUID(uuidString: notificationIdString) {
@@ -471,7 +471,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         
         guard let reminderIdString = userInfo["reminder_id"] as? String,
               let reminderId = UUID(uuidString: reminderIdString) else {
-            print("⚠️ [PushNotificationService] No reminder_id in notification payload")
+            AppLogger.warning("push", "No reminder_id in notification payload")
             return
         }
         
@@ -482,7 +482,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         case NotificationAction.noNotYet.rawValue:
             completed = false
         default:
-            print("⚠️ [PushNotificationService] Unknown action: \(actionIdentifier)")
+            AppLogger.warning("push", "Unknown action: \(actionIdentifier)")
             return
         }
         
@@ -497,7 +497,7 @@ final class PushNotificationService: NSObject, ObservableObject {
                 .rpc("handle_completion_response", params: params)
                 .execute()
             
-            print("✅ [PushNotificationService] Completion response sent: \(completed ? "Yes" : "No")")
+            AppLogger.info("push", "Completion response sent: \(completed ? "Yes" : "No")")
             
             if completed {
                 // Refresh badge counts and post notification for review prompt
@@ -537,7 +537,7 @@ final class PushNotificationService: NSObject, ObservableObject {
                 )
             }
         } catch {
-            print("🔴 [PushNotificationService] Failed to send completion response: \(error)")
+            AppLogger.error("push", "Failed to send completion response: \(error)")
         }
     }
     
@@ -600,7 +600,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         
         do {
             let unreadNotifications = try await NotificationService.shared.fetchUnreadCount(userId: userId)
-            let conversations = try await MessageService.shared.fetchConversations(userId: userId)
+            let conversations = try await ConversationService.shared.fetchConversations(userId: userId)
             let unreadMessages = conversations.reduce(0) { $0 + $1.unreadCount }
             
             let total = unreadNotifications + unreadMessages
@@ -609,9 +609,9 @@ final class PushNotificationService: NSObject, ObservableObject {
                 UIApplication.shared.applicationIconBadgeNumber = total
             }
             
-            print("✅ [PushNotificationService] Updated badge count to \(total)")
+            AppLogger.info("push", "Updated badge count to \(total)")
         } catch {
-            print("🔴 [PushNotificationService] Failed to update badge count: \(error)")
+            AppLogger.error("push", "Failed to update badge count: \(error)")
         }
     }
     

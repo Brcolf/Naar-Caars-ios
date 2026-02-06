@@ -153,7 +153,7 @@ struct UserSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        print("🔍 [UserSearchView] Cancel tapped, clearing selections and dismissing")
+                        AppLogger.info("messaging", "UserSearchView cancel tapped, clearing selections and dismissing")
                         selectedUserIds.removeAll()
                         dismiss()
                         onDismiss()
@@ -162,7 +162,7 @@ struct UserSearchView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(actionButtonTitle) {
-                        print("🔍 [UserSearchView] \(actionButtonTitle) tapped with \(selectedUserIds.count) selected user(s), dismissing")
+                        AppLogger.info("messaging", "UserSearchView \(actionButtonTitle) tapped with \(selectedUserIds.count) selected user(s), dismissing")
                         dismiss()
                         onDismiss()
                     }
@@ -196,7 +196,7 @@ struct UserSearchView: View {
                 .replacingOccurrences(of: "_", with: "\\_")
             let searchPattern = "*\(escapedQuery)*"
             
-            print("🔍 [UserSearchView] Searching for: '\(trimmedQuery)' (pattern: '\(searchPattern)')")
+            AppLogger.info("messaging", "UserSearchView searching for: '\(trimmedQuery)' (pattern: '\(searchPattern)')")
             
             // Select all fields (Profile model requires all fields)
             // Using .select() without arguments gets all columns, matching other services
@@ -245,13 +245,11 @@ struct UserSearchView: View {
             // Filter out excluded users
             searchResults = profiles.filter { !excludeUserIds.contains($0.id) }
             
-            print("✅ [UserSearchView] Found \(searchResults.count) users matching '\(trimmedQuery)'")
+            AppLogger.info("messaging", "UserSearchView found \(searchResults.count) users matching '\(trimmedQuery)'")
         } catch {
-            print("🔴 [UserSearchView] Search error: \(error)")
+            AppLogger.error("messaging", "UserSearchView search error: \(error)")
             if let postgrestError = error as? PostgrestError {
-                print("   PostgREST error code: \(postgrestError.code ?? "none")")
-                print("   PostgREST message: \(postgrestError.message ?? "none")")
-                print("   PostgREST hint: \(postgrestError.hint ?? "none")")
+                AppLogger.error("messaging", "PostgREST error - code: \(postgrestError.code ?? "none"), message: \(postgrestError.message ?? "none"), hint: \(postgrestError.hint ?? "none")")
             }
             self.error = AppError.processingError("Failed to search users: \(error.localizedDescription)")
             searchResults = []
@@ -290,7 +288,7 @@ private struct UserSearchRow: View {
                 Spacer()
                 
                 if isExcluded {
-                    Text("Already added")
+                    Text("messaging_already_added".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 } else if isSelected {
@@ -340,7 +338,7 @@ private struct SearchBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .cornerRadius(10)
     }
 }
@@ -381,7 +379,7 @@ private struct SelectedUserChip: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(isRemovable ? Color(.systemGray5) : Color(.systemGray6))
+        .background(isRemovable ? Color(.systemGray5) : Color.naarsCardBackground)
         .cornerRadius(16)
         .task {
             await loadProfile()
@@ -392,7 +390,7 @@ private struct SelectedUserChip: View {
         do {
             profile = try await ProfileService.shared.fetchProfile(userId: userId)
         } catch {
-            print("🔴 Error loading profile for chip: \(error)")
+            AppLogger.error("messaging", "Error loading profile for chip: \(error.localizedDescription)")
         }
     }
 }

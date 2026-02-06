@@ -21,6 +21,7 @@ struct PostCommentsView: View {
     @State private var newCommentText = ""
     @State private var replyingTo: UUID? // Comment ID we're replying to
     @FocusState private var isCommentFieldFocused: Bool
+    @State private var toastMessage: String? = nil
     
     var body: some View {
         NavigationStack {
@@ -32,8 +33,8 @@ struct PostCommentsView: View {
                 } else if viewModel.topLevelComments.isEmpty {
                     EmptyStateView(
                         icon: "bubble.left",
-                        title: "No Comments Yet",
-                        message: "Be the first to comment on this post!",
+                        title: "townhall_no_comments_yet".localized,
+                        message: "townhall_be_first_to_comment".localized,
                         actionTitle: nil,
                         action: nil
                     )
@@ -55,7 +56,11 @@ struct PostCommentsView: View {
                                     },
                                     onDelete: { commentId in
                                         Task {
+                                            let countBefore = viewModel.comments.count
                                             await viewModel.deleteComment(commentId: commentId)
+                                            if viewModel.comments.count < countBefore || viewModel.error == nil {
+                                                toastMessage = "toast_comment_deleted".localized
+                                            }
                                         }
                                     },
                                     depth: 0 // Top-level comments start at depth 0
@@ -69,28 +74,28 @@ struct PostCommentsView: View {
                 Divider()
                 
                 // Comment input section
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
                     if let replyingToId = replyingTo,
                        let parentComment = viewModel.findComment(id: replyingToId) {
                         HStack {
-                            Text("Replying to \(parentComment.author?.name ?? "Unknown")")
-                                .font(.caption)
+                            Text("townhall_replying_to".localized(with: parentComment.author?.name ?? "townhall_unknown".localized))
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Button("Cancel") {
+                            Button("common_cancel".localized) {
                                 replyingTo = nil
                                 newCommentText = ""
                             }
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                            .font(.naarsCaption)
+                            .foregroundColor(.naarsPrimary)
                         }
                         .padding(.horizontal)
-                        .padding(.top, 8)
+                        .padding(.top, Constants.Spacing.sm)
                     }
                     
                     HStack(alignment: .bottom, spacing: 12) {
                         TextField(
-                            replyingTo != nil ? "Write a reply..." : "Write a comment...",
+                            replyingTo != nil ? "townhall_write_reply".localized : "townhall_write_comment".localized,
                             text: $newCommentText,
                             axis: .vertical
                         )
@@ -100,31 +105,35 @@ struct PostCommentsView: View {
                         
                         Button(action: {
                             Task {
+                                let isReply = replyingTo != nil
                                 if let parentId = replyingTo {
                                     await viewModel.addReply(to: parentId, content: newCommentText)
                                 } else {
                                     await viewModel.addComment(content: newCommentText)
+                                }
+                                if viewModel.error == nil {
+                                    toastMessage = isReply ? "toast_reply_posted".localized : "toast_comment_posted".localized
                                 }
                                 newCommentText = ""
                                 replyingTo = nil
                             }
                         }) {
                             Image(systemName: "paperplane.fill")
-                                .font(.title3)
-                                .foregroundColor(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
+                                .font(.naarsTitle3)
+                                .foregroundColor(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .naarsTextSecondary : .blue)
                         }
                         .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding()
                     .id("community.townHall.postCommentsSheet.commentInput")
                 }
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
             }
-            .navigationTitle("Comments")
+            .navigationTitle("townhall_comments".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("common_done".localized) {
                         dismiss()
                     }
                 }
@@ -132,6 +141,7 @@ struct PostCommentsView: View {
             .task {
                 await viewModel.loadComments()
             }
+            .toast(message: $toastMessage)
         }
     }
 }
@@ -158,9 +168,9 @@ struct CommentRow: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
             // Comment content
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: Constants.Spacing.sm) {
                 // Indentation for nested comments
                 if depth > 0 {
                     Rectangle()
@@ -174,17 +184,17 @@ struct CommentRow: View {
                     HStack(alignment: .center, spacing: 6) {
                         if let author = comment.author {
                             Text(author.name)
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.primary)
                         } else {
-                            Text("Unknown")
-                                .font(.caption)
+                            Text("townhall_unknown".localized)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                         
                         Text(comment.createdAt.localizedRelative)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         
                         Spacer()
@@ -196,22 +206,26 @@ struct CommentRow: View {
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    // Actions: Reply, Delete, Vote
-                    HStack(spacing: 16) {
+                        // Actions: Reply, Delete, Vote
+                    HStack(spacing: Constants.Spacing.md) {
                         // Reply button
                         if depth < maxDepth {
                             Button(action: {
                                 onReply(comment.id)
                             }) {
-                                HStack(spacing: 4) {
+                                HStack(spacing: Constants.Spacing.xs) {
                                     Image(systemName: "arrowshape.turn.up.left")
-                                        .font(.caption)
-                                    Text("Reply")
-                                        .font(.caption)
+                                        .font(.naarsCaption)
+                                    Text("townhall_reply".localized)
+                                        .font(.naarsCaption)
                                 }
-                                .foregroundColor(.blue)
+                                .foregroundColor(.naarsPrimary)
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("Reply to comment")
+                            .accessibilityHint("Double-tap to reply")
                         }
                         
                         // Delete button (if own comment)
@@ -220,7 +234,7 @@ struct CommentRow: View {
                                 showDeleteAlert = true
                             }) {
                                 Image(systemName: "trash")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.red)
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -229,7 +243,7 @@ struct CommentRow: View {
                         Spacer()
                         
                         // Voting buttons on right
-                        HStack(spacing: 8) {
+                        HStack(spacing: Constants.Spacing.sm) {
                             // Downvote
                             Button(action: {
                                 if comment.userVote == .downvote {
@@ -238,18 +252,22 @@ struct CommentRow: View {
                                     onVote(comment.id, .downvote)
                                 }
                             }) {
-                                HStack(spacing: 4) {
+                                HStack(spacing: Constants.Spacing.xs) {
                                     Image(systemName: "arrow.down")
-                                        .font(.caption)
+                                        .font(.naarsCaption)
                                         .foregroundColor(comment.userVote == .downvote ? .blue : .secondary)
                                     if comment.downvotes > 0 {
                                         Text("\(comment.downvotes)")
-                                            .font(.caption)
+                                            .font(.naarsCaption)
                                             .foregroundColor(.secondary)
                                     }
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("Downvote comment")
+                            .accessibilityHint("Double-tap to downvote")
                             
                             // Upvote
                             Button(action: {
@@ -259,18 +277,22 @@ struct CommentRow: View {
                                     onVote(comment.id, .upvote)
                                 }
                             }) {
-                                HStack(spacing: 4) {
+                                HStack(spacing: Constants.Spacing.xs) {
                                     Image(systemName: "arrow.up")
-                                        .font(.caption)
+                                        .font(.naarsCaption)
                                         .foregroundColor(comment.userVote == .upvote ? .orange : .secondary)
                                     if comment.upvotes > 0 {
                                         Text("\(comment.upvotes)")
-                                            .font(.caption)
+                                            .font(.naarsCaption)
                                             .foregroundColor(.secondary)
                                     }
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("Upvote comment")
+                            .accessibilityHint("Double-tap to upvote")
                         }
                     }
                     .padding(.top, 4)
@@ -280,13 +302,13 @@ struct CommentRow: View {
                         Button(action: {
                             showReplies.toggle()
                         }) {
-                            HStack(spacing: 4) {
+                            HStack(spacing: Constants.Spacing.xs) {
                                 Image(systemName: showReplies ? "chevron.down" : "chevron.right")
-                                    .font(.caption2)
-                                Text("\(replies.count) \(replies.count == 1 ? "reply" : "replies")")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
+                                Text("\(replies.count) \(replies.count == 1 ? "townhall_reply_singular".localized : "townhall_reply_plural".localized)")
+                                    .font(.naarsCaption)
                             }
-                            .foregroundColor(.blue)
+                            .foregroundColor(.naarsPrimary)
                         }
                         .buttonStyle(PlainButtonStyle())
                         .padding(.top, 4)
@@ -303,21 +325,21 @@ struct CommentRow: View {
                                     depth: depth + 1
                                 )
                                 .padding(.leading, indent)
-                                .padding(.top, 8)
+                                .padding(.top, Constants.Spacing.sm)
                             }
                         }
                     }
                 }
             }
         }
-        .padding(.vertical, 8)
-        .alert("Delete Comment", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+        .padding(.vertical, Constants.Spacing.sm)
+        .alert("townhall_delete_comment".localized, isPresented: $showDeleteAlert) {
+            Button("common_cancel".localized, role: .cancel) { }
+            Button("common_delete".localized, role: .destructive) {
                 onDelete(comment.id)
             }
         } message: {
-            Text("Are you sure you want to delete this comment? This action cannot be undone.")
+            Text("townhall_delete_comment_confirmation".localized)
         }
     }
 }
@@ -378,7 +400,7 @@ final class PostCommentsViewModel: ObservableObject {
             try repository.upsertComments(fetched)
         } catch {
             self.error = error.localizedDescription
-            print("🔴 Error loading comments: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error loading comments: \(error.localizedDescription)")
         }
     }
     
@@ -389,7 +411,7 @@ final class PostCommentsViewModel: ObservableObject {
     
     func addComment(content: String) async {
         guard let userId = authService.currentUserId else {
-            error = "You must be logged in to comment"
+            error = "townhall_must_be_logged_in_comment".localized
             return
         }
         
@@ -399,16 +421,17 @@ final class PostCommentsViewModel: ObservableObject {
                 userId: userId,
                 content: content
             )
+            HapticManager.lightImpact()
             await refreshFromNetwork(showLoading: false)
         } catch {
             self.error = error.localizedDescription
-            print("🔴 Error adding comment: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error adding comment: \(error.localizedDescription)")
         }
     }
     
     func addReply(to parentId: UUID, content: String) async {
         guard let userId = authService.currentUserId else {
-            error = "You must be logged in to reply"
+            error = "townhall_must_be_logged_in_reply".localized
             return
         }
         
@@ -418,40 +441,44 @@ final class PostCommentsViewModel: ObservableObject {
                 userId: userId,
                 content: content
             )
+            HapticManager.lightImpact()
             await refreshFromNetwork(showLoading: false)
         } catch {
             self.error = error.localizedDescription
-            print("🔴 Error adding reply: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error adding reply: \(error.localizedDescription)")
         }
     }
     
     func voteComment(commentId: UUID, voteType: VoteType?) async {
         guard let userId = authService.currentUserId else {
-            error = "You must be logged in to vote"
+            error = "townhall_must_be_logged_in_vote".localized
             return
         }
+        
+        HapticManager.selectionChanged()
         
         do {
             try await commentService.voteComment(commentId: commentId, userId: userId, voteType: voteType)
             await refreshVoteCounts(for: [commentId])
         } catch {
             self.error = error.localizedDescription
-            print("🔴 Error voting on comment: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error voting on comment: \(error.localizedDescription)")
         }
     }
     
     func deleteComment(commentId: UUID) async {
         guard let userId = authService.currentUserId else {
-            error = "You must be logged in to delete comments"
+            error = "townhall_must_be_logged_in_delete".localized
             return
         }
         
         do {
             try await commentService.deleteComment(commentId: commentId, userId: userId)
+            HapticManager.success()
             await refreshFromNetwork(showLoading: false)
         } catch {
             self.error = error.localizedDescription
-            print("🔴 Error deleting comment: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error deleting comment: \(error.localizedDescription)")
         }
     }
     
@@ -501,7 +528,7 @@ final class PostCommentsViewModel: ObservableObject {
             try repository.upsertComments(fetched)
         } catch {
             self.error = error.localizedDescription
-            print("🔴 Error refreshing comments: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error refreshing comments: \(error.localizedDescription)")
         }
     }
 

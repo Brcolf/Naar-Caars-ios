@@ -71,18 +71,18 @@ struct TownHallPostCard: View {
                 
                 // Star rating for review posts
                 if let rating = starRating {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Constants.Spacing.xs) {
                         Image(systemName: "star.fill")
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.yellow)
                         Text("\(rating)")
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                     }
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(.systemGray6))
+                    .padding(.vertical, Constants.Spacing.xs)
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(8)
                 }
             }
@@ -97,7 +97,7 @@ struct TownHallPostCard: View {
                         size: 24
                     )
                 } else {
-                    AvatarView(imageUrl: nil, name: "Unknown", size: 24)
+                    AvatarView(imageUrl: nil, name: "townhall_unknown".localized, size: 24)
                 }
                 
                 // Author name (same font as time)
@@ -106,7 +106,7 @@ struct TownHallPostCard: View {
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Unknown User")
+                    Text("townhall_unknown_user".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
@@ -148,7 +148,7 @@ struct TownHallPostCard: View {
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 200)
-                            .background(Color(.systemGray6))
+                            .background(Color.naarsCardBackground)
                             .cornerRadius(8)
                     @unknown default:
                         EmptyView()
@@ -167,11 +167,11 @@ struct TownHallPostCard: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "bubble.left")
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         if post.commentCount > 0 {
                             Text("\(post.commentCount)")
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -186,7 +186,7 @@ struct TownHallPostCard: View {
                         showDeleteAlert = true
                     }) {
                         Image(systemName: "trash")
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.red)
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -202,18 +202,22 @@ struct TownHallPostCard: View {
                             onVote?(post.id, .downvote)
                         }
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: Constants.Spacing.xs) {
                             Image(systemName: "arrow.down")
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(post.userVote == .downvote ? .blue : .secondary)
                             if post.downvotes > 0 {
                                 Text("\(post.downvotes)")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel(post.userVote == .downvote ? "Remove downvote" : "Downvote post")
+                    .accessibilityHint(post.userVote == .downvote ? "Double-tap to remove your downvote" : "Double-tap to downvote this post")
                     
                     // Upvote button
                     Button(action: {
@@ -223,24 +227,28 @@ struct TownHallPostCard: View {
                             onVote?(post.id, .upvote)
                         }
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: Constants.Spacing.xs) {
                             Image(systemName: "arrow.up")
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(post.userVote == .upvote ? .orange : .secondary)
                             if post.upvotes > 0 {
                                 Text("\(post.upvotes)")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel(post.userVote == .upvote ? "Remove upvote" : "Upvote post")
+                    .accessibilityHint(post.userVote == .upvote ? "Double-tap to remove your upvote" : "Double-tap to upvote this post")
                 }
             }
-            .padding(.top, 4)
+            .padding(.top, Constants.Spacing.xs)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         .overlay(
@@ -250,13 +258,13 @@ struct TownHallPostCard: View {
         .sheet(isPresented: $showComments) {
             PostCommentsView(postId: post.id)
         }
-        .alert("Delete Post", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+        .alert("townhall_delete_post".localized, isPresented: $showDeleteAlert) {
+            Button("common_cancel".localized, role: .cancel) { }
+            Button("common_delete".localized, role: .destructive) {
                 onDelete?()
             }
         } message: {
-            Text("Are you sure you want to delete this post? This action cannot be undone.")
+            Text("townhall_delete_post_confirmation".localized)
         }
     }
 }

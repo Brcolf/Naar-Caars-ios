@@ -26,11 +26,11 @@ struct SettingsView: View {
                     Section {
                         Toggle(isOn: $viewModel.biometricsEnabled) {
                             Label {
-                                VStack(alignment: .leading, spacing: 4) {
+                                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                                     Text(String(format: "settings_use_biometric".localized, biometricService.biometricType.displayName))
-                                        .font(.body)
+                                        .font(.naarsBody)
                                     Text("settings_biometric_unlock".localized)
-                                        .font(.caption)
+                                        .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
                             } icon: {
@@ -39,6 +39,7 @@ struct SettingsView: View {
                             }
                         }
                         .onChange(of: viewModel.biometricsEnabled) { _, newValue in
+                            HapticManager.selectionChanged()
                             Task {
                                 await viewModel.handleBiometricsToggle(newValue)
                             }
@@ -46,15 +47,16 @@ struct SettingsView: View {
                         
                         if viewModel.biometricsEnabled {
                             Toggle(isOn: $viewModel.requireBiometricsOnLaunch) {
-                                VStack(alignment: .leading, spacing: 4) {
+                                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                                     Text("settings_require_on_launch".localized)
-                                        .font(.body)
+                                        .font(.naarsBody)
                                     Text("settings_lock_when_returning".localized)
-                                        .font(.caption)
+                                        .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
                             }
                             .onChange(of: viewModel.requireBiometricsOnLaunch) { _, newValue in
+                                HapticManager.selectionChanged()
                                 viewModel.updateRequireOnLaunch(newValue)
                             }
                         }
@@ -63,16 +65,16 @@ struct SettingsView: View {
                     } footer: {
                         if viewModel.biometricsEnabled && viewModel.requireBiometricsOnLaunch {
                             Text("settings_lock_after_background".localized)
-                                .font(.caption)
+                                .font(.naarsCaption)
                         }
                     }
                 } else {
                     Section {
                         HStack {
                             Image(systemName: "exclamationmark.triangle")
-                                .foregroundColor(.orange)
+                                .foregroundColor(.naarsWarning)
                             Text("settings_biometric_not_available".localized)
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     } header: {
@@ -81,258 +83,23 @@ struct SettingsView: View {
                 }
                 
                 // Notification Settings Section
-                Section {
-                    // Push Notification Toggle
-                    Toggle(isOn: $viewModel.pushNotificationsEnabled) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Push Notifications")
-                                    .font(.body)
-                                Text("Receive notifications on your device")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "bell.badge")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.pushNotificationsEnabled) { _, newValue in
-                        Task {
-                            await viewModel.handlePushNotificationToggle(newValue)
-                        }
-                    }
-                    
-                    if viewModel.pushNotificationsEnabled {
-                        Divider()
-                            .padding(.vertical, 4)
-                        
-                        // Notification Type Preferences
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("settings_notification_types".localized)
-                                .font(.headline)
-                                .padding(.top, 8)
-                            
-                            Toggle(isOn: $viewModel.notifyRideUpdates) {
-                                Text("settings_ride_updates".localized)
-                                    .font(.body)
-                            }
-                            .onChange(of: viewModel.notifyRideUpdates) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.rideUpdates, enabled: newValue)
-                                }
-                            }
-                            
-                            Toggle(isOn: $viewModel.notifyMessages) {
-                                Text("settings_messages".localized)
-                                    .font(.body)
-                            }
-                            .onChange(of: viewModel.notifyMessages) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.messages, enabled: newValue)
-                                }
-                            }
-                            
-                            Toggle(isOn: $viewModel.notifyAnnouncements) {
-                                Text("settings_announcements".localized)
-                                    .font(.body)
-                            }
-                            .disabled(true)
-                            
-                            Toggle(isOn: $viewModel.notifyNewRequests) {
-                                Text("settings_new_requests".localized)
-                                    .font(.body)
-                            }
-                            .disabled(true)
-                            
-                            Toggle(isOn: $viewModel.notifyQaActivity) {
-                                Text("settings_qa_activity".localized)
-                                    .font(.body)
-                            }
-                            .onChange(of: viewModel.notifyQaActivity) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.qaActivity, enabled: newValue)
-                                }
-                            }
-                            
-                            Toggle(isOn: $viewModel.notifyReviewReminders) {
-                                Text("settings_review_reminders".localized)
-                                    .font(.body)
-                            }
-                            .onChange(of: viewModel.notifyReviewReminders) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.reviewReminders, enabled: newValue)
-                                }
-                            }
-                            
-                            Toggle(isOn: $viewModel.notifyTownHall) {
-                                Text("Town Hall")
-                                    .font(.body)
-                            }
-                            .onChange(of: viewModel.notifyTownHall) { _, newValue in
-                                Task {
-                                    await viewModel.updateNotificationPreference(.townHall, enabled: newValue)
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Notifications")
-                } footer: {
-                    if viewModel.pushNotificationsEnabled {
-                        Text("Announcements and New Requests are required and cannot be disabled.")
-                            .font(.caption)
-                        Text("Control which types of notifications you receive")
-                            .font(.caption)
-                    }
-                }
+                NotificationSettingsSection(viewModel: viewModel)
                 
                 // Account Linking Section
-                Section {
-                    if !viewModel.isAppleLinked {
-                        Button(action: {
-                            viewModel.showLinkAppleAlert = true
-                        }) {
-                            Label {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("settings_link_apple_id".localized)
-                                        .font(.body)
-                                    Text("Sign in with Apple on this account")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            } icon: {
-                                Image(systemName: "apple.logo")
-                                    .foregroundColor(.accentColor)
-                            }
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("settings_apple_id_linked".localized)
-                                .font(.body)
-                            Spacer()
-                        }
-                    }
-                } header: {
-                    Text("settings_account_linking".localized)
-                } footer: {
-                    if !viewModel.isAppleLinked {
-                        Text("settings_link_apple_id_description".localized)
-                            .font(.caption)
-                    }
-                }
+                AccountSettingsSection(viewModel: viewModel)
                 
                 // Messaging Settings Section
-                Section {
-                    // Send Read Receipts
-                    Toggle(isOn: $viewModel.sendReadReceipts) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Send Read Receipts")
-                                    .font(.body)
-                                Text("Let others know when you've read their messages")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "checkmark.message.fill")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.sendReadReceipts) { _, newValue in
-                        viewModel.updateMessagingPreference(.sendReadReceipts, enabled: newValue)
-                    }
-                    
-                    // Show Typing Indicators
-                    Toggle(isOn: $viewModel.showTypingIndicators) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Typing Indicators")
-                                    .font(.body)
-                                Text("Show when you're typing to others")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "ellipsis.message.fill")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.showTypingIndicators) { _, newValue in
-                        viewModel.updateMessagingPreference(.showTypingIndicators, enabled: newValue)
-                    }
-                    
-                    // Link Previews
-                    Toggle(isOn: $viewModel.showLinkPreviews) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Link Previews")
-                                    .font(.body)
-                                Text("Show preview cards for links in messages")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "link.circle.fill")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.showLinkPreviews) { _, newValue in
-                        viewModel.updateMessagingPreference(.showLinkPreviews, enabled: newValue)
-                    }
-                    
-                    // Auto-download Media
-                    Toggle(isOn: $viewModel.autoDownloadMedia) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Auto-Download Media")
-                                    .font(.body)
-                                Text("Automatically download images and audio")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.autoDownloadMedia) { _, newValue in
-                        viewModel.updateMessagingPreference(.autoDownloadMedia, enabled: newValue)
-                    }
-                    
-                    // Blocked Users
-                    NavigationLink(destination: BlockedUsersView()) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Blocked Users")
-                                    .font(.body)
-                                Text("Manage blocked contacts")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "person.crop.circle.badge.xmark")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                } header: {
-                    Text("Messaging")
-                } footer: {
-                    Text("Control how messages are sent and displayed")
-                        .font(.caption)
-                }
+                MessagingSettingsSection(viewModel: viewModel)
                 
                 // Language Settings Section
                 Section {
                     NavigationLink(destination: LanguageSettingsView()) {
                         Label {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                                 Text("settings_language".localized)
-                                    .font(.body)
-                                Text(LocalizationManager.supportedLanguages.first(where: { $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "System Default")
-                                    .font(.caption)
+                                    .font(.naarsBody)
+                                Text(LocalizationManager.supportedLanguages.first(where: { $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "settings_system_default".localized)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
@@ -343,66 +110,15 @@ struct SettingsView: View {
                 } header: {
                     Text("settings_general".localized)
                 } footer: {
-                    Text("Change the app's display language")
-                        .font(.caption)
+                    Text("settings_change_language_footer".localized)
+                        .font(.naarsCaption)
                 }
                 
                 // Appearance Section
-                Section {
-                    Picker(selection: $viewModel.selectedTheme) {
-                        ForEach(ThemeMode.allCases) { mode in
-                            Label(mode.displayName, systemImage: mode.iconName)
-                                .tag(mode)
-                        }
-                    } label: {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Appearance")
-                                    .font(.body)
-                                Text(viewModel.selectedTheme.displayName)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: viewModel.selectedTheme.iconName)
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.selectedTheme) { _, newValue in
-                        viewModel.updateTheme(newValue)
-                    }
-                } header: {
-                    Text("Display")
-                } footer: {
-                    Text("Choose how the app appears. System follows your device settings.")
-                        .font(.caption)
-                }
+                AppearanceSettingsSection(viewModel: viewModel)
                 
                 // Privacy Section
-                Section {
-                    Toggle(isOn: $viewModel.crashReportingEnabled) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Share Crash Reports")
-                                    .font(.body)
-                                Text("Help improve the app by sharing crash data")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "ant.fill")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
-                    .onChange(of: viewModel.crashReportingEnabled) { _, newValue in
-                        viewModel.updateCrashReporting(newValue)
-                    }
-                } header: {
-                    Text("Privacy")
-                } footer: {
-                    Text("Crash reports help us identify and fix issues. No personal data is shared.")
-                        .font(.caption)
-                }
+                PrivacySettingsSection(viewModel: viewModel)
                 
                 // Debug Section (only in DEBUG builds)
                 #if DEBUG
@@ -434,23 +150,23 @@ struct SettingsView: View {
                     }) {
                         Label {
                             Text("Test Non-Fatal Error")
-                                .foregroundColor(.orange)
+                                .foregroundColor(.naarsWarning)
                         } icon: {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundColor(.orange)
+                                .foregroundColor(.naarsWarning)
                         }
                     }
                 } header: {
                     Text("Debug (Dev Only)")
                 } footer: {
                     Text("These options are only visible in debug builds for testing crash reporting.")
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 #endif
                 
                 // About Section with Supreme Leader
                 Section {
-                    VStack(spacing: 16) {
+                    VStack(spacing: Constants.Spacing.md) {
                         // Supreme Leader Character
                         Image("SupremeLeader")
                             .resizable()
@@ -459,19 +175,19 @@ struct SettingsView: View {
                             .accessibilityLabel("Naar's Cars Supreme Leader")
                         
                         // App Name and Tagline
-                        VStack(spacing: 4) {
+                        VStack(spacing: Constants.Spacing.xs) {
                             Text("app_name".localized)
                                 .font(.naarsTitle3)
                                 .fontWeight(.bold)
                             
-                            Text("Driving People Crazy")
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                                .italic()
+                        Text("settings_tagline".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                            .italic()
                         }
                         
                         // Version
-                        Text("Version \(Bundle.main.appVersion)")
+                        Text(String(format: "settings_version_format".localized, Bundle.main.appVersion))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -481,8 +197,8 @@ struct SettingsView: View {
                     // Community Guidelines Link
                     NavigationLink(destination: CommunityGuidelinesView(showDismissButton: false)) {
                         Label {
-                            Text("Community Guidelines")
-                                .font(.body)
+                            Text("settings_community_guidelines".localized)
+                                .font(.naarsBody)
                         } icon: {
                             Image(systemName: "doc.text")
                                 .foregroundColor(.accentColor)
@@ -490,15 +206,15 @@ struct SettingsView: View {
                     }
                     
                     // Privacy Policy Link
-                    Link(destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc")!) {
+                    Link(destination: URL(string: Constants.URLs.privacyPolicy)!) {
                         Label {
                             HStack {
-                                Text("Privacy Policy")
-                                    .font(.body)
+                                Text("settings_privacy_policy".localized)
+                                    .font(.naarsBody)
                                     .foregroundColor(.primary)
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
@@ -508,15 +224,15 @@ struct SettingsView: View {
                     }
                     
                     // Terms of Service Link
-                    Link(destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Terms-of-Service-2ee7d642e90c8005ae63d8731e3d50f5")!) {
+                    Link(destination: URL(string: Constants.URLs.termsOfService)!) {
                         Label {
                             HStack {
-                                Text("Terms of Service")
-                                    .font(.body)
+                                Text("settings_terms_of_service".localized)
+                                    .font(.naarsBody)
                                     .foregroundColor(.primary)
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
@@ -525,11 +241,11 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("About")
+                    Text("settings_about".localized)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Settings")
+            .navigationTitle("settings_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -546,13 +262,13 @@ struct SettingsView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "common_error".localized)
             }
-            .alert("Link Apple ID", isPresented: $viewModel.showLinkAppleAlert) {
-                Button("Link") {
+            .alert("settings_link_apple_id_alert_title".localized, isPresented: $viewModel.showLinkAppleAlert) {
+                Button("settings_link".localized) {
                     viewModel.startAppleLinking = true
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("common_cancel".localized, role: .cancel) {}
             } message: {
-                Text("You'll be able to sign in with Apple Sign-In after linking your account.")
+                Text("settings_link_apple_id_alert_message".localized)
             }
             .sheet(isPresented: $viewModel.startAppleLinking) {
                 NavigationStack {
@@ -563,11 +279,11 @@ struct SettingsView: View {
                             }
                         }
                     )
-                    .navigationTitle("Link Apple ID")
+                    .navigationTitle("settings_link_apple_id_alert_title".localized)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Cancel") {
+                            Button("common_cancel".localized) {
                                 viewModel.startAppleLinking = false
                             }
                         }
@@ -736,7 +452,7 @@ final class SettingsViewModel: ObservableObject {
                 // when didRegisterForRemoteNotificationsWithDeviceToken is called
             } else {
                 pushNotificationsEnabled = false
-                errorMessage = "Push notification permission was denied. You can enable it in Settings."
+                errorMessage = "settings_push_denied".localized
                 showError = true
             }
         } else {
@@ -748,7 +464,7 @@ final class SettingsViewModel: ObservableObject {
     
     func updateNotificationPreference(_ type: NotificationPreferenceType, enabled: Bool) async {
         guard let userId = AuthService.shared.currentUserId else {
-            errorMessage = "User not logged in"
+            errorMessage = "settings_user_not_logged_in".localized
             showError = true
             return
         }
@@ -794,7 +510,7 @@ final class SettingsViewModel: ObservableObject {
             // Refresh profile cache
             await CacheManager.shared.invalidateProfile(id: userId)
         } catch {
-            errorMessage = "Failed to update notification preference: \(error.localizedDescription)"
+            errorMessage = String(format: "settings_notification_update_failed".localized, error.localizedDescription)
             showError = true
             // Revert toggle
             switch type {
@@ -817,7 +533,7 @@ final class SettingsViewModel: ObservableObject {
             // Refresh settings to update UI
             await loadSettings()
         } catch {
-            errorMessage = "Failed to link Apple ID: \(error.localizedDescription)"
+            errorMessage = String(format: "settings_link_apple_failed".localized, error.localizedDescription)
             showError = true
         }
     }
@@ -859,10 +575,10 @@ struct NotificationDiagnosticsView: View {
             Section("APNs Token") {
                 if let token = token {
                     Text(token)
-                        .font(.footnote)
+                        .font(.naarsFootnote)
                         .textSelection(.enabled)
                 } else {
-                    Text("No token stored yet.")
+                    Text("settings_no_token".localized)
                         .foregroundColor(.secondary)
                 }
             }
@@ -870,10 +586,10 @@ struct NotificationDiagnosticsView: View {
             Section("Last Push Payload") {
                 if let lastPayload = lastPayload {
                     Text(lastPayload)
-                        .font(.footnote)
+                        .font(.naarsFootnote)
                         .textSelection(.enabled)
                 } else {
-                    Text("No payload recorded yet.")
+                    Text("settings_no_payload".localized)
                         .foregroundColor(.secondary)
                 }
             }
@@ -913,18 +629,18 @@ struct BlockedUsersView: View {
     var body: some View {
         Group {
             if isLoading {
-                ProgressView("Loading...")
+                ProgressView("common_loading".localized)
             } else if blockedUsers.isEmpty {
-                VStack(spacing: 16) {
+                VStack(spacing: Constants.Spacing.md) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                         .font(.system(size: 60))
                         .foregroundColor(.secondary)
                     
-                    Text("No Blocked Users")
-                        .font(.headline)
+                    Text("settings_no_blocked_users".localized)
+                        .font(.naarsHeadline)
                     
-                    Text("Users you block will appear here")
-                        .font(.subheadline)
+                    Text("settings_blocked_users_empty".localized)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -943,21 +659,21 @@ struct BlockedUsersView: View {
                             // Name and blocked date
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(blockedUser.blockedName)
-                                    .font(.body)
+                                    .font(.naarsBody)
                                 
-                                Text("Blocked \(blockedUser.blockedAt.timeAgoString)")
-                                    .font(.caption)
+                                Text(String(format: "settings_blocked_date".localized, blockedUser.blockedAt.timeAgoString))
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                             
                             Spacer()
                             
                             // Unblock button
-                            Button("Unblock") {
+                            Button("settings_unblock".localized) {
                                 userToUnblock = blockedUser
                                 showUnblockConfirmation = true
                             }
-                            .font(.subheadline)
+                            .font(.naarsSubheadline)
                             .foregroundColor(.naarsPrimary)
                         }
                         .padding(.vertical, 4)
@@ -966,16 +682,16 @@ struct BlockedUsersView: View {
                 .listStyle(.insetGrouped)
             }
         }
-        .navigationTitle("Blocked Users")
+        .navigationTitle("settings_blocked_users".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadBlockedUsers()
         }
-        .alert("Unblock User", isPresented: $showUnblockConfirmation) {
-            Button("Cancel", role: .cancel) {
+        .alert("settings_unblock_user".localized, isPresented: $showUnblockConfirmation) {
+            Button("common_cancel".localized, role: .cancel) {
                 userToUnblock = nil
             }
-            Button("Unblock") {
+            Button("settings_unblock".localized) {
                 if let user = userToUnblock {
                     Task {
                         await unblockUser(user)
@@ -985,7 +701,7 @@ struct BlockedUsersView: View {
             }
         } message: {
             if let user = userToUnblock {
-                Text("Are you sure you want to unblock \(user.blockedName)? They will be able to message you again.")
+                Text(String(format: "settings_unblock_confirmation".localized, user.blockedName))
             }
         }
     }

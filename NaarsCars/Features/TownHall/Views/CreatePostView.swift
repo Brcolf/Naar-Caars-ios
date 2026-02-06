@@ -13,6 +13,7 @@ struct CreatePostView: View {
     @StateObject private var viewModel = CreatePostViewModel()
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationStack {
@@ -32,10 +33,10 @@ struct CreatePostView: View {
                         Spacer()
                         Text("\(viewModel.characterCount)/500")
                             .font(.naarsCaption)
-                            .foregroundColor(viewModel.characterCount > 500 ? .red : .secondary)
+                            .foregroundColor(viewModel.characterCount > 500 ? .naarsError : .secondary)
                     }
                 } header: {
-                    Text("What's on your mind?")
+                    Text("townhall_whats_on_your_mind".localized)
                 }
                 
                 // Image section
@@ -47,11 +48,11 @@ struct CreatePostView: View {
                             .frame(maxHeight: 300)
                             .cornerRadius(8)
                         
-                        Button("Remove Image", role: .destructive) {
+                        Button("townhall_remove_image".localized, role: .destructive) {
                             viewModel.removeImage()
                         }
                     } header: {
-                        Text("Image")
+                        Text("townhall_image".localized)
                     }
                 } else {
                     Section {
@@ -59,7 +60,7 @@ struct CreatePostView: View {
                             selection: $selectedPhotoItem,
                             matching: .images
                         ) {
-                            Label("Add Photo", systemImage: "photo")
+                            Label("townhall_add_photo".localized, systemImage: "photo")
                         }
                         .onChange(of: selectedPhotoItem) { _, newItem in
                             Task {
@@ -69,7 +70,7 @@ struct CreatePostView: View {
                             }
                         }
                     } header: {
-                        Text("Image (Optional)")
+                        Text("townhall_image_optional".localized)
                     }
                 }
                 
@@ -78,26 +79,30 @@ struct CreatePostView: View {
                     Section {
                         Text(error.localizedDescription)
                             .font(.naarsCaption)
-                            .foregroundColor(.red)
+                            .foregroundColor(.naarsError)
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("New Post")
+            .navigationTitle("townhall_new_post".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Post") {
+                    Button("townhall_post".localized) {
                         Task {
                             do {
                                 _ = try await viewModel.validateAndPost()
-                                dismiss()
+                                showSuccess = true
+                                HapticManager.success()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    dismiss()
+                                }
                             } catch {
                                 // Error is handled by viewModel
                             }
@@ -108,6 +113,7 @@ struct CreatePostView: View {
                 }
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
     
     private func loadImage(from item: PhotosPickerItem) async {

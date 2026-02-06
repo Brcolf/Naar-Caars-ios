@@ -14,8 +14,12 @@ struct SecondaryButton: View {
     var isDisabled: Bool = false
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            HapticManager.lightImpact()
+            action()
+        }) {
             Text(title)
+                .font(.naarsHeadline)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.clear)
@@ -26,6 +30,7 @@ struct SecondaryButton: View {
                 )
                 .cornerRadius(10)
         }
+        .buttonStyle(.scale)
         .disabled(isDisabled)
     }
 }

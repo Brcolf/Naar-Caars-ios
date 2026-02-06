@@ -76,7 +76,7 @@ final class TownHallFeedViewModel: ObservableObject {
             try repository.upsertPosts(fetchedPosts)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error loading posts: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error loading posts: \(error.localizedDescription)")
         }
     }
     
@@ -101,7 +101,7 @@ final class TownHallFeedViewModel: ObservableObject {
             }
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error loading more posts: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error loading more posts: \(error.localizedDescription)")
         }
     }
     
@@ -123,9 +123,10 @@ final class TownHallFeedViewModel: ObservableObject {
             // Remove from local array
             posts.removeAll { $0.id == post.id }
             try? repository.deletePost(id: post.id)
+            HapticManager.success()
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error deleting post: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error deleting post: \(error.localizedDescription)")
         }
     }
     
@@ -139,12 +140,14 @@ final class TownHallFeedViewModel: ObservableObject {
             return
         }
         
+        HapticManager.selectionChanged()
+        
         do {
             try await townHallService.votePost(postId: postId, userId: userId, voteType: voteType)
             await refreshVoteCounts(for: [postId])
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error voting on post: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error voting on post: \(error.localizedDescription)")
         }
     }
 
@@ -191,7 +194,7 @@ final class TownHallFeedViewModel: ObservableObject {
             try repository.upsertPosts(fetchedPosts)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error refreshing posts: \(error.localizedDescription)")
+            AppLogger.error("townhall", "Error refreshing posts: \(error.localizedDescription)")
         }
     }
 

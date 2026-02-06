@@ -21,34 +21,34 @@ struct UnclaimSheet: View {
                     .font(.system(size: 60))
                     .foregroundColor(.naarsWarning)
                 
-                Text("Unclaim This \(requestType.capitalized)?")
+                Text("claiming_unclaim_title".localized(with: requestType.capitalized))
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("You're about to unclaim:")
+                Text("claiming_unclaim_subtitle".localized)
                     .foregroundColor(.secondary)
                 
                 Text(requestTitle)
                     .font(.naarsHeadline)
                     .multilineTextAlignment(.center)
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(8)
                 
-                Text("The request will return to open status and the poster will be notified.")
+                Text("claiming_unclaim_message".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "Yes, Unclaim") {
+                    PrimaryButton(title: "claiming_unclaim_confirm".localized) {
                         onConfirm()
                         dismiss()
                     }
                     .accessibilityIdentifier("unclaim.confirm")
                     
-                    SecondaryButton(title: "Cancel") {
+                    SecondaryButton(title: "common_cancel".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("unclaim.cancel")
@@ -58,7 +58,7 @@ struct UnclaimSheet: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Unclaim Request")
+            .navigationTitle("claiming_unclaim_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
         }
     }

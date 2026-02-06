@@ -19,11 +19,11 @@ struct PhoneRequiredSheet: View {
                     .font(.system(size: 60))
                     .foregroundColor(.naarsPrimary)
                 
-                Text("Phone Number Required")
+                Text("claiming_phone_required_title".localized)
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("To claim requests, you need to add a phone number so the poster can coordinate with you.")
+                Text("claiming_phone_required_message".localized)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)
@@ -32,22 +32,22 @@ struct PhoneRequiredSheet: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundColor(.secondary)
-                    Text("Your number will be visible to other community members.")
+                    Text("claiming_phone_required_privacy".localized)
                 }
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.naarsCardBackground)
                 .cornerRadius(8)
                 .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "Add Phone Number") {
+                    PrimaryButton(title: "claiming_phone_required_add".localized) {
                         dismiss()
                         navigateToProfile = true
                     }
                     
-                    SecondaryButton(title: "Not Now") {
+                    SecondaryButton(title: "common_not_now".localized) {
                         dismiss()
                     }
                 }
@@ -56,7 +56,7 @@ struct PhoneRequiredSheet: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Phone Required")
+            .navigationTitle("claiming_phone_required_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
         }
     }

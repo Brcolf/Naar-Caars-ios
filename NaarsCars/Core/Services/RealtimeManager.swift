@@ -9,6 +9,7 @@ import Foundation
 import UIKit
 import Supabase
 import Realtime
+import OSLog
 internal import Combine
 
 /// Callback types for realtime events
@@ -150,15 +151,15 @@ final class RealtimeManager {
         
         // Subscribe to the channel (using subscribeWithError instead of deprecated subscribe)
         do {
-            print("🔴 [Realtime] Subscribing to channel: \(channelName) table: \(table) filter: \(filter ?? "(none)")")
+            AppLogger.realtime.info("Subscribing to channel: \(channelName) table: \(table) filter: \(filter ?? "(none)")")
             try await channel.subscribeWithError()
-            print("🔴 [Realtime] Channel status after subscribe: \(channel.status)")
+            AppLogger.realtime.debug("Channel status after subscribe: \(String(describing: channel.status))")
             Task {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                print("🔴 [Realtime] Channel status after 2s: \(channel.status)")
+                AppLogger.realtime.debug("Channel status after 2s: \(String(describing: channel.status))")
             }
         } catch {
-            print("🔴 [Realtime] Failed to subscribe to channel \(channelName): \(error)")
+            AppLogger.realtime.error("Failed to subscribe to channel \(channelName): \(error)")
             // Don't throw - log the error but continue
             // The caller can check if subscription was successful by checking activeChannels
             return
@@ -199,7 +200,7 @@ final class RealtimeManager {
         )
         isConnected = true
         
-        print("🔴 [Realtime] Subscribed to channel: \(channelName) (table: \(table))")
+        AppLogger.realtime.info("Subscribed to channel: \(channelName) (table: \(table))")
     }
     
     /// Unsubscribe from a specific channel
@@ -220,7 +221,7 @@ final class RealtimeManager {
             isConnected = false
         }
         
-        print("🔴 [Realtime] Unsubscribed from channel: \(channelName)")
+        AppLogger.realtime.info("Unsubscribed from channel: \(channelName)")
     }
     
     /// Unsubscribe from all channels
@@ -233,7 +234,7 @@ final class RealtimeManager {
         await supabaseClient.removeAllChannels()
         isConnected = false
         
-        print("🔴 [Realtime] Unsubscribed from all channels")
+        AppLogger.realtime.info("Unsubscribed from all channels")
     }
 
     /// Update realtime auth and resubscribe to active channels
@@ -261,7 +262,7 @@ final class RealtimeManager {
             return
         }
         
-        print("🔴 [Realtime] Removing oldest subscription: \(oldest.key) to make room for new subscription")
+        AppLogger.realtime.warning("Removing oldest subscription: \(oldest.key) to make room for new subscription")
         await unsubscribe(channelName: oldest.key)
     }
 
@@ -307,7 +308,7 @@ final class RealtimeManager {
     
     /// Handle app entering background - auto-unsubscribe after 30 seconds
     private func handleDidEnterBackground() async {
-        print("🔴 [Realtime] App entered background, will auto-unsubscribe in 30 seconds")
+        AppLogger.realtime.info("App entered background, will auto-unsubscribe in 30 seconds")
         
         // Cancel any existing timer
         backgroundUnsubscribeTimer?.invalidate()
@@ -316,14 +317,14 @@ final class RealtimeManager {
         backgroundUnsubscribeTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 await self?.unsubscribeAll()
-                print("🔴 [Realtime] Auto-unsubscribed all channels after 30 seconds in background")
+                AppLogger.realtime.info("Auto-unsubscribed all channels after 30 seconds in background")
             }
         }
     }
     
     /// Handle app entering foreground - resubscribe if needed
     private func handleWillEnterForeground() async {
-        print("🔴 [Realtime] App entered foreground")
+        AppLogger.realtime.info("App entered foreground")
         
         // Cancel background unsubscribe timer
         backgroundUnsubscribeTimer?.invalidate()

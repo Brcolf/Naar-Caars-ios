@@ -96,7 +96,7 @@ final class TownHallVoteService {
                 .execute()
         }
         
-        print("✅ [TownHallVoteService] Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
+        AppLogger.info("townhall", "Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
     }
     
     // MARK: - Vote on Comment
@@ -170,7 +170,7 @@ final class TownHallVoteService {
                 .execute()
         }
         
-        print("✅ [TownHallVoteService] Voted on comment: \(commentId), type: \(voteType?.rawValue ?? "removed")")
+        AppLogger.info("townhall", "Voted on comment: \(commentId), type: \(voteType?.rawValue ?? "removed")")
     }
     
     // MARK: - Fetch Vote Counts

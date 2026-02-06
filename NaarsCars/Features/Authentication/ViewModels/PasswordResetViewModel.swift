@@ -22,7 +22,7 @@ final class PasswordResetViewModel: ObservableObject {
     func sendPasswordReset() async {
         // Validate email
         guard !email.isEmpty, email.contains("@") else {
-            error = AppError.invalidInput("Valid email is required")
+            error = AppError.invalidInput("auth_valid_email_required".localized)
             return
         }
         
@@ -33,7 +33,7 @@ final class PasswordResetViewModel: ObservableObject {
         )
         
         guard canProceed else {
-            error = AppError.rateLimitExceeded("Please wait before requesting another reset link")
+            error = AppError.rateLimitExceeded("auth_reset_rate_limited".localized)
             return
         }
         
@@ -44,11 +44,11 @@ final class PasswordResetViewModel: ObservableObject {
         do {
             try await authService.sendPasswordReset(email: email)
             // ALWAYS show same success message regardless of email existence (prevent enumeration)
-            successMessage = "If an account exists with this email, you'll receive a password reset link."
+            successMessage = "auth_reset_success_message".localized
         } catch {
             // Catch and ignore errors - never reveal if email exists
             // Still show success message to prevent enumeration
-            successMessage = "If an account exists with this email, you'll receive a password reset link."
+            successMessage = "auth_reset_success_message".localized
         }
         
         isLoading = false

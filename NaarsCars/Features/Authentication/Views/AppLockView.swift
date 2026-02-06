@@ -21,7 +21,7 @@ struct AppLockView: View {
     var body: some View {
         ZStack {
             // Blurred background
-            Color(.systemBackground)
+            Color.naarsBackgroundSecondary
                 .ignoresSafeArea()
                 .opacity(0.95)
             
@@ -34,13 +34,14 @@ struct AppLockView: View {
                     .scaledToFit()
                     .frame(width: 80, height: 80)
                     .foregroundColor(.accentColor)
+                    .accessibilityLabel("Naar's Cars logo")
                 
-                Text("Naar's Cars")
-                    .font(.title)
+                Text("app_lock_title".localized)
+                    .font(.naarsTitle)
                     .fontWeight(.bold)
                 
-                Text("Unlock to continue")
-                    .font(.subheadline)
+                Text("app_lock_subtitle".localized)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
                 
                 Spacer()
@@ -56,8 +57,8 @@ struct AppLockView: View {
                             .font(.system(size: 48))
                             .foregroundColor(.accentColor)
                         
-                        Text("Unlock with \(biometricService.biometricType.displayName)")
-                            .font(.headline)
+                        Text(String(format: "app_lock_unlock_with".localized, biometricService.biometricType.displayName))
+                            .font(.naarsHeadline)
                     }
                     .foregroundColor(.accentColor)
                     .padding()
@@ -66,10 +67,12 @@ struct AppLockView: View {
                     .cornerRadius(12)
                 }
                 .disabled(isAuthenticating)
+                .accessibilityLabel("Unlock with \(biometricService.biometricType.displayName)")
+                .accessibilityHint("Double-tap to authenticate and unlock the app")
                 .padding(.horizontal)
                 
                 if let onCancel {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         onCancel()
                     }
                     .foregroundColor(.secondary)
@@ -81,21 +84,21 @@ struct AppLockView: View {
             }
             .padding()
         }
-        .alert("Authentication Failed", isPresented: $showError) {
-            Button("Try Again") {
+        .alert("app_lock_auth_failed".localized, isPresented: $showError) {
+            Button("app_lock_try_again".localized) {
                 Task {
                     await authenticate()
                 }
             }
             if let onCancel {
-                Button("Cancel", role: .cancel) {
+                Button("common_cancel".localized, role: .cancel) {
                     onCancel()
                 }
             } else {
-                Button("OK", role: .cancel) {}
+                Button("common_ok".localized, role: .cancel) {}
             }
         } message: {
-            Text(error?.errorDescription ?? "Please try again.")
+            Text(error?.errorDescription ?? "app_lock_please_try_again".localized)
         }
         .task {
             // Automatically prompt on appear
@@ -109,7 +112,7 @@ struct AppLockView: View {
         
         do {
             let success = try await biometricService.authenticate(
-                reason: "Unlock Naar's Cars"
+                reason: "app_lock_biometric_reason".localized
             )
             
             if success {
@@ -138,7 +141,7 @@ struct AppLockView: View {
 
 #Preview {
     AppLockView(onUnlock: {
-        print("Unlocked!")
+        AppLogger.info("auth", "Unlocked")
     }, onCancel: nil)
 }
 

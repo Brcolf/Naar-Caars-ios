@@ -26,8 +26,8 @@ struct FavorsDashboardView: View {
         
         var displayName: String {
             switch self {
-            case .list: return "List"
-            case .map: return "Map"
+            case .list: return "common_list".localized
+            case .map: return "common_map".localized
             }
         }
         
@@ -51,6 +51,8 @@ struct FavorsDashboardView: View {
                 }
                 .pickerStyle(.segmented)
                 .padding()
+                .accessibilityLabel("View mode")
+                .accessibilityHint("Switch between list and map view")
                 
                 // Filter segmented picker (only show for list view)
                 if viewMode == .list {
@@ -62,6 +64,8 @@ struct FavorsDashboardView: View {
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
                     .padding(.bottom, 8)
+                    .accessibilityLabel("Favor filter")
+                    .accessibilityHint("Filter favors by category")
                     .onChange(of: viewModel.filter) { _, newFilter in
                         viewModel.filterFavors(newFilter)
                     }
@@ -77,15 +81,17 @@ struct FavorsDashboardView: View {
                     }
                 }
             }
-            .navigationTitle("Favor Requests")
+            .navigationTitle("favors_dashboard_title".localized)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showCreateFavor = true
                     } label: {
                         Image(systemName: "plus")
-                            .font(.title3)
+                            .font(.naarsTitle3)
                     }
+                    .accessibilityLabel("Create favor")
+                    .accessibilityHint("Double-tap to create a new favor request")
                 }
             }
             .sheet(isPresented: $showCreateFavor) {

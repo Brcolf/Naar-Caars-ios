@@ -26,8 +26,8 @@ struct RidesDashboardView: View {
         
         var displayName: String {
             switch self {
-            case .list: return "List"
-            case .map: return "Map"
+            case .list: return "common_list".localized
+            case .map: return "common_map".localized
             }
         }
         
@@ -51,6 +51,8 @@ struct RidesDashboardView: View {
                 }
                 .pickerStyle(.segmented)
                 .padding()
+                .accessibilityLabel("View mode")
+                .accessibilityHint("Switch between list and map view")
                 
                 // Filter segmented picker (only show for list view)
                 if viewMode == .list {
@@ -62,6 +64,8 @@ struct RidesDashboardView: View {
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
                     .padding(.bottom, 8)
+                    .accessibilityLabel("Ride filter")
+                    .accessibilityHint("Filter rides by category")
                     .onChange(of: viewModel.filter) { _, newFilter in
                         viewModel.filterRides(newFilter)
                     }
@@ -77,15 +81,17 @@ struct RidesDashboardView: View {
                     }
                 }
             }
-            .navigationTitle("Ride Requests")
+            .navigationTitle("rides_dashboard_title".localized)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showCreateRide = true
                     } label: {
                         Image(systemName: "plus")
-                            .font(.title3)
+                            .font(.naarsTitle3)
                     }
+                    .accessibilityLabel("Create ride")
+                    .accessibilityHint("Double-tap to create a new ride request")
                 }
             }
             .sheet(isPresented: $showCreateRide) {

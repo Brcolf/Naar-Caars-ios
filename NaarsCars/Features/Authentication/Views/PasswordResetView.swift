@@ -18,24 +18,24 @@ struct PasswordResetView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     // Title
-                    Text("Reset Password")
+                    Text("password_reset_title".localized)
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .padding(.top, 40)
                     
-                    Text("Enter your email address and we'll send you a password reset link.")
-                        .font(.subheadline)
+                    Text("password_reset_subtitle".localized)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                     
                     // Email field
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Email")
-                            .font(.caption)
+                        Text("password_reset_email_label".localized)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         
-                        TextField("Enter your email", text: $viewModel.email)
+                        TextField("password_reset_email_placeholder".localized, text: $viewModel.email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
                             .autocapitalization(.none)
@@ -46,15 +46,15 @@ struct PasswordResetView: View {
                     // Error message
                     if let error = viewModel.error {
                         Text(error.localizedDescription)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                            .font(.naarsCaption)
+                            .foregroundColor(.naarsError)
                             .padding(.horizontal)
                     }
                     
                     // Success message
                     if showSuccess {
-                        Text("If an account exists with this email, you'll receive a password reset link.")
-                            .font(.caption)
+                        Text("password_reset_success_message".localized)
+                            .font(.naarsCaption)
                             .foregroundColor(.green)
                             .padding(.horizontal)
                     }
@@ -65,9 +65,10 @@ struct PasswordResetView: View {
                             await viewModel.sendPasswordReset()
                             if viewModel.successMessage != nil {
                                 showSuccess = true
-                                // Auto-dismiss after 3 seconds
-                                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                                dismiss()
+                                HapticManager.success()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    dismiss()
+                                }
                             }
                         }
                     }) {
@@ -75,7 +76,7 @@ struct PasswordResetView: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Text("Send Reset Link")
+                            Text("password_reset_send_button".localized)
                                 .frame(maxWidth: .infinity)
                         }
                     }
@@ -85,16 +86,17 @@ struct PasswordResetView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Reset Password")
+            .navigationTitle("password_reset_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                 }
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
 }
 

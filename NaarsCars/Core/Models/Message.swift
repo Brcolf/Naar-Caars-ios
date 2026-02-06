@@ -48,7 +48,7 @@ struct Message: Codable, Identifiable, Sendable {
     let id: UUID
     let conversationId: UUID
     let fromId: UUID
-    let text: String
+    var text: String
     let imageUrl: String?
     var readBy: [UUID] // UUID array from PostgreSQL
     let createdAt: Date
@@ -62,6 +62,14 @@ struct Message: Codable, Identifiable, Sendable {
     
     /// ID of the message this is replying to
     let replyToId: UUID?
+    
+    // MARK: - Edit / Unsend Support
+    
+    /// Timestamp when the message was last edited (nil if never edited)
+    var editedAt: Date?
+    
+    /// Timestamp when the message was unsent (nil if not unsent)
+    var deletedAt: Date?
     
     // MARK: - Audio Message Fields
     
@@ -93,6 +101,23 @@ struct Message: Codable, Identifiable, Sendable {
     /// The message this is replying to (populated when fetched)
     var replyToMessage: ReplyContext?
     
+    // MARK: - Computed Properties (Edit / Unsend)
+    
+    /// Whether this message has been edited
+    var isEdited: Bool {
+        editedAt != nil
+    }
+    
+    /// Whether this message has been unsent
+    var isUnsent: Bool {
+        deletedAt != nil
+    }
+    
+    /// Whether this message can still be unsent (within 15 minutes of sending)
+    var canUnsend: Bool {
+        abs(createdAt.timeIntervalSinceNow) < 15 * 60
+    }
+    
     // MARK: - Computed Properties
     
     /// Check if this is an audio message
@@ -117,6 +142,8 @@ struct Message: Codable, Identifiable, Sendable {
         case createdAt = "created_at"
         case messageType = "message_type"
         case replyToId = "reply_to_id"
+        case editedAt = "edited_at"
+        case deletedAt = "deleted_at"
         case audioUrl = "audio_url"
         case audioDuration = "audio_duration"
         case latitude
@@ -138,6 +165,8 @@ struct Message: Codable, Identifiable, Sendable {
         createdAt: Date = Date(),
         messageType: MessageType? = .text,
         replyToId: UUID? = nil,
+        editedAt: Date? = nil,
+        deletedAt: Date? = nil,
         audioUrl: String? = nil,
         audioDuration: Double? = nil,
         latitude: Double? = nil,
@@ -156,6 +185,8 @@ struct Message: Codable, Identifiable, Sendable {
         self.createdAt = createdAt
         self.messageType = messageType
         self.replyToId = replyToId
+        self.editedAt = editedAt
+        self.deletedAt = deletedAt
         self.audioUrl = audioUrl
         self.audioDuration = audioDuration
         self.latitude = latitude
@@ -207,6 +238,8 @@ extension Message: Equatable {
                lhs.createdAt == rhs.createdAt &&
                lhs.messageType == rhs.messageType &&
                lhs.replyToId == rhs.replyToId &&
+               lhs.editedAt == rhs.editedAt &&
+               lhs.deletedAt == rhs.deletedAt &&
                lhs.audioUrl == rhs.audioUrl &&
                lhs.audioDuration == rhs.audioDuration &&
                lhs.latitude == rhs.latitude &&

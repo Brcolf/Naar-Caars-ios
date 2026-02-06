@@ -56,7 +56,7 @@ final class TownHallService {
             posts = await enrichPostsWithVotesAndComments(posts, userId: nil)
         }
         
-        print("✅ [TownHallService] Fetched \(posts.count) posts from network.")
+        AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
         return posts
     }
     
@@ -118,7 +118,7 @@ final class TownHallService {
             post.author = author
         }
         
-        print("✅ [TownHallService] Created post: \(post.id)")
+        AppLogger.info("townhall", "Created post: \(post.id)")
         return post
     }
     
@@ -158,7 +158,7 @@ final class TownHallService {
             post.author = author
         }
         
-        print("✅ [TownHallService] Created system post: \(post.id)")
+        AppLogger.info("townhall", "Created system post: \(post.id)")
         return post
     }
     
@@ -196,7 +196,7 @@ final class TownHallService {
             .eq("id", value: postId.uuidString)
             .execute()
         
-        print("✅ [TownHallService] Deleted post: \(postId)")
+        AppLogger.info("townhall", "Deleted post: \(postId)")
     }
     
     // MARK: - Vote Operations
@@ -281,7 +281,7 @@ final class TownHallService {
                 .execute()
         }
         
-        print("✅ [TownHallService] Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
+        AppLogger.info("townhall", "Voted on post: \(postId), type: \(voteType?.rawValue ?? "removed")")
     }
     
     // MARK: - Helper Methods
@@ -474,29 +474,7 @@ final class TownHallService {
     
     /// Create date decoder for town hall posts
     private func createDateDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        DateDecoderFactory.makeMessagingDecoder()
     }
 }
 

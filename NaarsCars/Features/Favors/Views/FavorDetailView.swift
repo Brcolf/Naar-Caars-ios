@@ -28,15 +28,17 @@ struct FavorDetailView: View {
     @State private var highlightedAnchor: RequestDetailAnchor?
     @State private var highlightTask: Task<Void, Never>?
     @State private var clearedAnchors: Set<RequestDetailAnchor> = []
+    @State private var toastMessage: String? = nil
+    @State private var showSuccess = false
     
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: Constants.Spacing.lg) {
                     if let favor = viewModel.favor {
                         favorDetails(favor: favor)
                     } else if viewModel.isLoading {
-                        LoadingView(message: "Loading favor details...")
+                        LoadingView(message: "favor_detail_loading".localized)
                     } else if let error = viewModel.error {
                         ErrorView(
                             error: error,
@@ -55,7 +57,7 @@ struct FavorDetailView: View {
                 }
             }
         }
-        .navigationTitle("Favor Details")
+        .navigationTitle("favor_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await viewModel.loadFavor(id: favorId) }
         .task { await viewModel.loadFavor(id: favorId) }
@@ -66,20 +68,20 @@ struct FavorDetailView: View {
                 }
             }
         }
-        .alert("Delete Favor", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+        .alert("favor_detail_delete_title".localized, isPresented: $showDeleteAlert) {
+            Button("favor_detail_cancel".localized, role: .cancel) {}
+            Button("favor_detail_delete".localized, role: .destructive) {
                 Task {
                     do {
                         try await viewModel.deleteFavor()
-                        dismiss()
+                        showSuccess = true
                     } catch {
                         // Error handling
                     }
                 }
             }
         } message: {
-            Text("Are you sure you want to delete this favor request? This action cannot be undone.")
+            Text("favor_detail_delete_confirmation".localized)
         }
         .sheet(isPresented: $showClaimSheet) {
             if let favor = viewModel.favor {
@@ -121,7 +123,7 @@ struct FavorDetailView: View {
         }
         .sheet(isPresented: $showReviewSheet) {
             if let favor = viewModel.favor, let claimerId = favor.claimedBy {
-                let claimerName = favor.claimer?.name ?? "Someone"
+                let claimerName = favor.claimer?.name ?? "favor_edit_someone".localized
                 LeaveReviewView(
                     requestType: "favor",
                     requestId: favor.id,
@@ -174,6 +176,13 @@ struct FavorDetailView: View {
                 )
             }
         }
+        .toast(message: $toastMessage)
+        .successCheckmark(isShowing: $showSuccess)
+        .onChange(of: showSuccess) { _, newValue in
+            if !newValue {
+                dismiss()
+            }
+        }
         .trackScreen("FavorDetail")
     }
     
@@ -181,12 +190,12 @@ struct FavorDetailView: View {
     private func favorDetails(favor: Favor) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             // Header Section: Status and Poster
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: Constants.Spacing.md) {
                 if let poster = favor.poster {
                     UserAvatarLink(profile: poster, size: 60)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                     Text(favor.status.displayText)
                         .font(.naarsHeadline)
                         .foregroundColor(.white)
@@ -198,7 +207,7 @@ struct FavorDetailView: View {
                         .requestHighlight(highlightedAnchor == .statusBadge)
                     
                     if let poster = favor.poster {
-                        Text("Requested by \(poster.name)")
+                        Text("favor_detail_requested_by".localized(with: poster.name))
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
@@ -227,13 +236,13 @@ struct FavorDetailView: View {
             .cardStyle()
             
             // Location & Time Card
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Constants.Spacing.md) {
                 HStack {
-                    Label("Details", systemImage: "info.circle.fill")
+                    Label("favor_detail_details".localized, systemImage: "info.circle.fill")
                         .font(.naarsTitle3)
                         .foregroundColor(.favorAccent)
                     Spacer()
-                    Text("Hold location to copy")
+                    Text("favor_detail_hold_to_copy".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
@@ -242,7 +251,7 @@ struct FavorDetailView: View {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "mappin.circle.fill")
                             .foregroundColor(.favorAccent)
-                            .font(.title3)
+                            .font(.naarsTitle3)
                         AddressText(favor.location)
                     }
                     .contentShape(Rectangle())
@@ -252,12 +261,12 @@ struct FavorDetailView: View {
                     
                     Divider()
                     
-                    HStack(spacing: 16) {
+                    HStack(spacing: Constants.Spacing.md) {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(favor.date.dateString)
                                     .font(.naarsHeadline)
-                                Text("Date")
+                                Text("favor_detail_date".localized)
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
@@ -272,7 +281,7 @@ struct FavorDetailView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(time)
                                         .font(.naarsHeadline)
-                                    Text("Time")
+                                    Text("favor_detail_time".localized)
                                         .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
@@ -288,7 +297,7 @@ struct FavorDetailView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(favor.duration.displayText)
                                 .font(.naarsHeadline)
-                            Text("Estimated Duration")
+                            Text("favor_detail_estimated_duration".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
@@ -303,11 +312,11 @@ struct FavorDetailView: View {
             // Participants Section
             if let participants = favor.participants, !participants.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Participants")
+                    Text("favor_detail_participants".localized)
                         .font(.naarsTitle3)
                     
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
+                        HStack(spacing: Constants.Spacing.md) {
                             ForEach(participants) { participant in
                                 VStack(spacing: 6) {
                                     UserAvatarLink(profile: participant, size: 50)
@@ -327,13 +336,13 @@ struct FavorDetailView: View {
             // Claimer Section
             if let claimer = favor.claimer {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Claimed by")
+                    Text("favor_detail_claimed_by".localized)
                         .font(.naarsTitle3)
                     
                     HStack(spacing: 12) {
                         UserAvatarLink(profile: claimer, size: 50)
                         
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                             Text(claimer.name)
                                 .font(.naarsHeadline)
                         }
@@ -348,10 +357,10 @@ struct FavorDetailView: View {
             
             // Requirements & Gift
             if (favor.requirements != nil && !favor.requirements!.isEmpty) || (favor.gift != nil && !favor.gift!.isEmpty) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.md) {
                     if let requirements = favor.requirements, !requirements.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Requirements", systemImage: "list.bullet.clipboard")
+                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                            Label("favor_detail_requirements".localized, systemImage: "list.bullet.clipboard")
                                 .font(.naarsHeadline)
                             Text(requirements)
                                 .font(.naarsBody)
@@ -364,8 +373,8 @@ struct FavorDetailView: View {
                     }
                     
                     if let gift = favor.gift, !gift.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Gift/Compensation", systemImage: "gift.fill")
+                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                            Label("favor_detail_gift".localized, systemImage: "gift.fill")
                                 .font(.naarsHeadline)
                                 .foregroundColor(.naarsPrimary)
                             Text(gift)
@@ -382,7 +391,11 @@ struct FavorDetailView: View {
                 requestId: favor.id,
                 requestType: "favor",
                 onPostQuestion: { question in
+                    let countBefore = viewModel.qaItems.count
                     await viewModel.postQuestion(question)
+                    if viewModel.qaItems.count > countBefore {
+                        toastMessage = "toast_question_posted".localized
+                    }
                 },
                 isClaimed: favor.claimedBy != nil,
                 onMessageParticipants: favor.claimedBy == nil ? nil : {
@@ -404,10 +417,10 @@ struct FavorDetailView: View {
             }
             
             if viewModel.canEdit {
-                HStack(spacing: 16) {
-                    SecondaryButton(title: "Edit") { showEditFavor = true }
+                HStack(spacing: Constants.Spacing.md) {
+                    SecondaryButton(title: "favor_detail_edit".localized) { showEditFavor = true }
                         .accessibilityIdentifier("favor.edit")
-                    SecondaryButton(title: "Delete") { showDeleteAlert = true }
+                    SecondaryButton(title: "favor_detail_delete".localized) { showDeleteAlert = true }
                         .accessibilityIdentifier("favor.delete")
                 }
             }
@@ -437,7 +450,7 @@ struct FavorDetailView: View {
         }
         
         navigationCoordinator.requestNavigationTarget = nil
-        print("📍 [FavorDetailView] Deep link to \(target.anchor.rawValue)")
+        AppLogger.info("favors", "Deep link to \(target.anchor.rawValue)")
     }
 
     private func handlePendingRequestNavigation(proxy: ScrollViewProxy) {
@@ -470,7 +483,7 @@ struct FavorDetailView: View {
             // to avoid redundant RPC calls that return 0
             let hasUnread = await viewModel.hasUnreadNotifications(of: types)
             guard hasUnread else {
-                print("ℹ️ [FavorDetailView] No unread \(anchor.rawValue) notifications to clear")
+                AppLogger.info("favors", "No unread \(anchor.rawValue) notifications to clear")
                 return
             }
 
@@ -492,13 +505,13 @@ struct FavorDetailView: View {
         } label: {
             HStack {
                 Image(systemName: "person.badge.plus")
-                Text("Add Participants")
+                Text("favor_detail_add_participants".localized)
                 Spacer()
                 Image(systemName: "chevron.right")
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color(.systemGray6))
+            .background(Color.naarsCardBackground)
             .foregroundColor(.primary)
             .cornerRadius(12)
         }
@@ -526,7 +539,7 @@ struct FavorDetailView: View {
             }
             participantIds.insert(currentUserId)
             
-            let conversation = try await MessageService.shared.createConversationWithUsers(
+            let conversation = try await ConversationService.shared.createConversationWithUsers(
                 userIds: Array(participantIds),
                 createdBy: currentUserId,
                 title: nil
@@ -534,7 +547,7 @@ struct FavorDetailView: View {
             
             navigateToConversation = conversation.id
         } catch {
-            print("🔴 Error creating conversation: \(error.localizedDescription)")
+            AppLogger.error("favors", "Error creating conversation: \(error.localizedDescription)")
         }
     }
     
@@ -550,17 +563,17 @@ struct FavorDetailView: View {
             )
             await viewModel.loadFavor(id: favorId)
         } catch {
-            print("🔴 Error adding participants to favor: \(error.localizedDescription)")
+            AppLogger.error("favors", "Error adding participants to favor: \(error.localizedDescription)")
         }
     }
     
     private func openInExternalMaps(favor: Favor) {
-        print("🗺️ [FavorDetailView] Opening external maps for favor: \(favor.id)")
+        AppLogger.info("favors", "Opening external maps for favor: \(favor.id)")
         let location = favor.location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         
         // Google Maps URL Scheme
         let googleMapsUrl = URL(string: "comgooglemaps://?q=\(location)&directionsmode=driving")
-        let googleMapsWebUrl = URL(string: "https://www.google.com/maps/search/?api=1&query=\(location)")
+        let googleMapsWebUrl = URL(string: "\(Constants.URLs.googleMapsSearch)?api=1&query=\(location)")
         
         // Apple Maps via MKMapItem
         let appleMapsOpen = {
@@ -577,9 +590,9 @@ struct FavorDetailView: View {
                     
                     let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
                     mapItem.openInMaps(launchOptions: launchOptions)
-                    print("🗺️ [FavorDetailView] Opened Apple Maps via MKMapItem")
+                    AppLogger.info("favors", "Opened Apple Maps via MKMapItem")
                 } catch {
-                    print("🗺️ [FavorDetailView] Apple Maps failed: \(error.localizedDescription)")
+                    AppLogger.error("favors", "Apple Maps failed: \(error.localizedDescription)")
                     // Fallback to simple URL
                     if let url = URL(string: "http://maps.apple.com/?daddr=\(location)") {
                         await UIApplication.shared.open(url)
@@ -589,7 +602,7 @@ struct FavorDetailView: View {
         }
         
         if let url = googleMapsUrl, UIApplication.shared.canOpenURL(url) {
-            print("🗺️ [FavorDetailView] Opening Google Maps App")
+            AppLogger.info("favors", "Opening Google Maps App")
             Task { @MainActor in
                 await UIApplication.shared.open(url)
             }
@@ -598,7 +611,7 @@ struct FavorDetailView: View {
                 await UIApplication.shared.open(url)
             }
         } else {
-            print("🗺️ [FavorDetailView] Attempting Apple Maps")
+            AppLogger.info("favors", "Attempting Apple Maps")
             appleMapsOpen()
         }
     }

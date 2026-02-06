@@ -103,7 +103,7 @@ final class AdminService {
         
         let profiles = try decoder.decode([Profile].self, from: response.data)
         
-        print("✅ [AdminService] Fetched \(profiles.count) pending users")
+        AppLogger.info("admin", "Fetched \(profiles.count) pending users")
         return profiles
     }
     
@@ -125,7 +125,7 @@ final class AdminService {
         
         let profiles = try decoder.decode([Profile].self, from: response.data)
         
-        print("✅ [AdminService] Fetched \(profiles.count) approved members")
+        AppLogger.info("admin", "Fetched \(profiles.count) approved members")
         return profiles
     }
     
@@ -184,11 +184,11 @@ final class AdminService {
             activeMembers = activeUserIds.count
         } catch {
             // If query fails, use totalMembers as approximation
-            print("⚠️ [AdminService] Could not fetch active members count: \(error.localizedDescription)")
+            AppLogger.warning("admin", "Could not fetch active members count: \(error.localizedDescription)")
             activeMembers = totalMembers
         }
         
-        print("✅ [AdminService] Stats: \(pendingCount) pending, \(totalMembers) members, \(activeMembers) active")
+        AppLogger.info("admin", "Stats: \(pendingCount) pending, \(totalMembers) members, \(activeMembers) active")
         return (pendingCount, totalMembers, activeMembers)
     }
     
@@ -215,8 +215,8 @@ final class AdminService {
             "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
         ]
         
-        print("🔍 [AdminService] Attempting to approve user: \(userId)")
-        print("🔍 [AdminService] Update payload: approved=true")
+        AppLogger.info("admin", "Attempting to approve user: \(userId)")
+        AppLogger.info("admin", "Update payload: approved=true")
         
         let response = try await supabase
             .from("profiles")
@@ -224,7 +224,7 @@ final class AdminService {
             .eq("id", value: userId.uuidString)
             .execute()
         
-        print("✅ [AdminService] Update response received for user: \(userId)")
+        AppLogger.info("admin", "Update response received for user: \(userId)")
         
         // Verify the update actually worked by fetching the profile
         let verifyProfile: Profile = try await supabase
@@ -236,10 +236,10 @@ final class AdminService {
             .value
         
         if verifyProfile.approved {
-            print("✅ [AdminService] User \(userId) successfully approved (verified)")
+            AppLogger.info("admin", "User \(userId) successfully approved (verified)")
             Log.security("Admin approved user: \(userId)")
         } else {
-            print("🔴 [AdminService] ERROR: User \(userId) update appeared to succeed but approved is still false!")
+            AppLogger.error("admin", "User \(userId) update appeared to succeed but approved is still false")
             throw AppError.unknown("Approval update failed - user is still not approved")
         }
         
@@ -252,7 +252,7 @@ final class AdminService {
                     name: profile.name
                 )
             } catch {
-                print("⚠️ [AdminService] Failed to send welcome email: \(error.localizedDescription)")
+                AppLogger.warning("admin", "Failed to send welcome email: \(error.localizedDescription)")
                 // Don't throw - email failure shouldn't block approval
             }
         }
@@ -271,7 +271,7 @@ final class AdminService {
         // The direct delete doesn't work due to missing RLS delete policy
         let params: [String: String] = ["p_user_id": userId.uuidString]
         
-        print("🔍 [AdminService] Calling admin_reject_pending_user for: \(userId)")
+        AppLogger.info("admin", "Calling admin_reject_pending_user for: \(userId)")
         
         struct RejectResponse: Decodable {
             let success: Bool
@@ -294,10 +294,10 @@ final class AdminService {
         
         if response.success {
             Log.security("Admin rejected user: \(userId)")
-            print("✅ [AdminService] Successfully rejected user: \(userId), rows deleted: \(response.rowsDeleted ?? 0)")
+            AppLogger.info("admin", "Successfully rejected user: \(userId), rows deleted: \(response.rowsDeleted ?? 0)")
         } else {
             let errorMsg = response.error ?? "Unknown error"
-            print("🔴 [AdminService] Failed to reject user \(userId): \(errorMsg)")
+            AppLogger.error("admin", "Failed to reject user \(userId): \(errorMsg)")
             throw AppError.processingError("Failed to reject user: \(errorMsg)")
         }
     }
@@ -328,7 +328,7 @@ final class AdminService {
         
         Log.security("Admin set admin status for \(userId): \(isAdmin)")
         
-        print("✅ [AdminService] Set admin status for \(userId): \(isAdmin)")
+        AppLogger.info("admin", "Set admin status for \(userId): \(isAdmin)")
     }
     
     // MARK: - Broadcast
@@ -364,7 +364,7 @@ final class AdminService {
         
         Log.security("Admin sent broadcast to \(count) users")
         
-        print("✅ [AdminService] Sent broadcast to \(count) users")
+        AppLogger.info("admin", "Sent broadcast to \(count) users")
         
         // Note: Push notifications would be triggered via Edge Function
         // This would be implemented separately via Supabase Edge Functions

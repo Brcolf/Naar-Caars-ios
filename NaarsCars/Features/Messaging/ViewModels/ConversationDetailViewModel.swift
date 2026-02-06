@@ -20,6 +20,46 @@ final class ConversationDetailViewModel: ObservableObject {
     @Published var error: AppError?
     @Published var messageText: String = ""
     
+    /// IDs of messages that failed to send (kept in the list for retry)
+    @Published var failedMessageIds: Set<UUID> = []
+    // MARK: - Extracted Managers
+    
+    /// Manages in-conversation search state and logic
+    let searchManager: ConversationSearchManager
+    
+    /// Manages typing indicator polling and status updates
+    let typingManager: TypingIndicatorManager
+    
+    /// Convenience accessor for typing users (from manager)
+    var typingUsers: [TypingUser] { typingManager.typingUsers }
+    
+    /// Convenience accessor for search text (from manager)
+    var searchText: String {
+        get { searchManager.searchText }
+        set { searchManager.searchText = newValue }
+    }
+    
+    /// Convenience accessor for search results (from manager)
+    var searchResults: [Message] { searchManager.searchResults }
+    
+    /// Convenience accessor for current search index (from manager)
+    var currentSearchIndex: Int {
+        get { searchManager.currentSearchIndex }
+        set { searchManager.currentSearchIndex = newValue }
+    }
+    
+    /// Convenience accessor for search active state (from manager)
+    var isSearchActive: Bool {
+        get { searchManager.isSearchActive }
+        set { searchManager.isSearchActive = newValue }
+    }
+    
+    /// Convenience accessor for searching state (from manager)
+    var isSearchingMessages: Bool { searchManager.isSearchingMessages }
+    
+    /// The message currently being edited (nil when not editing)
+    @Published var editingMessage: Message? = nil
+    
     /// Count of unread messages (messages not from current user that haven't been read)
     var unreadCount: Int {
         guard let userId = authService.currentUserId else { return 0 }
@@ -30,6 +70,8 @@ final class ConversationDetailViewModel: ObservableObject {
     
     let conversationId: UUID
     private let messageService = MessageService.shared
+    private let mediaService = MessageMediaService.shared
+    private let reactionService = MessageReactionService.shared
     private let authService = AuthService.shared
     private let repository = MessagingRepository.shared
     private let throttler = Throttler.shared
@@ -37,14 +79,38 @@ final class ConversationDetailViewModel: ObservableObject {
     private let pageSize = 25
     private var oldestMessageId: UUID?
     private var conversationUpdatedObserver: NSObjectProtocol?
+    
+    /// Maps a local optimistic message UUID to the parameters needed for retry
+    private var pendingMessageParams: [UUID: PendingMessageParams] = [:]
+    
+    /// Maps a local optimistic UUID so we can match it when the server response arrives
+    private var optimisticIdMap: [UUID: OptimisticMessageInfo] = [:]
 #if DEBUG
     private var lastReplyDebugSnapshot: (total: Int, replyIds: Int, replyContexts: Int) = (-1, -1, -1)
 #endif
     
+    /// Parameters saved for retrying a failed message send
+    struct PendingMessageParams {
+        let text: String
+        let imageUrl: String?
+        let replyToId: UUID?
+    }
+    
+    /// Info tracked for an optimistic message so we can match server responses
+    struct OptimisticMessageInfo {
+        let localId: UUID
+        let text: String
+        let fromId: UUID
+        let timestamp: Date
+    }
+    
     init(conversationId: UUID) {
         self.conversationId = conversationId
+        self.searchManager = ConversationSearchManager(conversationId: conversationId)
+        self.typingManager = TypingIndicatorManager(conversationId: conversationId)
         setupLocalObservation()
         setupConversationUpdatedObserver()
+        setupManagerObservation()
     }
     
     deinit {
@@ -53,14 +119,35 @@ final class ConversationDetailViewModel: ObservableObject {
         }
     }
     
+    /// Forward objectWillChange from child managers so the view updates
+    private func setupManagerObservation() {
+        searchManager.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        typingManager.objectWillChange
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+    }
+    
     private func setupLocalObservation() {
         repository.getMessagesPublisher(for: conversationId)
             .sink { [weak self] updatedMessages in
                 guard let self = self, self.repository.isConfigured else { return }
-                self.messages = updatedMessages
+                // Preserve any failed optimistic messages that only exist in-memory
+                if self.failedMessageIds.isEmpty {
+                    self.messages = updatedMessages
+                } else {
+                    let failedMessages = self.messages.filter { self.failedMessageIds.contains($0.id) }
+                    var merged = updatedMessages
+                    for failedMsg in failedMessages where !merged.contains(where: { $0.id == failedMsg.id }) {
+                        merged.append(failedMsg)
+                    }
+                    merged.sort { $0.createdAt < $1.createdAt }
+                    self.messages = merged
+                }
                 self.scheduleReplyContextHydration()
 #if DEBUG
-                self.logReplyDebugSnapshot(source: "publisher(local)", messages: updatedMessages)
+                self.logReplyDebugSnapshot(source: "publisher(local)", messages: self.messages)
 #endif
             }
             .store(in: &cancellables)
@@ -74,15 +161,26 @@ final class ConversationDetailViewModel: ObservableObject {
         
         do {
             let localMessages = try repository.getMessages(for: conversationId)
-            self.messages = localMessages
+            // Preserve failed optimistic messages when reloading
+            if failedMessageIds.isEmpty {
+                self.messages = localMessages
+            } else {
+                let failedMessages = self.messages.filter { failedMessageIds.contains($0.id) }
+                var merged = localMessages
+                for failedMsg in failedMessages where !merged.contains(where: { $0.id == failedMsg.id }) {
+                    merged.append(failedMsg)
+                }
+                merged.sort { $0.createdAt < $1.createdAt }
+                self.messages = merged
+            }
             oldestMessageId = localMessages.first?.id
             hasMoreMessages = localMessages.count == pageSize
             scheduleReplyContextHydration()
 #if DEBUG
-            logReplyDebugSnapshot(source: "loadMessages(local)", messages: localMessages)
+            logReplyDebugSnapshot(source: "loadMessages(local)", messages: self.messages)
 #endif
         } catch {
-            print("⚠️ [ConversationDetailVM] Error loading local messages: \(error.localizedDescription)")
+            AppLogger.warning("messaging", "[ConversationDetailVM] Error loading local messages: \(error.localizedDescription)")
         }
         
         // Update last_seen and mark as read when loading
@@ -120,7 +218,7 @@ final class ConversationDetailViewModel: ObservableObject {
             hasMoreMessages = fetched.count == pageSize
             scheduleReplyContextHydration()
         } catch {
-            print("🔴 Error loading more messages: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error loading more messages: \(error.localizedDescription)")
             // Don't set error here - just log it
         }
         
@@ -136,27 +234,29 @@ final class ConversationDetailViewModel: ObservableObject {
         
         let text = effectiveText.trimmingCharacters(in: .whitespacesAndNewlines)
         messageText = "" // Clear input
+        HapticManager.lightImpact()
         
         // Upload image first if provided
         var imageUrl: String? = nil
-        if let image = image, let imageData = image.jpegData(compressionQuality: 1.0) {
+        if let image = image, let imageData = image.resizedForUpload(maxDimension: 1920).jpegData(compressionQuality: 0.7) {
             do {
-                imageUrl = try await messageService.uploadMessageImage(
+                imageUrl = try await mediaService.uploadMessageImage(
                     imageData: imageData,
                     conversationId: conversationId,
                     fromId: fromId
                 )
             } catch {
                 self.error = AppError.processingError("Failed to upload image: \(error.localizedDescription)")
-                print("🔴 Error uploading image: \(error.localizedDescription)")
+                AppLogger.error("messaging", "Error uploading image: \(error.localizedDescription)")
                 return // Don't send message if image upload fails
             }
         }
         
-        // Optimistic UI update - store the text and timestamp to match later
-        let optimisticText = text
+        // Optimistic UI update - generate a local UUID to track this message
+        let localId = UUID()
         let optimisticTimestamp = Date()
         var optimisticMessage = Message(
+            id: localId,
             conversationId: conversationId,
             fromId: fromId,
             text: text,
@@ -169,6 +269,13 @@ final class ConversationDetailViewModel: ObservableObject {
             optimisticMessage.replyToMessage = context
         }
         messages.append(optimisticMessage)
+        
+        // Track the optimistic message info for matching
+        let info = OptimisticMessageInfo(localId: localId, text: text, fromId: fromId, timestamp: optimisticTimestamp)
+        optimisticIdMap[localId] = info
+        
+        // Save params in case we need to retry
+        pendingMessageParams[localId] = PendingMessageParams(text: text, imageUrl: imageUrl, replyToId: replyToId)
         
         do {
             var sentMessage = try await messageService.sendMessage(
@@ -185,33 +292,32 @@ final class ConversationDetailViewModel: ObservableObject {
                 sentMessage.replyToMessage = context
             }
             
-            // Replace optimistic message with real one
-            // Match by text and timestamp (within 5 seconds) since IDs will differ
-            if let index = messages.firstIndex(where: { msg in
-                msg.text == optimisticText &&
-                msg.fromId == fromId &&
-                abs(msg.createdAt.timeIntervalSince(optimisticTimestamp)) < 5.0
-            }), index < messages.count {
+            // Replace optimistic message with real one by local UUID first
+            if let index = messages.firstIndex(where: { $0.id == localId }) {
                 messages[index] = sentMessage
             } else {
-                // If not found, remove optimistic and add real message
-                messages.removeAll { msg in
-                    msg.text == optimisticText &&
+                // Fallback: match by text + timestamp window
+                if let index = messages.firstIndex(where: { msg in
+                    msg.text == text &&
                     msg.fromId == fromId &&
                     abs(msg.createdAt.timeIntervalSince(optimisticTimestamp)) < 5.0
+                }), index < messages.count {
+                    messages[index] = sentMessage
+                } else {
+                    messages.append(sentMessage)
+                    messages.sort { $0.createdAt < $1.createdAt }
                 }
-                messages.append(sentMessage)
-                messages.sort { $0.createdAt < $1.createdAt }
             }
+            
+            // Clean up tracking
+            optimisticIdMap.removeValue(forKey: localId)
+            pendingMessageParams.removeValue(forKey: localId)
         } catch {
-            // Remove optimistic message on error
-            messages.removeAll { msg in
-                msg.text == optimisticText &&
-                msg.fromId == fromId &&
-                abs(msg.createdAt.timeIntervalSince(optimisticTimestamp)) < 5.0
-            }
+            // Keep the optimistic message but mark it as failed
+            failedMessageIds.insert(localId)
+            HapticManager.error()
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error sending message: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error sending message: \(error.localizedDescription)")
         }
     }
     
@@ -275,7 +381,7 @@ final class ConversationDetailViewModel: ObservableObject {
         do {
             try await repository.syncMessages(conversationId: conversationId)
         } catch {
-            print("⚠️ [ConversationDetailVM] Background sync failed: \(error.localizedDescription)")
+            AppLogger.warning("messaging", "[ConversationDetailVM] Background sync failed: \(error.localizedDescription)")
         }
     }
 
@@ -327,12 +433,80 @@ final class ConversationDetailViewModel: ObservableObject {
         let snapshot = (total: messages.count, replyIds: replyIds, replyContexts: replyContexts)
         guard snapshot != lastReplyDebugSnapshot else { return }
         lastReplyDebugSnapshot = snapshot
-        print("🧵 [ReplyThreadDebug] \(source) total=\(snapshot.total) replyToId=\(snapshot.replyIds) replyContext=\(snapshot.replyContexts)")
+        AppLogger.info("messaging", "[ReplyThreadDebug] \(source) total=\(snapshot.total) replyToId=\(snapshot.replyIds) replyContext=\(snapshot.replyContexts)")
         if let sample = messages.first(where: { $0.replyToId != nil }) {
-            print("🧵 [ReplyThreadDebug] sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
+            AppLogger.info("messaging", "[ReplyThreadDebug] sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
         }
     }
 #endif
+    
+    // MARK: - Edit & Unsend Messages
+    
+    /// Start editing a message — populates the input bar with the message text
+    func startEditing(_ message: Message) {
+        editingMessage = message
+        messageText = message.text
+    }
+    
+    /// Cancel editing mode and clear the input bar
+    func cancelEdit() {
+        editingMessage = nil
+        messageText = ""
+    }
+    
+    /// Submit an edit for the currently-editing message
+    func editMessage(newContent: String) async {
+        guard let editMsg = editingMessage else { return }
+        let trimmed = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        // Optimistic update
+        if let index = messages.firstIndex(where: { $0.id == editMsg.id }) {
+            messages[index].text = trimmed
+            messages[index].editedAt = Date()
+        }
+        
+        // Clear edit state
+        editingMessage = nil
+        messageText = ""
+        HapticManager.lightImpact()
+        
+        do {
+            try await messageService.updateMessageContent(messageId: editMsg.id, newContent: trimmed)
+        } catch {
+            // Revert optimistic update on failure
+            if let index = messages.firstIndex(where: { $0.id == editMsg.id }) {
+                messages[index].text = editMsg.text
+                messages[index].editedAt = editMsg.editedAt
+            }
+            self.error = AppError.processingError("Failed to edit message: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error editing message: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Unsend a message (soft delete — clears content and sets deleted_at)
+    func unsendMessage(id: UUID) async {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        
+        let originalMessage = messages[index]
+        
+        // Optimistic update
+        messages[index].text = ""
+        messages[index].deletedAt = Date()
+        HapticManager.lightImpact()
+        
+        do {
+            try await messageService.unsendMessage(messageId: id)
+        } catch {
+            // Revert optimistic update on failure
+            if let revertIndex = messages.firstIndex(where: { $0.id == id }) {
+                messages[revertIndex].text = originalMessage.text
+                messages[revertIndex].deletedAt = originalMessage.deletedAt
+            }
+            self.error = AppError.processingError("Failed to unsend message: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error unsending message: \(error.localizedDescription)")
+        }
+    }
     
     // MARK: - Audio Messages
     
@@ -345,7 +519,7 @@ final class ConversationDetailViewModel: ObservableObject {
             let audioData = try Data(contentsOf: audioURL)
             
             // Upload audio to storage
-            let uploadedUrl = try await messageService.uploadAudioMessage(
+            let uploadedUrl = try await mediaService.uploadAudioMessage(
                 audioData: audioData,
                 conversationId: conversationId,
                 fromId: fromId
@@ -385,12 +559,14 @@ final class ConversationDetailViewModel: ObservableObject {
                 messages[index] = sentMessage
             }
             
+            HapticManager.lightImpact()
+            
             // Clean up temp file
             try? FileManager.default.removeItem(at: audioURL)
             
         } catch {
             self.error = AppError.processingError("Failed to send audio: \(error.localizedDescription)")
-            print("🔴 Error sending audio message: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error sending audio message: \(error.localizedDescription)")
         }
     }
     
@@ -438,36 +614,134 @@ final class ConversationDetailViewModel: ObservableObject {
             }) {
                 messages[index] = sentMessage
             }
+            
+            HapticManager.lightImpact()
         } catch {
             self.error = AppError.processingError("Failed to send location: \(error.localizedDescription)")
-            print("🔴 Error sending location message: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error sending location message: \(error.localizedDescription)")
         }
     }
     
     
-    func addReaction(messageId: UUID, reaction: String) async {
-        guard let userId = authService.currentUserId else { return }
+    // MARK: - Retry Failed Messages
+    
+    /// Retry sending a failed message
+    func retryMessage(id: UUID) async {
+        guard failedMessageIds.contains(id),
+              let params = pendingMessageParams[id],
+              let fromId = authService.currentUserId else {
+            return
+        }
+        
+        // Clear the failed state while retrying
+        failedMessageIds.remove(id)
+        HapticManager.lightImpact()
         
         do {
-            try await messageService.addReaction(messageId: messageId, userId: userId, reaction: reaction)
-            // Reload messages to get updated reactions
-            await loadMessages()
+            var sentMessage = try await messageService.sendMessage(
+                conversationId: conversationId,
+                fromId: fromId,
+                text: params.text,
+                imageUrl: params.imageUrl,
+                replyToId: params.replyToId
+            )
+            
+            // Attach reply context if available locally
+            if let replyToId = params.replyToId,
+               let context = messages.first(where: { $0.id == replyToId }).map({ ReplyContext(from: $0) }) {
+                sentMessage.replyToMessage = context
+            }
+            
+            // Replace the failed optimistic message with the real one
+            if let index = messages.firstIndex(where: { $0.id == id }) {
+                messages[index] = sentMessage
+            } else {
+                messages.append(sentMessage)
+                messages.sort { $0.createdAt < $1.createdAt }
+            }
+            
+            // Clean up tracking
+            optimisticIdMap.removeValue(forKey: id)
+            pendingMessageParams.removeValue(forKey: id)
         } catch {
+            // Mark as failed again
+            failedMessageIds.insert(id)
+            HapticManager.error()
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error adding reaction: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error retrying message: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Dismiss a failed message (remove it from the list entirely)
+    func dismissFailedMessage(id: UUID) {
+        failedMessageIds.remove(id)
+        optimisticIdMap.removeValue(forKey: id)
+        pendingMessageParams.removeValue(forKey: id)
+        messages.removeAll { $0.id == id }
+    }
+    
+    func addReaction(messageId: UUID, reaction: String) async {
+        guard let userId = authService.currentUserId else { return }
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        
+        // Save previous reactions for rollback
+        let previousReactions = messages[index].reactions
+        
+        // Optimistic update: add the reaction locally
+        var updatedReactions = messages[index].reactions ?? MessageReactions()
+        var userIds = updatedReactions.reactions[reaction] ?? []
+        if !userIds.contains(userId) {
+            userIds.append(userId)
+        }
+        // Remove user from any other reaction (upsert semantics — one reaction per user)
+        for key in updatedReactions.reactions.keys where key != reaction {
+            updatedReactions.reactions[key]?.removeAll { $0 == userId }
+            if updatedReactions.reactions[key]?.isEmpty == true {
+                updatedReactions.reactions.removeValue(forKey: key)
+            }
+        }
+        updatedReactions.reactions[reaction] = userIds
+        messages[index].reactions = updatedReactions
+        
+        do {
+            try await reactionService.addReaction(messageId: messageId, userId: userId, reaction: reaction)
+        } catch {
+            // Revert optimistic update on failure
+            if let revertIndex = messages.firstIndex(where: { $0.id == messageId }) {
+                messages[revertIndex].reactions = previousReactions
+            }
+            self.error = AppError.processingError(error.localizedDescription)
+            AppLogger.error("messaging", "Error adding reaction: \(error.localizedDescription)")
         }
     }
     
     func removeReaction(messageId: UUID) async {
         guard let userId = authService.currentUserId else { return }
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        
+        // Save previous reactions for rollback
+        let previousReactions = messages[index].reactions
+        
+        // Optimistic update: remove the user from all reaction groups
+        if var updatedReactions = messages[index].reactions {
+            for key in updatedReactions.reactions.keys {
+                updatedReactions.reactions[key]?.removeAll { $0 == userId }
+                if updatedReactions.reactions[key]?.isEmpty == true {
+                    updatedReactions.reactions.removeValue(forKey: key)
+                }
+            }
+            messages[index].reactions = updatedReactions.reactions.isEmpty ? nil : updatedReactions
+        }
         
         do {
-            try await messageService.removeReaction(messageId: messageId, userId: userId)
-            // Reload messages to get updated reactions
-            await loadMessages()
+            try await reactionService.removeReaction(messageId: messageId, userId: userId)
         } catch {
+            // Revert optimistic update on failure
+            if let revertIndex = messages.firstIndex(where: { $0.id == messageId }) {
+                messages[revertIndex].reactions = previousReactions
+            }
             self.error = AppError.processingError(error.localizedDescription)
-            print("🔴 Error removing reaction: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error removing reaction: \(error.localizedDescription)")
         }
     }
     
@@ -508,7 +782,55 @@ final class ConversationDetailViewModel: ObservableObject {
     private func handleMessageDelete(_ deletedMessage: Message) {
         messages.removeAll { $0.id == deletedMessage.id }
     }
-
+    
+    // MARK: - Search Delegation
+    
+    /// Search for messages matching the search text within this conversation
+    func searchInConversation() {
+        searchManager.searchInConversation()
+    }
+    
+    /// Navigate to the next search result (newer message)
+    func nextSearchResult() {
+        searchManager.nextSearchResult()
+    }
+    
+    /// Navigate to the previous search result (older message)
+    func previousSearchResult() {
+        searchManager.previousSearchResult()
+    }
+    
+    /// The currently focused search result message ID
+    var currentSearchResultId: UUID? {
+        searchManager.currentSearchResultId
+    }
+    
+    /// Toggle search mode on/off
+    func toggleSearch() {
+        searchManager.toggleSearch()
+    }
+    
+    // MARK: - Typing Delegation
+    
+    /// Start polling for typing users in this conversation
+    func startTypingObservation() {
+        typingManager.startTypingObservation()
+    }
+    
+    /// Stop polling for typing users
+    func stopTypingObservation() {
+        typingManager.stopTypingObservation()
+    }
+    
+    /// Signal that the current user is typing (debounced)
+    func userDidType() {
+        typingManager.userDidType()
+    }
+    
+    /// Clear own typing status (e.g. after sending a message)
+    func clearOwnTypingStatus() {
+        typingManager.clearOwnTypingStatus()
+    }
     
 }
 

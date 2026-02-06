@@ -86,7 +86,7 @@ struct MessagingMapper {
         }
         
         guard let record = recordDict else {
-            print("⚠️ [MessagingMapper] Missing record in realtime payload: \(type(of: payload))")
+            AppLogger.warning("messaging", "Missing record in realtime payload: \(type(of: payload))")
             return nil
         }
         
@@ -94,7 +94,7 @@ struct MessagingMapper {
               let convId = parseUUID(record["conversation_id"]),
               let fromId = parseUUID(record["from_id"]),
               let text = parseString(record["text"]) else {
-            print("⚠️ [MessagingMapper] Missing required fields in record: \(Array(record.keys))")
+            AppLogger.warning("messaging", "Missing required fields in record: \(Array(record.keys))")
             return nil
         }
         

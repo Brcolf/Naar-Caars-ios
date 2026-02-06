@@ -128,7 +128,7 @@ final class LeaderboardService {
         // Filter out users with 0 fulfilled requests (only show active users)
         entries = entries.filter { $0.requestsFulfilled > 0 || $0.requestsMade > 0 }
         
-        print("✅ [LeaderboardService] Fetched \(entries.count) leaderboard entries for period: \(period.displayName)")
+        AppLogger.info("leaderboard", "Fetched \(entries.count) leaderboard entries for period: \(period.displayName)")
         return entries
     }
     

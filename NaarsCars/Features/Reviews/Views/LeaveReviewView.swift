@@ -23,6 +23,7 @@ struct LeaveReviewView: View {
     var onReviewSkipped: (() -> Void)?
     
     @State private var showSkipConfirmation = false
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationStack {
@@ -31,46 +32,46 @@ struct LeaveReviewView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(requestTitle)
-                            .font(.headline)
+                            .font(.naarsHeadline)
                             .foregroundColor(.primary)
                         
-                        Text("Review for \(fulfillerName)")
-                            .font(.body)
+                        Text("review_for_user".localized(with: fulfillerName))
+                            .font(.naarsBody)
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("Request")
+                    Text("review_section_request".localized)
                 }
                 
                 // Rating Section
                 Section {
                     VStack(spacing: 16) {
-                        Text("How was your experience?")
-                            .font(.body)
+                        Text("review_how_was_experience".localized)
+                            .font(.naarsBody)
                             .foregroundColor(.secondary)
                         
                         StarRatingInput(rating: $viewModel.rating, size: 40, spacing: 8)
                         
                         if viewModel.rating == 0 {
-                            Text("Tap to rate")
-                                .font(.caption)
+                            Text("review_tap_to_rate".localized)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                 } header: {
-                    Text("Rating")
+                    Text("review_section_rating".localized)
                 }
                 
                 // Comment Section
                 Section {
                     TextEditor(text: $viewModel.comment)
                         .frame(minHeight: 100)
-                        .font(.body)
+                        .font(.naarsBody)
                 } header: {
-                    Text("Comment (Optional)")
+                    Text("review_section_comment".localized)
                 }
                 
                 // Image Section
@@ -110,37 +111,37 @@ struct LeaveReviewView: View {
                         ) {
                             HStack {
                                 Image(systemName: "photo")
-                                Text(viewModel.reviewImage == nil ? "Add Photo (Optional)" : "Change Photo")
+                                Text(viewModel.reviewImage == nil ? "review_add_photo".localized : "review_change_photo".localized)
                             }
-                            .font(.body)
+                            .font(.naarsBody)
                         }
                     }
                 } header: {
-                    Text("Photo (Optional)")
+                    Text("review_section_photo".localized)
                 }
                 
                 // Error Display
                 if let error = viewModel.error {
                     Section {
                         Text(error.localizedDescription)
-                            .foregroundColor(.red)
-                            .font(.caption)
+                            .foregroundColor(.naarsError)
+                            .font(.naarsCaption)
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Leave Review")
+            .navigationTitle("review_leave_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Skip") {
+                    Button("review_skip".localized) {
                         showSkipConfirmation = true
                     }
                     .disabled(viewModel.isSubmitting)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") {
+                    Button("review_submit".localized) {
                         Task {
                             await submitReview()
                         }
@@ -156,29 +157,30 @@ struct LeaveReviewView: View {
                     VStack {
                         ProgressView()
                         if viewModel.isUploadingImage {
-                            Text("Uploading image...")
+                            Text("review_uploading_image".localized)
                                 .padding(.top)
                         } else {
-                            Text("Submitting review...")
+                            Text("review_submitting".localized)
                                 .padding(.top)
                         }
                     }
                     .padding()
-                    .background(Color(.systemBackground))
+                    .background(Color.naarsBackgroundSecondary)
                     .cornerRadius(12)
                 }
             }
-            .alert("Skip Review?", isPresented: $showSkipConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Skip") {
+            .alert("review_skip_title".localized, isPresented: $showSkipConfirmation) {
+                Button("review_skip_cancel".localized, role: .cancel) {}
+                Button("review_skip".localized) {
                     Task {
                         await skipReview()
                     }
                 }
             } message: {
-                Text("You can add a review later from your past requests.")
+                Text("review_skip_message".localized)
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
     
     // MARK: - Private Methods
@@ -191,11 +193,15 @@ struct LeaveReviewView: View {
                 fulfillerId: fulfillerId
             )
             
+            HapticManager.success()
+            showSuccess = true
             onReviewSubmitted?()
-            dismiss()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                dismiss()
+            }
         } catch {
             // Error is handled by viewModel
-            print("❌ Error submitting review: \(error.localizedDescription)")
+            AppLogger.error("reviews", "Error submitting review: \(error.localizedDescription)")
         }
     }
     
@@ -210,7 +216,7 @@ struct LeaveReviewView: View {
             dismiss()
         } catch {
             // Error is handled by viewModel
-            print("❌ Error skipping review: \(error.localizedDescription)")
+            AppLogger.error("reviews", "Error skipping review: \(error.localizedDescription)")
         }
     }
 }

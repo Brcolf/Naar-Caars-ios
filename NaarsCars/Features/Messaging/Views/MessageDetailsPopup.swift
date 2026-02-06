@@ -93,7 +93,7 @@ struct MessageDetailsPopup: View {
                                 showImagePicker = true
                             } label: {
                                 Image(systemName: "camera.fill")
-                                    .font(.system(size: 12))
+                                    .font(.naarsFootnote)
                                     .foregroundColor(.white)
                                     .padding(6)
                                     .background(Color.naarsPrimary)
@@ -137,7 +137,7 @@ struct MessageDetailsPopup: View {
                                     .font(.naarsBody)
                                 
                                 if participant.id == AuthService.shared.currentUserId {
-                                    Text("You")
+                                    Text("messaging_you".localized)
                                         .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
@@ -170,7 +170,7 @@ struct MessageDetailsPopup: View {
                     } label: {
                         HStack {
                             Image(systemName: "person.badge.plus")
-                            Text("Add Participants")
+                            Text("messaging_add_participants".localized)
                         }
                     }
                 }
@@ -182,7 +182,7 @@ struct MessageDetailsPopup: View {
                     } label: {
                         HStack {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text("Leave Conversation")
+                            Text("messaging_leave_conversation".localized)
                         }
                         .foregroundColor(.red)
                     }
@@ -193,7 +193,7 @@ struct MessageDetailsPopup: View {
                     Section {
                         Text(error)
                             .foregroundColor(.red)
-                            .font(.caption)
+                            .font(.naarsCaption)
                     }
                 }
             }
@@ -202,7 +202,7 @@ struct MessageDetailsPopup: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("messaging_cancel".localized) {
                         dismiss()
                     }
                     .disabled(isSaving || isUploadingImage)
@@ -212,7 +212,7 @@ struct MessageDetailsPopup: View {
                     if isSaving || isUploadingImage {
                         ProgressView()
                     } else {
-                        Button("Save") {
+                        Button("messaging_save".localized) {
                             Task {
                                 await saveChanges()
                             }
@@ -240,34 +240,34 @@ struct MessageDetailsPopup: View {
                     excludeUserIds: participants.map { $0.id },
                     actionButtonTitle: "Add",
                     onDismiss: {
-                        print("🔍 [MessageDetailsPopup] UserSearchView dismissed with \(selectedUserIds.count) selected user(s)")
+                        AppLogger.info("messaging", "[MessageDetailsPopup] UserSearchView dismissed with \(selectedUserIds.count) selected user(s)")
                         let idsToAdd = Array(selectedUserIds)
                         showAddParticipants = false
                         selectedUserIds = []
                         
                         if !idsToAdd.isEmpty {
-                            print("🔍 [MessageDetailsPopup] Will add user IDs: \(idsToAdd)")
+                            AppLogger.info("messaging", "[MessageDetailsPopup] Will add user IDs: \(idsToAdd)")
                             Task {
                                 await addParticipants(idsToAdd)
                             }
                         } else {
-                            print("ℹ️ [MessageDetailsPopup] No users selected, skipping participant addition")
+                            AppLogger.info("messaging", "[MessageDetailsPopup] No users selected, skipping participant addition")
                         }
                     }
                 )
             }
-            .alert("Leave Conversation", isPresented: $showLeaveConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Leave", role: .destructive) {
+            .alert("messaging_leave_conversation".localized, isPresented: $showLeaveConfirmation) {
+                Button("messaging_cancel".localized, role: .cancel) { }
+                Button("messaging_leave".localized, role: .destructive) {
                     Task {
                         await leaveConversation()
                     }
                 }
             } message: {
-                Text("Are you sure you want to leave this conversation? You can still see the message history but won't receive new messages.")
+                Text("messaging_leave_conversation_confirmation".localized)
             }
-            .alert("Remove Participant", isPresented: $showRemoveConfirmation) {
-                Button("Cancel", role: .cancel) {
+            .alert("messaging_remove_participant".localized, isPresented: $showRemoveConfirmation) {
+                Button("messaging_cancel".localized, role: .cancel) {
                     participantToRemove = nil
                 }
                 Button("Remove", role: .destructive) {
@@ -279,9 +279,9 @@ struct MessageDetailsPopup: View {
                 }
             } message: {
                 if let participant = participantToRemove {
-                    Text("Are you sure you want to remove \(participant.name) from this conversation?")
+                    Text(String(format: "messaging_remove_participant_confirmation".localized, participant.name))
                 } else {
-                    Text("Are you sure you want to remove this participant?")
+                    Text("messaging_remove_participant_generic_confirmation".localized)
                 }
             }
         }
@@ -308,7 +308,7 @@ struct MessageDetailsPopup: View {
         error = nil
         
         guard let userId = AuthService.shared.currentUserId else {
-            error = "Not authenticated"
+            error = "messaging_not_authenticated".localized
             isSaving = false
             return
         }
@@ -317,11 +317,11 @@ struct MessageDetailsPopup: View {
             // Upload new group image if selected
             if let newImage = groupImage, let imageData = newImage.jpegData(compressionQuality: 0.8) {
                 isUploadingImage = true
-                let imageUrl = try await MessageService.shared.uploadGroupImage(
+                let imageUrl = try await ConversationService.shared.uploadGroupImage(
                     imageData: imageData,
                     conversationId: conversationId
                 )
-                try await MessageService.shared.updateGroupImage(
+                try await ConversationService.shared.updateGroupImage(
                     conversationId: conversationId,
                     imageUrl: imageUrl,
                     userId: userId
@@ -334,7 +334,7 @@ struct MessageDetailsPopup: View {
             let finalTitle = titleToSave.isEmpty ? nil : titleToSave
             
             if finalTitle != currentTitle {
-                try await MessageService.shared.updateConversationTitle(
+                try await ConversationService.shared.updateConversationTitle(
                     conversationId: conversationId,
                     title: finalTitle,
                     userId: userId
@@ -357,20 +357,20 @@ struct MessageDetailsPopup: View {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
-            print("✅ [MessageDetailsPopup] Adding \(userIds.count) participant(s) to conversation \(conversationId)")
+            AppLogger.info("messaging", "[MessageDetailsPopup] Adding \(userIds.count) participant(s) to conversation \(conversationId)")
             
-            try await MessageService.shared.addParticipantsToConversation(
+            try await ConversationParticipantService.shared.addParticipantsToConversation(
                 conversationId: conversationId,
                 userIds: userIds,
                 addedBy: currentUserId,
                 createAnnouncement: true
             )
             
-            print("✅ [MessageDetailsPopup] Successfully added participants, reloading list")
+            AppLogger.info("messaging", "[MessageDetailsPopup] Successfully added participants, reloading list")
             await loadParticipants()
         } catch {
-            print("🔴 [MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
-            self.error = "Failed to add participants: \(error.localizedDescription)"
+            AppLogger.error("messaging", "[MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
+            self.error = "\("messaging_failed_to_add_participants".localized): \(error.localizedDescription)"
         }
     }
     
@@ -423,9 +423,9 @@ struct MessageDetailsPopup: View {
             }
             
             self.participants = profiles
-            print("✅ [MessageDetailsPopup] Reloaded \(profiles.count) active participants")
+            AppLogger.info("messaging", "[MessageDetailsPopup] Reloaded \(profiles.count) active participants")
         } catch {
-            print("🔴 [MessageDetailsPopup] Error loading participants: \(error.localizedDescription)")
+            AppLogger.error("messaging", "[MessageDetailsPopup] Error loading participants: \(error.localizedDescription)")
         }
     }
     
@@ -439,7 +439,7 @@ struct MessageDetailsPopup: View {
         }
         
         do {
-            try await MessageService.shared.removeParticipantFromConversation(
+            try await ConversationParticipantService.shared.removeParticipantFromConversation(
                 conversationId: conversationId,
                 userId: userId,
                 removedBy: currentUserId,
@@ -449,10 +449,10 @@ struct MessageDetailsPopup: View {
             // Remove from local list
             participants.removeAll { $0.id == userId }
             
-            print("✅ [MessageDetailsPopup] Successfully removed participant")
+            AppLogger.info("messaging", "[MessageDetailsPopup] Successfully removed participant")
         } catch {
-            print("🔴 [MessageDetailsPopup] Failed to remove participant: \(error.localizedDescription)")
-            self.error = "Failed to remove participant: \(error.localizedDescription)"
+            AppLogger.error("messaging", "[MessageDetailsPopup] Failed to remove participant: \(error.localizedDescription)")
+            self.error = "\("messaging_failed_to_remove_participant".localized): \(error.localizedDescription)"
         }
     }
     
@@ -463,7 +463,7 @@ struct MessageDetailsPopup: View {
         defer { isSaving = false }
         
         do {
-            try await MessageService.shared.leaveConversation(
+            try await ConversationParticipantService.shared.leaveConversation(
                 conversationId: conversationId,
                 userId: currentUserId,
                 createAnnouncement: true
@@ -474,7 +474,7 @@ struct MessageDetailsPopup: View {
             
             dismiss()
         } catch {
-            self.error = "Failed to leave conversation: \(error.localizedDescription)"
+            self.error = "\("messaging_failed_to_leave_conversation".localized): \(error.localizedDescription)"
         }
     }
 }

@@ -30,7 +30,7 @@ struct RequestPreviewCard: View {
                     .frame(width: 44, height: 44)
                     .overlay {
                         Image(systemName: request.type.iconName)
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(.naarsTitle3)
                             .foregroundColor(.white)
                     }
                 
@@ -70,7 +70,7 @@ struct RequestPreviewCard: View {
             .padding(.horizontal)
         }
         .padding(.bottom)
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(20, corners: [.topLeft, .topRight])
         .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: -4)
     }
@@ -114,10 +114,10 @@ struct RoundedCorner: Shape {
                     subtitle: "Mon, Jan 6"
                 ),
                 onClose: {
-                    print("Close tapped")
+                    AppLogger.info("map", "RequestPreviewCard close tapped")
                 },
                 onViewDetails: {
-                    print("View details tapped")
+                    AppLogger.info("map", "RequestPreviewCard view details tapped")
                 }
             )
         }

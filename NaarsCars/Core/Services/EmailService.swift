@@ -36,7 +36,7 @@ final class EmailService {
     func sendWelcomeEmail(userId: UUID, email: String, name: String) async throws {
         // For now, we'll use a Supabase Edge Function to send emails
         // This requires an Edge Function to be deployed
-        // TODO: Deploy Edge Function for email sending (using Resend, SendGrid, etc.)
+        // NOTE: Email sending requires deploying a Supabase Edge Function (e.g., using Resend or SendGrid)
         
         // Call Edge Function to send email
         // The Edge Function will handle the actual email sending
@@ -64,9 +64,9 @@ final class EmailService {
         // Call Edge Function (if it exists)
         // For now, we'll just log that email should be sent
         // In production, this would call: supabase.functions.invoke("send-email", body: payload)
-        print("📧 [EmailService] Would send welcome email to: \(email) for user: \(name)")
+        AppLogger.info("email", "Would send welcome email to: \(email) for user: \(name)")
         
-        // TODO: Uncomment when Edge Function is deployed
+        // NOTE: Email sending requires deploying a Supabase Edge Function (e.g., using Resend or SendGrid)
         /*
         try await supabase.functions.invoke(
             "send-email",

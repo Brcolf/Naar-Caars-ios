@@ -24,7 +24,7 @@ struct SkeletonFavorCard: View {
             SkeletonRectangle(width: 120, height: 14, cornerRadius: 6)
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }

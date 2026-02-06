@@ -311,7 +311,9 @@ final class MessagingDebugViewModel: ObservableObject {
             UIPasteboard.general.string = fullLog
             #endif
             
-            print(fullLog)
+            #if DEBUG
+            AppLogger.info("messaging", "Debug log exported:\n\(fullLog)")
+            #endif
             
             // In a real app, you might want to share this via share sheet
             // or save to a file

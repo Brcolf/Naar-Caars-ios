@@ -104,9 +104,9 @@ struct ImageViewerView: View {
                             Button(action: shareImage) {
                                 VStack(spacing: 6) {
                                     Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 22))
+                                        .font(.naarsTitle2)
                                     Text("Share")
-                                        .font(.system(size: 12))
+                                        .font(.naarsFootnote)
                                 }
                                 .foregroundColor(.white)
                             }
@@ -115,9 +115,9 @@ struct ImageViewerView: View {
                             Button(action: saveImage) {
                                 VStack(spacing: 6) {
                                     Image(systemName: "arrow.down.to.line")
-                                        .font(.system(size: 22))
+                                        .font(.naarsTitle2)
                                     Text("Save")
-                                        .font(.system(size: 12))
+                                        .font(.naarsFootnote)
                                 }
                                 .foregroundColor(.white)
                             }

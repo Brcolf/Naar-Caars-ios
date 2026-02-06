@@ -38,7 +38,7 @@ enum NetworkRetryHelper {
                 
                 // Success - log if this was a retry
                 if attempt > 1 {
-                    print("✅ [Retry] Operation succeeded on attempt \(attempt)")
+                    AppLogger.info("network", "Operation succeeded on attempt \(attempt)")
                 }
                 
                 return result
@@ -47,27 +47,26 @@ enum NetworkRetryHelper {
                 
                 // Don't retry on cancellation
                 if error is CancellationError {
-                    print("❌ [Retry] Task cancelled, not retrying")
+                    AppLogger.warning("network", "Task cancelled, not retrying")
                     throw error
                 }
                 
                 // Check if we should retry this error
                 let errorIsRetryable = shouldRetry?(error) ?? isRetryable(error: error)
                 if !errorIsRetryable {
-                    print("❌ [Retry] Error not retryable: \(error.localizedDescription)")
+                    AppLogger.error("network", "Error not retryable: \(error.localizedDescription)")
                     throw error
                 }
                 
                 // Last attempt - don't wait
                 if attempt == maxAttempts {
-                    print("❌ [Retry] All \(maxAttempts) attempts failed")
+                    AppLogger.error("network", "All \(maxAttempts) attempts failed")
                     throw error
                 }
                 
                 // Calculate delay with exponential backoff
                 let delay = min(currentDelay, maxDelay)
-                print("⚠️ [Retry] Attempt \(attempt) failed, retrying in \(String(format: "%.1f", delay))s...")
-                print("   Error: \(error.localizedDescription)")
+                AppLogger.warning("network", "Attempt \(attempt) failed, retrying in \(String(format: "%.1f", delay))s: \(error.localizedDescription)")
                 
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 

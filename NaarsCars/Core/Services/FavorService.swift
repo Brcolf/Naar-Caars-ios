@@ -37,10 +37,8 @@ final class FavorService {
     func fetchFavors(
         status: FavorStatus? = nil,
         userId: UUID? = nil,
-        claimedBy: UUID? = nil,
-        forceRefresh: Bool = false
+        claimedBy: UUID? = nil
     ) async throws -> [Favor] {
-        _ = forceRefresh
         // Build query
         var query = supabase
             .from("favors")
@@ -275,7 +273,7 @@ final class FavorService {
                         .insert(notificationData)
                         .execute()
                 } catch {
-                    print("⚠️ Failed to create notification for claimer: \(error)")
+                    AppLogger.warning("favors", "Failed to create notification for claimer: \(error)")
                 }
             }
         }
@@ -405,7 +403,7 @@ final class FavorService {
         let newUserIds = userIds.filter { !existingParticipants.contains($0) }
         
         guard !newUserIds.isEmpty else {
-            print("ℹ️ [FavorService] All users are already participants")
+            AppLogger.info("favors", "All users are already participants")
             return
         }
         
@@ -423,46 +421,14 @@ final class FavorService {
             .insert(inserts)
             .execute()
         
-        print("✅ [FavorService] Added \(newUserIds.count) participant(s) to favor \(favorId)")
+        AppLogger.info("favors", "Added \(newUserIds.count) participant(s) to favor \(favorId)")
     }
     
     // MARK: - Private Helpers
     
     /// Create a JSON decoder configured for Supabase date formats
     private func createDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            // Try ISO8601 with fractional seconds (for TIMESTAMP fields)
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try ISO8601 without fractional seconds
-            isoFormatter.formatOptions = [.withInternetDateTime]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try DATE format (YYYY-MM-DD) - use local timezone to avoid off-by-one day issues
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = .current  // Use local timezone to match user expectations
-            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        DateDecoderFactory.makeSupabaseDecoder()
     }
     
     /// Enrich favors with profile data (poster, claimer, participants)

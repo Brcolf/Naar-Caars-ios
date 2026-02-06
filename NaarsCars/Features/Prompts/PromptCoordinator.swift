@@ -63,7 +63,7 @@ final class PromptCoordinator: ObservableObject {
             }
             await activateNextPromptIfNeeded()
         } catch {
-            print("❌ [PromptCoordinator] Failed to load prompts: \(error.localizedDescription)")
+            AppLogger.error("prompts", "Failed to load prompts: \(error.localizedDescription)")
         }
     }
 

@@ -68,7 +68,7 @@ final class LeaderboardViewModel: ObservableObject {
             updateCurrentUserRank()
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 Error loading leaderboard: \(error.localizedDescription)")
+            AppLogger.error("leaderboard", "Error loading leaderboard: \(error.localizedDescription)")
             
             // Keep showing cached data if available
             if cachedEntries[selectedPeriod] == nil {

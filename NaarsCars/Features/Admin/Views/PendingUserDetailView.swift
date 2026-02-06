@@ -16,6 +16,7 @@ struct PendingUserDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingApproveConfirmation = false
     @State private var showingRejectConfirmation = false
+    @State private var showSuccess = false
     
     var body: some View {
         ScrollView {
@@ -29,38 +30,38 @@ struct PendingUserDetailView: View {
                     )
                     
                     Text(user.name)
-                        .font(.title2)
+                        .font(.naarsTitle2)
                         .fontWeight(.semibold)
                     
                     Text(user.email)
-                        .font(.subheadline)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                     
                     if let car = user.car, !car.isEmpty {
                         Text(car)
-                            .font(.subheadline)
+                            .font(.naarsSubheadline)
                             .foregroundColor(.secondary)
                     }
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color(.systemGray6))
+                .background(Color.naarsCardBackground)
                 .cornerRadius(12)
                 
                 // Invite Information Section
                 if viewModel.isLoading {
-                    ProgressView("Loading invite details...")
+                    ProgressView("admin_loading_invite_details".localized)
                         .frame(maxWidth: .infinity, minHeight: 200)
                 } else if let inviteInfo = viewModel.inviteInfo {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Invite Information")
-                            .font(.headline)
+                        Text("admin_invite_information".localized)
+                            .font(.naarsHeadline)
                         
                         // Inviter
                         if let inviter = inviteInfo.inviter {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Invited By")
-                                    .font(.subheadline)
+                                Text("admin_invited_by_label".localized)
+                                    .font(.naarsSubheadline)
                                     .foregroundColor(.secondary)
                                 
                                 HStack(spacing: 12) {
@@ -71,38 +72,38 @@ struct PendingUserDetailView: View {
                                     )
                                     
                                     Text(inviter.name)
-                                        .font(.body)
+                                        .font(.naarsBody)
                                         .fontWeight(.medium)
                                 }
                             }
                             .padding()
-                            .background(Color(.systemGray6))
+                            .background(Color.naarsCardBackground)
                             .cornerRadius(8)
                         }
                         
                         // Invitation Statement
                         if let statement = inviteInfo.statement, !statement.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Invitation Statement")
-                                    .font(.subheadline)
+                                Text("admin_invitation_statement".localized)
+                                    .font(.naarsSubheadline)
                                     .foregroundColor(.secondary)
                                 
                                 Text(statement)
-                                    .font(.body)
+                                    .font(.naarsBody)
                                     .padding()
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(.systemGray6))
+                                    .background(Color.naarsCardBackground)
                                     .cornerRadius(8)
                             }
                         } else {
-                            Text("No invitation statement provided")
-                                .font(.subheadline)
+                            Text("admin_no_invitation_statement".localized)
+                                .font(.naarsSubheadline)
                                 .foregroundColor(.secondary)
                                 .italic()
                         }
                     }
                     .padding()
-                    .background(Color(.systemBackground))
+                    .background(Color.naarsBackgroundSecondary)
                     .cornerRadius(12)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -124,7 +125,7 @@ struct PendingUserDetailView: View {
                     Button(action: {
                         showingRejectConfirmation = true
                     }) {
-                        Text("Reject")
+                        Text("admin_reject".localized)
                             .font(.naarsBody)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -137,7 +138,7 @@ struct PendingUserDetailView: View {
                     Button(action: {
                         showingApproveConfirmation = true
                     }) {
-                        Text("Approve")
+                        Text("admin_approve".localized)
                             .font(.naarsBody)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -151,42 +152,48 @@ struct PendingUserDetailView: View {
             }
             .padding()
         }
-        .navigationTitle("User Details")
+        .navigationTitle("admin_user_details".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.loadInviteInfo(for: user.id)
         }
-        .alert("Approve User", isPresented: $showingApproveConfirmation) {
-            Button("Cancel", role: .cancel) {
+        .alert("admin_approve_user".localized, isPresented: $showingApproveConfirmation) {
+            Button("common_cancel".localized, role: .cancel) {
                 showingApproveConfirmation = false
             }
-            Button("Approve", role: .none) {
+            Button("admin_approve".localized, role: .none) {
                 showingApproveConfirmation = false
                 Task {
                     await viewModel.approveUser(userId: user.id)
                     if viewModel.error == nil {
-                        dismiss()
+                        showSuccess = true
                     }
                 }
             }
         } message: {
-            Text("Are you sure you want to approve this user? They will be able to access all app features.")
+            Text("admin_approve_confirmation".localized)
         }
-        .alert("Reject User", isPresented: $showingRejectConfirmation) {
-            Button("Cancel", role: .cancel) {
+        .alert("admin_reject_user".localized, isPresented: $showingRejectConfirmation) {
+            Button("common_cancel".localized, role: .cancel) {
                 showingRejectConfirmation = false
             }
-            Button("Reject", role: .destructive) {
+            Button("admin_reject".localized, role: .destructive) {
                 showingRejectConfirmation = false
                 Task {
                     await viewModel.rejectUser(userId: user.id)
                     if viewModel.error == nil {
-                        dismiss()
+                        showSuccess = true
                     }
                 }
             }
         } message: {
-            Text("Are you sure you want to reject this user? Their account will be deleted.")
+            Text("admin_reject_confirmation".localized)
+        }
+        .successCheckmark(isShowing: $showSuccess)
+        .onChange(of: showSuccess) { _, newValue in
+            if !newValue {
+                dismiss()
+            }
         }
     }
 }

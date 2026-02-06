@@ -71,7 +71,7 @@ struct RideCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: "circle.fill")
                         .foregroundColor(.green)
-                        .font(.system(size: 10))
+                        .font(.naarsCaption)
                     AddressText(ride.pickup)
                 }
                 
@@ -86,7 +86,7 @@ struct RideCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.rideAccent)
-                        .font(.system(size: 16))
+                        .font(.naarsCallout)
                     AddressText(ride.destination)
                 }
             }
@@ -110,7 +110,7 @@ struct RideCard: View {
                     if let claimer = ride.claimer {
                         Image(systemName: "hand.raised.fill")
                             .foregroundColor(.naarsPrimary)
-                            .font(.system(size: 14))
+                            .font(.naarsSubheadline)
                         Text("Claimed by")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
@@ -121,7 +121,7 @@ struct RideCard: View {
                     } else {
                         Image(systemName: "hand.raised.fill")
                             .foregroundColor(.naarsPrimary)
-                            .font(.system(size: 14))
+                            .font(.naarsSubheadline)
                         Text("Claimed")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
@@ -143,7 +143,8 @@ struct RideCard: View {
         .cornerRadius(12)
         .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Ride from \(ride.pickup) to \(ride.destination)")
+        .accessibilityLabel("Ride from \(ride.pickup) to \(ride.destination) on \(ride.date.dateString), \(ride.status.displayText)")
+        .accessibilityHint("Double-tap to view ride details")
     }
 
     private var badgeText: String? {

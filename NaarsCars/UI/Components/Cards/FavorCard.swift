@@ -76,14 +76,14 @@ struct FavorCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.favorAccent) // Teal/cyan for favors
-                        .font(.system(size: 16))
+                        .font(.naarsCallout)
                     AddressText(favor.location)
                 }
                 
                 HStack(spacing: 8) {
                     Image(systemName: favor.duration.icon)
                         .foregroundColor(.naarsAccent)
-                        .font(.system(size: 16))
+                        .font(.naarsCallout)
                     Text(favor.duration.displayText)
                         .font(.naarsBody)
                 }
@@ -106,7 +106,7 @@ struct FavorCard: View {
                     if let claimer = favor.claimer {
                         Image(systemName: "hand.raised.fill")
                             .foregroundColor(.naarsPrimary)
-                            .font(.system(size: 14))
+                            .font(.naarsSubheadline)
                         Text("Claimed by")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
@@ -117,7 +117,7 @@ struct FavorCard: View {
                     } else {
                         Image(systemName: "hand.raised.fill")
                             .foregroundColor(.naarsPrimary)
-                            .font(.system(size: 14))
+                            .font(.naarsSubheadline)
                         Text("Claimed")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
@@ -139,7 +139,8 @@ struct FavorCard: View {
         .cornerRadius(12)
         .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Favor \(favor.title) at \(favor.location)")
+        .accessibilityLabel("Favor \(favor.title) at \(favor.location) on \(favor.date.dateString), \(favor.status.displayText)")
+        .accessibilityHint("Double-tap to view favor details")
     }
 
     private var badgeText: String? {

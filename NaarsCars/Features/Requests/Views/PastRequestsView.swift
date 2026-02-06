@@ -26,8 +26,8 @@ struct PastRequestsView: View {
     }
     
     enum PastRequestFilter: String, CaseIterable {
-        case myRequests = "My Past Requests"
-        case helpedWith = "Requests I've Helped With"
+        case myRequests = "ride_edit_my_past_requests"
+        case helpedWith = "ride_edit_helped_with"
     }
     
     var body: some View {
@@ -36,7 +36,7 @@ struct PastRequestsView: View {
                 // Filter toggle
                 Picker("Filter", selection: $selectedFilter) {
                     ForEach(PastRequestFilter.allCases, id: \.self) { filter in
-                        Text(filter.rawValue).tag(filter)
+                        Text(filter.rawValue.localized).tag(filter)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -67,7 +67,7 @@ struct PastRequestsView: View {
                 } else if viewModel.requests.isEmpty {
                     EmptyStateView(
                         icon: "clock.fill",
-                        title: "No Past Requests",
+                        title: "ride_edit_no_past_requests".localized,
                         message: filterEmptyMessage,
                         actionTitle: nil,
                         action: nil
@@ -89,11 +89,11 @@ struct PastRequestsView: View {
                     }
                 }
             }
-            .navigationTitle("Past Requests")
+            .navigationTitle("ride_edit_past_requests_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
+                    Button("common_close".localized) {
                         dismiss()
                     }
                 }
@@ -130,9 +130,9 @@ struct PastRequestsView: View {
     private var filterEmptyMessage: String {
         switch selectedFilter {
         case .myRequests:
-            return "You haven't posted any requests that are more than 12 hours old."
+            return "ride_edit_no_past_requests_mine".localized
         case .helpedWith:
-            return "You haven't helped with any requests that are more than 12 hours old."
+            return "ride_edit_no_past_requests_helped".localized
         }
     }
 }

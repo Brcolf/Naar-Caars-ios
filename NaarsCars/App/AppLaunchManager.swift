@@ -68,36 +68,36 @@ final class AppLaunchManager: ObservableObject {
     private var signOutObserver: NSObjectProtocol?
     
     private init() {
-        print("🔧 [AppLaunchManager] Initializing - setting up notification listener")
+        AppLogger.info("launch", "Initializing - setting up notification listener")
         
         // Use direct NotificationCenter observer instead of Combine for reliability
         let notificationName = NSNotification.Name("userDidSignOut")
-        print("🔧 [AppLaunchManager] Setting up observer for notification: '\(notificationName.rawValue)'")
+        AppLogger.info("launch", "Setting up observer for notification: '\(notificationName.rawValue)'")
         
         signOutObserver = NotificationCenter.default.addObserver(
             forName: notificationName,
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            print("📬 [AppLaunchManager] Received userDidSignOut notification!")
-            print("📬 [AppLaunchManager] Notification name: \(notification.name.rawValue)")
-            print("📬 [AppLaunchManager] Notification object: \(String(describing: notification.object))")
+            AppLogger.info("launch", "Received userDidSignOut notification")
+            AppLogger.info("launch", "Notification name: \(notification.name.rawValue)")
+            AppLogger.info("launch", "Notification object: \(String(describing: notification.object))")
             
             guard let self = self else {
-                print("⚠️ [AppLaunchManager] Self is nil, cannot update state")
+                AppLogger.warning("launch", "Self is nil, cannot update state")
                 return
             }
             
             // Immediately set state to unauthenticated when sign out happens
             // Since AppLaunchManager is @MainActor, this is safe to do synchronously
-            print("🔄 [AppLaunchManager] Setting state to unauthenticated immediately")
-            print("🔄 [AppLaunchManager] Current state before update: \(self.state.id)")
+            AppLogger.info("launch", "Setting state to unauthenticated immediately")
+            AppLogger.info("launch", "Current state before update: \(self.state.id)")
             self.state = .ready(.unauthenticated)
-            print("✅ [AppLaunchManager] State updated to: \(self.state.id)")
+            AppLogger.info("launch", "State updated to: \(self.state.id)")
         }
         
-        print("✅ [AppLaunchManager] Notification listener set up successfully")
-        print("✅ [AppLaunchManager] Observer stored: \(signOutObserver != nil ? "YES" : "NO")")
+        AppLogger.info("launch", "Notification listener set up successfully")
+        AppLogger.info("launch", "Observer stored: \(signOutObserver != nil ? "YES" : "NO")")
     }
     
     deinit {
@@ -162,7 +162,7 @@ final class AppLaunchManager: ObservableObject {
             }
             return await checkApprovalStatus(userId: userId)
         } catch {
-            print("⚠️ [AppLaunchManager] Lightweight approval check failed: \(error.localizedDescription)")
+            AppLogger.warning("launch", "Lightweight approval check failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -179,7 +179,7 @@ final class AppLaunchManager: ObservableObject {
                 let approved: Bool
             }
             
-            print("🔍 [AppLaunchManager] Checking approval status for user: \(userId)")
+            AppLogger.info("launch", "Checking approval status for user: \(userId)")
             
             let response: ProfileApproval = try await supabase
                 .from("profiles")
@@ -189,12 +189,12 @@ final class AppLaunchManager: ObservableObject {
                 .execute()
                 .value
             
-            print("✅ [AppLaunchManager] Approval status for user \(userId): \(response.approved)")
+            AppLogger.info("launch", "Approval status for user \(userId): \(response.approved)")
             return response.approved
         } catch {
             // Log error for debugging
-            print("⚠️ [AppLaunchManager] Failed to check approval status for user \(userId): \(error.localizedDescription)")
-            print("⚠️ [AppLaunchManager] Error details: \(error)")
+            AppLogger.warning("launch", "Failed to check approval status for user \(userId): \(error.localizedDescription)")
+            AppLogger.warning("launch", "Error details: \(error)")
             // If query fails, assume not approved (safer default)
             return false
         }

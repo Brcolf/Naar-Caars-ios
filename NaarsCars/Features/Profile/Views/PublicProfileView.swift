@@ -40,7 +40,7 @@ struct PublicProfileView: View {
                     // Reviews Section
                     reviewsSection()
                 } else if viewModel.isLoading {
-                    LoadingView(message: "Loading profile...")
+                    LoadingView(message: "profile_loading".localized)
                 } else {
                     ErrorView(
                         error: (viewModel.error ?? AppError.unknown("Failed to load profile")).localizedDescription,
@@ -54,7 +54,7 @@ struct PublicProfileView: View {
             }
             .padding()
         }
-        .navigationTitle(viewModel.profile?.name ?? "Profile")
+        .navigationTitle(viewModel.profile?.name ?? "nav_tab_profile".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.loadProfile(userId: userId)
@@ -73,12 +73,12 @@ struct PublicProfileView: View {
             )
             
             Text(profile.name)
-                .font(.title)
+                .font(.naarsTitle)
                 .fontWeight(.semibold)
             
             if let car = profile.car, !car.isEmpty {
                 Text(car)
-                    .font(.subheadline)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
             }
         }
@@ -87,39 +87,7 @@ struct PublicProfileView: View {
     // MARK: - Stats Section
     
     private func statsSection(rating: Double?, fulfilledCount: Int) -> some View {
-        HStack(spacing: 32) {
-            VStack {
-                if let rating = rating {
-                    Text(String(format: "%.1f", rating))
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Rating")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("—")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("No Rating")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Divider()
-            
-            VStack {
-                Text("\(fulfilledCount)")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Text("Fulfilled")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        ProfileStatsCard(rating: rating, fulfilledCount: fulfilledCount)
     }
     
     // MARK: - Phone Section
@@ -131,18 +99,18 @@ struct PublicProfileView: View {
             if shouldAutoReveal || isPhoneRevealed {
                 // Show full phone number
                 VStack(spacing: 4) {
-                    Text("Phone Number")
-                        .font(.caption)
+                    Text("profile_phone_number".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                     Text(Validators.displayPhoneNumber(phoneNumber, masked: false))
-                        .font(.body)
+                        .font(.naarsBody)
                         .fontWeight(.medium)
                 }
             } else {
                 // Show masked phone number with reveal button
                 VStack(spacing: 8) {
                     Text(Validators.displayPhoneNumber(phoneNumber, masked: true))
-                        .font(.body)
+                        .font(.naarsBody)
                         .fontWeight(.medium)
                     
                     Button {
@@ -152,15 +120,17 @@ struct PublicProfileView: View {
                         
                         isPhoneRevealed = true
                     } label: {
-                        Text("Reveal Number")
-                            .font(.subheadline)
+                        Text("profile_reveal_number".localized)
+                            .font(.naarsSubheadline)
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Reveal phone number")
+                    .accessibilityHint("Double-tap to show the full phone number")
                 }
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .cornerRadius(12)
         .onAppear {
             if shouldAutoReveal {
@@ -178,19 +148,19 @@ struct PublicProfileView: View {
             Task {
                 guard let currentUserId = appState.currentUser?.id else { return }
                 do {
-                    let conversation = try await MessageService.shared.getOrCreateDirectConversation(
+                    let conversation = try await ConversationService.shared.getOrCreateDirectConversation(
                         userId: currentUserId,
                         otherUserId: userId
                     )
                     navigateToConversation = conversation.id
                 } catch {
-                    print("🔴 Error creating conversation: \(error.localizedDescription)")
+                    AppLogger.error("profile", "Error creating conversation: \(error.localizedDescription)")
                 }
             }
         } label: {
             HStack {
                 Image(systemName: "message.fill")
-                Text("Send Message")
+                Text("profile_send_message".localized)
                 Spacer()
                 Image(systemName: "chevron.right")
             }
@@ -200,6 +170,8 @@ struct PublicProfileView: View {
             .foregroundColor(.white)
             .cornerRadius(12)
         }
+        .accessibilityLabel("Send message")
+        .accessibilityHint("Double-tap to start a conversation with this person")
         .navigationDestination(item: $navigateToConversation) { conversationId in
             ConversationDetailView(conversationId: conversationId)
         }
@@ -209,14 +181,14 @@ struct PublicProfileView: View {
     
     private func reviewsSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Reviews")
-                .font(.headline)
+            Text("profile_reviews".localized)
+                .font(.naarsHeadline)
             
             if viewModel.reviews.isEmpty {
                 EmptyStateView(
                     icon: "star",
-                    title: "No Reviews Yet",
-                    message: "This user hasn't received any reviews yet."
+                    title: "profile_no_reviews_yet".localized,
+                    message: "profile_no_reviews_message".localized
                 )
             } else {
                 ForEach(viewModel.reviews) { review in
@@ -225,7 +197,7 @@ struct PublicProfileView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .cornerRadius(12)
     }
     
@@ -242,8 +214,8 @@ struct PublicProfileView: View {
             return true
         }
         
-        // TODO: Check if in active conversation
-        // TODO: Check if on same request
+        // Phone number is currently revealed to any authenticated user viewing their own profile.
+        // Future: also auto-reveal when in an active conversation or on the same request (poster/claimer relationship).
         
         return false
     }
@@ -251,38 +223,7 @@ struct PublicProfileView: View {
 
 // MARK: - Supporting Views
 
-private struct ReviewRow: View {
-    let review: Review
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Star rating
-                HStack(spacing: 2) {
-                    ForEach(1...5, id: \.self) { index in
-                        Image(systemName: index <= review.rating ? "star.fill" : "star")
-                            .foregroundColor(.yellow)
-                            .font(.caption)
-                    }
-                }
-                
-                Spacer()
-                
-                Text(review.createdAt.timeAgo)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            if let comment = review.comment, !comment.isEmpty {
-                Text(comment)
-                    .font(.subheadline)
-            }
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-    }
-}
+private typealias ReviewRow = ReviewRowView
 
 #Preview {
     NavigationStack {

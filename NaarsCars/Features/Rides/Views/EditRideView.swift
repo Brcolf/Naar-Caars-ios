@@ -14,6 +14,7 @@ struct EditRideView: View {
     @StateObject private var viewModel = CreateRideViewModel() // Reuse CreateRideViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
+    @State private var showSuccess = false
     
     init(ride: Ride, onSaved: (() -> Void)? = nil) {
         self.ride = ride
@@ -23,8 +24,8 @@ struct EditRideView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Date & Time") {
-                    DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
+                Section("ride_edit_date_time".localized) {
+                    DatePicker("ride_edit_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
                     
                     TimePickerView(
@@ -34,18 +35,18 @@ struct EditRideView: View {
                     )
                 }
                 
-                Section("Route") {
-                    TextField("Pickup Location", text: $viewModel.pickup)
-                    TextField("Destination", text: $viewModel.destination)
+                Section("ride_edit_route".localized) {
+                    TextField("ride_edit_pickup_location".localized, text: $viewModel.pickup)
+                    TextField("ride_edit_destination".localized, text: $viewModel.destination)
                 }
                 
-                Section("Details") {
-                    Stepper("Seats: \(viewModel.seats)", value: $viewModel.seats, in: 1...7)
+                Section("ride_edit_details".localized) {
+                    Stepper("ride_edit_seats".localized(with: viewModel.seats), value: $viewModel.seats, in: 1...7)
                     
-                    TextField("Notes (optional)", text: $viewModel.notes, axis: .vertical)
+                    TextField("ride_edit_notes".localized, text: $viewModel.notes, axis: .vertical)
                         .lineLimit(3...6)
                     
-                    TextField("Gift/Compensation (optional)", text: $viewModel.gift)
+                    TextField("ride_edit_gift".localized, text: $viewModel.gift)
                 }
                 
                 if let error = error {
@@ -57,17 +58,17 @@ struct EditRideView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Edit Ride Request")
+            .navigationTitle("ride_edit_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("common_save".localized) {
                         Task {
                             do {
                                 // Format time from hour/minute/isAM
@@ -85,7 +86,11 @@ struct EditRideView: View {
                                 )
                                 // Notify parent to refresh before dismissing
                                 onSaved?()
-                                dismiss()
+                                showSuccess = true
+                                HapticManager.success()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    dismiss()
+                                }
                             } catch {
                                 self.error = error.localizedDescription
                             }
@@ -111,6 +116,7 @@ struct EditRideView: View {
                 }
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
 }
 

@@ -39,11 +39,11 @@ final class CreateRideViewModel: ObservableObject {
     /// - Returns: Error message if validation fails, nil if valid
     func validateForm() -> String? {
         if pickup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Pickup location is required"
+            return "ride_error_pickup_required".localized
         }
         
         if destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Destination is required"
+            return "ride_error_destination_required".localized
         }
         
         // Validate date is not in the past
@@ -52,11 +52,11 @@ final class CreateRideViewModel: ObservableObject {
         let selectedDate = calendar.startOfDay(for: date)
         
         if selectedDate < today {
-            return "Date cannot be in the past"
+            return "ride_error_date_in_past".localized
         }
         
         if seats < 1 || seats > 7 {
-            return "Seats must be between 1 and 7"
+            return "ride_error_seats_range".localized
         }
         
         return nil

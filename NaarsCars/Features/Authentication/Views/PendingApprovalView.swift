@@ -23,24 +23,24 @@ struct PendingApprovalView: View {
             // Icon
             Image(systemName: "hourglass")
                 .font(.system(size: 80))
-                .foregroundColor(.blue)
+                .foregroundColor(.naarsPrimary)
             
             // Title
-            Text("Your Account is Pending Approval")
-                .font(.title)
+            Text("pending_approval_title".localized)
+                .font(.naarsTitle)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
             
             // Description
             VStack(spacing: 16) {
-                Text("Thank you for creating your account!")
-                    .font(.body)
+                Text("pending_approval_thank_you".localized)
+                    .font(.naarsBody)
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                 
-                Text("Your account is pending approval from the board. You'll be notified once your account has been approved.")
-                    .font(.body)
+                Text("pending_approval_description".localized)
+                    .font(.naarsBody)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -65,13 +65,13 @@ struct PendingApprovalView: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(0.8)
                     }
-                    Text(isSigningOut ? "Signing Out..." : "Return to Login")
-                        .font(.headline)
+                    Text(isSigningOut ? "pending_approval_signing_out".localized : "pending_approval_return_to_login".localized)
+                        .font(.naarsHeadline)
                         .foregroundColor(.white)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
-                .background(Color.blue)
+                .background(Color.naarsPrimary)
                 .cornerRadius(12)
             }
             .disabled(isSigningOut)
@@ -104,16 +104,16 @@ struct PendingApprovalView: View {
         VStack(spacing: 16) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.badge.fill")
-                    .font(.title2)
-                    .foregroundColor(.blue)
+                    .font(.naarsTitle2)
+                    .foregroundColor(.naarsPrimary)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Enable Notifications")
-                        .font(.headline)
+                    Text("pending_approval_enable_notifications".localized)
+                        .font(.naarsHeadline)
                         .foregroundColor(.primary)
                     
-                    Text("Get notified when your account is approved")
-                        .font(.caption)
+                    Text("pending_approval_notifications_description".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
                 
@@ -125,13 +125,13 @@ struct PendingApprovalView: View {
                     await requestNotificationPermission()
                 }
             }) {
-                Text("Enable")
-                    .font(.subheadline)
+                Text("pending_approval_enable_button".localized)
+                    .font(.naarsSubheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color.blue)
+                    .background(Color.naarsPrimary)
                     .cornerRadius(8)
             }
             .accessibilityIdentifier("pendingApproval.enableNotifications")
@@ -149,8 +149,8 @@ struct PendingApprovalView: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
             
-            Text("Notifications enabled - we'll let you know when approved!")
-                .font(.caption)
+            Text("pending_approval_notifications_enabled".localized)
+                .font(.naarsCaption)
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 32)
@@ -220,7 +220,7 @@ struct PendingApprovalView: View {
                 // Trigger launch manager to re-check auth state
                 await launchManager.performCriticalLaunch()
             } catch {
-                print("⚠️ Error signing out: \(error.localizedDescription)")
+                AppLogger.warning("auth", "Error signing out: \(error.localizedDescription)")
                 // Still try to update launch state to unauthenticated
                 launchManager.state = .ready(.unauthenticated)
             }

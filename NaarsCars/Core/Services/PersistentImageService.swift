@@ -53,7 +53,7 @@ final class PersistentImageService {
                 return image
             }
         } catch {
-            print("🔴 [PersistentImageService] Failed to download image: \(error)")
+            AppLogger.error("images", "Failed to download image: \(error)")
         }
         
         return nil

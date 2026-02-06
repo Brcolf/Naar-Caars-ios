@@ -38,7 +38,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     private func registerBackgroundTasks() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.naarscars.app.refresh", using: nil) { task in
             guard let refreshTask = Self.appRefreshTask(from: task) else {
-                print("🔴 [AppDelegate] Expected BGAppRefreshTask, received \(type(of: task))")
+                AppLogger.error("app", "Expected BGAppRefreshTask, received \(type(of: task))")
                 task.setTaskCompleted(success: false)
                 return
             }
@@ -74,9 +74,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         do {
             try BGTaskScheduler.shared.submit(request)
-            print("📅 [AppDelegate] Scheduled background refresh")
+            AppLogger.info("app", "Scheduled background refresh")
         } catch {
-            print("🔴 [AppDelegate] Could not schedule app refresh: \(error)")
+            AppLogger.error("app", "Could not schedule app refresh: \(error)")
         }
     }
     
@@ -90,7 +90,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     private func handleURL(_ url: URL) {
         // Handle invite code deep links: https://naarscars.com/signup?code=CODE
         // This will be handled by SignupInviteCodeView's onOpenURL modifier
-        print("🔗 [AppDelegate] Received URL: \(url.absoluteString)")
+        AppLogger.info("app", "Received URL: \(url.absoluteString)")
         
         // Post notification for signup view to handle
         if url.host == "naarscars.com" || url.host == "www.naarscars.com",
@@ -115,10 +115,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                         userId: userId
                     )
                 } catch {
-                    print("🔴 [AppDelegate] Failed to register device token: \(error.localizedDescription)")
+                    AppLogger.error("push", "Failed to register device token: \(error.localizedDescription)")
                 }
             } else {
-                print("ℹ️ [AppDelegate] APNs token received before login; will register after login.")
+                AppLogger.info("push", "APNs token received before login; will register after login.")
             }
         }
     }
@@ -203,7 +203,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
            type == "message" || type == "added_to_conversation" {
             Task { @MainActor in
                 let isMessagesTab = NavigationCoordinator.shared.selectedTab == .messages
-                print("🔔 [AppDelegate] Foreground message banner: \(isMessagesTab ? "suppressed" : "shown")")
+                AppLogger.info("push", "Foreground message banner: \(isMessagesTab ? "suppressed" : "shown")")
                 completionHandler(isMessagesTab ? [] : [.banner, .sound, .badge])
             }
             return
@@ -220,7 +220,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Views use @State variables and navigationDestination modifiers to handle navigation
         switch deepLink {
         case .ride(let id):
-            print("🔗 [AppDelegate] Navigate to ride: \(id)")
+            AppLogger.info("app", "Navigate to ride: \(id)")
             var payload: [AnyHashable: Any] = ["rideId": id]
             if let userInfo, let requestPayload = requestNavigationPayload(
                 from: userInfo,
@@ -236,7 +236,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
             
         case .favor(let id):
-            print("🔗 [AppDelegate] Navigate to favor: \(id)")
+            AppLogger.info("app", "Navigate to favor: \(id)")
             var payload: [AnyHashable: Any] = ["favorId": id]
             if let userInfo, let requestPayload = requestNavigationPayload(
                 from: userInfo,
@@ -252,7 +252,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
             
         case .conversation(let id):
-            print("🔗 [AppDelegate] Navigate to conversation: \(id)")
+            AppLogger.info("app", "Navigate to conversation: \(id)")
             var payload: [AnyHashable: Any] = ["conversationId": id]
             if let userInfo,
                let messageIdString = userInfo["message_id"] as? String,
@@ -266,7 +266,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
             
         case .profile(let id):
-            print("🔗 [AppDelegate] Navigate to profile: \(id)")
+            AppLogger.info("app", "Navigate to profile: \(id)")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToProfile"),
                 object: nil,
@@ -274,14 +274,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
             
         case .notifications:
-            print("🔗 [AppDelegate] Navigate to notifications")
+            AppLogger.info("app", "Navigate to notifications")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToNotifications"),
                 object: nil
             )
 
         case .announcements(let notificationId):
-            print("🔗 [AppDelegate] Navigate to announcements")
+            AppLogger.info("app", "Navigate to announcements")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToAnnouncements"),
                 object: nil,
@@ -289,14 +289,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
             
         case .townHall:
-            print("🔗 [AppDelegate] Navigate to town hall")
+            AppLogger.info("app", "Navigate to town hall")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToTownHall"),
                 object: nil
             )
             
         case .townHallPostComments(let id):
-            print("🔗 [AppDelegate] Navigate to town hall post comments: \(id)")
+            AppLogger.info("app", "Navigate to town hall post comments: \(id)")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToTownHall"),
                 object: nil,
@@ -304,7 +304,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
             
         case .townHallPostHighlight(let id):
-            print("🔗 [AppDelegate] Navigate to town hall post highlight: \(id)")
+            AppLogger.info("app", "Navigate to town hall post highlight: \(id)")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToTownHall"),
                 object: nil,
@@ -312,34 +312,34 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
 
         case .adminPanel:
-            print("🔗 [AppDelegate] Navigate to admin panel")
+            AppLogger.info("app", "Navigate to admin panel")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToAdminPanel"),
                 object: nil
             )
             
         case .pendingUsers:
-            print("🔗 [AppDelegate] Navigate to pending users list")
+            AppLogger.info("app", "Navigate to pending users list")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToPendingUsers"),
                 object: nil
             )
 
         case .dashboard:
-            print("🔗 [AppDelegate] Navigate to dashboard")
+            AppLogger.info("app", "Navigate to dashboard")
             NotificationCenter.default.post(
                 name: NSNotification.Name("navigateToDashboard"),
                 object: nil
             )
             
         case .enterApp:
-            print("🔗 [AppDelegate] Enter app")
+            AppLogger.info("app", "Enter app")
             Task { @MainActor in
                 await AppLaunchManager.shared.performCriticalLaunch()
             }
             
         case .unknown:
-            print("🔗 [AppDelegate] Unknown deep link")
+            AppLogger.warning("app", "Unknown deep link")
         }
     }
 

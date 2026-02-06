@@ -36,7 +36,7 @@ final class UserManagementViewModel: ObservableObject {
             members = users
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [UserManagementViewModel] Error loading members: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error loading members: \(error.localizedDescription)")
         }
     }
     
@@ -55,15 +55,16 @@ final class UserManagementViewModel: ObservableObject {
         
         do {
             try await adminService.setAdminStatus(userId: userId, isAdmin: isAdmin)
+            HapticManager.success()
             
             // Reload the list to reflect changes
             await loadAllMembers()
             
-            print("✅ [UserManagementViewModel] Successfully toggled admin status for \(userId): \(isAdmin)")
+            AppLogger.info("admin", "Successfully toggled admin status for \(userId): \(isAdmin)")
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [UserManagementViewModel] Error toggling admin status: \(error.localizedDescription)")
-            print("🔴 [UserManagementViewModel] Error details: \(error)")
+            AppLogger.error("admin", "Error toggling admin status: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error toggling admin status details: \(error)")
         }
     }
     

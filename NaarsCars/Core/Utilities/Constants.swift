@@ -40,5 +40,21 @@ enum Constants {
         static let conversations: TimeInterval = 60   // 1 minute
         static let leaderboard: TimeInterval = 900    // 15 minutes
     }
+    
+    /// External URLs
+    enum URLs {
+        static let googleMapsSearch = "https://www.google.com/maps/search/"
+        static let googleMapsDirections = "https://www.google.com/maps/dir/"
+        static let termsOfService = "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Terms-of-Service-2ee7d642e90c8005ae63d8731e3d50f5"
+        static let privacyPolicy = "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc"
+        static let appStore = "https://apps.apple.com/app/naars-cars/id0000000000"
+        static let deepLinkBase = "https://naarscars.com"
+    }
+    
+    /// Default map coordinates
+    enum Map {
+        static let defaultLatitude: Double = 47.6062    // Seattle
+        static let defaultLongitude: Double = -122.3321
+    }
 }
 

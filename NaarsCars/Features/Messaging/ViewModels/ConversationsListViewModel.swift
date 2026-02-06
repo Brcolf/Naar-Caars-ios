@@ -9,6 +9,21 @@ import Foundation
 import SwiftUI
 internal import Combine
 
+/// Result of a message search across conversations
+struct MessageSearchResult: Identifiable {
+    let id: UUID
+    let message: Message
+    let conversationId: UUID
+    let conversationTitle: String
+    
+    init(message: Message, conversationId: UUID, conversationTitle: String) {
+        self.id = message.id
+        self.message = message
+        self.conversationId = conversationId
+        self.conversationTitle = conversationTitle
+    }
+}
+
 /// ViewModel for conversations list
 @MainActor
 final class ConversationsListViewModel: ObservableObject {
@@ -18,17 +33,25 @@ final class ConversationsListViewModel: ObservableObject {
     @Published var hasMoreConversations: Bool = true
     @Published var error: AppError?
     
-    private let messageService = MessageService.shared
+    // MARK: - Search State
+    @Published var searchText: String = ""
+    @Published var searchResults: [MessageSearchResult] = []
+    @Published var isSearching: Bool = false
+    
+    private let conversationService = ConversationService.shared
     private let profileService = ProfileService.shared
+    private let messageService = MessageService.shared
     private let repository = MessagingRepository.shared
     private let authService = AuthService.shared
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
+    private var searchTask: Task<Void, Never>?
     
     init() {
         setupUnreadCountObservers()
         setupLocalObservation()
+        setupSearchDebounce()
     }
 
     private func setupLocalObservation() {
@@ -44,7 +67,10 @@ final class ConversationsListViewModel: ObservableObject {
     }
 
     func applyLocalConversations(_ updatedConversations: [ConversationWithDetails], animated: Bool = false) {
-        let mergedConversations = updatedConversations.map { updated in
+        // Filter out conversations the user has soft-deleted
+        let visible = filterHiddenConversations(updatedConversations)
+
+        let mergedConversations = visible.map { updated in
             guard updated.otherParticipants.isEmpty,
                   let existing = conversations.first(where: { $0.id == updated.id }),
                   !existing.otherParticipants.isEmpty else {
@@ -66,6 +92,14 @@ final class ConversationsListViewModel: ObservableObject {
         } else {
             conversations = mergedConversations
         }
+    }
+    
+    /// Exclude conversations the current user has soft-deleted (hidden via UserDefaults).
+    private func filterHiddenConversations(_ conversations: [ConversationWithDetails]) -> [ConversationWithDetails] {
+        guard let userId = authService.currentUserId else { return conversations }
+        let hiddenIds = conversationService.getHiddenConversationIds(for: userId)
+        guard !hiddenIds.isEmpty else { return conversations }
+        return conversations.filter { !hiddenIds.contains($0.conversation.id) }
     }
     
     private func setupUnreadCountObservers() {
@@ -108,7 +142,7 @@ final class ConversationsListViewModel: ObservableObject {
         }
         
         if hasChanges {
-            print("✅ [ConversationsListVM] Applied server-side unread counts to list and local storage")
+            AppLogger.info("messaging", "[ConversationsListVM] Applied server-side unread counts to list and local storage")
             try? repository.save()
             // Force a UI refresh
             objectWillChange.send()
@@ -135,12 +169,12 @@ final class ConversationsListViewModel: ObservableObject {
         do {
             let localConversations = try repository.getConversations()
             applyLocalConversations(localConversations, animated: false)
-            print("📱 [ConversationsListVM] Loaded \(conversations.count) conversations from local storage")
+            AppLogger.info("messaging", "[ConversationsListVM] Loaded \(conversations.count) conversations from local storage")
             
             // Hydrate profiles for local conversations
             await hydrateProfiles(for: localConversations)
         } catch {
-            print("⚠️ [ConversationsListVM] Error loading local conversations: \(error)")
+            AppLogger.warning("messaging", "[ConversationsListVM] Error loading local conversations: \(error)")
         }
         
         // 2. Sync from remote in background
@@ -154,7 +188,7 @@ final class ConversationsListViewModel: ObservableObject {
                 // Hydrate profiles for updated conversations
                 await hydrateProfiles(for: updatedConversations)
             } catch {
-                print("🔴 [ConversationsListVM] Error syncing conversations: \(error)")
+                AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
             }
         }
     }
@@ -202,8 +236,8 @@ final class ConversationsListViewModel: ObservableObject {
         isLoadingMore = true
         
         do {
-            print("🔄 [ConversationsListVM] Fetching more conversations at offset \(currentOffset)")
-            let fetched = try await messageService.fetchConversations(userId: userId, limit: pageSize, offset: currentOffset)
+            AppLogger.info("messaging", "[ConversationsListVM] Fetching more conversations at offset \(currentOffset)")
+            let fetched = try await conversationService.fetchConversations(userId: userId, limit: pageSize, offset: currentOffset)
             
             // Filter out duplicates to prevent UI glitches
             let existingIds = Set(self.conversations.map { $0.conversation.id })
@@ -212,20 +246,20 @@ final class ConversationsListViewModel: ObservableObject {
             if !newConversations.isEmpty {
                 self.conversations.append(contentsOf: newConversations)
                 currentOffset += fetched.count 
-                print("✅ [ConversationsListVM] Loaded \(newConversations.count) more conversations. New offset: \(currentOffset)")
+                AppLogger.info("messaging", "[ConversationsListVM] Loaded \(newConversations.count) more conversations. New offset: \(currentOffset)")
             } 
             
             // IMPORTANT: Only mark as reached end if the server actually returned fewer than requested
             if fetched.count < pageSize {
                 hasMoreConversations = false
-                print("ℹ️ [ConversationsListVM] Reached the end of the conversation list (fetched \(fetched.count) < \(pageSize))")
+                AppLogger.info("messaging", "[ConversationsListVM] Reached the end of the conversation list (fetched \(fetched.count) < \(pageSize))")
             }
         } catch {
             // Don't show error if task was cancelled
             if Task.isCancelled || error is CancellationError || error.localizedDescription.lowercased().contains("cancel") {
-                print("ℹ️ Load more conversations task was cancelled, ignoring error")
+                AppLogger.info("messaging", "Load more conversations task was cancelled, ignoring error")
             } else {
-                print("🔴 Error loading more conversations: \(error.localizedDescription)")
+                AppLogger.error("messaging", "Error loading more conversations: \(error.localizedDescription)")
                 // Don't set error here - just log it
             }
         }
@@ -240,15 +274,97 @@ final class ConversationsListViewModel: ObservableObject {
     }
 
     func deleteConversation(_ conversation: Conversation) async {
+        // Optimistically remove from the list for responsive UI
+        let snapshot = conversations
+        
+        withAnimation {
+            conversations.removeAll { $0.conversation.id == conversation.id }
+        }
+        
         do {
             try await repository.deleteConversation(id: conversation.id)
-            // Local observation will update the list automatically
+            AppLogger.info("messaging", "[ConversationsListVM] Soft-deleted conversation \(conversation.id)")
         } catch {
+            // Restore the list on failure so the user can retry
+            withAnimation {
+                conversations = snapshot
+            }
             self.error = AppError.processingError("Failed to delete conversation: \(error.localizedDescription)")
+            AppLogger.error("messaging", "[ConversationsListVM] Failed to delete conversation: \(error.localizedDescription)")
         }
     }
     
+    // MARK: - Search
     
+    private func setupSearchDebounce() {
+        $searchText
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .removeDuplicates()
+            .sink { [weak self] query in
+                guard let self = self else { return }
+                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.searchResults = []
+                    self.isSearching = false
+                } else {
+                    self.performSearch(query: query)
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func performSearch(query: String) {
+        searchTask?.cancel()
+        searchTask = Task { [weak self] in
+            guard let self = self else { return }
+            self.isSearching = true
+            
+            guard let userId = self.authService.currentUserId else {
+                self.isSearching = false
+                return
+            }
+            
+            do {
+                let messages = try await self.messageService.searchMessages(query: query, userId: userId, limit: 30)
+                
+                guard !Task.isCancelled else { return }
+                
+                // Map messages to search results with conversation titles
+                let results = messages.map { message -> MessageSearchResult in
+                    let title = self.conversationTitle(for: message.conversationId)
+                    return MessageSearchResult(
+                        message: message,
+                        conversationId: message.conversationId,
+                        conversationTitle: title
+                    )
+                }
+                
+                self.searchResults = results
+            } catch {
+                if !Task.isCancelled {
+                    AppLogger.error("messaging", "[ConversationsListVM] Search failed: \(error.localizedDescription)")
+                }
+            }
+            
+            if !Task.isCancelled {
+                self.isSearching = false
+            }
+        }
+    }
+    
+    /// Resolve a conversation title from the loaded conversations list
+    private func conversationTitle(for conversationId: UUID) -> String {
+        if let detail = conversations.first(where: { $0.conversation.id == conversationId }) {
+            // Use group title if available
+            if let title = detail.conversation.title, !title.isEmpty {
+                return title
+            }
+            // Otherwise use participant names
+            if !detail.otherParticipants.isEmpty {
+                return detail.otherParticipants.map { $0.name }.joined(separator: ", ")
+            }
+        }
+        return "Conversation"
+    }
     
     // MARK: - Debug Support
     

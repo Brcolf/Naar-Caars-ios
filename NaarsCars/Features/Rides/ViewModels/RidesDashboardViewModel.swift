@@ -98,7 +98,7 @@ final class RidesDashboardViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let fetchedRides = try await rideService.fetchRides(forceRefresh: forceRefresh)
+            let fetchedRides = try await rideService.fetchRides()
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -107,7 +107,7 @@ final class RidesDashboardViewModel: ObservableObject {
             }
         } catch {
             self.error = error.localizedDescription
-            print("❌ Error loading rides: \(error)")
+            AppLogger.error("rides", "Error loading rides: \(error)")
         }
     }
     

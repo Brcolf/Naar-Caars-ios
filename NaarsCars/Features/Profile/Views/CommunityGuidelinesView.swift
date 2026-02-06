@@ -17,11 +17,11 @@ struct CommunityGuidelinesView: View {
             VStack(alignment: .leading, spacing: 24) {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Community Guidelines")
+                    Text("guidelines_title".localized)
                         .font(.naarsTitle)
                         .fontWeight(.bold)
                     
-                    Text("Welcome to Naar's Cars! Please review these guidelines to ensure our community remains safe, supportive, and helpful.")
+                    Text("guidelines_review_message".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                 }
@@ -96,12 +96,12 @@ struct CommunityGuidelinesView: View {
             }
             .padding()
         }
-        .navigationTitle("Community Guidelines")
+        .navigationTitle("guidelines_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if showDismissButton {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("common_done".localized) {
                         dismiss()
                     }
                 }

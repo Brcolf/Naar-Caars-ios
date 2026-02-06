@@ -108,7 +108,7 @@ struct AddressText: View {
         let googleMapsAppURL = URL(string: "comgooglemaps://?q=\(encodedAddress)")
         
         // Fallback to Google Maps web URL (works even if app not installed)
-        let googleMapsWebURL = URL(string: "https://www.google.com/maps/search/?api=1&query=\(encodedAddress)")
+        let googleMapsWebURL = URL(string: "\(Constants.URLs.googleMapsSearch)?api=1&query=\(encodedAddress)")
         
         if let appURL = googleMapsAppURL, UIApplication.shared.canOpenURL(appURL) {
             // Google Maps app is installed - open it

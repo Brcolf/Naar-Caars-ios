@@ -18,12 +18,12 @@ struct SignupDetailsView: View {
         VStack(spacing: 24) {
             // Header
             VStack(spacing: 8) {
-                Text("Create Your Account")
-                    .font(.title2)
+                Text("signup_create_account_title".localized)
+                    .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("Fill in your details below")
-                    .font(.subheadline)
+                Text("signup_details_subtitle".localized)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
             }
             .padding(.top, 20)
@@ -33,11 +33,11 @@ struct SignupDetailsView: View {
                 VStack(spacing: 20) {
                     // Name field
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Full Name *")
-                            .font(.headline)
+                        Text("signup_full_name_label".localized)
+                            .font(.naarsHeadline)
                             .foregroundColor(.primary)
                         
-                        TextField("John Doe", text: $viewModel.name)
+                        TextField("signup_name_placeholder".localized, text: $viewModel.name)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
@@ -50,18 +50,19 @@ struct SignupDetailsView: View {
                         
                         if let error = viewModel.nameError {
                             Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
+                                .font(.naarsCaption)
+                                .foregroundColor(.naarsError)
+                                .accessibilityLabel("Error: \(error)")
                         }
                     }
                     
                     // Email field
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Email *")
-                            .font(.headline)
+                        Text("signup_email_label".localized)
+                            .font(.naarsHeadline)
                             .foregroundColor(.primary)
                         
-                        TextField("john@example.com", text: $viewModel.email)
+                        TextField("signup_email_placeholder".localized, text: $viewModel.email)
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
@@ -75,18 +76,19 @@ struct SignupDetailsView: View {
                         
                         if let error = viewModel.emailError {
                             Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
+                                .font(.naarsCaption)
+                                .foregroundColor(.naarsError)
+                                .accessibilityLabel("Error: \(error)")
                         }
                     }
                     
                     // Password field
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Password *")
-                            .font(.headline)
+                        Text("signup_password_label".localized)
+                            .font(.naarsHeadline)
                             .foregroundColor(.primary)
                         
-                        SecureField("Minimum 8 characters", text: $viewModel.password)
+                        SecureField("signup_password_placeholder".localized, text: $viewModel.password)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("signup.password")
                             .onChange(of: viewModel.password) { _, _ in
@@ -97,22 +99,23 @@ struct SignupDetailsView: View {
                         
                         if let error = viewModel.passwordError {
                             Text(error)
-                                .font(.caption)
-                                .foregroundColor(.red)
+                                .font(.naarsCaption)
+                                .foregroundColor(.naarsError)
+                                .accessibilityLabel("Error: \(error)")
                         } else {
-                            Text("Must be at least 8 characters with letters and numbers")
-                                .font(.caption)
+                            Text("signup_password_hint".localized)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     }
                     
                     // Car field (optional)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Car (Optional)")
-                            .font(.headline)
+                        Text("signup_car_label".localized)
+                            .font(.naarsHeadline)
                             .foregroundColor(.primary)
                         
-                        TextField("e.g., 2020 Honda Civic", text: $viewModel.car)
+                        TextField("signup_car_placeholder".localized, text: $viewModel.car)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.words)
                             .accessibilityIdentifier("signup.car")
@@ -125,25 +128,26 @@ struct SignupDetailsView: View {
             // Error message
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
-                    .font(.caption)
-                    .foregroundColor(.red)
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsError)
                     .padding(.horizontal)
                     .multilineTextAlignment(.center)
+                    .accessibilityLabel("Error: \(errorMessage)")
             }
             
             // Terms and Privacy notice
             VStack(spacing: 4) {
-                Text("By creating an account, you agree to our")
-                    .font(.caption)
+                Text("signup_terms_agreement".localized)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
                 HStack(spacing: 4) {
-                    Link("Terms of Service", destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Terms-of-Service-2ee7d642e90c8005ae63d8731e3d50f5")!)
-                        .font(.caption)
-                    Text("and")
-                        .font(.caption)
+                    Link("signup_terms_of_service".localized, destination: URL(string: Constants.URLs.termsOfService)!)
+                        .font(.naarsCaption)
+                    Text("signup_terms_and".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
-                    Link("Privacy Policy", destination: URL(string: "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc")!)
-                        .font(.caption)
+                    Link("signup_privacy_policy".localized, destination: URL(string: Constants.URLs.privacyPolicy)!)
+                        .font(.naarsCaption)
                 }
             }
             .padding(.horizontal)
@@ -151,7 +155,7 @@ struct SignupDetailsView: View {
             // Sign up button
             VStack(spacing: 12) {
                 PrimaryButton(
-                    title: "Create Account",
+                    title: "signup_create_account_button".localized,
                     action: {
                         Task {
                             do {
@@ -178,15 +182,15 @@ struct SignupDetailsView: View {
                 )
                 .accessibilityIdentifier("signup.createAccount")
                 if viewModel.isLoading {
-                    Text("Creating your account...")
-                        .font(.caption)
+                    Text("signup_creating_account".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
             }
             .padding(.horizontal)
             .padding(.bottom, 32)
         }
-        .navigationTitle("Sign Up")
+        .navigationTitle("signup_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
         .onAppear {

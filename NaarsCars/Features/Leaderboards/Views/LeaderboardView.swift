@@ -23,6 +23,7 @@ struct LeaderboardView: View {
                 .pickerStyle(.segmented)
                 .padding()
                 .onChange(of: viewModel.selectedPeriod) { _, _ in
+                    HapticManager.selectionChanged()
                     Task {
                         await viewModel.loadLeaderboard()
                     }
@@ -49,8 +50,8 @@ struct LeaderboardView: View {
                 } else if viewModel.entries.isEmpty {
                     EmptyStateView(
                         icon: "trophy.fill",
-                        title: "No Rankings Yet",
-                        message: "Be the first to fulfill a request and appear on the leaderboard!"
+                        title: "leaderboard_no_rankings".localized,
+                        message: "leaderboard_be_first".localized
                     )
                 } else {
                     List {
@@ -67,7 +68,7 @@ struct LeaderboardView: View {
                             Divider()
                             
                             HStack {
-                                Text("Your Rank: #\(userRank)")
+                                Text("leaderboard_your_rank".localized(with: userRank))
                                     .font(.naarsHeadline)
                                     .foregroundColor(.naarsPrimary)
                                 Spacer()
@@ -78,7 +79,7 @@ struct LeaderboardView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Leaderboard")
+            .navigationTitle("leaderboard_title".localized)
             .task {
                 await viewModel.loadLeaderboard()
             }

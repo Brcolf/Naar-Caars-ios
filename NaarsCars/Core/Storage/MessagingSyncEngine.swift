@@ -41,7 +41,7 @@ final class MessagingSyncEngine {
     }
 
     private func handleIncomingMessage(_ payload: Any, event: MessageEvent) {
-        print("🔴 [MessagingSyncEngine] Received realtime payload: \(type(of: payload))")
+        AppLogger.info("messaging", "Received realtime payload: \(type(of: payload))")
         if event == .update,
            let updateAction = payload as? UpdateAction,
            Self.shouldIgnoreReadByUpdate(
@@ -52,7 +52,7 @@ final class MessagingSyncEngine {
             return
         }
         guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
-            print("⚠️ [MessagingSyncEngine] Failed to parse realtime message payload")
+            AppLogger.warning("messaging", "Failed to parse realtime message payload")
             return
         }
         
@@ -78,7 +78,7 @@ final class MessagingSyncEngine {
                     ]
                 )
             } catch {
-                print("🔴 [MessagingSyncEngine] Error upserting realtime message: \(error)")
+                AppLogger.error("messaging", "Error upserting realtime message: \(error)")
             }
         }
     }
@@ -141,12 +141,64 @@ final class MessagingSyncEngine {
     }
 
     func retryPendingMessages() async {
-        // Fetch all pending messages
-        // In a real app, we'd use a more robust background task or a dedicated retry queue
-        // For now, we'll implement a simple loop with exponential backoff
+        guard let modelContext = modelContext else { return }
         
-        // This is a placeholder for the actual retry logic implementation
-        // which would involve fetching from repository and calling sendMessage
+        // Fetch pending messages from SwiftData
+        let descriptor = FetchDescriptor<SDMessage>(
+            predicate: #Predicate { $0.isPending == true }
+        )
+        
+        do {
+            let pendingMessages = try modelContext.fetch(descriptor)
+            guard !pendingMessages.isEmpty else { return }
+            
+            AppLogger.info("messaging", "Found \(pendingMessages.count) pending message(s) to retry")
+            
+            for sdMessage in pendingMessages {
+                // Capture values needed by the sendable closure
+                let conversationId = sdMessage.conversationId
+                let fromId = sdMessage.fromId
+                let text = sdMessage.text
+                let imageUrl = sdMessage.imageUrl
+                let replyToId = sdMessage.replyToId
+                let messageId = sdMessage.id
+                
+                do {
+                    let sentMessage = try await RetryableOperation.execute(maxAttempts: 3, initialDelay: 1.0) {
+                        try await MessageService.shared.sendMessage(
+                            conversationId: conversationId,
+                            fromId: fromId,
+                            text: text,
+                            imageUrl: imageUrl,
+                            replyToId: replyToId
+                        )
+                    }
+                    
+                    // Replace optimistic message with the real server message
+                    modelContext.delete(sdMessage)
+                    let finalSDMessage = MessagingMapper.mapToSDMessage(sentMessage, isPending: false)
+                    
+                    let convId = sentMessage.conversationId
+                    let convFetch = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == convId })
+                    if let sdConv = try? modelContext.fetch(convFetch).first {
+                        finalSDMessage.conversation = sdConv
+                        sdConv.updatedAt = sentMessage.createdAt
+                    }
+                    
+                    modelContext.insert(finalSDMessage)
+                    try? modelContext.save()
+                    AppLogger.info("messaging", "Retried pending message \(messageId) successfully")
+                } catch {
+                    // Mark as failed after all retries exhausted
+                    sdMessage.isPending = false
+                    sdMessage.syncError = error.localizedDescription
+                    try? modelContext.save()
+                    AppLogger.error("messaging", "Failed to retry message \(messageId) after 3 attempts: \(error.localizedDescription)")
+                }
+            }
+        } catch {
+            AppLogger.error("messaging", "Failed to fetch pending messages: \(error.localizedDescription)")
+        }
     }
 }
 

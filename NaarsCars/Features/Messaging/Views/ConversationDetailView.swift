@@ -52,6 +52,14 @@ struct ConversationDetailView: View {
     @State private var showReportSheet = false
     @State private var messageToReport: Message?
     
+    // Unsend confirmation state
+    @State private var showUnsendConfirmation = false
+    @State private var messageToUnsend: Message?
+    
+    // Toast state
+    @State private var toastMessage: String? = nil
+    
+    
     init(conversationId: UUID) {
         self.conversationId = conversationId
         _viewModel = StateObject(wrappedValue: ConversationDetailViewModel(conversationId: conversationId))
@@ -96,21 +104,47 @@ struct ConversationDetailView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // In-conversation search bar
+            if viewModel.isSearchActive {
+                ConversationSearchBar(viewModel: viewModel)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            
             messagesListView
+
+            // Typing indicator
+            if !viewModel.typingUsers.isEmpty {
+                TypingIndicatorView(typingUsers: viewModel.typingUsers)
+                    .padding(.horizontal)
+                    .animation(.easeInOut(duration: 0.25), value: viewModel.typingUsers.count)
+            }
 
             // Input bar
             MessageInputBar(
                 text: $viewModel.messageText,
                 imageToSend: $imageToSend,
                 onSend: {
-                    let textToSend = viewModel.messageText
-                    viewModel.messageText = ""
-                    Task {
-                        await viewModel.sendMessage(textOverride: textToSend, image: imageToSend, replyToId: replyingToMessage?.id)
-                        imageToSend = nil
-                        // Clear reply context after sending
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            replyingToMessage = nil
+                    if viewModel.editingMessage != nil {
+                        // Submit edit
+                        let editedText = viewModel.messageText
+                        Task {
+                            await viewModel.editMessage(newContent: editedText)
+                            if viewModel.error == nil {
+                                toastMessage = "toast_message_edited".localized
+                            }
+                        }
+                    } else {
+                        // Normal send
+                        let textToSend = viewModel.messageText
+                        viewModel.messageText = ""
+                        viewModel.clearOwnTypingStatus()
+                        Task {
+                            await viewModel.sendMessage(textOverride: textToSend, image: imageToSend, replyToId: replyingToMessage?.id)
+                            imageToSend = nil
+                            // Clear reply context after sending
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                replyingToMessage = nil
+                            }
                         }
                     }
                 },
@@ -122,7 +156,12 @@ struct ConversationDetailView: View {
                 onCancelReply: {
                     replyingToMessage = nil
                 },
+                editingMessage: viewModel.editingMessage,
+                onCancelEdit: {
+                    viewModel.cancelEdit()
+                },
                 onAudioRecorded: { audioURL, duration in
+                    viewModel.clearOwnTypingStatus()
                     Task {
                         await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyingToMessage?.id)
                         withAnimation(.easeOut(duration: 0.2)) {
@@ -131,12 +170,16 @@ struct ConversationDetailView: View {
                     }
                 },
                 onLocationShare: { latitude, longitude, name in
+                    viewModel.clearOwnTypingStatus()
                     Task {
                         await viewModel.sendLocationMessage(latitude: latitude, longitude: longitude, locationName: name, replyToId: replyingToMessage?.id)
                         withAnimation(.easeOut(duration: 0.2)) {
                             replyingToMessage = nil
                         }
                     }
+                },
+                onTypingChanged: {
+                    viewModel.userDidType()
                 }
             )
         }
@@ -145,7 +188,23 @@ struct ConversationDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                // Media gallery button
+                NavigationLink {
+                    ConversationMediaGalleryView(conversationId: conversationId)
+                } label: {
+                    Image(systemName: "photo.on.rectangle")
+                }
+                .accessibilityLabel("Media")
+                
+                // Search button
+                Button {
+                    viewModel.toggleSearch()
+                } label: {
+                    Image(systemName: viewModel.isSearchActive ? "xmark" : "magnifyingglass")
+                }
+                .accessibilityLabel(viewModel.isSearchActive ? "Close search" : "Search messages")
+                
                 // Edit button for group conversations (opens message details popup)
                 if participantsViewModel.participants.count > 2 {
                     Button {
@@ -215,6 +274,8 @@ struct ConversationDetailView: View {
                     try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
                 }
             }
+            // Start observing typing indicators
+            viewModel.startTypingObservation()
         }
         .onDisappear {
             NotificationCenter.default.post(
@@ -222,7 +283,15 @@ struct ConversationDetailView: View {
                 object: nil,
                 userInfo: ["conversationId": conversationId]
             )
+            // Stop observing typing indicators
+            viewModel.stopTypingObservation()
         }
+        .onChange(of: viewModel.currentSearchResultId) { _, resultId in
+            if let messageId = resultId {
+                scrollToMessage(messageId)
+            }
+        }
+        .toast(message: $toastMessage)
         .trackScreen("ConversationDetail")
         .fullScreenCover(isPresented: $showImageViewer) {
             if let imageUrl = selectedImageUrl {
@@ -256,6 +325,24 @@ struct ConversationDetailView: View {
                 )
             }
         }
+        .alert("Unsend Message", isPresented: $showUnsendConfirmation) {
+            Button("Cancel", role: .cancel) {
+                messageToUnsend = nil
+            }
+            Button("Unsend", role: .destructive) {
+                if let message = messageToUnsend {
+                    Task {
+                        await viewModel.unsendMessage(id: message.id)
+                        if viewModel.error == nil {
+                            toastMessage = "toast_message_unsent".localized
+                        }
+                    }
+                    messageToUnsend = nil
+                }
+            }
+        } message: {
+            Text("messaging_unsend_confirmation_message".localized)
+        }
     }
     
     /// Submit a report for a message
@@ -272,7 +359,7 @@ struct ConversationDetailView: View {
             
             messageToReport = nil
         } catch {
-            print("🔴 Error submitting report: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error submitting report: \(error.localizedDescription)")
         }
     }
     
@@ -309,6 +396,7 @@ struct ConversationDetailView: View {
             shouldAnimate: newMessageIds.contains(message.id),
             totalParticipants: totalParticipantsCount,
             replySpine: replyChain.map { (showTop: $0.hasPrevious, showBottom: $0.hasNext) },
+            isFailed: viewModel.failedMessageIds.contains(message.id),
             onLongPress: {
                 reactionPickerMessageId = message.id
                 showReactionPicker = true
@@ -321,6 +409,16 @@ struct ConversationDetailView: View {
                     replyingToMessage = ReplyContext(from: message)
                 }
             },
+            onEdit: isFromCurrentUser(message) ? {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    replyingToMessage = nil // Clear reply if active
+                    viewModel.startEditing(message)
+                }
+            } : nil,
+            onUnsend: isFromCurrentUser(message) && message.canUnsend ? {
+                showUnsendConfirmation = true
+                messageToUnsend = message
+            } : nil,
             onImageTap: { imageUrl in
                 selectedImageUrl = imageUrl
                 showImageViewer = true
@@ -331,6 +429,11 @@ struct ConversationDetailView: View {
             },
             onReplyPreviewTap: { replyId in
                 activeThreadParent = ThreadParent(id: replyId)
+            },
+            onRetry: {
+                Task {
+                    await viewModel.retryMessage(id: message.id)
+                }
             },
             isHighlighted: highlightedMessageId == message.id
         )
@@ -387,10 +490,10 @@ struct ConversationDetailView: View {
                         }
                     }
                     showScrollToBottom = false
-                    print("⬇️ [ConversationDetail] Auto-scroll to bottom")
+                    AppLogger.info("messaging", "[ConversationDetail] Auto-scroll to bottom")
                 } else if newCount > oldCount {
                     showScrollToBottom = true
-                    print("⬆️ [ConversationDetail] New messages while scrolled up")
+                    AppLogger.info("messaging", "[ConversationDetail] New messages while scrolled up")
                 }
 
                 // Update last_seen when new messages arrive while viewing
@@ -428,6 +531,7 @@ struct ConversationDetailView: View {
                     Spacer()
                     ReactionPicker(
                         onReactionSelected: { reaction in
+                            HapticManager.selectionChanged()
                             if let messageId = reactionPickerMessageId {
                                 Task {
                                     await viewModel.addReaction(messageId: messageId, reaction: reaction)
@@ -461,7 +565,7 @@ struct ConversationDetailView: View {
             .frame(height: 2)
             .onAppear {
                 if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
-                    print("🔄 [ConversationDetail] Reached top, loading more messages")
+                    AppLogger.info("messaging", "[ConversationDetail] Reached top, loading more messages")
                     Task {
                         await viewModel.loadMoreMessages()
                     }
@@ -470,11 +574,11 @@ struct ConversationDetailView: View {
 
         // No more messages indicator
         if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: Constants.Spacing.sm) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 12))
+                    .font(.naarsFootnote)
                     .foregroundColor(.secondary)
-                Text("Beginning of Conversation")
+                Text("messaging_beginning_of_conversation".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -495,14 +599,14 @@ struct ConversationDetailView: View {
             ProgressView()
                 .padding()
         } else if viewModel.messages.isEmpty {
-            VStack(spacing: 16) {
+            VStack(spacing: Constants.Spacing.md) {
                 Image(systemName: "message.fill")
                     .font(.system(size: 50))
                     .foregroundColor(.secondary)
-                Text("No messages yet")
+                Text("messaging_no_messages_yet".localized)
                     .font(.naarsBody)
                     .foregroundColor(.secondary)
-                Text("Start the conversation!")
+                Text("messaging_start_the_conversation".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -618,42 +722,12 @@ struct ConversationDetailView: View {
     
     /// Check if message is the first in a consecutive series from the same sender
     private func isFirstInSeries(at index: Int) -> Bool {
-        guard index > 0 else { return true }
-        let currentMessage = viewModel.messages[index]
-        let previousMessage = viewModel.messages[index - 1]
-        
-        // Different sender = first in new series
-        if currentMessage.fromId != previousMessage.fromId {
-            return true
-        }
-        
-        // More than 5 minutes apart = new series
-        let timeDiff = currentMessage.createdAt.timeIntervalSince(previousMessage.createdAt)
-        if timeDiff > 300 { // 5 minutes
-            return true
-        }
-        
-        return false
+        MessageSeriesHelper.isFirstInSeries(messages: viewModel.messages, at: index)
     }
     
     /// Check if message is the last in a consecutive series from the same sender
     private func isLastInSeries(at index: Int) -> Bool {
-        guard index < viewModel.messages.count - 1 else { return true }
-        let currentMessage = viewModel.messages[index]
-        let nextMessage = viewModel.messages[index + 1]
-        
-        // Different sender = last in current series
-        if currentMessage.fromId != nextMessage.fromId {
-            return true
-        }
-        
-        // More than 5 minutes apart = end of series
-        let timeDiff = nextMessage.createdAt.timeIntervalSince(currentMessage.createdAt)
-        if timeDiff > 300 { // 5 minutes
-            return true
-        }
-        
-        return false
+        MessageSeriesHelper.isLastInSeries(messages: viewModel.messages, at: index)
     }
 
     private struct ReplyChainContext {
@@ -706,7 +780,7 @@ struct ConversationDetailView: View {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 40))
                             .foregroundColor(.white.opacity(0.6))
-                        Text("Failed to load image")
+                        Text("messaging_failed_to_load_image".localized)
                             .foregroundColor(.white.opacity(0.6))
                     }
                 default:
@@ -721,7 +795,7 @@ struct ConversationDetailView: View {
                     Spacer()
                     ShareLink(item: imageUrl) {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.naarsCallout).fontWeight(.semibold)
                             .foregroundColor(.white)
                             .padding(10)
                             .background(Circle().fill(Color.black.opacity(0.5)))
@@ -749,7 +823,7 @@ struct ConversationDetailView: View {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         
         do {
-            try await MessageService.shared.addParticipantsToConversation(
+            try await ConversationParticipantService.shared.addParticipantsToConversation(
                 conversationId: conversationId,
                 userIds: userIds,
                 addedBy: currentUserId,
@@ -765,7 +839,7 @@ struct ConversationDetailView: View {
             // Post notification to refresh conversations list
             NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
         } catch {
-            print("🔴 Error adding participants: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error adding participants: \(error.localizedDescription)")
         }
     }
     
@@ -773,12 +847,12 @@ struct ConversationDetailView: View {
         guard let userId = AuthService.shared.currentUserId else { return }
         
         do {
-            let conversations = try await MessageService.shared.fetchConversations(userId: userId, limit: 100, offset: 0)
+            let conversations = try await ConversationService.shared.fetchConversations(userId: userId, limit: 100, offset: 0)
             if let detail = conversations.first(where: { $0.conversation.id == conversationId }) {
                 conversationDetail = detail
             }
         } catch {
-            print("🔴 Error loading conversation details: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error loading conversation details: \(error.localizedDescription)")
         }
     }
 }
@@ -861,7 +935,7 @@ final class ConversationParticipantsViewModel: ObservableObject {
             }
         } catch {
             self.error = AppError.processingError("Failed to load participants: \(error.localizedDescription)")
-            print("🔴 Error loading participants: \(error.localizedDescription)")
+            AppLogger.error("messaging", "Error loading participants: \(error.localizedDescription)")
         }
         
         isLoading = false
@@ -904,13 +978,13 @@ struct DateSeparatorView: View {
             VStack { Divider() }
             
             Text(dateText)
-                .font(.system(size: 12, weight: .medium))
+                .font(.naarsFootnote).fontWeight(.medium)
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
                 .background(
                     Capsule()
-                        .fill(Color(.systemGray6))
+                        .fill(Color.naarsCardBackground)
                 )
             
             VStack { Divider() }
@@ -941,269 +1015,6 @@ struct ReplyThreadSpineView: View {
     }
 }
 
-// MARK: - Scroll to Bottom Button
-
-/// Floating button to scroll to the bottom of the conversation
-struct ScrollToBottomButton: View {
-    let unreadCount: Int
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: {
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
-            action()
-        }) {
-            ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(Color(.systemBackground))
-                    .frame(width: 44, height: 44)
-                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                    .overlay(
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.naarsPrimary)
-                    )
-                
-                // Unread badge
-                if unreadCount > 0 {
-                    Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.naarsPrimary)
-                        .clipShape(Capsule())
-                        .offset(x: 8, y: -8)
-                }
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
-        .accessibilityIdentifier("messages.scrollToBottom")
-    }
-}
-
-// MARK: - Reaction Details Sheet
-
-struct ReactionDetailsSheet: View {
-    let message: Message
-    let reactions: MessageReactions
-    let profilesByReaction: [String: [Profile]]
-    let onRemoveReaction: (String) -> Void
-    
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(sortedReactions, id: \.reaction) { reactionData in
-                    Section(header: Text("\(reactionData.reaction) \(reactionData.count)")) {
-                        ForEach(profilesByReaction[reactionData.reaction] ?? [], id: \.id) { profile in
-                            HStack(spacing: 12) {
-                                AvatarView(
-                                    imageUrl: profile.avatarUrl,
-                                    name: profile.name,
-                                    size: 32
-                                )
-                                Text(profile.name)
-                                    .font(.system(size: 15, weight: .medium))
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                }
-                
-                if let currentUserId = AuthService.shared.currentUserId {
-                    let myReactions = reactions.reactions.filter { $0.value.contains(currentUserId) }
-                    if !myReactions.isEmpty {
-                        Section {
-                            ForEach(myReactions.keys.sorted(), id: \.self) { reaction in
-                                Button(role: .destructive) {
-                                    onRemoveReaction(reaction)
-                                } label: {
-                                    Text("Remove \(reaction)")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Reactions")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-    
-    private var sortedReactions: [(reaction: String, count: Int, userIds: [UUID])] {
-        reactions.sortedReactions.sorted {
-            if $0.count == $1.count {
-                return $0.reaction < $1.reaction
-            }
-            return $0.count > $1.count
-        }
-    }
-}
-
-// MARK: - Report Message Sheet
-
-/// Sheet for reporting a message
-struct ReportMessageSheet: View {
-    let message: Message
-    let onSubmit: (MessageService.ReportType, String?) -> Void
-    
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedReportType: MessageService.ReportType = .other
-    @State private var description = ""
-    @State private var isSubmitting = false
-    @State private var showBlockConfirmation = false
-    @State private var blockError: String?
-    
-    private let reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] = [
-        (.spam, "Spam", "exclamationmark.bubble"),
-        (.harassment, "Harassment", "person.crop.circle.badge.exclamationmark"),
-        (.inappropriateContent, "Inappropriate Content", "eye.slash"),
-        (.scam, "Scam", "exclamationmark.shield"),
-        (.other, "Other", "ellipsis.circle")
-    ]
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                // Message preview
-                Section {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title2)
-                            .foregroundColor(.orange)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Report this message")
-                                .font(.headline)
-                            
-                            Text(message.text.isEmpty ? "Media message" : message.text)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .lineLimit(2)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Message")
-                }
-                
-                // Report type selection
-                Section {
-                    ForEach(reportTypes, id: \.type.rawValue) { reportType in
-                        Button {
-                            selectedReportType = reportType.type
-                        } label: {
-                            HStack {
-                                Image(systemName: reportType.icon)
-                                    .foregroundColor(.naarsPrimary)
-                                    .frame(width: 24)
-                                
-                                Text(reportType.title)
-                                    .foregroundColor(.primary)
-                                
-                                Spacer()
-                                
-                                if selectedReportType == reportType.type {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.naarsPrimary)
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Reason")
-                }
-                
-                // Additional details
-                Section {
-                    TextField("Additional details (optional)", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
-                } header: {
-                    Text("Description")
-                } footer: {
-                    Text("Provide any additional context that may help us review this report.")
-                }
-                
-                // Block user option
-                Section {
-                    Button {
-                        showBlockConfirmation = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.xmark")
-                                .foregroundColor(.red)
-                            Text("Block this user")
-                                .foregroundColor(.red)
-                        }
-                    }
-                } footer: {
-                    Text("You won't see messages from this user anymore.")
-                }
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Report Message")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") {
-                        isSubmitting = true
-                        onSubmit(selectedReportType, description.isEmpty ? nil : description)
-                        dismiss()
-                    }
-                    .disabled(isSubmitting)
-                }
-            }
-        }
-        .alert("Block User", isPresented: $showBlockConfirmation) {
-            Button("Block", role: .destructive) {
-                Task {
-                    guard let currentUserId = AuthService.shared.currentUserId else {
-                        blockError = "You must be signed in to block users."
-                        return
-                    }
-                    do {
-                        try await MessageService.shared.blockUser(
-                            blockerId: currentUserId,
-                            blockedId: message.fromId,
-                            reason: "Blocked from message report"
-                        )
-                    } catch {
-                        blockError = "Unable to block this user. Please try again."
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You won't see messages from this user anymore.")
-        }
-        .alert("Block Failed", isPresented: Binding(
-            get: { blockError != nil },
-            set: { if !$0 { blockError = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(blockError ?? "")
-        }
-        .presentationDetents([.medium, .large])
-    }
-}
 
 // MARK: - Thread View
 
@@ -1388,11 +1199,11 @@ struct MessageThreadView: View {
         HStack {
             Button(action: { dismiss() }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.naarsCallout).fontWeight(.semibold)
                     .foregroundColor(.primary)
             }
             Spacer()
-            Text("Thread")
+            Text("messaging_thread".localized)
                 .font(.naarsBody)
                 .fontWeight(.semibold)
             Spacer()
@@ -1424,7 +1235,7 @@ struct MessageThreadView: View {
                             .padding(.vertical, 2)
                         }
                     } else if !viewModel.isLoading {
-                        Text("No replies yet")
+                        Text("messaging_no_replies_yet".localized)
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                             .padding(.vertical, 16)
@@ -1469,7 +1280,7 @@ struct MessageThreadView: View {
             )
             .padding(.vertical, 16)
         } else {
-            Text("Original message unavailable")
+            Text("messaging_original_message_unavailable".localized)
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
                 .padding(.vertical, 16)
@@ -1481,29 +1292,11 @@ struct MessageThreadView: View {
     }
 
     private func isFirstInSeries(messages: [Message], index: Int) -> Bool {
-        guard index > 0 else { return true }
-        let currentMessage = messages[index]
-        let previousMessage = messages[index - 1]
-
-        if currentMessage.fromId != previousMessage.fromId {
-            return true
-        }
-
-        let timeDiff = currentMessage.createdAt.timeIntervalSince(previousMessage.createdAt)
-        return timeDiff > 300
+        MessageSeriesHelper.isFirstInSeries(messages: messages, at: index)
     }
 
     private func isLastInSeries(messages: [Message], index: Int) -> Bool {
-        guard index < messages.count - 1 else { return true }
-        let currentMessage = messages[index]
-        let nextMessage = messages[index + 1]
-
-        if currentMessage.fromId != nextMessage.fromId {
-            return true
-        }
-
-        let timeDiff = nextMessage.createdAt.timeIntervalSince(currentMessage.createdAt)
-        return timeDiff > 300
+        MessageSeriesHelper.isLastInSeries(messages: messages, at: index)
     }
 }
 
@@ -1520,15 +1313,5 @@ struct MessageThreadView: View {
         DateSeparatorView(date: Date().addingTimeInterval(-86400 * 3)) // 3 days ago
     }
     .padding()
-}
-
-#Preview("Scroll Button") {
-    VStack(spacing: 20) {
-        ScrollToBottomButton(unreadCount: 0, action: {})
-        ScrollToBottomButton(unreadCount: 5, action: {})
-        ScrollToBottomButton(unreadCount: 150, action: {})
-    }
-    .padding()
-    .background(Color(.systemGray5))
 }
 

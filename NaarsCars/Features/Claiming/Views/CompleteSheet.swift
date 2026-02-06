@@ -13,6 +13,7 @@ struct CompleteSheet: View {
     let requestTitle: String
     let onConfirm: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationStack {
@@ -21,34 +22,34 @@ struct CompleteSheet: View {
                     .font(.system(size: 60))
                     .foregroundColor(.naarsSuccess)
                 
-                Text("Mark as Completed?")
+                Text("claim_complete_title".localized)
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("You're marking this as complete:")
+                Text("claim_complete_description".localized)
                     .foregroundColor(.secondary)
                 
                 Text(requestTitle)
                     .font(.naarsHeadline)
                     .multilineTextAlignment(.center)
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(8)
                 
-                Text("After marking complete, you'll be prompted to leave a review for your helper.")
+                Text("claim_complete_review_hint".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "Yes, Mark Complete") {
+                    PrimaryButton(title: "claim_complete_confirm".localized) {
                         onConfirm()
-                        dismiss()
+                        showSuccess = true
                     }
                     .accessibilityIdentifier("complete.confirm")
                     
-                    SecondaryButton(title: "Cancel") {
+                    SecondaryButton(title: "claim_complete_cancel".localized) {
                         dismiss()
                     }
                     .accessibilityIdentifier("complete.cancel")
@@ -58,8 +59,14 @@ struct CompleteSheet: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Complete Request")
+            .navigationTitle("claim_complete_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
+        }
+        .successCheckmark(isShowing: $showSuccess)
+        .onChange(of: showSuccess) { _, newValue in
+            if !newValue {
+                dismiss()
+            }
         }
     }
 }

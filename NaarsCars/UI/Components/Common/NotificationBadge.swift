@@ -14,7 +14,7 @@ struct NotificationBadge: View {
     var body: some View {
         if count > 0 {
             Text(count > 99 ? "99+" : "\(count)")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.naarsCaption).fontWeight(.semibold)
                 .foregroundColor(.white)
                 .padding(.horizontal, count > 9 ? 5 : 6)
                 .padding(.vertical, 2)

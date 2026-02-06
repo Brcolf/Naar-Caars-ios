@@ -49,10 +49,12 @@ struct LeaderboardRow: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.naarsPrimary)
                 
-                Text("fulfilled")
+                Text("leaderboard_fulfilled".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(entry.requestsFulfilled) requests fulfilled")
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
@@ -67,15 +69,15 @@ struct LeaderboardRow: View {
             switch rank {
             case 1:
                 Text("🥇")
-                    .font(.title2)
+                    .font(.naarsTitle2)
                     .frame(width: 40)
             case 2:
                 Text("🥈")
-                    .font(.title2)
+                    .font(.naarsTitle2)
                     .frame(width: 40)
             case 3:
                 Text("🥉")
-                    .font(.title2)
+                    .font(.naarsTitle2)
                     .frame(width: 40)
             default:
                 Text("#\(rank)")

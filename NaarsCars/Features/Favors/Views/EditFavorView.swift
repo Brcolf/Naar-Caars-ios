@@ -14,6 +14,7 @@ struct EditFavorView: View {
     @StateObject private var viewModel = CreateFavorViewModel() // Reuse CreateFavorViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
+    @State private var showSuccess = false
     
     init(favor: Favor, onSaved: (() -> Void)? = nil) {
         self.favor = favor
@@ -23,27 +24,27 @@ struct EditFavorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Title & Description") {
-                    TextField("Title", text: $viewModel.title)
-                    TextField("Description (optional)", text: $viewModel.description, axis: .vertical)
+                Section("favor_edit_title_description".localized) {
+                    TextField("favor_edit_title_field".localized, text: $viewModel.title)
+                    TextField("favor_edit_description".localized, text: $viewModel.description, axis: .vertical)
                         .lineLimit(3...6)
                 }
                 
-                Section("Location & Duration") {
-                    TextField("Location", text: $viewModel.location)
+                Section("favor_edit_location_duration".localized) {
+                    TextField("favor_edit_location".localized, text: $viewModel.location)
                     
-                    Picker("Duration", selection: $viewModel.duration) {
+                    Picker("favor_edit_duration".localized, selection: $viewModel.duration) {
                         ForEach(FavorDuration.allCases, id: \.self) { duration in
                             Text(duration.displayText).tag(duration)
                         }
                     }
                 }
                 
-                Section("Date & Time") {
-                    DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
+                Section("favor_edit_date_time".localized) {
+                    DatePicker("favor_edit_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
                     
-                    Toggle("Specify Time", isOn: $viewModel.hasTime)
+                    Toggle("favor_edit_specify_time".localized, isOn: $viewModel.hasTime)
                     
                     if viewModel.hasTime {
                         TimePickerView(
@@ -54,11 +55,11 @@ struct EditFavorView: View {
                     }
                 }
                 
-                Section("Details") {
-                    TextField("Requirements (optional)", text: $viewModel.requirements, axis: .vertical)
+                Section("favor_edit_details".localized) {
+                    TextField("favor_edit_requirements".localized, text: $viewModel.requirements, axis: .vertical)
                         .lineLimit(2...4)
                     
-                    TextField("Gift/Compensation (optional)", text: $viewModel.gift)
+                    TextField("favor_edit_gift".localized, text: $viewModel.gift)
                 }
                 
                 if let error = error {
@@ -70,17 +71,17 @@ struct EditFavorView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Edit Favor Request")
+            .navigationTitle("favor_edit_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("common_save".localized) {
                         Task {
                             do {
                                 // Format time from hour/minute/isAM if time is specified
@@ -99,7 +100,11 @@ struct EditFavorView: View {
                                 )
                                 // Notify parent to refresh before dismissing
                                 onSaved?()
-                                dismiss()
+                                showSuccess = true
+                                HapticManager.success()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    dismiss()
+                                }
                             } catch {
                                 self.error = error.localizedDescription
                             }
@@ -130,6 +135,7 @@ struct EditFavorView: View {
                 }
             }
         }
+        .successCheckmark(isShowing: $showSuccess)
     }
 }
 

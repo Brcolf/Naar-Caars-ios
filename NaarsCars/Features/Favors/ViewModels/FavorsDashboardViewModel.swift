@@ -97,7 +97,7 @@ final class FavorsDashboardViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let fetchedFavors = try await favorService.fetchFavors(forceRefresh: forceRefresh)
+            let fetchedFavors = try await favorService.fetchFavors()
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -106,7 +106,7 @@ final class FavorsDashboardViewModel: ObservableObject {
             }
         } catch {
             self.error = error.localizedDescription
-            print("❌ Error loading favors: \(error)")
+            AppLogger.error("favors", "Error loading favors: \(error.localizedDescription)")
         }
     }
     

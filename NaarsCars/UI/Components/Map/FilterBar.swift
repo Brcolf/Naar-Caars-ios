@@ -64,7 +64,7 @@ struct FilterChip: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 14))
+                    .font(.naarsSubheadline)
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)

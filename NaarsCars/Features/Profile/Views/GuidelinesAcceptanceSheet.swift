@@ -29,11 +29,11 @@ struct GuidelinesAcceptanceSheet: View {
                                     .scaledToFit()
                                     .frame(height: 100)
                                 
-                                Text("Welcome to Naar's Cars!")
+                                Text("guidelines_welcome".localized)
                                     .font(.naarsTitle)
                                     .fontWeight(.bold)
                                 
-                                Text("Before you begin, please review and accept our community guidelines.")
+                                Text("guidelines_before_you_begin".localized)
                                     .font(.naarsBody)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
@@ -109,15 +109,15 @@ struct GuidelinesAcceptanceSheet: View {
                                     .frame(height: 1)
                                     .id("bottom")
                                     .onAppear {
-                                        print("📜 [Guidelines] Bottom marker appeared - user scrolled to end")
+                                        AppLogger.info("profile", "Guidelines bottom marker appeared - user scrolled to end")
                                         hasScrolledToBottom = true
                                     }
                                     .onChange(of: geo.frame(in: .named("scroll")).minY) { oldValue, newValue in
                                         // Bottom element is visible when its minY is less than the visible area
                                         // Typically visible area is ~800 points, so if minY < 1000, it's visible
-                                        print("📜 [Guidelines] Bottom marker minY: \(newValue)")
+                                        AppLogger.info("profile", "Guidelines bottom marker minY: \(newValue)")
                                         if newValue < 1000 {
-                                            print("📜 [Guidelines] ✅ User scrolled to bottom! Enabling button")
+                                            AppLogger.info("profile", "User scrolled to bottom, enabling accept button")
                                             hasScrolledToBottom = true
                                         }
                                     }
@@ -129,7 +129,7 @@ struct GuidelinesAcceptanceSheet: View {
                     .coordinateSpace(name: "scroll")
                     .accessibilityIdentifier("guidelines.scroll")
                     .onAppear {
-                        print("📜 [Guidelines] ScrollView appeared - user must scroll to bottom to accept")
+                        AppLogger.info("profile", "Guidelines ScrollView appeared - user must scroll to bottom to accept")
                     }
                 
                 Divider()
@@ -137,7 +137,7 @@ struct GuidelinesAcceptanceSheet: View {
                 // Accept Button (bottom)
                 VStack(spacing: 12) {
                     if !hasScrolledToBottom {
-                        Text("Please scroll to the bottom to continue")
+                        Text("guidelines_scroll_to_continue".localized)
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
@@ -151,7 +151,7 @@ struct GuidelinesAcceptanceSheet: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Text("I Accept")
+                            Text("guidelines_i_accept".localized)
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
                         }
@@ -161,16 +161,16 @@ struct GuidelinesAcceptanceSheet: View {
                     .accessibilityIdentifier("guidelines.accept")
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
             }
-            .navigationTitle("Community Guidelines")
+            .navigationTitle("guidelines_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled() // Prevent swipe to dismiss
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+        .alert("common_error".localized, isPresented: $showError) {
+            Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "Failed to accept guidelines")
+            Text(errorMessage ?? "guidelines_accept_failed".localized)
         }
     }
     
@@ -185,7 +185,7 @@ struct GuidelinesAcceptanceSheet: View {
 
 #Preview {
     GuidelinesAcceptanceSheet {
-        print("Guidelines accepted!")
+        AppLogger.info("profile", "Guidelines accepted")
     }
 }
 

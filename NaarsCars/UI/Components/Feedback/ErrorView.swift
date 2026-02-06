@@ -39,7 +39,7 @@ struct ErrorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
     }
 }
 

@@ -38,10 +38,8 @@ final class RideService {
     func fetchRides(
         status: RideStatus? = nil,
         userId: UUID? = nil,
-        claimedBy: UUID? = nil,
-        forceRefresh: Bool = false
+        claimedBy: UUID? = nil
     ) async throws -> [Ride] {
-        _ = forceRefresh
         // Build query
         var query = supabase
             .from("rides")
@@ -185,7 +183,7 @@ final class RideService {
                 destination: destination
             ) else {
                 // If calculation fails, just log and return (ride is still created)
-                print("⚠️ [RideService] Failed to calculate estimated cost for ride \(rideId)")
+                AppLogger.warning("rides", "Failed to calculate estimated cost for ride \(rideId)")
                 return
             }
             
@@ -200,11 +198,11 @@ final class RideService {
                 .eq("id", value: rideId.uuidString)
                 .execute()
             
-            print("✅ [RideService] Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(rideId)")
+            AppLogger.info("rides", "Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(rideId)")
             
         } catch {
             // If update fails, just log (ride is still created)
-            print("⚠️ [RideService] Failed to save estimated cost for ride \(rideId): \(error.localizedDescription)")
+            AppLogger.warning("rides", "Failed to save estimated cost for ride \(rideId): \(error.localizedDescription)")
         }
     }
     
@@ -316,7 +314,7 @@ final class RideService {
                         .execute()
                 } catch {
                     // Notification creation is optional - don't fail the update
-                    print("⚠️ Failed to create notification for claimer: \(error)")
+                    AppLogger.warning("rides", "Failed to create notification for claimer: \(error)")
                 }
             }
         }
@@ -557,7 +555,7 @@ final class RideService {
         let newUserIds = userIds.filter { !existingParticipants.contains($0) }
         
         guard !newUserIds.isEmpty else {
-            print("ℹ️ [RideService] All users are already participants")
+            AppLogger.info("rides", "All users are already participants")
             return
         }
         
@@ -575,46 +573,14 @@ final class RideService {
             .insert(inserts)
             .execute()
         
-        print("✅ [RideService] Added \(newUserIds.count) participant(s) to ride \(rideId)")
+        AppLogger.info("rides", "Added \(newUserIds.count) participant(s) to ride \(rideId)")
     }
     
     // MARK: - Private Helpers
     
     /// Create a JSON decoder configured for Supabase date formats
     private func createDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            // Try ISO8601 with fractional seconds (for TIMESTAMP fields)
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try ISO8601 without fractional seconds
-            isoFormatter.formatOptions = [.withInternetDateTime]
-            if let date = isoFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Try DATE format (YYYY-MM-DD) - use local timezone to match user expectations
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = .current  // Use local timezone to avoid off-by-one day issues
-            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        DateDecoderFactory.makeSupabaseDecoder()
     }
     
     /// Enrich rides with profile data (poster, claimer, participants)

@@ -39,8 +39,8 @@ struct AnnouncementsView: View {
                 } else if announcements.isEmpty {
                     EmptyStateView(
                         icon: "megaphone.fill",
-                        title: "No Announcements",
-                        message: "Announcements will appear here when available.",
+                        title: "notifications_no_announcements".localized,
+                        message: "notifications_announcements_empty".localized,
                         actionTitle: nil,
                         action: nil
                     )
@@ -52,7 +52,7 @@ struct AnnouncementsView: View {
                                     Task {
                                         await viewModel.markAsRead(notification)
                                     }
-                                    print("📣 [AnnouncementsView] Announcement tapped: \(notification.id)")
+                                    AppLogger.info("notifications", "[AnnouncementsView] Announcement tapped: \(notification.id)")
                                 }
                                 .id("bell.announcements.row(\(notification.id))")
                                 .listRowSeparator(.hidden)
@@ -73,7 +73,7 @@ struct AnnouncementsView: View {
                     }
                 }
             }
-            .navigationTitle("Announcements")
+            .navigationTitle("notifications_announcements_title".localized)
             .id("bell.announcements")
             .task {
                 viewModel.setup(modelContext: modelContext)

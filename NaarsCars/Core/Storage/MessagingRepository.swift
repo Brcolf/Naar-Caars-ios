@@ -15,6 +15,7 @@ final class MessagingRepository {
     
     private var modelContext: ModelContext?
     private let messageService = MessageService.shared
+    private let conversationService = ConversationService.shared
     
     var isConfigured: Bool {
         modelContext != nil
@@ -57,7 +58,7 @@ final class MessagingRepository {
     
     func syncConversations(userId: UUID) async throws {
         guard let modelContext = modelContext else { return }
-        let remoteConversations = try await messageService.fetchConversations(userId: userId)
+        let remoteConversations = try await conversationService.fetchConversations(userId: userId)
         
         for remote in remoteConversations {
             let id = remote.conversation.id
@@ -141,9 +142,9 @@ final class MessagingRepository {
 #if DEBUG
         let replyIds = remoteMessages.filter { $0.replyToId != nil }.count
         let replyContexts = remoteMessages.filter { $0.replyToMessage != nil }.count
-        print("🧵 [ReplyThreadDebug] sync(remote) total=\(remoteMessages.count) replyToId=\(replyIds) replyContext=\(replyContexts)")
+        AppLogger.info("messaging", "sync(remote) total=\(remoteMessages.count) replyToId=\(replyIds) replyContext=\(replyContexts)")
         if let sample = remoteMessages.first(where: { $0.replyToId != nil }) {
-            print("🧵 [ReplyThreadDebug] remote sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
+            AppLogger.info("messaging", "remote sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
         }
 #endif
         
@@ -336,18 +337,18 @@ final class MessagingRepository {
     func deleteConversation(id: UUID) async throws {
         guard let modelContext = modelContext else { return }
         
-        // 1. Delete from Supabase
-        try await messageService.deleteConversation(id: id)
+        // 1. Soft-delete: hide the conversation for the current user via UserDefaults
+        try await conversationService.deleteConversation(id: id)
         
-        // 2. Delete from local SwiftData
+        // 2. Remove from local SwiftData cache so it doesn't reappear before next sync
         let fetchDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == id })
         if let existing = try modelContext.fetch(fetchDescriptor).first {
             modelContext.delete(existing)
             try modelContext.save()
-            
-            // 3. Post notification to force UI refresh
-            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: id)
         }
+        
+        // 3. Post notification so other observers can react
+        NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: id)
     }
 }
 

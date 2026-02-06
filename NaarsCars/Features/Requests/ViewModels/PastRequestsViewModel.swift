@@ -98,7 +98,7 @@ final class PastRequestsViewModel: ObservableObject {
             requests = allRequests
         } catch {
             self.error = error.localizedDescription
-            print("❌ Error loading past requests: \(error)")
+            AppLogger.error("requests", "Error loading past requests: \(error.localizedDescription)")
         }
     }
     

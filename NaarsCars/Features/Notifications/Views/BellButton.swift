@@ -21,7 +21,7 @@ struct BellButton: View {
         }) {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: "bell")
-                    .font(.title3)
+                    .font(.naarsTitle3)
                     .id("app.chrome.bellIcon")
 
                 if badgeManager.bellBadgeCount > 0 {
@@ -38,7 +38,8 @@ struct BellButton: View {
                 }
             }
         }
-        .accessibilityLabel("Notifications")
+        .accessibilityLabel(badgeManager.bellBadgeCount > 0 ? "Notifications, \(badgeManager.bellBadgeCount) unread" : "Notifications")
+        .accessibilityHint("Double-tap to view your notifications")
         .accessibilityIdentifier("bell.button")
     }
 

@@ -80,6 +80,14 @@ serve(async (req) => {
       }
     }
 
+    // Input validation
+    if (payload.sender_name && payload.sender_name.length > 100) {
+      payload.sender_name = payload.sender_name.substring(0, 100);
+    }
+    if (payload.message_preview && payload.message_preview.length > 500) {
+      payload.message_preview = payload.message_preview.substring(0, 500);
+    }
+
     const eventType = resolveEventType(payload)
     if (eventType && eventType !== 'INSERT') {
       return new Response(
@@ -228,8 +236,6 @@ serve(async (req) => {
     }
 
     // Full payload case - process single recipient
-    console.log(`📨 Processing push notification for user ${recipient_user_id}, conversation ${conversation_id}`)
-
     console.log(`📨 Processing push notification for user ${recipient_user_id}, conversation ${conversation_id}`)
 
     // Double-check if recipient is actively viewing (defense in depth)
@@ -449,7 +455,8 @@ async function sendAPNsPush(token: string, payload: APNsPayload): Promise<void> 
       'apns-push-type': 'alert',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000)
   })
 
   if (!response.ok) {

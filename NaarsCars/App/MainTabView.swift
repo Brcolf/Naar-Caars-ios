@@ -33,6 +33,8 @@ struct MainTabView: View {
             }
             .buttonStyle(.plain)
             .id("app.toast.inAppMessage")
+            .accessibilityLabel("New message notification")
+            .accessibilityHint("Double-tap to open the conversation")
             .padding(.top, 8)
             .padding(.horizontal, 16)
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -46,29 +48,33 @@ struct MainTabView: View {
                 .tag(0)
                 .badge(badgeManager.requestsBadgeCount > 0 ? String(badgeManager.requestsBadgeCount) : nil)
                 .tabItem {
-                    Label("Requests", systemImage: "car.fill")
+                    Label("nav_tab_requests".localized, systemImage: "car.fill")
                 }
+                .accessibilityHint("View ride and favor requests")
             
             ConversationsListView()
                 .tag(1)
                 .badge(badgeManager.messagesBadgeCount > 0 ? String(badgeManager.messagesBadgeCount) : nil)
                 .tabItem {
-                    Label("Messages", systemImage: "message.fill")
+                    Label("nav_tab_messages".localized, systemImage: "message.fill")
                 }
+                .accessibilityHint("View your conversations")
             
             CommunityTabView()
                 .tag(2)
                 .badge(badgeManager.communityBadgeCount > 0 ? String(badgeManager.communityBadgeCount) : nil)
                 .tabItem {
-                    Label("Community", systemImage: "person.3.fill")
+                    Label("nav_tab_community".localized, systemImage: "person.3.fill")
                 }
+                .accessibilityHint("View community features")
             
             MyProfileView()
                 .tag(3)
                 .badge(badgeManager.profileBadgeCount > 0 ? String(badgeManager.profileBadgeCount) : nil)
                 .tabItem {
-                    Label("Profile", systemImage: "person.fill")
+                    Label("nav_tab_profile".localized, systemImage: "person.fill")
                 }
+                .accessibilityHint("View and edit your profile")
         }
         .onChange(of: navigationCoordinator.selectedTab) { _, newTab in
             selectedTab = newTab.rawValue
@@ -120,6 +126,7 @@ struct MainTabView: View {
         .overlay(alignment: .top) {
             toastOverlay
         }
+        .offlineBanner()
         .sheet(isPresented: $navigationCoordinator.navigateToNotifications, onDismiss: {
             navigationCoordinator.navigateToNotifications = false
         }) {
@@ -142,8 +149,20 @@ struct MainTabView: View {
             case .completion(let completion):
                 CompletionPromptView(
                     prompt: completion,
-                    onConfirm: { Task { try? await promptCoordinator.handleCompletionResponse(completed: true) } },
-                    onSnooze: { Task { try? await promptCoordinator.handleCompletionResponse(completed: false) } }
+                    onConfirm: { Task {
+                        do {
+                            try await promptCoordinator.handleCompletionResponse(completed: true)
+                        } catch {
+                            AppLogger.error("app", "Failed to handle completion confirm: \(error)")
+                        }
+                    } },
+                    onSnooze: { Task {
+                        do {
+                            try await promptCoordinator.handleCompletionResponse(completed: false)
+                        } catch {
+                            AppLogger.error("app", "Failed to handle completion snooze: \(error)")
+                        }
+                    } }
                 )
             case .review(let review):
                 ReviewPromptSheet(
@@ -157,15 +176,15 @@ struct MainTabView: View {
                 )
             }
         }
-        .alert("Open Link?", isPresented: $navigationCoordinator.showDeepLinkConfirmation) {
-            Button("Open", role: .destructive) {
+        .alert("nav_open_link".localized, isPresented: $navigationCoordinator.showDeepLinkConfirmation) {
+            Button("nav_open".localized, role: .destructive) {
                 navigationCoordinator.applyPendingDeepLink()
             }
-            Button("Stay", role: .cancel) {
+            Button("nav_stay".localized, role: .cancel) {
                 navigationCoordinator.cancelPendingDeepLink()
             }
         } message: {
-            Text("You have an open screen. Opening this link may discard any in‑progress changes.")
+            Text("nav_open_link_warning".localized)
         }
     }
     
@@ -201,7 +220,7 @@ struct MainTabView: View {
                 showGuidelinesAcceptance = false
             }
         } catch {
-            print("Failed to accept guidelines: \(error)")
+            AppLogger.error("app", "Failed to accept guidelines: \(error)")
             // Keep the sheet open if acceptance fails
         }
     }

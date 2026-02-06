@@ -52,7 +52,7 @@ final class FavorDetailViewModel: ObservableObject {
             qaItems = fetchedQA
         } catch {
             self.error = error.localizedDescription
-            print("❌ Error loading favor: \(error)")
+            AppLogger.error("favors", "Error loading favor: \(error.localizedDescription)")
         }
     }
     
@@ -60,12 +60,12 @@ final class FavorDetailViewModel: ObservableObject {
     /// - Parameter question: Question text
     func postQuestion(_ question: String) async {
         guard canAskQuestions else {
-            error = "Questions are disabled after a request is claimed"
+            error = "favor_edit_questions_disabled".localized
             return
         }
         guard let favorId = favor?.id,
               let userId = authService.currentUserId else {
-            error = "Not authenticated"
+            error = "common_not_authenticated".localized
             return
         }
         
@@ -78,6 +78,7 @@ final class FavorDetailViewModel: ObservableObject {
             )
             
             qaItems.append(qa)
+            HapticManager.lightImpact()
         } catch {
             self.error = error.localizedDescription
         }

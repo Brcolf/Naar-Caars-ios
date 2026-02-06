@@ -114,11 +114,11 @@ final class MapService {
     func geocode(address: String) async throws -> CLLocationCoordinate2D {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else {
-            print("🗺️ [MapService] Empty address")
+            AppLogger.warning("map", "Empty address")
             throw MapError.invalidAddress
         }
         
-        print("🗺️ [MapService] Geocoding: '\(trimmedAddress)'")
+        AppLogger.info("map", "Geocoding: '\(trimmedAddress)'")
         
         // Strategy: If it looks like a POI (no numbers at start, or contains "Airport", "Station", etc.), 
         // try MKLocalSearch first as it's much better for these.
@@ -128,9 +128,9 @@ final class MapService {
                           trimmedAddress.localizedCaseInsensitiveContains("Park")
         
         if looksLikePOI {
-            print("🗺️ [MapService] POI detected, trying MKLocalSearch first")
+            AppLogger.info("map", "POI detected, trying MKLocalSearch first")
             if let coordinate = await searchWithMapKit(query: trimmedAddress) {
-                print("🗺️ [MapService] Success with MKLocalSearch (POI): \(coordinate.latitude), \(coordinate.longitude)")
+                AppLogger.info("map", "Success with MKLocalSearch (POI): \(coordinate.latitude), \(coordinate.longitude)")
                 return coordinate
             }
         }
@@ -143,13 +143,13 @@ final class MapService {
             )
             
             if let location = placemarks.first?.location?.coordinate {
-                print("🗺️ [MapService] Success with region hint: \(location.latitude), \(location.longitude)")
+                AppLogger.info("map", "Success with region hint: \(location.latitude), \(location.longitude)")
                 return location
             }
         } catch {
             // Only log if it's not a "not found" error to reduce noise
             if (error as NSError).code != 8 {
-                print("🗺️ [MapService] Region hint error: \(error.localizedDescription)")
+                AppLogger.warning("map", "Region hint error: \(error.localizedDescription)")
             }
         }
         
@@ -158,12 +158,12 @@ final class MapService {
             let placemarks = try await geocoder.geocodeAddressString(trimmedAddress)
             
             if let location = placemarks.first?.location?.coordinate {
-                print("🗺️ [MapService] Success without region hint: \(location.latitude), \(location.longitude)")
+                AppLogger.info("map", "Success without region hint: \(location.latitude), \(location.longitude)")
                 return location
             }
         } catch {
             if (error as NSError).code != 8 {
-                print("🗺️ [MapService] Without region hint error: \(error.localizedDescription)")
+                AppLogger.warning("map", "Without region hint error: \(error.localizedDescription)")
             }
         }
         
@@ -173,7 +173,7 @@ final class MapService {
             do {
                 let placemarks = try await geocoder.geocodeAddressString(waAddress)
                 if let location = placemarks.first?.location?.coordinate {
-                    print("🗺️ [MapService] Success with WA suffix: \(location.latitude), \(location.longitude)")
+                    AppLogger.info("map", "Success with WA suffix: \(location.latitude), \(location.longitude)")
                     return location
                 }
             } catch {}
@@ -182,12 +182,12 @@ final class MapService {
         // Final Attempt: MKLocalSearch fallback if not already tried
         if !looksLikePOI {
             if let coordinate = await searchWithMapKit(query: trimmedAddress) {
-                print("🗺️ [MapService] Success with MKLocalSearch fallback: \(coordinate.latitude), \(coordinate.longitude)")
+                AppLogger.info("map", "Success with MKLocalSearch fallback: \(coordinate.latitude), \(coordinate.longitude)")
                 return coordinate
             }
         }
         
-        print("🗺️ [MapService] All geocoding attempts failed for: '\(trimmedAddress)'")
+        AppLogger.error("map", "All geocoding attempts failed for: '\(trimmedAddress)'")
         throw MapError.geocodingFailed
     }
     
@@ -209,7 +209,7 @@ final class MapService {
                 return item.placemark.coordinate
             }
         } catch {
-            print("🗺️ [MapService] MKLocalSearch failed: \(error.localizedDescription)")
+            AppLogger.warning("map", "MKLocalSearch failed: \(error.localizedDescription)")
         }
         
         return nil

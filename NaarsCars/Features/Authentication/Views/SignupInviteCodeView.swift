@@ -31,19 +31,19 @@ struct SignupInviteCodeView: View {
                         .frame(maxWidth: 240, maxHeight: 160)
                         .accessibilityLabel("Naar's Cars - Community Ride Sharing")
                     
-                    Text("Enter your invite code to get started")
-                        .font(.subheadline)
+                    Text("signup_invite_subtitle".localized)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 20)
                 
                 // Invite code field
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Invite Code")
-                        .font(.caption)
+                    Text("signup_invite_code_label".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                     
-                    TextField("Enter invite code", text: $inviteCode)
+                    TextField("signup_invite_code_placeholder".localized, text: $inviteCode)
                         .textInputAutocapitalization(.characters)
                         .textFieldStyle(.roundedBorder)
                         .disabled(isValidating)
@@ -54,8 +54,8 @@ struct SignupInviteCodeView: View {
                 // Error message
                 if let error = validationError {
                     Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.red)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsError)
                         .padding(.horizontal)
                 }
                 
@@ -69,7 +69,7 @@ struct SignupInviteCodeView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Text("Next")
+                        Text("signup_next_button".localized)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -81,17 +81,17 @@ struct SignupInviteCodeView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("Sign Up")
+        .navigationTitle("signup_title".localized)
         .navigationDestination(isPresented: $showMethodChoice) {
             if let code = validatedCode {
                 SignupMethodChoiceView(inviteCode: code)
                     .environmentObject(appState)
             }
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+        .alert("common_error".localized, isPresented: $showError) {
+            Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(appleSignInViewModel.error?.localizedDescription ?? "An error occurred")
+            Text(appleSignInViewModel.error?.localizedDescription ?? "common_error_occurred".localized)
         }
         .onOpenURL { url in
             // Handle deep link: https://naarscars.com/signup?code=CODE

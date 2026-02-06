@@ -13,18 +13,19 @@ struct UserManagementView: View {
     @State private var userToToggle: UUID?
     @State private var targetAdminStatus: Bool = false
     @State private var showingToggleConfirmation = false
+    @State private var toastMessage: String? = nil
     
     var body: some View {
         NavigationStack {
             Group {
                 if viewModel.isLoading && viewModel.members.isEmpty {
-                    ProgressView("Loading members...")
+                    ProgressView("admin_loading_members".localized)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if viewModel.members.isEmpty {
                     EmptyStateView(
                         icon: "person.3.fill",
-                        title: "No Members",
-                        message: "No approved members found."
+                        title: "admin_no_members".localized,
+                        message: "admin_no_members_found".localized
                     )
                 } else {
                     List {
@@ -46,7 +47,7 @@ struct UserManagementView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("All Members")
+            .navigationTitle("admin_all_members".localized)
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await viewModel.loadAllMembers()
@@ -55,30 +56,34 @@ struct UserManagementView: View {
                 await viewModel.loadAllMembers()
             }
             .alert(
-                targetAdminStatus ? "Make Admin" : "Remove Admin",
+                targetAdminStatus ? "admin_make_admin".localized : "admin_remove_admin".localized,
                 isPresented: $showingToggleConfirmation
             ) {
-                Button("Cancel", role: .cancel) {
+                Button("common_cancel".localized, role: .cancel) {
                     userToToggle = nil
                     showingToggleConfirmation = false
                 }
-                Button(targetAdminStatus ? "Make Admin" : "Remove Admin", role: targetAdminStatus ? .none : .destructive) {
+                Button(targetAdminStatus ? "admin_make_admin".localized : "admin_remove_admin".localized, role: targetAdminStatus ? .none : .destructive) {
                     let userId = userToToggle
                     userToToggle = nil
                     showingToggleConfirmation = false
                     if let userId = userId {
                         Task {
                             await viewModel.toggleAdminStatus(userId: userId, isAdmin: targetAdminStatus)
+                            if viewModel.error == nil {
+                                toastMessage = "toast_admin_status_updated".localized
+                            }
                         }
                     }
                 }
             } message: {
                 if targetAdminStatus {
-                    Text("Are you sure you want to make this user an admin? They will have access to all admin features.")
+                    Text("admin_make_admin_confirmation".localized)
                 } else {
-                    Text("Are you sure you want to remove admin status from this user? They will lose access to admin features.")
+                    Text("admin_remove_admin_confirmation".localized)
                 }
             }
+            .toast(message: $toastMessage)
         }
     }
 }
@@ -105,7 +110,7 @@ private struct MemberRow: View {
                         .font(.naarsHeadline)
                     
                     if member.isAdmin {
-                        Text("Admin")
+                        Text("admin_badge".localized)
                             .font(.naarsCaption)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -128,7 +133,7 @@ private struct MemberRow: View {
                 Button(action: {
                     onToggleAdmin(!member.isAdmin)
                 }) {
-                    Text(member.isAdmin ? "Remove Admin" : "Make Admin")
+                    Text(member.isAdmin ? "admin_remove_admin".localized : "admin_make_admin".localized)
                         .font(.naarsCaption)
                         .fontWeight(.semibold)
                         .foregroundColor(member.isAdmin ? .naarsError : .naarsPrimary)

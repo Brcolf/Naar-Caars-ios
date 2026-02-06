@@ -66,7 +66,7 @@ final class AdminPanelViewModel: ObservableObject {
             activeMembers = stats.activeMembers
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            print("🔴 [AdminPanelViewModel] Error loading stats: \(error.localizedDescription)")
+            AppLogger.error("admin", "Error loading stats: \(error.localizedDescription)")
         }
     }
 }

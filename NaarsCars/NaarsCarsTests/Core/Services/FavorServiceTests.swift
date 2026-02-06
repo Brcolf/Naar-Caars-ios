@@ -101,7 +101,7 @@ final class FavorServiceTests: XCTestCase {
         XCTAssertNotNil(cachedBefore, "Cache should be populated before force refresh")
 
         do {
-            _ = try await favorService.fetchFavors(forceRefresh: true)
+            _ = try await favorService.fetchFavors()
         } catch {
             // Network failures are acceptable for this test
         }

@@ -31,7 +31,7 @@ struct NotificationRow: View {
             HStack(spacing: 12) {
                 // Icon
                 Image(systemName: notification.type.icon)
-                    .font(.title3)
+                    .font(.naarsTitle3)
                     .foregroundColor(isRead ? .secondary : .naarsPrimary)
                     .frame(width: 40, height: 40)
                     .background(
@@ -50,7 +50,7 @@ struct NotificationRow: View {
                         
                         if notification.pinned {
                             Image(systemName: "pin.fill")
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(.naarsPrimary)
                         }
 
@@ -88,11 +88,14 @@ struct NotificationRow: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isRead ? Color(.systemBackground) : Color.naarsPrimary.opacity(0.05))
+                    .fill(isRead ? Color.naarsBackgroundSecondary : Color.naarsPrimary.opacity(0.05))
             )
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("notifications.row")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(notification.title)\(notification.body.map { ", \($0)" } ?? ""), \(isRead ? "read" : "unread"), \(notification.createdAt.timeAgoString)")
+        .accessibilityHint("Double-tap to open this \(notification.type.rawValue.replacingOccurrences(of: "_", with: " ")) notification")
     }
 
     private var isRead: Bool {

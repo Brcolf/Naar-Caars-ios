@@ -22,7 +22,7 @@ final class MessageServiceTests: XCTestCase {
         let cachedBefore = await CacheManager.shared.getCachedConversations(userId: userId)
         XCTAssertNotNil(cachedBefore, "Cache should be populated before invalidation")
 
-        await MessageService.shared.invalidateConversationCaches(for: [userId])
+        await ConversationService.shared.invalidateConversationCaches(for: [userId])
 
         let cachedAfter = await CacheManager.shared.getCachedConversations(userId: userId)
         XCTAssertNil(cachedAfter, "Cache should be cleared after invalidation")

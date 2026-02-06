@@ -25,7 +25,7 @@ struct TypingIndicatorView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     // Typing user name(s)
                     Text(typingText)
-                        .font(.system(size: 11))
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
@@ -131,7 +131,7 @@ struct CompactTypingIndicator: View {
         ])
         .padding()
     }
-    .background(Color(.systemBackground))
+    .background(Color.naarsBackgroundSecondary)
 }
 
 #Preview("Multiple Users Typing") {
@@ -150,7 +150,7 @@ struct CompactTypingIndicator: View {
         ])
         .padding()
     }
-    .background(Color(.systemBackground))
+    .background(Color.naarsBackgroundSecondary)
 }
 
 #Preview("Compact Indicator") {

@@ -54,7 +54,7 @@ final class BadgeCountManager: ObservableObject {
     // MARK: - Private Properties
     
     private let notificationService = NotificationService.shared
-    private let messageService = MessageService.shared
+    private let conversationService = ConversationService.shared
     private let adminService = AdminService.shared
     private let townHallService = TownHallService.shared
     private let authService = AuthService.shared
@@ -124,7 +124,7 @@ final class BadgeCountManager: ObservableObject {
             return
         }
 
-        print("🧭 [BadgeCountManager] Refreshing badges (\(reason))")
+        AppLogger.info("badges", "Refreshing badges (\(reason))")
         async let profileCount = calculateProfileBadgeCount()
 
         do {
@@ -150,9 +150,9 @@ final class BadgeCountManager: ObservableObject {
             totalUnreadCount = counts.requestsTotal + counts.messagesTotal + counts.communityTotal
             updateAppIconBadge(totalUnreadCount)
 
-            print("✅ [BadgeCountManager] Counts synced: requests=\(counts.requestsTotal), messages=\(counts.messagesTotal), community=\(counts.communityTotal), bell=\(counts.bellTotal)")
+            AppLogger.info("badges", "Counts synced: requests=\(counts.requestsTotal), messages=\(counts.messagesTotal), community=\(counts.communityTotal), bell=\(counts.bellTotal)")
         } catch {
-            // ...
+            AppLogger.error("badges", "Failed to refresh badge counts (\(reason)): \(error)")
         }
     }
     
@@ -212,7 +212,7 @@ final class BadgeCountManager: ObservableObject {
             
             await refreshAllBadges(reason: "clearCommunityBadge")
         } catch {
-            print("⚠️ [BadgeCountManager] Error clearing community badge: \(error)")
+            AppLogger.warning("badges", "Error clearing community badge: \(error)")
         }
     }
     
@@ -247,14 +247,14 @@ final class BadgeCountManager: ObservableObject {
         }
 
         let status = realtimeManager.isConnected ? "connected" : "disconnected"
-        print("🧭 [BadgeCountManager] Polling every \(Int(interval))s (\(status), \(reason))")
+        AppLogger.info("badges", "Polling every \(Int(interval))s (\(status), \(reason))")
     }
 
     private func stopPolling(reason: String) {
         pollingTimer?.invalidate()
         pollingTimer = nil
         pollingInterval = nil
-        print("🧭 [BadgeCountManager] Polling stopped (\(reason))")
+        AppLogger.info("badges", "Polling stopped (\(reason))")
     }
     
     // MARK: - Private Methods
@@ -268,7 +268,7 @@ final class BadgeCountManager: ObservableObject {
             let requestKeys = NotificationGrouping.unreadRequestKeys(from: notifications)
             return requestKeys.count
         } catch {
-            print("⚠️ [BadgeCountManager] Error calculating requests badge: \(error)")
+            AppLogger.warning("badges", "Error calculating requests badge: \(error)")
             return 0
         }
     }
@@ -277,12 +277,12 @@ final class BadgeCountManager: ObservableObject {
     /// Counts: unread conversations
     private func calculateMessagesBadgeCount(userId: UUID) async -> Int {
         do {
-            let conversations = try await messageService.fetchConversations(userId: userId)
+            let conversations = try await conversationService.fetchConversations(userId: userId)
             // Sum up unread counts from all conversations
             let totalUnread = conversations.reduce(0) { $0 + $1.unreadCount }
             return totalUnread
         } catch {
-            print("⚠️ [BadgeCountManager] Error calculating messages badge: \(error)")
+            AppLogger.warning("badges", "Error calculating messages badge: \(error)")
             return 0
         }
     }
@@ -307,7 +307,7 @@ final class BadgeCountManager: ObservableObject {
             
             return communityNotificationCount
         } catch {
-            print("⚠️ [BadgeCountManager] Error calculating community badge: \(error)")
+            AppLogger.warning("badges", "Error calculating community badge: \(error)")
             return 0
         }
     }
@@ -325,7 +325,7 @@ final class BadgeCountManager: ObservableObject {
             let pendingUsers = try await adminService.fetchPendingUsers()
             return pendingUsers.count
         } catch {
-            print("⚠️ [BadgeCountManager] Error calculating profile badge: \(error)")
+            AppLogger.warning("badges", "Error calculating profile badge: \(error)")
             return 0
         }
     }
@@ -339,7 +339,7 @@ final class BadgeCountManager: ObservableObject {
             let unreadGroups = groups.filter { $0.hasUnread }.count
             return unreadGroups
         } catch {
-            print("⚠️ [BadgeCountManager] Error calculating bell badge: \(error)")
+            AppLogger.warning("badges", "Error calculating bell badge: \(error)")
             return 0
         }
     }

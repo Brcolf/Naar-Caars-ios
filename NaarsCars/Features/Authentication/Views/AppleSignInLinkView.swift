@@ -20,12 +20,12 @@ struct AppleSignInLinkView: View {
             VStack(spacing: 24) {
                 // Title
                 VStack(spacing: 8) {
-                    Text("Link Apple ID")
+                    Text("auth_link_apple_id_title".localized)
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
-                    Text("Connect your Apple ID to sign in with Face ID/Touch ID")
-                        .font(.subheadline)
+                    Text("auth_link_apple_id_subtitle".localized)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -58,8 +58,8 @@ struct AppleSignInLinkView: View {
                 
                 if let error = viewModel.error {
                     Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.red)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsError)
                         .padding(.horizontal)
                 }
             }
@@ -71,7 +71,7 @@ struct AppleSignInLinkView: View {
 #Preview {
     NavigationStack {
         AppleSignInLinkView { credential in
-            print("Linked Apple ID: \(credential.user)")
+            AppLogger.info("auth", "Linked Apple ID: \(credential.user)")
         }
     }
 }

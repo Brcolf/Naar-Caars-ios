@@ -42,7 +42,7 @@ actor RequestDeduplicator {
         // Check if request is already in-flight
         if let existingWrapper = inflightRequests[key],
            let existingTask = existingWrapper.task as? Task<T, Error> {
-            print("🔄 [RequestDeduplicator] Request already in-flight for key: \(key)")
+            AppLogger.info("network", "Request already in-flight for key: \(key)")
             return try await existingTask.value
         }
         
@@ -63,7 +63,7 @@ actor RequestDeduplicator {
         // Store the task wrapped
         inflightRequests[key] = TaskWrapper(task)
         
-        print("✅ [RequestDeduplicator] Started new request for key: \(key)")
+        AppLogger.info("network", "Started new request for key: \(key)")
         return try await task.value
     }
     
@@ -76,7 +76,7 @@ actor RequestDeduplicator {
     func cancelAll() {
         for (key, task) in inflightRequests {
             task.cancel()
-            print("❌ [RequestDeduplicator] Cancelled request for key: \(key)")
+            AppLogger.warning("network", "Cancelled request for key: \(key)")
         }
         inflightRequests.removeAll()
     }
@@ -86,7 +86,7 @@ actor RequestDeduplicator {
         if let wrapper = inflightRequests[key] {
             wrapper.cancel()
             inflightRequests[key] = nil
-            print("❌ [RequestDeduplicator] Cancelled request for key: \(key)")
+            AppLogger.warning("network", "Cancelled request for key: \(key)")
         }
     }
     

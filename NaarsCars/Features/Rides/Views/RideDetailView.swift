@@ -28,15 +28,17 @@ struct RideDetailView: View {
     @State private var highlightedAnchor: RequestDetailAnchor?
     @State private var highlightTask: Task<Void, Never>?
     @State private var clearedAnchors: Set<RequestDetailAnchor> = []
+    @State private var toastMessage: String? = nil
+    @State private var showSuccess = false
     
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: Constants.Spacing.lg) {
                     if let ride = viewModel.ride {
                         rideDetails(ride: ride)
                     } else if viewModel.isLoading {
-                        LoadingView(message: "Loading ride details...")
+                        LoadingView(message: "ride_detail_loading".localized)
                     } else if let error = viewModel.error {
                         ErrorView(
                             error: error,
@@ -55,7 +57,7 @@ struct RideDetailView: View {
                 }
             }
         }
-        .navigationTitle("Ride Details")
+        .navigationTitle("ride_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await viewModel.loadRide(id: rideId) }
         .task { await viewModel.loadRide(id: rideId) }
@@ -66,20 +68,20 @@ struct RideDetailView: View {
                 }
             }
         }
-        .alert("Delete Ride", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+        .alert("ride_detail_delete_title".localized, isPresented: $showDeleteAlert) {
+            Button("ride_detail_cancel".localized, role: .cancel) {}
+            Button("ride_detail_delete".localized, role: .destructive) {
                 Task {
                     do {
                         try await viewModel.deleteRide()
-                        dismiss()
+                        showSuccess = true
                     } catch {
                         // Error handling
                     }
                 }
             }
         } message: {
-            Text("Are you sure you want to delete this ride request? This action cannot be undone.")
+            Text("ride_detail_delete_confirmation".localized)
         }
         .sheet(isPresented: $showClaimSheet) {
             if let ride = viewModel.ride {
@@ -174,6 +176,13 @@ struct RideDetailView: View {
                 )
             }
         }
+        .toast(message: $toastMessage)
+        .successCheckmark(isShowing: $showSuccess)
+        .onChange(of: showSuccess) { _, newValue in
+            if !newValue {
+                dismiss()
+            }
+        }
         .trackScreen("RideDetail")
     }
     
@@ -181,12 +190,12 @@ struct RideDetailView: View {
     private func rideDetails(ride: Ride) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             // Header Section: Status and Poster
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: Constants.Spacing.md) {
                 if let poster = ride.poster {
                     UserAvatarLink(profile: poster, size: 60)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                     Text(ride.status.displayText)
                         .font(.naarsHeadline)
                         .foregroundColor(.white)
@@ -198,7 +207,7 @@ struct RideDetailView: View {
                         .requestHighlight(highlightedAnchor == .statusBadge)
                     
                     if let poster = ride.poster {
-                        Text("Requested by \(poster.name)")
+                        Text("ride_detail_requested_by".localized(with: poster.name))
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
@@ -212,27 +221,27 @@ struct RideDetailView: View {
             .onAppear { handleSectionAppeared(.mainTop) }
             
             // Route Card
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Constants.Spacing.md) {
                 HStack {
-                    Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                    Label("ride_detail_route".localized, systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                         .font(.naarsTitle3)
                         .foregroundColor(.rideAccent)
                     Spacer()
-                    Text("Hold address to copy")
+                    Text("ride_detail_hold_to_copy".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 16) {
+                    HStack(spacing: Constants.Spacing.md) {
                         Image(systemName: "circle.fill")
                             .foregroundColor(.green)
-                            .font(.system(size: 10))
+                            .font(.naarsCaption)
                             .frame(width: 20)
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("PICKUP")
-                                .font(.system(size: 10, weight: .bold))
+                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                            Text("ride_detail_pickup_label".localized)
+                                .font(.naarsCaption).fontWeight(.bold)
                                 .foregroundColor(.secondary)
                             AddressText(ride.pickup)
                         }
@@ -243,15 +252,15 @@ struct RideDetailView: View {
                         .frame(width: 1, height: 20)
                         .padding(.leading, 29)
                     
-                    HStack(spacing: 16) {
+                    HStack(spacing: Constants.Spacing.md) {
                         Image(systemName: "mappin.circle.fill")
                             .foregroundColor(.rideAccent)
-                            .font(.system(size: 20))
+                            .font(.naarsTitle3)
                             .frame(width: 20)
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("DESTINATION")
-                                .font(.system(size: 10, weight: .bold))
+                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                            Text("ride_detail_destination_label".localized)
+                                .font(.naarsCaption).fontWeight(.bold)
                                 .foregroundColor(.secondary)
                             AddressText(ride.destination)
                         }
@@ -261,7 +270,7 @@ struct RideDetailView: View {
                 if let estimatedCost = ride.estimatedCost {
                     Divider()
                     HStack {
-                        Label("Estimated Rideshare Savings", systemImage: "dollarsign.circle.fill")
+                        Label("ride_detail_estimated_savings".localized, systemImage: "dollarsign.circle.fill")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -276,10 +285,10 @@ struct RideDetailView: View {
             // Map Section
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label("Route Map", systemImage: "map.fill")
+                    Label("ride_detail_route_map".localized, systemImage: "map.fill")
                         .font(.naarsTitle3)
                     Spacer()
-                    Text("Tap to open in Maps")
+                    Text("ride_detail_tap_open_maps".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
@@ -293,13 +302,13 @@ struct RideDetailView: View {
             .cardStyle()
             
             // Time and Seats Info
-            HStack(spacing: 16) {
+            HStack(spacing: Constants.Spacing.md) {
                 VStack(alignment: .leading, spacing: 12) {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ride.date.dateString)
                                 .font(.naarsHeadline)
-                            Text("Date")
+                            Text("ride_detail_date".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
@@ -312,7 +321,7 @@ struct RideDetailView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ride.time)
                                 .font(.naarsHeadline)
-                            Text("Time")
+                            Text("ride_detail_time".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
@@ -326,9 +335,9 @@ struct RideDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(ride.seats) seat(s)")
+                            Text("ride_detail_seats_count".localized(with: ride.seats))
                                 .font(.naarsHeadline)
-                            Text("Requested")
+                            Text("ride_detail_requested".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
@@ -347,11 +356,11 @@ struct RideDetailView: View {
             // Participants Section
             if let participants = ride.participants, !participants.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Participants")
+                    Text("ride_detail_participants".localized)
                         .font(.naarsTitle3)
                     
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
+                        HStack(spacing: Constants.Spacing.md) {
                             ForEach(participants) { participant in
                                 VStack(spacing: 6) {
                                     UserAvatarLink(profile: participant, size: 50)
@@ -371,13 +380,13 @@ struct RideDetailView: View {
             // Claimer Section
             if let claimer = ride.claimer {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Claimed by")
+                    Text("ride_detail_claimed_by".localized)
                         .font(.naarsTitle3)
                     
                     HStack(spacing: 12) {
                         UserAvatarLink(profile: claimer, size: 50)
                         
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                             Text(claimer.name)
                                 .font(.naarsHeadline)
                             if let car = claimer.car, !car.isEmpty {
@@ -397,10 +406,10 @@ struct RideDetailView: View {
             
             // Notes & Gift
             if (ride.notes != nil && !ride.notes!.isEmpty) || (ride.gift != nil && !ride.gift!.isEmpty) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.md) {
                     if let notes = ride.notes, !notes.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Notes", systemImage: "note.text")
+                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                            Label("ride_detail_notes".localized, systemImage: "note.text")
                                 .font(.naarsHeadline)
                             Text(notes)
                                 .font(.naarsBody)
@@ -413,8 +422,8 @@ struct RideDetailView: View {
                     }
                     
                     if let gift = ride.gift, !gift.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Gift/Compensation", systemImage: "gift.fill")
+                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                            Label("ride_detail_gift".localized, systemImage: "gift.fill")
                                 .font(.naarsHeadline)
                                 .foregroundColor(.naarsPrimary)
                             Text(gift)
@@ -431,7 +440,11 @@ struct RideDetailView: View {
                 requestId: ride.id,
                 requestType: "ride",
                 onPostQuestion: { question in
+                    let countBefore = viewModel.qaItems.count
                     await viewModel.postQuestion(question)
+                    if viewModel.qaItems.count > countBefore {
+                        toastMessage = "toast_question_posted".localized
+                    }
                 },
                 isClaimed: ride.claimedBy != nil,
                 onMessageParticipants: ride.claimedBy == nil ? nil : {
@@ -453,10 +466,10 @@ struct RideDetailView: View {
             }
             
             if viewModel.canEdit {
-                HStack(spacing: 16) {
-                    SecondaryButton(title: "Edit") { showEditRide = true }
+                HStack(spacing: Constants.Spacing.md) {
+                    SecondaryButton(title: "ride_detail_edit".localized) { showEditRide = true }
                         .accessibilityIdentifier("ride.edit")
-                    SecondaryButton(title: "Delete") { showDeleteAlert = true }
+                    SecondaryButton(title: "ride_detail_delete".localized) { showDeleteAlert = true }
                         .accessibilityIdentifier("ride.delete")
                 }
             }
@@ -486,7 +499,7 @@ struct RideDetailView: View {
         }
         
         navigationCoordinator.requestNavigationTarget = nil
-        print("📍 [RideDetailView] Deep link to \(target.anchor.rawValue)")
+        AppLogger.info("rides", "[RideDetailView] Deep link to \(target.anchor.rawValue)")
     }
 
     private func handlePendingRequestNavigation(proxy: ScrollViewProxy) {
@@ -519,7 +532,7 @@ struct RideDetailView: View {
             // to avoid redundant RPC calls that return 0
             let hasUnread = await viewModel.hasUnreadNotifications(of: types)
             guard hasUnread else {
-                print("ℹ️ [RideDetailView] No unread \(anchor.rawValue) notifications to clear")
+                AppLogger.info("rides", "[RideDetailView] No unread \(anchor.rawValue) notifications to clear")
                 return
             }
 
@@ -541,13 +554,13 @@ struct RideDetailView: View {
         } label: {
             HStack {
                 Image(systemName: "person.badge.plus")
-                Text("Add Participants")
+                Text("ride_detail_add_participants".localized)
                 Spacer()
                 Image(systemName: "chevron.right")
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color(.systemGray6))
+            .background(Color.naarsCardBackground)
             .foregroundColor(.primary)
             .cornerRadius(12)
         }
@@ -573,14 +586,14 @@ struct RideDetailView: View {
             }
             participantIds.insert(currentUserId)
             
-            let conversation = try await MessageService.shared.createConversationWithUsers(
+            let conversation = try await ConversationService.shared.createConversationWithUsers(
                 userIds: Array(participantIds),
                 createdBy: currentUserId,
                 title: nil
             )
             navigateToConversation = conversation.id
         } catch {
-            print("🔴 Error creating conversation: \(error.localizedDescription)")
+            AppLogger.error("rides", "Error creating conversation: \(error.localizedDescription)")
         }
     }
     
@@ -596,19 +609,19 @@ struct RideDetailView: View {
             )
             await viewModel.loadRide(id: rideId)
         } catch {
-            print("🔴 Error adding participants to ride: \(error.localizedDescription)")
+            AppLogger.error("rides", "Error adding participants to ride: \(error.localizedDescription)")
         }
     }
     
     private func openInExternalMaps(ride: Ride) {
-        print("🗺️ [RideDetailView] Opening external maps for ride: \(ride.id)")
+        AppLogger.info("rides", "[RideDetailView] Opening external maps for ride: \(ride.id)")
         let pickup = ride.pickup.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let destination = ride.destination.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         
         // Google Maps Universal Link (more reliable for multi-stop)
         // https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=[DEST]&waypoints=[PICKUP]&travelmode=driving
         let googleMapsUrl = URL(string: "comgooglemaps://?saddr=&daddr=\(destination)&waypoints=\(pickup)&directionsmode=driving")
-        let googleMapsWebUrl = URL(string: "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=\(destination)&waypoints=\(pickup)&travelmode=driving")
+        let googleMapsWebUrl = URL(string: "\(Constants.URLs.googleMapsDirections)?api=1&origin=My+Location&destination=\(destination)&waypoints=\(pickup)&travelmode=driving")
         
         // Apple Maps multi-stop via MKMapItem
         // This is the most robust way to handle multiple stops in Apple Maps on iOS
@@ -636,9 +649,9 @@ struct RideDetailView: View {
                     // we use the direction mode to help.
                     let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
                     MKMapItem.openMaps(with: [pickupItem, destItem], launchOptions: launchOptions)
-                    print("🗺️ [RideDetailView] Opened Apple Maps via MKMapItem")
+                    AppLogger.info("rides", "[RideDetailView] Opened Apple Maps via MKMapItem")
                 } catch {
-                    print("🗺️ [RideDetailView] Apple Maps multi-stop failed: \(error.localizedDescription)")
+                    AppLogger.warning("rides", "[RideDetailView] Apple Maps multi-stop failed: \(error.localizedDescription)")
                     // Fallback to simple URL if geocoding fails
                     if let url = URL(string: "http://maps.apple.com/?saddr=\(pickup)&daddr=\(destination)") {
                         await UIApplication.shared.open(url)
@@ -648,7 +661,7 @@ struct RideDetailView: View {
         }
         
         if let url = googleMapsUrl, UIApplication.shared.canOpenURL(url) {
-            print("🗺️ [RideDetailView] Opening Google Maps App")
+            AppLogger.info("rides", "[RideDetailView] Opening Google Maps App")
             Task { @MainActor in
                 await UIApplication.shared.open(url)
             }
@@ -658,7 +671,7 @@ struct RideDetailView: View {
                 await UIApplication.shared.open(url)
             }
         } else {
-            print("🗺️ [RideDetailView] Attempting Apple Maps Multi-Stop")
+            AppLogger.info("rides", "[RideDetailView] Attempting Apple Maps Multi-Stop")
             appleMapsMultiStop()
         }
     }

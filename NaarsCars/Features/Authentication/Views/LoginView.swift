@@ -14,6 +14,7 @@ struct LoginView: View {
     @EnvironmentObject var appState: AppState
     @State private var showPasswordReset = false
     @State private var showError = false
+    @State private var showSuccess = false
     
     var body: some View {
         ScrollView {
@@ -27,7 +28,7 @@ struct LoginView: View {
                         .accessibilityLabel("Naar's Cars - Community Ride Sharing")
                     
                     Text("auth_login_title".localized)
-                        .font(.subheadline)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 20)
@@ -37,7 +38,7 @@ struct LoginView: View {
                     // Email field
                     VStack(alignment: .leading, spacing: 4) {
                         Text("auth_email_label".localized)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         
                         TextField("auth_email_placeholder".localized, text: $viewModel.email)
@@ -46,25 +47,29 @@ struct LoginView: View {
                             .autocapitalization(.none)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("login.email")
+                            .accessibilityLabel("Email address")
+                            .accessibilityHint("Enter your email to sign in")
                     }
                     
                     // Password field
                     VStack(alignment: .leading, spacing: 4) {
                         Text("auth_password_label".localized)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         
                         SecureField("auth_password_placeholder".localized, text: $viewModel.password)
                             .textContentType(.password)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("login.password")
+                            .accessibilityLabel("Password")
+                            .accessibilityHint("Enter your password")
                     }
                     
                     // Error message
                     if let error = viewModel.error {
                         Text(error.localizedDescription)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                            .font(.naarsCaption)
+                            .foregroundColor(.naarsError)
                             .padding(.horizontal)
                     }
                     
@@ -72,6 +77,9 @@ struct LoginView: View {
                     Button(action: {
                         Task {
                             await viewModel.login()
+                            if viewModel.error == nil {
+                                showSuccess = true
+                            }
                         }
                     }) {
                         if viewModel.isLoading {
@@ -90,8 +98,8 @@ struct LoginView: View {
                     Button("auth_forgot_password".localized) {
                         showPasswordReset = true
                     }
-                    .font(.caption)
-                    .foregroundColor(.blue)
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsPrimary)
                 .accessibilityIdentifier("login.forgot")
                     
                     // Divider
@@ -100,7 +108,7 @@ struct LoginView: View {
                             .frame(height: 1)
                             .foregroundColor(.secondary.opacity(0.3))
                         Text("auth_or_continue_with".localized)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
                         Rectangle()
@@ -138,14 +146,14 @@ struct LoginView: View {
                 // Sign up link
                 HStack {
                     Text("auth_no_account".localized)
-                        .font(.caption)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                     
                     NavigationLink("auth_sign_up".localized) {
                         SignupInviteCodeView()
                     }
-                    .font(.caption)
-                    .foregroundColor(.blue)
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsPrimary)
                     .accessibilityIdentifier("login.signup")
                 }
                 .padding(.top)
@@ -161,6 +169,7 @@ struct LoginView: View {
         } message: {
             Text(appleSignInViewModel.error?.localizedDescription ?? "common_error".localized)
         }
+        .successCheckmark(isShowing: $showSuccess)
         .trackScreen("Login")
     }
 }

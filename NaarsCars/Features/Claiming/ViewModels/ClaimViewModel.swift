@@ -64,6 +64,8 @@ final class ClaimViewModel: ObservableObject {
         error = nil
         defer { isLoading = false }
         
+        HapticManager.mediumImpact()
+        
         do {
             // Log action for crash context
             CrashReportingService.shared.logAction("claim_request", parameters: [
@@ -76,6 +78,8 @@ final class ClaimViewModel: ObservableObject {
                 requestId: requestId,
                 claimerId: claimerId
             )
+            
+            HapticManager.success()
 
             // Request push notification permission after first successful claim
             await requestPushPermissionIfNeeded()
@@ -117,6 +121,8 @@ final class ClaimViewModel: ObservableObject {
                 requestId: requestId,
                 claimerId: claimerId
             )
+            
+            HapticManager.mediumImpact()
         } catch {
             CrashReportingService.shared.recordClaimingError(
                 error,
@@ -154,6 +160,8 @@ final class ClaimViewModel: ObservableObject {
                 requestId: requestId,
                 posterId: posterId
             )
+            
+            HapticManager.success()
         } catch {
             CrashReportingService.shared.recordClaimingError(
                 error,

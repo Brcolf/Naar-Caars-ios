@@ -81,7 +81,15 @@ actor MessagingLogger {
         let timestamp = DateFormatter.logTimeFormatter.string(from: Date())
         let logMessage = "\(level.rawValue) [\(timestamp)] [\(fileName):\(line)] \(function) - \(message)"
         
-        print(logMessage)
+        // Route to AppLogger based on level
+        switch level {
+        case .error:
+            AppLogger.error("messaging", logMessage)
+        case .warning, .race:
+            AppLogger.warning("messaging", logMessage)
+        default:
+            AppLogger.info("messaging", logMessage)
+        }
         
         // Also log to unified logging system
         switch level {
@@ -185,9 +193,9 @@ actor MessagingLogger {
         )
         
         // Log additional error details
-        print("   Error type: \(type(of: error))")
+        AppLogger.error("messaging", "Error type: \(type(of: error))")
         if let appError = error as? AppError {
-            print("   App error: \(appError)")
+            AppLogger.error("messaging", "App error: \(appError)")
         }
     }
     

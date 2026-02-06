@@ -7,11 +7,11 @@ public struct SectionHighlightModifier: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isHighlighted ? Color.yellow.opacity(0.12) : Color.clear)
+                    .fill(isHighlighted ? Color.naarsWarning.opacity(0.12) : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isHighlighted ? Color.yellow.opacity(0.6) : Color.clear, lineWidth: 2)
+                    .stroke(isHighlighted ? Color.naarsWarning.opacity(0.6) : Color.clear, lineWidth: 2)
             )
     }
 }

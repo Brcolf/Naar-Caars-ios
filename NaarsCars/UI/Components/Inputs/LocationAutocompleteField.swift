@@ -56,7 +56,7 @@ struct LocationAutocompleteField: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
-                            .font(.system(size: 16))
+                            .font(.naarsCallout)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -114,7 +114,7 @@ struct LocationAutocompleteField: View {
                             .padding()
                     }
                 }
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(10)
                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                 .padding(.top, 4)
@@ -161,7 +161,7 @@ struct LocationAutocompleteField: View {
                 await MainActor.run {
                     predictions = []
                     isSearching = false
-                    print("⚠️ [LocationAutocompleteField] Search error: \(error.localizedDescription)")
+                    AppLogger.warning("location", "LocationAutocompleteField search error: \(error.localizedDescription)")
                 }
             }
         }
@@ -200,7 +200,7 @@ struct LocationAutocompleteField: View {
                 predictions = []
                 isFocused = false
                 showDropdown = false
-                print("⚠️ [LocationAutocompleteField] Failed to get place details: \(error.localizedDescription)")
+                AppLogger.warning("location", "LocationAutocompleteField failed to get place details: \(error.localizedDescription)")
             }
         }
     }

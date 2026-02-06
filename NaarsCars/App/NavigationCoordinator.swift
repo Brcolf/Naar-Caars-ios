@@ -160,7 +160,7 @@ final class NavigationCoordinator: ObservableObject {
             selectedTab = .requests
         }
         
-        print("📍 [NavigationCoordinator] Navigating to: \(deepLink)")
+        AppLogger.info("navigation", "Navigating to: \(deepLink)")
     }
 
     private func clearConflictingNavigation(for deepLink: DeepLink) {
@@ -310,7 +310,7 @@ final class NavigationCoordinator: ObservableObject {
                         conversationId: conversationId,
                         messageId: messageId
                     )
-                    print("📍 [NavigationCoordinator] Message deep link to \(conversationId) (\(messageId))")
+                    AppLogger.info("navigation", "Message deep link to \(conversationId) (\(messageId))")
                 }
             }
         }
@@ -479,20 +479,20 @@ final class NavigationCoordinator: ObservableObject {
             return nil
         }
         guard let anchor = RequestDetailAnchor(rawValue: anchorRaw) else {
-            print("⚠️ [NavigationCoordinator] Unknown request anchor: \(anchorRaw)")
+            AppLogger.warning("navigation", "Unknown request anchor: \(anchorRaw)")
             return nil
         }
 
         let scrollRaw = userInfo["requestScrollAnchor"] as? String
         let scrollAnchor = scrollRaw.flatMap(RequestDetailAnchor.init(rawValue:))
         if scrollRaw != nil && scrollAnchor == nil {
-            print("⚠️ [NavigationCoordinator] Unknown request scroll anchor: \(scrollRaw ?? "")")
+            AppLogger.warning("navigation", "Unknown request scroll anchor: \(scrollRaw ?? "")")
         }
 
         let highlightRaw = userInfo["requestHighlightAnchor"] as? String
         let highlightAnchor = highlightRaw.flatMap(RequestDetailAnchor.init(rawValue:))
         if highlightRaw != nil && highlightAnchor == nil {
-            print("⚠️ [NavigationCoordinator] Unknown request highlight anchor: \(highlightRaw ?? "")")
+            AppLogger.warning("navigation", "Unknown request highlight anchor: \(highlightRaw ?? "")")
         }
         let shouldAutoClear = userInfo["requestAutoClear"] as? Bool ?? true
 

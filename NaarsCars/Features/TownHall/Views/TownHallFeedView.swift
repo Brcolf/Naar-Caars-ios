@@ -15,6 +15,7 @@ struct TownHallFeedView: View {
     @State private var highlightedPostId: UUID?
     @State private var highlightTask: Task<Void, Never>?
     @State private var openCommentsTarget: PostCommentsTarget?
+    @State private var toastMessage: String? = nil
     
     var body: some View {
         mainContent
@@ -24,7 +25,7 @@ struct TownHallFeedView: View {
                         showCreatePost = true
                     } label: {
                         Image(systemName: "plus")
-                            .font(.title3)
+                            .font(.naarsTitle3)
                     }
                 }
             }
@@ -34,6 +35,7 @@ struct TownHallFeedView: View {
             .task {
                 await viewModel.loadPosts()
             }
+            .toast(message: $toastMessage)
             .trackScreen("TownHallFeed")
             .sheet(item: $openCommentsTarget) { target in
                 PostCommentsView(postId: target.id)
@@ -85,9 +87,9 @@ struct TownHallFeedView: View {
     private var emptyStateView: some View {
         EmptyStateView(
             icon: "message.fill",
-            title: "No Posts Yet",
-            message: "Be the first to share something with the community!",
-            actionTitle: "Create Post",
+            title: "townhall_no_posts_yet".localized,
+            message: "townhall_be_first_to_share".localized,
+            actionTitle: "townhall_create_post".localized,
             action: {
                 showCreatePost = true
             },
@@ -148,7 +150,11 @@ struct TownHallFeedView: View {
             currentUserId: AuthService.shared.currentUserId,
             onDelete: {
                 Task {
+                    let countBefore = viewModel.posts.count
                     await viewModel.deletePost(post)
+                    if viewModel.posts.count < countBefore {
+                        toastMessage = "toast_post_deleted".localized
+                    }
                 }
             },
             onComment: { postId in

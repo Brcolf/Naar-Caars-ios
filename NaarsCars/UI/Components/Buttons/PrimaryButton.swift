@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 /// Primary action button with loading state
 struct PrimaryButton: View {
@@ -17,18 +16,17 @@ struct PrimaryButton: View {
     
     var body: some View {
         Button(action: {
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
+            HapticManager.lightImpact()
             action()
         }) {
-            HStack {
+            HStack(spacing: Constants.Spacing.sm) {
                 if isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.8)
                 }
                 Text(title)
+                    .font(.naarsHeadline)
             }
             .frame(maxWidth: .infinity)
             .padding()
@@ -36,6 +34,7 @@ struct PrimaryButton: View {
             .foregroundColor(.white)
             .cornerRadius(10)
         }
+        .buttonStyle(.scale)
         .disabled(isDisabled || isLoading)
     }
 }

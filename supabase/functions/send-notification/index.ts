@@ -75,6 +75,14 @@ serve(async (req) => {
       // No body is fine - we'll process the queue
     }
 
+    // Input validation
+    if (requestData.title && requestData.title.length > 200) {
+      requestData.title = requestData.title.substring(0, 200);
+    }
+    if (requestData.body && requestData.body.length > 500) {
+      requestData.body = requestData.body.substring(0, 500);
+    }
+
     // Check if this is a direct notification request or queue processing
     if (requestData.direct) {
       // Direct notification - send immediately
@@ -392,7 +400,8 @@ async function sendAPNsPush(token: string, payload: APNsPayload, supabase: any):
       'apns-push-type': pushType,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000)
   })
 
   if (!response.ok) {

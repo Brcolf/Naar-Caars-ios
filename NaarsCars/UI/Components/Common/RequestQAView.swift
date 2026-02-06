@@ -72,7 +72,7 @@ struct RequestQAView: View {
                         }
                     }
                     .padding()
-                    .background(Color(.systemGray6))
+                    .background(Color.naarsCardBackground)
                     .cornerRadius(8)
                 }
             }

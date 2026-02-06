@@ -128,7 +128,7 @@ final class RideServiceTests: XCTestCase {
         XCTAssertNotNil(cachedBefore, "Cache should be populated before force refresh")
 
         do {
-            _ = try await rideService.fetchRides(forceRefresh: true)
+            _ = try await rideService.fetchRides()
         } catch {
             // Network failures are acceptable for this test
         }

@@ -337,7 +337,7 @@ struct DevNotificationTestView: View {
             await MainActor.run {
                 lastSent = title
             }
-            print("✅ [DevTest] Sent test notification: \(type)")
+            AppLogger.info("admin", "Sent test notification: \(type)")
         } catch {
             await MainActor.run {
                 alertMessage = "Failed to send: \(error.localizedDescription)"
@@ -421,7 +421,7 @@ private struct NotificationButton: View {
                 } else {
                     Image(systemName: "bell.badge")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
             }
         }

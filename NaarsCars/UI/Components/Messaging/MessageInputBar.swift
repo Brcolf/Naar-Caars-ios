@@ -24,11 +24,18 @@ struct MessageInputBar: View {
     var replyingTo: ReplyContext?
     var onCancelReply: (() -> Void)?
     
+    /// Editing context (optional — when editing a message)
+    var editingMessage: Message?
+    var onCancelEdit: (() -> Void)?
+    
     /// Audio message callback
     var onAudioRecorded: ((URL, Double) -> Void)?
     
     /// Location message callback
     var onLocationShare: ((Double, Double, String?) -> Void)?
+    
+    /// Typing status callback (fired when user types)
+    var onTypingChanged: (() -> Void)?
     
     // Audio recording state
     @State private var isRecording = false
@@ -45,8 +52,12 @@ struct MessageInputBar: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Editing banner (if editing a message)
+            if let editing = editingMessage {
+                editingBanner(message: editing)
+            }
             // Reply context banner (if replying)
-            if let replyContext = replyingTo {
+            else if let replyContext = replyingTo {
                 replyBanner(replyContext: replyContext)
             }
             
@@ -109,8 +120,14 @@ struct MessageInputBar: View {
                             onSend()
                         }
                     }
+                    .onChange(of: text) { _, newValue in
+                        if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            onTypingChanged?()
+                        }
+                    }
                     .accessibilityIdentifier("message.input")
-                    .accessibilityLabel("Message input field")
+                    .accessibilityLabel("Message")
+                    .accessibilityHint("Type your message here")
                 
                 Button(action: onSend) {
                     Image(systemName: "arrow.up.circle.fill")
@@ -122,7 +139,7 @@ struct MessageInputBar: View {
             }
             .padding()
         }
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
         .sheet(isPresented: $showLocationPicker) {
             LocationPickerSheet { coordinate, name in
@@ -141,8 +158,8 @@ struct MessageInputBar: View {
                 .frame(width: 10, height: 10)
                 .opacity(recordingDuration.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1.0 : 0.3)
             
-            Text("Recording...")
-                .font(.system(size: 14, weight: .medium))
+            Text("messaging_recording".localized)
+                .font(.naarsSubheadline).fontWeight(.medium)
                 .foregroundColor(.primary)
             
             Spacer()
@@ -155,7 +172,7 @@ struct MessageInputBar: View {
             // Cancel button
             Button(action: cancelRecording) {
                 Text("Cancel")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.naarsSubheadline).fontWeight(.medium)
                     .foregroundColor(.secondary)
             }
             
@@ -168,7 +185,7 @@ struct MessageInputBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
@@ -230,7 +247,7 @@ struct MessageInputBar: View {
             generator.impactOccurred()
             
         } catch {
-            print("Failed to start recording: \(error)")
+            AppLogger.error("messaging", "Failed to start recording: \(error.localizedDescription)")
         }
     }
     
@@ -280,6 +297,52 @@ struct MessageInputBar: View {
         return String(format: "%d:%02d.%d", mins, secs, tenths)
     }
     
+    // MARK: - Editing Banner
+    
+    private func editingBanner(message: Message) -> some View {
+        HStack(spacing: 10) {
+            // Vertical accent bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.naarsPrimary)
+                .frame(width: 3)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                // "Editing" header
+                HStack(spacing: Constants.Spacing.xs) {
+                    Image(systemName: "pencil")
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsPrimary)
+                    Text("messaging_editing_message".localized)
+                        .font(.naarsFootnote).fontWeight(.semibold)
+                        .foregroundColor(.naarsPrimary)
+                }
+                
+                // Original message preview
+                Text(message.text)
+                    .font(.naarsFootnote)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            // Cancel button
+            Button(action: {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    onCancelEdit?()
+                }
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.naarsTitle3)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.naarsCardBackground)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+    
     // MARK: - Location Sharing
     
     private func shareCurrentLocation() {
@@ -297,24 +360,24 @@ struct MessageInputBar: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 // "Replying to" header
-                HStack(spacing: 4) {
+                HStack(spacing: Constants.Spacing.xs) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
-                        .font(.system(size: 10))
+                        .font(.naarsCaption)
                         .foregroundColor(.naarsPrimary)
-                    Text("Replying to \(replyContext.senderName)")
-                        .font(.system(size: 12, weight: .semibold))
+                    Text("\("messaging_replying_to".localized) \(replyContext.senderName)")
+                        .font(.naarsFootnote).fontWeight(.semibold)
                         .foregroundColor(.naarsPrimary)
                 }
                 
                 // Message preview
-                HStack(spacing: 4) {
+                HStack(spacing: Constants.Spacing.xs) {
                     if replyContext.imageUrl != nil {
                         Image(systemName: "photo")
-                            .font(.system(size: 11))
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                     Text(replyContext.text.isEmpty ? "Photo" : replyContext.text)
-                        .font(.system(size: 12))
+                        .font(.naarsFootnote)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                 }
@@ -329,13 +392,13 @@ struct MessageInputBar: View {
                 }
             }) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
+                    .font(.naarsTitle3)
                     .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
@@ -383,12 +446,12 @@ private struct LocationPickerSheet: View {
                                         searchText = ""
                                     }
                                 } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
+                                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                                         Text(result.primaryText)
-                                            .font(.system(size: 15, weight: .semibold))
+                                            .font(.naarsSubheadline).fontWeight(.semibold)
                                         if !result.secondaryText.isEmpty {
                                             Text(result.secondaryText)
-                                                .font(.system(size: 13))
+                                                .font(.naarsFootnote)
                                                 .foregroundColor(.secondary)
                                         }
                                     }
@@ -424,14 +487,14 @@ private struct LocationPickerSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
                 
-                VStack(spacing: 4) {
+                VStack(spacing: Constants.Spacing.xs) {
                     if let name = viewModel.selectedName {
                         Text(name)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.naarsSubheadline).fontWeight(.semibold)
                     }
                     if let address = viewModel.selectedAddress, !address.isEmpty {
                         Text(address)
-                            .font(.system(size: 12))
+                            .font(.naarsFootnote)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -439,7 +502,7 @@ private struct LocationPickerSheet: View {
                 
                 Button(action: confirmSelection) {
                     Text("Send Location")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.naarsCallout).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(Color.naarsPrimary)

@@ -24,13 +24,16 @@ struct MyProfileView: View {
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
     @State private var isDeletingAccount = false
+    @State private var showDeleteError = false
+    @State private var deleteErrorMessage = ""
     @State private var showSettings = false
+    @State private var toastMessage: String? = nil
     
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: Constants.Spacing.lg) {
                         if let profile = viewModel.profile {
                             // Header Section (with sign out)
                             headerSection(profile: profile)
@@ -61,7 +64,7 @@ struct MyProfileView: View {
                             // Delete Account Section
                             deleteAccountSection()
                         } else if viewModel.isLoading {
-                            LoadingView(message: "Loading profile...")
+                            LoadingView(message: "profile_loading".localized)
                         } else {
                             // Check if we have a user ID to retry with
                             let hasUserId = appState.currentUser?.id != nil || AuthService.shared.currentUserId != nil
@@ -92,22 +95,22 @@ struct MyProfileView: View {
                                     }
                                 )
                             } else {
-                                VStack(spacing: 16) {
+                                VStack(spacing: Constants.Spacing.md) {
                                     Image(systemName: "person.circle")
                                         .font(.system(size: 64))
                                         .foregroundColor(.secondary)
                                     
-                                    Text("Not Signed In")
+                                    Text("profile_not_signed_in".localized)
                                         .font(.naarsTitle2)
                                     
-                                    Text("Please sign in to view your profile.")
+                                    Text("profile_sign_in_prompt".localized)
                                         .font(.naarsBody)
                                         .foregroundColor(.secondary)
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal)
                                     
                                     PrimaryButton(
-                                        title: "Retry",
+                                        title: "profile_retry".localized,
                                         action: {
                                             Task {
                                                 await appState.checkAuthStatus()
@@ -133,13 +136,13 @@ struct MyProfileView: View {
                     navigationCoordinator.profileScrollTarget = nil
                 }
             }
-            .navigationTitle("My Profile")
+            .navigationTitle("profile_title".localized)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 16) {
+                    HStack(spacing: Constants.Spacing.md) {
                         BellButton {
                             navigationCoordinator.navigateToNotifications = true
-                            print("🔔 [MyProfileView] Bell tapped")
+                            AppLogger.info("profile", "Bell tapped")
                         }
 
                         Button {
@@ -149,7 +152,7 @@ struct MyProfileView: View {
                         }
                         .accessibilityIdentifier("profile.settings")
                         
-                        Button("Edit") {
+                        Button("profile_edit".localized) {
                             showEditProfile = true
                         }
                         .accessibilityIdentifier("profile.edit")
@@ -207,49 +210,56 @@ struct MyProfileView: View {
                     EditProfileView(profile: profile)
                 }
             }
-            .alert("Sign Out", isPresented: $showLogoutAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Sign Out", role: .destructive) {
+            .alert("profile_sign_out".localized, isPresented: $showLogoutAlert) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("profile_sign_out".localized, role: .destructive) {
                     Task {
                         do {
                             try await AuthService.shared.signOut()
                             // AuthService already posts "userDidSignOut" notification
                             // AppLaunchManager will handle state change automatically
                             // No need to call performCriticalLaunch here
-                            print("✅ [MyProfileView] Sign out completed - state will update via notification")
+                            AppLogger.info("profile", "Sign out completed - state will update via notification")
                         } catch {
-                            print("🔴 [MyProfileView] Sign out error: \(error.localizedDescription)")
+                            AppLogger.error("profile", "Sign out error: \(error.localizedDescription)")
                         }
                     }
                 }
             } message: {
-                Text("Are you sure you want to sign out?")
+                Text("profile_sign_out_confirmation".localized)
             }
-            .alert("Delete Account", isPresented: $showDeleteAccountAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
+            .alert("profile_delete_account".localized, isPresented: $showDeleteAccountAlert) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("profile_delete".localized, role: .destructive) {
                     showDeleteConfirmation = true
                 }
             } message: {
-                Text("This action cannot be undone. You will lose all information associated with your account, including any content you have generated such as rides, reviews, and posts.")
+                Text("profile_delete_warning".localized)
             }
-            .alert("Confirm Account Deletion", isPresented: $showDeleteConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete Account", role: .destructive) {
+            .alert("profile_confirm_deletion".localized, isPresented: $showDeleteConfirmation) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("profile_delete_account".localized, role: .destructive) {
                     Task {
                         await deleteAccount()
                     }
                 }
             } message: {
-                Text("Are you absolutely sure? This will permanently delete your account and all associated data. This action cannot be undone.")
+                Text("profile_confirm_deletion_message".localized)
             }
-            .alert("Daily Limit Reached", isPresented: $showRateLimitAlert) {
-                Button("OK", role: .cancel) {
+            .alert("profile_daily_limit_reached".localized, isPresented: $showRateLimitAlert) {
+                Button("common_ok".localized, role: .cancel) {
                     rateLimitMessage = nil
                     viewModel.error = nil
                 }
             } message: {
-                Text(rateLimitMessage ?? "You can generate up to 5 invite codes per day. Try again tomorrow!")
+                Text(rateLimitMessage ?? "profile_invite_limit_message".localized)
+            }
+            .alert("profile_deletion_failed".localized, isPresented: $showDeleteError) {
+                Button("common_ok".localized, role: .cancel) {
+                    deleteErrorMessage = ""
+                }
+            } message: {
+                Text("profile_deletion_failed_message".localized + "\n\n\(deleteErrorMessage)")
             }
             .sheet(isPresented: $showInvitationWorkflow) {
                 if let userId = appState.currentUser?.id {
@@ -261,6 +271,24 @@ struct MyProfileView: View {
                     }
                 }
             }
+            .onChange(of: selectedPhoto) { _, newPhoto in
+                guard let newPhoto else { return }
+                Task {
+                    guard let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId else { return }
+                    if let data = try? await newPhoto.loadTransferable(type: Data.self) {
+                        do {
+                            let _ = try await ProfileService.shared.uploadAvatar(imageData: data, userId: userId)
+                            HapticManager.success()
+                            toastMessage = "Photo updated"
+                            await viewModel.loadProfile(userId: userId)
+                        } catch {
+                            AppLogger.error("profile", "Avatar upload failed: \(error.localizedDescription)")
+                        }
+                    }
+                    selectedPhoto = nil
+                }
+            }
+            .toast(message: $toastMessage)
             .trackScreen("MyProfile")
         }
     }
@@ -268,7 +296,7 @@ struct MyProfileView: View {
     // MARK: - Header Section
     
     private func headerSection(profile: Profile) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Constants.Spacing.md) {
             // Avatar
             Button {
                 showImagePicker = true
@@ -279,15 +307,17 @@ struct MyProfileView: View {
                     size: 100
                 )
             }
+            .accessibilityLabel("Profile photo for \(profile.name)")
+            .accessibilityHint("Double-tap to change your profile photo")
             
             // Name and Email
-            VStack(spacing: 4) {
+            VStack(spacing: Constants.Spacing.xs) {
                 Text(profile.name)
-                    .font(.title2)
+                    .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
                 Text(profile.email)
-                    .font(.subheadline)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
             }
             
@@ -295,11 +325,13 @@ struct MyProfileView: View {
             Button {
                 showLogoutAlert = true
             } label: {
-                Text("Sign Out")
-                    .font(.subheadline)
+                Text("profile_sign_out".localized)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.red)
             }
             .accessibilityIdentifier("profile.signout")
+            .accessibilityLabel("Sign out")
+            .accessibilityHint("Double-tap to sign out of your account")
         }
         .padding()
         .photosPicker(
@@ -312,50 +344,7 @@ struct MyProfileView: View {
     // MARK: - Stats Section
     
     private func statsSection(rating: Double?, reviewCount: Int, fulfilledCount: Int) -> some View {
-        HStack(spacing: 32) {
-            VStack {
-                if let rating = rating {
-                    Text(String(format: "%.1f", rating))
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("Rating")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("—")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    Text("No Rating")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Divider()
-            
-            VStack {
-                Text("\(reviewCount)")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Text("Reviews")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Divider()
-            
-            VStack {
-                Text("\(fulfilledCount)")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Text("Fulfilled")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        ProfileStatsCard(rating: rating, reviewCount: reviewCount, fulfilledCount: fulfilledCount)
     }
     
     // MARK: - Invite Codes Section
@@ -363,8 +352,8 @@ struct MyProfileView: View {
     private func inviteCodesSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("🎟️ Invite Codes")
-                    .font(.headline)
+                Text("profile_invite_codes".localized)
+                    .font(.naarsHeadline)
                 Spacer()
             }
             
@@ -376,15 +365,15 @@ struct MyProfileView: View {
             }) {
                 HStack {
                     Image(systemName: "person.badge.plus")
-                    Text("Invite a Neighbor")
+                    Text("profile_invite_neighbor".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color(.systemBackground))
+                .background(Color.naarsBackgroundSecondary)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
@@ -394,7 +383,7 @@ struct MyProfileView: View {
             .buttonStyle(PlainButtonStyle())
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .cornerRadius(12)
     }
     
@@ -403,25 +392,25 @@ struct MyProfileView: View {
     private func reviewsSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Reviews")
-                    .font(.headline)
+                Text("profile_reviews".localized)
+                    .font(.naarsHeadline)
                 Spacer()
                 if viewModel.reviews.count > 5 {
-                    Button(showAllReviews ? "Show Less" : "Show All") {
+                    Button(showAllReviews ? "profile_show_less".localized : "profile_show_all".localized) {
                         withAnimation {
                             showAllReviews.toggle()
                         }
                     }
-                    .font(.caption)
-                    .foregroundColor(.blue)
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsPrimary)
                 }
             }
             
             if viewModel.reviews.isEmpty {
                 EmptyStateView(
                     icon: "star",
-                    title: "No Reviews Yet",
-                    message: "You haven't received any reviews yet.",
+                    title: "profile_no_reviews".localized,
+                    message: "profile_no_reviews_message".localized,
                     customImage: "naars_Profile_icon"
                 )
             } else {
@@ -432,7 +421,7 @@ struct MyProfileView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .cornerRadius(12)
         .id("profile.myProfile.reviewsSection")
     }
@@ -444,15 +433,15 @@ struct MyProfileView: View {
             HStack {
                 Image(systemName: "clock.fill")
                     .foregroundColor(.naarsPrimary)
-                Text("Past Requests")
+                Text("profile_past_requests".localized)
                     .font(.naarsHeadline)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
-                    .font(.caption)
+                    .font(.naarsCaption)
             }
             .padding()
-            .background(Color(.systemGray6))
+            .background(Color.naarsCardBackground)
             .cornerRadius(12)
         }
     }
@@ -467,13 +456,13 @@ struct MyProfileView: View {
                 HStack {
                     Image(systemName: "trash.fill")
                         .foregroundColor(.red)
-                    Text("Delete Account")
+                    Text("profile_delete_account".localized)
                         .foregroundColor(.red)
                     Spacer()
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color(.systemGray6))
+                .background(Color.naarsCardBackground)
                 .cornerRadius(12)
             }
             .buttonStyle(PlainButtonStyle())
@@ -483,15 +472,15 @@ struct MyProfileView: View {
                 HStack {
                     ProgressView()
                         .scaleEffect(0.8)
-                    Text("Deleting account...")
-                        .font(.caption)
+                    Text("profile_deleting_account".localized)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
                 .padding(.horizontal)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.naarsCardBackground)
         .cornerRadius(12)
     }
     
@@ -508,9 +497,10 @@ struct MyProfileView: View {
             try await AuthService.shared.signOut()
             await AppLaunchManager.shared.performCriticalLaunch()
         } catch {
-            print("🔴 [MyProfileView] Error deleting account: \(error.localizedDescription)")
+            AppLogger.error("profile", "Error deleting account: \(error.localizedDescription)")
             isDeletingAccount = false
-            // TODO: Show error alert to user
+            deleteErrorMessage = error.localizedDescription
+            showDeleteError = true
         }
     }
     
@@ -521,15 +511,15 @@ struct MyProfileView: View {
             HStack {
                 Image(systemName: "shield.fill")
                     .foregroundColor(.naarsPrimary)
-                Text("Admin Panel")
+                Text("profile_admin_panel".localized)
                     .font(.naarsHeadline)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
-                    .font(.caption)
+                    .font(.naarsCaption)
             }
             .padding()
-            .background(Color(.systemGray6))
+            .background(Color.naarsCardBackground)
             .cornerRadius(12)
         }
         .accessibilityIdentifier("profile.adminPanel")
@@ -542,15 +532,15 @@ struct MyProfileView: View {
             HStack {
                 Image(systemName: "bell.fill")
                     .foregroundColor(.naarsPrimary)
-                Text("Notifications")
+                Text("profile_notifications".localized)
                     .font(.naarsHeadline)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
-                    .font(.caption)
+                    .font(.naarsCaption)
             }
             .padding()
-            .background(Color(.systemGray6))
+            .background(Color.naarsCardBackground)
             .cornerRadius(12)
         }
         .accessibilityIdentifier("profile.notifications")
@@ -566,7 +556,7 @@ private struct InviteCodeRow: View {
     @State private var showShareSheet = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
             HStack {
                 Text(formatCode(codeWithInvitee.code))
                     .font(.system(.title3, design: .monospaced))
@@ -575,8 +565,8 @@ private struct InviteCodeRow: View {
                 Spacer()
                 
                 if codeWithInvitee.isUsed {
-                    Text("Used")
-                        .font(.caption)
+                    Text("profile_invite_used".localized)
+                        .font(.naarsCaption)
                         .fontWeight(.medium)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -584,8 +574,8 @@ private struct InviteCodeRow: View {
                         .foregroundColor(.secondary)
                         .cornerRadius(8)
                 } else {
-                    Text("Available")
-                        .font(.caption)
+                    Text("profile_invite_available".localized)
+                        .font(.naarsCaption)
                         .fontWeight(.medium)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -597,16 +587,16 @@ private struct InviteCodeRow: View {
             
             // Show invitee info if used
             if codeWithInvitee.isUsed {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                     if let inviteeName = codeWithInvitee.inviteeName {
-                        Text("Used by: \(inviteeName)")
-                            .font(.caption)
+                        Text(String(format: "profile_invite_used_by".localized, inviteeName))
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                     
                     if let usedAt = codeWithInvitee.usedAt {
                         Text(usedAt.dateString)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -618,30 +608,30 @@ private struct InviteCodeRow: View {
                     Button(action: {
                         copyCode(codeWithInvitee.code)
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: Constants.Spacing.xs) {
                             Image(systemName: "doc.on.doc")
-                            Text("Copy")
+                            Text("profile_copy".localized)
                         }
-                        .font(.caption)
-                        .foregroundColor(.blue)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsPrimary)
                     }
                     
                     Button(action: {
                         showShareSheet = true
                     }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: Constants.Spacing.xs) {
                             Image(systemName: "square.and.arrow.up")
-                            Text("Share")
+                            Text("profile_share".localized)
                         }
-                        .font(.caption)
-                        .foregroundColor(.blue)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsPrimary)
                     }
                 }
                 .padding(.top, 4)
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
         .sheet(isPresented: $showShareSheet) {
@@ -651,9 +641,9 @@ private struct InviteCodeRow: View {
             Group {
                 if showCopiedToast {
                     VStack {
-                        Text("Copied!")
-                            .font(.caption)
-                            .padding(8)
+                        Text("profile_copied".localized)
+                            .font(.naarsCaption)
+                            .padding(Constants.Spacing.sm)
                             .background(Color(.systemGray))
                             .foregroundColor(.white)
                             .cornerRadius(8)
@@ -677,21 +667,7 @@ private struct InviteCodeRow: View {
     }
     
     private func formatCode(_ code: String) -> String {
-        // Format based on code length
-        // 10 chars (NC + 8): NC7X · 9K2A · BQ
-        // 8 chars (NC + 6 legacy): NC7X · 9K2A
-        let chars = Array(code)
-        
-        if code.count == 10 {
-            // NC7X · 9K2A · BQ (groups of 4)
-            return "\(String(chars[0...3])) · \(String(chars[4...7])) · \(String(chars[8...9]))"
-        } else if code.count == 8 {
-            // NC7X · 9K2A (groups of 4)
-            return "\(String(chars[0...3])) · \(String(chars[4...7]))"
-        } else {
-            // Fallback: just return the code
-            return code
-        }
+        InviteCodeFormatter.formatCode(code)
     }
     
     private func copyCode(_ code: String) {
@@ -709,20 +685,7 @@ private struct InviteCodeRow: View {
     }
     
     private func generateShareMessage(_ code: String) -> String {
-        // Generate share message with deep link containing embedded code
-        // Deep link format: https://naarscars.com/signup?code=CODE
-        // When user taps link, app opens and code is automatically populated
-        let deepLink = "https://naarscars.com/signup?code=\(code)"
-        let appStoreLink = "https://apps.apple.com/app/naars-cars" // TODO: Replace with actual App Store link when published
-        
-        return """
-        Join me on Naar's Cars! 🚗
-        
-        Sign up here: \(deepLink)
-        
-        Or download the app and enter code: \(code)
-        \(appStoreLink)
-        """
+        InviteCodeFormatter.generateShareMessage(code)
     }
 }
 
@@ -742,38 +705,7 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-private struct ReviewRow: View {
-    let review: Review
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Star rating
-                HStack(spacing: 2) {
-                    ForEach(1...5, id: \.self) { index in
-                        Image(systemName: index <= review.rating ? "star.fill" : "star")
-                            .foregroundColor(.yellow)
-                            .font(.caption)
-                    }
-                }
-                
-                Spacer()
-                
-                Text(review.createdAt.timeAgo)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            if let comment = review.comment, !comment.isEmpty {
-                Text(comment)
-                    .font(.subheadline)
-            }
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-    }
-}
+private typealias ReviewRow = ReviewRowView
 
 #Preview {
     MyProfileView()

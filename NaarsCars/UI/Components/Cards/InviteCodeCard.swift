@@ -64,21 +64,13 @@ struct InviteCodeCard: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.naarsBackgroundSecondary)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
     
     private func formatCode(_ code: String) -> String {
-        // Format as NC7X · 9K2A · BQ (groups of 4)
-        var formatted = ""
-        for (index, char) in code.enumerated() {
-            if index > 0 && index % 4 == 0 {
-                formatted += " · "
-            }
-            formatted.append(char)
-        }
-        return formatted
+        InviteCodeFormatter.formatCode(code)
     }
 }
 

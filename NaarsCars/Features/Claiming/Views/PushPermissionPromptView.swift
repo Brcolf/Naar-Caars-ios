@@ -19,42 +19,42 @@ struct PushPermissionPromptView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.naarsPrimary)
             
-            Text("Stay Connected")
+            Text("claiming_push_stay_connected".localized)
                 .font(.naarsTitle2)
                 .fontWeight(.semibold)
             
             VStack(alignment: .leading, spacing: 16) {
                 BenefitRow(
                     icon: "message.fill",
-                    title: "New Messages",
-                    description: "Get notified when someone sends you a message"
+                    title: "claiming_push_new_messages".localized,
+                    description: "claiming_push_new_messages_desc".localized
                 )
                 
                 BenefitRow(
                     icon: "checkmark.circle.fill",
-                    title: "Request Updates",
-                    description: "Know immediately when someone claims your request"
+                    title: "claiming_push_request_updates".localized,
+                    description: "claiming_push_request_updates_desc".localized
                 )
                 
                 BenefitRow(
                     icon: "bell.fill",
-                    title: "Important Alerts",
-                    description: "Receive community announcements and updates"
+                    title: "claiming_push_important_alerts".localized,
+                    description: "claiming_push_important_alerts_desc".localized
                 )
             }
             .padding(.horizontal)
             
-            Text("You can change this later in Settings")
+            Text("claiming_push_change_later".localized)
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
             
             VStack(spacing: 12) {
-                PrimaryButton(title: "Enable Notifications") {
+                PrimaryButton(title: "claiming_push_enable".localized) {
                     onAllow()
                     dismiss()
                 }
                 
-                SecondaryButton(title: "Not Now") {
+                SecondaryButton(title: "common_not_now".localized) {
                     onNotNow()
                     dismiss()
                 }
@@ -74,7 +74,7 @@ private struct BenefitRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.naarsTitle3)
                 .foregroundColor(.naarsPrimary)
                 .frame(width: 30)
             

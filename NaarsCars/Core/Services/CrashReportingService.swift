@@ -113,7 +113,7 @@ final class CrashReportingService {
         // Apply preference
         crashlytics.setCrashlyticsCollectionEnabled(isEnabled)
         
-        print("🔥 [CrashReporting] Service initialized, enabled: \(isEnabled)")
+        AppLogger.info("crash", "Service initialized, enabled: \(isEnabled)")
     }
     
     // MARK: - Configuration
@@ -124,7 +124,7 @@ final class CrashReportingService {
         UserDefaults.standard.set(enabled, forKey: crashReportingEnabledKey)
         crashlytics.setCrashlyticsCollectionEnabled(enabled)
         
-        print("🔥 [CrashReporting] Crash reporting \(enabled ? "enabled" : "disabled")")
+        AppLogger.info("crash", "Crash reporting \(enabled ? "enabled" : "disabled")")
     }
     
     // MARK: - User Identification
@@ -136,10 +136,10 @@ final class CrashReportingService {
         
         if let userId = userId {
             crashlytics.setUserID(userId)
-            print("🔥 [CrashReporting] User ID set: \(userId.prefix(8))...")
+            AppLogger.info("crash", "User ID set: \(userId.prefix(8))...")
         } else {
             crashlytics.setUserID("")
-            print("🔥 [CrashReporting] User ID cleared")
+            AppLogger.info("crash", "User ID cleared")
         }
     }
     
@@ -222,7 +222,7 @@ final class CrashReportingService {
         
         crashlytics.record(error: nsError, userInfo: info)
         
-        print("⚠️ [CrashReporting] Non-fatal error recorded: \(error.localizedDescription)")
+        AppLogger.warning("crash", "Non-fatal error recorded: \(error.localizedDescription)")
     }
     
     /// Record an error with custom domain and code
@@ -245,7 +245,7 @@ final class CrashReportingService {
         let error = NSError(domain: domain, code: code, userInfo: info)
         crashlytics.record(error: error)
         
-        print("⚠️ [CrashReporting] Non-fatal error recorded: [\(domain):\(code)] \(message)")
+        AppLogger.warning("crash", "Non-fatal error recorded: [\(domain):\(code)] \(message)")
     }
     
     /// Record a decoding error with context

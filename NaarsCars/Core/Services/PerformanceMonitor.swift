@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// Performance monitoring for tracking operation durations and statistics
 actor PerformanceMonitor {
@@ -36,7 +37,10 @@ actor PerformanceMonitor {
         "networkRequest": 2.0
     ]
     
-    private init() {}
+    private init() {
+        loadPersistedMetrics()
+        setupBackgroundObserver()
+    }
     
     // MARK: - Measurement
     
@@ -159,22 +163,21 @@ actor PerformanceMonitor {
     
     /// Print performance report to console
     func printReport() {
-        print("\n📊 ===== Performance Report =====")
-        print("Generated: \(Date())\n")
+        AppLogger.info("performance", "===== Performance Report =====")
+        AppLogger.info("performance", "Generated: \(Date())")
         
         let operations = getAllOperations()
         guard !operations.isEmpty else {
-            print("No performance data collected yet.\n")
+            AppLogger.info("performance", "No performance data collected yet.")
             return
         }
         
         for operation in operations {
             guard let stats = getStats(for: operation) else { continue }
-            print(stats.description())
-            print("---")
+            AppLogger.info("performance", stats.description())
         }
         
-        print("=================================\n")
+        AppLogger.info("performance", "=================================")
     }
     
     /// Reset statistics for a specific operation
@@ -188,7 +191,7 @@ actor PerformanceMonitor {
     func resetAll() {
         operationTimings.removeAll()
         operationMetadata.removeAll()
-        print("📊 [Performance] Reset all statistics")
+        AppLogger.info("performance", "Reset all statistics")
     }
     
     /// Get slow operations (above threshold)
@@ -205,6 +208,82 @@ actor PerformanceMonitor {
         }
         
         return slowOps.sorted { $0.avgDuration > $1.avgDuration }
+    }
+    
+    // MARK: - Persistence
+    
+    /// UserDefaults key for persisted metrics
+    private static let persistenceKey = "naars_perf_metrics"
+    
+    /// Codable summary persisted between sessions
+    private struct PersistedMetricsSummary: Codable {
+        let timestamp: String
+        let operations: [String: OperationEntry]
+        
+        struct OperationEntry: Codable {
+            let count: Int
+            let p95Ms: Double
+            let avgMs: Double
+        }
+    }
+    
+    /// Persist current metrics summary to UserDefaults (called on background entry)
+    func persistMetrics() {
+        let allStats = getAllStats()
+        guard !allStats.isEmpty else { return }
+        
+        var entries: [String: PersistedMetricsSummary.OperationEntry] = [:]
+        for (operation, stats) in allStats {
+            entries[operation] = PersistedMetricsSummary.OperationEntry(
+                count: stats.count,
+                p95Ms: stats.p95 * 1000,
+                avgMs: stats.avg * 1000
+            )
+        }
+        
+        let summary = PersistedMetricsSummary(
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            operations: entries
+        )
+        
+        do {
+            let data = try JSONEncoder().encode(summary)
+            UserDefaults.standard.set(data, forKey: Self.persistenceKey)
+            AppLogger.info("performance", "Persisted metrics for \(entries.count) operation(s)")
+        } catch {
+            AppLogger.error("performance", "Failed to persist metrics: \(error)")
+        }
+    }
+    
+    /// Load previously persisted metrics and log a summary
+    private nonisolated func loadPersistedMetrics() {
+        guard let data = UserDefaults.standard.data(forKey: Self.persistenceKey) else { return }
+        
+        do {
+            let summary = try JSONDecoder().decode(PersistedMetricsSummary.self, from: data)
+            AppLogger.info("performance", "Previous session metrics (from \(summary.timestamp)):")
+            for (operation, entry) in summary.operations.sorted(by: { $0.key < $1.key }) {
+                AppLogger.info("performance", "  \(operation): avg=\(String(format: "%.0f", entry.avgMs))ms p95=\(String(format: "%.0f", entry.p95Ms))ms (\(entry.count) samples)")
+            }
+        } catch {
+            AppLogger.warning("performance", "Failed to decode persisted metrics: \(error)")
+        }
+    }
+    
+    /// Set up observer to persist metrics when app enters background
+    private nonisolated func setupBackgroundObserver() {
+        #if os(iOS) || os(tvOS)
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task {
+                await self.persistMetrics()
+            }
+        }
+        #endif
     }
 }
 

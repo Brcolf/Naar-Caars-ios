@@ -61,7 +61,7 @@ final class LocalizationManager: ObservableObject {
         // Post notification for immediate updates where possible
         NotificationCenter.default.post(name: .languageDidChange, object: nil)
         
-        print("🌐 [LocalizationManager] Language set to: \(code)")
+        AppLogger.info("localization", "Language set to: \(code)")
     }
     
     /// Initialize language preference on app launch
@@ -75,15 +75,15 @@ final class LocalizationManager: ObservableObject {
             UserDefaults.standard.set([appLanguage], forKey: "AppleLanguages")
             UserDefaults.standard.synchronize()
             
-            print("🌐 [LocalizationManager] Initialized language preference: \(appLanguage)")
+            AppLogger.info("localization", "Initialized language preference: \(appLanguage)")
             if let languages = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String] {
-                print("🌐 [LocalizationManager] AppleLanguages set to: \(languages)")
+                AppLogger.info("localization", "AppleLanguages set to: \(languages)")
             }
         } else {
             // Use system language - remove custom override
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
             UserDefaults.standard.synchronize()
-            print("🌐 [LocalizationManager] Using system language")
+            AppLogger.info("localization", "Using system language")
         }
     }
 }

@@ -58,7 +58,7 @@ final class TownHallCommentService {
         // Build nested structure
         let nestedComments = buildNestedStructure(allComments)
         
-        print("✅ [TownHallCommentService] Fetched \(nestedComments.count) top-level comments for post: \(postId)")
+        AppLogger.info("townhall", "Fetched \(nestedComments.count) top-level comments for post: \(postId)")
         return nestedComments
     }
     
@@ -127,7 +127,7 @@ final class TownHallCommentService {
             comment.author = author
         }
         
-        print("✅ [TownHallCommentService] Created comment: \(comment.id)")
+        AppLogger.info("townhall", "Created comment: \(comment.id)")
         return comment
     }
     
@@ -214,7 +214,7 @@ final class TownHallCommentService {
             reply.author = author
         }
         
-        print("✅ [TownHallCommentService] Created reply: \(reply.id)")
+        AppLogger.info("townhall", "Created reply: \(reply.id)")
         return reply
     }
     
@@ -254,7 +254,7 @@ final class TownHallCommentService {
             .eq("id", value: commentId.uuidString)
             .execute()
         
-        print("✅ [TownHallCommentService] Deleted comment: \(commentId)")
+        AppLogger.info("townhall", "Deleted comment: \(commentId)")
     }
     
     // MARK: - Vote Comment
@@ -339,7 +339,7 @@ final class TownHallCommentService {
                 .execute()
         }
         
-        print("✅ [TownHallCommentService] Voted on comment: \(commentId), type: \(voteType?.rawValue ?? "removed")")
+        AppLogger.info("townhall", "Voted on comment: \(commentId), type: \(voteType?.rawValue ?? "removed")")
     }
     
     // MARK: - Helper Methods
@@ -505,28 +505,6 @@ final class TownHallCommentService {
     
     /// Create date decoder for comments
     private func createDateDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        DateDecoderFactory.makeMessagingDecoder()
     }
 }

@@ -68,7 +68,7 @@ final class SignupViewModel: ObservableObject {
         let normalized = InviteCodeGenerator.normalize(inviteCode)
         
         guard InviteCodeGenerator.isValidFormat(normalized) else {
-            inviteCodeError = "Invalid invite code format"
+            inviteCodeError = "signup_error_invalid_code_format".localized
             return false
         }
         
@@ -84,14 +84,14 @@ final class SignupViewModel: ObservableObject {
             if let appError = error as? AppError {
                 switch appError {
                 case .rateLimited:
-                    inviteCodeError = "Please wait a moment"
+                    inviteCodeError = "signup_error_rate_limited".localized
                 case .invalidInviteCode:
-                    inviteCodeError = "Invalid or expired invite code"
+                    inviteCodeError = "signup_error_invalid_or_expired_code".localized
                 default:
-                    inviteCodeError = appError.errorDescription ?? "Validation failed"
+                    inviteCodeError = appError.errorDescription ?? "signup_error_validation_failed".localized
                 }
             } else {
-                inviteCodeError = "Validation failed. Please try again."
+                inviteCodeError = "signup_error_validation_failed_retry".localized
             }
             return false
         }
@@ -104,12 +104,12 @@ final class SignupViewModel: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !trimmed.isEmpty else {
-            nameError = "Name is required"
+            nameError = "signup_error_name_required".localized
             return false
         }
         
         guard trimmed.count >= 2 else {
-            nameError = "Name must be at least 2 characters"
+            nameError = "signup_error_name_too_short".localized
             return false
         }
         
@@ -123,12 +123,12 @@ final class SignupViewModel: ObservableObject {
         let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         
         guard !trimmed.isEmpty else {
-            emailError = "Email is required"
+            emailError = "signup_error_email_required".localized
             return false
         }
         
         guard Validators.isValidEmail(trimmed) else {
-            emailError = "Please enter a valid email address"
+            emailError = "signup_error_email_invalid".localized
             return false
         }
         
@@ -140,17 +140,17 @@ final class SignupViewModel: ObservableObject {
         passwordError = nil
         
         guard !password.isEmpty else {
-            passwordError = "Password is required"
+            passwordError = "signup_error_password_required".localized
             return false
         }
         
         guard password.count >= 8 else {
-            passwordError = "Password must be at least 8 characters"
+            passwordError = "signup_error_password_too_short".localized
             return false
         }
         
         guard Validators.isValidPassword(password) else {
-            passwordError = "Password must contain at least one letter and one number"
+            passwordError = "signup_error_password_weak".localized
             return false
         }
         
@@ -170,32 +170,32 @@ final class SignupViewModel: ObservableObject {
     
     /// Perform signup with validated data
     func signUp() async throws {
-        print("🔍 [SignupViewModel] signUp() called")
-        print("🔍 [SignupViewModel] validatedInviteCode: \(validatedInviteCode?.code ?? "nil")")
+        AppLogger.info("auth", "signUp() called")
+        AppLogger.info("auth", "validatedInviteCode: \(validatedInviteCode?.code ?? "nil")")
         
         guard let inviteCode = validatedInviteCode else {
-            print("🔴 [SignupViewModel] No validated invite code")
-            errorMessage = "Invalid invite code. Please go back and validate your invite code."
+            AppLogger.error("auth", "No validated invite code")
+            errorMessage = "signup_error_no_invite_code".localized
             throw AppError.invalidInviteCode
         }
         
-        print("🔍 [SignupViewModel] Validating all fields...")
+        AppLogger.info("auth", "Validating all fields...")
         let isValid = validateAll()
-        print("🔍 [SignupViewModel] Validation result: \(isValid)")
-        print("🔍 [SignupViewModel] Field errors - name: \(nameError ?? "nil"), email: \(emailError ?? "nil"), password: \(passwordError ?? "nil")")
+        AppLogger.info("auth", "Validation result: \(isValid)")
+        AppLogger.info("auth", "Field errors - name: \(nameError ?? "nil"), email: \(emailError ?? "nil"), password: \(passwordError ?? "nil")")
         
         guard isValid else {
-            print("🔴 [SignupViewModel] Validation failed")
-            errorMessage = "Please fill in all required fields correctly."
+            AppLogger.error("auth", "Validation failed")
+            errorMessage = "signup_error_fields_invalid".localized
             throw AppError.requiredFieldMissing
         }
         
-        print("🔍 [SignupViewModel] Starting signup process...")
+        AppLogger.info("auth", "Starting signup process...")
         isLoading = true
         errorMessage = nil
         defer { 
             isLoading = false
-            print("🔍 [SignupViewModel] Signup process completed, isLoading set to false")
+            AppLogger.info("auth", "Signup process completed, isLoading set to false")
         }
         
         do {
@@ -206,17 +206,18 @@ final class SignupViewModel: ObservableObject {
                 car: car.isEmpty ? nil : car.trimmingCharacters(in: .whitespacesAndNewlines),
                 inviteCodeId: inviteCode.id
             )
+            HapticManager.success()
         } catch {
             if let appError = error as? AppError {
                 switch appError {
                 case .emailAlreadyExists:
-                    emailError = "This email is already registered"
+                    emailError = "signup_error_email_exists".localized
                     errorMessage = appError.errorDescription
                 default:
-                    errorMessage = appError.errorDescription ?? "Signup failed. Please try again."
+                    errorMessage = appError.errorDescription ?? "signup_error_failed".localized
                 }
             } else {
-                errorMessage = "Signup failed. Please try again."
+                errorMessage = "signup_error_failed".localized
             }
             throw error
         }

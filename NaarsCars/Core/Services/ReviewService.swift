@@ -101,7 +101,7 @@ final class ReviewService {
             requestId: requestId
         )
         
-        print("✅ [ReviewService] Created review: \(review.id)")
+        AppLogger.info("reviews", "Created review: \(review.id)")
         return review
     }
     
@@ -134,7 +134,7 @@ final class ReviewService {
             requestId: requestId
         )
         
-        print("✅ [ReviewService] Skipped review for request: \(requestId)")
+        AppLogger.info("reviews", "Skipped review for request: \(requestId)")
     }
     
     /// Check if user can still review a request (within 7 days of completion)
@@ -180,29 +180,7 @@ final class ReviewService {
     
     /// Create decoder with custom date formatting for Supabase
     private func createDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-            
-            // Fallback to standard ISO8601
-            let standardFormatter = ISO8601DateFormatter()
-            if let date = standardFormatter.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Invalid date format: \(dateString)"
-            )
-        }
-        return decoder
+        DateDecoderFactory.makeMessagingDecoder()
     }
     
     /// Upload review image to Supabase Storage
@@ -281,7 +259,7 @@ final class ReviewService {
             imageUrl: review.imageUrl
         )
         
-        print("✅ [ReviewService] Created Town Hall post for review: \(post.id)")
+        AppLogger.info("reviews", "Created Town Hall post for review: \(post.id)")
     }
 }
 

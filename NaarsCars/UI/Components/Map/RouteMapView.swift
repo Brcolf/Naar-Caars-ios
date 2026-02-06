@@ -122,7 +122,7 @@ struct RouteMapView: View {
                         .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                     Image(systemName: "circle.fill")
                         .foregroundColor(.green)
-                        .font(.system(size: 12))
+                        .font(.naarsFootnote)
                 }
             }
             
@@ -135,7 +135,7 @@ struct RouteMapView: View {
                         .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.rideAccent)
-                        .font(.system(size: 20))
+                        .font(.naarsTitle3)
                 }
             }
         }
@@ -224,15 +224,11 @@ struct RouteMapView: View {
             return
         } catch let error as MapError {
             // Handle specific map errors with more detail
-            print("🗺️ [RouteMapView] MapError: \(error.errorDescription ?? "unknown")")
-            print("🗺️ [RouteMapView] Pickup: \(pickup)")
-            print("🗺️ [RouteMapView] Destination: \(destination)")
+            AppLogger.error("map", "RouteMapView MapError: \(error.errorDescription ?? "unknown") | Pickup: \(pickup) | Destination: \(destination)")
             self.loadingState = .error(error.errorDescription ?? "Route unavailable")
         } catch {
             // Handle generic errors with details
-            print("🗺️ [RouteMapView] Error: \(error.localizedDescription)")
-            print("🗺️ [RouteMapView] Pickup: \(pickup)")
-            print("🗺️ [RouteMapView] Destination: \(destination)")
+            AppLogger.error("map", "RouteMapView error: \(error.localizedDescription) | Pickup: \(pickup) | Destination: \(destination)")
             self.loadingState = .error("Could not load route")
         }
     }

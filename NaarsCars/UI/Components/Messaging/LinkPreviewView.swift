@@ -130,13 +130,13 @@ struct LinkPreviewView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let title = preview?.title, !title.isEmpty {
                         Text(title)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.naarsFootnote).fontWeight(.medium)
                             .foregroundColor(isFromCurrentUser ? .white : .primary)
                             .lineLimit(2)
                     }
                     
                     Text(preview?.siteName ?? url.host ?? url.absoluteString)
-                        .font(.system(size: 11))
+                        .font(.naarsCaption)
                         .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
                         .lineLimit(1)
                 }
@@ -145,13 +145,13 @@ struct LinkPreviewView: View {
                 
                 // Chevron
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.naarsFootnote).fontWeight(.medium)
                     .foregroundColor(isFromCurrentUser ? .white.opacity(0.5) : .secondary)
             }
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color(.systemGray6))
+                    .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color.naarsCardBackground)
             )
             .frame(maxWidth: 260)
         }
@@ -167,7 +167,7 @@ struct LinkPreviewView: View {
             .frame(width: 60, height: 60)
             .overlay(
                 Image(systemName: "link")
-                    .font(.system(size: 20))
+                    .font(.naarsTitle3)
                     .foregroundColor(isFromCurrentUser ? .white.opacity(0.6) : .secondary)
             )
     }
@@ -198,10 +198,10 @@ struct InlineLinkPreview: View {
         }) {
             HStack(spacing: 6) {
                 Image(systemName: "link")
-                    .font(.system(size: 12))
+                    .font(.naarsFootnote)
                 
                 Text(url.host ?? url.absoluteString)
-                    .font(.system(size: 13))
+                    .font(.naarsFootnote)
                     .lineLimit(1)
             }
             .foregroundColor(isFromCurrentUser ? .white.opacity(0.9) : .naarsPrimary)

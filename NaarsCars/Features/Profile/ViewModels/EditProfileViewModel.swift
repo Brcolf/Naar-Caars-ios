@@ -71,7 +71,7 @@ final class EditProfileViewModel: ObservableObject {
         
         // Validate name
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
-            validationError = "Name is required"
+            validationError = "profile_name_required".localized
             return false
         }
         
@@ -79,7 +79,7 @@ final class EditProfileViewModel: ObservableObject {
         let trimmedPhone = phoneNumber.trimmingCharacters(in: .whitespaces)
         if !trimmedPhone.isEmpty {
             guard Validators.isValidPhoneNumber(trimmedPhone) else {
-                validationError = "Invalid phone number format"
+                validationError = "profile_invalid_phone".localized
                 return false
             }
         }
@@ -123,7 +123,7 @@ final class EditProfileViewModel: ObservableObject {
                 defer { isUploadingAvatar = false }
                 
                 guard let imageData = avatarImage.jpegData(compressionQuality: 1.0) else {
-                    error = AppError.processingError("Failed to process image")
+                    error = AppError.processingError("profile_image_process_failed".localized)
                     return false
                 }
                 
@@ -166,23 +166,23 @@ final class EditProfileViewModel: ObservableObject {
         
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
-                error = AppError.invalidInput("Failed to load image")
+                error = AppError.invalidInput("profile_image_load_failed".localized)
                 return
             }
             
             guard let uiImage = UIImage(data: data) else {
-                error = AppError.invalidInput("Invalid image format")
+                error = AppError.invalidInput("profile_invalid_image_format".localized)
                 return
             }
             
             // Compress image using avatar preset
             guard let compressedData = await ImageCompressor.compressAsync(uiImage, preset: .avatar) else {
-                error = AppError.processingError("Image too large. Please try a different photo.")
+                error = AppError.processingError("profile_image_too_large".localized)
                 return
             }
             
             guard let compressedImage = UIImage(data: compressedData) else {
-                error = AppError.processingError("Failed to compress image")
+                error = AppError.processingError("profile_image_compress_failed".localized)
                 return
             }
             
