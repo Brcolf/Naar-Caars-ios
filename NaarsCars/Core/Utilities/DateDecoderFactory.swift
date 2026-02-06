@@ -60,19 +60,24 @@ enum DateDecoderFactory {
     /// Handles ISO8601 with and without fractional seconds
     static func makeMessagingDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        // Create two immutable formatters to avoid shared mutable state.
+        // Previously a single formatter was mutated inside the closure,
+        // causing subsequent fractional-second dates to fail after any
+        // non-fractional date was decoded.
+        let formatterWithFractional = ISO8601DateFormatter()
+        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let formatterWithout = ISO8601DateFormatter()
+        formatterWithout.formatOptions = [.withInternetDateTime]
 
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
 
-            if let date = formatter.date(from: dateString) {
+            if let date = formatterWithFractional.date(from: dateString) {
                 return date
             }
 
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: dateString) {
+            if let date = formatterWithout.date(from: dateString) {
                 return date
             }
 

@@ -35,7 +35,7 @@ final class LoginViewModel: ObservableObject {
         // Check rate limit: 2 seconds between login attempts
         let canProceed = await rateLimiter.checkAndRecord(
             action: "login_attempt",
-            minimumInterval: 2.0
+            minimumInterval: Constants.RateLimits.login
         )
         
         guard canProceed else {

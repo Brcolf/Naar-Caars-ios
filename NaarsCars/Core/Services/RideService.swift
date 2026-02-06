@@ -136,8 +136,8 @@ final class RideService {
             "pickup": AnyCodable(pickup),
             "destination": AnyCodable(destination),
             "seats": AnyCodable(seats),
-            "notes": AnyCodable(notes),
-            "gift": AnyCodable(gift),
+            "notes": AnyCodable(notes as Any),
+            "gift": AnyCodable(gift as Any),
             "status": AnyCodable("open")
         ]
         
@@ -308,7 +308,7 @@ final class RideService {
                     ]
                     
                     // Insert notification (if notifications table exists)
-                    try? await supabase
+                    try await supabase
                         .from("notifications")
                         .insert(notificationData)
                         .execute()
@@ -470,14 +470,8 @@ final class RideService {
         
         let rows = try createDecoder().decode([ParticipantRow].self, from: response.data)
         
-        var profiles: [Profile] = []
-        for row in rows {
-            if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
-                profiles.append(profile)
-            }
-        }
-        
-        return profiles
+        let userIds = rows.map { $0.userId }
+        return try await ProfileService.shared.fetchProfiles(userIds: userIds)
     }
     
     /// Fetch rides where a user is a participant

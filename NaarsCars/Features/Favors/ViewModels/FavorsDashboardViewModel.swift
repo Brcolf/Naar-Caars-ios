@@ -90,11 +90,27 @@ final class FavorsDashboardViewModel: ObservableObject {
         return filtered.sorted { $0.date < $1.date }
     }
     
+    /// Guard to prevent concurrent loads
+    private var isLoadInFlight = false
+    /// Debounce task for realtime-triggered reloads
+    private var realtimeReloadTask: Task<Void, Never>?
+    
     /// Load favors based on current filter
-    func loadFavors(forceRefresh: Bool = false) async {
-        isLoading = true
+    /// - Parameter showLoadingIndicator: If false, reloads silently (used for realtime updates to avoid flicker)
+    func loadFavors(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
+        guard !isLoadInFlight else { return }
+        isLoadInFlight = true
+        defer { isLoadInFlight = false }
+        
+        if showLoadingIndicator {
+            isLoading = true
+        }
         error = nil
-        defer { isLoading = false }
+        defer {
+            if showLoadingIndicator {
+                isLoading = false
+            }
+        }
         
         do {
             let fetchedFavors = try await favorService.fetchFavors()
@@ -127,6 +143,9 @@ final class FavorsDashboardViewModel: ObservableObject {
                 existing.date = favor.date
                 existing.time = favor.time
                 existing.gift = favor.gift
+                existing.reviewed = favor.reviewed
+                existing.reviewSkipped = favor.reviewSkipped
+                existing.reviewSkippedAt = favor.reviewSkippedAt
             } else {
                 let sdFavor = SDFavor(
                     id: favor.id,
@@ -198,19 +217,26 @@ final class FavorsDashboardViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
+    /// Debounced silent reload for realtime events (prevents rapid consecutive reloads and UI flicker)
+    private func debouncedSilentReload() {
+        realtimeReloadTask?.cancel()
+        realtimeReloadTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s debounce
+            guard !Task.isCancelled else { return }
+            await self?.loadFavors(showLoadingIndicator: false)
+        }
+    }
+    
     private func handleFavorInsert(_ action: Any) async {
-        // Reload favors to get the new one
-        await loadFavors()
+        debouncedSilentReload()
     }
     
     private func handleFavorUpdate(_ action: Any) async {
-        // Reload favors to get updated data
-        await loadFavors()
+        debouncedSilentReload()
     }
     
     private func handleFavorDelete(_ action: Any) async {
-        // Reload favors to remove deleted one
-        await loadFavors()
+        debouncedSilentReload()
     }
 }
 

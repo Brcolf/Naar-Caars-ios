@@ -29,7 +29,7 @@ final class PasswordResetViewModel: ObservableObject {
         // Check rate limit: 30 seconds between password reset requests
         let canProceed = await rateLimiter.checkAndRecord(
             action: "password_reset_\(email)",
-            minimumInterval: 30.0
+            minimumInterval: Constants.RateLimits.passwordReset
         )
         
         guard canProceed else {

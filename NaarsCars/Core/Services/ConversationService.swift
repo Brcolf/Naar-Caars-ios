@@ -45,10 +45,14 @@ final class ConversationService {
     /// - Throws: AppError if fetch fails
     func fetchConversations(userId: UUID, limit: Int = 10, offset: Int = 0) async throws -> [ConversationWithDetails] {
         do {
-            if let rpcConversations = try? await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset),
-               !rpcConversations.isEmpty {
-                AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
-                return rpcConversations
+            do {
+                let rpcConversations = try await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset)
+                if !rpcConversations.isEmpty {
+                    AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
+                    return rpcConversations
+                }
+            } catch {
+                AppLogger.network.error("RPC get_conversations_with_details failed: \(error)")
             }
 
             // Get user's conversation IDs from conversation_participants
@@ -487,7 +491,7 @@ final class ConversationService {
         if let title = title, !title.isEmpty {
             updateDict["title"] = AnyCodable(title)
         } else {
-            updateDict["title"] = AnyCodable(nil as String?)
+            updateDict["title"] = AnyCodable(nil as String? as Any)
         }
         
         try await supabase
@@ -583,13 +587,13 @@ final class ConversationService {
         try await supabase.storage
             .from("group-images")
             .upload(
-                path: fileName,
-                file: compressedData,
+                fileName,
+                data: compressedData,
                 options: FileOptions(contentType: "image/jpeg", upsert: true)
             )
         
         // Get public URL
-        let publicUrl = try await supabase.storage
+        let publicUrl = try supabase.storage
             .from("group-images")
             .getPublicURL(path: fileName)
         
@@ -632,7 +636,7 @@ final class ConversationService {
         if let imageUrl = imageUrl {
             updateDict["group_image_url"] = AnyCodable(imageUrl)
         } else {
-            updateDict["group_image_url"] = AnyCodable(nil as String?)
+            updateDict["group_image_url"] = AnyCodable(nil as String? as Any)
         }
         
         try await supabase
@@ -646,7 +650,7 @@ final class ConversationService {
             let announcementText = imageUrl != nil 
                 ? "\(profile.name) updated the group photo"
                 : "\(profile.name) removed the group photo"
-            try? await sendSystemMessage(
+            _ = try? await sendSystemMessage(
                 conversationId: conversationId,
                 text: announcementText,
                 fromId: userId

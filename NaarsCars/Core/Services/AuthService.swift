@@ -259,7 +259,7 @@ final class AuthService: ObservableObject {
             // This handles both new signups AND re-signups after rejection
             // Uses SECURITY DEFINER to bypass RLS permission issues
             // Note: Using [String: String?] dictionary to avoid MainActor isolation issues with Sendable
-            var params: [String: String?] = [
+            let params: [String: String?] = [
                 "p_user_id": userIdString,
                 "p_email": email,
                 "p_name": name,
@@ -438,7 +438,7 @@ final class AuthService: ObservableObject {
         let rateLimitAction = "validate_invite_code"
         let rateLimitAllowed = await RateLimiter.shared.checkAndRecord(
             action: rateLimitAction,
-            minimumInterval: 3.0
+            minimumInterval: Constants.RateLimits.authAction
         )
         
         guard rateLimitAllowed else {
@@ -538,15 +538,16 @@ final class AuthService: ObservableObject {
     /// Handles ISO8601 date format with fractional seconds
     func createInviteCodeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        let formatterWithFractional = ISO8601DateFormatter()
-        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        let formatterStandard = ISO8601DateFormatter()
-        formatterStandard.formatOptions = [.withInternetDateTime]
         
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
+            
+            let formatterWithFractional = ISO8601DateFormatter()
+            formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            let formatterStandard = ISO8601DateFormatter()
+            formatterStandard.formatOptions = [.withInternetDateTime]
             
             // Try with fractional seconds first (Supabase format)
             if let date = formatterWithFractional.date(from: dateString) {

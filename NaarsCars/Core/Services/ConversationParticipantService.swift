@@ -214,7 +214,7 @@ final class ConversationParticipantService {
         if createAnnouncement {
             if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
                 let announcementText = "\(profile.name) left the conversation"
-                try? await sendSystemMessage(
+                _ = try? await sendSystemMessage(
                     conversationId: conversationId,
                     text: announcementText,
                     fromId: userId
@@ -319,7 +319,7 @@ final class ConversationParticipantService {
             let removerName = removerProfile?.name ?? "Someone"
             
             let announcementText = "\(removerName) removed \(removedName) from the conversation"
-            try? await sendSystemMessage(
+            _ = try? await sendSystemMessage(
                 conversationId: conversationId,
                 text: announcementText,
                 fromId: removedBy

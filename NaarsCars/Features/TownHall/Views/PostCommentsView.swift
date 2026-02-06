@@ -362,14 +362,14 @@ final class PostCommentsViewModel: ObservableObject {
     
     init(
         postId: UUID,
-        repository: TownHallRepository = .shared,
-        commentService: TownHallCommentService = .shared,
-        voteService: TownHallVoteService = .shared
+        repository: TownHallRepository? = nil,
+        commentService: TownHallCommentService? = nil,
+        voteService: TownHallVoteService? = nil
     ) {
         self.postId = postId
-        self.repository = repository
-        self.commentService = commentService
-        self.voteService = voteService
+        self.repository = repository ?? .shared
+        self.commentService = commentService ?? .shared
+        self.voteService = voteService ?? .shared
         bindComments()
         bindVoteNotifications()
     }
@@ -516,10 +516,8 @@ final class PostCommentsViewModel: ObservableObject {
     }
 
     private func refreshFromNetwork(showLoading: Bool) async {
-        if showLoading {
-            isLoading = true
-            defer { isLoading = false }
-        }
+        if showLoading { isLoading = true }
+        defer { if showLoading { isLoading = false } }
 
         do {
             let fetched = try await commentService.fetchComments(for: postId)

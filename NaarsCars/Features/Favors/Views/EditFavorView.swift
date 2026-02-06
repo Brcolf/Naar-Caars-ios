@@ -31,7 +31,15 @@ struct EditFavorView: View {
                 }
                 
                 Section("favor_edit_location_duration".localized) {
-                    TextField("favor_edit_location".localized, text: $viewModel.location)
+                    LocationAutocompleteField(
+                        label: "",
+                        placeholder: "favor_edit_location".localized,
+                        text: $viewModel.location,
+                        icon: "mappin.circle.fill",
+                        accessibilityId: "editFavor.location"
+                    ) { details in
+                        // Optional: Store coordinates for future map integration
+                    }
                     
                     Picker("favor_edit_duration".localized, selection: $viewModel.duration) {
                         ForEach(FavorDuration.allCases, id: \.self) { duration in
@@ -102,9 +110,8 @@ struct EditFavorView: View {
                                 onSaved?()
                                 showSuccess = true
                                 HapticManager.success()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    dismiss()
-                                }
+                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                dismiss()
                             } catch {
                                 self.error = error.localizedDescription
                             }

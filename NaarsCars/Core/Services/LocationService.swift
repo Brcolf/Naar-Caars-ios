@@ -126,6 +126,11 @@ final class LocationService: NSObject, ObservableObject {
             // Cancel any previous search
             searchCompleter.cancel()
             
+            // Resume any previous continuation to prevent it from hanging forever
+            if let previous = searchContinuation {
+                previous.resume(throwing: CancellationError())
+            }
+            
             // Store continuation for delegate callback
             searchContinuation = continuation
             

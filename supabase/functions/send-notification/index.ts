@@ -5,11 +5,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, sendAPNsPush, resolveEventType, resolveTableName, processBatch } from '../_shared/apns.ts'
+import { getBadgeCount } from '../_shared/badges.ts'
 
 interface NotificationPayload {
   title: string
@@ -45,10 +42,20 @@ interface APNsPayload {
 }
 
 // Notification categories for actionable notifications
-const NOTIFICATION_CATEGORIES = {
+const NOTIFICATION_CATEGORIES: Record<string, string> = {
   completion_reminder: 'COMPLETION_REMINDER',
   message: 'MESSAGE',
   new_request: 'NEW_REQUEST',
+}
+
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, number>()
+function checkRateLimit(userId: string, maxPerMinute: number = 30): boolean {
+  const now = Date.now()
+  const last = rateLimitMap.get(userId) ?? 0
+  if (now - last < (60000 / maxPerMinute)) return false
+  rateLimitMap.set(userId, now)
+  return true
 }
 
 serve(async (req) => {
@@ -85,10 +92,15 @@ serve(async (req) => {
 
     // Check if this is a direct notification request or queue processing
     if (requestData.direct) {
-      // Direct notification - send immediately
+      // Rate limit direct notifications
+      if (requestData.recipient_user_id && !checkRateLimit(requestData.recipient_user_id)) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limited', retry_after_ms: 2000 }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
       return await sendDirectNotification(supabase, requestData)
     } else if (requestData.action === 'completion_response') {
-      // Handle completion reminder response (Yes/No)
       return await handleCompletionResponse(supabase, requestData)
     } else {
       const eventType = resolveEventType(requestData)
@@ -127,10 +139,7 @@ serve(async (req) => {
     console.error('Error in send-notification:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
@@ -146,12 +155,8 @@ async function sendDirectNotification(supabase: any, data: any) {
   }
 
   const result = await sendPushToUser(
-    supabase,
-    recipient_user_id,
-    notification_type,
-    title,
-    body || '',
-    payload_data || {}
+    supabase, recipient_user_id, notification_type,
+    title, body || '', payload_data || {}
   )
 
   return new Response(
@@ -170,7 +175,6 @@ async function handleCompletionResponse(supabase: any, data: any) {
     )
   }
 
-  // Call the database function to handle the response
   const { data: result, error } = await supabase
     .rpc('handle_completion_response', {
       p_reminder_id: reminder_id,
@@ -198,14 +202,12 @@ async function processNotificationQueue(supabase: any) {
     console.error('Error processing completion reminders:', reminderError)
   }
 
-  // Fetch unprocessed notifications from queue
-  // For non-batched notifications, process immediately
-  // For batched notifications, they're handled by the cron job
+  // Fetch unprocessed non-batched notifications
   const { data: notifications, error } = await supabase
     .from('notification_queue')
     .select('*')
     .is('sent_at', null)
-    .is('batch_key', null)  // Only non-batched notifications
+    .is('batch_key', null)
     .order('created_at', { ascending: true })
     .limit(100)
 
@@ -221,37 +223,37 @@ async function processNotificationQueue(supabase: any) {
     )
   }
 
-  const results = []
-  
-  for (const notification of notifications as QueuedNotification[]) {
-    try {
-      const payload = notification.payload as NotificationPayload
-      
-      const result = await sendPushToUser(
-        supabase,
-        notification.recipient_user_id,
-        notification.notification_type,
-        payload.title,
-        payload.body,
-        payload.data || {}
-      )
+  // Process notifications in parallel with batching (max 10 concurrent)
+  const results: any[] = []
 
+  const batchResults = await processBatch(
+    notifications as QueuedNotification[],
+    10,
+    async (notification) => {
+      const payload = notification.payload as NotificationPayload
+      const result = await sendPushToUser(
+        supabase, notification.recipient_user_id, notification.notification_type,
+        payload.title, payload.body, payload.data || {}
+      )
       // Mark as sent
       await supabase
         .from('notification_queue')
         .update({ sent_at: new Date().toISOString() })
         .eq('id', notification.id)
+      return { id: notification.id, ...result }
+    }
+  )
 
-      results.push({ id: notification.id, ...result })
-    } catch (err) {
-      console.error(`Error processing notification ${notification.id}:`, err)
-      results.push({ id: notification.id, error: err.message })
+  for (const result of batchResults) {
+    if (result.status === 'fulfilled') {
+      results.push(result.value)
+    } else {
+      results.push({ error: (result.reason as Error).message })
     }
   }
 
   // Also process any batched notifications that are ready
-  const { data: batchedCount } = await supabase
-    .rpc('process_batched_notifications')
+  const { data: batchedCount } = await supabase.rpc('process_batched_notifications')
 
   return new Response(
     JSON.stringify({
@@ -279,7 +281,6 @@ async function sendPushToUser(
     .eq('user_id', userId)
 
   if (tokenError) {
-    console.error('Error fetching push tokens:', tokenError)
     throw new Error(`Failed to fetch push tokens: ${tokenError.message}`)
   }
 
@@ -288,32 +289,15 @@ async function sendPushToUser(
     return { sent: false, skipped: true, reason: 'no_tokens' }
   }
 
-  // Get unread notification count for badge
-  const { count: unreadCount } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('read', false)
-
-  // Get unread message count for badge
-  const { data: unreadMessages, error: unreadMessagesError } = await supabase
-    .rpc('get_unread_message_count', { p_user_id: userId })
-
-  if (unreadMessagesError) {
-    console.error('Error fetching unread message count:', unreadMessagesError)
-  }
-
-  const unreadMessagesCount = typeof unreadMessages === 'number' ? unreadMessages : 0
+  // Get badge count using shared utility (single optimized query)
+  const badgeCount = await getBadgeCount(supabase, userId)
 
   // Prepare APNs payload
   const apnsPayload: APNsPayload = {
     aps: {
-      alert: {
-        title,
-        body
-      },
+      alert: { title, body },
       sound: 'default',
-      badge: (unreadCount ?? 0) + unreadMessagesCount,
+      badge: badgeCount,
       'mutable-content': 1,
     },
     type: notificationType,
@@ -336,11 +320,9 @@ async function sendPushToUser(
     })
   )
 
-  // Count successes and failures
   const successes = pushResults.filter(r => r.status === 'fulfilled').length
   const failures = pushResults.filter(r => r.status === 'rejected').length
 
-  // Log failures
   pushResults.forEach((result, index) => {
     if (result.status === 'rejected') {
       console.error(`Failed to send push to token ${tokens[index].token.substring(0, 8)}...:`, result.reason)
@@ -357,111 +339,7 @@ async function sendPushToUser(
 
   console.log(`✅ Sent push notifications to user ${userId}: ${successes} succeeded, ${failures} failed`)
 
-  return {
-    sent: successes > 0,
-    devices: tokens.length,
-    successes,
-    failures
-  }
-}
-
-async function sendAPNsPush(token: string, payload: APNsPayload, supabase: any): Promise<void> {
-  const apnsTeamId = Deno.env.get('APNS_TEAM_ID')
-  const apnsKeyId = Deno.env.get('APNS_KEY_ID')
-  const apnsKey = Deno.env.get('APNS_KEY')
-  const apnsBundleId = Deno.env.get('APNS_BUNDLE_ID')
-  const apnsProduction = Deno.env.get('APNS_PRODUCTION') === 'true'
-
-  if (!apnsTeamId || !apnsKeyId || !apnsKey || !apnsBundleId) {
-    throw new Error('Missing APNs environment variables')
-  }
-
-  // APNs endpoint
-  const apnsUrl = apnsProduction
-    ? `https://api.push.apple.com/3/device/${token}`
-    : `https://api.sandbox.push.apple.com/3/device/${token}`
-
-  // Create JWT token for APNs authentication
-  const jwt = await createAPNsJWT(apnsTeamId, apnsKeyId, apnsKey)
-
-  // Determine push type
-  let pushType = 'alert'
-  if (payload.aps['content-available'] === 1 && !payload.aps.alert) {
-    pushType = 'background'
-  }
-
-  // Send to APNs
-  const response = await fetch(apnsUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${jwt}`,
-      'apns-topic': apnsBundleId,
-      'apns-priority': '10',
-      'apns-push-type': pushType,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000)
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    
-    // Handle specific APNs error codes
-    if (response.status === 410) {
-      // Token is no longer valid - remove it
-      console.log(`🗑️ Removing invalid token: ${token.substring(0, 8)}...`)
-      await supabase
-        .from('push_tokens')
-        .delete()
-        .eq('token', token)
-    }
-    
-    throw new Error(`APNs error (${response.status}): ${errorText}`)
-  }
-
-  const apnsId = response.headers.get('apns-id')
-  console.log(`✅ APNs push sent successfully (ID: ${apnsId})`)
-}
-
-async function createAPNsJWT(teamId: string, keyId: string, key: string): Promise<string> {
-  const { create, getNumericDate } = await import('https://deno.land/x/djwt@v2.8/mod.ts')
-  
-  // Decode base64 key if needed
-  let privateKeyPem: string
-  try {
-    privateKeyPem = atob(key)
-  } catch {
-    privateKeyPem = key
-  }
-
-  // Import the private key
-  const cryptoKey = await importECPrivateKey(privateKeyPem)
-
-  // JWT header
-  const header = {
-    alg: 'ES256' as const,
-    kid: keyId
-  }
-
-  // JWT payload
-  const payload = {
-    iss: teamId,
-    iat: getNumericDate(new Date())
-  }
-
-  // Create JWT
-  const jwt = await create(header, payload, cryptoKey)
-
-  return jwt
-}
-
-function resolveEventType(payload: any): string | undefined {
-  return payload?.type || payload?.eventType || payload?.event_type || payload?.data?.type || payload?.data?.eventType || payload?.data?.event_type
-}
-
-function resolveTableName(payload: any): string | undefined {
-  return payload?.table || payload?.table_name || payload?.data?.table || payload?.data?.table_name
+  return { sent: successes > 0, devices: tokens.length, successes, failures }
 }
 
 function resolveRecord(payload: any): any {
@@ -471,26 +349,3 @@ function resolveRecord(payload: any): any {
 function resolveOldRecord(payload: any): any {
   return payload?.old_record || payload?.data?.old_record || payload?.old || payload?.data?.old
 }
-async function importECPrivateKey(pemKey: string): Promise<CryptoKey> {
-  // Remove PEM headers/footers and whitespace
-  const keyData = pemKey
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '')
-
-  // Decode base64
-  const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0))
-
-  // Import as EC private key for ES256
-  return await crypto.subtle.importKey(
-    'pkcs8',
-    binaryKey,
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-256'
-    },
-    false,
-    ['sign']
-  )
-}
-

@@ -130,9 +130,8 @@ struct CreateRideView: View {
                                 onRideCreated?(ride.id)
                                 showSuccess = true
                                 HapticManager.success()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    dismiss()
-                                }
+                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                dismiss()
                             } catch {
                                 AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
                                 AppLogger.error("rides", "[CreateRideView] Error details: \(error)")

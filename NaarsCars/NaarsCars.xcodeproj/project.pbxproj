@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AF2215A372F043BD884F40D6 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E7B755A4BA49CC87DB470C /* CachedAsyncImage.swift */; };
 		5A10F0D5F574443F95C3043C /* RequestNotificationMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FBD17448ECA41939B93039A /* RequestNotificationMappingTests.swift */; };
 		68D217611818470CA0DF68E9 /* CompletionPromptViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA95B657AEBD47D585A99153 /* CompletionPromptViewTests.swift */; };
 		59AA409FDDBF4B3B9533470A /* CompletionPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD68B97AA17246109A2AD5FE /* CompletionPromptView.swift */; };
@@ -355,6 +356,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A8E7B755A4BA49CC87DB470C /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Common/CachedAsyncImage.swift; sourceTree = "<group>"; };
 		3FBD17448ECA41939B93039A /* RequestNotificationMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestNotificationMappingTests.swift; sourceTree = "<group>"; };
 		CA95B657AEBD47D585A99153 /* CompletionPromptViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionPromptViewTests.swift; sourceTree = "<group>"; };
 		CD68B97AA17246109A2AD5FE /* CompletionPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionPromptView.swift; sourceTree = "<group>"; };
@@ -1954,6 +1956,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF2215A372F043BD884F40D6 /* CachedAsyncImage.swift in Sources */,
 				5412C40716694F42A9B5BD40 /* Throttler.swift in Sources */,
 				799F2E0604D74163A88C8000 /* ReplyContextBuilder.swift in Sources */,
 				F6D9BEBA8B40714CBC8DC1B8 /* NotificationRepository.swift in Sources */,

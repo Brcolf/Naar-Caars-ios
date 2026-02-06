@@ -68,7 +68,7 @@ actor CacheManager {
         profileCache[profile.id] = CacheEntry(
             value: profile,
             timestamp: Date(),
-            ttl: 300 // 5 minutes
+            ttl: Constants.CacheTTL.profiles
         )
     }
     
@@ -93,7 +93,7 @@ actor CacheManager {
         ridesCache = CacheEntry(
             value: rides,
             timestamp: Date(),
-            ttl: 120 // 2 minutes
+            ttl: Constants.CacheTTL.rides
         )
     }
     
@@ -118,7 +118,7 @@ actor CacheManager {
         favorsCache = CacheEntry(
             value: favors,
             timestamp: Date(),
-            ttl: 120 // 2 minutes
+            ttl: Constants.CacheTTL.favors
         )
     }
     
@@ -143,7 +143,7 @@ actor CacheManager {
         notificationsCache[userId] = CacheEntry(
             value: notifications,
             timestamp: Date(),
-            ttl: 60 // 1 minute
+            ttl: Constants.CacheTTL.notifications
         )
     }
     
@@ -168,7 +168,7 @@ actor CacheManager {
         conversationsCache[userId] = CacheEntry(
             value: conversations,
             timestamp: Date(),
-            ttl: 60 // 1 minute
+            ttl: Constants.CacheTTL.conversations
         )
     }
 
@@ -193,7 +193,7 @@ actor CacheManager {
         messagesCache[conversationId] = CacheEntry(
             value: messages,
             timestamp: Date(),
-            ttl: 30 // 30 seconds
+            ttl: Constants.CacheTTL.messages
         )
     }
 
@@ -218,7 +218,7 @@ actor CacheManager {
         townHallPostsCache = CacheEntry(
             value: posts,
             timestamp: Date(),
-            ttl: 120 // 2 minutes
+            ttl: Constants.CacheTTL.townHallPosts
         )
     }
     

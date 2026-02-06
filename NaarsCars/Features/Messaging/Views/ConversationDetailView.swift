@@ -887,7 +887,7 @@ final class ConversationParticipantsViewModel: ObservableObject {
         
         do {
             // 1. First try to load from local SwiftData for instant UI
-            if let sdConv = try? await MessagingRepository.shared.fetchSDConversation(id: conversationId) {
+            if let sdConv = try? MessagingRepository.shared.fetchSDConversation(id: conversationId) {
                 var localProfiles: [Profile] = []
                 for userId in sdConv.participantIds {
                     if let profile = await CacheManager.shared.getCachedProfile(id: userId) {
@@ -919,9 +919,9 @@ final class ConversationParticipantsViewModel: ObservableObject {
             let freshParticipantIds = rows.map { $0.userId }
 
             // 3. Update local SwiftData participant list
-            if let sdConv = try? await MessagingRepository.shared.fetchSDConversation(id: conversationId) {
+            if let sdConv = try? MessagingRepository.shared.fetchSDConversation(id: conversationId) {
                 sdConv.participantIds = freshParticipantIds
-                try? await MessagingRepository.shared.save()
+                try? MessagingRepository.shared.save()
             }
             
             // 4. Fetch profiles for each participant

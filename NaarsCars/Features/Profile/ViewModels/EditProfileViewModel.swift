@@ -31,6 +31,9 @@ final class EditProfileViewModel: ObservableObject {
     private let userId: UUID
     private let originalPhoneNumber: String?
     
+    /// The existing avatar URL from the profile (used as fallback while no new photo is selected)
+    let existingAvatarUrl: String?
+    
     // Phone visibility disclosure tracking
     private let phoneDisclosureKey = "hasShownPhoneDisclosure"
     private var hasShownPhoneDisclosure: Bool {
@@ -50,6 +53,7 @@ final class EditProfileViewModel: ObservableObject {
         self.phoneNumber = profile.phoneNumber ?? ""
         self.originalPhoneNumber = profile.phoneNumber
         self.car = profile.car ?? ""
+        self.existingAvatarUrl = profile.avatarUrl
         
         // Load avatar if URL exists
         if let avatarUrl = profile.avatarUrl, let url = URL(string: avatarUrl) {

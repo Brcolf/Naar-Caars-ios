@@ -11,9 +11,13 @@ import MapKit
 @MainActor
 final class MapSnapshotCache {
     static let shared = MapSnapshotCache()
-    private let cache = NSCache<NSString, UIImage>()
+    private let cache: NSCache<NSString, UIImage>
     
-    private init() {}
+    private init() {
+        cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 50           // Max 50 snapshots
+        cache.totalCostLimit = 20 * 1024 * 1024  // ~20MB
+    }
     
     func snapshot(for coordinate: CLLocationCoordinate2D) async -> UIImage? {
         let key = "\(coordinate.latitude),\(coordinate.longitude)" as NSString

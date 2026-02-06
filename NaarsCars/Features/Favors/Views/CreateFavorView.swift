@@ -137,9 +137,8 @@ struct CreateFavorView: View {
                                 onFavorCreated?(favor.id)
                                 showSuccess = true
                                 HapticManager.success()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    dismiss()
-                                }
+                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                dismiss()
                             } catch {
                                 // Error is already set in viewModel
                             }

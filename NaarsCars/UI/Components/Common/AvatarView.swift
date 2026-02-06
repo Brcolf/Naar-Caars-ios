@@ -26,20 +26,12 @@ struct AvatarView: View {
     var body: some View {
         Group {
             if let imageUrl = imageUrl, !imageUrl.isEmpty {
-                AsyncImage(url: URL(string: imageUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .failure:
-                        initialsView
-                    @unknown default:
-                        initialsView
-                    }
-                }
+                CachedAsyncImage(
+                    url: URL(string: imageUrl),
+                    placeholder: { ProgressView() },
+                    errorView: { initialsView }
+                )
+                .aspectRatio(contentMode: .fill)
             } else {
                 initialsView
             }

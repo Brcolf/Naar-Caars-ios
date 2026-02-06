@@ -22,9 +22,9 @@ final class ConversationSearchManager: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     
-    init(conversationId: UUID, messageService: MessageService = .shared) {
+    init(conversationId: UUID, messageService: MessageService? = nil) {
         self.conversationId = conversationId
-        self.messageService = messageService
+        self.messageService = messageService ?? .shared
         setupSearchDebounce()
     }
     

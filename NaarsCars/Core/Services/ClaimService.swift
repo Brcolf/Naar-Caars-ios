@@ -43,7 +43,7 @@ final class ClaimService {
         let rateLimitKey = "claim_request_\(claimerId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
             action: rateLimitKey,
-            minimumInterval: 10.0
+            minimumInterval: Constants.RateLimits.claimRequest
         )
         
         guard canProceed else {
@@ -102,7 +102,7 @@ final class ClaimService {
         let rateLimitKey = "unclaim_request_\(claimerId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
             action: rateLimitKey,
-            minimumInterval: 10.0
+            minimumInterval: Constants.RateLimits.claimRequest
         )
         
         guard canProceed else {
@@ -137,7 +137,7 @@ final class ClaimService {
         // Reset status to "open" and clear claimed_by
         let updates: [String: AnyCodable] = [
             "status": AnyCodable("open"),
-            "claimed_by": AnyCodable(String?.none),
+            "claimed_by": AnyCodable(String?.none as Any),
             "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
         ]
         
@@ -253,13 +253,13 @@ final class ClaimService {
             "type": AnyCodable(notificationType),
             "title": AnyCodable(title),
             "body": AnyCodable(body),
-            "ride_id": AnyCodable(requestType == "ride" ? requestId.uuidString : nil),
-            "favor_id": AnyCodable(requestType == "favor" ? requestId.uuidString : nil),
+            "ride_id": AnyCodable((requestType == "ride" ? requestId.uuidString : nil) as Any),
+            "favor_id": AnyCodable((requestType == "favor" ? requestId.uuidString : nil) as Any),
             "read": AnyCodable(false),
             "pinned": AnyCodable(false)
         ]
         
-        try? await supabase
+        _ = try? await supabase
             .from("notifications")
             .insert(notificationData)
             .execute()
@@ -280,13 +280,13 @@ final class ClaimService {
             "type": AnyCodable(notificationType),
             "title": AnyCodable(title),
             "body": AnyCodable(body),
-            "ride_id": AnyCodable(requestType == "ride" ? requestId.uuidString : nil),
-            "favor_id": AnyCodable(requestType == "favor" ? requestId.uuidString : nil),
+            "ride_id": AnyCodable((requestType == "ride" ? requestId.uuidString : nil) as Any),
+            "favor_id": AnyCodable((requestType == "favor" ? requestId.uuidString : nil) as Any),
             "read": AnyCodable(false),
             "pinned": AnyCodable(false)
         ]
         
-        try? await supabase
+        _ = try? await supabase
             .from("notifications")
             .insert(notificationData)
             .execute()

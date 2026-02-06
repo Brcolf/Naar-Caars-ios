@@ -94,14 +94,13 @@ final class RealtimeManager {
             onUpdate: onUpdate,
             onDelete: onDelete
         )
-        let tokenLength = (try? await supabaseClient.auth.session.accessToken.count) ?? 0
-        if tokenLength > 0 {
+        // Read token once to avoid race condition between two reads
+        let token = (try? await supabaseClient.auth.session.accessToken) ?? ""
+        let tokenLength = token.count
+        if !token.isEmpty {
             // Ensure realtime auth is set before subscribing.
-            let token = (try? await supabaseClient.auth.session.accessToken) ?? ""
-            if !token.isEmpty {
-                await supabaseClient.realtimeV2.setAuth(token)
-                await supabaseClient.realtimeV2.connect()
-            }
+            await supabaseClient.realtimeV2.setAuth(token)
+            await supabaseClient.realtimeV2.connect()
         }
         if let existing = activeChannels[channelName], existing.channel.status == .subscribed {
             if existing.authTokenLength == 0 && tokenLength > 0 {

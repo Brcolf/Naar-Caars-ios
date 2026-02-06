@@ -34,11 +34,55 @@ enum Constants {
     
     /// Cache TTL values (in seconds)
     enum CacheTTL {
-        static let profiles: TimeInterval = 300      // 5 minutes
-        static let rides: TimeInterval = 120          // 2 minutes
-        static let favors: TimeInterval = 120         // 2 minutes
-        static let conversations: TimeInterval = 60   // 1 minute
-        static let leaderboard: TimeInterval = 900    // 15 minutes
+        static let profiles: TimeInterval = 300        // 5 minutes
+        static let rides: TimeInterval = 120            // 2 minutes
+        static let favors: TimeInterval = 120           // 2 minutes
+        static let notifications: TimeInterval = 60     // 1 minute
+        static let conversations: TimeInterval = 60     // 1 minute
+        static let messages: TimeInterval = 30          // 30 seconds
+        static let townHallPosts: TimeInterval = 120    // 2 minutes
+        static let leaderboard: TimeInterval = 900      // 15 minutes
+    }
+    
+    /// Rate limit intervals (in seconds) for user-facing actions
+    enum RateLimits {
+        static let messageSend: TimeInterval = 1.0
+        static let claimRequest: TimeInterval = 10.0
+        static let login: TimeInterval = 2.0
+        static let passwordReset: TimeInterval = 30.0
+        static let townHallPost: TimeInterval = 30.0
+        static let townHallComment: TimeInterval = 10.0
+        static let authAction: TimeInterval = 3.0
+        static let throttleSend: TimeInterval = 1.0
+        static let throttleMarkRead: TimeInterval = 0.5
+    }
+    
+    /// Pagination page sizes
+    enum PageSizes {
+        static let messages: Int = 25
+        static let conversations: Int = 10
+        static let townHall: Int = 20
+        static let searchMessages: Int = 30
+        static let searchInConversation: Int = 50
+        static let fetchAll: Int = 100
+    }
+    
+    /// Timing constants (in nanoseconds for Task.sleep or seconds for intervals)
+    enum Timing {
+        /// Debounce interval for realtime/search events (0.3s)
+        static let debounceNanoseconds: UInt64 = 300_000_000
+        /// Delay before dismissing success views (1.5s)
+        static let successDismissNanoseconds: UInt64 = 1_500_000_000
+        /// Toast display duration (4s)
+        static let toastDurationNanoseconds: UInt64 = 4_000_000_000
+        /// Typing indicator poll interval (3s)
+        static let typingPollInterval: TimeInterval = 3.0
+        /// Typing signal threshold (2s)
+        static let typingSignalThreshold: TimeInterval = 2.0
+        /// Badge polling when connected (10s)
+        static let badgePollConnected: TimeInterval = 10.0
+        /// Badge polling when disconnected (90s)
+        static let badgePollDisconnected: TimeInterval = 90.0
     }
     
     /// External URLs

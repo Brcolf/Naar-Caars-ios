@@ -66,23 +66,17 @@ struct MessageDetailsPopup: View {
                                     .clipShape(Circle())
                             } else if let imageUrl = currentGroupImageUrl, let url = URL(string: imageUrl) {
                                 // Show existing group image
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .empty:
+                                CachedAsyncImage(
+                                    url: url,
+                                    placeholder: {
                                         ProgressView()
                                             .frame(width: 80, height: 80)
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 80, height: 80)
-                                            .clipShape(Circle())
-                                    case .failure:
-                                        defaultGroupAvatar
-                                    @unknown default:
-                                        defaultGroupAvatar
-                                    }
-                                }
+                                    },
+                                    errorView: { defaultGroupAvatar }
+                                )
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipShape(Circle())
                             } else {
                                 // Default group avatar
                                 defaultGroupAvatar
@@ -397,11 +391,11 @@ struct MessageDetailsPopup: View {
             }
             
             let decoder = JSONDecoder()
-            let dateFormatter = ISO8601DateFormatter()
-            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             decoder.dateDecodingStrategy = .custom { decoder in
                 let container = try decoder.singleValueContainer()
                 let dateString = try container.decode(String.self)
+                let dateFormatter = ISO8601DateFormatter()
+                dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 if let date = dateFormatter.date(from: dateString) {
                     return date
                 }

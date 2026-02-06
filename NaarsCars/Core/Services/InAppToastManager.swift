@@ -25,14 +25,14 @@ final class InAppToastManager: ObservableObject {
 
     init(
         notificationCenter: NotificationCenter = .default,
-        appStateProvider: @escaping () -> UIApplication.State = { UIApplication.shared.applicationState },
-        profileService: ProfileService = .shared,
-        authService: AuthService = .shared
+        appStateProvider: (() -> UIApplication.State)? = nil,
+        profileService: ProfileService? = nil,
+        authService: AuthService? = nil
     ) {
         self.notificationCenter = notificationCenter
-        self.appStateProvider = appStateProvider
-        self.profileService = profileService
-        self.authService = authService
+        self.appStateProvider = appStateProvider ?? { UIApplication.shared.applicationState }
+        self.profileService = profileService ?? .shared
+        self.authService = authService ?? .shared
         setupObservers()
     }
 
@@ -70,7 +70,7 @@ final class InAppToastManager: ObservableObject {
 
         Task { [weak self] in
             let (senderName, senderAvatarUrl) = await self?.resolveSender(for: message) ?? ("Someone", nil)
-            await self?.showToast(for: message, senderName: senderName, senderAvatarUrl: senderAvatarUrl)
+            self?.showToast(for: message, senderName: senderName, senderAvatarUrl: senderAvatarUrl)
         }
     }
 

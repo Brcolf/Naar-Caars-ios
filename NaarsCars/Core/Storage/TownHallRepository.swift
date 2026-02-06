@@ -244,50 +244,27 @@ final class TownHallRepository {
     }
 
     private func buildNestedStructure(_ comments: [TownHallComment]) -> [TownHallComment] {
-        var commentMap: [UUID: TownHallComment] = [:]
-        for comment in comments {
-            commentMap[comment.id] = comment
-        }
-
+        // Pass 1: Collect all parent (top-level) comments first
         var topLevel: [TownHallComment] = []
-        var processedIds = Set<UUID>()
+        var childrenByParent: [UUID: [TownHallComment]] = [:]
 
         for comment in comments {
-            guard !processedIds.contains(comment.id) else { continue }
             if let parentId = comment.parentCommentId {
-                if var parent = commentMap[parentId] {
-                    if parent.replies == nil {
-                        parent.replies = []
-                    }
-                    parent.replies?.append(comment)
-                    commentMap[parentId] = parent
-                    processedIds.insert(comment.id)
-                }
+                childrenByParent[parentId, default: []].append(comment)
             } else {
-                var commentWithReplies = comment
-                commentWithReplies.replies = buildReplies(for: comment.id, in: commentMap, processedIds: &processedIds)
-                topLevel.append(commentWithReplies)
-                processedIds.insert(comment.id)
+                topLevel.append(comment)
             }
         }
 
-        return topLevel
-    }
-
-    private func buildReplies(
-        for parentId: UUID,
-        in commentMap: [UUID: TownHallComment],
-        processedIds: inout Set<UUID>
-    ) -> [TownHallComment]? {
-        var replies: [TownHallComment] = []
-        for (id, comment) in commentMap {
-            if comment.parentCommentId == parentId, !processedIds.contains(id) {
-                var commentWithReplies = comment
-                commentWithReplies.replies = buildReplies(for: id, in: commentMap, processedIds: &processedIds)
-                replies.append(commentWithReplies)
-                processedIds.insert(id)
+        // Pass 2: Recursively attach children to their parents
+        func attachReplies(to comment: TownHallComment) -> TownHallComment {
+            var result = comment
+            if let children = childrenByParent[comment.id] {
+                result.replies = children.map { attachReplies(to: $0) }
             }
+            return result
         }
-        return replies.isEmpty ? nil : replies
+
+        return topLevel.map { attachReplies(to: $0) }
     }
 }

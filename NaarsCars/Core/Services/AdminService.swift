@@ -98,8 +98,7 @@ final class AdminService {
             .order("created_at", ascending: false)
             .execute()
         
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
         
         let profiles = try decoder.decode([Profile].self, from: response.data)
         
@@ -120,8 +119,7 @@ final class AdminService {
             .order("name", ascending: true)
             .execute()
         
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
         
         let profiles = try decoder.decode([Profile].self, from: response.data)
         

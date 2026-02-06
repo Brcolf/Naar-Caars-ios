@@ -42,7 +42,8 @@ enum RideCostEstimator {
     
     /// Pricing zones are defined as polygons. Add or modify zones here.
     /// Polygons should contain at least 3 points and cover the service area precisely.
-    static let pricingZones: [PricingZone] = [
+    // nonisolated is safe here: immutable let constant of Sendable value type
+    nonisolated static let pricingZones: [PricingZone] = [
         PricingZone(
             name: "SeaTac Airport",
             multiplier: 1.3,
@@ -317,6 +318,7 @@ enum RideCostEstimator {
         return (maxMultiplier, matchedZones)
     }
 
+    @MainActor
     static func locationMultiplier(
         pickup: CLLocationCoordinate2D,
         destination: CLLocationCoordinate2D,
@@ -327,6 +329,7 @@ enum RideCostEstimator {
         return result.multiplier
     }
 
+    @MainActor
     static func locationMultiplier(
         pickup: CLLocationCoordinate2D,
         destination: CLLocationCoordinate2D,

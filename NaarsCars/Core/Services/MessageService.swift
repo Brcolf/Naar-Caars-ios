@@ -67,8 +67,22 @@ final class MessageService {
             .limit(1)
             .execute()
         
-        let hasParticipant = participantCheck?.data.isEmpty == false
-        let isCreator = conversationCheck?.data.isEmpty == false
+        // Decode response arrays to check participant status correctly.
+        // raw Data.isEmpty is unreliable (empty JSON array "[]" has 2 bytes).
+        let hasParticipant: Bool = {
+            guard let data = participantCheck?.data,
+                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            return !rows.isEmpty
+        }()
+        let isCreator: Bool = {
+            guard let data = conversationCheck?.data,
+                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            return !rows.isEmpty
+        }()
         let isParticipant = hasParticipant || isCreator
         
         guard isParticipant else {
@@ -200,7 +214,7 @@ final class MessageService {
             .execute()
         
         let decoder = createDateDecoder()
-        var message = try decoder.decode(Message.self, from: response.data)
+        let message = try decoder.decode(Message.self, from: response.data)
         var messages = [message]
         await enrichMessages(&messages)
         return messages.first ?? message
@@ -287,7 +301,7 @@ final class MessageService {
             }
         }
         
-        let replyRows: [ReplyRow] = try JSONDecoder().decode([ReplyRow].self, from: response.data)
+        let replyRows: [ReplyRow] = try DateDecoderFactory.makeSupabaseDecoder().decode([ReplyRow].self, from: response.data)
         var contexts: [UUID: ReplyContext] = [:]
         for row in replyRows {
             contexts[row.id] = ReplyContext(
@@ -343,7 +357,7 @@ final class MessageService {
         let rateLimitKey = "send_message_\(fromId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
             action: rateLimitKey,
-            minimumInterval: 1.0
+            minimumInterval: Constants.RateLimits.messageSend
         )
         
         guard canProceed else {
@@ -376,8 +390,7 @@ final class MessageService {
                 AppLogger.database.error("Failed to decode message. Raw JSON: \(jsonString.prefix(200))")
             }
             AppLogger.database.error("Decoding error: \(error)")
-            // Try decoding again (might work if error was transient)
-            message = try decoder.decode(Message.self, from: response.data)
+            throw error
         }
         
         // Update conversation updated_at

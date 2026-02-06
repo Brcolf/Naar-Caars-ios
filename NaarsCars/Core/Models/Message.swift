@@ -149,8 +149,7 @@ struct Message: Codable, Identifiable, Sendable {
         case latitude
         case longitude
         case locationName = "location_name"
-        case sender
-        // reactions and replyToMessage are not in CodingKeys - populated separately
+        // sender, reactions, and replyToMessage are not in CodingKeys - populated separately
     }
     
     // MARK: - Initializers
@@ -266,7 +265,9 @@ struct TypingUser: Identifiable, Equatable, Sendable {
     }
 }
 
-// MARK: - Blocked User/// Model for a blocked user
+// MARK: - Blocked User
+
+/// Model for a blocked user
 struct BlockedUser: Codable, Identifiable, Sendable {
     var id: UUID { blockedId }
     let blockedId: UUID
@@ -274,4 +275,12 @@ struct BlockedUser: Codable, Identifiable, Sendable {
     let blockedAvatarUrl: String?
     let blockedAt: Date
     let reason: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case blockedId = "blocked_id"
+        case blockedName = "blocked_name"
+        case blockedAvatarUrl = "blocked_avatar_url"
+        case blockedAt = "blocked_at"
+        case reason
+    }
 }

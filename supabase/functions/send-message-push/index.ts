@@ -4,20 +4,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface PushNotificationPayload {
-  recipient_user_id: string
-  conversation_id: string
-  sender_name: string
-  message_preview: string
-  message_id: string
-  sender_id: string
-}
+import { corsHeaders, sendAPNsPush, resolveEventType, resolveTableName, processBatch } from '../_shared/apns.ts'
+import { getBadgeCount, getBadgeCountsBatch } from '../_shared/badges.ts'
 
 interface APNsPayload {
   aps: {
@@ -56,11 +44,9 @@ serve(async (req) => {
     let payload: any
     
     try {
-      // Try to parse as JSON first
       payload = await req.json()
       console.log('📨 Received webhook payload (JSON):', JSON.stringify(payload, null, 2))
     } catch (jsonError) {
-      // If JSON parsing fails, try form data
       try {
         const formData = await req.formData()
         payload = {}
@@ -69,7 +55,6 @@ serve(async (req) => {
         }
         console.log('📨 Received webhook payload (Form Data):', JSON.stringify(payload, null, 2))
       } catch (formError) {
-        // If both fail, try text
         const text = await req.text()
         console.log('📨 Received webhook payload (Text):', text)
         try {
@@ -124,20 +109,14 @@ serve(async (req) => {
       sender_id = payload.sender_id || ''
     } else {
       // Partial payload from database webhook - fetch additional data
-      // Database webhook provides NEW row, so we have message data
-      // Handle different possible payload formats
       const messageData = normalizedPayload
       
-      // Try multiple possible field names
       message_id = messageData.id || messageData.message_id || messageData.messageId
       conversation_id = messageData.conversation_id || messageData.conversationId
       sender_id = messageData.from_id || messageData.fromId || messageData.sender_id || messageData.senderId
       
-      // Log what we found
       console.log('🔍 Extracted fields:', {
-        message_id,
-        conversation_id,
-        sender_id,
+        message_id, conversation_id, sender_id,
         has_id: !!messageData.id,
         has_conversation_id: !!messageData.conversation_id,
         has_from_id: !!messageData.from_id,
@@ -153,7 +132,7 @@ serve(async (req) => {
       }
 
       // Fetch sender name from profiles
-      const { data: senderProfile, error: profileError } = await supabase
+      const { data: senderProfile } = await supabase
         .from('profiles')
         .select('name')
         .eq('id', sender_id)
@@ -180,44 +159,48 @@ serve(async (req) => {
         )
       }
 
-      // Process all recipients and send pushes
-      const allPushResults = []
-      
-      for (const participant of participants) {
-        const currentRecipientId = participant.user_id
-
-        // Check if this recipient is actively viewing
-        if (participant.last_seen) {
-          const lastSeen = new Date(participant.last_seen)
-          const now = new Date()
-          const secondsSinceLastSeen = (now.getTime() - lastSeen.getTime()) / 1000
-
-          if (secondsSinceLastSeen < 60) {
-            console.log(`⏭️ Skipping push for user ${currentRecipientId} - viewed ${secondsSinceLastSeen.toFixed(1)}s ago`)
-            allPushResults.push({ recipient: currentRecipientId, skipped: true, reason: 'user_viewing' })
-            continue
-          }
+      // Filter out users who are actively viewing
+      const eligibleParticipants = participants.filter(p => {
+        if (!p.last_seen) return true
+        const secondsSinceLastSeen = (Date.now() - new Date(p.last_seen).getTime()) / 1000
+        if (secondsSinceLastSeen < 60) {
+          console.log(`⏭️ Skipping push for user ${p.user_id} - viewed ${secondsSinceLastSeen.toFixed(1)}s ago`)
+          return false
         }
+        return true
+      })
 
-        // Send push for this recipient
-        try {
-          const result = await sendPushToRecipient(
-            currentRecipientId,
-            conversation_id,
-            sender_name,
-            message_preview,
-            message_id,
-            sender_id,
-            supabase
-          )
-          allPushResults.push({ recipient: currentRecipientId, ...result })
-        } catch (error) {
-          console.error(`Error sending push to ${currentRecipientId}:`, error)
-          allPushResults.push({ recipient: currentRecipientId, error: error.message })
+      // Pre-fetch badge counts for all eligible recipients in parallel
+      const recipientIds = eligibleParticipants.map(p => p.user_id)
+      const badgeCounts = await getBadgeCountsBatch(supabase, recipientIds)
+
+      // Process all recipients in parallel with batching (max 10 concurrent)
+      const allPushResults: any[] = []
+
+      // Add skipped users
+      for (const p of participants) {
+        if (!eligibleParticipants.find(e => e.user_id === p.user_id)) {
+          allPushResults.push({ recipient: p.user_id, skipped: true, reason: 'user_viewing' })
         }
       }
 
-      // Return summary of all pushes
+      const batchResults = await processBatch(eligibleParticipants, 10, async (participant) => {
+        const badge = badgeCounts.get(participant.user_id) ?? 0
+        return await sendPushToRecipient(
+          participant.user_id, conversation_id, sender_name, message_preview,
+          message_id, sender_id, badge, supabase
+        )
+      })
+
+      batchResults.forEach((result, i) => {
+        const recipient = eligibleParticipants[i].user_id
+        if (result.status === 'fulfilled') {
+          allPushResults.push({ recipient, ...result.value })
+        } else {
+          allPushResults.push({ recipient, error: (result.reason as Error).message })
+        }
+      })
+
       const successes = allPushResults.filter(r => r.sent).length
       const skipped = allPushResults.filter(r => r.skipped).length
       const errors = allPushResults.filter(r => r.error).length
@@ -226,9 +209,7 @@ serve(async (req) => {
         JSON.stringify({
           processed: true,
           total_recipients: participants.length,
-          successes,
-          skipped,
-          errors,
+          successes, skipped, errors,
           results: allPushResults
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -238,8 +219,7 @@ serve(async (req) => {
     // Full payload case - process single recipient
     console.log(`📨 Processing push notification for user ${recipient_user_id}, conversation ${conversation_id}`)
 
-    // Double-check if recipient is actively viewing (defense in depth)
-    // The trigger already checks this, but we verify again for safety
+    // Double-check if recipient is actively viewing
     const { data: participant, error: participantError } = await supabase
       .from('conversation_participants')
       .select('last_seen')
@@ -249,13 +229,8 @@ serve(async (req) => {
 
     if (participantError) {
       console.error('Error checking participant:', participantError)
-      // Continue anyway - don't block push if we can't check
     } else if (participant?.last_seen) {
-      const lastSeen = new Date(participant.last_seen)
-      const now = new Date()
-      const secondsSinceLastSeen = (now.getTime() - lastSeen.getTime()) / 1000
-
-      // If viewed within last 60 seconds, skip push (user is viewing)
+      const secondsSinceLastSeen = (Date.now() - new Date(participant.last_seen).getTime()) / 1000
       if (secondsSinceLastSeen < 60) {
         console.log(`⏭️ Skipping push - user viewed conversation ${secondsSinceLastSeen.toFixed(1)}s ago`)
         return new Response(
@@ -265,34 +240,12 @@ serve(async (req) => {
       }
     }
 
-    // Get recipient's push tokens
-    const { data: tokens, error: tokenError } = await supabase
-      .from('push_tokens')
-      .select('token')
-      .eq('user_id', recipient_user_id)
+    // Get badge count for this user
+    const badgeCount = await getBadgeCount(supabase, recipient_user_id)
 
-    if (tokenError) {
-      console.error('Error fetching push tokens:', tokenError)
-      throw new Error(`Failed to fetch push tokens: ${tokenError.message}`)
-    }
-
-    if (!tokens || tokens.length === 0) {
-      console.log(`⏭️ Skipping push - no push tokens found for user ${recipient_user_id}`)
-      return new Response(
-        JSON.stringify({ skipped: true, reason: 'no_tokens' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Send push using helper function
     const result = await sendPushToRecipient(
-      recipient_user_id,
-      conversation_id,
-      sender_name,
-      message_preview,
-      message_id,
-      sender_id,
-      supabase
+      recipient_user_id, conversation_id, sender_name, message_preview,
+      message_id, sender_id, badgeCount, supabase
     )
 
     return new Response(
@@ -303,39 +256,18 @@ serve(async (req) => {
     console.error('Error sending push notification:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
 
 function normalizeWebhookPayload(payload: any): any {
-  if (!payload || typeof payload !== 'object') {
-    return payload
-  }
-  if (payload.record) {
-    return payload.record
-  }
-  if (payload.new) {
-    return payload.new
-  }
-  if (payload.data?.record) {
-    return payload.data.record
-  }
-  if (payload.data?.new) {
-    return payload.data.new
-  }
+  if (!payload || typeof payload !== 'object') return payload
+  if (payload.record) return payload.record
+  if (payload.new) return payload.new
+  if (payload.data?.record) return payload.data.record
+  if (payload.data?.new) return payload.data.new
   return payload
-}
-
-function resolveEventType(payload: any): string | undefined {
-  return payload?.type || payload?.eventType || payload?.event_type || payload?.data?.type || payload?.data?.eventType || payload?.data?.event_type
-}
-
-function resolveTableName(payload: any): string | undefined {
-  return payload?.table || payload?.data?.table || payload?.table_name || payload?.data?.table_name
 }
 
 async function sendPushToRecipient(
@@ -345,6 +277,7 @@ async function sendPushToRecipient(
   messagePreview: string,
   messageId: string,
   senderId: string,
+  badgeCount: number,
   supabase: any
 ): Promise<{ sent: boolean; devices?: number; successes?: number; failures?: number; skipped?: boolean; reason?: string }> {
   // Get recipient's push tokens
@@ -354,7 +287,6 @@ async function sendPushToRecipient(
     .eq('user_id', recipientUserId)
 
   if (tokenError) {
-    console.error('Error fetching push tokens:', tokenError)
     throw new Error(`Failed to fetch push tokens: ${tokenError.message}`)
   }
 
@@ -363,33 +295,13 @@ async function sendPushToRecipient(
     return { sent: false, skipped: true, reason: 'no_tokens' }
   }
 
-  // Get unread message count for badge (all conversations, not just this one)
-  const { count: unreadMessageCount } = await supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .neq('from_id', recipientUserId)
-    .not('read_by', 'cs', `{${recipientUserId}}`)
-
-  // Get unread notification count for badge (non-message notifications)
-  const { count: unreadNotificationCount } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', recipientUserId)
-    .eq('read', false)
-    .not('type', 'in', '("message","added_to_conversation")')
-
-  const badgeCount = (unreadMessageCount ?? 0) + (unreadNotificationCount ?? 0)
-
-  // Prepare APNs payload
+  // Prepare APNs payload (badge count already provided)
   const apnsPayload: APNsPayload = {
     aps: {
-      alert: {
-        title: `Message from ${senderName}`,
-        body: messagePreview
-      },
+      alert: { title: `Message from ${senderName}`, body: messagePreview },
       sound: 'default',
       badge: badgeCount,
-      priority: 10, // High priority for immediate delivery
+      priority: 10,
       category: 'MESSAGE'
     },
     type: 'message',
@@ -400,16 +312,14 @@ async function sendPushToRecipient(
 
   // Send push to all devices for this user
   const pushResults = await Promise.allSettled(
-    tokens.map(async (tokenRow) => {
-      return await sendAPNsPush(tokenRow.token, apnsPayload)
+    tokens.map(async (tokenRow: { token: string }) => {
+      return await sendAPNsPush(tokenRow.token, apnsPayload, supabase)
     })
   )
 
-  // Count successes and failures
   const successes = pushResults.filter(r => r.status === 'fulfilled').length
   const failures = pushResults.filter(r => r.status === 'rejected').length
 
-  // Log failures
   pushResults.forEach((result, index) => {
     if (result.status === 'rejected') {
       console.error(`Failed to send push to token ${tokens[index].token.substring(0, 8)}...:`, result.reason)
@@ -418,112 +328,5 @@ async function sendPushToRecipient(
 
   console.log(`✅ Sent push notifications to user ${recipientUserId}: ${successes} succeeded, ${failures} failed`)
 
-  return {
-    sent: true,
-    devices: tokens.length,
-    successes,
-    failures
-  }
+  return { sent: true, devices: tokens.length, successes, failures }
 }
-
-async function sendAPNsPush(token: string, payload: APNsPayload): Promise<void> {
-  const apnsTeamId = Deno.env.get('APNS_TEAM_ID')
-  const apnsKeyId = Deno.env.get('APNS_KEY_ID')
-  const apnsKey = Deno.env.get('APNS_KEY') // Base64 encoded .p8 file content
-  const apnsBundleId = Deno.env.get('APNS_BUNDLE_ID')
-  const apnsProduction = Deno.env.get('APNS_PRODUCTION') === 'true'
-
-  if (!apnsTeamId || !apnsKeyId || !apnsKey || !apnsBundleId) {
-    throw new Error('Missing APNs environment variables')
-  }
-
-  // APNs endpoint (production or sandbox)
-  const apnsUrl = apnsProduction
-    ? `https://api.push.apple.com/3/device/${token}`
-    : `https://api.sandbox.push.apple.com/3/device/${token}`
-
-  // Create JWT token for APNs authentication
-  const jwt = await createAPNsJWT(apnsTeamId, apnsKeyId, apnsKey)
-
-  // Send to APNs
-  const response = await fetch(apnsUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${jwt}`,
-      'apns-topic': apnsBundleId,
-      'apns-priority': '10', // High priority
-      'apns-push-type': 'alert',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000)
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`APNs error (${response.status}): ${errorText}`)
-  }
-
-  // Handle APNs response codes
-  const apnsId = response.headers.get('apns-id')
-  console.log(`✅ APNs push sent successfully (ID: ${apnsId})`)
-}
-
-async function createAPNsJWT(teamId: string, keyId: string, key: string): Promise<string> {
-  // Use djwt library for JWT creation with ES256
-  const { create, getNumericDate } = await import('https://deno.land/x/djwt@v2.8/mod.ts')
-  
-  // Decode base64 key if needed
-  let privateKeyPem: string
-  try {
-    // Try to decode as base64 first
-    privateKeyPem = atob(key)
-  } catch {
-    // If not base64, use as-is (might already be decoded)
-    privateKeyPem = key
-  }
-
-  // Import the private key
-  const cryptoKey = await importECPrivateKey(privateKeyPem)
-
-  // JWT header
-  const header = {
-    alg: 'ES256' as const,
-    kid: keyId
-  }
-
-  // JWT payload
-  const payload = {
-    iss: teamId,
-    iat: getNumericDate(new Date())
-  }
-
-  // Create JWT
-  const jwt = await create(header, payload, cryptoKey)
-
-  return jwt
-}
-
-async function importECPrivateKey(pemKey: string): Promise<CryptoKey> {
-  // Remove PEM headers/footers and whitespace
-  const keyData = pemKey
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '')
-
-  // Decode base64
-  const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0))
-
-  // Import as EC private key for ES256
-  return await crypto.subtle.importKey(
-    'pkcs8',
-    binaryKey,
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-256'
-    },
-    false,
-    ['sign']
-  )
-}
-

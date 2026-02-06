@@ -36,8 +36,25 @@ struct EditRideView: View {
                 }
                 
                 Section("ride_edit_route".localized) {
-                    TextField("ride_edit_pickup_location".localized, text: $viewModel.pickup)
-                    TextField("ride_edit_destination".localized, text: $viewModel.destination)
+                    LocationAutocompleteField(
+                        label: "",
+                        placeholder: "ride_edit_pickup_location".localized,
+                        text: $viewModel.pickup,
+                        icon: "location.circle.fill",
+                        accessibilityId: "editRide.pickup"
+                    ) { details in
+                        // Optional: Store coordinates for future map integration
+                    }
+                    
+                    LocationAutocompleteField(
+                        label: "",
+                        placeholder: "ride_edit_destination".localized,
+                        text: $viewModel.destination,
+                        icon: "mappin.circle.fill",
+                        accessibilityId: "editRide.destination"
+                    ) { details in
+                        // Optional: Store coordinates for future map integration
+                    }
                 }
                 
                 Section("ride_edit_details".localized) {
@@ -88,9 +105,8 @@ struct EditRideView: View {
                                 onSaved?()
                                 showSuccess = true
                                 HapticManager.success()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    dismiss()
-                                }
+                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                dismiss()
                             } catch {
                                 self.error = error.localizedDescription
                             }

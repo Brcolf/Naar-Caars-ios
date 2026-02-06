@@ -17,12 +17,6 @@ struct PasswordResetView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Title
-                    Text("password_reset_title".localized)
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .padding(.top, 40)
-                    
                     Text("password_reset_subtitle".localized)
                         .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
@@ -66,9 +60,8 @@ struct PasswordResetView: View {
                             if viewModel.successMessage != nil {
                                 showSuccess = true
                                 HapticManager.success()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    dismiss()
-                                }
+                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                dismiss()
                             }
                         }
                     }) {

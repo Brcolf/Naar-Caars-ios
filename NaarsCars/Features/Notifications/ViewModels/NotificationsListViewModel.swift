@@ -88,7 +88,7 @@ final class NotificationsListViewModel: ObservableObject {
                 refreshUnreadCount(from: context, userId: userId)
             }
             
-            let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
+            let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: forceRefresh)
             
             // Sync to SwiftData
             if let context = modelContext {

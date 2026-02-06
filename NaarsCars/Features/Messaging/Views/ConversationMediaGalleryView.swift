@@ -173,26 +173,24 @@ struct ConversationMediaGalleryView: View {
                                     selectedImageUrl = url
                                     showImageViewer = true
                                 } label: {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                        case .failure:
-                                            Color(.systemGray5)
-                                                .overlay(
-                                                    Image(systemName: "exclamationmark.triangle")
-                                                        .foregroundColor(.secondary)
-                                                )
-                                        default:
+                                    CachedAsyncImage(
+                                        url: url,
+                                        placeholder: {
                                             Color(.systemGray6)
                                                 .overlay(
                                                     ProgressView()
                                                         .scaleEffect(0.6)
                                                 )
+                                        },
+                                        errorView: {
+                                            Color(.systemGray5)
+                                                .overlay(
+                                                    Image(systemName: "exclamationmark.triangle")
+                                                        .foregroundColor(.secondary)
+                                                )
                                         }
-                                    }
+                                    )
+                                    .aspectRatio(contentMode: .fill)
                                     .frame(minHeight: 120)
                                     .clipped()
                                 }

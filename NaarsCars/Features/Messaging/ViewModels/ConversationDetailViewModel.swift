@@ -153,7 +153,14 @@ final class ConversationDetailViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    /// Guard to prevent concurrent loadMessages calls causing UI flicker
+    private var isLoadingMessagesInFlight = false
+    
     func loadMessages() async {
+        guard !isLoadingMessagesInFlight else { return }
+        isLoadingMessagesInFlight = true
+        defer { isLoadingMessagesInFlight = false }
+        
         isLoading = true
         error = nil
         oldestMessageId = nil
@@ -369,13 +376,11 @@ final class ConversationDetailViewModel: ObservableObject {
             object: nil,
             queue: nil
         ) { [weak self] notification in
-            guard let self = self else { return }
-            if Thread.isMainThread {
-                self.handleConversationUpdatedImmediate(notification)
-            } else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.handleConversationUpdatedImmediate(notification)
-                }
+            let userInfo = notification.userInfo as? [String: Any]
+            let notifName = notification.name
+            Task { @MainActor [weak self] in
+                let safeNotification = Notification(name: notifName, userInfo: userInfo)
+                self?.handleConversationUpdatedImmediate(safeNotification)
             }
         }
     }
@@ -402,7 +407,7 @@ final class ConversationDetailViewModel: ObservableObject {
             guard let self = self else { return }
             await self.throttler.run(
                 key: "messages.sync.\(self.conversationId.uuidString)",
-                minimumInterval: 1.0
+                minimumInterval: Constants.RateLimits.throttleSend
             ) {
                 await self.refreshMessagesInBackground()
             }
@@ -434,7 +439,7 @@ final class ConversationDetailViewModel: ObservableObject {
             guard let self = self else { return }
             await self.throttler.run(
                 key: "messages.replyContext.\(self.conversationId.uuidString)",
-                minimumInterval: 0.5
+                minimumInterval: Constants.RateLimits.throttleMarkRead
             ) {
                 let snapshot = await MainActor.run { self.messages }
                 guard snapshot.contains(where: { $0.replyToId != nil && $0.replyToMessage == nil }) else { return }
@@ -465,7 +470,8 @@ final class ConversationDetailViewModel: ObservableObject {
             }
         }
 
-        return ReplyContextBuilder.applyReplyContexts(messages: messages, profilesById: profilesById)
+        let finalProfiles = profilesById
+        return await MainActor.run { ReplyContextBuilder.applyReplyContexts(messages: messages, profilesById: finalProfiles) }
     }
 
 #if DEBUG

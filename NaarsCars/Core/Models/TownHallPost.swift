@@ -71,6 +71,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         try container.encodeIfPresent(pinned, forKey: .pinned)
         // Exclude type - not in database schema
         // try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(reviewId, forKey: .reviewId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
     }

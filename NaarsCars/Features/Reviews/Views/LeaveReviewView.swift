@@ -196,9 +196,8 @@ struct LeaveReviewView: View {
             HapticManager.success()
             showSuccess = true
             onReviewSubmitted?()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                dismiss()
-            }
+            try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+            dismiss()
         } catch {
             // Error is handled by viewModel
             AppLogger.error("reviews", "Error submitting review: \(error.localizedDescription)")

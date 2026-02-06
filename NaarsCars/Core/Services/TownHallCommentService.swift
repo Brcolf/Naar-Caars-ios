@@ -85,7 +85,7 @@ final class TownHallCommentService {
         let rateLimitKey = "town_hall_comment_\(userId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
             action: rateLimitKey,
-            minimumInterval: 10.0
+            minimumInterval: Constants.RateLimits.townHallComment
         )
         
         guard canProceed else {
@@ -169,7 +169,7 @@ final class TownHallCommentService {
         let rateLimitKey = "town_hall_comment_\(userId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
             action: rateLimitKey,
-            minimumInterval: 10.0
+            minimumInterval: Constants.RateLimits.townHallComment
         )
         
         guard canProceed else {
@@ -363,8 +363,7 @@ final class TownHallCommentService {
         
         guard let data = response?.data else { return comments }
         
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
         let profiles = (try? decoder.decode([Profile].self, from: data)) ?? []
         let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
         

@@ -606,20 +606,15 @@ struct MessageBubble: View {
         Button(action: {
             onImageTap?(url)
         }) {
-            AsyncImage(url: url, transaction: Transaction(animation: nil)) { phase in
-                switch phase {
-                case .empty:
+            CachedAsyncImage(
+                url: url,
+                placeholder: {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemGray5))
                         .frame(width: 200, height: 150)
                         .overlay(ProgressView())
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 220, maxHeight: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                case .failure:
+                },
+                errorView: {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemGray5))
                         .frame(width: 200, height: 150)
@@ -632,10 +627,11 @@ struct MessageBubble: View {
                                     .foregroundColor(.secondary)
                             }
                         )
-                @unknown default:
-                    EmptyView()
                 }
-            }
+            )
+            .scaledToFit()
+            .frame(maxWidth: 220, maxHeight: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(PlainButtonStyle())
     }

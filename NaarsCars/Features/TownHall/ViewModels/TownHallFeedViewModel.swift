@@ -34,13 +34,13 @@ final class TownHallFeedViewModel: ObservableObject {
     private var currentOffset = 0
     
     init(
-        repository: TownHallRepository = .shared,
-        townHallService: TownHallService = .shared,
-        voteService: TownHallVoteService = .shared
+        repository: TownHallRepository? = nil,
+        townHallService: TownHallService? = nil,
+        voteService: TownHallVoteService? = nil
     ) {
-        self.repository = repository
-        self.townHallService = townHallService
-        self.voteService = voteService
+        self.repository = repository ?? .shared
+        self.townHallService = townHallService ?? .shared
+        self.voteService = voteService ?? .shared
         bindPosts()
         bindVoteNotifications()
     }
@@ -51,10 +51,11 @@ final class TownHallFeedViewModel: ObservableObject {
     func loadPosts() async {
         error = nil
         currentOffset = 0
+        isLoading = true
+        defer { isLoading = false }
 
         let localPosts = (try? repository.getPosts()) ?? []
         if !localPosts.isEmpty {
-            isLoading = false
             posts = applyVoteCache(to: localPosts)
             currentOffset = localPosts.count
             hasMore = localPosts.count >= pageSize
@@ -63,9 +64,6 @@ final class TownHallFeedViewModel: ObservableObject {
             }
             return
         }
-
-        isLoading = true
-        defer { isLoading = false }
 
         do {
             let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: 0)
@@ -172,10 +170,8 @@ final class TownHallFeedViewModel: ObservableObject {
     }
 
     private func refreshFromNetwork(resetOffset: Bool, showLoading: Bool) async {
-        if showLoading {
-            isLoading = true
-            defer { isLoading = false }
-        }
+        if showLoading { isLoading = true }
+        defer { if showLoading { isLoading = false } }
 
         do {
             let offset = resetOffset ? 0 : currentOffset

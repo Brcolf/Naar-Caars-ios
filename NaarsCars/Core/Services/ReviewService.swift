@@ -82,7 +82,7 @@ final class ReviewService {
         
         // Decode created review
         let decoder = createDecoder()
-        var review: Review = try decoder.decode(Review.self, from: response.data)
+        let review: Review = try decoder.decode(Review.self, from: response.data)
         
         // Mark request as reviewed
         let tableName = requestType == "ride" ? "rides" : "favors"
@@ -203,28 +203,30 @@ final class ReviewService {
         let fileName = "\(reviewId.uuidString).jpg"
         let bucketName = "review-images" // Will create migration for this bucket
         
+        var actualBucket = bucketName
         do {
             try await supabase.storage
                 .from(bucketName)
                 .upload(
-                    path: fileName,
-                    file: compressedData,
+                    fileName,
+                    data: compressedData,
                     options: FileOptions(contentType: "image/jpeg", upsert: true)
                 )
         } catch {
             // If bucket doesn't exist, try town-hall-images as fallback
+            actualBucket = "town-hall-images"
             try await supabase.storage
-                .from("town-hall-images")
+                .from(actualBucket)
                 .upload(
-                    path: fileName,
-                    file: compressedData,
+                    fileName,
+                    data: compressedData,
                     options: FileOptions(contentType: "image/jpeg", upsert: true)
                 )
         }
         
-        // Get public URL
-        let publicUrl = try await supabase.storage
-            .from(bucketName)
+        // Get public URL from the bucket that was actually used
+        let publicUrl = try supabase.storage
+            .from(actualBucket)
             .getPublicURL(path: fileName)
         
         // Append cache-busting query parameter

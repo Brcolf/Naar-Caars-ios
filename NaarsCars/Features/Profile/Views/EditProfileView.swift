@@ -101,9 +101,8 @@ struct EditProfileView: View {
                         if success {
                             showSuccess = true
                             HapticManager.success()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                dismiss()
-                            }
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            dismiss()
                         }
                     }
                 }
@@ -138,7 +137,7 @@ struct EditProfileView: View {
                     .clipShape(Circle())
             } else {
                 AvatarView(
-                    imageUrl: nil,
+                    imageUrl: viewModel.existingAvatarUrl,
                     name: viewModel.name,
                     size: 120
                 )
@@ -244,9 +243,8 @@ struct EditProfileView: View {
         } else {
             showSuccess = true
             HapticManager.success()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                dismiss()
-            }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            dismiss()
         }
     }
 }

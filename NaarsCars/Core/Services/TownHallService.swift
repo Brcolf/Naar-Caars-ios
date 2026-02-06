@@ -83,7 +83,7 @@ final class TownHallService {
         let rateLimitKey = "town_hall_post_\(userId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
             action: rateLimitKey,
-            minimumInterval: 30.0
+            minimumInterval: Constants.RateLimits.townHallPost
         )
         
         guard canProceed else {
@@ -319,8 +319,7 @@ final class TownHallService {
         
         guard let data = response?.data else { return posts }
         
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
         let profiles = (try? decoder.decode([Profile].self, from: data)) ?? []
         let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
         

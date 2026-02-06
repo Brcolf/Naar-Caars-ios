@@ -130,19 +130,14 @@ struct TownHallPostCard: View {
             
             // Image if present
             if let imageUrl = post.imageUrl, !imageUrl.isEmpty {
-                AsyncImage(url: URL(string: imageUrl)) { phase in
-                    switch phase {
-                    case .empty:
+                CachedAsyncImage(
+                    url: URL(string: imageUrl),
+                    placeholder: {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .frame(height: 200)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-                            .cornerRadius(8)
-                    case .failure:
+                    },
+                    errorView: {
                         Image(systemName: "photo")
                             .font(.system(size: 40))
                             .foregroundColor(.secondary)
@@ -150,10 +145,11 @@ struct TownHallPostCard: View {
                             .frame(height: 200)
                             .background(Color.naarsCardBackground)
                             .cornerRadius(8)
-                    @unknown default:
-                        EmptyView()
                     }
-                }
+                )
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .cornerRadius(8)
             }
             
             Divider()
@@ -181,7 +177,7 @@ struct TownHallPostCard: View {
                 Spacer()
                 
                 // Delete button (if own post)
-                if isOwnPost, let onDelete = onDelete {
+                if isOwnPost, let _ = onDelete {
                     Button(action: {
                         showDeleteAlert = true
                     }) {

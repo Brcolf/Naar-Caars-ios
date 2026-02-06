@@ -61,27 +61,21 @@ struct ReviewCard: View {
             
             // Review Image
             if let imageUrl = review.imageUrl, let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
+                CachedAsyncImage(
+                    url: url,
+                    placeholder: {
                         ProgressView()
                             .frame(height: 200)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 200)
-                            .cornerRadius(8)
-                    case .failure:
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                            .frame(height: 200)
-                    @unknown default:
+                    },
+                    errorView: {
                         Image(systemName: "photo")
                             .foregroundColor(.secondary)
                             .frame(height: 200)
                     }
-                }
+                )
+                .aspectRatio(contentMode: .fit)
+                .frame(maxHeight: 200)
+                .cornerRadius(8)
             }
         }
         .padding()

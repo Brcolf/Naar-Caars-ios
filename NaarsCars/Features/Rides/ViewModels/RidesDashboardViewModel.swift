@@ -91,11 +91,27 @@ final class RidesDashboardViewModel: ObservableObject {
         return filtered.sorted { $0.date < $1.date }
     }
     
+    /// Guard to prevent concurrent loads
+    private var isLoadInFlight = false
+    /// Debounce task for realtime-triggered reloads
+    private var realtimeReloadTask: Task<Void, Never>?
+    
     /// Load rides based on current filter
-    func loadRides(forceRefresh: Bool = false) async {
-        isLoading = true
+    /// - Parameter showLoadingIndicator: If false, reloads silently (used for realtime updates to avoid flicker)
+    func loadRides(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
+        guard !isLoadInFlight else { return }
+        isLoadInFlight = true
+        defer { isLoadInFlight = false }
+        
+        if showLoadingIndicator {
+            isLoading = true
+        }
         error = nil
-        defer { isLoading = false }
+        defer {
+            if showLoadingIndicator {
+                isLoading = false
+            }
+        }
         
         do {
             let fetchedRides = try await rideService.fetchRides()
@@ -127,6 +143,10 @@ final class RidesDashboardViewModel: ObservableObject {
                 existing.seats = ride.seats
                 existing.notes = ride.notes
                 existing.gift = ride.gift
+                existing.reviewed = ride.reviewed
+                existing.reviewSkipped = ride.reviewSkipped
+                existing.reviewSkippedAt = ride.reviewSkippedAt
+                existing.estimatedCost = ride.estimatedCost
             } else {
                 let sdRide = SDRide(
                     id: ride.id,
@@ -199,19 +219,30 @@ final class RidesDashboardViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
+    /// Debounced silent reload for realtime events (prevents rapid consecutive reloads and UI flicker)
+    private func debouncedSilentReload() {
+        realtimeReloadTask?.cancel()
+        realtimeReloadTask = Task { @MainActor [weak self] in
+            // Small debounce to batch rapid consecutive events
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+            guard !Task.isCancelled else { return }
+            await self?.loadRides(showLoadingIndicator: false)
+        }
+    }
+    
     private func handleRideInsert(_ action: Any) async {
-        // Reload rides to get the new one
-        await loadRides()
+        // Silent reload to avoid loading spinner flash
+        debouncedSilentReload()
     }
     
     private func handleRideUpdate(_ action: Any) async {
-        // Reload rides to get updated data
-        await loadRides()
+        // Silent reload to avoid loading spinner flash
+        debouncedSilentReload()
     }
     
     private func handleRideDelete(_ action: Any) async {
-        // Reload rides to remove deleted one
-        await loadRides()
+        // Silent reload to avoid loading spinner flash
+        debouncedSilentReload()
     }
 }
 

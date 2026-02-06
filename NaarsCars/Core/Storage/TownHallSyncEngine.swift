@@ -25,15 +25,15 @@ final class TownHallSyncEngine {
     private var commentRefreshTasks: [UUID: Task<Void, Never>] = [:]
 
     init(
-        repository: TownHallRepository = .shared,
-        townHallService: TownHallService = .shared,
-        commentService: TownHallCommentService = .shared,
-        realtimeManager: RealtimeManager = .shared
+        repository: TownHallRepository? = nil,
+        townHallService: TownHallService? = nil,
+        commentService: TownHallCommentService? = nil,
+        realtimeManager: RealtimeManager? = nil
     ) {
-        self.repository = repository
-        self.townHallService = townHallService
-        self.commentService = commentService
-        self.realtimeManager = realtimeManager
+        self.repository = repository ?? .shared
+        self.townHallService = townHallService ?? .shared
+        self.commentService = commentService ?? .shared
+        self.realtimeManager = realtimeManager ?? .shared
     }
 
     func setup(modelContext: ModelContext) {
@@ -231,20 +231,10 @@ final class TownHallSyncEngine {
 private enum TownHallPayloadMapper {
     static func extractRecord(from payload: Any) -> [String: Any]? {
         if let insertAction = payload as? InsertAction {
-            if let record = insertAction.record as? [String: Any] {
-                return record
-            }
-            if let record = insertAction.record as? [String: AnyJSON] {
-                return record.mapValues { $0 }
-            }
+            return insertAction.record as [String: Any]
         }
         if let updateAction = payload as? UpdateAction {
-            if let record = updateAction.record as? [String: Any] {
-                return record
-            }
-            if let record = updateAction.record as? [String: AnyJSON] {
-                return record.mapValues { $0 }
-            }
+            return updateAction.record as [String: Any]
         }
         if let deleteAction = payload as? DeleteAction {
             let mirror = Mirror(reflecting: deleteAction)

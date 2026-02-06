@@ -85,6 +85,9 @@ struct MessagingMapper {
             recordDict = insertAction.record
         } else if let updateAction = payload as? Realtime.UpdateAction {
             recordDict = updateAction.record
+        } else if let deleteAction = payload as? Realtime.DeleteAction {
+            // DELETE events carry oldRecord, not record
+            recordDict = deleteAction.oldRecord
         } else if let dict = payload as? [String: Any] {
             recordDict = dict["record"] as? [String: Any] ?? dict
         }

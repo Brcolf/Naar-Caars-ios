@@ -48,6 +48,7 @@ final class RequestsDashboardViewModel: ObservableObject {
         Task.detached {
             await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-rides")
             await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-favors")
+            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-notifications")
         }
     }
     
@@ -407,14 +408,9 @@ final class RequestsDashboardViewModel: ObservableObject {
                 channelName: "requests-dashboard-rides",
                 table: "rides",
                 filter: nil,
-                onInsert: { [weak self] payload in
+                onInsert: { [weak self] _ in
                     Task { @MainActor in
-                        // Upsert into SwiftData
-                        if let self = self, let context = self.modelContext, 
-                           let record = self.extractRecord(from: payload) {
-                            // Minimal sync for realtime
-                            await self.loadRequests(forceRefresh: true)
-                        }
+                        await self?.loadRequests(forceRefresh: true)
                     }
                 },
                 onUpdate: { [weak self] _ in

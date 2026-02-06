@@ -268,7 +268,7 @@ final class FavorService {
                         "pinned": AnyCodable(false)
                     ]
                     
-                    try? await supabase
+                    try await supabase
                         .from("notifications")
                         .insert(notificationData)
                         .execute()
@@ -318,14 +318,8 @@ final class FavorService {
         
         let rows = try createDecoder().decode([ParticipantRow].self, from: response.data)
         
-        var profiles: [Profile] = []
-        for row in rows {
-            if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
-                profiles.append(profile)
-            }
-        }
-        
-        return profiles
+        let userIds = rows.map { $0.userId }
+        return try await ProfileService.shared.fetchProfiles(userIds: userIds)
     }
     
     /// Fetch favors where a user is a participant

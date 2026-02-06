@@ -67,6 +67,7 @@ struct ConversationsListView: View {
                 }
             }
             .listStyle(.plain)
+            .accessibilityLabel("Loading conversations")
         } else if let error = viewModel.error {
             ErrorView(
                 error: error.localizedDescription,
@@ -120,6 +121,7 @@ struct ConversationsListView: View {
                             .foregroundColor(.secondary)
                         Spacer()
                     }
+                    .accessibilityLabel("Searching messages")
                     .padding(.vertical, 12)
                     .listRowBackground(Color.clear)
                 } header: {
@@ -196,6 +198,7 @@ struct ConversationsListView: View {
                             .padding(.vertical, 16)
                         Spacer()
                     }
+                    .accessibilityLabel("Loading more conversations")
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .onAppear {

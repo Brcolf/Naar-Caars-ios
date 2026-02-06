@@ -36,12 +36,12 @@ final class AdminPanelViewModel: ObservableObject {
         
         isVerifyingAdmin = true
         error = nil
-        hasVerified = true
         defer { isVerifyingAdmin = false }
         
         do {
             // Verify admin status
             try await adminService.verifyAdminStatus()
+            hasVerified = true
             isAdmin = true
             
             // Load stats

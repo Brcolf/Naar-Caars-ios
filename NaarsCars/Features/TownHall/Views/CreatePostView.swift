@@ -100,9 +100,8 @@ struct CreatePostView: View {
                                 _ = try await viewModel.validateAndPost()
                                 showSuccess = true
                                 HapticManager.success()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    dismiss()
-                                }
+                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                dismiss()
                             } catch {
                                 // Error is handled by viewModel
                             }

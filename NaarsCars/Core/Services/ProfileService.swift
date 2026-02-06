@@ -75,18 +75,24 @@ final class ProfileService {
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
         var update: [String: AnyCodable] = [
-            "id": AnyCodable(userId.uuidString),
-            "updated_at": AnyCodable(dateFormatter.string(from: Date())),
-            "phone_number": AnyCodable(phoneNumber),
-            "car": AnyCodable(car)
+            "updated_at": AnyCodable(dateFormatter.string(from: Date()))
         ]
+        
+        // Only include phone_number and car when explicitly provided
+        // to avoid nullifying them on every profile update
+        if let phoneNumber = phoneNumber {
+            update["phone_number"] = AnyCodable(phoneNumber)
+        }
+        if let car = car {
+            update["car"] = AnyCodable(car)
+        }
 
         if let name = name {
             update["name"] = AnyCodable(name)
         }
 
         if shouldUpdateAvatar {
-            update["avatar_url"] = AnyCodable(avatarUrl)
+            update["avatar_url"] = AnyCodable(avatarUrl as Any)
         }
         
         try await supabase
@@ -219,13 +225,13 @@ final class ProfileService {
         try await supabase.storage
             .from("avatars")
             .upload(
-                path: fileName,
-                file: compressedData,
+                fileName,
+                data: compressedData,
                 options: FileOptions(contentType: "image/jpeg", upsert: true)
             )
         
         // Get public URL with cache-busting query param
-        let publicUrl = try await supabase.storage
+        let publicUrl = try supabase.storage
             .from("avatars")
             .getPublicURL(path: fileName)
         
@@ -234,6 +240,43 @@ final class ProfileService {
         let urlWithCacheBust = "\(publicUrl.absoluteString)?t=\(timestamp)"
         
         return urlWithCacheBust
+    }
+    
+    /// Fetch multiple profiles by user IDs in a single batch query
+    /// Checks cache first, only fetches missing profiles from network
+    /// - Parameter userIds: Array of user IDs to fetch
+    /// - Returns: Array of profiles (order not guaranteed)
+    /// - Throws: AppError if fetch fails
+    func fetchProfiles(userIds: [UUID]) async throws -> [Profile] {
+        guard !userIds.isEmpty else { return [] }
+        
+        // Check cache first, only fetch missing
+        var cached: [Profile] = []
+        var missing: [UUID] = []
+        for id in userIds {
+            if let p = await CacheManager.shared.getCachedProfile(id: id) {
+                cached.append(p)
+            } else {
+                missing.append(id)
+            }
+        }
+        
+        guard !missing.isEmpty else { return cached }
+        
+        // Batch fetch missing profiles in a single query
+        let fetched: [Profile] = try await supabase
+            .from("profiles")
+            .select()
+            .in("id", values: missing.map { $0.uuidString })
+            .execute()
+            .value
+        
+        // Cache all fetched profiles
+        for profile in fetched {
+            await CacheManager.shared.cacheProfile(profile)
+        }
+        
+        return cached + fetched
     }
     
     // MARK: - Reviews Operations
@@ -361,18 +404,13 @@ final class ProfileService {
         let _ = await AuthService.shared.revokeAppleSignIn()
         
         // 2. Use database function to delete account (handles cascade deletes)
-        // Wrap RPC call in Task.detached to avoid MainActor isolation issues
-        let task = Task.detached(priority: .userInitiated) { [userId] () async throws in
-            let params: [String: AnyCodable] = [
-                "p_user_id": AnyCodable(userId.uuidString)
-            ]
-            let client = await SupabaseService.shared.client
-            _ = try await client
-                .rpc("delete_user_account", params: params)
-                .execute()
-        }
-        
-        try await task.value
+        let params: [String: AnyCodable] = [
+            "p_user_id": AnyCodable(userId.uuidString)
+        ]
+        let client = SupabaseService.shared.client
+        _ = try await client
+            .rpc("delete_user_account", params: params)
+            .execute()
         
         // 3. Invalidate cache
         await CacheManager.shared.invalidateProfile(id: userId)

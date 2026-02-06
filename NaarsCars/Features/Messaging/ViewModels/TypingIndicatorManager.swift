@@ -20,10 +20,10 @@ final class TypingIndicatorManager: ObservableObject {
     private var typingDebounceTask: Task<Void, Never>?
     private var lastTypingSignal: Date = .distantPast
     
-    init(conversationId: UUID, messageService: MessageService = .shared, authService: AuthService = .shared) {
+    init(conversationId: UUID, messageService: MessageService? = nil, authService: AuthService? = nil) {
         self.conversationId = conversationId
-        self.messageService = messageService
-        self.authService = authService
+        self.messageService = messageService ?? .shared
+        self.authService = authService ?? .shared
     }
     
     deinit {

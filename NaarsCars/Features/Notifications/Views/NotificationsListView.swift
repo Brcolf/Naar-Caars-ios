@@ -69,6 +69,7 @@ struct NotificationsListView: View {
                 }
             }
             .listStyle(.plain)
+            .accessibilityLabel("Loading notifications")
         } else if let error = viewModel.error {
             ErrorView(
                 error: error.localizedDescription,

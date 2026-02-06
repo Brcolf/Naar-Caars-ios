@@ -36,22 +36,14 @@ struct ConversationAvatar: View {
         if let groupImageUrl = conversationDetail.conversation.groupImageUrl,
            let url = URL(string: groupImageUrl) {
             // Show custom group image
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    defaultGroupAvatar
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 50, height: 50)
-                        .clipShape(Circle())
-                case .failure:
-                    defaultGroupAvatar
-                @unknown default:
-                    defaultGroupAvatar
-                }
-            }
+            CachedAsyncImage(
+                url: url,
+                placeholder: { defaultGroupAvatar },
+                errorView: { defaultGroupAvatar }
+            )
+            .scaledToFill()
+            .frame(width: 50, height: 50)
+            .clipShape(Circle())
         } else if conversationDetail.otherParticipants.count >= 2 {
             // Show stacked avatars (2 participants)
             stackedAvatarsView
