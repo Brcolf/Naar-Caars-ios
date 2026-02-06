@@ -36,6 +36,8 @@ struct MessagingMapper {
             latitude: message.latitude,
             longitude: message.longitude,
             locationName: message.locationName,
+            editedAt: message.editedAt,
+            deletedAt: message.deletedAt,
             isPending: isPending
         )
     }
@@ -51,6 +53,8 @@ struct MessagingMapper {
             createdAt: sdMessage.createdAt,
             messageType: MessageType(rawValue: sdMessage.messageType),
             replyToId: sdMessage.replyToId,
+            editedAt: sdMessage.editedAt,
+            deletedAt: sdMessage.deletedAt,
             audioUrl: sdMessage.audioUrl,
             audioDuration: sdMessage.audioDuration,
             latitude: sdMessage.latitude,
@@ -106,6 +110,8 @@ struct MessagingMapper {
         let latitude = parseDouble(record["latitude"])
         let longitude = parseDouble(record["longitude"])
         let locationName = parseString(record["location_name"])
+        let editedAt = parseDate(record["edited_at"])
+        let deletedAt = parseDate(record["deleted_at"])
         
         var readBy: [UUID] = []
         if let readByArray = normalizeValue(record["read_by"]) as? [Any] {
@@ -145,12 +151,35 @@ struct MessagingMapper {
             createdAt: createdAt,
             messageType: messageType,
             replyToId: replyToId,
+            editedAt: editedAt,
+            deletedAt: deletedAt,
             audioUrl: audioUrl,
             audioDuration: audioDuration,
             latitude: latitude,
             longitude: longitude,
             locationName: locationName
         )
+    }
+
+    private static func parseDate(_ value: Any?) -> Date? {
+        let normalized = normalizeValue(value)
+        if let dateValue = normalized as? Date { return dateValue }
+        if let stringValue = normalized as? String {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: stringValue) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: stringValue) { return date }
+        }
+        if let numberValue = normalized as? NSNumber {
+            let rawValue = numberValue.doubleValue
+            if rawValue > 10_000_000_000 {
+                return Date(timeIntervalSince1970: rawValue / 1000.0)
+            } else {
+                return Date(timeIntervalSince1970: rawValue)
+            }
+        }
+        return nil
     }
 
     private static func parseDouble(_ value: Any?) -> Double? {

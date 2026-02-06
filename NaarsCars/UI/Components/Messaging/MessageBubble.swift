@@ -459,17 +459,24 @@ struct MessageBubble: View {
             }
         }
         .offset(x: swipeOffset)
-        .gesture(
-            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 30, coordinateSpace: .local)
                 .onChanged { value in
+                    let horizontal = abs(value.translation.width)
+                    let vertical = abs(value.translation.height)
+                    
+                    // Only activate if gesture is predominantly horizontal (> 2:1 ratio)
+                    // This prevents conflicts with vertical scrolling
+                    guard horizontal > vertical * 2 else {
+                        return
+                    }
+                    
                     let translation = value.translation.width
                     
                     // Allow swipe right for received messages, left for sent messages
                     if !isFromCurrentUser && translation > 0 {
-                        // Swipe right on received message
                         swipeOffset = min(translation * 0.6, swipeThreshold * 1.2)
                     } else if isFromCurrentUser && translation < 0 {
-                        // Swipe left on sent message
                         swipeOffset = max(translation * 0.6, -swipeThreshold * 1.2)
                     }
                     
@@ -484,7 +491,6 @@ struct MessageBubble: View {
                 }
                 .onEnded { _ in
                     if abs(swipeOffset) >= swipeThreshold {
-                        // Trigger reply
                         onReply?()
                     }
                     // Reset position with animation
@@ -570,11 +576,7 @@ struct MessageBubble: View {
                 }
             }
         }
-        .onLongPressGesture {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            onLongPress?()
-        }
+        // Long press is handled by .contextMenu above — no separate gesture needed
     }
     
     private func toggleTimestamp() {

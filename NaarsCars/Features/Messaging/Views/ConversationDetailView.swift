@@ -152,6 +152,7 @@ struct ConversationDetailView: View {
                     showImagePicker = true
                 },
                 isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil,
+                focusState: $isInputFocused,
                 replyingTo: replyingToMessage,
                 onCancelReply: {
                     replyingToMessage = nil
@@ -442,34 +443,48 @@ struct ConversationDetailView: View {
 
     private var messagesListView: some View {
         ScrollViewReader { proxy in
+            // Reversed ScrollView: the ScrollView and each row are flipped vertically.
+            // This makes "bottom" the natural resting position, so:
+            // - New messages appear at the natural scroll start (no jump)
+            // - Loading older messages appends at the far end (no position jump)
+            // - Bottom detection is inherent (user is at top of reversed scroll)
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    messagesHeaderView
-                    messagesBodyView
+                    // Bottom spacer (appears first in reversed layout = visual bottom)
                     messagesBottomSpacerView
+                    
+                    // Messages in reversed order (newest first in data, but visually bottom)
+                    messagesBodyReversedView
+                    
+                    // Header (appears last in reversed layout = visual top)
+                    messagesHeaderView
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 8)
+                .padding(.top, 8) // This is visual bottom padding in reversed scroll
             }
+            .scrollIndicators(.hidden)
+            .rotationEffect(.degrees(180))
+            .scaleEffect(x: -1, y: 1, anchor: .center)
             .accessibilityIdentifier("messages.thread.scroll")
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
                 scrollProxy = proxy
             }
             .onChange(of: isInputFocused) { _, isFocused in
-                if isFocused {
-                    // Scroll to bottom when keyboard appears
+                if isFocused && isAtBottom {
+                    // Only auto-scroll to bottom if user was already at bottom
                     Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 100_000_000) // Reduced delay for snappier feel
-                        withAnimation(.easeOut(duration: 0.2)) {
+                        try? await Task.sleep(nanoseconds: 300_000_000) // Wait for keyboard animation
+                        withAnimation(.easeOut(duration: 0.25)) {
                             proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
                         }
                     }
                 }
             }
             .onChange(of: viewModel.messages.count) { oldCount, newCount in
-                // Track new messages for animation
-                if newCount > oldCount {
+                // Track truly new messages (received or sent) for entrance animation
+                // Only animate when messages are added at the END (newest), not from pagination (oldest)
+                if newCount > oldCount && !viewModel.isLoadingMore {
                     let newMessages = viewModel.messages.suffix(newCount - oldCount)
                     for message in newMessages {
                         newMessageIds.insert(message.id)
@@ -480,20 +495,16 @@ struct ConversationDetailView: View {
                     }
                 }
 
-                // Always scroll to bottom when a new message is sent by current user
+                // Auto-scroll to bottom for own messages or when already at bottom
                 let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
 
                 if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore {
-                    if let lastMessage = viewModel.messages.last {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo(messageAnchorId(lastMessage.id), anchor: .bottom)
-                        }
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
                     }
                     showScrollToBottom = false
-                    AppLogger.info("messaging", "[ConversationDetail] Auto-scroll to bottom")
-                } else if newCount > oldCount {
+                } else if newCount > oldCount && !viewModel.isLoadingMore {
                     showScrollToBottom = true
-                    AppLogger.info("messaging", "[ConversationDetail] New messages while scrolled up")
                 }
 
                 // Update last_seen when new messages arrive while viewing
@@ -525,7 +536,7 @@ struct ConversationDetailView: View {
             }
         }
         .overlay(alignment: .center) {
-            // Reaction picker overlay (centered on screen)
+            // Reaction picker overlay
             if showReactionPicker {
                 VStack {
                     Spacer()
@@ -560,44 +571,55 @@ struct ConversationDetailView: View {
 
     @ViewBuilder
     private var messagesHeaderView: some View {
-        // Top anchor for infinite scrolling
-        Color.clear
-            .frame(height: 2)
-            .onAppear {
-                if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
-                    AppLogger.info("messaging", "[ConversationDetail] Reached top, loading more messages")
-                    Task {
-                        await viewModel.loadMoreMessages()
+        // In reversed layout, this appears at the VISUAL TOP of the conversation.
+        // It's the last item in the LazyVStack (far end of scroll).
+        Group {
+            // Pagination trigger: loads when user scrolls to visual top (oldest messages)
+            Color.clear
+                .frame(height: 2)
+                .onAppear {
+                    if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
+                        AppLogger.info("messaging", "[ConversationDetail] Reached top, loading more messages")
+                        Task {
+                            await viewModel.loadMoreMessages()
+                        }
                     }
                 }
+
+            if viewModel.isLoadingMore {
+                ProgressView()
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
             }
 
-        // No more messages indicator
-        if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
-            VStack(spacing: Constants.Spacing.sm) {
-                Image(systemName: "lock.fill")
-                    .font(.naarsFootnote)
-                    .foregroundColor(.secondary)
-                Text("messaging_beginning_of_conversation".localized)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity)
-        }
-
-        if viewModel.isLoadingMore {
-            ProgressView()
-                .padding(.vertical, 12)
+            // No more messages indicator
+            if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
+                VStack(spacing: Constants.Spacing.sm) {
+                    Image(systemName: "lock.fill")
+                        .font(.naarsFootnote)
+                        .foregroundColor(.secondary)
+                    Text("messaging_beginning_of_conversation".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 20)
                 .frame(maxWidth: .infinity)
+            }
         }
+        // Counter-flip so content appears right-side up
+        .rotationEffect(.degrees(180))
+        .scaleEffect(x: -1, y: 1, anchor: .center)
     }
 
+    /// Reversed message body: each row is counter-flipped so it appears normal.
+    /// Messages are iterated in reverse (newest first) because the ScrollView itself is flipped.
     @ViewBuilder
-    private var messagesBodyView: some View {
+    private var messagesBodyReversedView: some View {
         if viewModel.isLoading && viewModel.messages.isEmpty {
             ProgressView()
                 .padding()
+                .rotationEffect(.degrees(180))
+                .scaleEffect(x: -1, y: 1, anchor: .center)
         } else if viewModel.messages.isEmpty {
             VStack(spacing: Constants.Spacing.md) {
                 Image(systemName: "message.fill")
@@ -612,28 +634,36 @@ struct ConversationDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
+            .rotationEffect(.degrees(180))
+            .scaleEffect(x: -1, y: 1, anchor: .center)
         } else {
-            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+            // Iterate messages in REVERSE order (newest first) for the reversed ScrollView
+            ForEach(Array(viewModel.messages.enumerated().reversed()), id: \.element.id) { index, message in
                 let isFirst = isFirstInSeries(at: index)
                 let isLast = isLastInSeries(at: index)
                 let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
                 let replyChain = replyChainContext(at: index)
 
                 VStack(spacing: 0) {
-                    // Date separator
-                    if shouldShowDateSeparator {
-                        DateSeparatorView(date: message.createdAt)
-                            .padding(.vertical, 16)
-                    }
-
+                    // In reversed layout, the message comes first, then the date separator
+                    // (because the VStack itself is flipped back)
                     createMessageBubble(
                         message: message,
                         isFirst: isFirst,
                         isLast: isLast,
                         replyChain: replyChain
                     )
+                    
+                    // Date separator (appears above this message visually)
+                    if shouldShowDateSeparator {
+                        DateSeparatorView(date: message.createdAt)
+                            .padding(.vertical, 16)
+                    }
                 }
                 .id(messageAnchorId(message.id))
+                // Counter-flip each row so content appears right-side up
+                .rotationEffect(.degrees(180))
+                .scaleEffect(x: -1, y: 1, anchor: .center)
             }
         }
     }
@@ -641,7 +671,8 @@ struct ConversationDetailView: View {
     
 
     private var messagesBottomSpacerView: some View {
-        // Invisible spacer at bottom for scroll detection
+        // In reversed layout, this is the FIRST item = visual bottom of conversation.
+        // When this is visible, the user is "at the bottom" of the chat.
         Color.clear
             .frame(height: 1)
             .id(threadBottomAnchorId)

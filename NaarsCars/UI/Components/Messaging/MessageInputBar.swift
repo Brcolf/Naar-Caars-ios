@@ -20,6 +20,9 @@ struct MessageInputBar: View {
     let onImagePickerTapped: () -> Void
     let isDisabled: Bool
     
+    /// Focus state binding — allows parent to track/control keyboard focus
+    var focusState: FocusState<Bool>.Binding?
+    
     /// Reply context (optional - when replying to a message)
     var replyingTo: ReplyContext?
     var onCancelReply: (() -> Void)?
@@ -112,14 +115,11 @@ struct MessageInputBar: View {
                         .foregroundColor(isRecording ? .red : .naarsPrimary)
                 }
                 
-                TextField("Type a message...", text: $text, axis: .vertical)
+                TextField(editingMessage != nil ? "messaging_edit_placeholder".localized : "Type a message...", text: $text, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
-                    .onSubmit {
-                        if !isDisabled {
-                            onSend()
-                        }
-                    }
+                    .submitLabel(.return)
+                    .applyFocusState(focusState)
                     .onChange(of: text) { _, newValue in
                         if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             onTypingChanged?()
@@ -635,6 +635,20 @@ private final class LocationPickerViewModel: NSObject, ObservableObject, CLLocat
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         // Non-fatal: location permission may be denied
+    }
+}
+
+// MARK: - Focus State Helper
+
+private extension View {
+    /// Conditionally applies `.focused()` only when a binding is provided
+    @ViewBuilder
+    func applyFocusState(_ binding: FocusState<Bool>.Binding?) -> some View {
+        if let binding = binding {
+            self.focused(binding)
+        } else {
+            self
+        }
     }
 }
 

@@ -65,6 +65,10 @@ final class SDMessage {
     var longitude: Double?
     var locationName: String?
     
+    // Edit/Unsend
+    var editedAt: Date?
+    var deletedAt: Date?
+    
     // Sync status
     var isPending: Bool = false
     var syncError: String?
@@ -72,7 +76,7 @@ final class SDMessage {
     // Relationship
     var conversation: SDConversation?
     
-    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, isPending: Bool = false) {
+    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, isPending: Bool = false) {
         self.id = id
         self.conversationId = conversationId
         self.fromId = fromId
@@ -87,6 +91,8 @@ final class SDMessage {
         self.latitude = latitude
         self.longitude = longitude
         self.locationName = locationName
+        self.editedAt = editedAt
+        self.deletedAt = deletedAt
         self.isPending = isPending
     }
 }
