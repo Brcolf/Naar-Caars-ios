@@ -76,15 +76,13 @@ struct MessageBubble: View {
         return showAvatar ? -22 : -6
     }
     
-    /// Extract URLs from message text
+    /// Extract URLs from message text (cached to avoid re-running NSDataDetector on every render)
     private var detectedURLs: [URL] {
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(in: message.text, options: [], range: NSRange(message.text.startIndex..., in: message.text)) ?? []
-        return matches.compactMap { match -> URL? in
-            guard let range = Range(match.range, in: message.text) else { return nil }
-            return URL(string: String(message.text[range]))
-        }
+        Self.urlCache.urls(for: message.text)
     }
+    
+    /// Shared URL detection cache to avoid expensive NSDataDetector on every SwiftUI body evaluation
+    private static let urlCache = URLDetectionCache()
     
     /// Check if message is a system message (announcement)
     private var isSystemMessage: Bool {
@@ -459,32 +457,26 @@ struct MessageBubble: View {
             }
         }
         .offset(x: swipeOffset)
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 30, coordinateSpace: .local)
+        .gesture(
+            DragGesture(minimumDistance: 40, coordinateSpace: .local)
                 .onChanged { value in
                     let horizontal = abs(value.translation.width)
                     let vertical = abs(value.translation.height)
                     
                     // Only activate if gesture is predominantly horizontal (> 2:1 ratio)
-                    // This prevents conflicts with vertical scrolling
-                    guard horizontal > vertical * 2 else {
-                        return
-                    }
+                    guard horizontal > vertical * 2 else { return }
                     
                     let translation = value.translation.width
                     
-                    // Allow swipe right for received messages, left for sent messages
                     if !isFromCurrentUser && translation > 0 {
                         swipeOffset = min(translation * 0.6, swipeThreshold * 1.2)
                     } else if isFromCurrentUser && translation < 0 {
                         swipeOffset = max(translation * 0.6, -swipeThreshold * 1.2)
                     }
                     
-                    // Haptic feedback when crossing threshold
                     if abs(swipeOffset) >= swipeThreshold && !isSwipingToReply {
                         isSwipingToReply = true
-                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                        generator.impactOccurred()
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } else if abs(swipeOffset) < swipeThreshold {
                         isSwipingToReply = false
                     }
@@ -493,7 +485,6 @@ struct MessageBubble: View {
                     if abs(swipeOffset) >= swipeThreshold {
                         onReply?()
                     }
-                    // Reset position with animation
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         swipeOffset = 0
                         isSwipingToReply = false
@@ -502,11 +493,9 @@ struct MessageBubble: View {
         )
         .padding(.vertical, isLastInSeries ? 8 : 2)
         .contentShape(Rectangle())
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                toggleTimestamp()
-            }
-        )
+        .onTapGesture {
+            toggleTimestamp()
+        }
         .contextMenu {
             // Reactions quick access
             Button {
@@ -617,49 +606,32 @@ struct MessageBubble: View {
         Button(action: {
             onImageTap?(url)
         }) {
-            AsyncImage(url: url) { phase in
+            AsyncImage(url: url, transaction: Transaction(animation: nil)) { phase in
                 switch phase {
                 case .empty:
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemGray5))
                         .frame(width: 200, height: 150)
                         .overlay(ProgressView())
-                        .onAppear {
-                            AppLogger.info("messaging", "Loading image from: \(url.absoluteString)")
-                        }
                 case .success(let image):
                     image
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 220, maxHeight: 220)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            // Subtle zoom icon hint
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.naarsSubheadline).fontWeight(.medium)
-                                .foregroundColor(.white)
-                                .padding(8)
-                                .background(Circle().fill(Color.black.opacity(0.4)))
-                                .opacity(0.8)
-                                .padding(8),
-                            alignment: .bottomTrailing
-                        )
-                case .failure(let error):
+                case .failure:
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemGray5))
-                        .frame(width: 150, height: 100)
+                        .frame(width: 200, height: 150)
                         .overlay(
                             VStack(spacing: Constants.Spacing.xs) {
-                                Image(systemName: "photo")
+                                Image(systemName: "arrow.clockwise")
                                     .foregroundColor(.secondary)
-                                Text("Failed to load")
+                                Text("Tap to retry")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
                         )
-                        .onAppear {
-                            AppLogger.error("messaging", "Failed to load image from: \(url.absoluteString) - \(error.localizedDescription)")
-                        }
                 @unknown default:
                     EmptyView()
                 }
@@ -952,6 +924,38 @@ struct BubbleShape: Shape {
         }
         
         return path
+    }
+}
+
+// MARK: - URL Detection Cache
+
+/// Thread-safe cache for NSDataDetector results to avoid expensive regex on every SwiftUI body evaluation
+private final class URLDetectionCache: @unchecked Sendable {
+    private var cache: [String: [URL]] = [:]
+    private let lock = NSLock()
+    private static let detector: NSDataDetector? = {
+        try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    }()
+    
+    func urls(for text: String) -> [URL] {
+        lock.lock()
+        if let cached = cache[text] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+        
+        let matches = Self.detector?.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text)) ?? []
+        let urls = matches.compactMap { match -> URL? in
+            guard let range = Range(match.range, in: text) else { return nil }
+            return URL(string: String(text[range]))
+        }
+        
+        lock.lock()
+        cache[text] = urls
+        lock.unlock()
+        
+        return urls
     }
 }
 

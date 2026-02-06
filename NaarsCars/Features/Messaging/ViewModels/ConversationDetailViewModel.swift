@@ -157,6 +157,7 @@ final class ConversationDetailViewModel: ObservableObject {
         isLoading = true
         error = nil
         oldestMessageId = nil
+        // Assume there are more messages until we know otherwise from the server
         hasMoreMessages = true
         
         do {
@@ -173,8 +174,6 @@ final class ConversationDetailViewModel: ObservableObject {
                 merged.sort { $0.createdAt < $1.createdAt }
                 self.messages = merged
             }
-            oldestMessageId = localMessages.first?.id
-            hasMoreMessages = localMessages.count == pageSize
             scheduleReplyContextHydration()
 #if DEBUG
             logReplyDebugSnapshot(source: "loadMessages(local)", messages: self.messages)
@@ -184,17 +183,49 @@ final class ConversationDetailViewModel: ObservableObject {
         }
         
         // Update last_seen and mark as read when loading
-        // This prevents push notifications when user is actively viewing
         if let userId = authService.currentUserId {
-            // Update last_seen first to mark user as actively viewing
             try? await messageService.updateLastSeen(conversationId: conversationId, userId: userId)
-            // Then mark messages as read
             try? await messageService.markAsRead(conversationId: conversationId, userId: userId)
-            
-            // Clear badges and local unread count for this conversation
             await BadgeCountManager.shared.clearMessagesBadge(for: conversationId)
         }
         
+        // Fetch from network to get the initial page and set proper pagination state
+        do {
+            let networkMessages = try await messageService.fetchMessages(conversationId: conversationId, limit: pageSize)
+            
+            // Merge network messages into local
+            var merged = self.messages
+            let existingIds = Set(merged.map { $0.id })
+            for msg in networkMessages where !existingIds.contains(msg.id) {
+                merged.append(msg)
+            }
+            // Update existing messages with fresh data from network
+            for msg in networkMessages {
+                if let idx = merged.firstIndex(where: { $0.id == msg.id }) {
+                    // Preserve reply context if we already hydrated it
+                    var updated = msg
+                    if updated.replyToMessage == nil, let existing = merged[idx].replyToMessage {
+                        updated.replyToMessage = existing
+                    }
+                    merged[idx] = updated
+                }
+            }
+            merged.sort { $0.createdAt < $1.createdAt }
+            self.messages = merged
+            
+            // Set pagination state from what the server returned
+            oldestMessageId = merged.first?.id
+            hasMoreMessages = networkMessages.count >= pageSize
+            
+            scheduleReplyContextHydration()
+        } catch {
+            // Fall back to local data — set pagination from what we have
+            oldestMessageId = messages.first?.id
+            hasMoreMessages = messages.count >= pageSize
+            AppLogger.warning("messaging", "[ConversationDetailVM] Network fetch failed, using local: \(error.localizedDescription)")
+        }
+        
+        // Also sync to SwiftData in background
         Task { [weak self] in
             await self?.refreshMessagesInBackground()
         }
@@ -205,21 +236,32 @@ final class ConversationDetailViewModel: ObservableObject {
     func loadMoreMessages() async {
         guard !isLoadingMore, hasMoreMessages,
               let beforeId = oldestMessageId else {
+            AppLogger.info("messaging", "[ConversationDetailVM] loadMore skipped: isLoadingMore=\(isLoadingMore) hasMore=\(hasMoreMessages) oldestId=\(oldestMessageId?.uuidString ?? "nil")")
             return
         }
         
         isLoadingMore = true
+        AppLogger.info("messaging", "[ConversationDetailVM] Loading more messages before \(beforeId)")
         
         do {
             let fetched = try await messageService.fetchMessages(conversationId: conversationId, limit: pageSize, beforeMessageId: beforeId)
-            // Prepend older messages to the beginning
-            self.messages.insert(contentsOf: fetched, at: 0)
-            oldestMessageId = fetched.first?.id
-            hasMoreMessages = fetched.count == pageSize
+            
+            // Deduplicate before prepending
+            let existingIds = Set(self.messages.map { $0.id })
+            let newMessages = fetched.filter { !existingIds.contains($0.id) }
+            
+            if !newMessages.isEmpty {
+                self.messages.insert(contentsOf: newMessages, at: 0)
+            }
+            
+            // Update oldest message to the earliest in the full list
+            oldestMessageId = self.messages.first?.id
+            hasMoreMessages = fetched.count >= pageSize
+            
+            AppLogger.info("messaging", "[ConversationDetailVM] Loaded \(fetched.count) older messages (\(newMessages.count) new). hasMore=\(hasMoreMessages)")
             scheduleReplyContextHydration()
         } catch {
             AppLogger.error("messaging", "Error loading more messages: \(error.localizedDescription)")
-            // Don't set error here - just log it
         }
         
         isLoadingMore = false
