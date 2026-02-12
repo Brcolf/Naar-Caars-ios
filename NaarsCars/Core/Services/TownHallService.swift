@@ -10,7 +10,6 @@ import Supabase
 
 /// Service for town hall operations
 /// Handles fetching, creating, and managing town hall posts
-@MainActor
 final class TownHallService {
     
     // MARK: - Singleton
@@ -58,6 +57,26 @@ final class TownHallService {
         
         AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
         return posts
+    }
+
+    /// Fetch the town hall post ID associated with a review
+    /// - Parameter reviewId: Review ID
+    /// - Returns: Post ID if found
+    func fetchPostIdForReview(reviewId: UUID) async throws -> UUID? {
+        let response = try await supabase
+            .from("town_hall_posts")
+            .select("id")
+            .eq("review_id", value: reviewId.uuidString)
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute()
+
+        struct ReviewPostId: Decodable {
+            let id: UUID
+        }
+
+        let posts = try JSONDecoder().decode([ReviewPostId].self, from: response.data)
+        return posts.first?.id
     }
     
     // MARK: - Create Post

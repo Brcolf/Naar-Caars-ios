@@ -5,22 +5,17 @@
 
 import Foundation
 import SwiftData
-import Realtime
 
 @MainActor
-final class MessagingSyncEngine {
+final class MessagingSyncEngine: SyncEngineProtocol {
     static let shared = MessagingSyncEngine()
+    let engineName = "messaging"
     
     private let repository = MessagingRepository.shared
     private let realtimeManager = RealtimeManager.shared
     private let authService = AuthService.shared
     private var modelContext: ModelContext?
-    
-    private enum MessageEvent: String {
-        case insert
-        case update
-        case delete
-    }
+    private var lastStartSyncAt: Date = .distantPast
     
     private init() {}
     
@@ -30,53 +25,88 @@ final class MessagingSyncEngine {
     
     func startSync() {
         setupMessagesSubscription()
-        
-        // Initial sync
+
+        let now = Date()
+        guard now.timeIntervalSince(lastStartSyncAt) >= Constants.Timing.syncEngineStartCooldown else {
+            return
+        }
+        lastStartSyncAt = now
+
         if let userId = authService.currentUserId {
             Task {
                 try? await repository.syncConversations(userId: userId)
-                await retryPendingMessages()
+                // Start the durable send worker and process any pending messages
+                await MessageSendWorker.shared.start()
+                await MessageSendWorker.shared.notifyNewPendingMessage()
             }
         }
     }
 
-    private func handleIncomingMessage(_ payload: Any, event: MessageEvent) {
-        AppLogger.info("messaging", "Received realtime payload: \(type(of: payload))")
-        if event == .update,
-           let updateAction = payload as? UpdateAction,
-           Self.shouldIgnoreReadByUpdate(
-               record: updateAction.record,
-               oldRecord: updateAction.oldRecord,
-               currentUserId: authService.currentUserId
-           ) {
+    func pauseSync() async {
+        await realtimeManager.unsubscribe(channelName: "messages:sync")
+        await MessageSendWorker.shared.stop()
+    }
+
+    func resumeSync() async {
+        setupMessagesSubscription()
+    }
+
+    func teardown() async {
+        await pauseSync()
+        modelContext = nil
+        lastStartSyncAt = .distantPast
+    }
+
+    private func handleIncomingMessage(_ event: RealtimeRecord) {
+#if DEBUG
+        if FeatureFlags.verbosePerformanceLogsEnabled {
+            AppLogger.info("messaging", "Received realtime payload event: \(event.eventType)")
+        }
+#endif
+        if event.eventType == .update,
+           let oldRecord = event.oldRecord,
+           Self.shouldIgnoreReadByUpdate(record: event.record, oldRecord: oldRecord) {
             return
         }
-        guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
+        guard let message = MessagingMapper.parseMessage(from: event.record) else {
             AppLogger.warning("messaging", "Failed to parse realtime message payload")
             return
         }
         
         Task {
             do {
-                try repository.upsertMessage(message)
-                try repository.save()
+                let result = try repository.upsertMessageDetailed(message)
                 
-                // Media Pre-caching
-                if let imageUrl = message.imageUrl {
-                    precacheMedia(url: imageUrl)
-                }
-                if let audioUrl = message.audioUrl {
-                    precacheMedia(url: audioUrl)
-                }
+                switch result {
+                case .noChange:
+                    return
+                    
+                case .metadataOnly:
+                    // Metadata-only change (readBy) — already emitted via metadata publisher.
+                    // Save the context but skip the full list rebuild and notification.
+                    try? repository.saveContextOnly()
+                    return
+                    
+                case .contentChanged, .inserted:
+                    try repository.save(changedConversationIds: Set([message.conversationId]))
+                    
+                    // Media Pre-caching
+                    if let imageUrl = message.imageUrl {
+                        precacheMedia(url: imageUrl)
+                    }
+                    if let audioUrl = message.audioUrl {
+                        precacheMedia(url: audioUrl)
+                    }
 
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("conversationUpdated"),
-                    object: message.conversationId,
-                    userInfo: [
-                        "message": message,
-                        "event": event.rawValue
-                    ]
-                )
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("conversationUpdated"),
+                        object: message.conversationId,
+                        userInfo: [
+                            "message": message,
+                            "event": String(describing: event.eventType)
+                        ]
+                    )
+                }
             } catch {
                 AppLogger.error("messaging", "Error upserting realtime message: \(error)")
             }
@@ -88,26 +118,23 @@ final class MessagingSyncEngine {
             await realtimeManager.subscribe(
                 channelName: "messages:sync",
                 table: "messages",
-                onInsert: { [weak self] payload in
-                    self?.handleIncomingMessage(payload, event: .insert)
+                onInsert: { [weak self] record in
+                    self?.handleIncomingMessage(record)
                 },
-                onUpdate: { [weak self] payload in
-                    self?.handleIncomingMessage(payload, event: .update)
+                onUpdate: { [weak self] record in
+                    self?.handleIncomingMessage(record)
                 },
-                onDelete: { [weak self] payload in
-                    self?.handleIncomingMessage(payload, event: .delete)
+                onDelete: { [weak self] record in
+                    self?.handleIncomingMessage(record)
                 }
             )
         }
     }
 
     static func shouldIgnoreReadByUpdate(
-        record: [String: AnyJSON],
-        oldRecord: [String: AnyJSON],
-        currentUserId: UUID?
+        record: [String: Any],
+        oldRecord: [String: Any]
     ) -> Bool {
-        guard let currentUserId else { return false }
-
         var strippedRecord = record
         strippedRecord.removeValue(forKey: "read_by")
         strippedRecord.removeValue(forKey: "updated_at")
@@ -116,23 +143,8 @@ final class MessagingSyncEngine {
         strippedOldRecord.removeValue(forKey: "read_by")
         strippedOldRecord.removeValue(forKey: "updated_at")
 
-        guard strippedRecord == strippedOldRecord else { return false }
-
-        let oldReadBy = readBySet(oldRecord["read_by"])
-        let newReadBy = readBySet(record["read_by"])
-        guard oldReadBy != newReadBy else { return false }
-
-        return !oldReadBy.contains(currentUserId) && newReadBy.contains(currentUserId)
-    }
-
-    private static func readBySet(_ value: AnyJSON?) -> Set<UUID> {
-        guard case let .array(items)? = value else { return [] }
-        return Set(items.compactMap { item in
-            if case let .string(raw) = item {
-                return UUID(uuidString: raw)
-            }
-            return nil
-        })
+        let lhs = strippedRecord as NSDictionary
+        return lhs.isEqual(to: strippedOldRecord)
     }
 
     private func precacheMedia(url: String) {
@@ -140,65 +152,9 @@ final class MessagingSyncEngine {
         URLSession.shared.dataTask(with: mediaURL).resume() // Simple pre-fetch into URLCache
     }
 
+    /// Retry pending messages via the durable MessageSendWorker
     func retryPendingMessages() async {
-        guard let modelContext = modelContext else { return }
-        
-        // Fetch pending messages from SwiftData
-        let descriptor = FetchDescriptor<SDMessage>(
-            predicate: #Predicate { $0.isPending == true }
-        )
-        
-        do {
-            let pendingMessages = try modelContext.fetch(descriptor)
-            guard !pendingMessages.isEmpty else { return }
-            
-            AppLogger.info("messaging", "Found \(pendingMessages.count) pending message(s) to retry")
-            
-            for sdMessage in pendingMessages {
-                // Capture values needed by the sendable closure
-                let conversationId = sdMessage.conversationId
-                let fromId = sdMessage.fromId
-                let text = sdMessage.text
-                let imageUrl = sdMessage.imageUrl
-                let replyToId = sdMessage.replyToId
-                let messageId = sdMessage.id
-                
-                do {
-                    let sentMessage = try await RetryableOperation.execute(maxAttempts: 3, initialDelay: 1.0) {
-                        try await MessageService.shared.sendMessage(
-                            conversationId: conversationId,
-                            fromId: fromId,
-                            text: text,
-                            imageUrl: imageUrl,
-                            replyToId: replyToId
-                        )
-                    }
-                    
-                    // Replace optimistic message with the real server message
-                    modelContext.delete(sdMessage)
-                    let finalSDMessage = MessagingMapper.mapToSDMessage(sentMessage, isPending: false)
-                    
-                    let convId = sentMessage.conversationId
-                    let convFetch = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == convId })
-                    if let sdConv = try? modelContext.fetch(convFetch).first {
-                        finalSDMessage.conversation = sdConv
-                        sdConv.updatedAt = sentMessage.createdAt
-                    }
-                    
-                    modelContext.insert(finalSDMessage)
-                    try? modelContext.save()
-                    AppLogger.info("messaging", "Retried pending message \(messageId) successfully")
-                } catch {
-                    // Mark as failed after all retries exhausted
-                    sdMessage.isPending = false
-                    sdMessage.syncError = error.localizedDescription
-                    try? modelContext.save()
-                    AppLogger.error("messaging", "Failed to retry message \(messageId) after 3 attempts: \(error.localizedDescription)")
-                }
-            }
-        } catch {
-            AppLogger.error("messaging", "Failed to fetch pending messages: \(error.localizedDescription)")
-        }
+        await MessageSendWorker.shared.start()
+        await MessageSendWorker.shared.notifyNewPendingMessage()
     }
 }
-

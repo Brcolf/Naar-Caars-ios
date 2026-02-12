@@ -1,0 +1,14 @@
+# Supabase project config (used by CLI for local dev and deploy).
+# See: https://supabase.com/docs/guides/functions/function-configuration
+
+# Push notification functions are invoked only by Database Webhooks.
+# Webhooks often do not pass the Authorization header when type is "Supabase Edge Functions",
+# causing 401 before the function runs. Disabling JWT verification here lets the webhook invoke
+# the function; the function uses SUPABASE_SERVICE_ROLE_KEY for DB access and does not rely
+# on the incoming JWT. The function URL is not secret; abuse is limited to triggering
+# queue processing or sending with a valid payload shape.
+[functions.send-notification]
+verify_jwt = false
+
+[functions.send-message-push]
+verify_jwt = false

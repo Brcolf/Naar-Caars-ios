@@ -1,5 +1,23 @@
 -- Migration: RPC to fetch conversations with last message, unread counts, and participants
 
+-- Existing deployments may already have this function with a different OUT row type.
+-- PostgreSQL cannot change RETURNS TABLE shape via CREATE OR REPLACE, so drop first.
+DO $$
+DECLARE
+    fn regprocedure;
+BEGIN
+    FOR fn IN
+        SELECT p.oid::regprocedure
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname = 'get_conversations_with_details'
+    LOOP
+        EXECUTE format('DROP FUNCTION %s', fn);
+    END LOOP;
+END
+$$;
+
 CREATE OR REPLACE FUNCTION get_conversations_with_details(
     p_user_id UUID,
     p_limit INTEGER DEFAULT 10,
@@ -82,5 +100,3 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_conversations_with_details(UUID, INTEGER, INTEGER) TO authenticated;
-
-

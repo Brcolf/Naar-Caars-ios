@@ -11,13 +11,13 @@ import XCTest
 @MainActor
 final class NavigationCoordinatorTests: XCTestCase {
     override func tearDown() {
-        NavigationCoordinator.shared.requestNavigationTarget = nil
+        NavigationCoordinator.shared.pendingIntent = nil
         super.tearDown()
     }
 
     func testDismissNotificationsSheetClearsNavigateFlag() async {
         let coordinator = NavigationCoordinator.shared
-        coordinator.navigateToNotifications = true
+        coordinator.pendingIntent = .notifications
 
         NotificationCenter.default.post(
             name: NSNotification.Name("dismissNotificationsSheet"),
@@ -25,13 +25,13 @@ final class NavigationCoordinatorTests: XCTestCase {
         )
 
         await Task.yield()
-        XCTAssertFalse(coordinator.navigateToNotifications)
+        XCTAssertNil(coordinator.pendingIntent)
     }
 
     func testConsumeRequestNavigationTargetReturnsMatchAndClears() async {
         let coordinator = NavigationCoordinator.shared
         let rideId = UUID()
-        coordinator.requestNavigationTarget = RequestNotificationTarget(
+        let target = RequestNotificationTarget(
             requestType: .ride,
             requestId: rideId,
             anchor: .completeSheet,
@@ -39,17 +39,18 @@ final class NavigationCoordinatorTests: XCTestCase {
             highlightAnchor: .completeAction,
             shouldAutoClear: true
         )
+        coordinator.pendingIntent = .ride(rideId, anchor: target)
 
         let consumed = coordinator.consumeRequestNavigationTarget(for: .ride, requestId: rideId)
 
         XCTAssertEqual(consumed?.anchor, .completeSheet)
-        XCTAssertNil(coordinator.requestNavigationTarget)
+        XCTAssertNil(coordinator.pendingIntent)
     }
 
     func testConsumeRequestNavigationTargetIgnoresMismatchedRequest() async {
         let coordinator = NavigationCoordinator.shared
         let rideId = UUID()
-        coordinator.requestNavigationTarget = RequestNotificationTarget(
+        let target = RequestNotificationTarget(
             requestType: .ride,
             requestId: rideId,
             anchor: .completeSheet,
@@ -57,10 +58,11 @@ final class NavigationCoordinatorTests: XCTestCase {
             highlightAnchor: .completeAction,
             shouldAutoClear: true
         )
+        coordinator.pendingIntent = .ride(rideId, anchor: target)
 
         let consumed = coordinator.consumeRequestNavigationTarget(for: .ride, requestId: UUID())
 
         XCTAssertNil(consumed)
-        XCTAssertNotNil(coordinator.requestNavigationTarget)
+        XCTAssertNotNil(coordinator.pendingIntent)
     }
 }

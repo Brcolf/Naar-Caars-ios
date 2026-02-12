@@ -1,0 +1,20 @@
+description: "BadgeCountManager must not silently diverge from server contract."
+
+Applies to:
+- /**/BadgeCount*/**
+- /**/NotificationService*/**
+- /supabase/**
+
+Rules:
+1) If get_badge_counts exists:
+   - treat it as authoritative unless the plan explicitly says otherwise.
+   - client fallback aggregation must not be expanded.
+
+2) Any change to read/unread semantics, notification grouping, or badge mapping must update:
+   - server logic (RPC/triggers)
+   - client display logic
+   - at least one integration test that validates badge changes after an action (e.g., mark read)
+
+3) If RPC fails:
+   - prefer cached/stale values with a “staleness” flag rather than a second aggregation logic path.
+

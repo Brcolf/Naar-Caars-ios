@@ -20,12 +20,14 @@ struct NotificationsListView: View {
     @Query(sort: \SDNotification.createdAt, order: .reverse) private var sdNotifications: [SDNotification]
     
     var body: some View {
+        let groups = viewModel.getNotificationGroups(sdNotifications: sdNotifications)
+
         NavigationStack {
-            content
+            content(groups: groups)
                 .navigationTitle("notifications_title".localized)
                 .id("bell.notificationsList")
                 .toolbar {
-                    if !viewModel.getNotificationGroups(sdNotifications: sdNotifications).isEmpty && viewModel.unreadCount > 0 {
+                    if !groups.isEmpty && viewModel.unreadCount > 0 {
                         ToolbarItem(placement: .navigationBarTrailing) {
                             Button("notifications_mark_all_read".localized) {
                                 HapticManager.success()
@@ -57,9 +59,7 @@ struct NotificationsListView: View {
     // MARK: - Subviews
     
     @ViewBuilder
-    private var content: some View {
-        let groups = viewModel.getNotificationGroups(sdNotifications: sdNotifications)
-        
+    private func content(groups: [NotificationGroup]) -> some View {
         if viewModel.isLoading && groups.isEmpty {
             List {
                 ForEach(0..<5) { _ in
@@ -200,7 +200,6 @@ struct SkeletonNotificationRow: View {
     NotificationsListView()
         .environmentObject(AppState())
 }
-
 
 
 

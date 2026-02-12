@@ -1,0 +1,18 @@
+description: "NavigationCoordinator changes require a unified intent approach and routing validation."
+
+Applies to:
+- /**/Navigation*/**
+- /**/Notifications*/**
+- /**/AppDelegate*/**
+
+Rules:
+1) Avoid adding new @Published navigation flags (navigateToX).
+   - Prefer a single NavigationIntent enum once established.
+
+2) Any change to deep link / notification tap routing must include:
+   - a routing table update (where each notification type maps to an intent)
+   - a basic test or debug harness validating that mapping
+
+3) If deferred navigation exists:
+   - keep it behind a single mechanism (pendingIntent) and do not duplicate patterns.
+

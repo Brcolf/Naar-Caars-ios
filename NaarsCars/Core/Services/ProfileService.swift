@@ -12,7 +12,6 @@ import OSLog
 
 /// Service for profile-related operations
 /// Handles fetching, updating profiles, avatar uploads, reviews, and invite codes
-@MainActor
 final class ProfileService {
     
     // MARK: - Singleton
@@ -220,7 +219,8 @@ final class ProfileService {
         }
         
         // Upload to avatars bucket
-        let fileName = "\(userId.uuidString).jpg"
+        // Use lowercased UUID to match Supabase auth.uid() format (always lowercase)
+        let fileName = "\(userId.uuidString.lowercased()).jpg"
         
         try await supabase.storage
             .from("avatars")
@@ -425,4 +425,6 @@ final class ProfileService {
 private struct ReviewRating: Codable {
     let rating: Int
 }
+
+extension ProfileService: ProfileServiceProtocol {}
 

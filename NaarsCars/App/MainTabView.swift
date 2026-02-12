@@ -17,17 +17,20 @@ struct MainTabView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedTab = 0
     @State private var showGuidelinesAcceptance = false
+    @State private var isNotificationsSheetVisible = false
 
     @ViewBuilder
     private var toastOverlay: some View {
         if let toast = toastManager.latestToast {
             Button {
-                navigationCoordinator.conversationScrollTarget = .init(
-                    conversationId: toast.conversationId,
-                    messageId: toast.messageId
+                navigationCoordinator.pendingIntent = .conversation(
+                    toast.conversationId,
+                    scrollTarget: .init(
+                        conversationId: toast.conversationId,
+                        messageId: toast.messageId
+                    )
                 )
                 toastManager.latestToast = nil
-                navigationCoordinator.navigate(to: .conversation(id: toast.conversationId))
             } label: {
                 InAppMessageToastView(toast: toast)
             }
@@ -101,6 +104,16 @@ struct MainTabView: View {
                 }
             }
         }
+        .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+            guard let intent else { return }
+            if case .notifications = intent {
+                return
+            }
+            if isNotificationsSheetVisible {
+                return
+            }
+            navigationCoordinator.selectedTab = intent.targetTab
+        }
         .onChange(of: navigationCoordinator.showReviewPrompt) { _, show in
             guard show else { return }
             Task { @MainActor in
@@ -123,18 +136,27 @@ struct MainTabView: View {
                 await promptCoordinator.checkForPendingPrompts(userId: userId)
             }
         }
+        .onChange(of: appState.currentUser?.id) { _, newUserId in
+            if newUserId == nil {
+                showGuidelinesAcceptance = false
+                return
+            }
+            checkGuidelinesAcceptance()
+        }
         .overlay(alignment: .top) {
             toastOverlay
         }
         .offlineBanner()
-        .sheet(isPresented: $navigationCoordinator.navigateToNotifications, onDismiss: {
-            navigationCoordinator.navigateToNotifications = false
+        .sheet(isPresented: notificationsSheetBinding, onDismiss: {
+            isNotificationsSheetVisible = false
+            navigationCoordinator.applyDeferredIntentAfterNotificationsDismissal()
         }) {
             NotificationsListView()
                 .environmentObject(appState)
+                .onAppear { isNotificationsSheetVisible = true }
         }
-        .sheet(item: $navigationCoordinator.announcementsNavigationTarget, onDismiss: {
-            navigationCoordinator.announcementsNavigationTarget = nil
+        .sheet(item: announcementsTargetBinding, onDismiss: {
+            navigationCoordinator.pendingIntent = nil
         }) { target in
             AnnouncementsView(scrollToNotificationId: target.scrollToNotificationId)
                 .environmentObject(appState)
@@ -223,6 +245,39 @@ struct MainTabView: View {
             AppLogger.error("app", "Failed to accept guidelines: \(error)")
             // Keep the sheet open if acceptance fails
         }
+    }
+
+    private var notificationsSheetBinding: Binding<Bool> {
+        Binding(
+            get: {
+                if case .notifications = navigationCoordinator.pendingIntent {
+                    return true
+                }
+                return false
+            },
+            set: { isPresented in
+                guard !isPresented else { return }
+                if case .notifications = navigationCoordinator.pendingIntent {
+                    navigationCoordinator.pendingIntent = nil
+                }
+            }
+        )
+    }
+
+    private var announcementsTargetBinding: Binding<NavigationCoordinator.AnnouncementsNavigationTarget?> {
+        Binding(
+            get: {
+                guard case .announcements(let scrollId) = navigationCoordinator.pendingIntent else {
+                    return nil
+                }
+                return .init(id: UUID(), scrollToNotificationId: scrollId)
+            },
+            set: { value in
+                if value == nil, case .announcements = navigationCoordinator.pendingIntent {
+                    navigationCoordinator.pendingIntent = nil
+                }
+            }
+        )
     }
 }
 

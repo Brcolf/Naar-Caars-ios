@@ -10,7 +10,6 @@ import Supabase
 
 /// Service for town hall comment operations
 /// Handles fetching, creating, and managing comments on posts with nested replies
-@MainActor
 final class TownHallCommentService {
     
     // MARK: - Singleton

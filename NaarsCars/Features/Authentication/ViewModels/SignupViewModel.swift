@@ -56,7 +56,11 @@ final class SignupViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Auth service reference
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
     
     // MARK: - Validation Methods
     

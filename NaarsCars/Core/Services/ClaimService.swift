@@ -10,7 +10,6 @@ import Supabase
 
 /// Service for claim-related operations
 /// Handles claiming, unclaiming, and completing requests
-@MainActor
 final class ClaimService {
     
     // MARK: - Singleton
@@ -39,6 +38,7 @@ final class ClaimService {
         requestId: UUID,
         claimerId: UUID
     ) async throws {
+        let operationStart = Date()
         // Check rate limit (10 seconds between claims)
         let rateLimitKey = "claim_request_\(claimerId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
@@ -47,42 +47,81 @@ final class ClaimService {
         )
         
         guard canProceed else {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.request.rejected",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "reason": "rate_limit"
+                ]
+            )
             throw AppError.rateLimitExceeded("Please wait before claiming another request")
         }
         
         // Verify user has phone number
         let profile = try await ProfileService.shared.fetchProfile(userId: claimerId)
         guard profile.phoneNumber != nil, !profile.phoneNumber!.isEmpty else {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.request.rejected",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "reason": "missing_phone"
+                ]
+            )
             throw AppError.invalidInput("Phone number is required to claim requests")
         }
         
         // Determine table name
         let tableName = requestType == "ride" ? "rides" : "favors"
-        
-        // Update request status to "confirmed" and set claimed_by
-        let updates: [String: AnyCodable] = [
-            "status": AnyCodable("confirmed"),
-            "claimed_by": AnyCodable(claimerId.uuidString),
-            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-        ]
-        
-        try await supabase
-            .from(tableName)
-            .update(updates)
-            .eq("id", value: requestId.uuidString)
-            .execute()
-        
-        let posterId = try await getPosterId(requestType: requestType, requestId: requestId)
-        
-        // Create notification for poster
-        try await createClaimNotification(
-            requestType: requestType,
-            requestId: requestId,
-            posterId: posterId,
-            claimerId: claimerId
-        )
+        do {
+            // Update request status to "confirmed" and set claimed_by
+            let updates: [String: AnyCodable] = [
+                "status": AnyCodable("confirmed"),
+                "claimed_by": AnyCodable(claimerId.uuidString),
+                "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+            ]
+            
+            try await supabase
+                .from(tableName)
+                .update(updates)
+                .eq("id", value: requestId.uuidString)
+                .execute()
+            
+            let posterId = try await getPosterId(requestType: requestType, requestId: requestId)
+            
+            // Create notification for poster
+            try await createClaimNotification(
+                requestType: requestType,
+                requestId: requestId,
+                posterId: posterId,
+                claimerId: claimerId
+            )
 
-        // Completion reminders are server-scheduled via database triggers.
+            // Completion reminders are server-scheduled via database triggers.
+            await PerformanceMonitor.shared.record(
+                operation: "claim.request.success",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString
+                ],
+                slowThreshold: Constants.Performance.claimOperationSlowThreshold
+            )
+        } catch {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.request.failed",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+            throw error
+        }
     }
     
     // MARK: - Unclaim Request
@@ -98,6 +137,7 @@ final class ClaimService {
         requestId: UUID,
         claimerId: UUID
     ) async throws {
+        let operationStart = Date()
         // Check rate limit
         let rateLimitKey = "unclaim_request_\(claimerId.uuidString)"
         let canProceed = await rateLimiter.checkAndRecord(
@@ -106,6 +146,15 @@ final class ClaimService {
         )
         
         guard canProceed else {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.unclaim.rejected",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "reason": "rate_limit"
+                ]
+            )
             throw AppError.rateLimitExceeded("Please wait before unclaiming again")
         }
         
@@ -131,29 +180,59 @@ final class ClaimService {
         let claimedBy: ClaimedBy = try JSONDecoder().decode(ClaimedBy.self, from: response.data)
         
         guard claimedBy.claimedBy == claimerId else {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.unclaim.rejected",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "reason": "not_current_claimer"
+                ]
+            )
             throw AppError.permissionDenied("You can only unclaim requests you claimed")
         }
         
-        // Reset status to "open" and clear claimed_by
-        let updates: [String: AnyCodable] = [
-            "status": AnyCodable("open"),
-            "claimed_by": AnyCodable(String?.none as Any),
-            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-        ]
-        
-        try await supabase
-            .from(tableName)
-            .update(updates)
-            .eq("id", value: requestId.uuidString)
-            .execute()
-        
-        // Create notification for poster
-        try await createUnclaimNotification(
-            requestType: requestType,
-            requestId: requestId,
-            posterId: try await getPosterId(requestType: requestType, requestId: requestId)
-        )
-        
+        do {
+            // Reset status to "open" and clear claimed_by
+            let updates: [String: AnyCodable] = [
+                "status": AnyCodable("open"),
+                "claimed_by": AnyCodable(String?.none as Any),
+                "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+            ]
+            
+            try await supabase
+                .from(tableName)
+                .update(updates)
+                .eq("id", value: requestId.uuidString)
+                .execute()
+            
+            // Create notification for poster
+            try await createUnclaimNotification(
+                requestType: requestType,
+                requestId: requestId,
+                posterId: try await getPosterId(requestType: requestType, requestId: requestId)
+            )
+            await PerformanceMonitor.shared.record(
+                operation: "claim.unclaim.success",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString
+                ],
+                slowThreshold: Constants.Performance.claimOperationSlowThreshold
+            )
+        } catch {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.unclaim.failed",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+            throw error
+        }
     }
     
     // MARK: - Complete Request
@@ -169,6 +248,7 @@ final class ClaimService {
         requestId: UUID,
         posterId: UUID
     ) async throws {
+        let operationStart = Date()
         // Determine table name
         let tableName = requestType == "ride" ? "rides" : "favors"
         
@@ -191,22 +271,53 @@ final class ClaimService {
         let userId: UserId = try JSONDecoder().decode(UserId.self, from: response.data)
         
         guard userId.userId == posterId else {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.complete.rejected",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "reason": "not_poster"
+                ]
+            )
             throw AppError.permissionDenied("Only the poster can mark a request as complete")
         }
         
-        // Update status to "completed"
-        let updates: [String: AnyCodable] = [
-            "status": AnyCodable("completed"),
-            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-        ]
-        
-        try await supabase
-            .from(tableName)
-            .update(updates)
-            .eq("id", value: requestId.uuidString)
-            .execute()
-        
-        // Note: Review prompt will be handled by the UI layer
+        do {
+            // Update status to "completed"
+            let updates: [String: AnyCodable] = [
+                "status": AnyCodable("completed"),
+                "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+            ]
+            
+            try await supabase
+                .from(tableName)
+                .update(updates)
+                .eq("id", value: requestId.uuidString)
+                .execute()
+            
+            // Note: Review prompt will be handled by the UI layer
+            await PerformanceMonitor.shared.record(
+                operation: "claim.complete.success",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString
+                ],
+                slowThreshold: Constants.Performance.claimOperationSlowThreshold
+            )
+        } catch {
+            await PerformanceMonitor.shared.record(
+                operation: "claim.complete.failed",
+                duration: Date().timeIntervalSince(operationStart),
+                metadata: [
+                    "requestType": requestType,
+                    "requestId": requestId.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+            throw error
+        }
     }
     
     // MARK: - Private Helpers
@@ -294,3 +405,4 @@ final class ClaimService {
     
 }
 
+extension ClaimService: ClaimServiceProtocol {}

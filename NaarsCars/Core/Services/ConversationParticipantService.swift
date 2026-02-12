@@ -11,7 +11,6 @@ import OSLog
 
 /// Service for managing conversation participants
 /// Handles adding, removing, and checking participant status
-@MainActor
 final class ConversationParticipantService {
     
     // MARK: - Singleton

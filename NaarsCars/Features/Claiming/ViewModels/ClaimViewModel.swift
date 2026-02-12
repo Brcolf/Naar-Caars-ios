@@ -22,9 +22,19 @@ final class ClaimViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let claimService = ClaimService.shared
-    private let authService = AuthService.shared
-    private let profileService = ProfileService.shared
+    private let claimService: any ClaimServiceProtocol
+    private let authService: any AuthServiceProtocol
+    private let profileService: any ProfileServiceProtocol
+
+    init(
+        claimService: any ClaimServiceProtocol = ClaimService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared,
+        profileService: any ProfileServiceProtocol = ProfileService.shared
+    ) {
+        self.claimService = claimService
+        self.authService = authService
+        self.profileService = profileService
+    }
     
     // MARK: - Public Methods
     

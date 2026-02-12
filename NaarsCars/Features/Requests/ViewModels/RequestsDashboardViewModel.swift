@@ -19,176 +19,104 @@ struct RequestNotificationSummary {
 /// ViewModel for unified requests dashboard
 @MainActor
 final class RequestsDashboardViewModel: ObservableObject {
-    
     // MARK: - Published Properties
-    
+
     @Published var filter: RequestFilter = .open
     @Published var isLoading: Bool = false
     @Published var error: String?
-    @Published var unseenRequestKeys: Set<String> = []
-    @Published var requestNotificationSummaries: [String: RequestNotificationSummary] = [:]
     @Published var filterBadgeCounts: [RequestFilter: Int] = [:]
     @Published var filteredRides: [SDRide] = []
     @Published var filteredFavors: [SDFavor] = []
-    
+    @Published var filteredRequests: [RequestItem] = []
+
+    var unseenRequestKeys: Set<String> { summaryManager.unseenRequestKeys }
+    var requestNotificationSummaries: [String: RequestNotificationSummary] { summaryManager.requestNotificationSummaries }
+
     // MARK: - Private Properties
-    
+
     private var modelContext: ModelContext?
-    private let rideService = RideService.shared
-    private let favorService = FavorService.shared
-    private let authService = AuthService.shared
-    private let notificationService = NotificationService.shared
-    private let realtimeManager = RealtimeManager.shared
-    private let badgeManager = BadgeCountManager.shared
-    
+    private let rideService: any RideServiceProtocol
+    private let favorService: any FavorServiceProtocol
+    private let authService: any AuthServiceProtocol
+    private let filterManager: RequestFilterManager
+    private let summaryManager: RequestNotificationSummaryManager
+    private let realtimeHandler: RequestRealtimeHandler
+    private var managerCancellables = Set<AnyCancellable>()
+
     // MARK: - Lifecycle
-    
+
+    init(
+        rideService: any RideServiceProtocol = RideService.shared,
+        favorService: any FavorServiceProtocol = FavorService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.rideService = rideService
+        self.favorService = favorService
+        self.authService = authService
+        filterManager = RequestFilterManager()
+        summaryManager = RequestNotificationSummaryManager()
+        realtimeHandler = RequestRealtimeHandler()
+
+        filterManager.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &managerCancellables)
+        summaryManager.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &managerCancellables)
+        realtimeHandler.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &managerCancellables)
+
+        realtimeHandler.configure(
+            modelContextProvider: { [weak self] in self?.modelContext },
+            authUserIdProvider: { [weak self] in self?.authService.currentUserId },
+            syncRidesToSwiftData: { [weak self] rides, context in
+                self?.syncRidesToSwiftData(rides, in: context)
+            },
+            syncFavorsToSwiftData: { [weak self] favors, context in
+                self?.syncFavorsToSwiftData(favors, in: context)
+            },
+            refreshFilteredRequests: { [weak self] in
+                self?.refreshFilteredRequests()
+            },
+            refreshRequestSummaries: { [weak self] in
+                await self?.refreshUnseenRequestKeys()
+            },
+            loadRequestsForceRefresh: { [weak self] in
+                await self?.loadRequests(forceRefresh: true)
+            }
+        )
+    }
+
     deinit {
-        // Use Task.detached to clean up subscriptions without capturing self
-        Task.detached {
-            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-rides")
-            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-favors")
-            await RealtimeManager.shared.unsubscribe(channelName: "requests-dashboard-notifications")
+        let handler = realtimeHandler
+        Task { @MainActor in
+            handler.cleanupRealtimeSubscription()
         }
     }
-    
+
     // MARK: - Public Methods
-    
+
     /// Set up the model context for SwiftData operations
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
         refreshFilteredRequests()
     }
-    
+
     /// Get filtered requests from SwiftData models
     func getFilteredRequests(
         rides: [SDRide],
         favors: [SDFavor],
         filterOverride: RequestFilter? = nil
     ) -> [RequestItem] {
-        guard let userId = authService.currentUserId else { return [] }
         let activeFilter = filterOverride ?? filter
-        
-        // 1. Convert SDRide/SDFavor to Ride/Favor (minimal conversion for UI)
-        // In a full implementation, we'd have a way to convert SD models back to domain models
-        // or make the UI work directly with SD models.
-        
-        var allRequests: [RequestItem] = []
-        
-        // Convert SDRide to Ride
-        let ridesConverted: [Ride] = rides.map { sdRide -> Ride in
-            let poster = makeProfile(
-                id: sdRide.userId,
-                name: sdRide.posterName,
-                avatarUrl: sdRide.posterAvatarUrl
-            )
-            let claimer = sdRide.claimedBy.flatMap { claimedBy in
-                makeProfile(
-                    id: claimedBy,
-                    name: sdRide.claimerName,
-                    avatarUrl: sdRide.claimerAvatarUrl
-                )
-            }
-            return Ride(
-                id: sdRide.id,
-                userId: sdRide.userId,
-                type: sdRide.type,
-                date: sdRide.date,
-                time: sdRide.time,
-                pickup: sdRide.pickup,
-                destination: sdRide.destination,
-                seats: sdRide.seats,
-                notes: sdRide.notes,
-                gift: sdRide.gift,
-                status: RideStatus(rawValue: sdRide.status) ?? .open,
-                claimedBy: sdRide.claimedBy,
-                reviewed: sdRide.reviewed,
-                reviewSkipped: sdRide.reviewSkipped,
-                reviewSkippedAt: sdRide.reviewSkippedAt,
-                estimatedCost: sdRide.estimatedCost,
-                createdAt: sdRide.createdAt,
-                updatedAt: sdRide.updatedAt,
-                poster: poster,
-                claimer: claimer,
-                qaCount: sdRide.qaCount
-            )
-        }
-        
-        // Convert SDFavor to Favor
-        let favorsConverted: [Favor] = favors.map { sdFavor -> Favor in
-            let poster = makeProfile(
-                id: sdFavor.userId,
-                name: sdFavor.posterName,
-                avatarUrl: sdFavor.posterAvatarUrl
-            )
-            let claimer = sdFavor.claimedBy.flatMap { claimedBy in
-                makeProfile(
-                    id: claimedBy,
-                    name: sdFavor.claimerName,
-                    avatarUrl: sdFavor.claimerAvatarUrl
-                )
-            }
-            return Favor(
-                id: sdFavor.id,
-                userId: sdFavor.userId,
-                title: sdFavor.title,
-                description: sdFavor.favorDescription,
-                location: sdFavor.location,
-                duration: FavorDuration(rawValue: sdFavor.duration) ?? .notSure,
-                requirements: sdFavor.requirements,
-                date: sdFavor.date,
-                time: sdFavor.time,
-                gift: sdFavor.gift,
-                status: FavorStatus(rawValue: sdFavor.status) ?? .open,
-                claimedBy: sdFavor.claimedBy,
-                reviewed: sdFavor.reviewed,
-                reviewSkipped: sdFavor.reviewSkipped,
-                reviewSkippedAt: sdFavor.reviewSkippedAt,
-                createdAt: sdFavor.createdAt,
-                updatedAt: sdFavor.updatedAt,
-                poster: poster,
-                claimer: claimer,
-                qaCount: sdFavor.qaCount
-            )
-        }
-        
-        let rideItems = ridesConverted.map { RequestItem.ride($0) }
-        let favorItems = favorsConverted.map { RequestItem.favor($0) }
-        allRequests = rideItems + favorItems
-        
-        // 2. Apply filtering
-        switch activeFilter {
-        case .open:
-            // Open Requests: Show unclaimed requests that user is NOT participating in
-            allRequests = allRequests.filter { request in
-                request.isUnclaimed && !request.isParticipating(userId: userId)
-            }
-        case .mine:
-            // My Requests: Show requests user is participating in (poster or participant)
-            allRequests = allRequests.filter { request in
-                request.isParticipating(userId: userId)
-            }
-        case .claimed:
-            // Claimed Requests: Show requests user has claimed
-            allRequests = allRequests.filter { request in
-                request.claimedBy == userId
-            }
-        }
-        
-        // 3. Filter out completed and old requests
-        let now = Date()
-        allRequests = allRequests.filter { request in
-            if request.isCompleted { return false }
-            let hoursSinceEvent = now.timeIntervalSince(request.eventTime) / 3600
-            return hoursSinceEvent <= 12
-        }
-        
-        // 4. Sort by event time
-        allRequests.sort { $0.eventTime < $1.eventTime }
-        
-        return allRequests
+        return filterManager.getFilteredRequests(
+            rides: rides,
+            favors: favors,
+            filter: activeFilter
+        )
     }
-    
+
     /// Load requests (rides + favors) from network and sync to SwiftData
     func loadRequests(forceRefresh: Bool = false) async {
         isLoading = true
@@ -197,11 +125,14 @@ final class RequestsDashboardViewModel: ObservableObject {
         
         do {
             // Fetch everything from Supabase (Full Mirror Sync)
-            async let ridesTask = rideService.fetchRides()
-            async let favorsTask = favorService.fetchFavors()
+            async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
+            async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
             
             let rides = try await ridesTask
             let favors = try await favorsTask
+            
+            // Don't update state if the task was cancelled
+            guard !Task.isCancelled else { return }
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -211,12 +142,18 @@ final class RequestsDashboardViewModel: ObservableObject {
             }
             refreshFilteredRequests()
             await refreshUnseenRequestKeys()
+        } catch is CancellationError {
+            // Silently ignore task cancellation — normal during SwiftUI
+            // lifecycle (view redraws, pull-to-refresh superseded, etc.)
+            return
+        } catch let error as NSError where error.code == NSURLErrorCancelled {
+            return
         } catch {
             self.error = error.localizedDescription
             AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
         }
     }
-    
+
     private func syncRidesToSwiftData(_ rides: [Ride], in context: ModelContext) {
         for ride in rides {
             let id = ride.id
@@ -242,6 +179,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.posterAvatarUrl = ride.poster?.avatarUrl
                 existing.claimerName = ride.claimer?.name
                 existing.claimerAvatarUrl = ride.claimer?.avatarUrl
+                existing.participantIds = ride.participants?.map { $0.id } ?? []
             } else {
                 // Insert new
                 let sdRide = SDRide(
@@ -267,6 +205,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                     posterAvatarUrl: ride.poster?.avatarUrl,
                     claimerName: ride.claimer?.name,
                     claimerAvatarUrl: ride.claimer?.avatarUrl,
+                    participantIds: ride.participants?.map { $0.id } ?? [],
                     qaCount: ride.qaCount ?? 0
                 )
                 context.insert(sdRide)
@@ -274,7 +213,7 @@ final class RequestsDashboardViewModel: ObservableObject {
         }
         refreshFilteredRequests()
     }
-    
+
     private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) {
         for favor in favors {
             let id = favor.id
@@ -300,6 +239,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.posterAvatarUrl = favor.poster?.avatarUrl
                 existing.claimerName = favor.claimer?.name
                 existing.claimerAvatarUrl = favor.claimer?.avatarUrl
+                existing.participantIds = favor.participants?.map { $0.id } ?? []
             } else {
                 // Insert new
                 let sdFavor = SDFavor(
@@ -324,6 +264,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                     posterAvatarUrl: favor.poster?.avatarUrl,
                     claimerName: favor.claimer?.name,
                     claimerAvatarUrl: favor.claimer?.avatarUrl,
+                    participantIds: favor.participants?.map { $0.id } ?? [],
                     qaCount: favor.qaCount ?? 0
                 )
                 context.insert(sdFavor)
@@ -332,288 +273,45 @@ final class RequestsDashboardViewModel: ObservableObject {
         refreshFilteredRequests()
     }
 
-    private func makeProfile(id: UUID, name: String?, avatarUrl: String?) -> Profile? {
-        guard let name = name, !name.isEmpty else { return nil }
-        return Profile(id: id, name: name, email: "", avatarUrl: avatarUrl)
-    }
-
-    private func resolveRequestTarget(
-        requestType: RequestType,
-        requestId: UUID,
-        latestType: NotificationType
-    ) -> RequestNotificationTarget {
-        let mapped: RequestNotificationTarget?
-        switch requestType {
-        case .ride:
-            mapped = RequestNotificationMapping.target(
-                for: latestType,
-                rideId: requestId,
-                favorId: nil
-            )
-        case .favor:
-            mapped = RequestNotificationMapping.target(
-                for: latestType,
-                rideId: nil,
-                favorId: requestId
-            )
-        }
-
-        if let mapped { return mapped }
-
-        return RequestNotificationTarget(
-            requestType: requestType,
-            requestId: requestId,
-            anchor: .mainTop,
-            scrollAnchor: nil,
-            highlightAnchor: .mainTop,
-            shouldAutoClear: true
-        )
-    }
-    
     /// Update filter and reload requests
     func filterRequests(_ newFilter: RequestFilter) {
-        filter = newFilter
+        filter = filterManager.filterRequests(newFilter)
         refreshFilteredRequests()
     }
 
     func notificationTarget(for request: RequestItem) -> RequestNotificationTarget? {
-        guard let summary = requestNotificationSummaries[request.notificationKey] else { return nil }
-
-        switch request {
-        case .ride(let ride):
-            return resolveRequestTarget(
-                requestType: .ride,
-                requestId: ride.id,
-                latestType: summary.latestUnreadType
-            )
-        case .favor(let favor):
-            return resolveRequestTarget(
-                requestType: .favor,
-                requestId: favor.id,
-                latestType: summary.latestUnreadType
-            )
-        }
+        filterManager.notificationTarget(
+            for: request,
+            requestNotificationSummaries: summaryManager.requestNotificationSummaries
+        )
     }
-    
+
     /// Refresh requests (pull-to-refresh)
     func refreshRequests() async {
         await loadRequests(forceRefresh: true)
     }
-    
+
     /// Setup realtime subscription for live updates
     func setupRealtimeSubscription() {
-        Task {
-            // Subscribe to rides changes
-            await realtimeManager.subscribe(
-                channelName: "requests-dashboard-rides",
-                table: "rides",
-                filter: nil,
-                onInsert: { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadRequests(forceRefresh: true)
-                    }
-                },
-                onUpdate: { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadRequests(forceRefresh: true)
-                    }
-                },
-                onDelete: { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadRequests(forceRefresh: true)
-                    }
-                }
-            )
-            
-            // Subscribe to favors changes
-            await realtimeManager.subscribe(
-                channelName: "requests-dashboard-favors",
-                table: "favors",
-                filter: nil,
-                onInsert: { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadRequests(forceRefresh: true)
-                    }
-                },
-                onUpdate: { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadRequests(forceRefresh: true)
-                    }
-                },
-                onDelete: { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadRequests(forceRefresh: true)
-                    }
-                }
-            )
-
-            if let userId = authService.currentUserId {
-                let userFilter = "user_id=eq.\(userId.uuidString)"
-                await realtimeManager.subscribe(
-                    channelName: "requests-dashboard-notifications",
-                    table: "notifications",
-                    filter: userFilter,
-                    onInsert: { [weak self] _ in
-                        Task { @MainActor in
-                            await self?.refreshUnseenRequestKeys()
-                            await self?.badgeManager.refreshAllBadges()
-                        }
-                    },
-                    onUpdate: { [weak self] _ in
-                        Task { @MainActor in
-                            await self?.refreshUnseenRequestKeys()
-                            await self?.badgeManager.refreshAllBadges()
-                        }
-                    },
-                    onDelete: { [weak self] _ in
-                        Task { @MainActor in
-                            await self?.refreshUnseenRequestKeys()
-                            await self?.badgeManager.refreshAllBadges()
-                        }
-                    }
-                )
-            }
-        }
+        realtimeHandler.setupRealtimeSubscription()
     }
-    
+
     /// Cleanup realtime subscription
     func cleanupRealtimeSubscription() {
-        Task {
-            await realtimeManager.unsubscribe(channelName: "requests-dashboard-rides")
-            await realtimeManager.unsubscribe(channelName: "requests-dashboard-favors")
-            await realtimeManager.unsubscribe(channelName: "requests-dashboard-notifications")
-        }
+        realtimeHandler.cleanupRealtimeSubscription()
     }
 
     private func refreshUnseenRequestKeys() async {
-        guard let userId = authService.currentUserId else {
-            unseenRequestKeys = []
-            requestNotificationSummaries = [:]
-            filterBadgeCounts = [:]
-            return
-        }
-
-        do {
-            // Use a detached task or check for cancellation to avoid NSURLErrorDomain Code=-999
-            let notifications = try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
-            
-            // Check if we are still on the main actor and not cancelled before updating published properties
-            if !Task.isCancelled {
-                let summaries = buildRequestNotificationSummaries(from: notifications)
-                requestNotificationSummaries = summaries
-                unseenRequestKeys = Set(summaries.keys)
-                refreshFilterBadgeCounts()
-                AppLogger.info("requests", "Unseen request keys: \(unseenRequestKeys.count)")
-            }
-        } catch {
-            // Ignore cancellation errors to clean up logs
-            if (error as NSError).code != NSURLErrorCancelled {
-                AppLogger.warning("requests", "Failed to refresh request keys: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func buildRequestNotificationSummaries(
-        from notifications: [AppNotification]
-    ) -> [String: RequestNotificationSummary] {
-        var summaries: [String: RequestNotificationSummary] = [:]
-
-        for notification in notifications where !notification.read {
-            guard let key = NotificationGrouping.requestKey(for: notification) else { continue }
-            let createdAt = notification.createdAt
-
-            if let existing = summaries[key] {
-                let unreadCount = existing.unreadCount + 1
-                if createdAt > existing.latestUnreadAt {
-                    summaries[key] = RequestNotificationSummary(
-                        unreadCount: unreadCount,
-                        latestUnreadType: notification.type,
-                        latestUnreadAt: createdAt
-                    )
-                } else {
-                    summaries[key] = RequestNotificationSummary(
-                        unreadCount: unreadCount,
-                        latestUnreadType: existing.latestUnreadType,
-                        latestUnreadAt: existing.latestUnreadAt
-                    )
-                }
-            } else {
-                summaries[key] = RequestNotificationSummary(
-                    unreadCount: 1,
-                    latestUnreadType: notification.type,
-                    latestUnreadAt: createdAt
-                )
-            }
-        }
-
-        return summaries
-    }
-    
-    private func extractRecord(from payload: Any) -> [String: Any]? {
-        if let insertAction = payload as? InsertAction {
-            return insertAction.record
-        }
-        if let dict = payload as? [String: Any] {
-            return dict["record"] as? [String: Any] ?? dict
-        }
-        return nil
+        await summaryManager.refreshUnseenRequestKeys(modelContext: modelContext)
+        refreshFilterBadgeCounts()
     }
 
     private func refreshFilteredRequests() {
         guard let context = modelContext else { return }
-        filteredRides = fetchFilteredRides(in: context)
-        filteredFavors = fetchFilteredFavors(in: context)
+        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter)
+        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter)
+        filteredRequests = filterManager.getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filter)
         refreshFilterBadgeCounts()
-    }
-
-    private func fetchFilteredRides(
-        in context: ModelContext,
-        filterOverride: RequestFilter? = nil
-    ) -> [SDRide] {
-        guard let userId = authService.currentUserId else { return [] }
-        let activeFilter = filterOverride ?? filter
-
-        let predicate: Predicate<SDRide>
-        switch activeFilter {
-        case .open:
-            predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
-        case .mine:
-            predicate = #Predicate { $0.status != "completed" && ($0.userId == userId || $0.claimedBy == userId) }
-        case .claimed:
-            predicate = #Predicate { $0.claimedBy == userId && $0.status != "completed" }
-        }
-
-        let descriptor = FetchDescriptor<SDRide>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
-        let fetched = (try? context.fetch(descriptor)) ?? []
-        if activeFilter == .mine {
-            return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
-        }
-        return fetched
-    }
-
-    private func fetchFilteredFavors(
-        in context: ModelContext,
-        filterOverride: RequestFilter? = nil
-    ) -> [SDFavor] {
-        guard let userId = authService.currentUserId else { return [] }
-        let activeFilter = filterOverride ?? filter
-
-        let predicate: Predicate<SDFavor>
-        switch activeFilter {
-        case .open:
-            predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
-        case .mine:
-            predicate = #Predicate { $0.status != "completed" && ($0.userId == userId || $0.claimedBy == userId) }
-        case .claimed:
-            predicate = #Predicate { $0.claimedBy == userId && $0.status != "completed" }
-        }
-
-        let descriptor = FetchDescriptor<SDFavor>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
-        let fetched = (try? context.fetch(descriptor)) ?? []
-        if activeFilter == .mine {
-            return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
-        }
-        return fetched
     }
 
     private func refreshFilterBadgeCounts() {
@@ -621,22 +319,9 @@ final class RequestsDashboardViewModel: ObservableObject {
             filterBadgeCounts = [:]
             return
         }
-
-        var counts: [RequestFilter: Int] = [:]
-        for filterCase in RequestFilter.allCases {
-            let rides = fetchFilteredRides(in: context, filterOverride: filterCase)
-            let favors = fetchFilteredFavors(in: context, filterOverride: filterCase)
-            let requests = getFilteredRequests(
-                rides: rides,
-                favors: favors,
-                filterOverride: filterCase
-            )
-            let unreadTotal = requests.reduce(0) { total, request in
-                total + (requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0)
-            }
-            counts[filterCase] = unreadTotal
-        }
-        filterBadgeCounts = counts
+        filterBadgeCounts = filterManager.computeFilterBadgeCounts(
+            in: context,
+            requestNotificationSummaries: summaryManager.requestNotificationSummaries
+        )
     }
 }
-

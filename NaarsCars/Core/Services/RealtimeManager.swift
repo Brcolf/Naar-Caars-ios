@@ -13,9 +13,185 @@ import OSLog
 internal import Combine
 
 /// Callback types for realtime events
-typealias RealtimeInsertCallback = (Any) -> Void
-typealias RealtimeUpdateCallback = (Any) -> Void
-typealias RealtimeDeleteCallback = (Any) -> Void
+typealias RealtimeInsertCallback = (RealtimeRecord) -> Void
+typealias RealtimeUpdateCallback = (RealtimeRecord) -> Void
+typealias RealtimeDeleteCallback = (RealtimeRecord) -> Void
+
+/// Canonical representation of a decoded Supabase Realtime event.
+struct RealtimeRecord {
+    enum EventType {
+        case insert
+        case update
+        case delete
+    }
+
+    let table: String
+    let eventType: EventType
+    let record: [String: Any]
+    let oldRecord: [String: Any]?
+}
+
+/// Decodes Supabase Realtime action payloads into canonical `RealtimeRecord` values.
+enum RealtimePayloadAdapter {
+    static func decodeInsert(_ payload: Any, table: String) -> RealtimeRecord? {
+        if let action = payload as? InsertAction {
+            let record = normalizeRecord(action.record)
+            return RealtimeRecord(
+                table: table,
+                eventType: .insert,
+                record: record,
+                oldRecord: nil
+            )
+        }
+
+        if let dict = payload as? [String: Any] {
+            let extracted = (dict["record"] as? [String: Any]) ?? dict
+            return RealtimeRecord(
+                table: table,
+                eventType: .insert,
+                record: extracted,
+                oldRecord: nil
+            )
+        }
+
+        AppLogger.warning("realtime", "Failed to decode insert payload: \(type(of: payload))")
+        return nil
+    }
+
+    static func decodeUpdate(_ payload: Any, table: String) -> RealtimeRecord? {
+        if let action = payload as? UpdateAction {
+            let record = normalizeRecord(action.record)
+            let oldRecord = normalizeRecord(action.oldRecord)
+            return RealtimeRecord(
+                table: table,
+                eventType: .update,
+                record: record,
+                oldRecord: oldRecord
+            )
+        }
+
+        if let dict = payload as? [String: Any] {
+            let extractedRecord = (dict["record"] as? [String: Any]) ?? dict
+            let extractedOldRecord = dict["old_record"] as? [String: Any]
+            return RealtimeRecord(
+                table: table,
+                eventType: .update,
+                record: extractedRecord,
+                oldRecord: extractedOldRecord
+            )
+        }
+
+        AppLogger.warning("realtime", "Failed to decode update payload: \(type(of: payload))")
+        return nil
+    }
+
+    static func decodeDelete(_ payload: Any, table: String) -> RealtimeRecord? {
+        if let action = payload as? DeleteAction {
+            let oldRecord = normalizeRecord(action.oldRecord)
+            return RealtimeRecord(
+                table: table,
+                eventType: .delete,
+                record: oldRecord,
+                oldRecord: oldRecord
+            )
+        }
+
+        if let dict = payload as? [String: Any] {
+            let extractedOldRecord = (dict["old_record"] as? [String: Any]) ?? dict
+            return RealtimeRecord(
+                table: table,
+                eventType: .delete,
+                record: extractedOldRecord,
+                oldRecord: extractedOldRecord
+            )
+        }
+
+        AppLogger.warning("realtime", "Failed to decode delete payload: \(type(of: payload))")
+        return nil
+    }
+
+    static func normalizeRecord(_ record: [String: AnyJSON]) -> [String: Any] {
+        var normalized: [String: Any] = [:]
+        normalized.reserveCapacity(record.count)
+        for (key, value) in record {
+            normalized[key] = normalizeValue(value) ?? NSNull()
+        }
+        return normalized
+    }
+
+    static func normalizeValue(_ value: Any?) -> Any? {
+        guard let value else { return nil }
+        if value is NSNull { return nil }
+        if let anyJSON = value as? AnyJSON {
+            return decodeAnyJSON(anyJSON)
+        }
+        if type(of: value) == AnyHashable.self, let anyHashable = value as? AnyHashable {
+            return normalizeValue(anyHashable.base)
+        }
+        return value
+    }
+
+    static func decodeAnyJSON(_ anyJSON: AnyJSON) -> Any? {
+        if let mirrorValue = decodeAnyJSONMirror(anyJSON) {
+            return mirrorValue
+        }
+        guard let data = try? JSONEncoder().encode(anyJSON),
+              let object = try? JSONSerialization.jsonObject(with: data, options: []) else {
+            return nil
+        }
+        if object is NSNull {
+            return nil
+        }
+        return object
+    }
+
+    static func decodeAnyJSONMirror(_ anyJSON: AnyJSON) -> Any? {
+        let mirror = Mirror(reflecting: anyJSON)
+        if mirror.displayStyle == .enum, let child = mirror.children.first {
+            return decodeAnyJSONMirrorValue(label: child.label, value: child.value)
+        }
+        if mirror.displayStyle == .struct || mirror.displayStyle == .class {
+            for child in mirror.children {
+                if child.label == "value" || child.label == "rawValue" || child.label == "storage" || child.label == "wrapped" {
+                    return decodeAnyJSONMirrorValue(label: child.label, value: child.value)
+                }
+            }
+            if let child = mirror.children.first {
+                return decodeAnyJSONMirrorValue(label: child.label, value: child.value)
+            }
+        }
+        return nil
+    }
+
+    static func decodeAnyJSONMirrorValue(label: String?, value: Any) -> Any? {
+        if value is NSNull { return nil }
+        if let nested = value as? AnyJSON { return decodeAnyJSONMirror(nested) }
+        if let dict = value as? [String: Any] {
+            var result: [String: Any] = [:]
+            for (key, val) in dict {
+                result[key] = normalizeValue(val) ?? NSNull()
+            }
+            return result
+        }
+        if let dict = value as? [String: AnyJSON] {
+            var result: [String: Any] = [:]
+            for (key, val) in dict {
+                result[key] = decodeAnyJSONMirror(val) ?? NSNull()
+            }
+            return result
+        }
+        if let array = value as? [Any] {
+            return array.map { normalizeValue($0) ?? NSNull() }
+        }
+        if let array = value as? [AnyJSON] {
+            return array.map { decodeAnyJSONMirror($0) ?? NSNull() }
+        }
+        if label == "null" {
+            return nil
+        }
+        return value
+    }
+}
 
 /// Channel subscription info
 private struct ChannelSubscription {
@@ -42,11 +218,20 @@ final class RealtimeManager {
     /// Shared singleton instance
     static let shared = RealtimeManager()
     
-    /// Maximum concurrent subscriptions (per FR-049)
-    private let maxConcurrentSubscriptions = 10
+    /// Maximum concurrent subscriptions across app features.
+    private let maxConcurrentSubscriptions = 30
     
     /// Protected channel prefixes that should not be evicted when possible
-    private let protectedChannelPrefixes = ["messages:", "typing:"]
+    private let protectedChannelPrefixes = [
+        "messages:",
+        "typing:",
+        "rides:sync",
+        "favors:sync",
+        "notifications:sync",
+        "notifications:all",
+        "town-hall-",
+        "requests-dashboard-"
+    ]
 
     /// Active channel subscriptions
     private var activeChannels: [String: ChannelSubscription] = [:]
@@ -169,7 +354,10 @@ final class RealtimeManager {
         if let onInsert, let insertStream {
             tasks.append(Task {
                 for await action in insertStream {
-                    onInsert(action)
+                    guard let record = RealtimePayloadAdapter.decodeInsert(action, table: table) else {
+                        continue
+                    }
+                    onInsert(record)
                 }
             })
         }
@@ -177,7 +365,10 @@ final class RealtimeManager {
         if let onUpdate, let updateStream {
             tasks.append(Task {
                 for await action in updateStream {
-                    onUpdate(action)
+                    guard let record = RealtimePayloadAdapter.decodeUpdate(action, table: table) else {
+                        continue
+                    }
+                    onUpdate(record)
                 }
             })
         }
@@ -185,7 +376,10 @@ final class RealtimeManager {
         if let onDelete, let deleteStream {
             tasks.append(Task {
                 for await action in deleteStream {
-                    onDelete(action)
+                    guard let record = RealtimePayloadAdapter.decodeDelete(action, table: table) else {
+                        continue
+                    }
+                    onDelete(record)
                 }
             })
         }
@@ -224,11 +418,11 @@ final class RealtimeManager {
     }
     
     /// Unsubscribe from all channels
-    func unsubscribeAll() async {
+    func unsubscribeAll(removeConfigs: Bool = true) async {
         let channelNames = Array(activeChannels.keys)
         
         for channelName in channelNames {
-            await unsubscribe(channelName: channelName)
+            await unsubscribe(channelName: channelName, removeConfig: removeConfigs)
         }
         await supabaseClient.removeAllChannels()
         isConnected = false
@@ -302,6 +496,19 @@ final class RealtimeManager {
                 await self?.handleWillEnterForeground()
             }
         }
+
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Defer to next run loop so the first frame after foreground isn't blocked (reduces freeze).
+            DispatchQueue.main.async {
+                Task { @MainActor in
+                    await self?.handleDidBecomeActive()
+                }
+            }
+        }
         #endif
     }
     
@@ -315,7 +522,8 @@ final class RealtimeManager {
         // Set timer to unsubscribe after 30 seconds
         backgroundUnsubscribeTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                await self?.unsubscribeAll()
+                // Keep configs so channels can be restored when app returns foreground.
+                await self?.unsubscribeAll(removeConfigs: false)
                 AppLogger.realtime.info("Auto-unsubscribed all channels after 30 seconds in background")
             }
         }
@@ -328,9 +536,31 @@ final class RealtimeManager {
         // Cancel background unsubscribe timer
         backgroundUnsubscribeTimer?.invalidate()
         backgroundUnsubscribeTimer = nil
-        
-        // Note: Actual resubscription should be handled by the view models
-        // that need the subscriptions. This manager just cleans up.
+        await restoreTrackedSubscriptionsIfNeeded(reason: "foreground")
+    }
+
+    private func handleDidBecomeActive() async {
+        await restoreTrackedSubscriptionsIfNeeded(reason: "didBecomeActive")
+    }
+
+    private func restoreTrackedSubscriptionsIfNeeded(reason: String) async {
+        guard !subscriptionConfigs.isEmpty else { return }
+
+        let hasMissingChannels = activeChannels.count < subscriptionConfigs.count
+        let shouldRestore = activeChannels.isEmpty || hasMissingChannels || !isConnected
+        guard shouldRestore else { return }
+
+        let accessToken = (try? await supabaseClient.auth.session.accessToken) ?? ""
+        let realtime = supabaseClient.realtimeV2
+        await realtime.connect()
+        if !accessToken.isEmpty {
+            await realtime.setAuth(accessToken)
+        }
+
+        await resubscribeAll()
+        AppLogger.realtime.info(
+            "Resubscribed \(self.subscriptionConfigs.count) tracked channel(s) on \(reason)"
+        )
     }
     
     deinit {
@@ -340,4 +570,3 @@ final class RealtimeManager {
         #endif
     }
 }
-

@@ -1,0 +1,23 @@
+description: "Realtime/webhook payload parsing must be centralized and unit tested."
+
+Applies to:
+- /**/Realtime*/**
+- /**/SyncEngine*/**
+- /**/MessagingSyncEngine*/**
+- /**/DashboardSyncEngine*/**
+- /supabase/functions/**
+
+Rules:
+1) ViewModels and SyncEngines must not hand-parse raw Any/JSON.
+   - All payloads must go through a single adapter/decoder layer.
+
+2) Adapter must normalize known shapes:
+   - record/new
+   - data.record/data.new
+   - oldRecord/old
+   - insert/update/delete variants
+
+3) Every new or modified payload shape requires:
+   - a JSON fixture
+   - a unit test for normalization + decoding
+

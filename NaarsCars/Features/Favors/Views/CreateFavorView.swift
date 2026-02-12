@@ -14,6 +14,7 @@ struct CreateFavorView: View {
     var onFavorCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
+    @State private var showErrorAlert = false
     
     var body: some View {
         NavigationStack {
@@ -140,7 +141,7 @@ struct CreateFavorView: View {
                                 try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
                                 dismiss()
                             } catch {
-                                // Error is already set in viewModel
+                                showErrorAlert = true
                             }
                         }
                     }
@@ -160,6 +161,13 @@ struct CreateFavorView: View {
                 )
             }
             .trackScreen("CreateFavor")
+            .alert("Error", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) {
+                    showErrorAlert = false
+                }
+            } message: {
+                Text(viewModel.error ?? "An unexpected error occurred.")
+            }
         }
         .successCheckmark(isShowing: $showSuccess)
     }

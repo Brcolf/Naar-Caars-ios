@@ -41,7 +41,11 @@ final class CreatePostViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let townHallService = TownHallService.shared
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     

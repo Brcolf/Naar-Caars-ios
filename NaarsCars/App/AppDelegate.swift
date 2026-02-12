@@ -9,8 +9,9 @@ import UIKit
 import UserNotifications
 import BackgroundTasks
 import os
+import MetricKit
 
-class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MXMetricManagerSubscriber {
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Configure URLCache for better image caching (50MB memory, 200MB disk)
@@ -30,6 +31,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         // Register background tasks
         registerBackgroundTasks()
+
+        // Register MetricKit subscriber for app hangs/crash diagnostics payloads
+        setupMetricKitIfNeeded()
         
         // Handle deep link if app was opened via URL
         if let url = launchOptions?[.url] as? URL {
@@ -37,6 +41,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
         
         return true
+    }
+
+    deinit {
+        removeMetricKitSubscriber()
     }
     
     // MARK: - Background Tasks
@@ -54,6 +62,20 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
     static func appRefreshTask(from task: Any) -> BGAppRefreshTask? {
         task as? BGAppRefreshTask
+    }
+
+    private func setupMetricKitIfNeeded() {
+        guard PerformanceMonitor.isMetricKitEnabled else { return }
+        if #available(iOS 13.0, *) {
+            MXMetricManager.shared.add(self)
+            AppLogger.info("performance", "MetricKit subscriber registered")
+        }
+    }
+
+    private func removeMetricKitSubscriber() {
+        if #available(iOS 13.0, *) {
+            MXMetricManager.shared.remove(self)
+        }
     }
     
     private func handleAppRefresh(task: BGAppRefreshTask) {
@@ -112,6 +134,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     // MARK: - Remote Notification Registration
     
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        // #region agent log
+        PushNotificationService.pushDebugLog(location: "AppDelegate.swift:didRegisterForRemoteNotifications", message: "APNs token received", data: ["tokenPrefix": String(tokenString.prefix(12)), "hasUserId": AuthService.shared.currentUserId != nil])
+        // #endregion
         Task { @MainActor in
             PushNotificationService.shared.storeDeviceToken(deviceToken)
             if let userId = AuthService.shared.currentUserId {
@@ -128,8 +154,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             }
         }
     }
-    
+
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // #region agent log
+        PushNotificationService.pushDebugLog(location: "AppDelegate.swift:didFailToRegister", message: "APNs registration failed", data: ["error": error.localizedDescription])
+        // #endregion
         Log.push("Failed to register for remote notifications: \(error.localizedDescription)", type: .error)
     }
     
@@ -431,6 +460,48 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                notificationType == "review_reminder" ||
                notificationType == "completion_reminder"
     }
+
+    // MARK: - MetricKit
+
+    @available(iOS 13.0, *)
+    func didReceive(_ payloads: [MXMetricPayload]) {
+        guard PerformanceMonitor.isMetricKitEnabled else { return }
+        for payload in payloads {
+            let data = payload.jsonRepresentation()
+            if PerformanceMonitor.isVerboseLoggingEnabled {
+                let snippet = String(data: data, encoding: .utf8)?
+                    .prefix(2_000) ?? "unreadable"
+                AppLogger.info(
+                    "performance",
+                    "MetricKit metric payload received (\(data.count) bytes): \(snippet)"
+                )
+            } else {
+                AppLogger.info(
+                    "performance",
+                    "MetricKit metric payload received (\(data.count) bytes)"
+                )
+            }
+        }
+    }
+
+    @available(iOS 14.0, *)
+    func didReceive(_ payloads: [MXDiagnosticPayload]) {
+        guard PerformanceMonitor.isMetricKitEnabled else { return }
+        for payload in payloads {
+            let data = payload.jsonRepresentation()
+            if PerformanceMonitor.isVerboseLoggingEnabled {
+                let snippet = String(data: data, encoding: .utf8)?
+                    .prefix(2_000) ?? "unreadable"
+                AppLogger.warning(
+                    "performance",
+                    "MetricKit diagnostic payload received (\(data.count) bytes): \(snippet)"
+                )
+            } else {
+                AppLogger.warning(
+                    "performance",
+                    "MetricKit diagnostic payload received (\(data.count) bytes)"
+                )
+            }
+        }
+    }
 }
-
-

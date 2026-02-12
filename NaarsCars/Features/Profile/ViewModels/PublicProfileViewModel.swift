@@ -24,7 +24,11 @@ final class PublicProfileViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let profileService = ProfileService.shared
+    private let profileService: any ProfileServiceProtocol
+
+    init(profileService: any ProfileServiceProtocol = ProfileService.shared) {
+        self.profileService = profileService
+    }
     
     // MARK: - Public Methods
     

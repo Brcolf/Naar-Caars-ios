@@ -119,6 +119,28 @@ final class NotificationsListViewModelTests: XCTestCase {
         // Note: In a real scenario, you'd verify all notifications are marked as read
         XCTAssertFalse(viewModel.isLoading, "Loading should be false after marking all as read")
     }
+
+    /// Test that tapping a review request notification posts the review prompt
+    func testHandleNotificationTap_ReviewRequestShowsPrompt() async {
+        let rideId = UUID()
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .reviewRequest,
+            title: "Review request",
+            rideId: rideId
+        )
+
+        let expectation = expectation(forNotification: .showReviewPrompt, object: nil) { notification in
+            guard let postedRideId = notification.userInfo?["rideId"] as? UUID else {
+                return false
+            }
+            return postedRideId == rideId
+        }
+
+        viewModel.handleNotificationTap(notification)
+
+        await fulfillment(of: [expectation], timeout: 1.0)
+    }
 }
 
 

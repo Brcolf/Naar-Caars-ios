@@ -9,10 +9,10 @@ import Foundation
 import Supabase
 import UIKit
 import OSLog
+import PostgREST
 
 /// Service for conversation operations
 /// Handles creating, fetching, and managing conversations and participants
-@MainActor
 final class ConversationService {
     
     // MARK: - Singleton
@@ -22,6 +22,8 @@ final class ConversationService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
+    private var conversationsRpcFailureCount: Int = 0
+    private var conversationsRpcBackoffUntil: Date?
     
     // MARK: - Initialization
     
@@ -45,14 +47,17 @@ final class ConversationService {
     /// - Throws: AppError if fetch fails
     func fetchConversations(userId: UUID, limit: Int = 10, offset: Int = 0) async throws -> [ConversationWithDetails] {
         do {
-            do {
-                let rpcConversations = try await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset)
-                if !rpcConversations.isEmpty {
-                    AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
-                    return rpcConversations
+            if shouldUseConversationsRpc() {
+                do {
+                    let rpcConversations = try await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset)
+                    resetConversationsRpcBackoff()
+                    if !rpcConversations.isEmpty {
+                        AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
+                        return rpcConversations
+                    }
+                } catch {
+                    registerConversationsRpcFailure(error)
                 }
-            } catch {
-                AppLogger.network.error("RPC get_conversations_with_details failed: \(error)")
             }
 
             // Get user's conversation IDs from conversation_participants
@@ -142,6 +147,35 @@ final class ConversationService {
                 return []
             }
             // Re-throw other errors
+            throw error
+        }
+    }
+
+    /// Fetch one conversation with details for a specific user.
+    /// Uses lightweight single-conversation fetch and existing detail hydration logic.
+    func fetchConversationWithDetails(conversationId: UUID, userId: UUID) async throws -> ConversationWithDetails? {
+        do {
+            let response = try await supabase
+                .from("conversations")
+                .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
+                .eq("id", value: conversationId.uuidString)
+                .single()
+                .execute()
+
+            let conversation = try createDateDecoder().decode(Conversation.self, from: response.data)
+            return await fetchConversationDetails(
+                conversation: conversation,
+                userId: userId,
+                supabase: supabase
+            )
+        } catch {
+            let description = error.localizedDescription.lowercased()
+            if description.contains("0 rows") ||
+                description.contains("no rows") ||
+                description.contains("json object requested") ||
+                description.contains("not found") {
+                return nil
+            }
             throw error
         }
     }
@@ -782,6 +816,41 @@ final class ConversationService {
         }
         return nil
     }
+
+    private func shouldUseConversationsRpc() -> Bool {
+        guard let backoffUntil = conversationsRpcBackoffUntil else { return true }
+        return Date() >= backoffUntil
+    }
+
+    private func resetConversationsRpcBackoff() {
+        conversationsRpcFailureCount = 0
+        conversationsRpcBackoffUntil = nil
+    }
+
+    private func registerConversationsRpcFailure(_ error: Error) {
+        conversationsRpcFailureCount += 1
+
+        let postgrestCode = (error as? PostgrestError)?.code ?? ""
+        let description = error.localizedDescription.lowercased()
+        let isSchemaIssue =
+            postgrestCode == "42702" || // ambiguous column
+            postgrestCode == "42P01" || // relation missing
+            postgrestCode == "42883" || // function missing
+            description.contains("ambiguous") ||
+            description.contains("does not exist")
+
+        let backoffSeconds: TimeInterval
+        if isSchemaIssue {
+            backoffSeconds = 5 * 60
+        } else {
+            backoffSeconds = min(pow(2.0, Double(conversationsRpcFailureCount - 1)) * 5.0, 120.0)
+        }
+        conversationsRpcBackoffUntil = Date().addingTimeInterval(backoffSeconds)
+
+        AppLogger.network.warning(
+            "RPC get_conversations_with_details failed (code=\(postgrestCode)); using fallback for \(Int(backoffSeconds))s: \(error.localizedDescription)"
+        )
+    }
     
     /// Send a system message (announcement)
     /// - Parameters:
@@ -813,3 +882,5 @@ final class ConversationService {
         return try decoder.decode(Message.self, from: response.data)
     }
 }
+
+extension ConversationService: ConversationServiceProtocol {}

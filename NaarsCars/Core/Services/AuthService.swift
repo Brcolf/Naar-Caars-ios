@@ -187,11 +187,8 @@ final class AuthService: ObservableObject {
             }
             
             // Profile creation is handled by database trigger (handle_new_user)
-            // Wait a moment for trigger to complete, then fetch profile
-            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            
-            // Fetch user profile
-            let profile = try await fetchCurrentProfile()
+            // Poll for profile with exponential backoff instead of a fixed delay
+            let profile = try await pollForNewProfile(maxAttempts: 5, initialDelayMs: 100)
             
             // Update currentUserId and currentProfile
             currentUserId = userId
@@ -609,17 +606,43 @@ final class AuthService: ObservableObject {
         // Unsubscribe from all realtime channels (best-effort)
         await RealtimeManager.shared.unsubscribeAll()
         AppLogger.realtime.debug("Realtime unsubscribed on sign out")
+
+        // Ensure sync engines release subscriptions and reset lifecycle state.
+        await SyncEngineOrchestrator.shared.teardownAll()
         
         AppLogger.auth.info("Sign out cleanup completed")
     }
 
     func restartRealtimeSyncEngines() {
-        Task { @MainActor in
-            DashboardSyncEngine.shared.startSync()
-            MessagingSyncEngine.shared.startSync()
-        }
+        SyncEngineOrchestrator.shared.startAll()
     }
     
+    /// Poll for profile creation after signup with exponential backoff
+    /// The database trigger (handle_new_user) creates the profile asynchronously,
+    /// so we poll instead of using a fixed delay.
+    /// - Parameters:
+    ///   - maxAttempts: Maximum number of poll attempts
+    ///   - initialDelayMs: Initial delay between attempts in milliseconds (doubles each attempt)
+    /// - Returns: Profile if found within the timeout
+    /// - Throws: AppError if profile is not created within the polling window
+    private func pollForNewProfile(maxAttempts: Int, initialDelayMs: UInt64) async throws -> Profile? {
+        var delayMs = initialDelayMs
+        for attempt in 1...maxAttempts {
+            if let profile = try await fetchCurrentProfile() {
+                if attempt > 1 {
+                    AppLogger.auth.info("Profile found on poll attempt \(attempt)")
+                }
+                return profile
+            }
+            if attempt < maxAttempts {
+                try await Task.sleep(nanoseconds: delayMs * 1_000_000)
+                delayMs = min(delayMs * 2, 1600) // cap at 1.6s per interval
+            }
+        }
+        AppLogger.auth.warning("Profile not found after \(maxAttempts) poll attempts")
+        return nil
+    }
+
     /// Fetch current user's profile from database
     /// - Returns: Profile if found, nil otherwise
     private func fetchCurrentProfile() async throws -> Profile? {
@@ -656,3 +679,4 @@ enum AuthState {
     case authenticated
 }
 
+extension AuthService: AuthServiceProtocol {}

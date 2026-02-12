@@ -13,8 +13,9 @@ extension Notification.Name {
 }
 
 @MainActor
-final class TownHallSyncEngine {
+final class TownHallSyncEngine: SyncEngineProtocol {
     static let shared = TownHallSyncEngine()
+    let engineName = "townHall"
 
     private let repository: TownHallRepository
     private let townHallService: TownHallService
@@ -46,6 +47,30 @@ final class TownHallSyncEngine {
         setupVotesSubscription()
     }
 
+    func pauseSync() async {
+        postsRefreshTask?.cancel()
+        postsRefreshTask = nil
+
+        for task in commentRefreshTasks.values {
+            task.cancel()
+        }
+        commentRefreshTasks.removeAll()
+
+        await realtimeManager.unsubscribe(channelName: "town-hall-posts")
+        await realtimeManager.unsubscribe(channelName: "town-hall-comments")
+        await realtimeManager.unsubscribe(channelName: "town-hall-votes")
+    }
+
+    func resumeSync() async {
+        setupPostsSubscription()
+        setupCommentsSubscription()
+        setupVotesSubscription()
+    }
+
+    func teardown() async {
+        await pauseSync()
+    }
+
     // MARK: - Subscriptions
 
     private func setupPostsSubscription() {
@@ -53,19 +78,19 @@ final class TownHallSyncEngine {
             await realtimeManager.subscribe(
                 channelName: "town-hall-posts",
                 table: "town_hall_posts",
-                onInsert: { [weak self] payload in
+                onInsert: { [weak self] record in
                     Task { @MainActor in
-                        self?.handlePostUpsert(payload)
+                        self?.handlePostUpsert(record)
                     }
                 },
-                onUpdate: { [weak self] payload in
+                onUpdate: { [weak self] record in
                     Task { @MainActor in
-                        self?.handlePostUpsert(payload)
+                        self?.handlePostUpsert(record)
                     }
                 },
-                onDelete: { [weak self] payload in
+                onDelete: { [weak self] record in
                     Task { @MainActor in
-                        self?.handlePostDelete(payload)
+                        self?.handlePostDelete(record)
                     }
                 }
             )
@@ -77,19 +102,19 @@ final class TownHallSyncEngine {
             await realtimeManager.subscribe(
                 channelName: "town-hall-comments",
                 table: "town_hall_comments",
-                onInsert: { [weak self] payload in
+                onInsert: { [weak self] record in
                     Task { @MainActor in
-                        self?.handleCommentUpsert(payload)
+                        self?.handleCommentUpsert(record)
                     }
                 },
-                onUpdate: { [weak self] payload in
+                onUpdate: { [weak self] record in
                     Task { @MainActor in
-                        self?.handleCommentUpsert(payload)
+                        self?.handleCommentUpsert(record)
                     }
                 },
-                onDelete: { [weak self] payload in
+                onDelete: { [weak self] record in
                     Task { @MainActor in
-                        self?.handleCommentDelete(payload)
+                        self?.handleCommentDelete(record)
                     }
                 }
             )
@@ -101,14 +126,14 @@ final class TownHallSyncEngine {
             await realtimeManager.subscribe(
                 channelName: "town-hall-votes",
                 table: "town_hall_votes",
-                onInsert: { [weak self] payload in
-                    self?.handleVoteChange(payload)
+                onInsert: { [weak self] record in
+                    self?.handleVoteChange(record)
                 },
-                onUpdate: { [weak self] payload in
-                    self?.handleVoteChange(payload)
+                onUpdate: { [weak self] record in
+                    self?.handleVoteChange(record)
                 },
-                onDelete: { [weak self] payload in
-                    self?.handleVoteChange(payload)
+                onDelete: { [weak self] record in
+                    self?.handleVoteChange(record)
                 }
             )
         }
@@ -116,9 +141,8 @@ final class TownHallSyncEngine {
 
     // MARK: - Handlers
 
-    private func handlePostUpsert(_ payload: Any) {
-        guard let record = TownHallPayloadMapper.extractRecord(from: payload),
-              let post = TownHallPayloadMapper.parsePost(from: record) else {
+    private func handlePostUpsert(_ event: RealtimeRecord) {
+        guard let post = TownHallPayloadMapper.parsePost(from: event.record) else {
             return
         }
 
@@ -131,9 +155,8 @@ final class TownHallSyncEngine {
         triggerPostsRefresh()
     }
 
-    private func handlePostDelete(_ payload: Any) {
-        guard let record = TownHallPayloadMapper.extractRecord(from: payload),
-              let id = TownHallPayloadMapper.parseUUID(record["id"]) else {
+    private func handlePostDelete(_ event: RealtimeRecord) {
+        guard let id = TownHallPayloadMapper.parseUUID(event.record["id"]) else {
             return
         }
 
@@ -146,9 +169,8 @@ final class TownHallSyncEngine {
         triggerPostsRefresh()
     }
 
-    private func handleCommentUpsert(_ payload: Any) {
-        guard let record = TownHallPayloadMapper.extractRecord(from: payload),
-              let comment = TownHallPayloadMapper.parseComment(from: record) else {
+    private func handleCommentUpsert(_ event: RealtimeRecord) {
+        guard let comment = TownHallPayloadMapper.parseComment(from: event.record) else {
             return
         }
 
@@ -162,10 +184,9 @@ final class TownHallSyncEngine {
         triggerPostsRefresh()
     }
 
-    private func handleCommentDelete(_ payload: Any) {
-        guard let record = TownHallPayloadMapper.extractRecord(from: payload),
-              let id = TownHallPayloadMapper.parseUUID(record["id"]),
-              let postId = TownHallPayloadMapper.parseUUID(record["post_id"]) else {
+    private func handleCommentDelete(_ event: RealtimeRecord) {
+        guard let id = TownHallPayloadMapper.parseUUID(event.record["id"]),
+              let postId = TownHallPayloadMapper.parseUUID(event.record["post_id"]) else {
             return
         }
 
@@ -179,17 +200,15 @@ final class TownHallSyncEngine {
         triggerPostsRefresh()
     }
 
-    private func handleVoteChange(_ payload: Any) {
-        guard let record = TownHallPayloadMapper.extractRecord(from: payload) else { return }
-
-        if let postId = TownHallPayloadMapper.parseUUID(record["post_id"]) {
+    private func handleVoteChange(_ event: RealtimeRecord) {
+        if let postId = TownHallPayloadMapper.parseUUID(event.record["post_id"]) {
             NotificationCenter.default.post(
                 name: .townHallPostVotesDidChange,
                 object: postId
             )
         }
 
-        if let commentId = TownHallPayloadMapper.parseUUID(record["comment_id"]) {
+        if let commentId = TownHallPayloadMapper.parseUUID(event.record["comment_id"]) {
             NotificationCenter.default.post(
                 name: .townHallCommentVotesDidChange,
                 object: commentId
@@ -229,36 +248,6 @@ final class TownHallSyncEngine {
 }
 
 private enum TownHallPayloadMapper {
-    static func extractRecord(from payload: Any) -> [String: Any]? {
-        if let insertAction = payload as? InsertAction {
-            return insertAction.record as [String: Any]
-        }
-        if let updateAction = payload as? UpdateAction {
-            return updateAction.record as [String: Any]
-        }
-        if let deleteAction = payload as? DeleteAction {
-            let mirror = Mirror(reflecting: deleteAction)
-            if let record = mirror.children.first(where: { $0.label == "oldRecord" })?.value as? [String: Any] {
-                return record
-            }
-            if let record = mirror.children.first(where: { $0.label == "oldRecord" })?.value as? [String: AnyJSON] {
-                return record.mapValues { $0 }
-            }
-            if let record = mirror.children.first(where: { $0.label == "record" })?.value as? [String: Any] {
-                return record
-            }
-            if let record = mirror.children.first(where: { $0.label == "record" })?.value as? [String: AnyJSON] {
-                return record.mapValues { $0 }
-            }
-        }
-        if let dict = payload as? [String: Any] {
-            return dict["record"] as? [String: Any]
-                ?? dict["old_record"] as? [String: Any]
-                ?? dict
-        }
-        return nil
-    }
-
     static func parsePost(from record: [String: Any]) -> TownHallPost? {
         guard let id = parseUUID(record["id"]),
               let userId = parseUUID(record["user_id"]),

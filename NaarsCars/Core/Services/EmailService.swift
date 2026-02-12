@@ -10,7 +10,6 @@ import Foundation
 import Supabase
 
 /// Service for sending email notifications
-@MainActor
 final class EmailService {
     
     // MARK: - Singleton

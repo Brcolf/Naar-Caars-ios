@@ -21,8 +21,8 @@ struct FavorDetailView: View {
     @State private var showUnclaimSheet = false
     @State private var showReviewSheet = false
     @State private var showPhoneRequired = false
-    @State private var navigateToProfile = false
-    @State private var navigateToConversation: UUID?
+    @State private var showProfileFromPhoneRequired = false
+    @State private var selectedConversationId: UUID?
     @State private var showAddParticipants = false
     @State private var selectedUserIds: Set<UUID> = []
     @State private var highlightedAnchor: RequestDetailAnchor?
@@ -49,7 +49,7 @@ struct FavorDetailView: View {
                     }
                 }
                 .padding()
-                .onChange(of: navigationCoordinator.requestNavigationTarget) { _, _ in
+                .onChange(of: navigationCoordinator.pendingIntent) { _, _ in
                     handlePendingRequestNavigation(proxy: proxy)
                 }
                 .onAppear {
@@ -89,14 +89,8 @@ struct FavorDetailView: View {
                     requestType: "favor",
                     requestTitle: favor.title,
                     onConfirm: {
-                        Task {
-                            do {
-                                try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
-                                await viewModel.loadFavor(id: favorId)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
+                        try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
+                        await viewModel.loadFavor(id: favorId)
                     }
                 )
                 .id(RequestDetailAnchor.claimSheet.anchorId(for: .favor))
@@ -108,14 +102,8 @@ struct FavorDetailView: View {
                     requestType: "favor",
                     requestTitle: favor.title,
                     onConfirm: {
-                        Task {
-                            do {
-                                try await claimViewModel.unclaim(requestType: "favor", requestId: favor.id)
-                                await viewModel.loadFavor(id: favorId)
-                            } catch {
-                                // Error handled in viewModel
-                            }
-                        }
+                        try await claimViewModel.unclaim(requestType: "favor", requestId: favor.id)
+                        await viewModel.loadFavor(id: favorId)
                     }
                 )
                 .id(RequestDetailAnchor.unclaimSheet.anchorId(for: .favor))
@@ -141,7 +129,7 @@ struct FavorDetailView: View {
             }
         }
         .sheet(isPresented: $showPhoneRequired) {
-            PhoneRequiredSheet(navigateToProfile: $navigateToProfile)
+            PhoneRequiredSheet(showProfileScreen: $showProfileFromPhoneRequired)
         }
         .sheet(isPresented: $claimViewModel.showPushPermissionPrompt) {
             PushPermissionPromptView(
@@ -155,10 +143,10 @@ struct FavorDetailView: View {
                 }
             )
         }
-        .navigationDestination(isPresented: $navigateToProfile) {
+        .navigationDestination(isPresented: $showProfileFromPhoneRequired) {
             MyProfileView()
         }
-        .navigationDestination(item: $navigateToConversation) { conversationId in
+        .navigationDestination(item: $selectedConversationId) { conversationId in
             ConversationDetailView(conversationId: conversationId)
         }
         .sheet(isPresented: $showAddParticipants) {
@@ -449,7 +437,6 @@ struct FavorDetailView: View {
             }
         }
         
-        navigationCoordinator.requestNavigationTarget = nil
         AppLogger.info("favors", "Deep link to \(target.anchor.rawValue)")
     }
 
@@ -545,7 +532,7 @@ struct FavorDetailView: View {
                 title: nil
             )
             
-            navigateToConversation = conversation.id
+            selectedConversationId = conversation.id
         } catch {
             AppLogger.error("favors", "Error creating conversation: \(error.localizedDescription)")
         }

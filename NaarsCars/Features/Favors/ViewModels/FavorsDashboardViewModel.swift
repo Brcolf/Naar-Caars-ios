@@ -29,16 +29,27 @@ final class FavorsDashboardViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private var modelContext: ModelContext?
-    private let favorService = FavorService.shared
-    private let authService = AuthService.shared
-    private let realtimeManager = RealtimeManager.shared
+    private let favorService: any FavorServiceProtocol
+    private let authService: any AuthServiceProtocol
+    private let realtimeManager: RealtimeManager
     
     // MARK: - Lifecycle
     
+    init(
+        favorService: any FavorServiceProtocol = FavorService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared,
+        realtimeManager: RealtimeManager = .shared
+    ) {
+        self.favorService = favorService
+        self.authService = authService
+        self.realtimeManager = realtimeManager
+    }
+
     deinit {
         // Use Task.detached to clean up subscriptions without capturing self
+        let realtimeManager = realtimeManager
         Task.detached {
-            await RealtimeManager.shared.unsubscribe(channelName: "favors-dashboard")
+            await realtimeManager.unsubscribe(channelName: "favors-dashboard")
         }
     }
     
@@ -113,7 +124,7 @@ final class FavorsDashboardViewModel: ObservableObject {
         }
         
         do {
-            let fetchedFavors = try await favorService.fetchFavors()
+            let fetchedFavors = try await favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -227,15 +238,15 @@ final class FavorsDashboardViewModel: ObservableObject {
         }
     }
     
-    private func handleFavorInsert(_ action: Any) async {
+    private func handleFavorInsert(_ record: RealtimeRecord) async {
         debouncedSilentReload()
     }
     
-    private func handleFavorUpdate(_ action: Any) async {
+    private func handleFavorUpdate(_ record: RealtimeRecord) async {
         debouncedSilentReload()
     }
     
-    private func handleFavorDelete(_ action: Any) async {
+    private func handleFavorDelete(_ record: RealtimeRecord) async {
         debouncedSilentReload()
     }
 }

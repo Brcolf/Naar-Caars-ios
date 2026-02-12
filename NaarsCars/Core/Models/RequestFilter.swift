@@ -11,7 +11,7 @@ import Foundation
 enum RequestFilter: String, CaseIterable {
     case open = "Open Requests"
     case mine = "My Requests"
-    case claimed = "Claimed by Me"
+    case claimed = "Claimed Requests"
     
     var localizedKey: String {
         switch self {

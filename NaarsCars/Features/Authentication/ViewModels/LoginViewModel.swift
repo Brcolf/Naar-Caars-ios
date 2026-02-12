@@ -16,8 +16,12 @@ final class LoginViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: AppError?
     
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
     private let rateLimiter = RateLimiter.shared
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
     
     func login() async {
         // Validate email

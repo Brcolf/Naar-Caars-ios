@@ -6,6 +6,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, sendAPNsPush, resolveEventType, resolveTableName, processBatch } from '../_shared/apns.ts'
 import { getBadgeCount, getBadgeCountsBatch } from '../_shared/badges.ts'
+import { NOTIFICATION_TYPES } from '../_shared/notificationTypes.ts'
 
 interface APNsPayload {
   aps: {
@@ -99,7 +100,19 @@ serve(async (req) => {
     let message_id: string
     let sender_id: string
 
-    if (payload.recipient_user_id && payload.conversation_id && payload.sender_name) {
+    const hasFullPayload = Boolean(payload.recipient_user_id && payload.conversation_id && payload.sender_name)
+    const fullPayloadSenderId = payload.sender_id || payload.from_id
+    const shouldUseFullPayload =
+      hasFullPayload && (!fullPayloadSenderId || payload.recipient_user_id !== fullPayloadSenderId)
+
+    if (hasFullPayload && !shouldUseFullPayload) {
+      console.warn(
+        '⚠️ Ignoring full payload because recipient_user_id matches sender_id; ' +
+          'falling back to recipient lookup from conversation participants.'
+      )
+    }
+
+    if (shouldUseFullPayload) {
       // Full payload provided (from trigger with pg_notify or custom webhook)
       recipient_user_id = payload.recipient_user_id
       conversation_id = payload.conversation_id
@@ -170,9 +183,12 @@ serve(async (req) => {
         return true
       })
 
-      // Pre-fetch badge counts for all eligible recipients in parallel
+      // Pre-fetch badge counts and push tokens for all eligible recipients in batch
       const recipientIds = eligibleParticipants.map(p => p.user_id)
-      const badgeCounts = await getBadgeCountsBatch(supabase, recipientIds)
+      const [badgeCounts, tokensByUser] = await Promise.all([
+        getBadgeCountsBatch(supabase, recipientIds),
+        batchFetchPushTokens(supabase, recipientIds)
+      ])
 
       // Process all recipients in parallel with batching (max 10 concurrent)
       const allPushResults: any[] = []
@@ -186,9 +202,10 @@ serve(async (req) => {
 
       const batchResults = await processBatch(eligibleParticipants, 10, async (participant) => {
         const badge = badgeCounts.get(participant.user_id) ?? 0
+        const tokens = tokensByUser.get(participant.user_id) ?? []
         return await sendPushToRecipient(
           participant.user_id, conversation_id, sender_name, message_preview,
-          message_id, sender_id, badge, supabase
+          message_id, sender_id, badge, supabase, tokens
         )
       })
 
@@ -261,6 +278,33 @@ serve(async (req) => {
   }
 })
 
+/** Batch-fetch push tokens for multiple users in a single query */
+async function batchFetchPushTokens(
+  supabase: any,
+  userIds: string[]
+): Promise<Map<string, string[]>> {
+  const tokensByUser = new Map<string, string[]>()
+  if (userIds.length === 0) return tokensByUser
+
+  const { data: rows, error } = await supabase
+    .from('push_tokens')
+    .select('user_id, token')
+    .in('user_id', userIds)
+
+  if (error) {
+    console.error('Failed to batch-fetch push tokens:', error.message)
+    return tokensByUser
+  }
+
+  for (const row of (rows ?? [])) {
+    const existing = tokensByUser.get(row.user_id) ?? []
+    existing.push(row.token)
+    tokensByUser.set(row.user_id, existing)
+  }
+
+  return tokensByUser
+}
+
 function normalizeWebhookPayload(payload: any): any {
   if (!payload || typeof payload !== 'object') return payload
   if (payload.record) return payload.record
@@ -278,19 +322,26 @@ async function sendPushToRecipient(
   messageId: string,
   senderId: string,
   badgeCount: number,
-  supabase: any
+  supabase: any,
+  prefetchedTokens?: string[]
 ): Promise<{ sent: boolean; devices?: number; successes?: number; failures?: number; skipped?: boolean; reason?: string }> {
-  // Get recipient's push tokens
-  const { data: tokens, error: tokenError } = await supabase
-    .from('push_tokens')
-    .select('token')
-    .eq('user_id', recipientUserId)
+  // Use pre-fetched tokens if available, otherwise fetch individually (single-recipient path)
+  let tokenStrings: string[]
+  if (prefetchedTokens !== undefined) {
+    tokenStrings = prefetchedTokens
+  } else {
+    const { data: tokenRows, error: tokenError } = await supabase
+      .from('push_tokens')
+      .select('token')
+      .eq('user_id', recipientUserId)
 
-  if (tokenError) {
-    throw new Error(`Failed to fetch push tokens: ${tokenError.message}`)
+    if (tokenError) {
+      throw new Error(`Failed to fetch push tokens: ${tokenError.message}`)
+    }
+    tokenStrings = (tokenRows ?? []).map((row: { token: string }) => row.token)
   }
 
-  if (!tokens || tokens.length === 0) {
+  if (tokenStrings.length === 0) {
     console.log(`⏭️ Skipping push - no push tokens found for user ${recipientUserId}`)
     return { sent: false, skipped: true, reason: 'no_tokens' }
   }
@@ -304,7 +355,7 @@ async function sendPushToRecipient(
       priority: 10,
       category: 'MESSAGE'
     },
-    type: 'message',
+    type: NOTIFICATION_TYPES.MESSAGE,
     conversation_id: conversationId,
     message_id: messageId,
     sender_id: senderId
@@ -312,8 +363,8 @@ async function sendPushToRecipient(
 
   // Send push to all devices for this user
   const pushResults = await Promise.allSettled(
-    tokens.map(async (tokenRow: { token: string }) => {
-      return await sendAPNsPush(tokenRow.token, apnsPayload, supabase)
+    tokenStrings.map(async (token: string) => {
+      return await sendAPNsPush(token, apnsPayload, supabase)
     })
   )
 
@@ -322,11 +373,11 @@ async function sendPushToRecipient(
 
   pushResults.forEach((result, index) => {
     if (result.status === 'rejected') {
-      console.error(`Failed to send push to token ${tokens[index].token.substring(0, 8)}...:`, result.reason)
+      console.error(`Failed to send push to token ${tokenStrings[index].substring(0, 8)}...:`, result.reason)
     }
   })
 
   console.log(`✅ Sent push notifications to user ${recipientUserId}: ${successes} succeeded, ${failures} failed`)
 
-  return { sent: true, devices: tokens.length, successes, failures }
+  return { sent: successes > 0, devices: tokenStrings.length, successes, failures }
 }

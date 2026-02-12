@@ -12,7 +12,6 @@ import OSLog
 
 /// Service for message media operations
 /// Handles uploading and managing message images, audio, and other media
-@MainActor
 final class MessageMediaService {
     
     // MARK: - Singleton

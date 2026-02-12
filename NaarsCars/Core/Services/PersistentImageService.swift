@@ -10,7 +10,6 @@ import Foundation
 
 /// Service for downloading and caching images on disk
 /// Implements a "Zero-Spinner" experience by storing images in the app's Caches directory
-@MainActor
 final class PersistentImageService {
     
     static let shared = PersistentImageService()

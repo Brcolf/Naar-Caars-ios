@@ -141,7 +141,7 @@ struct PublicProfileView: View {
     
     // MARK: - Send Message Button
     
-    @State private var navigateToConversation: UUID?
+    @State private var selectedConversationId: UUID?
     
     private func sendMessageButton(userId: UUID) -> some View {
         Button {
@@ -152,7 +152,7 @@ struct PublicProfileView: View {
                         userId: currentUserId,
                         otherUserId: userId
                     )
-                    navigateToConversation = conversation.id
+                    selectedConversationId = conversation.id
                 } catch {
                     AppLogger.error("profile", "Error creating conversation: \(error.localizedDescription)")
                 }
@@ -172,7 +172,7 @@ struct PublicProfileView: View {
         }
         .accessibilityLabel("Send message")
         .accessibilityHint("Double-tap to start a conversation with this person")
-        .navigationDestination(item: $navigateToConversation) { conversationId in
+        .navigationDestination(item: $selectedConversationId) { conversationId in
             ConversationDetailView(conversationId: conversationId)
         }
     }

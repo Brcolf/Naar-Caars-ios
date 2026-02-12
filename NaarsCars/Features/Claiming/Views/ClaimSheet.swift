@@ -11,9 +11,11 @@ import SwiftUI
 struct ClaimSheet: View {
     let requestType: String
     let requestTitle: String
-    let onConfirm: () -> Void
+    let onConfirm: () async throws -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var showSuccess = false
+    @State private var isLoading = false
+    @State private var errorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -43,15 +45,29 @@ struct ClaimSheet: View {
                     .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "claim_confirm".localized) {
-                        onConfirm()
-                        showSuccess = true
-                    }
+                    PrimaryButton(
+                        title: "claim_confirm".localized,
+                        action: {
+                            Task {
+                                isLoading = true
+                                errorMessage = nil
+                                do {
+                                    try await onConfirm()
+                                    showSuccess = true
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                }
+                                isLoading = false
+                            }
+                        },
+                        isLoading: isLoading
+                    )
                     .accessibilityIdentifier("claim.confirm")
                     
                     SecondaryButton(title: "claim_cancel".localized) {
                         dismiss()
                     }
+                    .disabled(isLoading)
                     .accessibilityIdentifier("claim.cancel")
                 }
                 .padding(.horizontal)
@@ -61,6 +77,7 @@ struct ClaimSheet: View {
             .padding()
             .navigationTitle("claim_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
+            .toast(message: $errorMessage, style: .warning)
         }
         .successCheckmark(isShowing: $showSuccess)
         .onChange(of: showSuccess) { _, newValue in
@@ -68,6 +85,7 @@ struct ClaimSheet: View {
                 dismiss()
             }
         }
+        .interactiveDismissDisabled(isLoading)
     }
 }
 
@@ -75,7 +93,7 @@ struct ClaimSheet: View {
     ClaimSheet(
         requestType: "ride",
         requestTitle: "Ride to Airport",
-        onConfirm: {}
+        onConfirm: { /* no-op */ }
     )
 }
 

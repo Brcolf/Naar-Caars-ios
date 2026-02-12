@@ -17,6 +17,11 @@ final class AppleSignInViewModel: ObservableObject {
     @Published var error: AppError?
     
     private var currentNonce: String?
+    private let authService: any AuthServiceProtocol
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
     
     /// Configure the Apple Sign-In request with nonce for security
     /// - Parameter request: The ASAuthorizationAppleIDRequest to configure
@@ -53,13 +58,13 @@ final class AppleSignInViewModel: ObservableObject {
             do {
                 if isNewUser, let codeId = inviteCodeId {
                     // New user signup with Apple
-                    try await AuthService.shared.signUpWithApple(
+                    try await authService.signUpWithApple(
                         credential: credential,
                         inviteCodeId: codeId
                     )
                 } else {
                     // Existing user login with Apple
-                    try await AuthService.shared.logInWithApple(credential: credential)
+                    try await authService.logInWithApple(credential: credential)
                 }
             } catch let authError {
                 self.error = authError as? AppError ?? .unknown(authError.localizedDescription)

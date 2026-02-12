@@ -7,7 +7,6 @@ import Foundation
 import SwiftData
 import SwiftUI
 internal import Combine
-import CoreData
 
 @MainActor
 final class MessagingRepository {
@@ -16,9 +15,22 @@ final class MessagingRepository {
     private var modelContext: ModelContext?
     private let messageService = MessageService.shared
     private let conversationService = ConversationService.shared
+    private var lastMessageBackfillSyncAt: [UUID: Date] = [:]
+    private let messageBackfillInterval: TimeInterval = 30
+    private let conversationsSubject = CurrentValueSubject<[ConversationWithDetails], Never>([])
+    private var messageSubjects: [UUID: CurrentValueSubject<[Message], Never>] = [:]
+    
+    /// Publisher for metadata-only changes (readBy, reactions) — allows views to update individual
+    /// messages in-place without triggering a full list diff
+    private var messageMetadataSubjects: [UUID: PassthroughSubject<MessageMetadataUpdate, Never>] = [:]
     
     var isConfigured: Bool {
         modelContext != nil
+    }
+    
+    /// Expose the model context for the MessageSendWorker (read-only access)
+    var modelContextForWorker: ModelContext? {
+        modelContext
     }
     
     private init() {}
@@ -26,6 +38,7 @@ final class MessagingRepository {
     /// Set up the model context for SwiftData operations
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
+        refreshConversationsPublisher()
     }
     
     // MARK: - Conversations
@@ -59,11 +72,13 @@ final class MessagingRepository {
     func syncConversations(userId: UUID) async throws {
         guard let modelContext = modelContext else { return }
         let remoteConversations = try await conversationService.fetchConversations(userId: userId)
+        var changedConversationIds = Set<UUID>()
         
         for remote in remoteConversations {
             let id = remote.conversation.id
             let fetchDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == id })
             let existing = try modelContext.fetch(fetchDescriptor).first
+            changedConversationIds.insert(id)
             
             // Collect all participant IDs from other participants + current user
             let participantIds = remote.otherParticipants.map { $0.id } + [userId]
@@ -95,29 +110,37 @@ final class MessagingRepository {
         for local in localConversations {
             if !remoteIds.contains(local.id) {
                 modelContext.delete(local)
+                changedConversationIds.insert(local.id)
             }
         }
         
-        try modelContext.save()
+        try save(changedConversationIds: changedConversationIds)
     }
     
     // MARK: - Messages
     
     func getConversationsPublisher() -> AnyPublisher<[ConversationWithDetails], Never> {
-        // Since SwiftData doesn't have a built-in Publisher for FetchDescriptors yet like CoreData,
-        // we use a NotificationCenter approach or a simple Timer-based refresh for now, 
-        // but the best way is to trigger a refresh whenever the context saves.
-        NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
-            .receive(on: RunLoop.main)
-            .map { _ in (try? self.getConversations()) ?? [] }
-            .eraseToAnyPublisher()
+        refreshConversationsPublisher()
+        return conversationsSubject.eraseToAnyPublisher()
     }
     
     func getMessagesPublisher(for conversationId: UUID) -> AnyPublisher<[Message], Never> {
-        NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
-            .receive(on: RunLoop.main)
-            .map { _ in (try? self.getMessages(for: conversationId)) ?? [] }
-            .eraseToAnyPublisher()
+        if let existing = messageSubjects[conversationId] {
+            return existing.eraseToAnyPublisher()
+        }
+        let subject = CurrentValueSubject<[Message], Never>((try? getMessages(for: conversationId)) ?? [])
+        messageSubjects[conversationId] = subject
+        return subject.eraseToAnyPublisher()
+    }
+    
+    /// Publisher for metadata-only updates (readBy changes) that don't require full list re-rendering
+    func getMessageMetadataPublisher(for conversationId: UUID) -> AnyPublisher<MessageMetadataUpdate, Never> {
+        if let existing = messageMetadataSubjects[conversationId] {
+            return existing.eraseToAnyPublisher()
+        }
+        let subject = PassthroughSubject<MessageMetadataUpdate, Never>()
+        messageMetadataSubjects[conversationId] = subject
+        return subject.eraseToAnyPublisher()
     }
     
     func getMessages(for conversationId: UUID) throws -> [Message] {
@@ -131,28 +154,55 @@ final class MessagingRepository {
     }
     
     func syncMessages(conversationId: UUID) async throws {
-        guard let modelContext = modelContext else { return }
-        // Incremental sync: only fetch messages newer than our latest local message
+        guard modelContext != nil else { return }
         let latestTimestamp = getLatestMessageTimestamp(for: conversationId)
-        
-        // We'll need to update MessageService to support fetching by timestamp, 
-        // but for now we'll fetch the last 25 as a safety net.
-        let remoteMessages = try await messageService.fetchMessages(conversationId: conversationId)
+        let remoteMessages: [Message]
+
+        if let latestTimestamp {
+            let incrementalMessages = try await messageService.fetchMessagesCreatedAfter(
+                conversationId: conversationId,
+                after: latestTimestamp,
+                limit: Constants.PageSizes.fetchAll
+            )
+
+            if incrementalMessages.isEmpty, shouldRunMessageBackfill(for: conversationId) {
+                remoteMessages = try await messageService.fetchMessages(
+                    conversationId: conversationId,
+                    limit: Constants.PageSizes.messages
+                )
+                lastMessageBackfillSyncAt[conversationId] = Date()
+            } else {
+                remoteMessages = incrementalMessages
+            }
+        } else {
+            remoteMessages = try await messageService.fetchMessages(
+                conversationId: conversationId,
+                limit: Constants.PageSizes.messages
+            )
+            lastMessageBackfillSyncAt[conversationId] = Date()
+        }
 
 #if DEBUG
-        let replyIds = remoteMessages.filter { $0.replyToId != nil }.count
-        let replyContexts = remoteMessages.filter { $0.replyToMessage != nil }.count
-        AppLogger.info("messaging", "sync(remote) total=\(remoteMessages.count) replyToId=\(replyIds) replyContext=\(replyContexts)")
-        if let sample = remoteMessages.first(where: { $0.replyToId != nil }) {
-            AppLogger.info("messaging", "remote sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
+        if FeatureFlags.verbosePerformanceLogsEnabled {
+            let replyIds = remoteMessages.filter { $0.replyToId != nil }.count
+            let replyContexts = remoteMessages.filter { $0.replyToMessage != nil }.count
+            AppLogger.info("messaging", "sync(remote) total=\(remoteMessages.count) replyToId=\(replyIds) replyContext=\(replyContexts)")
+            if let sample = remoteMessages.first(where: { $0.replyToId != nil }) {
+                AppLogger.info("messaging", "remote sample messageId=\(sample.id) replyToId=\(sample.replyToId?.uuidString ?? "nil") context=\(sample.replyToMessage != nil)")
+            }
         }
 #endif
         
         for remote in remoteMessages {
             try upsertMessage(remote)
         }
-        
-        try modelContext.save()
+
+        try save(changedConversationIds: Set([conversationId]))
+    }
+
+    private func shouldRunMessageBackfill(for conversationId: UUID) -> Bool {
+        guard let lastSyncAt = lastMessageBackfillSyncAt[conversationId] else { return true }
+        return Date().timeIntervalSince(lastSyncAt) >= messageBackfillInterval
     }
 
     func getLatestMessageTimestamp(for conversationId: UUID) -> Date? {
@@ -188,7 +238,7 @@ final class MessagingRepository {
         }
         
         modelContext.insert(sdMessage)
-        try modelContext.save()
+        try save(changedConversationIds: Set([conversationId]))
         
         // 2. Attempt background sync
         Task {
@@ -212,12 +262,12 @@ final class MessagingRepository {
                     }
                     
                     modelContext.insert(finalSDMessage)
-                    try? modelContext.save()
+                    try? self.save(changedConversationIds: Set([conversationId]))
                 }
             } catch {
                 await MainActor.run {
                     sdMessage.syncError = error.localizedDescription
-                    try? modelContext.save()
+                    try? self.save(changedConversationIds: Set([conversationId]))
                 }
             }
         }
@@ -229,18 +279,63 @@ final class MessagingRepository {
         return try modelContext.fetch(fetchDescriptor).first
     }
 
-    func save() throws {
+    func save(changedConversationIds: Set<UUID> = []) throws {
+        guard let modelContext = modelContext else { return }
+        try modelContext.save()
+        refreshConversationsPublisher()
+        refreshMessagesPublishers(changedConversationIds: changedConversationIds)
+    }
+    
+    /// Save the SwiftData context without triggering any publisher refreshes.
+    /// Used for metadata-only updates (readBy) where the metadata publisher already handled the UI update.
+    func saveContextOnly() throws {
         guard let modelContext = modelContext else { return }
         try modelContext.save()
     }
 
-    func upsertMessage(_ message: Message) throws {
-        guard let modelContext = modelContext else { return }
+    /// Result type for upsert operations to distinguish content vs metadata changes
+    enum UpsertResult {
+        case noChange
+        case contentChanged
+        case metadataOnly
+        case inserted
+    }
+    
+    @discardableResult
+    func upsertMessage(_ message: Message) throws -> Bool {
+        try upsertMessageDetailed(message) != .noChange
+    }
+    
+    /// Upsert with detailed result indicating what kind of change occurred
+    func upsertMessageDetailed(_ message: Message) throws -> UpsertResult {
+        guard let modelContext = modelContext else { return .noChange }
         let id = message.id
         let fetchDescriptor = FetchDescriptor<SDMessage>(predicate: #Predicate { $0.id == id })
         let existing = try modelContext.fetch(fetchDescriptor).first
         
         if let existing = existing {
+            let incomingStatus = message.sendStatus?.rawValue ?? "sent"
+            
+            // Check if ONLY readBy changed (metadata-only update)
+            let readByChanged = existing.readBy != message.readBy
+            let contentChanged =
+                existing.text != message.text ||
+                existing.imageUrl != message.imageUrl ||
+                existing.audioUrl != message.audioUrl ||
+                existing.audioDuration != message.audioDuration ||
+                existing.latitude != message.latitude ||
+                existing.longitude != message.longitude ||
+                existing.locationName != message.locationName ||
+                existing.messageType != (message.messageType?.rawValue ?? "text") ||
+                existing.replyToId != message.replyToId ||
+                existing.editedAt != message.editedAt ||
+                existing.deletedAt != message.deletedAt ||
+                existing.status != incomingStatus ||
+                existing.localAttachmentPath != message.localAttachmentPath ||
+                existing.isPending
+
+            guard readByChanged || contentChanged else { return .noChange }
+
             let previousReadBy = existing.readBy
             existing.text = message.text
             existing.readBy = message.readBy
@@ -250,7 +345,14 @@ final class MessagingRepository {
             existing.latitude = message.latitude
             existing.longitude = message.longitude
             existing.locationName = message.locationName
-            existing.isPending = false // If it's from sync, it's not pending
+            existing.messageType = message.messageType?.rawValue ?? "text"
+            existing.replyToId = message.replyToId
+            existing.editedAt = message.editedAt
+            existing.deletedAt = message.deletedAt
+            existing.status = incomingStatus
+            existing.localAttachmentPath = message.localAttachmentPath
+            existing.syncError = message.syncError
+            existing.isPending = incomingStatus == "sending"
             
             // Update unread count incrementally to avoid rescanning all messages
             if let sdConv = existing.conversation,
@@ -263,6 +365,16 @@ final class MessagingRepository {
                     newReadBy: message.readBy
                 )
             }
+            
+            // If only readBy changed, emit on metadata publisher instead of full list rebuild
+            if readByChanged && !contentChanged {
+                messageMetadataSubjects[message.conversationId]?.send(
+                    MessageMetadataUpdate(messageId: message.id, readBy: message.readBy)
+                )
+                return .metadataOnly
+            }
+            
+            return .contentChanged
         } else {
             let newSDMessage = MessagingMapper.mapToSDMessage(message)
             
@@ -286,6 +398,7 @@ final class MessagingRepository {
             }
             
             modelContext.insert(newSDMessage)
+            return .inserted
         }
     }
 
@@ -325,6 +438,15 @@ final class MessagingRepository {
         return try modelContext.fetch(fetchDescriptor).first
     }
 
+    /// Delete a message from SwiftData by ID (used for replacing optimistic messages)
+    func deleteMessage(id: UUID) {
+        guard let modelContext = modelContext else { return }
+        let fetchDescriptor = FetchDescriptor<SDMessage>(predicate: #Predicate { $0.id == id })
+        if let existing = try? modelContext.fetch(fetchDescriptor).first {
+            modelContext.delete(existing)
+        }
+    }
+
     private func updateUnreadCount(for conversation: SDConversation) {
         guard let currentUserId = AuthService.shared.currentUserId else { return }
         let messages = conversation.messages ?? []
@@ -344,11 +466,36 @@ final class MessagingRepository {
         let fetchDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == id })
         if let existing = try modelContext.fetch(fetchDescriptor).first {
             modelContext.delete(existing)
-            try modelContext.save()
+            try save(changedConversationIds: Set([id]))
         }
         
         // 3. Post notification so other observers can react
         NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: id)
     }
+
+    private func refreshConversationsPublisher() {
+        conversationsSubject.send((try? getConversations()) ?? [])
+    }
+
+    private func refreshMessagesPublishers(changedConversationIds: Set<UUID>) {
+        if changedConversationIds.isEmpty {
+            for (conversationId, subject) in messageSubjects {
+                subject.send((try? getMessages(for: conversationId)) ?? [])
+            }
+            return
+        }
+
+        for conversationId in changedConversationIds {
+            guard let subject = messageSubjects[conversationId] else { continue }
+            subject.send((try? getMessages(for: conversationId)) ?? [])
+        }
+    }
 }
 
+// MARK: - Message Metadata Update
+
+/// Lightweight update for metadata-only changes (readBy) that don't require full list re-rendering
+struct MessageMetadataUpdate {
+    let messageId: UUID
+    let readBy: [UUID]
+}

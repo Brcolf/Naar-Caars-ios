@@ -1,0 +1,21 @@
+description: "Domain model field changes must be mirrored in SwiftData models and mappers."
+
+Applies to:
+- /**/SwiftData*/**
+- /**/SDModel*/**
+- /**/Mapper*/**
+- /**/Repository*/**
+- /**/SyncEngine*/**
+
+Rules:
+1) If you change a Domain model (Message/Ride/Favor/Conversation/Notification/TownHall entities):
+   - update SwiftData model
+   - update mapper(s)
+   - update sync engine insert/update logic
+   - add a mapper unit test or fixture
+
+2) Do not pass SwiftData model instances across contexts/threads.
+   - pass IDs and refetch in the correct context.
+
+3) Persistence writes happen in repositories/sync engines, not in Views.
+

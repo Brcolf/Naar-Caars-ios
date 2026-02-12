@@ -7,6 +7,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, sendAPNsPush, resolveEventType, resolveTableName, processBatch } from '../_shared/apns.ts'
 import { getBadgeCount } from '../_shared/badges.ts'
+import { NOTIFICATION_TYPES } from '../_shared/notificationTypes.ts'
 
 interface NotificationPayload {
   title: string
@@ -43,8 +44,8 @@ interface APNsPayload {
 
 // Notification categories for actionable notifications
 const NOTIFICATION_CATEGORIES: Record<string, string> = {
-  completion_reminder: 'COMPLETION_REMINDER',
-  message: 'MESSAGE',
+  [NOTIFICATION_TYPES.COMPLETION_REMINDER]: 'COMPLETION_REMINDER',
+  [NOTIFICATION_TYPES.MESSAGE]: 'MESSAGE',
   new_request: 'NEW_REQUEST',
 }
 
@@ -235,11 +236,15 @@ async function processNotificationQueue(supabase: any) {
         supabase, notification.recipient_user_id, notification.notification_type,
         payload.title, payload.body, payload.data || {}
       )
-      // Mark as sent
-      await supabase
-        .from('notification_queue')
-        .update({ sent_at: new Date().toISOString() })
-        .eq('id', notification.id)
+      // Mark as sent only if APNs delivery succeeded or the notification was
+      // intentionally skipped (for example no active token). Keep failed sends
+      // pending so they can be retried on the next processing pass.
+      if (result.sent || result.skipped) {
+        await supabase
+          .from('notification_queue')
+          .update({ sent_at: new Date().toISOString() })
+          .eq('id', notification.id)
+      }
       return { id: notification.id, ...result }
     }
   )
@@ -305,11 +310,11 @@ async function sendPushToUser(
   }
 
   // Add category for actionable notifications
-  if (notificationType === 'completion_reminder') {
-    apnsPayload.aps.category = NOTIFICATION_CATEGORIES.completion_reminder
-  } else if (notificationType === 'message') {
-    apnsPayload.aps.category = NOTIFICATION_CATEGORIES.message
-  } else if (notificationType === 'new_ride' || notificationType === 'new_favor') {
+  if (notificationType === NOTIFICATION_TYPES.COMPLETION_REMINDER) {
+    apnsPayload.aps.category = NOTIFICATION_CATEGORIES[NOTIFICATION_TYPES.COMPLETION_REMINDER]
+  } else if (notificationType === NOTIFICATION_TYPES.MESSAGE) {
+    apnsPayload.aps.category = NOTIFICATION_CATEGORIES[NOTIFICATION_TYPES.MESSAGE]
+  } else if (notificationType === NOTIFICATION_TYPES.NEW_RIDE || notificationType === NOTIFICATION_TYPES.NEW_FAVOR) {
     apnsPayload.aps.category = NOTIFICATION_CATEGORIES.new_request
   }
 

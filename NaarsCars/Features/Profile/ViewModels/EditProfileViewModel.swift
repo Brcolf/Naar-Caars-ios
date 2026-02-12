@@ -27,7 +27,7 @@ final class EditProfileViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let profileService = ProfileService.shared
+    private let profileService: any ProfileServiceProtocol
     private let userId: UUID
     private let originalPhoneNumber: String?
     
@@ -47,7 +47,11 @@ final class EditProfileViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(profile: Profile) {
+    init(
+        profile: Profile,
+        profileService: any ProfileServiceProtocol = ProfileService.shared
+    ) {
+        self.profileService = profileService
         self.userId = profile.id
         self.name = profile.name
         self.phoneNumber = profile.phoneNumber ?? ""

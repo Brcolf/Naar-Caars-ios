@@ -20,19 +20,7 @@ final class NavigationCoordinator: ObservableObject {
     // MARK: - Published Properties
     
     @Published var selectedTab: Tab = .requests
-    @Published var navigateToRide: UUID?
-    @Published var navigateToFavor: UUID?
-    @Published var requestNavigationTarget: RequestNotificationTarget?
-    @Published var requestListScrollKey: String?
-    @Published var navigateToConversation: UUID?
-    @Published var conversationScrollTarget: ConversationScrollTarget?
-    @Published var navigateToProfile: UUID?
-    @Published var townHallNavigationTarget: TownHallNavigationTarget?
-    @Published var navigateToAdminPanel: Bool = false
-    @Published var navigateToPendingUsers: Bool = false
-    @Published var navigateToNotifications: Bool = false
-    @Published var profileScrollTarget: String?
-    @Published var announcementsNavigationTarget: AnnouncementsNavigationTarget?
+    @Published var pendingIntent: NavigationIntent?
     @Published var showReviewPrompt: Bool = false
     @Published var reviewPromptRideId: UUID?
     @Published var reviewPromptFavorId: UUID?
@@ -101,95 +89,51 @@ final class NavigationCoordinator: ObservableObject {
     }
 
     private func applyDeepLink(_ deepLink: DeepLink) {
-        clearConflictingNavigation(for: deepLink)
-
         switch deepLink {
         case .dashboard:
-            selectedTab = .requests
+            pendingIntent = .dashboard
             
         case .ride(let rideId):
-            selectedTab = .requests
-            navigateToRide = rideId
+            pendingIntent = .ride(rideId)
             
         case .favor(let favorId):
-            selectedTab = .requests
-            navigateToFavor = favorId
+            pendingIntent = .favor(favorId)
             
         case .conversation(let conversationId):
-            selectedTab = .messages
-            navigateToConversation = conversationId
+            pendingIntent = .conversation(conversationId)
             
         case .townHall:
             selectedTab = .community
             
         case .townHallPostComments(let postId):
-            selectedTab = .community
-            townHallNavigationTarget = .init(postId: postId, mode: .openComments)
+            pendingIntent = .townHallPost(postId, mode: .openComments)
 
         case .townHallPostHighlight(let postId):
-            selectedTab = .community
-            townHallNavigationTarget = .init(postId: postId, mode: .highlightPost)
+            pendingIntent = .townHallPost(postId, mode: .highlightPost)
             
         case .profile(let userId):
-            selectedTab = .profile
-            navigateToProfile = userId
+            pendingIntent = .profile(userId)
             
         case .adminPanel:
-            selectedTab = .profile
-            navigateToAdminPanel = true
+            pendingIntent = .adminPanel
             
         case .pendingUsers:
-            selectedTab = .profile
-            navigateToPendingUsers = true
+            pendingIntent = .pendingUsers
 
         case .notifications:
-            navigateToNotifications = true
+            pendingIntent = .notifications
 
         case .announcements(let notificationId):
-            announcementsNavigationTarget = .init(
-                id: UUID(),
-                scrollToNotificationId: notificationId
-            )
+            pendingIntent = .announcements(scrollToNotificationId: notificationId)
             
         case .enterApp:
-            // User was approved - just go to dashboard
-            selectedTab = .requests
+            pendingIntent = .dashboard
             
         case .unknown:
-            // Unknown deep link - go to dashboard
-            selectedTab = .requests
+            pendingIntent = .dashboard
         }
         
         AppLogger.info("navigation", "Navigating to: \(deepLink)")
-    }
-
-    private func clearConflictingNavigation(for deepLink: DeepLink) {
-        switch deepLink {
-        case .ride:
-            navigateToFavor = nil
-            requestNavigationTarget = nil
-        case .favor:
-            navigateToRide = nil
-            requestNavigationTarget = nil
-        case .conversation:
-            conversationScrollTarget = nil
-        case .profile:
-            profileScrollTarget = nil
-        case .townHall, .townHallPostComments, .townHallPostHighlight:
-            townHallNavigationTarget = nil
-        case .adminPanel, .pendingUsers:
-            navigateToAdminPanel = false
-            navigateToPendingUsers = false
-        case .notifications, .announcements:
-            announcementsNavigationTarget = nil
-        case .dashboard, .enterApp, .unknown:
-            break
-        }
-
-        requestNavigationTarget = nil
-        requestListScrollKey = nil
-        profileScrollTarget = nil
-        conversationScrollTarget = nil
     }
 
     private func shouldConfirmDeepLink(for deepLink: DeepLink) -> Bool {
@@ -198,43 +142,52 @@ final class NavigationCoordinator: ObservableObject {
     }
 
     private var hasActiveNavigation: Bool {
-        navigateToRide != nil ||
-        navigateToFavor != nil ||
-        navigateToConversation != nil ||
-        navigateToProfile != nil ||
-        townHallNavigationTarget != nil ||
-        navigateToAdminPanel ||
-        navigateToPendingUsers ||
-        navigateToNotifications ||
-        announcementsNavigationTarget != nil ||
-        requestNavigationTarget != nil ||
-        conversationScrollTarget != nil ||
-        profileScrollTarget != nil
+        pendingIntent != nil
     }
 
     private func isSameDeepLink(_ deepLink: DeepLink) -> Bool {
         switch deepLink {
         case .ride(let id):
-            return navigateToRide == id
+            if case .ride(let currentId, _) = pendingIntent {
+                return currentId == id
+            }
+            return false
         case .favor(let id):
-            return navigateToFavor == id
+            if case .favor(let currentId, _) = pendingIntent {
+                return currentId == id
+            }
+            return false
         case .conversation(let id):
-            return navigateToConversation == id
+            if case .conversation(let currentId, _) = pendingIntent {
+                return currentId == id
+            }
+            return false
         case .profile(let id):
-            return navigateToProfile == id
+            if case .profile(let currentId) = pendingIntent {
+                return currentId == id
+            }
+            return false
         case .townHallPostComments(let id), .townHallPostHighlight(let id):
-            return townHallNavigationTarget?.postId == id
+            if case .townHallPost(let postId, _) = pendingIntent {
+                return postId == id
+            }
+            return false
         case .townHall:
             return selectedTab == .community
         case .adminPanel:
-            return navigateToAdminPanel
+            if case .adminPanel = pendingIntent { return true }
+            return false
         case .pendingUsers:
-            return navigateToPendingUsers
+            if case .pendingUsers = pendingIntent { return true }
+            return false
         case .notifications:
-            return navigateToNotifications
+            if case .notifications = pendingIntent { return true }
+            return false
         case .announcements:
-            return announcementsNavigationTarget != nil
+            if case .announcements = pendingIntent { return true }
+            return false
         case .dashboard, .enterApp:
+            if case .dashboard = pendingIntent { return true }
             return selectedTab == .requests
         case .unknown:
             return false
@@ -266,11 +219,8 @@ final class NavigationCoordinator: ObservableObject {
                       let rideId = userInfo["rideId"] as? UUID else {
                     return
                 }
-                self.navigate(to: .ride(id: rideId))
-                if let target = Self.requestTarget(from: userInfo, requestId: rideId, requestType: .ride) {
-                    self.requestNavigationTarget = target
-                }
-                self.requestListScrollKey = "ride:\(rideId)"
+                let target = Self.requestTarget(from: userInfo, requestId: rideId, requestType: .ride)
+                self.pendingIntent = .ride(rideId, anchor: target)
             }
         }
         
@@ -285,11 +235,8 @@ final class NavigationCoordinator: ObservableObject {
                       let favorId = userInfo["favorId"] as? UUID else {
                     return
                 }
-                self.navigate(to: .favor(id: favorId))
-                if let target = Self.requestTarget(from: userInfo, requestId: favorId, requestType: .favor) {
-                    self.requestNavigationTarget = target
-                }
-                self.requestListScrollKey = "favor:\(favorId)"
+                let target = Self.requestTarget(from: userInfo, requestId: favorId, requestType: .favor)
+                self.pendingIntent = .favor(favorId, anchor: target)
             }
         }
         
@@ -304,14 +251,15 @@ final class NavigationCoordinator: ObservableObject {
                       let conversationId = userInfo["conversationId"] as? UUID else {
                     return
                 }
-                self.navigate(to: .conversation(id: conversationId))
+                var scrollTarget: ConversationScrollTarget?
                 if let messageId = userInfo["messageId"] as? UUID {
-                    self.conversationScrollTarget = .init(
+                    scrollTarget = .init(
                         conversationId: conversationId,
                         messageId: messageId
                     )
                     AppLogger.info("navigation", "Message deep link to \(conversationId) (\(messageId))")
                 }
+                self.pendingIntent = .conversation(conversationId, scrollTarget: scrollTarget)
             }
         }
         
@@ -326,7 +274,7 @@ final class NavigationCoordinator: ObservableObject {
                       let userId = userInfo["userId"] as? UUID else {
                     return
                 }
-                self.navigate(to: .profile(id: userId))
+                self.pendingIntent = .profile(userId)
             }
         }
         
@@ -342,8 +290,7 @@ final class NavigationCoordinator: ObservableObject {
                    let postId = userInfo["postId"] as? UUID {
                     let modeValue = userInfo["mode"] as? String
                     let mode = TownHallNavigationTarget.Mode(rawValue: modeValue ?? "") ?? .openComments
-                    self.selectedTab = .community
-                    self.townHallNavigationTarget = .init(postId: postId, mode: mode)
+                    self.pendingIntent = .townHallPost(postId, mode: mode)
                 } else {
                     self.navigate(to: .townHall)
                 }
@@ -357,7 +304,7 @@ final class NavigationCoordinator: ObservableObject {
         ) { [weak self] notification in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                self.navigate(to: .adminPanel)
+                self.pendingIntent = .adminPanel
             }
         }
 
@@ -368,8 +315,7 @@ final class NavigationCoordinator: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                self.selectedTab = .profile
-                self.navigateToPendingUsers = true
+                self.pendingIntent = .pendingUsers
             }
         }
 
@@ -379,7 +325,7 @@ final class NavigationCoordinator: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.navigate(to: .notifications)
+                self?.pendingIntent = .notifications
             }
         }
 
@@ -389,7 +335,10 @@ final class NavigationCoordinator: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.navigateToNotifications = false
+                guard let self = self else { return }
+                if case .notifications = self.pendingIntent {
+                    self.pendingIntent = nil
+                }
             }
         }
 
@@ -401,10 +350,7 @@ final class NavigationCoordinator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 let notificationId = (notification.userInfo?["notificationId"] as? UUID)
-                self.announcementsNavigationTarget = .init(
-                    id: UUID(),
-                    scrollToNotificationId: notificationId
-                )
+                self.pendingIntent = .announcements(scrollToNotificationId: notificationId)
             }
         }
 
@@ -438,29 +384,59 @@ final class NavigationCoordinator: ObservableObject {
     // MARK: - Public Methods
     
     func consumeRequestNavigationTarget(for requestType: RequestType, requestId: UUID) -> RequestNotificationTarget? {
-        guard let target = requestNavigationTarget,
-              target.requestType == requestType,
-              target.requestId == requestId else {
+        switch pendingIntent {
+        case .ride(let id, let anchor):
+            guard requestType == .ride, id == requestId, let anchor else { return nil }
+            pendingIntent = nil
+            return anchor
+        case .favor(let id, let anchor):
+            guard requestType == .favor, id == requestId, let anchor else { return nil }
+            pendingIntent = nil
+            return anchor
+        default:
             return nil
         }
-        requestNavigationTarget = nil
-        return target
+    }
+
+    func consumeConversationScrollTarget(for conversationId: UUID) -> ConversationScrollTarget? {
+        guard case .conversation(let intentId, let scrollTarget) = pendingIntent,
+              intentId == conversationId,
+              let scrollTarget else {
+            return nil
+        }
+        pendingIntent = nil
+        return scrollTarget
+    }
+
+    func consumeTownHallNavigationTarget() -> TownHallNavigationTarget? {
+        guard case .townHallPost(let postId, let mode) = pendingIntent else {
+            return nil
+        }
+        pendingIntent = nil
+        return .init(postId: postId, mode: mode)
+    }
+
+    func consumeAnnouncementsNavigationTarget() -> AnnouncementsNavigationTarget? {
+        guard case .announcements(let scrollId) = pendingIntent else {
+            return nil
+        }
+        pendingIntent = nil
+        return .init(id: UUID(), scrollToNotificationId: scrollId)
     }
 
     /// Reset navigation state after navigation completes
     func resetNavigation() {
-        navigateToRide = nil
-        navigateToFavor = nil
-        navigateToConversation = nil
-        navigateToProfile = nil
-        townHallNavigationTarget = nil
-        navigateToAdminPanel = false
-        navigateToPendingUsers = false
-        navigateToNotifications = false
-        requestListScrollKey = nil
-        profileScrollTarget = nil
-        announcementsNavigationTarget = nil
-        requestNavigationTarget = nil
+        pendingIntent = nil
+    }
+    
+    /// Apply navigation that was deferred until after the notifications sheet dismissed.
+    /// Call from MainTabView's notifications sheet onDismiss.
+    func applyDeferredIntentAfterNotificationsDismissal() {
+        guard let intent = pendingIntent else { return }
+        if case .notifications = intent {
+            return
+        }
+        selectedTab = intent.targetTab
     }
     
     /// Reset review prompt state

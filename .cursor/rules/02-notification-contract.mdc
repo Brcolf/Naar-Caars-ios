@@ -1,0 +1,26 @@
+description: "NotificationType registry must remain consistent across Swift + SQL + Edge Functions."
+
+Applies to:
+- /supabase/**
+- /**/Notifications*/**
+- /**/NotificationService*/**
+- /**/Push*/**
+- /**/BadgeCount*/**
+- /**/AppNotification*/**
+
+Rules:
+1) Adding/removing/changing a notification type requires updating ALL of:
+   - Swift enum / model
+   - SQL triggers / RPCs / functions that emit the type
+   - Edge function handlers that interpret or send it
+   - Preferences mapping (if present)
+   - Badge logic + routing logic
+
+2) Do not introduce new notification type strings in-line.
+   - Use a single registry source (e.g., notification_types.json) once established.
+   - Until registry exists, define constants in one Swift file and one SQL file and reference them.
+
+3) Must add/maintain tests/fixtures:
+   - a fixture for at least one example payload per notification type family
+   - a decoding test that ensures the client can parse the payload
+

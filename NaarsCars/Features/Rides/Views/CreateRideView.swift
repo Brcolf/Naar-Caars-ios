@@ -14,6 +14,7 @@ struct CreateRideView: View {
     var onRideCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
+    @State private var showErrorAlert = false
     
     var body: some View {
         NavigationStack {
@@ -135,7 +136,7 @@ struct CreateRideView: View {
                             } catch {
                                 AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
                                 AppLogger.error("rides", "[CreateRideView] Error details: \(error)")
-                                // Error is already set in viewModel
+                                showErrorAlert = true
                             }
                         }
                     }
@@ -155,6 +156,13 @@ struct CreateRideView: View {
                 )
             }
             .trackScreen("CreateRide")
+            .alert("Error", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) {
+                    showErrorAlert = false
+                }
+            } message: {
+                Text(viewModel.error ?? "An unexpected error occurred.")
+            }
         }
         .successCheckmark(isShowing: $showSuccess)
     }

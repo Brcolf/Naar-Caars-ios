@@ -2,8 +2,8 @@
 -- Provides a single RPC for badge counts with optional detail payloads.
 
 CREATE OR REPLACE FUNCTION get_badge_counts(
-    p_include_details BOOLEAN DEFAULT FALSE,
-    p_user_id UUID DEFAULT NULL
+    p_user_id UUID DEFAULT NULL,
+    p_include_details BOOLEAN DEFAULT FALSE
 ) RETURNS JSONB AS $$
 DECLARE
     v_user_id UUID;
@@ -19,12 +19,15 @@ BEGIN
         RAISE EXCEPTION 'User not authenticated';
     END IF;
 
-    -- Messages: total unread messages for user
+    -- Messages: total unread messages for user (only in their conversations)
     SELECT COUNT(*)
     INTO v_messages_total
-    FROM messages
-    WHERE from_id <> v_user_id
-      AND NOT (COALESCE(read_by, ARRAY[]::uuid[]) @> ARRAY[v_user_id]::uuid[]);
+    FROM messages m
+    JOIN conversation_participants cp
+        ON cp.conversation_id = m.conversation_id
+        AND cp.user_id = v_user_id
+    WHERE m.from_id <> v_user_id
+      AND NOT (COALESCE(m.read_by, ARRAY[]::uuid[]) @> ARRAY[v_user_id]::uuid[]);
 
     -- Cleanup: Mark 'message' and 'added_to_conversation' notifications as read 
     -- if there are no unread messages in that conversation.
@@ -36,6 +39,9 @@ BEGIN
       AND n.conversation_id IS NOT NULL
       AND NOT EXISTS (
           SELECT 1 FROM messages m
+          JOIN conversation_participants cp
+              ON cp.conversation_id = m.conversation_id
+              AND cp.user_id = v_user_id
           WHERE m.conversation_id = n.conversation_id
             AND m.from_id <> v_user_id
             AND NOT (COALESCE(m.read_by, ARRAY[]::uuid[]) @> ARRAY[v_user_id]::uuid[])
@@ -140,11 +146,14 @@ BEGIN
         )), '[]'::jsonb)
         INTO v_conversation_details
         FROM (
-            SELECT conversation_id, COUNT(*)::int AS unread_count
-            FROM messages
-            WHERE from_id <> v_user_id
-              AND NOT (COALESCE(read_by, ARRAY[]::uuid[]) @> ARRAY[v_user_id]::uuid[])
-            GROUP BY conversation_id
+            SELECT m.conversation_id, COUNT(*)::int AS unread_count
+            FROM messages m
+            JOIN conversation_participants cp
+                ON cp.conversation_id = m.conversation_id
+                AND cp.user_id = v_user_id
+            WHERE m.from_id <> v_user_id
+              AND NOT (COALESCE(m.read_by, ARRAY[]::uuid[]) @> ARRAY[v_user_id]::uuid[])
+            GROUP BY m.conversation_id
         ) AS per_conversation;
 
         SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -182,7 +191,6 @@ BEGIN
         'conversation_details', v_conversation_details
     );
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '';
 
-GRANT EXECUTE ON FUNCTION get_badge_counts(BOOLEAN, UUID) TO authenticated;
-
+GRANT EXECUTE ON FUNCTION get_badge_counts(UUID, BOOLEAN) TO authenticated;

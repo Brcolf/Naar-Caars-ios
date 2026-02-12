@@ -58,7 +58,6 @@ struct MessageBubble: View {
     @State private var hasAppeared = false
     @State private var showContextMenu = false
     @State private var showTimestampOverride = false
-    @ObservedObject private var audioPlayer = MessageAudioPlayer.shared
     @AppStorage("messaging_showLinkPreviews") private var showLinkPreviews = true
     
     // Swipe-to-reply state
@@ -85,8 +84,10 @@ struct MessageBubble: View {
     private static let urlCache = URLDetectionCache()
     
     /// Check if message is a system message (announcement)
+    /// Uses messageType first (fast path), falls back to text matching for legacy messages
     private var isSystemMessage: Bool {
-        // Check for system message patterns
+        if message.messageType == .system { return true }
+        // Fallback for messages stored before messageType was set
         let systemPatterns = [
             "has been added to the conversation",
             "has joined the conversation",
@@ -109,12 +110,23 @@ struct MessageBubble: View {
     }
     
     private var readStatus: ReadStatus {
-        // Check if the message is marked as failed
+        // Use the durable sendStatus from SwiftData first (local-first source of truth)
+        if let status = message.sendStatus {
+            switch status {
+            case .failed: return .failed
+            case .sending: return .sending
+            case .sent: return .sent
+            case .delivered: return .delivered
+            case .read: return .read
+            }
+        }
+        
+        // Check legacy isFailed flag
         if isFailed {
             return .failed
         }
         
-        // Filter out the sender to correctly calculate who else has read the message
+        // Fallback: derive from readBy array for server-sourced messages without sendStatus
         let readByOthers = message.readBy.filter { $0 != message.fromId }
         let otherParticipants = max(totalParticipants - 1, 0)
         
@@ -340,13 +352,22 @@ struct MessageBubble: View {
                     if message.isAudioMessage, let audioUrl = message.audioUrl {
                         audioMessageView(audioUrl: audioUrl, duration: message.audioDuration ?? 0)
                     }
+                    // Audio message still uploading (local attachment, no remote URL yet)
+                    else if message.isAudioMessage, message.localAttachmentPath != nil {
+                        audioUploadingView(duration: message.audioDuration ?? 0)
+                    }
                     
                     // Location message
                     else if message.isLocationMessage, let lat = message.latitude, let lon = message.longitude {
                         locationMessageView(latitude: lat, longitude: lon, name: message.locationName)
                     }
                     
-                    // Message image (if any)
+                    // Local image (still uploading — render from disk immediately)
+                    else if let localPath = message.localAttachmentPath, message.imageUrl == nil {
+                        localImageView(path: localPath, isUploading: message.sendStatus == .sending)
+                    }
+                    
+                    // Remote image (uploaded or from server)
                     else if let imageUrl = message.imageUrl, let url = URL(string: imageUrl) {
                         messageImageView(url: url)
                     }
@@ -600,6 +621,96 @@ struct MessageBubble: View {
         .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
     }
     
+    // MARK: - Local Image (Uploading)
+    
+    /// Renders an image from local disk while it's still being uploaded
+    private func localImageView(path: String, isUploading: Bool) -> some View {
+        let fileURL = LocalAttachmentStorage.fileURL(for: path)
+        let uiImage = UIImage(contentsOfFile: fileURL.path)
+        
+        return ZStack(alignment: .bottom) {
+            if let uiImage = uiImage {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 220, maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray5))
+                    .frame(width: 200, height: 150)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                    )
+            }
+            
+            if isUploading {
+                // Upload progress indicator
+                VStack(spacing: 4) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.8)
+                    Text("messaging_uploading".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.5), Color.clear],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                )
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        cornerRadii: .init(
+                            topLeading: 0,
+                            bottomLeading: 12,
+                            bottomTrailing: 12,
+                            topTrailing: 0
+                        )
+                    )
+                )
+            }
+        }
+        .opacity(isUploading ? 0.85 : 1.0)
+    }
+    
+    /// Audio message placeholder while uploading
+    private func audioUploadingView(duration: Double) -> some View {
+        HStack(spacing: 12) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: isFromCurrentUser ? .white : .naarsPrimary))
+                .frame(width: 40, height: 40)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("messaging_uploading".localized)
+                    .font(.naarsFootnote).fontWeight(.medium)
+                    .foregroundColor(isFromCurrentUser ? .white.opacity(0.8) : .secondary)
+                Text(formatAudioDuration(duration))
+                    .font(.naarsCaption)
+                    .foregroundColor(isFromCurrentUser ? .white.opacity(0.6) : .secondary.opacity(0.8))
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
+        )
+    }
+    
+    private func formatAudioDuration(_ seconds: Double) -> String {
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", minutes, secs)
+    }
+    
     // MARK: - Message Image
     
     private func messageImageView(url: URL) -> some View {
@@ -639,61 +750,12 @@ struct MessageBubble: View {
     // MARK: - Audio Message View
     
     private func audioMessageView(audioUrl: String, duration: Double) -> some View {
-        let isCurrent = audioPlayer.currentUrl?.absoluteString == audioUrl
-        let isPlaying = isCurrent && audioPlayer.isPlaying
-        let progress = isCurrent ? audioPlayer.progress : 0
-        let totalDuration = duration > 0 ? duration : (isCurrent ? audioPlayer.duration : 0)
-        
-        return HStack(spacing: 12) {
-            // Play/Pause button
-            Button(action: {
-                audioPlayer.togglePlayback(urlString: audioUrl)
-            }) {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(isFromCurrentUser ? .white : .naarsPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        Circle()
-                            .fill(isFromCurrentUser ? Color.white.opacity(0.2) : Color.naarsPrimary.opacity(0.1))
-                    )
-            }
-            
-            // Waveform visualization placeholder
-            HStack(spacing: 2) {
-                ForEach(waveformHeights.indices, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(isFromCurrentUser ? Color.white.opacity(i < Int(progress * Double(waveformHeights.count)) ? 1.0 : 0.4) : Color.naarsPrimary.opacity(i < Int(progress * Double(waveformHeights.count)) ? 1.0 : 0.3))
-                        .frame(width: 3, height: waveformHeights[i])
-                }
-            }
-            .frame(height: 30)
-            
-            // Duration
-            Text(durationLabel(totalDuration: totalDuration, progress: progress))
-                .font(.naarsFootnote).fontWeight(.medium)
-                .foregroundColor(isFromCurrentUser ? .white.opacity(0.8) : .secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
+        AudioMessageContentView(
+            audioUrl: audioUrl,
+            duration: duration,
+            isFromCurrentUser: isFromCurrentUser,
+            waveformHeights: waveformHeights
         )
-    }
-    
-    private func durationLabel(totalDuration: Double, progress: Double) -> String {
-        if totalDuration > 0 && progress > 0 {
-            let elapsed = totalDuration * progress
-            return "\(formatDuration(elapsed)) / \(formatDuration(totalDuration))"
-        }
-        return formatDuration(totalDuration)
-    }
-    
-    private func formatDuration(_ seconds: Double) -> String {
-        let minutes = Int(seconds) / 60
-        let secs = Int(seconds) % 60
-        return String(format: "%d:%02d", minutes, secs)
     }
     
     // MARK: - Location Message View
@@ -822,14 +884,14 @@ struct ReplyPreviewView: View {
         HStack(spacing: Constants.Spacing.sm) {
             // Vertical accent bar
             RoundedRectangle(cornerRadius: 2)
-                .fill(isFromCurrentUser ? Color.white.opacity(0.6) : Color.naarsPrimary)
+                .fill(Color.naarsPrimary)
                 .frame(width: 3)
             
             VStack(alignment: .leading, spacing: 2) {
                 // Sender name
                 Text(senderName)
                     .font(.naarsFootnote).fontWeight(.semibold)
-                    .foregroundColor(isFromCurrentUser ? .white.opacity(0.9) : .naarsPrimary)
+                    .foregroundColor(.naarsPrimary)
                     .lineLimit(1)
                 
                 // Preview content
@@ -837,12 +899,12 @@ struct ReplyPreviewView: View {
                     if hasImage {
                         Image(systemName: "photo")
                             .font(.naarsCaption)
-                            .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .primary.opacity(0.6))
+                            .foregroundColor(.secondary)
                     }
                     
                     Text(text.isEmpty ? "Photo" : text)
                         .font(.naarsFootnote)
-                        .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .primary.opacity(0.6))
+                        .foregroundColor(.secondary)
                         .lineLimit(3)
                 }
             }
@@ -854,7 +916,7 @@ struct ReplyPreviewView: View {
         .frame(maxWidth: 260)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isFromCurrentUser ? Color.white.opacity(0.15) : Color(.systemGray5))
+                .fill(isFromCurrentUser ? Color.naarsPrimary.opacity(0.12) : Color(.systemGray5))
         )
     }
 }
@@ -920,6 +982,79 @@ struct BubbleShape: Shape {
         }
         
         return path
+    }
+}
+
+/// Isolated audio bubble content so playback timer updates only invalidate audio rows.
+private struct AudioMessageContentView: View {
+    let audioUrl: String
+    let duration: Double
+    let isFromCurrentUser: Bool
+    let waveformHeights: [CGFloat]
+
+    @ObservedObject private var audioPlayer = MessageAudioPlayer.shared
+
+    var body: some View {
+        let isCurrent = audioPlayer.currentUrl?.absoluteString == audioUrl
+        let isPlaying = isCurrent && audioPlayer.isPlaying
+        let progress = isCurrent ? audioPlayer.progress : 0
+        let totalDuration = duration > 0 ? duration : (isCurrent ? audioPlayer.duration : 0)
+
+        HStack(spacing: 12) {
+            Button(action: {
+                audioPlayer.togglePlayback(urlString: audioUrl)
+            }) {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(isFromCurrentUser ? .white : .naarsPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(
+                        Circle()
+                            .fill(isFromCurrentUser ? Color.white.opacity(0.2) : Color.naarsPrimary.opacity(0.1))
+                    )
+            }
+
+            HStack(spacing: 2) {
+                ForEach(waveformHeights.indices, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(waveformColor(at: index, progress: progress))
+                        .frame(width: 3, height: waveformHeights[index])
+                }
+            }
+            .frame(height: 30)
+
+            Text(durationLabel(totalDuration: totalDuration, progress: progress))
+                .font(.naarsFootnote).fontWeight(.medium)
+                .foregroundColor(isFromCurrentUser ? .white.opacity(0.8) : .secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(isFromCurrentUser ? Color.naarsPrimary : Color(.systemGray5))
+        )
+    }
+
+    private func waveformColor(at index: Int, progress: Double) -> Color {
+        let isPlayed = index < Int(progress * Double(waveformHeights.count))
+        if isFromCurrentUser {
+            return Color.white.opacity(isPlayed ? 1.0 : 0.4)
+        }
+        return Color.naarsPrimary.opacity(isPlayed ? 1.0 : 0.3)
+    }
+
+    private func durationLabel(totalDuration: Double, progress: Double) -> String {
+        if totalDuration > 0 && progress > 0 {
+            let elapsed = totalDuration * progress
+            return "\(formatDuration(elapsed)) / \(formatDuration(totalDuration))"
+        }
+        return formatDuration(totalDuration)
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 

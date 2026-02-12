@@ -90,7 +90,6 @@ enum MapError: LocalizedError {
 // MARK: - MapService
 
 /// Service for map operations: geocoding, routing, and creating map annotations
-@MainActor
 final class MapService {
     static let shared = MapService()
     

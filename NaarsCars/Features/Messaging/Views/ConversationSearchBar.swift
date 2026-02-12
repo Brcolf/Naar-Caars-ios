@@ -71,6 +71,26 @@ struct ConversationSearchBar: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+
+                    if viewModel.isLoadingOlderSearchResults {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 28, height: 28)
+                    } else if viewModel.canLoadOlderSearchResults {
+                        Button {
+                            viewModel.loadOlderSearchResults()
+                        } label: {
+                            Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                                .font(.naarsFootnote).fontWeight(.semibold)
+                                .foregroundColor(.naarsPrimary)
+                                .frame(width: 28, height: 28)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("messages.search.loadOlder")
+                        .accessibilityLabel("Load older results")
+                        .accessibilityHint("Loads earlier matching messages")
+                    }
                 }
             } else if viewModel.isSearchingMessages {
                 ProgressView()

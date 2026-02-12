@@ -16,8 +16,12 @@ final class PasswordResetViewModel: ObservableObject {
     @Published var error: AppError?
     @Published var successMessage: String?
     
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
     private let rateLimiter = RateLimiter.shared
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
     
     func sendPasswordReset() async {
         // Validate email

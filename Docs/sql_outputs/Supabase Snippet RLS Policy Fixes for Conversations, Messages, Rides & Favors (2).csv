@@ -1,0 +1,4 @@
+tgname,tgenabled,function_name
+message_push_webhook,O,http_request
+on_message_created,O,handle_new_message
+on_message_inserted_push,O,notify_message_push

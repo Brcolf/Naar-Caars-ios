@@ -52,6 +52,7 @@ struct MessageInputBar: View {
     
     // Expanded attachment menu
     @State private var showAttachmentMenu = false
+    @State private var lastTypingSignalAt: Date = .distantPast
     
     var body: some View {
         VStack(spacing: 0) {
@@ -120,10 +121,8 @@ struct MessageInputBar: View {
                     .lineLimit(1...5)
                     .submitLabel(.return)
                     .applyFocusState(focusState)
-                    .onChange(of: text) { _, newValue in
-                        if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            onTypingChanged?()
-                        }
+                    .onChange(of: text) { oldValue, newValue in
+                        signalTypingIfNeeded(oldValue: oldValue, newValue: newValue)
                     }
                     .accessibilityIdentifier("message.input")
                     .accessibilityLabel("Message")
@@ -295,6 +294,18 @@ struct MessageInputBar: View {
         let secs = Int(seconds) % 60
         let tenths = Int((seconds * 10).truncatingRemainder(dividingBy: 10))
         return String(format: "%d:%02d.%d", mins, secs, tenths)
+    }
+
+    private func signalTypingIfNeeded(oldValue: String, newValue: String) {
+        let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        guard newValue.count >= oldValue.count else { return }
+        guard newValue.count >= 2 else { return }
+
+        let now = Date()
+        guard now.timeIntervalSince(lastTypingSignalAt) >= Constants.Timing.typingSignalThreshold else { return }
+        lastTypingSignalAt = now
+        onTypingChanged?()
     }
     
     // MARK: - Editing Banner
@@ -688,4 +699,3 @@ private extension View {
         isDisabled: false
     )
 }
-

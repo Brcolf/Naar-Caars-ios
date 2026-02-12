@@ -145,8 +145,7 @@ final class MessagingSyncEngineTests: XCTestCase {
 
         let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
             record: record,
-            oldRecord: oldRecord,
-            currentUserId: currentUserId
+            oldRecord: oldRecord
         )
 
         XCTAssertTrue(shouldIgnore)
@@ -161,8 +160,7 @@ final class MessagingSyncEngineTests: XCTestCase {
 
         let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
             record: record,
-            oldRecord: oldRecord,
-            currentUserId: currentUserId
+            oldRecord: oldRecord
         )
 
         XCTAssertFalse(shouldIgnore)
@@ -179,8 +177,7 @@ final class MessagingSyncEngineTests: XCTestCase {
 
         let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
             record: record,
-            oldRecord: oldRecord,
-            currentUserId: currentUserId
+            oldRecord: oldRecord
         )
 
         XCTAssertFalse(shouldIgnore)
@@ -201,6 +198,7 @@ final class MessagingSyncEngineTests: XCTestCase {
     }
 }
 
+@MainActor
 final class RideCostEstimatorTests: XCTestCase {
     func testTimeOfDayMultiplierWeekdayMorningRush() {
         let calendar = makeCalendar()

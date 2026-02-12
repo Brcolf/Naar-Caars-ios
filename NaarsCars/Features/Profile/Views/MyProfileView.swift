@@ -27,6 +27,8 @@ struct MyProfileView: View {
     @State private var showDeleteError = false
     @State private var deleteErrorMessage = ""
     @State private var showSettings = false
+    @State private var showPendingUsersList = false
+    @State private var showAdminPanel = false
     @State private var toastMessage: String? = nil
     
     var body: some View {
@@ -128,12 +130,25 @@ struct MyProfileView: View {
                     }
                     .padding()
                 }
-                .onChange(of: navigationCoordinator.profileScrollTarget) { _, target in
-                    guard let target else { return }
-                    withAnimation(.easeInOut) {
-                        proxy.scrollTo(target, anchor: .top)
+                .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                    guard let intent else { return }
+                    switch intent {
+                    case .pendingUsers:
+                        showPendingUsersList = true
+                        navigationCoordinator.pendingIntent = nil
+                    case .adminPanel:
+                        showAdminPanel = true
+                        navigationCoordinator.pendingIntent = nil
+                    case .profile(let userId):
+                        if userId == (appState.currentUser?.id ?? AuthService.shared.currentUserId) {
+                            withAnimation(.easeInOut) {
+                                proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
+                            }
+                        }
+                        navigationCoordinator.pendingIntent = nil
+                    default:
+                        break
                     }
-                    navigationCoordinator.profileScrollTarget = nil
                 }
             }
             .navigationTitle("profile_title".localized)
@@ -141,7 +156,7 @@ struct MyProfileView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: Constants.Spacing.md) {
                         BellButton {
-                            navigationCoordinator.navigateToNotifications = true
+                            navigationCoordinator.pendingIntent = .notifications
                             AppLogger.info("profile", "Bell tapped")
                         }
 
@@ -163,11 +178,11 @@ struct MyProfileView: View {
                 SettingsView()
                     .environmentObject(appState)
             }
-            .navigationDestination(isPresented: $navigationCoordinator.navigateToPendingUsers) {
+            .navigationDestination(isPresented: $showPendingUsersList) {
                 PendingUsersView()
-                    .onDisappear {
-                        navigationCoordinator.navigateToPendingUsers = false
-                    }
+            }
+            .navigationDestination(isPresented: $showAdminPanel) {
+                AdminPanelView()
             }
             .refreshable {
                 // Try to get user ID from appState first, fallback to AuthService

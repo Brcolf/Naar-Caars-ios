@@ -17,6 +17,7 @@ struct ConversationDetailView: View {
     @StateObject private var viewModel: ConversationDetailViewModel
     @StateObject private var participantsViewModel: ConversationParticipantsViewModel
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @StateObject private var debugFrameDropMonitor: DebugFrameDropMonitor
     @FocusState private var isInputFocused: Bool
     @State private var showMessageDetails = false
     @State private var selectedUserIds: Set<UUID> = []
@@ -65,6 +66,7 @@ struct ConversationDetailView: View {
         self.conversationId = conversationId
         _viewModel = StateObject(wrappedValue: ConversationDetailViewModel(conversationId: conversationId))
         _participantsViewModel = StateObject(wrappedValue: ConversationParticipantsViewModel(conversationId: conversationId))
+        _debugFrameDropMonitor = StateObject(wrappedValue: DebugFrameDropMonitor(conversationId: conversationId))
     }
     
     // Computed title based on conversation type
@@ -110,80 +112,8 @@ struct ConversationDetailView: View {
                 ConversationSearchBar(viewModel: viewModel)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
-            
+
             messagesListView
-
-            // Typing indicator
-            if !viewModel.typingUsers.isEmpty {
-                TypingIndicatorView(typingUsers: viewModel.typingUsers)
-                    .padding(.horizontal)
-                    .animation(.easeInOut(duration: 0.25), value: viewModel.typingUsers.count)
-            }
-
-            // Input bar
-            MessageInputBar(
-                text: $viewModel.messageText,
-                imageToSend: $imageToSend,
-                onSend: {
-                    if viewModel.editingMessage != nil {
-                        // Submit edit
-                        let editedText = viewModel.messageText
-                        Task {
-                            await viewModel.editMessage(newContent: editedText)
-                            if viewModel.error == nil {
-                                toastMessage = "toast_message_edited".localized
-                            }
-                        }
-                    } else {
-                        // Normal send
-                        let textToSend = viewModel.messageText
-                        viewModel.messageText = ""
-                        viewModel.clearOwnTypingStatus()
-                        Task {
-                            await viewModel.sendMessage(textOverride: textToSend, image: imageToSend, replyToId: replyingToMessage?.id)
-                            imageToSend = nil
-                            // Clear reply context after sending
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                replyingToMessage = nil
-                            }
-                        }
-                    }
-                },
-                onImagePickerTapped: {
-                    showImagePicker = true
-                },
-                isDisabled: viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil,
-                focusState: $isInputFocused,
-                replyingTo: replyingToMessage,
-                onCancelReply: {
-                    replyingToMessage = nil
-                },
-                editingMessage: viewModel.editingMessage,
-                onCancelEdit: {
-                    viewModel.cancelEdit()
-                },
-                onAudioRecorded: { audioURL, duration in
-                    viewModel.clearOwnTypingStatus()
-                    Task {
-                        await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyingToMessage?.id)
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            replyingToMessage = nil
-                        }
-                    }
-                },
-                onLocationShare: { latitude, longitude, name in
-                    viewModel.clearOwnTypingStatus()
-                    Task {
-                        await viewModel.sendLocationMessage(latitude: latitude, longitude: longitude, locationName: name, replyToId: replyingToMessage?.id)
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            replyingToMessage = nil
-                        }
-                    }
-                },
-                onTypingChanged: {
-                    viewModel.userDidType()
-                }
-            )
         }
         .id(threadAnchorId)
         .navigationTitle(conversationTitle)
@@ -268,16 +198,13 @@ struct ConversationDetailView: View {
                 object: nil,
                 userInfo: ["conversationId": conversationId]
             )
-            // Mark as read and update last_seen when view appears
-            // This prevents push notifications when user is actively viewing
-            Task {
-                if let userId = AuthService.shared.currentUserId {
-                    // Update last_seen first to mark user as actively viewing
-                    try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
-                }
-            }
+            // Start lightweight presence heartbeat when the thread is visible.
+            viewModel.conversationDidAppear()
             // Start observing typing indicators
             viewModel.startTypingObservation()
+#if DEBUG
+            debugFrameDropMonitor.start()
+#endif
         }
         .onDisappear {
             NotificationCenter.default.post(
@@ -287,6 +214,9 @@ struct ConversationDetailView: View {
             )
             // Stop observing typing indicators
             viewModel.stopTypingObservation()
+#if DEBUG
+            debugFrameDropMonitor.stop()
+#endif
         }
         .onChange(of: viewModel.currentSearchResultId) { _, resultId in
             if let messageId = resultId {
@@ -398,7 +328,7 @@ struct ConversationDetailView: View {
             shouldAnimate: newMessageIds.contains(message.id),
             totalParticipants: totalParticipantsCount,
             replySpine: replyChain.map { (showTop: $0.hasPrevious, showBottom: $0.hasNext) },
-            isFailed: viewModel.failedMessageIds.contains(message.id),
+            isFailed: message.sendStatus == .failed,
             onLongPress: {
                 reactionPickerMessageId = message.id
                 showReactionPicker = true
@@ -442,124 +372,220 @@ struct ConversationDetailView: View {
     }
     
 
+    /// Cell configurations for MessagesCollectionView (hashable per-message display options).
+    private var messageCellConfigurations: [UUID: MessageCellConfiguration] {
+        var configs: [UUID: MessageCellConfiguration] = [:]
+        for (index, message) in viewModel.messages.enumerated() {
+            configs[message.id] = MessageCellConfiguration(
+                messageId: message.id,
+                isFirstInSeries: isFirstInSeries(at: index),
+                isLastInSeries: isLastInSeries(at: index),
+                showDateSeparator: shouldShowDateSeparator(at: index)
+            )
+        }
+        return configs
+    }
+
+    @State private var shouldScrollToBottom = false
+
     private var messagesListView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    messagesHeaderView
-                    messagesBodyView
-                    messagesBottomSpacerView
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-            }
-            .accessibilityIdentifier("messages.thread.scroll")
-            .scrollDismissesKeyboard(.interactively)
-            .onAppear {
-                scrollProxy = proxy
-            }
-            .onChange(of: isInputFocused) { _, isFocused in
-                if isFocused && isAtBottom {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        withAnimation(.easeOut(duration: 0.25)) {
-                            proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
-                        }
+        VStack(spacing: 0) {
+            ZStack {
+                if viewModel.isLoading && viewModel.messages.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if viewModel.messages.isEmpty {
+                    VStack(spacing: Constants.Spacing.md) {
+                        Image(systemName: "message.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.secondary)
+                        Text("messaging_no_messages_yet".localized)
+                            .font(.naarsBody)
+                            .foregroundColor(.secondary)
+                        Text("messaging_start_the_conversation".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
                     }
-                }
-            }
-            .onChange(of: viewModel.messages.count) { oldCount, newCount in
-                // After pagination: scroll back to the anchor message to preserve position
-                if let anchor = anchorMessageId, viewModel.isLoadingMore || newCount > oldCount {
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(messageAnchorId(anchor), anchor: .top)
-                        anchorMessageId = nil
-                    }
-                    return
-                }
-                
-                // Track truly new messages for entrance animation (not paginated ones)
-                if newCount > oldCount && !viewModel.isLoadingMore {
-                    let newMessages = viewModel.messages.suffix(newCount - oldCount)
-                    for message in newMessages {
-                        newMessageIds.insert(message.id)
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        newMessageIds.removeAll()
-                    }
-                }
-
-                // Auto-scroll to bottom for own messages or when already at bottom
-                let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
-
-                if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore {
-                    if let lastMessage = viewModel.messages.last {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo(messageAnchorId(lastMessage.id), anchor: .bottom)
-                        }
-                    }
-                    showScrollToBottom = false
-                } else if newCount > oldCount && !viewModel.isLoadingMore {
-                    showScrollToBottom = true
-                }
-
-                // Update last_seen when new messages arrive while viewing
-                Task {
-                    if let userId = AuthService.shared.currentUserId {
-                        try? await MessageService.shared.updateLastSeen(conversationId: conversationId, userId: userId)
-                    }
-                }
-
-                handleConversationScrollTarget(with: proxy)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if showScrollToBottom {
-                ScrollToBottomButton(
-                    unreadCount: viewModel.unreadCount,
-                    action: {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            scrollProxy?.scrollTo(threadBottomAnchorId, anchor: .bottom)
-                        }
-                        showScrollToBottom = false
-                    }
-                )
-                .id("messages.thread.scrollToBottomButton")
-                .padding(.trailing, 16)
-                .padding(.bottom, 8)
-                .transition(.scale.combined(with: .opacity))
-            }
-        }
-        .overlay(alignment: .center) {
-            if showReactionPicker {
-                VStack {
-                    Spacer()
-                    ReactionPicker(
-                        onReactionSelected: { reaction in
-                            HapticManager.selectionChanged()
-                            if let messageId = reactionPickerMessageId {
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    MessagesCollectionView(
+                        messages: viewModel.messages,
+                        cellConfigurations: messageCellConfigurations,
+                        messageCellContent: { message, config in
+                            AnyView(
+                                VStack(spacing: 0) {
+                                    if config.showDateSeparator {
+                                        DateSeparatorView(date: message.createdAt)
+                                            .padding(.vertical, 16)
+                                    }
+                                    createMessageBubble(
+                                        message: message,
+                                        isFirst: config.isFirstInSeries,
+                                        isLast: config.isLastInSeries,
+                                        replyChain: replyChainContextForMessage(message)
+                                    )
+                                }
+                            )
+                        },
+                        onLoadMore: {
+                            if viewModel.hasMoreMessages && !viewModel.isLoadingMore {
                                 Task {
-                                    await viewModel.addReaction(messageId: messageId, reaction: reaction)
+                                    await viewModel.loadMoreMessages()
                                 }
                             }
-                            showReactionPicker = false
-                            reactionPickerMessageId = nil
                         },
-                        onDismiss: {
-                            showReactionPicker = false
-                            reactionPickerMessageId = nil
-                        }
+                        onScrolledToBottom: { atBottom in
+                            isAtBottom = atBottom
+                            if atBottom {
+                                showScrollToBottom = false
+                            }
+                        },
+                        scrollToMessageId: viewModel.currentSearchResultId ?? highlightedMessageId,
+                        scrollToBottom: shouldScrollToBottom
                     )
-                    .padding(.bottom, 100)
-                    Spacer()
-                }
-                .background(Color.black.opacity(0.3))
-                .transition(.scale.combined(with: .opacity))
-                .onTapGesture {
-                    showReactionPicker = false
-                    reactionPickerMessageId = nil
+                    .accessibilityIdentifier("messages.thread.scroll")
+                    .onAppear {
+                        if navigationCoordinator.consumeConversationScrollTarget(for: conversationId) != nil,
+                           !viewModel.messages.isEmpty {
+                            showScrollToBottom = false
+                            shouldScrollToBottom = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                shouldScrollToBottom = false
+                            }
+                        }
+                    }
+                    .onChange(of: viewModel.messages.count) { oldCount, newCount in
+                        if navigationCoordinator.consumeConversationScrollTarget(for: conversationId) != nil {
+                            showScrollToBottom = false
+                            shouldScrollToBottom = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                shouldScrollToBottom = false
+                            }
+                        }
+                        if oldCount > 0, newCount > oldCount, !viewModel.isLoadingMore {
+                            let newMessages = viewModel.messages.suffix(newCount - oldCount)
+                            for message in newMessages {
+                                newMessageIds.insert(message.id)
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                newMessageIds.removeAll()
+                            }
+                        }
+                        let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
+                        if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore && oldCount > 0 {
+                            shouldScrollToBottom = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                shouldScrollToBottom = false
+                            }
+                            showScrollToBottom = false
+                        } else if newCount > oldCount && !viewModel.isLoadingMore {
+                            showScrollToBottom = true
+                        }
+                    }
                 }
             }
+            .overlay(alignment: .bottomTrailing) {
+                if showScrollToBottom {
+                    ScrollToBottomButton(
+                        unreadCount: viewModel.unreadCount,
+                        action: {
+                            shouldScrollToBottom = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                shouldScrollToBottom = false
+                            }
+                            showScrollToBottom = false
+                        }
+                    )
+                    .id("messages.thread.scrollToBottomButton")
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 8)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .overlay(alignment: .center) {
+                if showReactionPicker {
+                    VStack {
+                        Spacer()
+                        ReactionPicker(
+                            onReactionSelected: { reaction in
+                                HapticManager.selectionChanged()
+                                if let messageId = reactionPickerMessageId {
+                                    Task {
+                                        await viewModel.addReaction(messageId: messageId, reaction: reaction)
+                                    }
+                                }
+                                showReactionPicker = false
+                                reactionPickerMessageId = nil
+                            },
+                            onDismiss: {
+                                showReactionPicker = false
+                                reactionPickerMessageId = nil
+                            }
+                        )
+                        .padding(.bottom, 100)
+                        Spacer()
+                    }
+                    .background(Color.black.opacity(0.3))
+                    .transition(.scale.combined(with: .opacity))
+                    .onTapGesture {
+                        showReactionPicker = false
+                        reactionPickerMessageId = nil
+                    }
+                }
+            }
+
+            if !viewModel.typingUsers.isEmpty {
+                TypingIndicatorView(typingUsers: viewModel.typingUsers)
+                    .padding(.horizontal)
+            }
+            ConversationInputContainer(
+                imageToSend: $imageToSend,
+                editingMessage: viewModel.editingMessage,
+                replyingTo: replyingToMessage,
+                focusState: $isInputFocused,
+                onSendEdit: { editedText in
+                    await viewModel.editMessage(newContent: editedText)
+                    if viewModel.error == nil {
+                        toastMessage = "toast_message_edited".localized
+                        return true
+                    }
+                    return false
+                },
+                onSendMessage: { textToSend, image, replyToId in
+                    viewModel.clearOwnTypingStatus()
+                    await viewModel.sendMessage(textOverride: textToSend, image: image, replyToId: replyToId)
+                    imageToSend = nil
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        replyingToMessage = nil
+                    }
+                },
+                onImagePickerTapped: { showImagePicker = true },
+                onCancelReply: { replyingToMessage = nil },
+                onCancelEdit: {
+                    viewModel.cancelEdit()
+                },
+                onSendAudio: { audioURL, duration, replyToId in
+                    viewModel.clearOwnTypingStatus()
+                    await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyToId)
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        replyingToMessage = nil
+                    }
+                },
+                onSendLocation: { latitude, longitude, name, replyToId in
+                    viewModel.clearOwnTypingStatus()
+                    await viewModel.sendLocationMessage(
+                        latitude: latitude,
+                        longitude: longitude,
+                        locationName: name,
+                        replyToId: replyToId
+                    )
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        replyingToMessage = nil
+                    }
+                },
+                onTypingChanged: { viewModel.userDidType() }
+            )
+            .id("conversation.input.\(conversationId.uuidString)")
         }
     }
 
@@ -713,12 +739,10 @@ struct ConversationDetailView: View {
     }
 
     private func handleConversationScrollTarget(with proxy: ScrollViewProxy) {
-        guard let target = navigationCoordinator.conversationScrollTarget,
-              target.conversationId == conversationId else {
+        guard navigationCoordinator.consumeConversationScrollTarget(for: conversationId) != nil else {
             return
         }
 
-        navigationCoordinator.conversationScrollTarget = nil
         showScrollToBottom = false
         withAnimation(.easeOut(duration: 0.3)) {
             proxy.scrollTo(threadBottomAnchorId, anchor: .bottom)
@@ -748,6 +772,12 @@ struct ConversationDetailView: View {
         let hasNext = index < viewModel.messages.count - 1 && viewModel.messages[index + 1].replyToId == replyToId
 
         return ReplyChainContext(hasPrevious: hasPrevious, hasNext: hasNext)
+    }
+
+    /// Look up reply chain context for a message by finding its index
+    private func replyChainContextForMessage(_ message: Message) -> ReplyChainContext? {
+        guard let index = viewModel.messages.firstIndex(where: { $0.id == message.id }) else { return nil }
+        return replyChainContext(at: index)
     }
     
     /// Check if we should show a date separator before this message
@@ -852,12 +882,87 @@ struct ConversationDetailView: View {
         guard let userId = AuthService.shared.currentUserId else { return }
         
         do {
-            let conversations = try await ConversationService.shared.fetchConversations(userId: userId, limit: 100, offset: 0)
-            if let detail = conversations.first(where: { $0.conversation.id == conversationId }) {
+            if let detail = try await ConversationService.shared.fetchConversationWithDetails(
+                conversationId: conversationId,
+                userId: userId
+            ) {
                 conversationDetail = detail
             }
         } catch {
             AppLogger.error("messaging", "Error loading conversation details: \(error.localizedDescription)")
+        }
+    }
+}
+
+private struct ConversationInputContainer: View {
+    @Binding var imageToSend: UIImage?
+    let editingMessage: Message?
+    let replyingTo: ReplyContext?
+    let focusState: FocusState<Bool>.Binding
+    let onSendEdit: (String) async -> Bool
+    let onSendMessage: (String, UIImage?, UUID?) async -> Void
+    let onImagePickerTapped: () -> Void
+    let onCancelReply: () -> Void
+    let onCancelEdit: () -> Void
+    let onSendAudio: (URL, Double, UUID?) async -> Void
+    let onSendLocation: (Double, Double, String?, UUID?) async -> Void
+    let onTypingChanged: () -> Void
+
+    @State private var draftText: String = ""
+
+    var body: some View {
+        MessageInputBar(
+            text: $draftText,
+            imageToSend: $imageToSend,
+            onSend: handleSendTapped,
+            onImagePickerTapped: onImagePickerTapped,
+            isDisabled: draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil,
+            focusState: focusState,
+            replyingTo: replyingTo,
+            onCancelReply: onCancelReply,
+            editingMessage: editingMessage,
+            onCancelEdit: {
+                draftText = ""
+                onCancelEdit()
+            },
+            onAudioRecorded: { audioURL, duration in
+                Task {
+                    await onSendAudio(audioURL, duration, replyingTo?.id)
+                }
+            },
+            onLocationShare: { latitude, longitude, name in
+                Task {
+                    await onSendLocation(latitude, longitude, name, replyingTo?.id)
+                }
+            },
+            onTypingChanged: onTypingChanged
+        )
+        .onChange(of: editingMessage?.id) { _, _ in
+            draftText = editingMessage?.text ?? ""
+        }
+    }
+
+    private func handleSendTapped() {
+        if editingMessage != nil {
+            let editedText = draftText
+            guard !editedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            draftText = ""
+            Task {
+                let success = await onSendEdit(editedText)
+                if !success {
+                    draftText = editedText
+                }
+            }
+            return
+        }
+
+        let textToSend = draftText
+        let trimmed = textToSend.trimmingCharacters(in: .whitespacesAndNewlines)
+        let image = imageToSend
+        guard !trimmed.isEmpty || image != nil else { return }
+        draftText = ""
+        Task {
+            await onSendMessage(textToSend, image, replyingTo?.id)
         }
     }
 }
@@ -921,18 +1026,15 @@ final class ConversationParticipantsViewModel: ObservableObject {
             // 3. Update local SwiftData participant list
             if let sdConv = try? MessagingRepository.shared.fetchSDConversation(id: conversationId) {
                 sdConv.participantIds = freshParticipantIds
-                try? MessagingRepository.shared.save()
+                try? MessagingRepository.shared.save(changedConversationIds: Set([conversationId]))
             }
             
             // 4. Fetch profiles for each participant
             let existingParticipants = participants
-            var profiles: [Profile] = []
-            for userId in freshParticipantIds {
-                if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                    profiles.append(profile)
-                } else if let existing = existingParticipants.first(where: { $0.id == userId }) {
-                    profiles.append(existing)
-                }
+            let fetchedProfiles = (try? await ProfileService.shared.fetchProfiles(userIds: freshParticipantIds)) ?? []
+            let fetchedById = Dictionary(uniqueKeysWithValues: fetchedProfiles.map { ($0.id, $0) })
+            let profiles = freshParticipantIds.compactMap { userId in
+                fetchedById[userId] ?? existingParticipants.first(where: { $0.id == userId })
             }
 
             if !profiles.isEmpty || freshParticipantIds.isEmpty {
@@ -1050,10 +1152,8 @@ final class MessageThreadViewModel: ObservableObject {
         if let seedParent = seedMessages.first(where: { $0.id == parentMessageId }) {
             parentMessage = seedParent
         }
-
-        if replies.isEmpty {
-            replies = seedMessages.filter { $0.replyToId == parentMessageId }
-        }
+        // Don't set replies from seed; set once from network to avoid jumpy list update
+        replies = []
 
         do {
             parentMessage = try await messageService.fetchMessageById(parentMessageId)
@@ -1100,6 +1200,7 @@ struct MessageThreadView: View {
     @State private var imageToSend: UIImage?
     @State private var showImagePicker = false
     @State private var selectedImage: PhotosPickerItem?
+    @State private var mergeRepliesTask: Task<Void, Never>?
 
     init(
         conversationId: UUID,
@@ -1128,49 +1229,6 @@ struct MessageThreadView: View {
                 threadHeader
                 Divider()
                 threadContent
-                Divider()
-                MessageInputBar(
-                    text: $messageText,
-                    imageToSend: $imageToSend,
-                    onSend: {
-                        let textToSend = messageText
-                        let image = imageToSend
-                        messageText = ""
-                        imageToSend = nil
-                        Task {
-                            await conversationViewModel.sendMessage(
-                                textOverride: textToSend,
-                                image: image,
-                                replyToId: parentMessageId
-                            )
-                        }
-                    },
-                    onImagePickerTapped: {
-                        showImagePicker = true
-                    },
-                    isDisabled: !hasParentMessage || (messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil),
-                    replyingTo: nil,
-                    onCancelReply: nil,
-                    onAudioRecorded: { audioURL, duration in
-                        Task {
-                            await conversationViewModel.sendAudioMessage(
-                                audioURL: audioURL,
-                                duration: duration,
-                                replyToId: parentMessageId
-                            )
-                        }
-                    },
-                    onLocationShare: { latitude, longitude, name in
-                        Task {
-                            await conversationViewModel.sendLocationMessage(
-                                latitude: latitude,
-                                longitude: longitude,
-                                locationName: name,
-                                replyToId: parentMessageId
-                            )
-                        }
-                    }
-                )
             }
             .background(.ultraThinMaterial)
         }
@@ -1192,7 +1250,15 @@ struct MessageThreadView: View {
             await viewModel.loadThread(seedMessages: conversationViewModel.messages)
         }
         .onReceive(conversationViewModel.$messages) { messages in
-            viewModel.mergeReplies(from: messages)
+            mergeRepliesTask?.cancel()
+            let current = messages
+            mergeRepliesTask = Task {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    viewModel.mergeReplies(from: current)
+                }
+            }
         }
     }
 
@@ -1253,6 +1319,52 @@ struct MessageThreadView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
             }
+            .defaultScrollAnchor(.bottom)
+            .safeAreaInset(edge: .bottom) {
+                MessageInputBar(
+                    text: $messageText,
+                    imageToSend: $imageToSend,
+                    onSend: {
+                        let textToSend = messageText
+                        let image = imageToSend
+                        messageText = ""
+                        imageToSend = nil
+                        Task {
+                            await conversationViewModel.sendMessage(
+                                textOverride: textToSend,
+                                image: image,
+                                replyToId: parentMessageId
+                            )
+                            if messageText == textToSend {
+                                messageText = ""
+                            }
+                        }
+                    },
+                    onImagePickerTapped: { showImagePicker = true },
+                    isDisabled: !hasParentMessage || (messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil),
+                    replyingTo: nil,
+                    onCancelReply: nil,
+                    onAudioRecorded: { audioURL, duration in
+                        Task {
+                            await conversationViewModel.sendAudioMessage(
+                                audioURL: audioURL,
+                                duration: duration,
+                                replyToId: parentMessageId
+                            )
+                        }
+                    },
+                    onLocationShare: { latitude, longitude, name in
+                        Task {
+                            await conversationViewModel.sendLocationMessage(
+                                latitude: latitude,
+                                longitude: longitude,
+                                locationName: name,
+                                replyToId: parentMessageId
+                            )
+                        }
+                    }
+                )
+            }
             .onChange(of: viewModel.replies.count) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) {
                     proxy.scrollTo("thread.bottom", anchor: .bottom)
@@ -1305,6 +1417,100 @@ struct MessageThreadView: View {
     }
 }
 
+@MainActor
+private final class DebugFrameDropMonitor: NSObject, ObservableObject {
+    private let conversationId: UUID
+    private var displayLink: CADisplayLink?
+    private var lastTimestamp: CFTimeInterval = 0
+    private var lastFlushTimestamp: CFTimeInterval = 0
+    private var pendingDroppedFrames = 0
+    private var pendingEvents = 0
+
+    init(conversationId: UUID) {
+        self.conversationId = conversationId
+    }
+
+    func start() {
+#if DEBUG
+        guard FeatureFlags.verbosePerformanceLogsEnabled else { return }
+        guard displayLink == nil else { return }
+        lastTimestamp = 0
+        lastFlushTimestamp = 0
+        pendingDroppedFrames = 0
+        pendingEvents = 0
+        let link = CADisplayLink(target: self, selector: #selector(handleFrameTick(_:)))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+#endif
+    }
+
+    func stop() {
+        flushPendingIfNeeded(force: true)
+        displayLink?.invalidate()
+        displayLink = nil
+        lastTimestamp = 0
+        lastFlushTimestamp = 0
+        pendingDroppedFrames = 0
+        pendingEvents = 0
+    }
+
+    @objc private func handleFrameTick(_ link: CADisplayLink) {
+#if DEBUG
+        guard FeatureFlags.verbosePerformanceLogsEnabled else { return }
+        if lastTimestamp == 0 {
+            lastTimestamp = link.timestamp
+            return
+        }
+
+        let expectedFrameDuration = link.duration > 0 ? link.duration : (1.0 / 60.0)
+        let delta = link.timestamp - lastTimestamp
+        lastTimestamp = link.timestamp
+
+        guard delta > expectedFrameDuration * 1.5 else { return }
+        let droppedFrames = max(Int((delta / expectedFrameDuration).rounded(.down)) - 1, 1)
+        pendingEvents += 1
+        pendingDroppedFrames += droppedFrames
+
+        let shouldFlushNow =
+            pendingEvents >= 6 ||
+            pendingDroppedFrames >= 12 ||
+            (lastFlushTimestamp == 0 || (link.timestamp - lastFlushTimestamp) >= 0.75)
+        if shouldFlushNow {
+            flushPendingIfNeeded(force: false, slowThreshold: expectedFrameDuration * 2)
+            lastFlushTimestamp = link.timestamp
+        }
+#endif
+    }
+
+    private func flushPendingIfNeeded(force: Bool, slowThreshold: TimeInterval = 1.0 / 30.0) {
+#if DEBUG
+        guard force || pendingEvents > 0 else { return }
+        let droppedFrames = pendingDroppedFrames
+        let events = pendingEvents
+        guard events > 0 else { return }
+
+        pendingEvents = 0
+        pendingDroppedFrames = 0
+
+        Task {
+            await PerformanceMonitor.shared.incrementDebugCounter("messaging.frameDrop.events", by: events)
+            await PerformanceMonitor.shared.incrementDebugCounter("messaging.frameDrop.frames", by: droppedFrames)
+            let estimatedDuration = TimeInterval(droppedFrames) * (1.0 / 60.0)
+            await PerformanceMonitor.shared.record(
+                operation: "messaging.frameDrop.delta",
+                duration: estimatedDuration,
+                metadata: [
+                    "conversationId": conversationId.uuidString,
+                    "droppedFrames": droppedFrames,
+                    "events": events
+                ],
+                slowThreshold: slowThreshold
+            )
+        }
+#endif
+    }
+}
+
 #Preview {
     NavigationStack {
         ConversationDetailView(conversationId: UUID())
@@ -1319,4 +1525,3 @@ struct MessageThreadView: View {
     }
     .padding()
 }
-

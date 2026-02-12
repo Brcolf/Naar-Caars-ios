@@ -21,10 +21,20 @@ final class FavorDetailViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let favorService = FavorService.shared
-    private let rideService = RideService.shared // Reuse RideService for Q&A
-    private let authService = AuthService.shared
+    private let favorService: any FavorServiceProtocol
+    private let rideService: any RideServiceProtocol // Reuse RideService for Q&A
+    private let authService: any AuthServiceProtocol
     private let notificationRepository = NotificationRepository.shared
+
+    init(
+        favorService: any FavorServiceProtocol = FavorService.shared,
+        rideService: any RideServiceProtocol = RideService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.favorService = favorService
+        self.rideService = rideService
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     

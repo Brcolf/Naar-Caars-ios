@@ -1,0 +1,25 @@
+description: "Before changing high-blast-radius seams, require impact analysis and paired updates."
+
+Applies to:
+- /**
+
+When modifying any of these seams:
+- BadgeCountManager
+- RealtimeManager
+- NavigationCoordinator
+- NotificationType / AppNotification
+- SyncEngines (MessagingSyncEngine, DashboardSyncEngine, TownHallSyncEngine)
+- SwiftData↔Domain mappers (MessagingMapper etc.)
+- Supabase RPC call sites (e.g., get_badge_counts, get_conversations_with_details)
+- NSNotification.Name constants/events
+- Constants.swift
+
+You MUST:
+1) List upstream/downstream dependencies (modules/services/viewmodels) impacted.
+2) Identify the contract(s) involved (payload shape, enum cases, RPC signature, model fields).
+3) Update all consumers in the same change set (no partial updates).
+4) End response with an "Impact Summary":
+   - what changed
+   - what files were updated
+   - what would have broken if missed
+

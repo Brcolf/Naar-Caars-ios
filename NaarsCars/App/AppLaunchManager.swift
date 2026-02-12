@@ -66,6 +66,7 @@ final class AppLaunchManager: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private var signOutObserver: NSObjectProtocol?
+    private var deferredSyncStartedForUserId: UUID?
     
     private init() {
         AppLogger.info("launch", "Initializing - setting up notification listener")
@@ -92,6 +93,7 @@ final class AppLaunchManager: ObservableObject {
             // Since AppLaunchManager is @MainActor, this is safe to do synchronously
             AppLogger.info("launch", "Setting state to unauthenticated immediately")
             AppLogger.info("launch", "Current state before update: \(self.state.id)")
+            self.deferredSyncStartedForUserId = nil
             self.state = .ready(.unauthenticated)
             AppLogger.info("launch", "State updated to: \(self.state.id)")
         }
@@ -112,6 +114,7 @@ final class AppLaunchManager: ObservableObject {
     /// Perform critical launch operations (auth session + approval check only)
     /// Target: Complete in <1 second per FR-051
     func performCriticalLaunch() async {
+        let launchStart = Date()
         state = .checkingAuth
         
         do {
@@ -123,6 +126,11 @@ final class AppLaunchManager: ObservableObject {
             guard let userId = UUID(uuidString: userIdString) else {
                 // No valid user ID - ready for login
                 state = .ready(.unauthenticated)
+                await recordLaunchDuration(
+                    start: launchStart,
+                    result: "invalid_user_id",
+                    metadata: ["state": state.id]
+                )
                 return
             }
             
@@ -138,13 +146,31 @@ final class AppLaunchManager: ObservableObject {
             }
             
             // Step 3: Start deferred loading in background (non-blocking)
-            Task.detached(priority: .userInitiated) { [userId] in
+            Task(priority: .userInitiated) { [weak self, userId] in
+                guard let self else { return }
                 await self.performDeferredLoading(userId: userId)
             }
+            await recordLaunchDuration(
+                start: launchStart,
+                result: "success",
+                metadata: [
+                    "state": state.id,
+                    "approved": isApproved,
+                    "hasSession": true
+                ]
+            )
             
         } catch {
             // Session check failed - treat as unauthenticated
             state = .ready(.unauthenticated)
+            await recordLaunchDuration(
+                start: launchStart,
+                result: "session_missing_or_invalid",
+                metadata: [
+                    "state": state.id,
+                    "error": error.localizedDescription
+                ]
+            )
         }
     }
     
@@ -173,6 +199,7 @@ final class AppLaunchManager: ObservableObject {
     /// - Parameter userId: User ID to check
     /// - Returns: true if user is approved, false otherwise
     private func checkApprovalStatus(userId: UUID) async -> Bool {
+        let start = Date()
         do {
             // Minimal query - only fetch the 'approved' field
             struct ProfileApproval: Codable {
@@ -190,11 +217,26 @@ final class AppLaunchManager: ObservableObject {
                 .value
             
             AppLogger.info("launch", "Approval status for user \(userId): \(response.approved)")
+            await PerformanceMonitor.shared.record(
+                operation: "launch.approvalCheck",
+                duration: Date().timeIntervalSince(start),
+                metadata: ["approved": response.approved],
+                slowThreshold: 0.5
+            )
             return response.approved
         } catch {
             // Log error for debugging
             AppLogger.warning("launch", "Failed to check approval status for user \(userId): \(error.localizedDescription)")
             AppLogger.warning("launch", "Error details: \(error)")
+            await PerformanceMonitor.shared.record(
+                operation: "launch.approvalCheck",
+                duration: Date().timeIntervalSince(start),
+                metadata: [
+                    "approved": false,
+                    "error": error.localizedDescription
+                ],
+                slowThreshold: 0.5
+            )
             // If query fails, assume not approved (safer default)
             return false
         }
@@ -203,14 +245,37 @@ final class AppLaunchManager: ObservableObject {
     /// Perform deferred loading of non-critical data in background
     /// - Parameter userId: Authenticated user ID
     private func performDeferredLoading(userId: UUID) async {
+        let start = Date()
         // This will be called after critical path completes
         // Load profile, rides, favors, etc. in background
+        startDeferredSyncEnginesIfNeeded(for: userId)
         
         // Update AuthService with full profile
         try? await authService.checkAuthStatus()
         
         // Note: Additional background loading (rides, favors, etc.)
         // will be handled by respective ViewModels when views appear
+        await PerformanceMonitor.shared.record(
+            operation: "launch.deferredLoading",
+            duration: Date().timeIntervalSince(start),
+            metadata: ["userId": userId.uuidString]
+        )
+    }
+
+    private func startDeferredSyncEnginesIfNeeded(for userId: UUID) {
+        guard deferredSyncStartedForUserId != userId else { return }
+        deferredSyncStartedForUserId = userId
+        SyncEngineOrchestrator.shared.startAll()
+    }
+
+    private func recordLaunchDuration(start: Date, result: String, metadata: [String: Any] = [:]) async {
+        var payload = metadata
+        payload["result"] = result
+        await PerformanceMonitor.shared.record(
+            operation: "launch.performCriticalLaunch",
+            duration: Date().timeIntervalSince(start),
+            metadata: payload,
+            slowThreshold: Constants.Performance.launchCriticalPathSlowThreshold
+        )
     }
 }
-

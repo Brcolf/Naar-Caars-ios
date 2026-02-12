@@ -1,0 +1,16 @@
+description: "Every change must compile; certain changes require fixtures/tests."
+
+Applies to:
+- /**
+
+Required for all changes:
+- Xcode project must compile (no missing symbols)
+
+Required when touching seams (badge, notifications, realtime, mappers, RPCs, edge functions):
+- Add/update at least ONE relevant fixture test:
+  - decoding normalization test OR mapper test OR routing mapping test
+
+Do NOT:
+- perform large decomposition of giant ViewModels unless the phase explicitly calls for it
+- change Supabase migrations/RPC signatures unless explicitly included in the phase
+

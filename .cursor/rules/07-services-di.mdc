@@ -1,0 +1,15 @@
+description: "Reduce singleton coupling: ViewModels code to protocols, defaults may be shared singletons."
+
+Applies to:
+- /**/Service*/**
+- /**/ViewModel*/**
+
+Rules:
+1) New ViewModels must depend on protocols (e.g., MessageServicing) rather than concrete singletons.
+2) Existing ViewModels may keep .shared temporarily, but when touched:
+   - prefer adding protocol + initializer injection
+   - keep default init that wires .shared so call sites don't explode
+
+3) No new cross-domain service dependencies without an explicit reason:
+   - if Messaging needs Claiming, route through a narrow interface, not direct service fan-in.
+

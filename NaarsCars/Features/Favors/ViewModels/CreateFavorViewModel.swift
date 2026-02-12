@@ -32,8 +32,16 @@ final class CreateFavorViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let favorService = FavorService.shared
-    private let authService = AuthService.shared
+    private let favorService: any FavorServiceProtocol
+    private let authService: any AuthServiceProtocol
+
+    init(
+        favorService: any FavorServiceProtocol = FavorService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.favorService = favorService
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     
@@ -65,12 +73,14 @@ final class CreateFavorViewModel: ObservableObject {
     /// - Throws: AppError if creation fails
     func createFavor() async throws -> Favor {
         // Validate form
-        if let error = validateForm() {
-            throw AppError.invalidInput(error)
+        if let validationError = validateForm() {
+            self.error = validationError
+            throw AppError.invalidInput(validationError)
         }
         
         // Get current user ID
         guard let userId = authService.currentUserId else {
+            self.error = "Authentication required. Please sign in again."
             throw AppError.authenticationRequired
         }
         

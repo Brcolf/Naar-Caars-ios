@@ -43,6 +43,20 @@ enum MessageType: String, Codable, Sendable {
     case link
 }
 
+/// Send status for local-first message tracking
+enum MessageSendStatus: String, Codable, Sendable {
+    /// Message is queued locally and awaiting network send
+    case sending
+    /// Message was accepted by the server
+    case sent
+    /// Message was delivered to at least one other participant
+    case delivered
+    /// Message send failed (tap to retry)
+    case failed
+    /// Message has been read by all participants
+    case read
+}
+
 /// Message model
 struct Message: Codable, Identifiable, Sendable {
     let id: UUID
@@ -89,6 +103,17 @@ struct Message: Codable, Identifiable, Sendable {
     
     /// Human-readable location name/address
     let locationName: String?
+    
+    // MARK: - Local-First Fields (not in CodingKeys — derived from SwiftData)
+    
+    /// Local send status for optimistic UI and durable sending
+    var sendStatus: MessageSendStatus?
+    
+    /// Path to a locally-cached attachment (image/audio) still being uploaded
+    var localAttachmentPath: String?
+    
+    /// Sync error description when send fails
+    var syncError: String?
     
     // MARK: - Optional Joined Fields (populated when fetched with joins)
     
@@ -149,7 +174,8 @@ struct Message: Codable, Identifiable, Sendable {
         case latitude
         case longitude
         case locationName = "location_name"
-        // sender, reactions, and replyToMessage are not in CodingKeys - populated separately
+        case sender
+        // reactions and replyToMessage are not in CodingKeys - populated separately
     }
     
     // MARK: - Initializers
@@ -171,6 +197,9 @@ struct Message: Codable, Identifiable, Sendable {
         latitude: Double? = nil,
         longitude: Double? = nil,
         locationName: String? = nil,
+        sendStatus: MessageSendStatus? = nil,
+        localAttachmentPath: String? = nil,
+        syncError: String? = nil,
         sender: Profile? = nil,
         reactions: MessageReactions? = nil,
         replyToMessage: ReplyContext? = nil
@@ -191,6 +220,9 @@ struct Message: Codable, Identifiable, Sendable {
         self.latitude = latitude
         self.longitude = longitude
         self.locationName = locationName
+        self.sendStatus = sendStatus
+        self.localAttachmentPath = localAttachmentPath
+        self.syncError = syncError
         self.sender = sender
         self.reactions = reactions
         self.replyToMessage = replyToMessage
@@ -244,6 +276,9 @@ extension Message: Equatable {
                lhs.latitude == rhs.latitude &&
                lhs.longitude == rhs.longitude &&
                lhs.locationName == rhs.locationName &&
+               lhs.sendStatus == rhs.sendStatus &&
+               lhs.localAttachmentPath == rhs.localAttachmentPath &&
+               lhs.syncError == rhs.syncError &&
                lhs.sender?.id == rhs.sender?.id &&
                lhs.reactions == rhs.reactions &&
                lhs.replyToMessage == rhs.replyToMessage

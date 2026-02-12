@@ -29,16 +29,27 @@ final class RidesDashboardViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private var modelContext: ModelContext?
-    private let rideService = RideService.shared
-    private let authService = AuthService.shared
-    private let realtimeManager = RealtimeManager.shared
+    private let rideService: any RideServiceProtocol
+    private let authService: any AuthServiceProtocol
+    private let realtimeManager: RealtimeManager
     
     // MARK: - Lifecycle
     
+    init(
+        rideService: any RideServiceProtocol = RideService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared,
+        realtimeManager: RealtimeManager = .shared
+    ) {
+        self.rideService = rideService
+        self.authService = authService
+        self.realtimeManager = realtimeManager
+    }
+
     deinit {
         // Use Task.detached to clean up subscriptions without capturing self
+        let realtimeManager = realtimeManager
         Task.detached {
-            await RealtimeManager.shared.unsubscribe(channelName: "rides-dashboard")
+            await realtimeManager.unsubscribe(channelName: "rides-dashboard")
         }
     }
     
@@ -114,7 +125,7 @@ final class RidesDashboardViewModel: ObservableObject {
         }
         
         do {
-            let fetchedRides = try await rideService.fetchRides()
+            let fetchedRides = try await rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
             
             // Sync to SwiftData
             if let context = modelContext {
@@ -230,17 +241,17 @@ final class RidesDashboardViewModel: ObservableObject {
         }
     }
     
-    private func handleRideInsert(_ action: Any) async {
+    private func handleRideInsert(_ record: RealtimeRecord) async {
         // Silent reload to avoid loading spinner flash
         debouncedSilentReload()
     }
     
-    private func handleRideUpdate(_ action: Any) async {
+    private func handleRideUpdate(_ record: RealtimeRecord) async {
         // Silent reload to avoid loading spinner flash
         debouncedSilentReload()
     }
     
-    private func handleRideDelete(_ action: Any) async {
+    private func handleRideDelete(_ record: RealtimeRecord) async {
         // Silent reload to avoid loading spinner flash
         debouncedSilentReload()
     }

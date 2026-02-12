@@ -77,6 +77,7 @@ struct ContentView: View {
         // The view will update naturally when launchManager.state changes
         .animation(.easeInOut(duration: 0.3), value: launchManager.state.id)
         .task(id: "initial_launch") {
+            let launchTaskStart = Date()
             // Only perform critical launch once on initial appear
             // Subsequent state changes are handled by specific actions (login, signup, etc.)
             guard case .initializing = launchManager.state else { return }
@@ -84,6 +85,11 @@ struct ContentView: View {
             
             // Check if biometric unlock is needed on launch
             await checkBiometricUnlockOnLaunch()
+            await PerformanceMonitor.shared.record(
+                operation: "launch.initialContentTask",
+                duration: Date().timeIntervalSince(launchTaskStart),
+                metadata: ["state": launchManager.state.id]
+            )
         }
         .onChange(of: launchManager.state.id) { oldId, newId in
             // React to state ID changes (e.g., sign out triggers state change)
@@ -96,6 +102,11 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active,
+               case .ready(let authState) = launchManager.state,
+               authState == .authenticated || authState == .pendingApproval {
+                AuthService.shared.restartRealtimeSyncEngines()
+            }
             handleScenePhaseChange(from: oldPhase, to: newPhase)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))) { _ in

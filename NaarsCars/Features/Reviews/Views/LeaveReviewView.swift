@@ -187,7 +187,7 @@ struct LeaveReviewView: View {
     
     private func submitReview() async {
         do {
-            _ = try await viewModel.submitReview(
+            let review = try await viewModel.submitReview(
                 requestType: requestType,
                 requestId: requestId,
                 fulfillerId: fulfillerId
@@ -195,6 +195,7 @@ struct LeaveReviewView: View {
             
             HapticManager.success()
             showSuccess = true
+            await viewModel.navigateToReviewPost(reviewId: review.id)
             onReviewSubmitted?()
             try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
             dismiss()

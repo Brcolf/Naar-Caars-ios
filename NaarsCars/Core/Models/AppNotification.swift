@@ -8,7 +8,7 @@
 import Foundation
 
 /// Notification type enum
-enum NotificationType: String, Codable {
+enum NotificationType: String, Codable, CaseIterable {
     // Messages
     case message = "message"
     case addedToConversation = "added_to_conversation"
@@ -63,6 +63,9 @@ enum NotificationType: String, Codable {
     
     /// Icon name for notification type
     var icon: String {
+        #if DEBUG
+        _ = Self.registryValidation
+        #endif
         switch self {
         case .message, .addedToConversation:
             return "message.fill"
@@ -129,6 +132,48 @@ enum NotificationType: String, Codable {
             return nil
         }
     }
+
+    #if DEBUG
+    private static let registryValidation: Void = {
+        let enumCases = Set(NotificationType.allCases.map(\.rawValue))
+        let knownTypes: Set<String> = [
+            "message",
+            "added_to_conversation",
+            "new_ride",
+            "ride_update",
+            "ride_claimed",
+            "ride_unclaimed",
+            "ride_completed",
+            "new_favor",
+            "favor_update",
+            "favor_claimed",
+            "favor_unclaimed",
+            "favor_completed",
+            "completion_reminder",
+            "qa_activity",
+            "qa_question",
+            "qa_answer",
+            "review",
+            "review_received",
+            "review_reminder",
+            "review_request",
+            "town_hall_post",
+            "town_hall_comment",
+            "town_hall_reaction",
+            "announcement",
+            "admin_announcement",
+            "broadcast",
+            "pending_approval",
+            "user_approved",
+            "user_rejected",
+            "other"
+        ]
+        assert(
+            enumCases == knownTypes,
+            "NotificationType enum and registry values are out of sync."
+        )
+    }()
+    #endif
 }
 
 /// In-app notification model

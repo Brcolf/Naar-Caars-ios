@@ -10,7 +10,6 @@ import Supabase
 
 /// Service for ride-related operations
 /// Handles fetching, creating, updating, deleting rides, and Q&A operations
-@MainActor
 final class RideService {
     
     // MARK: - Singleton
@@ -176,33 +175,42 @@ final class RideService {
     ///   - destination: Destination address for cost calculation
     private func calculateAndSaveEstimatedCost(rideId: UUID, pickup: String, destination: String) async {
         do {
-            // Calculate cost using route calculation
-            // This may take a few seconds due to geocoding and route calculation
-            guard let estimatedCost = await RideCostEstimator.estimateCost(
-                pickup: pickup,
-                destination: destination
-            ) else {
-                // If calculation fails, just log and return (ride is still created)
-                AppLogger.warning("rides", "Failed to calculate estimated cost for ride \(rideId)")
-                return
+            try await NetworkRetryHelper.withRetry(
+                maxAttempts: 3,
+                initialDelay: 1.0,
+                maxDelay: 8.0,
+                shouldRetry: { _ in true } // Always retry for cost estimation (MapKit rate limits, transient errors)
+            ) {
+                try Task.checkCancellation()
+
+                // Calculate cost using route calculation
+                guard let estimatedCost = await RideCostEstimator.estimateCost(
+                    pickup: pickup,
+                    destination: destination
+                ) else {
+                    throw AppError.invalidInput("Estimated cost calculation returned nil")
+                }
+
+                // Update the ride with calculated cost
+                let updateData: [String: AnyCodable] = [
+                    "estimated_cost": AnyCodable(estimatedCost)
+                ]
+
+                try await self.supabase
+                    .from("rides")
+                    .update(updateData)
+                    .eq("id", value: rideId.uuidString)
+                    .execute()
+
+                AppLogger.info(
+                    "rides",
+                    "Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(rideId)"
+                )
             }
-            
-            // Update the ride with calculated cost
-            let updateData: [String: AnyCodable] = [
-                "estimated_cost": AnyCodable(estimatedCost)
-            ]
-            
-            try await supabase
-                .from("rides")
-                .update(updateData)
-                .eq("id", value: rideId.uuidString)
-                .execute()
-            
-            AppLogger.info("rides", "Calculated and saved estimated cost: $\(String(format: "%.2f", estimatedCost)) for ride \(rideId)")
-            
+        } catch is CancellationError {
+            AppLogger.info("rides", "Estimated cost task cancelled for ride \(rideId)")
         } catch {
-            // If update fails, just log (ride is still created)
-            AppLogger.warning("rides", "Failed to save estimated cost for ride \(rideId): \(error.localizedDescription)")
+            AppLogger.error("rides", "All estimated cost attempts failed for ride \(rideId): \(error.localizedDescription)")
         }
     }
     
@@ -578,12 +586,34 @@ final class RideService {
     }
     
     /// Enrich rides with profile data (poster, claimer, participants)
+    /// Uses a single batched profile fetch to avoid N+1 queries
     private func enrichRidesWithProfiles(_ rides: [Ride]) async -> [Ride] {
-        var enriched: [Ride] = []
+        guard !rides.isEmpty else { return [] }
         
+        // Collect all unique user IDs (posters + claimers) for a single batch fetch
+        var allUserIds = Set<UUID>()
         for ride in rides {
-            let enrichedRide = await enrichRideWithProfiles(ride)
-            enriched.append(enrichedRide)
+            allUserIds.insert(ride.userId)
+            if let claimedBy = ride.claimedBy {
+                allUserIds.insert(claimedBy)
+            }
+        }
+        
+        // Batch fetch all profiles in one query
+        let profiles = (try? await ProfileService.shared.fetchProfiles(userIds: Array(allUserIds))) ?? []
+        let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        
+        // Map profiles back to rides and fetch participants
+        var enriched: [Ride] = []
+        for var ride in rides {
+            ride.poster = profileLookup[ride.userId]
+            if let claimedBy = ride.claimedBy {
+                ride.claimer = profileLookup[claimedBy]
+            }
+            if let participants = try? await fetchRideParticipants(rideId: ride.id) {
+                ride.participants = participants
+            }
+            enriched.append(ride)
         }
         
         return enriched
@@ -631,4 +661,6 @@ final class RideService {
         return response.count ?? 0
     }
 }
+
+extension RideService: RideServiceProtocol {}
 

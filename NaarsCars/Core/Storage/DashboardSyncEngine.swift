@@ -10,8 +10,9 @@ import SwiftData
 import Realtime
 
 @MainActor
-final class DashboardSyncEngine {
+final class DashboardSyncEngine: SyncEngineProtocol {
     static let shared = DashboardSyncEngine()
+    let engineName = "dashboard"
     
     private let rideService = RideService.shared
     private let favorService = FavorService.shared
@@ -23,6 +24,7 @@ final class DashboardSyncEngine {
     private var ridesSyncTask: Task<Void, Never>?
     private var favorsSyncTask: Task<Void, Never>?
     private var notificationsSyncTask: Task<Void, Never>?
+    private var lastStartSyncAt: Date = .distantPast
     
     private init() {}
     
@@ -36,11 +38,42 @@ final class DashboardSyncEngine {
         setupRidesSubscription()
         setupFavorsSubscription()
         setupNotificationsSubscription()
-        
-        // Initial sync
+
+        let now = Date()
+        guard now.timeIntervalSince(lastStartSyncAt) >= Constants.Timing.syncEngineStartCooldown else {
+            return
+        }
+        lastStartSyncAt = now
+
+        // Initial sync (coalesced so duplicate startSync calls don't stampede the network)
         Task {
             await syncAll()
         }
+    }
+
+    func pauseSync() async {
+        ridesSyncTask?.cancel()
+        favorsSyncTask?.cancel()
+        notificationsSyncTask?.cancel()
+        ridesSyncTask = nil
+        favorsSyncTask = nil
+        notificationsSyncTask = nil
+
+        await realtimeManager.unsubscribe(channelName: "rides:sync")
+        await realtimeManager.unsubscribe(channelName: "favors:sync")
+        await realtimeManager.unsubscribe(channelName: "notifications:sync")
+    }
+
+    func resumeSync() async {
+        setupRidesSubscription()
+        setupFavorsSubscription()
+        setupNotificationsSubscription()
+    }
+
+    func teardown() async {
+        await pauseSync()
+        modelContext = nil
+        lastStartSyncAt = .distantPast
     }
     
     /// Sync all data from network to SwiftData
@@ -178,6 +211,7 @@ final class DashboardSyncEngine {
                     posterAvatarUrl: ride.poster?.avatarUrl,
                     claimerName: ride.claimer?.name,
                     claimerAvatarUrl: ride.claimer?.avatarUrl,
+                    participantIds: ride.participants?.map { $0.id } ?? [],
                     qaCount: ride.qaCount ?? 0
                 )
                 context.insert(sdRide)
@@ -214,6 +248,7 @@ final class DashboardSyncEngine {
                     posterAvatarUrl: favor.poster?.avatarUrl,
                     claimerName: favor.claimer?.name,
                     claimerAvatarUrl: favor.claimer?.avatarUrl,
+                    participantIds: favor.participants?.map { $0.id } ?? [],
                     qaCount: favor.qaCount ?? 0
                 )
                 context.insert(sdFavor)
@@ -272,6 +307,7 @@ final class DashboardSyncEngine {
         sd.posterAvatarUrl = ride.poster?.avatarUrl
         sd.claimerName = ride.claimer?.name
         sd.claimerAvatarUrl = ride.claimer?.avatarUrl
+        sd.participantIds = ride.participants?.map { $0.id } ?? []
     }
     
     private func updateSDFavor(_ sd: SDFavor, with favor: Favor) {
@@ -294,6 +330,6 @@ final class DashboardSyncEngine {
         sd.posterAvatarUrl = favor.poster?.avatarUrl
         sd.claimerName = favor.claimer?.name
         sd.claimerAvatarUrl = favor.claimer?.avatarUrl
+        sd.participantIds = favor.participants?.map { $0.id } ?? []
     }
 }
-

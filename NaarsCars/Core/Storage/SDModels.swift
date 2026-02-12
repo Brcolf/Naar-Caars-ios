@@ -73,10 +73,16 @@ final class SDMessage {
     var isPending: Bool = false
     var syncError: String?
     
+    /// Local-first send status (rawValue of MessageSendStatus). Defaults to "sent" for server-sourced messages.
+    var status: String = "sent"
+    
+    /// Path to a locally-cached attachment (image/audio) that is still being uploaded
+    var localAttachmentPath: String?
+    
     // Relationship
     var conversation: SDConversation?
     
-    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, isPending: Bool = false) {
+    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, isPending: Bool = false, status: String = "sent", localAttachmentPath: String? = nil) {
         self.id = id
         self.conversationId = conversationId
         self.fromId = fromId
@@ -94,6 +100,8 @@ final class SDMessage {
         self.editedAt = editedAt
         self.deletedAt = deletedAt
         self.isPending = isPending
+        self.status = status
+        self.localAttachmentPath = localAttachmentPath
     }
 }
 

@@ -16,7 +16,7 @@ struct ConversationsListView: View {
     @EnvironmentObject var appState: AppState
     @State private var showNewMessage = false
     @State private var selectedUserIds: Set<UUID> = []
-    @State private var navigateToConversation: UUID?
+    @State private var selectedConversationId: UUID?
     @State private var conversationToDelete: ConversationWithDetails?
     @State private var showDeleteConfirmation = false
     @State private var pinnedConversations: Set<UUID> = []
@@ -133,7 +133,7 @@ struct ConversationsListView: View {
                 Section {
                     ForEach(viewModel.searchResults) { result in
                         Button {
-                            navigateToConversation = result.conversationId
+                            selectedConversationId = result.conversationId
                         } label: {
                             MessageSearchResultRow(
                                 result: result,
@@ -254,7 +254,7 @@ struct ConversationsListView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {
-                        navigationCoordinator.navigateToNotifications = true
+                        navigationCoordinator.pendingIntent = .notifications
                         AppLogger.info("messaging", "[ConversationsListView] Bell tapped")
                     }
 
@@ -288,14 +288,14 @@ struct ConversationsListView: View {
                     selectedUserIds = []
                 }
             }
-            .navigationDestination(item: $navigateToConversation) { conversationId in
+            .navigationDestination(item: $selectedConversationId) { conversationId in
                 ConversationDetailView(conversationId: conversationId)
             }
-            .onChange(of: navigationCoordinator.navigateToConversation) { _, conversationId in
-                if let conversationId = conversationId {
-                    navigateToConversation = conversationId
-                    // Reset coordinator after navigation is triggered
-                    navigationCoordinator.navigateToConversation = nil
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                guard case .conversation(let conversationId, let scrollTarget) = intent else { return }
+                selectedConversationId = conversationId
+                if scrollTarget == nil {
+                    navigationCoordinator.pendingIntent = nil
                 }
             }
             .alert("Delete Conversation", isPresented: $showDeleteConfirmation) {
@@ -317,11 +317,6 @@ struct ConversationsListView: View {
             .task {
                 loadSavedPreferences()
                 await viewModel.loadConversations()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("conversationUpdated"))) { _ in
-                Task {
-                    await viewModel.refreshConversations()
-                }
             }
             .toast(message: $toastMessage)
             .trackScreen("ConversationsList")
@@ -369,7 +364,7 @@ struct ConversationsListView: View {
             }
             
             AppLogger.info("messaging", "[ConversationsListView] Navigating to conversation: \(conversation.id)")
-            navigateToConversation = conversation.id
+            selectedConversationId = conversation.id
             
             // Reload conversations to show the new/updated one
             await viewModel.loadConversations()

@@ -20,9 +20,19 @@ final class PastRequestsViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let rideService = RideService.shared
-    private let favorService = FavorService.shared
-    private let authService = AuthService.shared
+    private let rideService: any RideServiceProtocol
+    private let favorService: any FavorServiceProtocol
+    private let authService: any AuthServiceProtocol
+
+    init(
+        rideService: any RideServiceProtocol = RideService.shared,
+        favorService: any FavorServiceProtocol = FavorService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.rideService = rideService
+        self.favorService = favorService
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     
@@ -48,8 +58,8 @@ final class PastRequestsViewModel: ObservableObject {
                     return
                 }
                 
-                async let ridesTask = rideService.fetchRides(userId: userId)
-                async let favorsTask = favorService.fetchFavors(userId: userId)
+                async let ridesTask = rideService.fetchRides(status: nil, userId: userId, claimedBy: nil)
+                async let favorsTask = favorService.fetchFavors(status: nil, userId: userId, claimedBy: nil)
                 
                 let rides = try await ridesTask
                 let favors = try await favorsTask
@@ -73,8 +83,8 @@ final class PastRequestsViewModel: ObservableObject {
                     return
                 }
                 
-                async let ridesTask = rideService.fetchRides(claimedBy: userId)
-                async let favorsTask = favorService.fetchFavors(claimedBy: userId)
+                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: userId)
+                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: userId)
                 
                 let rides = try await ridesTask
                 let favors = try await favorsTask
@@ -96,6 +106,12 @@ final class PastRequestsViewModel: ObservableObject {
             allRequests.sort { $0.eventTime > $1.eventTime }
             
             requests = allRequests
+        } catch is CancellationError {
+            // Silently ignore task cancellation — normal during SwiftUI
+            // lifecycle (view redraws, pull-to-refresh superseded, etc.)
+            return
+        } catch let error as NSError where error.code == NSURLErrorCancelled {
+            return
         } catch {
             self.error = error.localizedDescription
             AppLogger.error("requests", "Error loading past requests: \(error.localizedDescription)")

@@ -11,7 +11,6 @@ import OSLog
 
 /// Service for message reaction operations
 /// Handles adding, removing, and fetching reactions on messages
-@MainActor
 final class MessageReactionService {
     
     // MARK: - Singleton

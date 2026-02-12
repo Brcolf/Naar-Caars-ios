@@ -10,7 +10,6 @@ import Supabase
 
 /// Service for in-app notification operations
 /// Handles fetching, marking as read, and managing notifications
-@MainActor
 final class NotificationService {
     
     // MARK: - Singleton
@@ -20,6 +19,8 @@ final class NotificationService {
     // MARK: - Private Properties
     
     private let supabase = SupabaseService.shared.client
+    private var cachedNotificationsByUser: [UUID: (fetchedAt: Date, notifications: [AppNotification])] = [:]
+    private var inFlightFetchesByUser: [UUID: Task<[AppNotification], Error>] = [:]
     
     // MARK: - Initialization
     
@@ -38,7 +39,40 @@ final class NotificationService {
     private static let fetchHorizonDays: Int = 30
 
     func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
-        _ = forceRefresh
+        if let inFlightTask = inFlightFetchesByUser[userId] {
+            return try await inFlightTask.value
+        }
+
+        if let cached = cachedNotificationsByUser[userId] {
+            let age = Date().timeIntervalSince(cached.fetchedAt)
+            let coalesceWindow = forceRefresh
+                ? Constants.Timing.notificationsForceRefreshCoalesceWindow
+                : Constants.Timing.notificationsFetchCoalesceWindow
+            if age <= coalesceWindow {
+                return cached.notifications
+            }
+        }
+
+        let task = Task { [self] in
+            try await self.performNetworkNotificationFetch(userId: userId)
+        }
+        inFlightFetchesByUser[userId] = task
+
+        do {
+            let notifications = try await task.value
+            cachedNotificationsByUser[userId] = (fetchedAt: Date(), notifications: notifications)
+            inFlightFetchesByUser.removeValue(forKey: userId)
+            return notifications
+        } catch {
+            inFlightFetchesByUser.removeValue(forKey: userId)
+            if !forceRefresh, let cached = cachedNotificationsByUser[userId] {
+                return cached.notifications
+            }
+            throw error
+        }
+    }
+
+    private func performNetworkNotificationFetch(userId: UUID) async throws -> [AppNotification] {
         let horizon = Calendar.current.date(byAdding: .day, value: -Self.fetchHorizonDays, to: Date()) ?? Date()
         let horizonString = ISO8601DateFormatter().string(from: horizon)
 
@@ -53,10 +87,13 @@ final class NotificationService {
             .order("created_at", ascending: false)
             .execute()
         
-        // Debug: Print raw response
-        if let jsonString = String(data: response.data, encoding: .utf8) {
+#if DEBUG
+        // Verbose payload logging is opt-in in debug to avoid UI/perf noise.
+        if FeatureFlags.verbosePerformanceLogsEnabled,
+           let jsonString = String(data: response.data, encoding: .utf8) {
             AppLogger.info("notifications", "Raw response: \(jsonString.prefix(500))")
         }
+#endif
         
         // Configure decoder for date format (Supabase uses ISO8601 with fractional seconds)
         let decoder = JSONDecoder()
@@ -109,6 +146,19 @@ final class NotificationService {
             throw AppError.processingError("Failed to decode notifications: \(error.localizedDescription)")
         }
     }
+
+    private func invalidateCachedNotifications(for userId: UUID? = nil) {
+        if let userId {
+            cachedNotificationsByUser.removeValue(forKey: userId)
+            inFlightFetchesByUser[userId]?.cancel()
+            inFlightFetchesByUser.removeValue(forKey: userId)
+            return
+        }
+
+        inFlightFetchesByUser.values.forEach { $0.cancel() }
+        inFlightFetchesByUser.removeAll()
+        cachedNotificationsByUser.removeAll()
+    }
     
     /// Fetch unread count for a user
     /// - Parameter userId: The user ID
@@ -139,6 +189,7 @@ final class NotificationService {
             .eq("id", value: notificationId.uuidString)
             .execute()
         
+        invalidateCachedNotifications()
         AppLogger.info("notifications", "Marked notification \(notificationId) as read")
     }
     
@@ -152,6 +203,7 @@ final class NotificationService {
             .eq("user_id", value: userId.uuidString)
             .execute()
         
+        invalidateCachedNotifications(for: userId)
         AppLogger.info("notifications", "Marked all notifications as read for user \(userId)")
     }
 
@@ -172,6 +224,7 @@ final class NotificationService {
             .neq("type", value: NotificationType.completionReminder.rawValue)
             .execute()
         
+        invalidateCachedNotifications(for: userId)
         AppLogger.info("notifications", "Marked all bell notifications as read for user \(userId)")
     }
 
@@ -213,6 +266,7 @@ final class NotificationService {
             let decoder = JSONDecoder()
             let updatedCount = try decoder.decode(Int.self, from: response.data)
 
+            invalidateCachedNotifications(for: userId)
             AppLogger.info("notifications", "Marked \(updatedCount) request notifications read for \(requestType) \(requestId)")
             return updatedCount
         } catch {
@@ -264,5 +318,4 @@ final class NotificationService {
     }
 }
 
-
-
+extension NotificationService: NotificationServiceProtocol {}

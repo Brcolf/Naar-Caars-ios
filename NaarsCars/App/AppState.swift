@@ -68,13 +68,27 @@ final class AppState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init() {
-        // AppState will be initialized with isLoading = true
-        // AuthService will be checked on app launch to update state
+        // Mirror the latest auth state immediately and keep AppState in sync.
+        currentUser = authService.currentProfile
+        isLoading = authService.isLoading
+
+        authService.$currentProfile
+            .sink { [weak self] profile in
+                self?.currentUser = profile
+            }
+            .store(in: &cancellables)
+
+        authService.$isLoading
+            .sink { [weak self] isLoading in
+                self?.isLoading = isLoading
+            }
+            .store(in: &cancellables)
         
         // Listen for signout events
         NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))
             .sink { [weak self] _ in
                 Task { @MainActor [weak self] in
+                    await SyncEngineOrchestrator.shared.teardownAll()
                     self?.currentUser = nil
                     self?.isLoading = false
                 }
@@ -91,7 +105,7 @@ final class AppState: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let state = try await authService.checkAuthStatus()
+            _ = try await authService.checkAuthStatus()
             // Update currentUser based on auth state
             // This will be implemented when AuthService.checkAuthStatus() is complete
             currentUser = authService.currentProfile
@@ -101,4 +115,3 @@ final class AppState: ObservableObject {
         }
     }
 }
-

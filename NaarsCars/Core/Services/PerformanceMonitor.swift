@@ -14,6 +14,18 @@ actor PerformanceMonitor {
     // MARK: - Singleton
     
     static let shared = PerformanceMonitor()
+
+    nonisolated static var isInstrumentationEnabled: Bool {
+        FeatureFlags.performanceInstrumentationEnabled
+    }
+
+    nonisolated static var isMetricKitEnabled: Bool {
+        FeatureFlags.metricKitEnabled
+    }
+
+    nonisolated static var isVerboseLoggingEnabled: Bool {
+        FeatureFlags.verbosePerformanceLogsEnabled
+    }
     
     // MARK: - Private Properties
     
@@ -22,6 +34,11 @@ actor PerformanceMonitor {
     
     /// Store operation metadata: [operation: [metadata]]
     private var operationMetadata: [String: [[String: Any]]] = [:]
+
+#if DEBUG
+    /// Debug-only counters for runtime diagnostics (e.g. frame drops, focus stalls)
+    private var debugCounters: [String: Int] = [:]
+#endif
     
     /// Maximum samples to keep per operation
     private let maxSamplesPerOperation = 100
@@ -55,6 +72,10 @@ actor PerformanceMonitor {
         metadata: [String: Any] = [:],
         _ block: () async throws -> T
     ) async rethrows -> T {
+        guard Self.isInstrumentationEnabled else {
+            return try await block()
+        }
+
         let start = Date()
         
         let result = try await block()
@@ -81,6 +102,39 @@ actor PerformanceMonitor {
         }
         
         return result
+    }
+
+    /// Record duration for an externally measured operation.
+    /// Use this when timing spans across UI events and async boundaries.
+    /// - Parameters:
+    ///   - operation: Operation name
+    ///   - duration: Duration in seconds
+    ///   - metadata: Optional metadata
+    ///   - slowThreshold: Optional custom slow threshold override
+    func record(
+        operation: String,
+        duration: TimeInterval,
+        metadata: [String: Any] = [:],
+        slowThreshold: TimeInterval? = nil
+    ) {
+        guard Self.isInstrumentationEnabled else { return }
+
+        recordTiming(operation: operation, duration: duration, metadata: metadata)
+
+        AppLogger.logPerformance(
+            operation: operation,
+            duration: duration,
+            metadata: metadata
+        )
+
+        let threshold = slowThreshold ?? slowThresholds[operation]
+        if let threshold, duration > threshold {
+            AppLogger.logSlowOperation(
+                operation: operation,
+                duration: duration,
+                threshold: threshold
+            )
+        }
     }
     
     /// Record a timing measurement
@@ -163,6 +217,11 @@ actor PerformanceMonitor {
     
     /// Print performance report to console
     func printReport() {
+        guard Self.isInstrumentationEnabled else {
+            AppLogger.info("performance", "Performance instrumentation disabled.")
+            return
+        }
+
         AppLogger.info("performance", "===== Performance Report =====")
         AppLogger.info("performance", "Generated: \(Date())")
         
@@ -209,6 +268,29 @@ actor PerformanceMonitor {
         
         return slowOps.sorted { $0.avgDuration > $1.avgDuration }
     }
+
+    // MARK: - Debug Counters
+
+    func incrementDebugCounter(_ key: String, by amount: Int = 1) {
+#if DEBUG
+        guard amount > 0 else { return }
+        debugCounters[key, default: 0] += amount
+#endif
+    }
+
+    func getDebugCounters() -> [String: Int] {
+#if DEBUG
+        return debugCounters
+#else
+        return [:]
+#endif
+    }
+
+    func resetDebugCounters() {
+#if DEBUG
+        debugCounters.removeAll()
+#endif
+    }
     
     // MARK: - Persistence
     
@@ -229,6 +311,7 @@ actor PerformanceMonitor {
     
     /// Persist current metrics summary to UserDefaults (called on background entry)
     func persistMetrics() {
+        guard Self.isInstrumentationEnabled else { return }
         let allStats = getAllStats()
         guard !allStats.isEmpty else { return }
         

@@ -51,7 +51,30 @@ final class PushNotificationService: NSObject, ObservableObject {
     private let lastRegisteredTokenKey = "apns_last_registered_token"
     private let tokenUserIdKey = "apns_device_token_user_id"
     private let lastPushPayloadKey = "apns_last_push_payload"
-    
+
+    private struct PushTokenRow: Decodable {
+        let id: UUID
+    }
+
+    // #region agent log
+    /// Debug ingest for push handoff (Simulator: POST to ingest URL).
+    static func pushDebugLog(location: String, message: String, data: [String: Any] = [:]) {
+        let payload: [String: Any] = [
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+            "hypothesisId": "push_handoff"
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:7242/ingest/547993df-d4e8-4b58-b95e-4cee214a76f6")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
+    }
+    // #endregion
+
     // MARK: - Initialization
     
     private override init() {
@@ -164,6 +187,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
     
     private func registerDeviceToken(tokenString: String, userId: UUID) async throws {
+        let isoNow = ISO8601DateFormatter().string(from: Date())
         // Get device identifier
         let deviceId = DeviceIdentifier.current
         
@@ -182,12 +206,16 @@ final class PushNotificationService: NSObject, ObservableObject {
                 .from("push_tokens")
                 .update([
                     "token": AnyCodable(tokenString),
-                    "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+                    "updated_at": AnyCodable(isoNow),
+                    "last_used_at": AnyCodable(isoNow)
                 ])
                 .eq("device_id", value: deviceId)
                 .eq("user_id", value: userId.uuidString)
                 .execute()
             
+            // #region agent log
+            PushNotificationService.pushDebugLog(location: "PushNotificationService.swift:registerDeviceToken", message: "Updated device token in DB", data: ["userId": userId.uuidString])
+            // #endregion
             AppLogger.info("push", "Updated device token for user \(userId)")
         } else {
             // Insert new token
@@ -197,10 +225,13 @@ final class PushNotificationService: NSObject, ObservableObject {
                     "user_id": AnyCodable(userId.uuidString),
                     "device_id": AnyCodable(deviceId),
                     "token": AnyCodable(tokenString),
-                    "platform": AnyCodable("ios")
+                    "platform": AnyCodable("ios"),
+                    "last_used_at": AnyCodable(isoNow)
                 ])
                 .execute()
-            
+            // #region agent log
+            PushNotificationService.pushDebugLog(location: "PushNotificationService.swift:registerDeviceToken", message: "Inserted device token in DB", data: ["userId": userId.uuidString])
+            // #endregion
             AppLogger.info("push", "Registered device token for user \(userId)")
         }
 
@@ -234,7 +265,22 @@ final class PushNotificationService: NSObject, ObservableObject {
 
     /// Register a locally stored token if needed (user changed or token updated)
     func registerStoredDeviceTokenIfNeeded(userId: UUID) async {
+        let settings = await notificationCenter.notificationSettings()
+        let status = settings.authorizationStatus.rawValue
+        // #region agent log
+        Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Permission check", data: ["authStatus": status, "userId": userId.uuidString])
+        // #endregion
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            break
+        default:
+            Log.push("Push authorization is not enabled (status=\(settings.authorizationStatus.rawValue)); remote pushes will not be shown.", type: .info)
+        }
+
         guard let tokenString = UserDefaults.standard.string(forKey: tokenStorageKey) else {
+            // #region agent log
+            Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "No stored token", data: ["userId": userId.uuidString])
+            // #endregion
             Log.push("No stored APNs token to register for user \(userId)")
             return
         }
@@ -243,14 +289,44 @@ final class PushNotificationService: NSObject, ObservableObject {
         let lastRegisteredUserId = UserDefaults.standard.string(forKey: tokenUserIdKey)
 
         if lastRegisteredToken == tokenString && lastRegisteredUserId == userId.uuidString {
-            Log.push("APNs token already registered for user \(userId)")
-            return
+            let registrationStillExists = await remoteRegistrationExists(tokenString: tokenString, userId: userId)
+            if registrationStillExists {
+                Log.push("APNs token already registered for user \(userId)")
+                return
+            }
+
+            Log.push("Local APNs registration cache was stale; re-registering token for user \(userId)")
         }
 
         do {
             try await registerDeviceToken(tokenString: tokenString, userId: userId)
+            // #region agent log
+            Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Registered stored token OK", data: ["userId": userId.uuidString, "tokenPrefix": String(tokenString.prefix(12))])
+            // #endregion
         } catch {
+            // #region agent log
+            Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Register stored token failed", data: ["userId": userId.uuidString, "error": error.localizedDescription])
+            // #endregion
             Log.push("Failed to register stored APNs token: \(error.localizedDescription)", type: .error)
+        }
+    }
+
+    private func remoteRegistrationExists(tokenString: String, userId: UUID) async -> Bool {
+        do {
+            let rows = try await supabase
+                .from("push_tokens")
+                .select("id")
+                .eq("device_id", value: DeviceIdentifier.current)
+                .eq("user_id", value: userId.uuidString)
+                .eq("token", value: tokenString)
+                .limit(1)
+                .execute()
+
+            let decoded = try JSONDecoder().decode([PushTokenRow].self, from: rows.data)
+            return !decoded.isEmpty
+        } catch {
+            Log.push("Unable to verify remote APNs registration: \(error.localizedDescription)", type: .error)
+            return false
         }
     }
 
@@ -646,6 +722,3 @@ struct CompletionResponse: Codable {
         case nextReminder = "next_reminder"
     }
 }
-
-
-

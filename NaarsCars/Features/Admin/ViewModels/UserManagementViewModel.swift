@@ -21,7 +21,11 @@ final class UserManagementViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let adminService = AdminService.shared
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     

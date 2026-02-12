@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import Realtime
 
 struct MessagingMapper {
     static func mapToSDConversation(_ conversation: Conversation, participantIds: [UUID] = []) -> SDConversation {
@@ -38,7 +37,9 @@ struct MessagingMapper {
             locationName: message.locationName,
             editedAt: message.editedAt,
             deletedAt: message.deletedAt,
-            isPending: isPending
+            isPending: isPending,
+            status: message.sendStatus?.rawValue ?? (isPending ? "sending" : "sent"),
+            localAttachmentPath: message.localAttachmentPath
         )
     }
     
@@ -59,7 +60,10 @@ struct MessagingMapper {
             audioDuration: sdMessage.audioDuration,
             latitude: sdMessage.latitude,
             longitude: sdMessage.longitude,
-            locationName: sdMessage.locationName
+            locationName: sdMessage.locationName,
+            sendStatus: MessageSendStatus(rawValue: sdMessage.status),
+            localAttachmentPath: sdMessage.localAttachmentPath,
+            syncError: sdMessage.syncError
         )
     }
     
@@ -78,25 +82,7 @@ struct MessagingMapper {
         )
     }
 
-    static func parseMessageFromPayload(_ payload: Any) -> Message? {
-        var recordDict: [String: Any]?
-        
-        if let insertAction = payload as? Realtime.InsertAction {
-            recordDict = insertAction.record
-        } else if let updateAction = payload as? Realtime.UpdateAction {
-            recordDict = updateAction.record
-        } else if let deleteAction = payload as? Realtime.DeleteAction {
-            // DELETE events carry oldRecord, not record
-            recordDict = deleteAction.oldRecord
-        } else if let dict = payload as? [String: Any] {
-            recordDict = dict["record"] as? [String: Any] ?? dict
-        }
-        
-        guard let record = recordDict else {
-            AppLogger.warning("messaging", "Missing record in realtime payload: \(type(of: payload))")
-            return nil
-        }
-        
+    static func parseMessage(from record: [String: Any]) -> Message? {
         guard let id = parseUUID(record["id"]),
               let convId = parseUUID(record["conversation_id"]),
               let fromId = parseUUID(record["from_id"]),
@@ -212,76 +198,7 @@ struct MessagingMapper {
     }
 
     private static func normalizeValue(_ value: Any?) -> Any? {
-        guard let value else { return nil }
-        if value is NSNull { return nil }
-        if let anyJSON = value as? AnyJSON {
-            return decodeAnyJSON(anyJSON)
-        }
-        if type(of: value) == AnyHashable.self, let anyHashable = value as? AnyHashable {
-            return normalizeValue(anyHashable.base)
-        }
-        return value
-    }
-
-    private static func decodeAnyJSON(_ anyJSON: AnyJSON) -> Any? {
-        if let mirrorValue = decodeAnyJSONMirror(anyJSON) {
-            return mirrorValue
-        }
-        guard let data = try? JSONEncoder().encode(anyJSON),
-              let object = try? JSONSerialization.jsonObject(with: data, options: []) else {
-            return nil
-        }
-        if object is NSNull {
-            return nil
-        }
-        return object
-    }
-
-    private static func decodeAnyJSONMirror(_ anyJSON: AnyJSON) -> Any? {
-        let mirror = Mirror(reflecting: anyJSON)
-        if mirror.displayStyle == .enum, let child = mirror.children.first {
-            return decodeAnyJSONMirrorValue(label: child.label, value: child.value)
-        }
-        if mirror.displayStyle == .struct || mirror.displayStyle == .class {
-            for child in mirror.children {
-                if child.label == "value" || child.label == "rawValue" || child.label == "storage" || child.label == "wrapped" {
-                    return decodeAnyJSONMirrorValue(label: child.label, value: child.value)
-                }
-            }
-            if let child = mirror.children.first {
-                return decodeAnyJSONMirrorValue(label: child.label, value: child.value)
-            }
-        }
-        return nil
-    }
-
-    private static func decodeAnyJSONMirrorValue(label: String?, value: Any) -> Any? {
-        if value is NSNull { return nil }
-        if let nested = value as? AnyJSON { return decodeAnyJSONMirror(nested) }
-        if let dict = value as? [String: Any] {
-            var result: [String: Any] = [:]
-            for (key, val) in dict {
-                result[key] = normalizeValue(val) ?? NSNull()
-            }
-            return result
-        }
-        if let dict = value as? [String: AnyJSON] {
-            var result: [String: Any] = [:]
-            for (key, val) in dict {
-                result[key] = decodeAnyJSONMirror(val) ?? NSNull()
-            }
-            return result
-        }
-        if let array = value as? [Any] {
-            return array.map { normalizeValue($0) ?? NSNull() }
-        }
-        if let array = value as? [AnyJSON] {
-            return array.map { decodeAnyJSONMirror($0) ?? NSNull() }
-        }
-        if label == "null" {
-            return nil
-        }
-        return value
+        RealtimePayloadAdapter.normalizeValue(value)
     }
 }
 

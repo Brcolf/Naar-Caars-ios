@@ -11,7 +11,6 @@ import Supabase
 
 /// Service for invite code operations
 /// Handles generation with rate limiting, fetching with invitee info, and statistics
-@MainActor
 final class InviteService {
     
     // MARK: - Singleton

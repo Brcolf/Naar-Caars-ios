@@ -21,9 +21,17 @@ final class RideDetailViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let rideService = RideService.shared
-    private let authService = AuthService.shared
+    private let rideService: any RideServiceProtocol
+    private let authService: any AuthServiceProtocol
     private let notificationRepository = NotificationRepository.shared
+
+    init(
+        rideService: any RideServiceProtocol = RideService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.rideService = rideService
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     

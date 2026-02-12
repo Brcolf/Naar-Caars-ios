@@ -16,8 +16,10 @@ struct RequestsDashboardView: View {
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
     @State private var showCreateFavor = false
-    @State private var navigateToRide: UUID?
-    @State private var navigateToFavor: UUID?
+    @State private var selectedRideId: UUID?
+    @State private var selectedFavorId: UUID?
+    @State private var pendingRideNavigation: UUID?
+    @State private var pendingFavorNavigation: UUID?
     @State private var highlightedRequestKey: String?
     @State private var highlightWorkItem: DispatchWorkItem?
     
@@ -30,7 +32,7 @@ struct RequestsDashboardView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {
-                        navigationCoordinator.navigateToNotifications = true
+                        navigationCoordinator.pendingIntent = .notifications
                         AppLogger.info("requests", "Bell tapped")
                     }
 
@@ -55,34 +57,47 @@ struct RequestsDashboardView: View {
                     .accessibilityHint("Double-tap to create a new ride or favor request")
                 }
             }
-            .sheet(isPresented: $showCreateRide) {
+            .sheet(isPresented: $showCreateRide, onDismiss: {
+                if let rideId = pendingRideNavigation {
+                    selectedRideId = rideId
+                    pendingRideNavigation = nil
+                }
+            }) {
                 CreateRideView { rideId in
-                    // Navigate to the newly created ride after sheet dismisses
-                    navigateToRide = rideId
+                    pendingRideNavigation = rideId
                 }
             }
-            .sheet(isPresented: $showCreateFavor) {
+            .sheet(isPresented: $showCreateFavor, onDismiss: {
+                if let favorId = pendingFavorNavigation {
+                    selectedFavorId = favorId
+                    pendingFavorNavigation = nil
+                }
+            }) {
                 CreateFavorView { favorId in
-                    // Navigate to the newly created favor after sheet dismisses
-                    navigateToFavor = favorId
+                    pendingFavorNavigation = favorId
                 }
             }
-            .navigationDestination(item: $navigateToRide) { rideId in
+            .navigationDestination(item: $selectedRideId) { rideId in
                 RideDetailView(rideId: rideId)
             }
-            .navigationDestination(item: $navigateToFavor) { favorId in
+            .navigationDestination(item: $selectedFavorId) { favorId in
                 FavorDetailView(favorId: favorId)
             }
-            .onChange(of: navigationCoordinator.navigateToRide) { _, rideId in
-                if let rideId = rideId {
-                    navigateToRide = rideId
-                    navigationCoordinator.navigateToRide = nil
-                }
-            }
-            .onChange(of: navigationCoordinator.navigateToFavor) { _, favorId in
-                if let favorId = favorId {
-                    navigateToFavor = favorId
-                    navigationCoordinator.navigateToFavor = nil
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                guard let intent else { return }
+                switch intent {
+                case .ride(let rideId, let anchor):
+                    selectedRideId = rideId
+                    if anchor == nil {
+                        navigationCoordinator.pendingIntent = nil
+                    }
+                case .favor(let favorId, let anchor):
+                    selectedFavorId = favorId
+                    if anchor == nil {
+                        navigationCoordinator.pendingIntent = nil
+                    }
+                default:
+                    break
                 }
             }
             .task {
@@ -102,10 +117,7 @@ struct RequestsDashboardView: View {
     
     @ViewBuilder
     private var listContentView: some View {
-        let filteredRequests = viewModel.getFilteredRequests(
-            rides: viewModel.filteredRides,
-            favors: viewModel.filteredFavors
-        )
+        let filteredRequests = viewModel.filteredRequests
         
         ScrollViewReader { proxy in
             ScrollView {
@@ -153,7 +165,12 @@ struct RequestsDashboardView: View {
                                 }
                                 .simultaneousGesture(TapGesture().onEnded {
                                     if let target = viewModel.notificationTarget(for: request) {
-                                        navigationCoordinator.requestNavigationTarget = target
+                                        switch request {
+                                        case .ride(let ride):
+                                            navigationCoordinator.pendingIntent = .ride(ride.id, anchor: target)
+                                        case .favor(let favor):
+                                            navigationCoordinator.pendingIntent = .favor(favor.id, anchor: target)
+                                        }
                                     }
                                 })
                 .buttonStyle(PlainButtonStyle())
@@ -179,17 +196,17 @@ struct RequestsDashboardView: View {
             .refreshable {
                 await viewModel.refreshRequests()
             }
-            .onChange(of: navigationCoordinator.requestListScrollKey) { _, key in
-                guard let key else { return }
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                guard case .requestListScroll(let key) = intent else { return }
                 scrollToRequest(key, proxy: proxy)
-                navigationCoordinator.requestListScrollKey = nil
+                navigationCoordinator.pendingIntent = nil
             }
         }
     }
 
     private var filterHeaderView: some View {
         VStack(spacing: 0) {
-            // Filter tiles (Open Requests, My Requests, Claimed by Me)
+            // Filter tiles (Open Requests, My Requests, Claimed Requests)
             FilterTilesView(
                 selectedFilter: $viewModel.filter,
                 badgeCounts: viewModel.filterBadgeCounts
@@ -287,6 +304,8 @@ struct FilterTile: View {
                     .font(.naarsSubheadline)
                     .fontWeight(isSelected ? .semibold : .regular)
                     .foregroundColor(isSelected ? .white : .primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
                     .frame(maxWidth: .infinity)
                 
                 HStack {
@@ -304,18 +323,20 @@ struct FilterTile: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, minHeight: 40)
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
             .background(isSelected ? Color.accentColor : Color(.systemGray5))
             .cornerRadius(12)
         }
+        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity)
         .accessibilityIdentifier("requests.filter.\(title)")
         .accessibilityLabel("\(title) filter\(isSelected ? ", selected" : "")")
         .accessibilityHint("Double-tap to show \(title.lowercased()) requests")
         .simultaneousGesture(TapGesture().onEnded {
             HapticManager.selectionChanged()
         })
-        .buttonStyle(PlainButtonStyle())
     }
 
     private var badgeText: String? {
@@ -386,4 +407,3 @@ struct SkeletonRequestCard: View {
     RequestsDashboardView()
         .environmentObject(AppState())
 }
-

@@ -30,8 +30,16 @@ final class CreateRideViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let rideService = RideService.shared
-    private let authService = AuthService.shared
+    private let rideService: any RideServiceProtocol
+    private let authService: any AuthServiceProtocol
+
+    init(
+        rideService: any RideServiceProtocol = RideService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.rideService = rideService
+        self.authService = authService
+    }
     
     // MARK: - Public Methods
     
@@ -67,12 +75,14 @@ final class CreateRideViewModel: ObservableObject {
     /// - Throws: AppError if creation fails
     func createRide() async throws -> Ride {
         // Validate form
-        if let error = validateForm() {
-            throw AppError.invalidInput(error)
+        if let validationError = validateForm() {
+            self.error = validationError
+            throw AppError.invalidInput(validationError)
         }
         
         // Get current user ID
         guard let userId = authService.currentUserId else {
+            self.error = "Authentication required. Please sign in again."
             throw AppError.authenticationRequired
         }
         

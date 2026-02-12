@@ -8,7 +8,6 @@
 import Foundation
 import Supabase
 
-@MainActor
 final class DefaultPromptSideEffects: PromptSideEffects {
     private let notificationService = NotificationService.shared
     private let badgeManager = BadgeCountManager.shared

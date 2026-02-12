@@ -27,7 +27,7 @@ final class MessagingMapperTests: XCTestCase {
             "created_at": formatter.string(from: createdAt)
         ]
 
-        guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
+        guard let message = MessagingMapper.parseMessage(from: payload) else {
             XCTFail("Expected message to parse from payload")
             return
         }
@@ -52,7 +52,7 @@ final class MessagingMapperTests: XCTestCase {
             "read_by": [AnyHashable(fromId.uuidString)]
         ]
 
-        guard let message = MessagingMapper.parseMessageFromPayload(payload) else {
+        guard let message = MessagingMapper.parseMessage(from: payload) else {
             XCTFail("Expected message to parse from AnyHashable payload")
             return
         }

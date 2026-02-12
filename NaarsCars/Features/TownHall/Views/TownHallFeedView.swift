@@ -125,21 +125,21 @@ struct TownHallFeedView: View {
             .refreshable {
                 await viewModel.refreshPosts()
             }
-            .onChange(of: navigationCoordinator.townHallNavigationTarget) { _, target in
-                guard let target else { return }
-                let anchorId = "community.townHall.postCard(\(target.postId))"
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                guard case .townHallPost(let postId, let mode) = intent else { return }
+                let anchorId = "community.townHall.postCard(\(postId))"
                 withAnimation(.easeInOut) {
                     proxy.scrollTo(anchorId, anchor: .top)
                 }
 
-                switch target.mode {
+                switch mode {
                 case .openComments:
-                    openCommentsTarget = .init(id: target.postId)
+                    openCommentsTarget = .init(id: postId)
                 case .highlightPost:
-                    highlightPost(target.postId)
+                    highlightPost(postId)
                 }
 
-                navigationCoordinator.townHallNavigationTarget = nil
+                navigationCoordinator.pendingIntent = nil
             }
         }
     }

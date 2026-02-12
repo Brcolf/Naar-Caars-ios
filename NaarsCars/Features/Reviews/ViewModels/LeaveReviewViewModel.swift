@@ -10,6 +10,81 @@ import SwiftUI
 internal import Combine
 import PhotosUI
 
+struct LeaveReviewDependencies {
+    let currentUserId: () -> UUID?
+    let createReview: (
+        _ requestType: String,
+        _ requestId: UUID,
+        _ fulfillerId: UUID,
+        _ reviewerId: UUID,
+        _ rating: Int,
+        _ comment: String?,
+        _ imageData: Data?
+    ) async throws -> Review
+    let skipReview: (_ requestType: String, _ requestId: UUID) async throws -> Void
+    let refreshBadges: (String) async -> Void
+    let fetchReviewPostId: (UUID) async -> UUID?
+    let navigateToTownHall: (UUID) -> Void
+
+    @MainActor
+    static func live() -> LeaveReviewDependencies {
+        live(
+            authService: AuthService.shared,
+            reviewService: ReviewService.shared,
+            badgeManager: BadgeCountManager.shared
+        )
+    }
+
+    @MainActor
+    static func live(
+        authService: any AuthServiceProtocol,
+        reviewService: any ReviewServiceProtocol,
+        badgeManager: any BadgeCountManaging
+    ) -> LeaveReviewDependencies {
+        return LeaveReviewDependencies(
+            currentUserId: { authService.currentUserId },
+            createReview: { requestType, requestId, fulfillerId, reviewerId, rating, comment, imageData in
+                try await reviewService.createReview(
+                    requestType: requestType,
+                    requestId: requestId,
+                    fulfillerId: fulfillerId,
+                    reviewerId: reviewerId,
+                    rating: rating,
+                    comment: comment,
+                    imageData: imageData
+                )
+            },
+            skipReview: { requestType, requestId in
+                try await reviewService.skipReview(
+                    requestType: requestType,
+                    requestId: requestId
+                )
+            },
+            refreshBadges: { reason in
+                await badgeManager.refreshAllBadges(reason: reason)
+            },
+            fetchReviewPostId: { reviewId in
+                do {
+                    return try await TownHallService.shared.fetchPostIdForReview(reviewId: reviewId)
+                } catch {
+                    AppLogger.error("townhall", "Failed to fetch review post ID: \(error.localizedDescription)")
+                    return nil
+                }
+            },
+            navigateToTownHall: { postId in
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("navigateToTownHall"),
+                    object: nil,
+                    userInfo: [
+                        "postId": postId,
+                        "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.openComments.rawValue
+                    ]
+                )
+            }
+        )
+    }
+}
+
 /// View model for leaving a review
 @MainActor
 final class LeaveReviewViewModel: ObservableObject {
@@ -26,8 +101,15 @@ final class LeaveReviewViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let reviewService = ReviewService.shared
-    private let authService = AuthService.shared
+    private let dependencies: LeaveReviewDependencies
+
+    nonisolated init(dependencies: LeaveReviewDependencies) {
+        self.dependencies = dependencies
+    }
+    
+    convenience init() {
+        self.init(dependencies: .live())
+    }
     
     // MARK: - Public Methods
     
@@ -43,7 +125,7 @@ final class LeaveReviewViewModel: ObservableObject {
         requestId: UUID,
         fulfillerId: UUID
     ) async throws -> Review {
-        guard let reviewerId = authService.currentUserId else {
+        guard let reviewerId = dependencies.currentUserId() else {
             throw AppError.notAuthenticated
         }
         
@@ -70,20 +152,35 @@ final class LeaveReviewViewModel: ObservableObject {
             }
             
             // Create review
-            let review = try await reviewService.createReview(
-                requestType: requestType,
-                requestId: requestId,
-                fulfillerId: fulfillerId,
-                reviewerId: reviewerId,
-                rating: rating,
-                comment: comment.isEmpty ? nil : comment,
-                imageData: imageData
+            let review = try await dependencies.createReview(
+                requestType,
+                requestId,
+                fulfillerId,
+                reviewerId,
+                rating,
+                comment.isEmpty ? nil : comment,
+                imageData
             )
-            
+
+            await dependencies.refreshBadges("reviewSubmitted")
             return review
         } catch {
             self.error = error as? AppError ?? AppError.unknown(error.localizedDescription)
             throw error
+        }
+    }
+
+    func navigateToReviewPost(reviewId: UUID) async {
+        let maxAttempts = 4
+        for attempt in 0..<maxAttempts {
+            if let postId = await dependencies.fetchReviewPostId(reviewId) {
+                dependencies.navigateToTownHall(postId)
+                return
+            }
+
+            if attempt < maxAttempts - 1 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
         }
     }
     
@@ -101,10 +198,7 @@ final class LeaveReviewViewModel: ObservableObject {
         defer { isSubmitting = false }
         
         do {
-            try await reviewService.skipReview(
-                requestType: requestType,
-                requestId: requestId
-            )
+            try await dependencies.skipReview(requestType, requestId)
         } catch {
             self.error = error as? AppError ?? AppError.unknown(error.localizedDescription)
             throw error

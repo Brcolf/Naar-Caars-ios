@@ -56,12 +56,10 @@ Supabase doesn't directly support `pg_notify` → Edge Function, so we need to u
    - **Request Body Template**:
      ```json
      {
-       "recipient_user_id": "{{NEW.from_id}}",
+       "id": "{{NEW.id}}",
        "conversation_id": "{{NEW.conversation_id}}",
-       "sender_name": "{{sender_name}}",
-       "message_preview": "{{message_preview}}",
-       "message_id": "{{NEW.id}}",
-       "sender_id": "{{NEW.from_id}}"
+       "from_id": "{{NEW.from_id}}",
+       "text": "{{NEW.text}}"
      }
      ```
 
@@ -219,5 +217,4 @@ Look for:
 - `⏭️ Skipping push` - User is viewing or no tokens
 - `✅ Sent push notifications` - Success
 - Error messages for failures
-
 

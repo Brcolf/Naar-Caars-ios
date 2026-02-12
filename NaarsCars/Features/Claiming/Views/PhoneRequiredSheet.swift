@@ -10,7 +10,7 @@ import SwiftUI
 /// Sheet prompting user to add phone number before claiming
 struct PhoneRequiredSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var navigateToProfile: Bool
+    @Binding var showProfileScreen: Bool
     
     var body: some View {
         NavigationStack {
@@ -44,7 +44,7 @@ struct PhoneRequiredSheet: View {
                 VStack(spacing: 12) {
                     PrimaryButton(title: "claiming_phone_required_add".localized) {
                         dismiss()
-                        navigateToProfile = true
+                        showProfileScreen = true
                     }
                     
                     SecondaryButton(title: "common_not_now".localized) {
@@ -63,7 +63,7 @@ struct PhoneRequiredSheet: View {
 }
 
 #Preview {
-    PhoneRequiredSheet(navigateToProfile: .constant(false))
+    PhoneRequiredSheet(showProfileScreen: .constant(false))
 }
 
 

@@ -10,7 +10,6 @@ import Supabase
 
 /// Service for favor-related operations
 /// Handles fetching, creating, updating, deleting favors
-@MainActor
 final class FavorService {
     
     // MARK: - Singleton
@@ -426,12 +425,34 @@ final class FavorService {
     }
     
     /// Enrich favors with profile data (poster, claimer, participants)
+    /// Uses a single batched profile fetch to avoid N+1 queries
     private func enrichFavorsWithProfiles(_ favors: [Favor]) async -> [Favor] {
-        var enriched: [Favor] = []
+        guard !favors.isEmpty else { return [] }
         
+        // Collect all unique user IDs (posters + claimers) for a single batch fetch
+        var allUserIds = Set<UUID>()
         for favor in favors {
-            let enrichedFavor = await enrichFavorWithProfiles(favor)
-            enriched.append(enrichedFavor)
+            allUserIds.insert(favor.userId)
+            if let claimedBy = favor.claimedBy {
+                allUserIds.insert(claimedBy)
+            }
+        }
+        
+        // Batch fetch all profiles in one query
+        let profiles = (try? await ProfileService.shared.fetchProfiles(userIds: Array(allUserIds))) ?? []
+        let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        
+        // Map profiles back to favors and fetch participants
+        var enriched: [Favor] = []
+        for var favor in favors {
+            favor.poster = profileLookup[favor.userId]
+            if let claimedBy = favor.claimedBy {
+                favor.claimer = profileLookup[claimedBy]
+            }
+            if let participants = try? await fetchFavorParticipants(favorId: favor.id) {
+                favor.participants = participants
+            }
+            enriched.append(favor)
         }
         
         return enriched
@@ -479,6 +500,8 @@ final class FavorService {
         return response.count ?? 0
     }
 }
+
+extension FavorService: FavorServiceProtocol {}
 
 
 

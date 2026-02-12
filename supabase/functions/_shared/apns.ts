@@ -25,11 +25,6 @@ export async function sendAPNsPush(
     throw new Error('Missing APNs environment variables')
   }
 
-  // APNs endpoint (production or sandbox)
-  const apnsUrl = apnsProduction
-    ? `https://api.push.apple.com/3/device/${token}`
-    : `https://api.sandbox.push.apple.com/3/device/${token}`
-
   // Create JWT token for APNs authentication
   const jwt = await createAPNsJWT(apnsTeamId, apnsKeyId, apnsKey)
 
@@ -39,24 +34,45 @@ export async function sendAPNsPush(
     pushType = 'background'
   }
 
-  // Send to APNs
-  const response = await fetch(apnsUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${jwt}`,
-      'apns-topic': apnsBundleId,
-      'apns-priority': '10',
-      'apns-push-type': pushType,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000)
-  })
+  const endpointModes = apnsProduction
+    ? ['production', 'sandbox'] as const
+    : ['sandbox', 'production'] as const
 
-  if (!response.ok) {
+  let lastError: Error | null = null
+
+  for (const mode of endpointModes) {
+    const apnsUrl =
+      mode === 'production'
+        ? `https://api.push.apple.com/3/device/${token}`
+        : `https://api.sandbox.push.apple.com/3/device/${token}`
+
+    const response = await fetch(apnsUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'apns-topic': apnsBundleId,
+        'apns-priority': '10',
+        'apns-push-type': pushType,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000)
+    })
+
+    if (response.ok) {
+      const apnsId = response.headers.get('apns-id')
+      console.log(`✅ APNs push sent successfully via ${mode} (ID: ${apnsId})`)
+      return
+    }
+
     const errorText = await response.text()
+    let errorReason = ''
+    try {
+      errorReason = JSON.parse(errorText)?.reason ?? ''
+    } catch {
+      errorReason = ''
+    }
 
-    // Handle specific APNs error codes
     if (response.status === 410 && supabase) {
       // Token is no longer valid - remove it
       console.log(`🗑️ Removing invalid token: ${token.substring(0, 8)}...`)
@@ -66,11 +82,21 @@ export async function sendAPNsPush(
         .eq('token', token)
     }
 
-    throw new Error(`APNs error (${response.status}): ${errorText}`)
+    const modeError = new Error(`APNs ${mode} error (${response.status}): ${errorText}`)
+    lastError = modeError
+
+    const isEnvironmentMismatch =
+      response.status === 400 &&
+      (errorReason === 'BadDeviceToken' || errorReason === 'DeviceTokenNotForTopic')
+    if (isEnvironmentMismatch) {
+      console.warn(`⚠️ APNs ${mode} rejected token with ${errorReason}; trying alternate environment.`)
+      continue
+    }
+
+    throw modeError
   }
 
-  const apnsId = response.headers.get('apns-id')
-  console.log(`✅ APNs push sent successfully (ID: ${apnsId})`)
+  throw lastError ?? new Error('APNs push failed in all environments')
 }
 
 /**

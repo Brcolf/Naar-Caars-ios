@@ -55,11 +55,13 @@ enum Constants {
         static let authAction: TimeInterval = 3.0
         static let throttleSend: TimeInterval = 1.0
         static let throttleMarkRead: TimeInterval = 0.5
+        static let throttleLastSeen: TimeInterval = 5.0
     }
     
     /// Pagination page sizes
     enum PageSizes {
         static let messages: Int = 25
+        static let messagesInitialRender: Int = 50
         static let conversations: Int = 10
         static let townHall: Int = 20
         static let searchMessages: Int = 30
@@ -71,6 +73,14 @@ enum Constants {
     enum Timing {
         /// Debounce interval for realtime/search events (0.3s)
         static let debounceNanoseconds: UInt64 = 300_000_000
+        /// Debounce interval for requests realtime-triggered full refreshes (0.35s)
+        static let requestsRealtimeReloadDebounceNanoseconds: UInt64 = 350_000_000
+        /// Debounce interval for notifications realtime-triggered full refreshes (0.25s)
+        static let notificationsRealtimeReloadDebounceNanoseconds: UInt64 = 250_000_000
+        /// Debounce interval for malformed/unexpected notifications realtime payload fallback refreshes (1.5s)
+        static let notificationsRealtimeFallbackReloadDebounceNanoseconds: UInt64 = 1_500_000_000
+        /// Debounce interval for malformed/unexpected request-notification payload fallback refreshes (1.5s)
+        static let requestsRealtimeFallbackReloadDebounceNanoseconds: UInt64 = 1_500_000_000
         /// Delay before dismissing success views (1.5s)
         static let successDismissNanoseconds: UInt64 = 1_500_000_000
         /// Toast display duration (4s)
@@ -79,10 +89,48 @@ enum Constants {
         static let typingPollInterval: TimeInterval = 3.0
         /// Typing signal threshold (2s)
         static let typingSignalThreshold: TimeInterval = 2.0
-        /// Badge polling when connected (10s)
-        static let badgePollConnected: TimeInterval = 10.0
+        /// Auto-clear typing indicator when no new typing signal is sent (5s)
+        static let typingAutoClearNanoseconds: UInt64 = 5_000_000_000
+        /// Badge polling when connected (30s)
+        static let badgePollConnected: TimeInterval = 30.0
         /// Badge polling when disconnected (90s)
         static let badgePollDisconnected: TimeInterval = 90.0
+        /// Minimum interval between badge refresh executions
+        static let badgeRefreshMinInterval: TimeInterval = 2.0
+        /// Debounce interval before forcing a network badge refresh after local message read clear.
+        static let badgeClearMessagesRefreshDebounceNanoseconds: UInt64 = 1_200_000_000
+        /// Coalesce regular notification fetches within this window.
+        static let notificationsFetchCoalesceWindow: TimeInterval = 2.0
+        /// Coalesce forced notification fetches within this smaller window.
+        static let notificationsForceRefreshCoalesceWindow: TimeInterval = 0.75
+        /// Minimum interval between repeated initial sync-engine starts.
+        static let syncEngineStartCooldown: TimeInterval = 5.0
+        /// Minimum interval for automatic remote sync in conversations list.
+        static let messagingListRemoteSyncMinInterval: TimeInterval = 2.0
+        /// Audio playback progress timer interval (0.2s)
+        static let audioPlaybackProgressInterval: TimeInterval = 0.2
+    }
+
+    /// Performance thresholds and retention policies
+    enum Performance {
+        /// Slow launch warning threshold
+        static let launchCriticalPathSlowThreshold: TimeInterval = 2.5
+        /// Slow conversation-open warning threshold
+        static let conversationOpenSlowThreshold: TimeInterval = 1.2
+        /// Slow server-accept warning threshold for message send
+        static let messageSendServerAcceptSlowThreshold: TimeInterval = 0.5
+        /// Slow claim operation warning threshold
+        static let claimOperationSlowThreshold: TimeInterval = 1.0
+        /// Offline cache retention window in days
+        static let offlineCacheRetentionDays: Int = 14
+    }
+
+    /// Storage limits and cache budgets
+    enum Storage {
+        /// Max on-disk cache budget for downloaded audio playback files
+        static let audioPlaybackCacheMaxBytes: Int64 = 100 * 1_024 * 1_024
+        /// Trim target when audio cache exceeds budget
+        static let audioPlaybackCacheTrimTargetBytes: Int64 = 80 * 1_024 * 1_024
     }
     
     /// External URLs
@@ -102,3 +150,54 @@ enum Constants {
     }
 }
 
+/// Runtime feature flags for performance instrumentation.
+/// Debug builds can toggle these in Settings; release builds keep instrumentation enabled.
+enum FeatureFlags {
+    private enum Keys {
+        static let performanceInstrumentationEnabled = "debug.performance.instrumentation.enabled"
+        static let metricKitEnabled = "debug.performance.metrickit.enabled"
+        static let verbosePerformanceLogsEnabled = "debug.performance.verboseLogs.enabled"
+    }
+
+    static var performanceInstrumentationEnabled: Bool {
+#if DEBUG
+        UserDefaults.standard.object(forKey: Keys.performanceInstrumentationEnabled) as? Bool ?? true
+#else
+        true
+#endif
+    }
+
+    static var metricKitEnabled: Bool {
+#if DEBUG
+        UserDefaults.standard.object(forKey: Keys.metricKitEnabled) as? Bool ?? true
+#else
+        true
+#endif
+    }
+
+    static var verbosePerformanceLogsEnabled: Bool {
+#if DEBUG
+        UserDefaults.standard.object(forKey: Keys.verbosePerformanceLogsEnabled) as? Bool ?? false
+#else
+        false
+#endif
+    }
+
+    /// When true, falls back to client-side badge computation on RPC failure.
+    /// Set to false after confirming RPC reliability (target: 2026-03-01).
+    static let badgeCountClientFallbackEnabled = false
+
+#if DEBUG
+    static func setPerformanceInstrumentationEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: Keys.performanceInstrumentationEnabled)
+    }
+
+    static func setMetricKitEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: Keys.metricKitEnabled)
+    }
+
+    static func setVerbosePerformanceLogsEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: Keys.verbosePerformanceLogsEnabled)
+    }
+#endif
+}

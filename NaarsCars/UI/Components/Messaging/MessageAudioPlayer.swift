@@ -20,7 +20,13 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
     
     private var player: AVAudioPlayer?
     private var progressTimer: Timer?
-    private var cachedFiles: [URL: URL] = [:]
+    private var cachedFiles: [URL: CachedAudioFile] = [:]
+
+    private struct CachedAudioFile {
+        let fileURL: URL
+        let sizeBytes: Int64
+        var lastAccessedAt: Date
+    }
     
     private override init() {
         super.init()
@@ -86,10 +92,15 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
     
     private func startProgressTimer() {
         stopProgressTimer()
-        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, let player = self.player else { return }
-            if player.duration > 0 {
-                self.progress = player.currentTime / player.duration
+        progressTimer = Timer.scheduledTimer(withTimeInterval: Constants.Timing.audioPlaybackProgressInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, let player = self.player else { return }
+                if player.duration > 0 {
+                    let nextProgress = player.currentTime / player.duration
+                    if abs(nextProgress - self.progress) >= 0.01 || nextProgress == 0 || nextProgress >= 1 {
+                        self.progress = nextProgress
+                    }
+                }
             }
         }
     }
@@ -104,16 +115,39 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
             return url
         }
         
-        if let cached = cachedFiles[url] {
-            return cached
+        if var cached = cachedFiles[url] {
+            if FileManager.default.fileExists(atPath: cached.fileURL.path) {
+                cached.lastAccessedAt = Date()
+                cachedFiles[url] = cached
+                return cached.fileURL
+            }
+            cachedFiles.removeValue(forKey: url)
         }
         
         let (data, _) = try await URLSession.shared.data(from: url)
         let fileName = "audio-\(abs(url.absoluteString.hashValue)).m4a"
         let fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try data.write(to: fileUrl, options: .atomic)
-        cachedFiles[url] = fileUrl
+        cachedFiles[url] = CachedAudioFile(
+            fileURL: fileUrl,
+            sizeBytes: Int64(data.count),
+            lastAccessedAt: Date()
+        )
+        trimCachedFilesIfNeeded()
         return fileUrl
+    }
+
+    private func trimCachedFilesIfNeeded() {
+        var totalBytes = cachedFiles.values.reduce(Int64(0)) { $0 + $1.sizeBytes }
+        guard totalBytes > Constants.Storage.audioPlaybackCacheMaxBytes else { return }
+
+        let sorted = cachedFiles.sorted { $0.value.lastAccessedAt < $1.value.lastAccessedAt }
+        for (remoteURL, cached) in sorted {
+            guard totalBytes > Constants.Storage.audioPlaybackCacheTrimTargetBytes else { break }
+            try? FileManager.default.removeItem(at: cached.fileURL)
+            cachedFiles.removeValue(forKey: remoteURL)
+            totalBytes -= cached.sizeBytes
+        }
     }
     
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {

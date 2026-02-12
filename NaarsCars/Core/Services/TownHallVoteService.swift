@@ -9,7 +9,6 @@ import Foundation
 import Supabase
 
 /// Service for managing votes on town hall posts and comments
-@MainActor
 final class TownHallVoteService {
     
     // MARK: - Singleton

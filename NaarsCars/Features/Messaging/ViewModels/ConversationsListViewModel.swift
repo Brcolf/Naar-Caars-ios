@@ -38,17 +38,27 @@ final class ConversationsListViewModel: ObservableObject {
     @Published var searchResults: [MessageSearchResult] = []
     @Published var isSearching: Bool = false
     
-    private let conversationService = ConversationService.shared
-    private let profileService = ProfileService.shared
-    private let messageService = MessageService.shared
+    private let conversationService: any ConversationServiceProtocol
+    private let profileService: any ProfileServiceProtocol
+    private let messageService: any MessageServiceProtocol
     private let repository = MessagingRepository.shared
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
     private var searchTask: Task<Void, Never>?
+    private var lastRemoteSyncAt: Date = .distantPast
     
-    init() {
+    init(
+        conversationService: any ConversationServiceProtocol = ConversationService.shared,
+        profileService: any ProfileServiceProtocol = ProfileService.shared,
+        messageService: any MessageServiceProtocol = MessageService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
+        self.conversationService = conversationService
+        self.profileService = profileService
+        self.messageService = messageService
+        self.authService = authService
         setupUnreadCountObservers()
         setupLocalObservation()
         setupSearchDebounce()
@@ -119,6 +129,7 @@ final class ConversationsListViewModel: ObservableObject {
         let countsById = Dictionary(uniqueKeysWithValues: details.map { ($0.conversationId, $0.unreadCount) })
         
         var hasChanges = false
+        var changedConversationIds = Set<UUID>()
         for index in conversations.indices {
             let conversationId = conversations[index].conversation.id
             let serverCount = countsById[conversationId] ?? 0
@@ -138,12 +149,13 @@ final class ConversationsListViewModel: ObservableObject {
                 }
                 
                 hasChanges = true
+                changedConversationIds.insert(conversationId)
             }
         }
         
         if hasChanges {
             AppLogger.info("messaging", "[ConversationsListVM] Applied server-side unread counts to list and local storage")
-            try? repository.save()
+            try? repository.save(changedConversationIds: changedConversationIds)
             // Force a UI refresh
             objectWillChange.send()
         }
@@ -177,6 +189,12 @@ final class ConversationsListViewModel: ObservableObject {
             AppLogger.warning("messaging", "[ConversationsListVM] Error loading local conversations: \(error)")
         }
         
+        let now = Date()
+        guard now.timeIntervalSince(lastRemoteSyncAt) >= Constants.Timing.messagingListRemoteSyncMinInterval else {
+            return
+        }
+        lastRemoteSyncAt = now
+
         // 2. Sync from remote in background
         Task {
             do {
@@ -198,7 +216,26 @@ final class ConversationsListViewModel: ObservableObject {
 
     private func hydrateProfiles(for conversations: [ConversationWithDetails]) async {
         guard let currentUserId = authService.currentUserId else { return }
-        
+        guard !conversations.isEmpty else { return }
+
+        let allOtherParticipantIds = Set(
+            conversations.flatMap { conversation in
+                (conversation.conversation.participants ?? [])
+                    .map(\.userId)
+                    .filter { $0 != currentUserId }
+            }
+        )
+        guard !allOtherParticipantIds.isEmpty else { return }
+
+        let profiles: [Profile]
+        do {
+            profiles = try await profileService.fetchProfiles(userIds: Array(allOtherParticipantIds))
+        } catch {
+            AppLogger.warning("messaging", "[ConversationsListVM] Batch profile hydration failed: \(error.localizedDescription)")
+            return
+        }
+        let profilesById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+
         var updatedConversations = conversations
         var hasChanges = false
         
@@ -206,14 +243,8 @@ final class ConversationsListViewModel: ObservableObject {
             let convWithDetails = updatedConversations[i]
             let participantIds = convWithDetails.conversation.participants?.map { $0.userId } ?? []
             let otherParticipantIds = participantIds.filter { $0 != currentUserId }
-            
-            var otherProfiles: [Profile] = []
-            for userId in otherParticipantIds {
-                if let profile = try? await profileService.fetchProfile(userId: userId) {
-                    otherProfiles.append(profile)
-                }
-            }
-            
+
+            let otherProfiles = otherParticipantIds.compactMap { profilesById[$0] }
             if !otherProfiles.isEmpty {
                 updatedConversations[i] = ConversationWithDetails(
                     conversation: convWithDetails.conversation,
@@ -275,6 +306,7 @@ final class ConversationsListViewModel: ObservableObject {
         // Reset pagination state so loadMore works correctly after refresh
         currentOffset = 0
         hasMoreConversations = true
+        lastRemoteSyncAt = .distantPast
         await loadConversations()
     }
 
@@ -401,5 +433,3 @@ final class ConversationsListViewModel: ObservableObject {
         return info
     }
 }
-
-

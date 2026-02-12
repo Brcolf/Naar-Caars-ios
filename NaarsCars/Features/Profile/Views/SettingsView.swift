@@ -162,6 +162,67 @@ struct SettingsView: View {
                     Text("These options are only visible in debug builds for testing crash reporting.")
                         .font(.naarsCaption)
                 }
+
+                Section {
+                    Toggle(isOn: $viewModel.performanceInstrumentationEnabled) {
+                        Label {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text("Performance Instrumentation")
+                                    .foregroundColor(.primary)
+                                Text("Enable operation latency metrics and SLO telemetry.")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "speedometer")
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .onChange(of: viewModel.performanceInstrumentationEnabled) { _, enabled in
+                        viewModel.updatePerformanceInstrumentation(enabled)
+                    }
+
+                    Toggle(isOn: $viewModel.metricKitEnabled) {
+                        Label {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text("MetricKit Payload Collection")
+                                    .foregroundColor(.primary)
+                                Text("Collect OS hang/crash diagnostics payloads.")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "waveform.path.ecg")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .onChange(of: viewModel.metricKitEnabled) { _, enabled in
+                        viewModel.updateMetricKitEnabled(enabled)
+                    }
+
+                    Toggle(isOn: $viewModel.verbosePerformanceLogsEnabled) {
+                        Label {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text("Verbose Performance Logs")
+                                    .foregroundColor(.primary)
+                                Text("Increase performance logging detail in debug sessions.")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "list.bullet.rectangle.portrait")
+                                .foregroundColor(.indigo)
+                        }
+                    }
+                    .onChange(of: viewModel.verbosePerformanceLogsEnabled) { _, enabled in
+                        viewModel.updateVerbosePerformanceLogs(enabled)
+                    }
+                } header: {
+                    Text("Performance Flags")
+                } footer: {
+                    Text("Debug-only controls for staged performance rollouts.")
+                        .font(.naarsCaption)
+                }
                 #endif
                 
                 // About Section with Supreme Leader
@@ -321,6 +382,12 @@ final class SettingsViewModel: ObservableObject {
     @Published var showTypingIndicators = true
     @Published var showLinkPreviews = true
     @Published var autoDownloadMedia = true
+
+#if DEBUG
+    @Published var performanceInstrumentationEnabled = true
+    @Published var metricKitEnabled = true
+    @Published var verbosePerformanceLogsEnabled = false
+#endif
     
     private let biometricService = BiometricService.shared
     private let biometricPreferences = BiometricPreferences.shared
@@ -371,6 +438,12 @@ final class SettingsViewModel: ObservableObject {
         showTypingIndicators = UserDefaults.standard.object(forKey: "messaging_showTypingIndicators") as? Bool ?? true
         showLinkPreviews = UserDefaults.standard.object(forKey: "messaging_showLinkPreviews") as? Bool ?? true
         autoDownloadMedia = UserDefaults.standard.object(forKey: "messaging_autoDownloadMedia") as? Bool ?? true
+
+#if DEBUG
+        performanceInstrumentationEnabled = FeatureFlags.performanceInstrumentationEnabled
+        metricKitEnabled = FeatureFlags.metricKitEnabled
+        verbosePerformanceLogsEnabled = FeatureFlags.verbosePerformanceLogsEnabled
+#endif
     }
     
     func updateMessagingPreference(_ type: MessagingPreferenceType, enabled: Bool) {
@@ -396,6 +469,18 @@ final class SettingsViewModel: ObservableObject {
     }
     
     #if DEBUG
+    func updatePerformanceInstrumentation(_ enabled: Bool) {
+        FeatureFlags.setPerformanceInstrumentationEnabled(enabled)
+    }
+
+    func updateMetricKitEnabled(_ enabled: Bool) {
+        FeatureFlags.setMetricKitEnabled(enabled)
+    }
+
+    func updateVerbosePerformanceLogs(_ enabled: Bool) {
+        FeatureFlags.setVerbosePerformanceLogsEnabled(enabled)
+    }
+
     func triggerTestCrash() {
         crashReportingService.forceCrash()
     }
@@ -745,4 +830,3 @@ struct BlockedUsersView: View {
         BlockedUsersView()
     }
 }
-

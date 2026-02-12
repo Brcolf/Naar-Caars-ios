@@ -11,8 +11,11 @@ import SwiftUI
 struct UnclaimSheet: View {
     let requestType: String
     let requestTitle: String
-    let onConfirm: () -> Void
+    let onConfirm: () async throws -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var showSuccess = false
+    @State private var isLoading = false
+    @State private var errorMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -42,15 +45,29 @@ struct UnclaimSheet: View {
                     .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "claiming_unclaim_confirm".localized) {
-                        onConfirm()
-                        dismiss()
-                    }
+                    PrimaryButton(
+                        title: "claiming_unclaim_confirm".localized,
+                        action: {
+                            Task {
+                                isLoading = true
+                                errorMessage = nil
+                                do {
+                                    try await onConfirm()
+                                    showSuccess = true
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                }
+                                isLoading = false
+                            }
+                        },
+                        isLoading: isLoading
+                    )
                     .accessibilityIdentifier("unclaim.confirm")
                     
                     SecondaryButton(title: "common_cancel".localized) {
                         dismiss()
                     }
+                    .disabled(isLoading)
                     .accessibilityIdentifier("unclaim.cancel")
                 }
                 .padding(.horizontal)
@@ -60,7 +77,15 @@ struct UnclaimSheet: View {
             .padding()
             .navigationTitle("claiming_unclaim_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
+            .toast(message: $errorMessage, style: .warning)
         }
+        .successCheckmark(isShowing: $showSuccess)
+        .onChange(of: showSuccess) { _, newValue in
+            if !newValue {
+                dismiss()
+            }
+        }
+        .interactiveDismissDisabled(isLoading)
     }
 }
 

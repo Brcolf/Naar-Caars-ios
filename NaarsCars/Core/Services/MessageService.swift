@@ -12,7 +12,6 @@ import OSLog
 
 /// Service for core message operations
 /// Handles sending, fetching, pagination, and managing individual messages
-@MainActor
 final class MessageService {
     
     // MARK: - Singleton
@@ -34,6 +33,65 @@ final class MessageService {
     private func createDateDecoder() -> JSONDecoder {
         DateDecoderFactory.makeMessagingDecoder()
     }
+
+    private func createISO8601Formatter() -> ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }
+
+    private func hasLocalConversationMembership(conversationId: UUID, userId: UUID) -> Bool? {
+        do {
+            guard let localConversation = try MessagingRepository.shared.fetchSDConversation(id: conversationId) else {
+                return nil
+            }
+            return localConversation.createdBy == userId || localConversation.participantIds.contains(userId)
+        } catch {
+            AppLogger.warning("messaging", "Local membership check failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func hasRemoteConversationMembership(conversationId: UUID, userId: UUID) async -> Bool {
+        let participantCheck = try? await supabase
+            .from("conversation_participants")
+            .select("user_id")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+
+        let conversationCheck = try? await supabase
+            .from("conversations")
+            .select("created_by")
+            .eq("id", value: conversationId.uuidString)
+            .eq("created_by", value: userId.uuidString)
+            .limit(1)
+            .execute()
+
+        let hasParticipant: Bool = {
+            guard let data = participantCheck?.data,
+                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            return !rows.isEmpty
+        }()
+        let isCreator: Bool = {
+            guard let data = conversationCheck?.data,
+                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            return !rows.isEmpty
+        }()
+        return hasParticipant || isCreator
+    }
+
+    private func ensureConversationMembership(conversationId: UUID, userId: UUID) async -> Bool {
+        if hasLocalConversationMembership(conversationId: conversationId, userId: userId) == true {
+            return true
+        }
+        return await hasRemoteConversationMembership(conversationId: conversationId, userId: userId)
+    }
     
     // MARK: - Fetch Messages
     
@@ -49,43 +107,8 @@ final class MessageService {
         guard let currentUserId = AuthService.shared.currentUserId else {
             throw AppError.notAuthenticated
         }
-        
-        // Check if user is a participant or creator
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: currentUserId.uuidString)
-            .limit(1)
-            .execute()
-        
-        let conversationCheck = try? await supabase
-            .from("conversations")
-            .select("created_by")
-            .eq("id", value: conversationId.uuidString)
-            .eq("created_by", value: currentUserId.uuidString)
-            .limit(1)
-            .execute()
-        
-        // Decode response arrays to check participant status correctly.
-        // raw Data.isEmpty is unreliable (empty JSON array "[]" has 2 bytes).
-        let hasParticipant: Bool = {
-            guard let data = participantCheck?.data,
-                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return false
-            }
-            return !rows.isEmpty
-        }()
-        let isCreator: Bool = {
-            guard let data = conversationCheck?.data,
-                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return false
-            }
-            return !rows.isEmpty
-        }()
-        let isParticipant = hasParticipant || isCreator
-        
-        guard isParticipant else {
+
+        guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
             throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
         }
         var query = supabase
@@ -112,8 +135,7 @@ final class MessageService {
                 }
                 if let beforeMessage = try? createDateDecoder().decode(MessageDate.self, from: beforeData) {
                     // Fetch messages created before this date (for pagination - older messages)
-                    let formatter = ISO8601DateFormatter()
-                    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    let formatter = createISO8601Formatter()
                     query = query.lt("created_at", value: formatter.string(from: beforeMessage.createdAt))
                 }
             }
@@ -137,6 +159,37 @@ final class MessageService {
         
         // Cache results (only cache if this is the initial load, not pagination)
         AppLogger.network.info("Fetched \(messages.count) messages from network.")
+        return messages
+    }
+
+    /// Fetch messages newer than a timestamp for incremental sync.
+    /// Returns messages ordered oldest-first.
+    func fetchMessagesCreatedAfter(
+        conversationId: UUID,
+        after: Date,
+        limit: Int
+    ) async throws -> [Message] {
+        guard let currentUserId = AuthService.shared.currentUserId else {
+            throw AppError.notAuthenticated
+        }
+
+        guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
+            throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
+        }
+
+        let formatter = createISO8601Formatter()
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .gt("created_at", value: formatter.string(from: after))
+            .order("created_at", ascending: true)
+            .limit(limit)
+            .execute()
+
+        let decoder = createDateDecoder()
+        var messages = try decoder.decode([Message].self, from: response.data)
+        await enrichMessages(&messages)
         return messages
     }
 
@@ -536,8 +589,13 @@ final class MessageService {
     /// - Parameters:
     ///   - conversationId: The conversation ID
     ///   - userId: The user ID marking as read
+    ///   - updateLastSeen: Whether to write `last_seen` immediately as part of this call
     /// - Throws: AppError if update fails
-    func markAsRead(conversationId: UUID, userId: UUID) async throws {
+    func markAsRead(
+        conversationId: UUID,
+        userId: UUID,
+        updateLastSeen: Bool = true
+    ) async throws {
         // Get all unread messages
         let unreadResponse = try await supabase
             .from("messages")
@@ -576,9 +634,10 @@ final class MessageService {
 
         }
         
-        // Update last_seen timestamp to indicate user is actively viewing
-        // This prevents push notifications when user is viewing the conversation
-        try? await updateLastSeen(conversationId: conversationId, userId: userId)
+        // Optional last_seen write (can be throttled by caller to reduce write churn).
+        if updateLastSeen {
+            try? await self.updateLastSeen(conversationId: conversationId, userId: userId)
+        }
         
         AppLogger.database.debug("Marked \(unreadMessages.count) messages as read for conversation \(conversationId)")
     }
@@ -741,6 +800,7 @@ final class MessageService {
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .in("conversation_id", values: conversationIds)
             .ilike("text", pattern: "%\(query)%")
+            .is("deleted_at", value: nil)
             .order("created_at", ascending: false)
             .limit(limit)
             .execute()
@@ -755,20 +815,33 @@ final class MessageService {
     ///   - query: The search text (case-insensitive contains)
     ///   - conversationId: The conversation to search within
     ///   - limit: Maximum number of results (default: 50)
+    ///   - before: Optional upper bound for created_at (exclusive) for loading older matches
     /// - Returns: Array of matching messages ordered oldest first
     /// - Throws: AppError if the search fails
-    func searchMessagesInConversation(query: String, conversationId: UUID, limit: Int = 50) async throws -> [Message] {
+    func searchMessagesInConversation(
+        query: String,
+        conversationId: UUID,
+        limit: Int = 50,
+        before: Date? = nil
+    ) async throws -> [Message] {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
-        
-        let response = try await supabase
+
+        var queryBuilder = supabase
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .eq("conversation_id", value: conversationId.uuidString)
             .ilike("text", pattern: "%\(query)%")
+            .is("deleted_at", value: nil)
+        
+        if let before {
+            queryBuilder = queryBuilder.lt("created_at", value: createISO8601Formatter().string(from: before))
+        }
+
+        let response = try await queryBuilder
             .order("created_at", ascending: true)
             .limit(limit)
             .execute()
-        
+
         let decoder = createDateDecoder()
         let messages = try decoder.decode([Message].self, from: response.data)
         return messages
@@ -819,10 +892,36 @@ final class MessageService {
     /// - Parameter conversationId: The conversation ID
     /// - Returns: Array of typing users (excluding current user)
     func fetchTypingUsers(conversationId: UUID) async -> [TypingUser] {
+        struct TypingUsersRPCRow: Codable {
+            let userId: UUID
+            let userName: String
+            let avatarUrl: String?
+            
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case userName = "user_name"
+                case avatarUrl = "avatar_url"
+            }
+        }
+        
+        do {
+            let response = try await supabase
+                .rpc(
+                    "get_typing_users",
+                    params: ["p_conversation_id": AnyCodable(conversationId.uuidString)]
+                )
+                .execute()
+            let rows = try createDateDecoder().decode([TypingUsersRPCRow].self, from: response.data)
+            return rows.map { TypingUser(id: $0.userId, name: $0.userName, avatarUrl: $0.avatarUrl) }
+        } catch {
+            return await fetchTypingUsersFallback(conversationId: conversationId)
+        }
+    }
+
+    private func fetchTypingUsersFallback(conversationId: UUID) async -> [TypingUser] {
         guard let currentUserId = AuthService.shared.currentUserId else { return [] }
         
         do {
-            // Step 1: Fetch typing user IDs (no foreign key join - more reliable)
             let response = try await supabase
                 .from("typing_indicators")
                 .select("user_id, started_at")
@@ -845,7 +944,6 @@ final class MessageService {
             
             guard !rows.isEmpty else { return [] }
             
-            // Step 2: Fetch profiles for those user IDs
             let userIds = rows.map { $0.userId.uuidString }
             let profilesResponse = try await supabase
                 .from("profiles")
@@ -867,8 +965,9 @@ final class MessageService {
             let profiles = try JSONDecoder().decode([ProfileData].self, from: profilesResponse.data)
             return profiles.map { TypingUser(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl) }
         } catch {
-            // Silently fail - typing indicators are non-critical
             return []
         }
     }
 }
+
+extension MessageService: MessageServiceProtocol {}

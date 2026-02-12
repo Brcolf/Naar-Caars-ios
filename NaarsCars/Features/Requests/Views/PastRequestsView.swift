@@ -12,8 +12,8 @@ struct PastRequestsView: View {
     @StateObject private var viewModel = PastRequestsViewModel()
     @State private var selectedFilter: PastRequestFilter = .myRequests
     @Environment(\.dismiss) private var dismiss
-    @State private var navigateToRide: UUID?
-    @State private var navigateToFavor: UUID?
+    @State private var selectedPastRideId: UUID?
+    @State private var selectedPastFavorId: UUID?
     @State private var showReviewPrompt: PendingReviewPrompt?
     
     struct PendingReviewPrompt: Identifiable {
@@ -106,10 +106,10 @@ struct PastRequestsView: View {
                     await viewModel.loadRequests(filter: newFilter)
                 }
             }
-            .navigationDestination(item: $navigateToRide) { rideId in
+            .navigationDestination(item: $selectedPastRideId) { rideId in
                 RideDetailView(rideId: rideId)
             }
-            .navigationDestination(item: $navigateToFavor) { favorId in
+            .navigationDestination(item: $selectedPastFavorId) { favorId in
                 FavorDetailView(favorId: favorId)
             }
         }

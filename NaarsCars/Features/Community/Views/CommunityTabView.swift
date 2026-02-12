@@ -48,7 +48,7 @@ struct CommunityTabView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     BellButton {
-                        navigationCoordinator.navigateToNotifications = true
+                        navigationCoordinator.pendingIntent = .notifications
                         AppLogger.info("community", "Bell tapped")
                     }
                 }
@@ -59,8 +59,8 @@ struct CommunityTabView: View {
                     await BadgeCountManager.shared.clearCommunityBadge()
                 }
             }
-            .onChange(of: navigationCoordinator.townHallNavigationTarget) { _, newTarget in
-                if newTarget != nil {
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                if case .townHallPost = intent {
                     selectedView = .townHall
                 }
             }

@@ -23,12 +23,16 @@ final class LeaderboardViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let leaderboardService = LeaderboardService.shared
-    private let authService = AuthService.shared
+    private let authService: any AuthServiceProtocol
     
     // Cache: [Period: (entries, cachedAt)]
     private var cachedEntries: [LeaderboardPeriod: (entries: [LeaderboardEntry], cachedAt: Date)] = [:]
     private let cacheTTL: TimeInterval = 900 // 15 minutes
     
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
+
     // MARK: - Public Methods
     
     /// Load leaderboard with caching

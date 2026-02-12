@@ -27,6 +27,8 @@ struct NaarsCarsApp: App {
     @State private var showDataError = false
     
     init() {
+        let appInitStart = Date()
+        var containerReady = false
         // Initialize Firebase
         FirebaseApp.configure()
         
@@ -41,6 +43,7 @@ struct NaarsCarsApp: App {
             let newContainer = try Self.createModelContainer()
             _container = State(initialValue: newContainer)
             Self.setupSyncEngines(with: newContainer)
+            containerReady = true
         } catch {
             AppLogger.error("app", "Failed to initialize SwiftData container: \(error)")
             _container = State(initialValue: nil)
@@ -52,6 +55,14 @@ struct NaarsCarsApp: App {
             let connected = await SupabaseService.shared.testConnection()
             AppLogger.info("app", connected ? "Supabase connected" : "Supabase connection failed")
         }
+
+        Task {
+            await PerformanceMonitor.shared.record(
+                operation: "launch.appInit",
+                duration: Date().timeIntervalSince(appInitStart),
+                metadata: ["containerReady": containerReady]
+            )
+        }
     }
     
     var body: some Scene {
@@ -62,10 +73,6 @@ struct NaarsCarsApp: App {
                         .environmentObject(appState)
                         .environmentObject(themeManager)
                         .modelContainer(container)
-                        .task {
-                            // Check authentication status on app launch
-                            await appState.checkAuthStatus()
-                        }
                         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                             // Re-apply theme when app becomes active (handles system theme changes)
                             themeManager.applyTheme()
@@ -98,18 +105,24 @@ struct NaarsCarsApp: App {
     
     /// Wires up all sync engines and repositories with the given container's main context.
     private static func setupSyncEngines(with container: ModelContainer) {
+        let setupStart = Date()
         let context = container.mainContext
         MessagingRepository.shared.setup(modelContext: context)
         NotificationRepository.shared.setup(modelContext: context)
-        DashboardSyncEngine.shared.setup(modelContext: context)
-        MessagingSyncEngine.shared.setup(modelContext: context)
         TownHallRepository.shared.setup(modelContext: context)
-        TownHallSyncEngine.shared.setup(modelContext: context)
-        
-        // Start background sync
-        DashboardSyncEngine.shared.startSync()
-        MessagingSyncEngine.shared.startSync()
-        TownHallSyncEngine.shared.startSync()
+        SyncEngineOrchestrator.shared.register(MessagingSyncEngine.shared)
+        SyncEngineOrchestrator.shared.register(DashboardSyncEngine.shared)
+        SyncEngineOrchestrator.shared.register(TownHallSyncEngine.shared)
+        SyncEngineOrchestrator.shared.setupAll(modelContext: context)
+
+        // Sync engines are intentionally started after first interactive launch state
+        // in AppLaunchManager.performDeferredLoading(userId:) to keep startup lean.
+        Task {
+            await PerformanceMonitor.shared.record(
+                operation: "launch.syncEngineSetup",
+                duration: Date().timeIntervalSince(setupStart)
+            )
+        }
     }
     
     /// Deletes the SwiftData store files and attempts to recreate the container.

@@ -26,9 +26,13 @@ final class MyProfileViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let profileService = ProfileService.shared
+    private let profileService: any ProfileServiceProtocol
     private let inviteService = InviteService.shared
     private let rateLimiter = RateLimiter.shared
+
+    init(profileService: any ProfileServiceProtocol = ProfileService.shared) {
+        self.profileService = profileService
+    }
     
     // MARK: - Public Methods
     

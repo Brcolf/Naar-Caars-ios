@@ -11,7 +11,6 @@ import UIKit
 
 /// Service for review operations
 /// Handles creating reviews, uploading images, and posting to Town Hall
-@MainActor
 final class ReviewService {
     
     // MARK: - Singleton
@@ -92,9 +91,8 @@ final class ReviewService {
             .eq("id", value: requestId.uuidString)
             .execute()
         
-        // Create Town Hall post with review
-        try await createTownHallPostForReview(review: review, fulfillerId: fulfillerId)
-
+        // Town Hall post is created automatically by the handle_new_review database trigger
+        
         // Clear any pending review_request notifications for this request
         await NotificationService.shared.markReviewRequestAsRead(
             requestType: requestType,
@@ -264,4 +262,6 @@ final class ReviewService {
         AppLogger.info("reviews", "Created Town Hall post for review: \(post.id)")
     }
 }
+
+extension ReviewService: ReviewServiceProtocol {}
 

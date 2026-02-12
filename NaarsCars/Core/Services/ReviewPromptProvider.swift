@@ -50,7 +50,6 @@ struct ReviewPromptDependencies {
     }
 }
 
-@MainActor
 final class ReviewPromptProvider: ReviewPromptProviding {
     private let dependencies: ReviewPromptDependencies
 

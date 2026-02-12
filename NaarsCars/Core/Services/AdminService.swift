@@ -41,7 +41,6 @@ nonisolated private func createBroadcastParams(title: String, message: String, p
 
 /// Service for admin operations
 /// Implements multi-layer security: client verification + server-side RLS
-@MainActor
 final class AdminService {
     
     // MARK: - Singleton

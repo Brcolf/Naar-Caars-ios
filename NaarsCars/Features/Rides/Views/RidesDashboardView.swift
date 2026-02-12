@@ -14,7 +14,7 @@ struct RidesDashboardView: View {
     @StateObject private var viewModel = RidesDashboardViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
-    @State private var navigateToRide: UUID?
+    @State private var selectedRideId: UUID?
     @AppStorage("rides_view_mode") private var viewMode: ViewMode = .list
     
     // SwiftData Query for "Zero-Spinner" experience
@@ -97,16 +97,17 @@ struct RidesDashboardView: View {
             .sheet(isPresented: $showCreateRide) {
                 CreateRideView { rideId in
                     // Navigate to the newly created ride after sheet dismisses
-                    navigateToRide = rideId
+                    selectedRideId = rideId
                 }
             }
-            .navigationDestination(item: $navigateToRide) { rideId in
+            .navigationDestination(item: $selectedRideId) { rideId in
                 RideDetailView(rideId: rideId)
             }
-            .onChange(of: navigationCoordinator.navigateToRide) { _, rideId in
-                if let rideId = rideId {
-                    navigateToRide = rideId
-                    navigationCoordinator.navigateToRide = nil
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                guard case .ride(let rideId, let anchor) = intent else { return }
+                selectedRideId = rideId
+                if anchor == nil {
+                    navigationCoordinator.pendingIntent = nil
                 }
             }
             .task {
@@ -181,7 +182,7 @@ struct RidesDashboardView: View {
     private var mapContentView: some View {
         RequestMapView(
             onRideSelected: { rideId in
-                navigateToRide = rideId
+                selectedRideId = rideId
             }
         )
     }

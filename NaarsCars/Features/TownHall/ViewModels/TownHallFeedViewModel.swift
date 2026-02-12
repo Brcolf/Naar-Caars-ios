@@ -25,6 +25,7 @@ final class TownHallFeedViewModel: ObservableObject {
     private let townHallService: TownHallService
     private let voteService: TownHallVoteService
     private let repository: TownHallRepository
+    private let authService: any AuthServiceProtocol
 
     private var postsCancellable: AnyCancellable?
     private var voteCancellable: AnyCancellable?
@@ -36,11 +37,13 @@ final class TownHallFeedViewModel: ObservableObject {
     init(
         repository: TownHallRepository? = nil,
         townHallService: TownHallService? = nil,
-        voteService: TownHallVoteService? = nil
+        voteService: TownHallVoteService? = nil,
+        authService: any AuthServiceProtocol = AuthService.shared
     ) {
         self.repository = repository ?? .shared
         self.townHallService = townHallService ?? .shared
         self.voteService = voteService ?? .shared
+        self.authService = authService
         bindPosts()
         bindVoteNotifications()
     }
@@ -111,7 +114,7 @@ final class TownHallFeedViewModel: ObservableObject {
     /// Delete a post
     /// - Parameter post: Post to delete
     func deletePost(_ post: TownHallPost) async {
-        guard let userId = AuthService.shared.currentUserId else {
+        guard let userId = authService.currentUserId else {
             error = .notAuthenticated
             return
         }
@@ -133,7 +136,7 @@ final class TownHallFeedViewModel: ObservableObject {
     ///   - postId: Post ID to vote on
     ///   - voteType: Vote type (nil to remove vote)
     func votePost(postId: UUID, voteType: VoteType?) async {
-        guard let userId = AuthService.shared.currentUserId else {
+        guard let userId = authService.currentUserId else {
             error = .notAuthenticated
             return
         }
@@ -198,7 +201,7 @@ final class TownHallFeedViewModel: ObservableObject {
         guard !postIds.isEmpty else { return }
         let counts = await voteService.fetchPostVoteCounts(
             postIds: postIds,
-            userId: AuthService.shared.currentUserId
+            userId: authService.currentUserId
         )
         for (postId, data) in counts {
             postVoteCache[postId] = (data.upvotes, data.downvotes, data.userVote)

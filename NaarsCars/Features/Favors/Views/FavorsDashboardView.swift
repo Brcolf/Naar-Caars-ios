@@ -14,7 +14,7 @@ struct FavorsDashboardView: View {
     @StateObject private var viewModel = FavorsDashboardViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateFavor = false
-    @State private var navigateToFavor: UUID?
+    @State private var selectedFavorId: UUID?
     @AppStorage("favors_view_mode") private var viewMode: ViewMode = .list
     
     // SwiftData Query for "Zero-Spinner" experience
@@ -97,16 +97,17 @@ struct FavorsDashboardView: View {
             .sheet(isPresented: $showCreateFavor) {
                 CreateFavorView { favorId in
                     // Navigate to the newly created favor after sheet dismisses
-                    navigateToFavor = favorId
+                    selectedFavorId = favorId
                 }
             }
-            .navigationDestination(item: $navigateToFavor) { favorId in
+            .navigationDestination(item: $selectedFavorId) { favorId in
                 FavorDetailView(favorId: favorId)
             }
-            .onChange(of: navigationCoordinator.navigateToFavor) { _, favorId in
-                if let favorId = favorId {
-                    navigateToFavor = favorId
-                    navigationCoordinator.navigateToFavor = nil
+            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+                guard case .favor(let favorId, let anchor) = intent else { return }
+                selectedFavorId = favorId
+                if anchor == nil {
+                    navigationCoordinator.pendingIntent = nil
                 }
             }
             .task {
@@ -181,7 +182,7 @@ struct FavorsDashboardView: View {
     private var mapContentView: some View {
         RequestMapView(
             onFavorSelected: { favorId in
-                navigateToFavor = favorId
+                selectedFavorId = favorId
             }
         )
     }
