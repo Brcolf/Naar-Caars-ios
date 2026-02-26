@@ -25,7 +25,8 @@ final class DashboardSyncEngine: SyncEngineProtocol {
     private var favorsSyncTask: Task<Void, Never>?
     private var notificationsSyncTask: Task<Void, Never>?
     private var lastStartSyncAt: Date = .distantPast
-    
+    let health = SyncHealthMetrics()
+
     private init() {}
     
     /// Initialize with model context
@@ -92,10 +93,17 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                 syncRides(rides, in: context)
                 syncFavors(favors, in: context)
                 syncNotifications(notifications, in: context)
-                try? context.save()
+                do {
+                    try context.save()
+                } catch {
+                    AppLogger.error("sync", "[dashboard] SwiftData save failed: \(error)")
+                    CrashReportingService.shared.recordServiceError(error, operation: "save", service: "DashboardSyncEngine")
+                }
             }
+            health.recordSuccess()
         } catch {
             AppLogger.error("sync", "Error during full sync: \(error)")
+            health.recordFailure(error)
         }
     }
     
@@ -149,7 +157,12 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             guard !Task.isCancelled else { return }
             if let rides = try? await rideService.fetchRides(), let context = modelContext {
                 syncRides(rides, in: context)
-                try? context.save()
+                do {
+                    try context.save()
+                } catch {
+                    AppLogger.error("sync", "[dashboard] SwiftData save failed: \(error)")
+                    CrashReportingService.shared.recordServiceError(error, operation: "save", service: "DashboardSyncEngine")
+                }
                 NotificationCenter.default.post(name: .ridesDidSync, object: nil)
             }
         }

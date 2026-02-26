@@ -16,7 +16,8 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     private let authService = AuthService.shared
     private var modelContext: ModelContext?
     private var lastStartSyncAt: Date = .distantPast
-    
+    let health = SyncHealthMetrics()
+
     private init() {}
     
     func setup(modelContext: ModelContext) {
@@ -34,7 +35,12 @@ final class MessagingSyncEngine: SyncEngineProtocol {
 
         if let userId = authService.currentUserId {
             Task {
-                try? await repository.syncConversations(userId: userId)
+                do {
+                    try await repository.syncConversations(userId: userId)
+                    health.recordSuccess()
+                } catch {
+                    health.recordFailure(error)
+                }
                 // Start the durable send worker and process any pending messages
                 await MessageSendWorker.shared.start()
                 await MessageSendWorker.shared.notifyNewPendingMessage()
@@ -99,7 +105,7 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                     }
 
                     NotificationCenter.default.post(
-                        name: NSNotification.Name("conversationUpdated"),
+                        name: .conversationUpdated,
                         object: message.conversationId,
                         userInfo: [
                             "message": message,

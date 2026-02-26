@@ -7,11 +7,6 @@ import Foundation
 import SwiftData
 import Realtime
 
-extension Notification.Name {
-    static let townHallPostVotesDidChange = Notification.Name("townHallPostVotesDidChange")
-    static let townHallCommentVotesDidChange = Notification.Name("townHallCommentVotesDidChange")
-}
-
 @MainActor
 final class TownHallSyncEngine: SyncEngineProtocol {
     static let shared = TownHallSyncEngine()
@@ -24,6 +19,7 @@ final class TownHallSyncEngine: SyncEngineProtocol {
 
     private var postsRefreshTask: Task<Void, Never>?
     private var commentRefreshTasks: [UUID: Task<Void, Never>] = [:]
+    let health = SyncHealthMetrics()
 
     init(
         repository: TownHallRepository? = nil,
@@ -226,8 +222,10 @@ final class TownHallSyncEngine: SyncEngineProtocol {
             do {
                 let posts = try await townHallService.fetchPosts()
                 try repository.upsertPosts(posts)
+                health.recordSuccess()
             } catch {
                 AppLogger.error("sync", "Failed to refresh posts: \(error)")
+                health.recordFailure(error)
             }
         }
     }
@@ -240,8 +238,10 @@ final class TownHallSyncEngine: SyncEngineProtocol {
             do {
                 let comments = try await commentService.fetchComments(for: postId)
                 try repository.upsertComments(comments)
+                health.recordSuccess()
             } catch {
                 AppLogger.error("sync", "Failed to refresh comments: \(error)")
+                health.recordFailure(error)
             }
         }
     }
