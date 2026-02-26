@@ -80,11 +80,17 @@ final class ConversationService {
             let participantConversationIds = Set(participantRows.map { $0.conversationId })
             
             // Get conversations where user is creator
-            let createdConversationsResponse = try? await supabase
-                .from("conversations")
-                .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
-                .eq("created_by", value: userId.uuidString)
-                .execute()
+            var createdConversationsResponse: PostgrestResponse<Data>? = nil
+            do {
+                createdConversationsResponse = try await supabase
+                    .from("conversations")
+                    .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
+                    .eq("created_by", value: userId.uuidString)
+                    .execute()
+            } catch {
+                AppLogger.error("messaging", "Failed to fetch created conversations: \(error)")
+                CrashReportingService.shared.recordServiceError(error, operation: "fetchCreatedConversations", service: "ConversationService")
+            }
             
             var allConversationIds = participantConversationIds
             if let createdData = createdConversationsResponse?.data {

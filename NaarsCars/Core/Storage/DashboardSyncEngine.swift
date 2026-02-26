@@ -175,7 +175,12 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             guard !Task.isCancelled else { return }
             if let favors = try? await favorService.fetchFavors(), let context = modelContext {
                 syncFavors(favors, in: context)
-                try? context.save()
+                do {
+                    try context.save()
+                } catch {
+                    AppLogger.error("sync", "[dashboard] SwiftData save failed: \(error)")
+                    CrashReportingService.shared.recordServiceError(error, operation: "save", service: "DashboardSyncEngine")
+                }
                 NotificationCenter.default.post(name: .favorsDidSync, object: nil)
             }
         }
@@ -189,7 +194,12 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             if let notifications = try? await notificationService.fetchNotifications(userId: userId, forceRefresh: true),
                let context = modelContext {
                 syncNotifications(notifications, in: context)
-                try? context.save()
+                do {
+                    try context.save()
+                } catch {
+                    AppLogger.error("sync", "[dashboard] SwiftData save failed: \(error)")
+                    CrashReportingService.shared.recordServiceError(error, operation: "save", service: "DashboardSyncEngine")
+                }
                 NotificationCenter.default.post(name: .notificationsDidSync, object: nil)
             }
         }
