@@ -98,7 +98,7 @@ struct NaarsCarsApp: App {
     /// Creates a ModelContainer using the versioned schema and migration plan.
     private static func createModelContainer() throws -> ModelContainer {
         try ModelContainer(
-            for: Schema(versionedSchema: SchemaV1.self),
+            for: Schema(versionedSchema: SchemaV2.self),
             migrationPlan: NaarsCarsModelMigrationPlan.self
         )
     }
