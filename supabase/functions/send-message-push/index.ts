@@ -91,7 +91,26 @@ serve(async (req) => {
     }
 
     const normalizedPayload = normalizeWebhookPayload(payload)
-    
+
+    // Rate limit: skip push if sender exceeded 10 messages in the last minute
+    const senderId = payload.sender_id || payload.from_id || normalizedPayload?.from_id || normalizedPayload?.sender_id
+    if (senderId) {
+      const oneMinuteAgo = new Date(Date.now() - 60000).toISOString()
+      const { count: recentCount } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('from_id', senderId)
+        .gte('created_at', oneMinuteAgo)
+
+      if (recentCount && recentCount > 10) {
+        console.log(`⚠️ Rate limit: user ${senderId.substring(0, 8)}... sent ${recentCount} messages in last minute, skipping push`)
+        return new Response(JSON.stringify({ skipped: true, reason: 'rate_limited' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        })
+      }
+    }
+
     // If webhook provides full payload, use it; otherwise fetch from database
     let recipient_user_id: string
     let conversation_id: string
