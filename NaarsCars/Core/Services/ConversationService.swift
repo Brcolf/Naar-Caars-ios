@@ -305,8 +305,9 @@ final class ConversationService {
                 .select("user_id")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .neq("user_id", value: userId.uuidString)
+                .is("left_at", value: nil)
                 .execute()
-            
+
             let userIdRows = try JSONDecoder().decode([ParticipantUserId].self, from: response.data)
             
             // Fetch profiles in parallel
