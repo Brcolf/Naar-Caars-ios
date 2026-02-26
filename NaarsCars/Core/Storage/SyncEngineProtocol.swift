@@ -5,6 +5,7 @@
 //  Common lifecycle protocol for realtime sync engines
 //
 
+import Foundation
 import SwiftData
 
 /// Observable sync health metrics for each engine.
