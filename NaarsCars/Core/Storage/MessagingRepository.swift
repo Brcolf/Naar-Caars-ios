@@ -470,7 +470,24 @@ final class MessagingRepository {
         }
         
         // 3. Post notification so other observers can react
-        NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: id)
+        NotificationCenter.default.post(name: .conversationUpdated, object: id)
+    }
+
+    /// Remove a participant from local SDConversation after a successful server leave/remove.
+    /// This prevents phantom participants between syncs.
+    func removeParticipantLocally(conversationId: UUID, userId: UUID) {
+        guard let modelContext = self.modelContext else { return }
+        do {
+            let descriptor = FetchDescriptor<SDConversation>(
+                predicate: #Predicate { $0.id == conversationId }
+            )
+            guard let sdConv = try modelContext.fetch(descriptor).first else { return }
+            sdConv.participantIds.removeAll { $0 == userId }
+            try modelContext.save()
+            refreshConversationsPublisher()
+        } catch {
+            AppLogger.error("messaging", "Failed to remove participant locally: \(error)")
+        }
     }
 
     private func refreshConversationsPublisher() {

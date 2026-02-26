@@ -237,6 +237,8 @@ final class ConversationParticipantService {
         await logParticipantStateAfterAction(conversationId: conversationId, action: "leave", currentUserId: userId)
 #endif
 
+        await MessagingRepository.shared.removeParticipantLocally(conversationId: conversationId, userId: userId)
+
         AppLogger.database.info("User \(userId) successfully left conversation \(conversationId)")
     }
     
@@ -352,6 +354,8 @@ final class ConversationParticipantService {
         }
         await logParticipantStateAfterAction(conversationId: conversationId, action: "remove(\(userId))", currentUserId: removedBy)
 #endif
+
+        await MessagingRepository.shared.removeParticipantLocally(conversationId: conversationId, userId: userId)
 
         AppLogger.database.info("Successfully removed user \(userId) from conversation \(conversationId)")
     }
