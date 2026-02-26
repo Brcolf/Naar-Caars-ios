@@ -73,6 +73,8 @@ enum Constants {
     enum Timing {
         /// Debounce interval for realtime/search events (0.3s)
         static let debounceNanoseconds: UInt64 = 300_000_000
+        /// Delay before showing location autocomplete dropdown after focus; lets keyboard/input session establish (avoids gesture gate timeout). Tune down if first-tap delay feels long; tune up if "gesture gate timed out" returns.
+        static let locationDropdownAfterFocusNanoseconds: UInt64 = 100_000_000
         /// Debounce interval for requests realtime-triggered full refreshes (0.35s)
         static let requestsRealtimeReloadDebounceNanoseconds: UInt64 = 350_000_000
         /// Debounce interval for notifications realtime-triggered full refreshes (0.25s)
@@ -137,6 +139,11 @@ enum Constants {
     enum URLs {
         static let googleMapsSearch = "https://www.google.com/maps/search/"
         static let googleMapsDirections = "https://www.google.com/maps/dir/"
+        /// Google search for flight status (e.g. q=DL1234+flight+status). Open in browser; no in-app status.
+        static func flightStatusSearch(normalizedFlightNumber: String) -> String {
+            let q = (normalizedFlightNumber + " flight status").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedFlightNumber
+            return "https://www.google.com/search?q=\(q)"
+        }
         static let termsOfService = "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Terms-of-Service-2ee7d642e90c8005ae63d8731e3d50f5"
         static let privacyPolicy = "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc"
         static let appStore = "https://apps.apple.com/app/naars-cars/id0000000000"
@@ -147,6 +154,17 @@ enum Constants {
     enum Map {
         static let defaultLatitude: Double = 47.6062    // Seattle
         static let defaultLongitude: Double = -122.3321
+    }
+
+    /// Maps / directions
+    enum Maps {
+        /// Timeout (seconds) when requesting current location for ride directions; then fall back to pickup → dropoff.
+        static let locationRequestTimeout: TimeInterval = 2.0
+    }
+
+    /// Debug-only configuration. When push ingest URL is nil (default), push debug logs are not sent; set to e.g. URL(string: "http://127.0.0.1:7242/ingest/...") when the ingest service is running to avoid connection-refused console noise.
+    enum Debug {
+        static var pushIngestURL: URL?
     }
 }
 
@@ -195,7 +213,6 @@ enum FeatureFlags {
     static func setMetricKitEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: Keys.metricKitEnabled)
     }
-
     static func setVerbosePerformanceLogsEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: Keys.verbosePerformanceLogsEnabled)
     }
