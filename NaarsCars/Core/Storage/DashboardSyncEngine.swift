@@ -150,6 +150,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             if let rides = try? await rideService.fetchRides(), let context = modelContext {
                 syncRides(rides, in: context)
                 try? context.save()
+                NotificationCenter.default.post(name: .ridesDidSync, object: nil)
             }
         }
     }
@@ -162,6 +163,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             if let favors = try? await favorService.fetchFavors(), let context = modelContext {
                 syncFavors(favors, in: context)
                 try? context.save()
+                NotificationCenter.default.post(name: .favorsDidSync, object: nil)
             }
         }
     }
@@ -175,6 +177,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                let context = modelContext {
                 syncNotifications(notifications, in: context)
                 try? context.save()
+                NotificationCenter.default.post(name: .notificationsDidSync, object: nil)
             }
         }
     }
@@ -205,6 +208,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                     reviewSkipped: ride.reviewSkipped,
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost,
+                    flightNormalized: ride.flightNormalized,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
                     posterName: ride.poster?.name,
@@ -215,6 +219,16 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                     qaCount: ride.qaCount ?? 0
                 )
                 context.insert(sdRide)
+            }
+        }
+
+        // Remove local rides that no longer exist on the server
+        guard !rides.isEmpty else { return }
+        let serverIds = Set(rides.map { $0.id })
+        let allLocalDescriptor = FetchDescriptor<SDRide>()
+        if let allLocal = try? context.fetch(allLocalDescriptor) {
+            for local in allLocal where !serverIds.contains(local.id) {
+                context.delete(local)
             }
         }
     }
@@ -252,6 +266,16 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                     qaCount: favor.qaCount ?? 0
                 )
                 context.insert(sdFavor)
+            }
+        }
+
+        // Remove local favors that no longer exist on the server
+        guard !favors.isEmpty else { return }
+        let serverIds = Set(favors.map { $0.id })
+        let allLocalDescriptor = FetchDescriptor<SDFavor>()
+        if let allLocal = try? context.fetch(allLocalDescriptor) {
+            for local in allLocal where !serverIds.contains(local.id) {
+                context.delete(local)
             }
         }
     }
@@ -303,6 +327,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         sd.reviewSkipped = ride.reviewSkipped
         sd.reviewSkippedAt = ride.reviewSkippedAt
         sd.estimatedCost = ride.estimatedCost
+        sd.flightNormalized = ride.flightNormalized
         sd.posterName = ride.poster?.name
         sd.posterAvatarUrl = ride.poster?.avatarUrl
         sd.claimerName = ride.claimer?.name
