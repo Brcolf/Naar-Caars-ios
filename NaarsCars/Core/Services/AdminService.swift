@@ -253,9 +253,9 @@ final class AdminService {
                 // Don't throw - email failure shouldn't block approval
             }
         }
-        
-        // Send welcome notification
-        try await NotificationService.shared.sendApprovalNotification(to: userId)
+
+        // Note: Approval notification + push is handled by the on_user_approved_notify
+        // database trigger on the profiles table, so no need to call it from Swift.
     }
     
     /// Reject a pending user (delete unapproved profile)

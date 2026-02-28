@@ -225,7 +225,10 @@ final class AuthService: ObservableObject {
     func signUp(email: String, password: String, name: String, car: String?, inviteCodeId: UUID) async throws {
         isLoading = true
         defer { isLoading = false }
-        
+
+        // Track whether auth user was created so we can clean up on failure
+        var createdAuthUserId: String?
+
         do {
             // 1. Fetch invite code to get createdBy for profile
             let inviteCodeResponse = try await supabase.client
@@ -234,24 +237,25 @@ final class AuthService: ObservableObject {
                 .eq("id", value: inviteCodeId.uuidString)
                 .single()
                 .execute()
-            
+
             // Decode with proper date handling for Supabase ISO8601 format
             let decoder = createInviteCodeDecoder()
             let inviteCode = try decoder.decode(InviteCode.self, from: inviteCodeResponse.data)
-            
+
             // 2. Create auth user with Supabase
             let authResponse = try await supabase.client.auth.signUp(
                 email: email,
                 password: password
             )
-            
+
             let user = authResponse.user
             let userIdString = user.id.uuidString
-            
+            createdAuthUserId = userIdString
+
             guard let userId = UUID(uuidString: userIdString) else {
                 throw AppError.unknown("Invalid user ID format")
             }
-            
+
             // 3. Create or update profile using RPC function
             // This handles both new signups AND re-signups after rejection
             // Uses SECURITY DEFINER to bypass RLS permission issues
@@ -263,13 +267,13 @@ final class AuthService: ObservableObject {
                 "p_invited_by": inviteCode.createdBy.uuidString,
                 "p_car": car?.isEmpty == false ? car : nil
             ]
-            
+
             struct SignupProfileResponse: Decodable {
                 let success: Bool
                 let error: String?
                 let userId: UUID?
                 let message: String?
-                
+
                 enum CodingKeys: String, CodingKey {
                     case success
                     case error
@@ -277,12 +281,12 @@ final class AuthService: ObservableObject {
                     case message
                 }
             }
-            
+
             let response: SignupProfileResponse = try await supabase.client
                 .rpc("create_signup_profile", params: params)
                 .execute()
                 .value
-            
+
             if response.success {
                 AppLogger.auth.info("Created/updated profile for user: \(userId)")
             } else {
@@ -290,7 +294,7 @@ final class AuthService: ObservableObject {
                 AppLogger.auth.error("Failed to create profile: \(errorMsg)")
                 throw AppError.unknown("Profile creation failed: \(errorMsg)")
             }
-            
+
             // 4. Mark invite code as used (or create tracking record for bulk codes)
             // Uses RPC function with SECURITY DEFINER to bypass RLS
             // (auth.uid() may not be set immediately after signup)
@@ -302,18 +306,18 @@ final class AuthService: ObservableObject {
             if let bulkCodeId = inviteCode.bulkCodeId {
                 inviteParams["p_bulk_code_id"] = bulkCodeId.uuidString
             }
-            
+
             struct MarkInviteResponse: Decodable {
                 let success: Bool
                 let error: String?
                 let message: String?
             }
-            
+
             let inviteResponse: MarkInviteResponse = try await supabase.client
                 .rpc("mark_invite_code_used", params: inviteParams)
                 .execute()
                 .value
-            
+
             if !inviteResponse.success {
                 let errorMsg = inviteResponse.error ?? "Unknown error"
                 AppLogger.auth.warning("Failed to mark invite code as used: \(errorMsg)")
@@ -321,7 +325,7 @@ final class AuthService: ObservableObject {
             } else {
                 AppLogger.auth.info("Invite code marked as used: \(inviteResponse.message ?? "")")
             }
-            
+
             // 5. Fetch the created profile and update local state
             if let profile = try? await fetchCurrentProfile() {
                 currentProfile = profile
@@ -330,11 +334,14 @@ final class AuthService: ObservableObject {
                 // Profile should exist, but set userId for state
                 currentUserId = userId
             }
-            
+
             await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
-            
+
+            // Signup fully succeeded — clear the tracking variable so cleanup doesn't fire
+            createdAuthUserId = nil
+
             AppLogger.auth.info("User signed up successfully: \(email)")
-            
+
         } catch {
             // Log detailed error for debugging
             AppLogger.auth.error("Signup failed for \(email): \(error.localizedDescription)")
@@ -342,29 +349,60 @@ final class AuthService: ObservableObject {
                 AppLogger.auth.debug("Error domain: \(nsError.domain), code: \(nsError.code)")
                 AppLogger.auth.debug("Error userInfo: \(nsError.userInfo)")
             }
-            
-            // Handle specific Supabase errors
-            if let supabaseError = error as NSError? {
-                let errorMessage = supabaseError.localizedDescription.lowercased()
-                
-                if errorMessage.contains("already registered") || errorMessage.contains("already exists") || errorMessage.contains("user already") {
-                    throw AppError.emailAlreadyExists
-                }
-                
-                // Check for RLS policy errors
-                if errorMessage.contains("row-level security") || errorMessage.contains("policy") {
-                    AppLogger.auth.error("RLS policy error detected - check database policies")
-                    throw AppError.unknown("Account creation failed - please contact support")
-                }
+
+            // Clean up orphaned auth user if one was created before the failure
+            if let orphanedId = createdAuthUserId {
+                await cleanupOrphanedAuthUser(userIdString: orphanedId)
             }
-            
+
+            // Handle specific Supabase errors
+            let errorMessage = error.localizedDescription.lowercased()
+
+            if errorMessage.contains("already registered") || errorMessage.contains("already exists") || errorMessage.contains("user already") {
+                throw AppError.emailAlreadyExists
+            }
+
+            // Check for RLS policy errors
+            if errorMessage.contains("row-level security") || errorMessage.contains("policy") {
+                AppLogger.auth.error("RLS policy error detected - check database policies")
+                throw AppError.unknown("Account creation failed - please contact support")
+            }
+
             // Re-throw AppError as-is
             if error is AppError {
                 throw error
             }
-            
+
             // Wrap unknown errors
             throw AppError.unknown(error.localizedDescription)
+        }
+    }
+
+    /// Clean up an orphaned auth user that was created during a failed signup
+    /// Best-effort — failures are logged but don't propagate
+    func cleanupOrphanedAuthUser(userIdString: String) async {
+        AppLogger.auth.info("Cleaning up orphaned auth user: \(userIdString)")
+
+        struct CleanupResponse: Decodable {
+            let success: Bool
+            let error: String?
+            let message: String?
+        }
+
+        do {
+            let response: CleanupResponse = try await supabase.client
+                .rpc("cleanup_orphaned_auth_user", params: ["p_user_id": userIdString])
+                .execute()
+                .value
+
+            if response.success {
+                AppLogger.auth.info("Orphaned auth user cleaned up: \(response.message ?? "")")
+            } else {
+                AppLogger.auth.warning("Cleanup returned failure: \(response.error ?? "unknown")")
+            }
+        } catch {
+            // Best-effort — don't let cleanup failure mask the original error
+            AppLogger.auth.warning("Failed to cleanup orphaned auth user: \(error.localizedDescription)")
         }
     }
     
@@ -590,7 +628,7 @@ final class AuthService: ObservableObject {
         // Post notification early so UI can redirect immediately
         await MainActor.run {
             AppLogger.auth.debug("Posting userDidSignOut notification (early)")
-            let notificationName = NSNotification.Name("userDidSignOut")
+            let notificationName: Notification.Name = .userDidSignOut
             NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
         }
 

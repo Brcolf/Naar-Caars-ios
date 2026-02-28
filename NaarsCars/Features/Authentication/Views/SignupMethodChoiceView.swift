@@ -11,8 +11,9 @@ import SwiftUI
 struct SignupMethodChoiceView: View {
     let inviteCode: InviteCode
     @StateObject private var appleSignInViewModel = AppleSignInViewModel()
+    @StateObject private var signupViewModel = SignupViewModel()
     @EnvironmentObject var appState: AppState
-    
+
     @State private var showError = false
     @State private var navigateToEmailSignup = false
     
@@ -105,7 +106,7 @@ struct SignupMethodChoiceView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToEmailSignup) {
             SignupDetailsView(
-                viewModel: SignupViewModel(),
+                viewModel: signupViewModel,
                 validatedInviteCode: inviteCode
             )
         }

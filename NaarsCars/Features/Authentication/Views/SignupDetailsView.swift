@@ -87,7 +87,7 @@ struct SignupDetailsView: View {
                         Text("signup_password_label".localized)
                             .font(.naarsHeadline)
                             .foregroundColor(.primary)
-                        
+
                         SecureField("signup_password_placeholder".localized, text: $viewModel.password)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("signup.password")
@@ -95,8 +95,11 @@ struct SignupDetailsView: View {
                                 if viewModel.passwordError != nil {
                                     viewModel.passwordError = nil
                                 }
+                                if viewModel.confirmPasswordError != nil {
+                                    viewModel.confirmPasswordError = nil
+                                }
                             }
-                        
+
                         if let error = viewModel.passwordError {
                             Text(error)
                                 .font(.naarsCaption)
@@ -108,7 +111,30 @@ struct SignupDetailsView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    
+
+                    // Confirm password field
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("signup_confirm_password_label".localized)
+                            .font(.naarsHeadline)
+                            .foregroundColor(.primary)
+
+                        SecureField("signup_confirm_password_placeholder".localized, text: $viewModel.confirmPassword)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("signup.confirmPassword")
+                            .onChange(of: viewModel.confirmPassword) { _, _ in
+                                if viewModel.confirmPasswordError != nil {
+                                    viewModel.confirmPasswordError = nil
+                                }
+                            }
+
+                        if let error = viewModel.confirmPasswordError {
+                            Text(error)
+                                .font(.naarsCaption)
+                                .foregroundColor(.naarsError)
+                                .accessibilityLabel("Error: \(error)")
+                        }
+                    }
+
                     // Car field (optional)
                     VStack(alignment: .leading, spacing: 8) {
                         Text("signup_car_label".localized)

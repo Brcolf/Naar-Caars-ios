@@ -19,32 +19,34 @@ extension AuthService {
     /// - Throws: AppError if signup fails
     func signUpWithApple(
         credential: ASAuthorizationAppleIDCredential,
-        inviteCodeId: UUID
+        inviteCodeId: UUID,
+        rawNonce: String? = nil
     ) async throws {
         isLoading = true
         defer { isLoading = false }
-        
+
         // 1. Get identity token
         guard let identityTokenData = credential.identityToken,
               let identityToken = String(data: identityTokenData, encoding: .utf8) else {
             throw AppError.unknown("Failed to get Apple identity token")
         }
-        
+
         // 2. Get user info (may be nil on subsequent logins)
         let email = credential.email
         let fullName = [
             credential.fullName?.givenName,
             credential.fullName?.familyName
         ].compactMap { $0 }.joined(separator: " ")
-        
+
         // 3. Sign in with Supabase using Apple token
         // Note: Supabase will create the user if they don't exist
         // Use signInWithIdToken for native iOS Apple Sign-In
+        // The rawNonce must match the SHA256 hash embedded in the id_token
         let session = try await SupabaseService.shared.client.auth.signInWithIdToken(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
                 idToken: identityToken,
-                nonce: nil  // Optional nonce for additional security
+                nonce: rawNonce
             )
         )
         
@@ -101,92 +103,180 @@ extension AuthService {
     /// Handle Apple Sign-In for existing users (login flow)
     /// - Parameter credential: Apple ID credential from ASAuthorization
     /// - Throws: AppError if login fails
-    func logInWithApple(credential: ASAuthorizationAppleIDCredential) async throws {
+    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String? = nil) async throws {
         isLoading = true
         defer { isLoading = false }
-        
+
         guard let identityTokenData = credential.identityToken,
               let identityToken = String(data: identityTokenData, encoding: .utf8) else {
             throw AppError.unknown("Failed to get Apple identity token")
         }
-        
+
         // Sign in with Supabase using Apple token
+        // The rawNonce must match the SHA256 hash embedded in the id_token
         let session = try await SupabaseService.shared.client.auth.signInWithIdToken(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
                 idToken: identityToken,
-                nonce: nil  // Optional nonce for additional security
+                nonce: rawNonce
             )
         )
-        
+
         let userIdString = session.user.id.uuidString
         guard let userId = UUID(uuidString: userIdString) else {
             throw AppError.invalidCredentials
         }
-        
-        // Fetch profile using ProfileService
-        let profile = try await ProfileService.shared.fetchProfile(userId: userId)
-        
-        // Update local state
-        currentUserId = userId
-        currentProfile = profile
-        restartRealtimeSyncEngines()
-        
-        // Store Apple user identifier for credential checking
-        UserDefaults.standard.set(
-            credential.user,
-            forKey: "appleUserIdentifier"
-        )
-        
-        AppLogger.auth.info("User logged in with Apple: \(userId), approved: \(profile.approved)")
+
+        // Fetch profile — may not exist if Apple created a new auth user
+        // that isn't linked to the existing email/password account
+        do {
+            let profile = try await ProfileService.shared.fetchProfile(userId: userId)
+
+            // Update local state
+            currentUserId = userId
+            currentProfile = profile
+            restartRealtimeSyncEngines()
+
+            // Store Apple user identifier for credential checking
+            UserDefaults.standard.set(
+                credential.user,
+                forKey: "appleUserIdentifier"
+            )
+
+            AppLogger.auth.info("User logged in with Apple: \(userId), approved: \(profile.approved)")
+        } catch {
+            // No profile exists for this Apple auth user.
+            // Clean up the orphaned auth user to avoid blocking future signups.
+            AppLogger.auth.warning("Apple login succeeded but no profile found for user \(userId). Cleaning up.")
+            await cleanupOrphanedAuthUser(userIdString: userIdString)
+
+            throw AppError.processingError(
+                "No account found for this Apple ID. If you chose \"Hide My Email\", Apple uses a private address that can't be matched to your account. Please sign in with email and password, then link your Apple ID in Settings. If you re-try and choose to share your real email, it will link automatically."
+            )
+        }
     }
     
-    /// Link Apple ID to existing email/password account
-    /// - Parameter credential: Apple ID credential from ASAuthorization
+    /// Link Apple ID to existing email/password account.
+    /// Decodes the Apple JWT to extract the subject ID, then inserts directly
+    /// into auth.identities via a database function. This avoids signInWithIdToken
+    /// which creates a new user instead of linking.
+    /// - Parameters:
+    ///   - credential: Apple ID credential from ASAuthorization
+    ///   - rawNonce: The raw nonce used when requesting the Apple credential (unused but kept for API consistency)
     /// - Throws: AppError if linking fails
-    func linkAppleAccount(credential: ASAuthorizationAppleIDCredential) async throws {
+    func linkAppleAccount(credential: ASAuthorizationAppleIDCredential, rawNonce: String? = nil) async throws {
         isLoading = true
         defer { isLoading = false }
-        
+
         guard let identityTokenData = credential.identityToken,
               let identityToken = String(data: identityTokenData, encoding: .utf8) else {
             throw AppError.unknown("Failed to get Apple identity token")
         }
-        
-        // Get the current user's session
-        guard try await SupabaseService.shared.client.auth.session.user.id != nil else {
-            throw AppError.notAuthenticated
+
+        // Verify user is authenticated and get their ID
+        let session = try await SupabaseService.shared.client.auth.session
+        let userId = session.user.id
+
+        // Decode the Apple JWT to extract sub (Apple user identifier) and email
+        guard let claims = decodeAppleJWTPayload(identityToken) else {
+            throw AppError.unknown("Failed to decode Apple identity token")
         }
-        
-        // Store Apple user identifier for credential checking
-        UserDefaults.standard.set(
-            credential.user,
-            forKey: "appleUserIdentifier"
-        )
-        
-        do {
-            // Update user metadata to indicate Apple linking
-            // This allows the user to sign in with either email/password or Apple Sign-In
-            try await SupabaseService.shared.client.auth.update(
-                user: UserAttributes(
-                    data: [
-                        "apple_user_id": .string(credential.user),
-                        "apple_linked_at": .string(ISO8601DateFormatter().string(from: Date())),
-                        "apple_email": credential.email.map { .string($0) } ?? .null
-                    ]
-                )
-            )
-            
-            AppLogger.auth.info("Apple account linked successfully to user metadata")
-            
-        } catch {
-            AppLogger.auth.error("Failed to update user metadata with Apple linking: \(error.localizedDescription)")
-            throw AppError.processingError("Failed to link Apple ID. Please try again.")
+
+        guard let appleSub = claims["sub"] as? String else {
+            throw AppError.unknown("Apple identity token missing subject")
+        }
+
+        let appleEmail = claims["email"] as? String ?? credential.email ?? ""
+
+        // Call database function to insert into auth.identities
+        struct LinkResponse: Decodable {
+            let success: Bool
+            let error: String?
+            let message: String?
+        }
+
+        let params: [String: String] = [
+            "p_user_id": userId.uuidString,
+            "p_apple_sub": appleSub,
+            "p_apple_email": appleEmail
+        ]
+
+        let response: LinkResponse = try await SupabaseService.shared.client
+            .rpc("link_apple_identity", params: params)
+            .execute()
+            .value
+
+        if response.success {
+            AppLogger.auth.info("Apple identity linked: \(response.message ?? "")")
+
+            // Store Apple user identifier for credential state checking
+            UserDefaults.standard.set(credential.user, forKey: "appleUserIdentifier")
+        } else {
+            let errorMsg = response.error ?? "Unknown error"
+            AppLogger.auth.error("Failed to link Apple identity: \(errorMsg)")
+            throw AppError.processingError(errorMsg)
         }
     }
+
+    /// Decode the payload of an Apple JWT (identity token) without signature verification.
+    /// The token has already been verified by ASAuthorization.
+    /// - Parameter jwt: The JWT string
+    /// - Returns: Dictionary of claims, or nil if decoding fails
+    private func decodeAppleJWTPayload(_ jwt: String) -> [String: Any]? {
+        let segments = jwt.split(separator: ".")
+        guard segments.count == 3 else { return nil }
+
+        // The payload is the second segment, Base64URL-encoded
+        var base64 = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        // Pad to multiple of 4
+        while base64.count % 4 != 0 {
+            base64.append("=")
+        }
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return json
+    }
     
+    /// Unlink Apple ID from the current account
+    /// Removes the Apple identity from auth.identities and clears local state
+    /// - Throws: AppError if unlinking fails
+    func unlinkAppleAccount() async throws {
+        isLoading = true
+        defer { isLoading = false }
+
+        let session = try await SupabaseService.shared.client.auth.session
+        let userId = session.user.id
+
+        // Remove the Apple identity directly from auth.identities
+        struct UnlinkResponse: Decodable {
+            let success: Bool
+            let error: String?
+        }
+
+        let response: UnlinkResponse = try await SupabaseService.shared.client
+            .rpc("unlink_apple_identity", params: ["p_user_id": userId.uuidString])
+            .execute()
+            .value
+
+        if !response.success {
+            AppLogger.auth.warning("Server unlink returned: \(response.error ?? "unknown")")
+        }
+
+        // Clear local Apple user identifier
+        UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
+
+        AppLogger.auth.info("Apple account unlinked successfully")
+    }
+
     // MARK: - Private Helper Methods
-    
+
     /// Create or update profile for Apple user
     /// - Parameters:
     ///   - userId: The user ID
@@ -326,6 +416,14 @@ extension AuthService {
     /// Check if the current user has Apple Sign-In linked
     var hasAppleSignInLinked: Bool {
         UserDefaults.standard.string(forKey: "appleUserIdentifier") != nil
+    }
+
+    /// Check if the current user has an Apple identity in Supabase auth
+    func checkAppleIdentityLinked() async -> Bool {
+        guard let session = try? await SupabaseService.shared.client.auth.session else {
+            return UserDefaults.standard.string(forKey: "appleUserIdentifier") != nil
+        }
+        return session.user.identities?.contains(where: { $0.provider == "apple" }) ?? false
     }
 }
 

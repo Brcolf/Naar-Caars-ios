@@ -132,22 +132,13 @@ struct MyProfileView: View {
                 }
                 .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
                     guard let intent else { return }
-                    switch intent {
-                    case .pendingUsers:
-                        showPendingUsersList = true
-                        navigationCoordinator.pendingIntent = nil
-                    case .adminPanel:
-                        showAdminPanel = true
-                        navigationCoordinator.pendingIntent = nil
-                    case .profile(let userId):
-                        if userId == (appState.currentUser?.id ?? AuthService.shared.currentUserId) {
-                            withAnimation(.easeInOut) {
-                                proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
-                            }
-                        }
-                        navigationCoordinator.pendingIntent = nil
-                    default:
-                        break
+                    applyProfileIntent(intent, proxy: proxy)
+                }
+                .onAppear {
+                    // Handle any intent set before this view appeared (e.g., during tab switch)
+                    if let intent = navigationCoordinator.pendingIntent,
+                       intent == .pendingUsers || intent == .adminPanel {
+                        applyProfileIntent(intent, proxy: proxy)
                     }
                 }
             }
@@ -560,7 +551,26 @@ struct MyProfileView: View {
         }
         .accessibilityIdentifier("profile.notifications")
     }
-    
+
+    private func applyProfileIntent(_ intent: NavigationIntent, proxy: ScrollViewProxy) {
+        switch intent {
+        case .pendingUsers:
+            showPendingUsersList = true
+            navigationCoordinator.pendingIntent = nil
+        case .adminPanel:
+            showAdminPanel = true
+            navigationCoordinator.pendingIntent = nil
+        case .profile(let userId):
+            if userId == (appState.currentUser?.id ?? AuthService.shared.currentUserId) {
+                withAnimation(.easeInOut) {
+                    proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
+                }
+            }
+            navigationCoordinator.pendingIntent = nil
+        default:
+            break
+        }
+    }
 }
 
 // MARK: - Supporting Views

@@ -334,9 +334,9 @@ struct SettingsView: View {
             .sheet(isPresented: $viewModel.startAppleLinking) {
                 NavigationStack {
                     AppleSignInLinkView(
-                        onCompletion: { credential in
+                        onCompletion: { credential, rawNonce in
                             Task {
-                                await viewModel.linkAppleAccount(credential: credential)
+                                await viewModel.linkAppleAccount(credential: credential, rawNonce: rawNonce)
                             }
                         }
                     )
@@ -405,7 +405,7 @@ final class SettingsViewModel: ObservableObject {
         pushNotificationsEnabled = authStatus == .authorized
         
         // Check if Apple ID is linked
-        isAppleLinked = UserDefaults.standard.string(forKey: "appleUserIdentifier") != nil
+        isAppleLinked = await AuthService.shared.checkAppleIdentityLinked()
         
         // Load theme preference
         selectedTheme = themeManager.currentTheme
@@ -610,15 +610,25 @@ final class SettingsViewModel: ObservableObject {
         }
     }
     
-    func linkAppleAccount(credential: ASAuthorizationAppleIDCredential) async {
+    func linkAppleAccount(credential: ASAuthorizationAppleIDCredential, rawNonce: String? = nil) async {
         do {
-            try await AuthService.shared.linkAppleAccount(credential: credential)
+            try await AuthService.shared.linkAppleAccount(credential: credential, rawNonce: rawNonce)
             isAppleLinked = true
             startAppleLinking = false
-            // Refresh settings to update UI
             await loadSettings()
         } catch {
             errorMessage = String(format: "settings_link_apple_failed".localized, error.localizedDescription)
+            showError = true
+        }
+    }
+
+    func unlinkAppleAccount() async {
+        do {
+            try await AuthService.shared.unlinkAppleAccount()
+            isAppleLinked = false
+            await loadSettings()
+        } catch {
+            errorMessage = error.localizedDescription
             showError = true
         }
     }

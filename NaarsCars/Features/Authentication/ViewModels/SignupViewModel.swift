@@ -26,7 +26,10 @@ final class SignupViewModel: ObservableObject {
     
     /// User's password
     @Published var password: String = ""
-    
+
+    /// User's password confirmation
+    @Published var confirmPassword: String = ""
+
     /// User's car (optional)
     @Published var car: String = ""
     
@@ -49,7 +52,10 @@ final class SignupViewModel: ObservableObject {
     
     /// Password validation error
     @Published var passwordError: String?
-    
+
+    /// Confirm password validation error
+    @Published var confirmPasswordError: String?
+
     /// Invite code validation error
     @Published var inviteCodeError: String?
     
@@ -142,32 +148,50 @@ final class SignupViewModel: ObservableObject {
     /// Validate password field
     func validatePassword() -> Bool {
         passwordError = nil
-        
+
         guard !password.isEmpty else {
             passwordError = "signup_error_password_required".localized
             return false
         }
-        
+
         guard password.count >= 8 else {
             passwordError = "signup_error_password_too_short".localized
             return false
         }
-        
+
         guard Validators.isValidPassword(password) else {
             passwordError = "signup_error_password_weak".localized
             return false
         }
-        
+
         return true
     }
-    
+
+    /// Validate confirm password matches password
+    func validateConfirmPassword() -> Bool {
+        confirmPasswordError = nil
+
+        guard !confirmPassword.isEmpty else {
+            confirmPasswordError = "signup_error_confirm_password_required".localized
+            return false
+        }
+
+        guard confirmPassword == password else {
+            confirmPasswordError = "signup_error_passwords_do_not_match".localized
+            return false
+        }
+
+        return true
+    }
+
     /// Validate all fields
     func validateAll() -> Bool {
         let nameValid = validateName()
         let emailValid = validateEmail()
         let passwordValid = validatePassword()
-        
-        return nameValid && emailValid && passwordValid
+        let confirmValid = validateConfirmPassword()
+
+        return nameValid && emailValid && passwordValid && confirmValid
     }
     
     // MARK: - Signup Method

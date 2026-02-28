@@ -12,9 +12,10 @@ import AuthenticationServices
 struct AppleSignInLinkView: View {
     @StateObject private var viewModel = AppleSignInViewModel()
     @Environment(\.dismiss) private var dismiss
-    
-    let onCompletion: (ASAuthorizationAppleIDCredential) -> Void
-    
+
+    /// Passes both the credential and the raw nonce needed for Supabase identity linking
+    let onCompletion: (ASAuthorizationAppleIDCredential, String?) -> Void
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -23,14 +24,14 @@ struct AppleSignInLinkView: View {
                     Text("auth_link_apple_id_title".localized)
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                    
+
                     Text("auth_link_apple_id_subtitle".localized)
                         .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
-                
+
                 // Apple Sign-In button
                 AppleSignInButton(
                     onRequest: { request in
@@ -40,7 +41,7 @@ struct AppleSignInLinkView: View {
                         switch result {
                         case .success(let authorization):
                             if let credential = authorization.credential as? ASAuthorizationAppleIDCredential {
-                                onCompletion(credential)
+                                onCompletion(credential, viewModel.currentNonce)
                             }
                         case .failure:
                             // Error handled by viewModel
@@ -70,7 +71,7 @@ struct AppleSignInLinkView: View {
 
 #Preview {
     NavigationStack {
-        AppleSignInLinkView { credential in
+        AppleSignInLinkView { credential, _ in
             AppLogger.info("auth", "Linked Apple ID: \(credential.user)")
         }
     }

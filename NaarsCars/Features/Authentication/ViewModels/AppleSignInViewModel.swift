@@ -16,7 +16,7 @@ final class AppleSignInViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: AppError?
     
-    private var currentNonce: String?
+    private(set) var currentNonce: String?
     private let authService: any AuthServiceProtocol
 
     init(authService: any AuthServiceProtocol = AuthService.shared) {
@@ -60,11 +60,15 @@ final class AppleSignInViewModel: ObservableObject {
                     // New user signup with Apple
                     try await authService.signUpWithApple(
                         credential: credential,
-                        inviteCodeId: codeId
+                        inviteCodeId: codeId,
+                        rawNonce: currentNonce
                     )
                 } else {
                     // Existing user login with Apple
-                    try await authService.logInWithApple(credential: credential)
+                    try await authService.logInWithApple(
+                        credential: credential,
+                        rawNonce: currentNonce
+                    )
                 }
             } catch let authError {
                 self.error = authError as? AppError ?? .unknown(authError.localizedDescription)
