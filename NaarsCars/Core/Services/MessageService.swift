@@ -58,6 +58,7 @@ final class MessageService {
             .select("user_id")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("user_id", value: userId.uuidString)
+            .is("left_at", value: nil) // Only active participants (not left)
             .limit(1)
             .execute()
 
@@ -381,12 +382,13 @@ final class MessageService {
     /// - Returns: The created message
     /// - Throws: AppError if send fails
     func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, replyToId: UUID? = nil) async throws -> Message {
-        // Security check: Verify user is a participant (RLS is disabled on conversation_participants)
+        // Security check: Verify user is an active participant (left_at IS NULL) or conversation creator
         let participantCheck = try? await supabase
             .from("conversation_participants")
             .select("user_id")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("user_id", value: fromId.uuidString)
+            .is("left_at", value: nil) // Only active participants; users who left must not send
             .limit(1)
             .execute()
         
@@ -402,6 +404,11 @@ final class MessageService {
         let isCreator = conversationCheck?.data.isEmpty == false
         let isParticipant = hasParticipant || isCreator
         
+#if DEBUG
+        if !isParticipant {
+            AppLogger.database.debug("[Membership] sendMessage denied: conversationId=\(conversationId), fromId=\(fromId), hasParticipant=\(hasParticipant), isCreator=\(isCreator)")
+        }
+#endif
         guard isParticipant else {
             throw AppError.permissionDenied("You don't have permission to send messages in this conversation")
         }

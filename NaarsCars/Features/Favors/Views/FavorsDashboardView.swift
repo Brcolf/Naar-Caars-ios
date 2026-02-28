@@ -114,12 +114,9 @@ struct FavorsDashboardView: View {
                 if viewMode == .list {
                     viewModel.setup(modelContext: modelContext)
                     await viewModel.loadFavors()
-                    viewModel.setupRealtimeSubscription()
                 }
             }
-            .onDisappear {
-                viewModel.cleanupRealtimeSubscription()
-            }
+            .onDisappear { viewModel.stop() }
         }
     }
     

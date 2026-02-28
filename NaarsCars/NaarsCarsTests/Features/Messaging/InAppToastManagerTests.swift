@@ -61,7 +61,7 @@ final class InAppToastManagerTests: XCTestCase {
         message.sender = sender
 
         notificationCenter.post(
-            name: NSNotification.Name("conversationUpdated"),
+            name: .conversationUpdated,
             object: conversationId,
             userInfo: [
                 "message": message,

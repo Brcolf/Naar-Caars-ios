@@ -73,7 +73,7 @@ struct LeaveReviewDependencies {
             },
             navigateToTownHall: { postId in
                 NotificationCenter.default.post(
-                    name: NSNotification.Name("navigateToTownHall"),
+                    name: .navigateToTownHall,
                     object: nil,
                     userInfo: [
                         "postId": postId,

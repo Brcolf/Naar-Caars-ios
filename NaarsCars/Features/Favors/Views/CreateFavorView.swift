@@ -15,6 +15,8 @@ struct CreateFavorView: View {
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
+    /// Deferred so LocationService init runs off the first frame while user fills title/description.
+    @State private var locationServiceReady = false
     
     var body: some View {
         NavigationStack {
@@ -32,18 +34,31 @@ struct CreateFavorView: View {
                 }
                 
                 Section("favor_create_section_location_duration".localized) {
-                    LocationAutocompleteField(
-                        label: "",
-                        placeholder: "favor_create_location_placeholder".localized,
-                        text: $viewModel.location,
-                        icon: "mappin.circle.fill",
-                        accessibilityId: "createFavor.location"
-                    ) { details in
-                        // Optional: Store coordinates for future map integration
-                        // viewModel.locationCoordinate = details.coordinate
+                    if locationServiceReady {
+                        LocationAutocompleteField(
+                            label: "",
+                            placeholder: "favor_create_location_placeholder".localized,
+                            text: $viewModel.location,
+                            icon: "mappin.circle.fill",
+                            accessibilityId: "createFavor.location"
+                        ) { details in
+                            // Optional: Store coordinates for future map integration
+                            // viewModel.locationCoordinate = details.coordinate
+                        }
+                        .accessibilityLabel("Location")
+                        .accessibilityHint("Enter where this favor takes place")
+                    } else {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                            Text("favor_create_location_loading".localized)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Loading location field")
                     }
-                    .accessibilityLabel("Location")
-                    .accessibilityHint("Enter where this favor takes place")
                     
                     Picker("favor_create_duration".localized, selection: $viewModel.duration) {
                         ForEach(FavorDuration.allCases, id: \.self) { duration in
@@ -117,6 +132,13 @@ struct CreateFavorView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                // Initialize LocationService off the first frame so title/description section stays responsive.
+                Task { @MainActor in
+                    _ = LocationService.shared
+                    locationServiceReady = true
+                }
+            }
             .navigationTitle("favor_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

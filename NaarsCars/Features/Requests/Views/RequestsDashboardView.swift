@@ -106,9 +106,7 @@ struct RequestsDashboardView: View {
                 await viewModel.loadRequests()
                 viewModel.setupRealtimeSubscription()
             }
-            .onDisappear {
-                viewModel.cleanupRealtimeSubscription()
-            }
+            .onDisappear { viewModel.stop() }
             .trackScreen("RequestsDashboard")
         }
     }

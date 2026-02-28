@@ -125,6 +125,7 @@ final class SDRide {
     var reviewSkipped: Bool?
     var reviewSkippedAt: Date?
     var estimatedCost: Double?
+    var flightNormalized: String?
     var createdAt: Date
     var updatedAt: Date
     
@@ -138,7 +139,7 @@ final class SDRide {
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -155,6 +156,7 @@ final class SDRide {
         self.reviewSkipped = reviewSkipped
         self.reviewSkippedAt = reviewSkippedAt
         self.estimatedCost = estimatedCost
+        self.flightNormalized = flightNormalized
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.posterName = posterName

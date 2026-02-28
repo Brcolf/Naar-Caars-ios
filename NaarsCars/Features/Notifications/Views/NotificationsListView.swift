@@ -50,8 +50,9 @@ struct NotificationsListView: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .dismissNotificationsSurface)) { _ in
                     AppLogger.info("notifications", "[NotificationsListView] Dismissing notifications surface")
-                    NotificationCenter.default.post(name: NSNotification.Name("dismissNotificationsSheet"), object: nil)
+                    NotificationCenter.default.post(name: .dismissNotificationsSheet, object: nil)
                 }
+                .onDisappear { viewModel.stop() }
                 .toast(message: $toastMessage)
         }
     }
@@ -135,9 +136,11 @@ struct NotificationsListView: View {
             groupCount: group.totalCount
         ) {
             if NotificationGrouping.announcementTypes.contains(group.primaryNotification.type) {
+                AppLogger.info("notifications", "[NotificationsListView] Notification tapped type=announcement id=\(group.primaryNotification.id)")
                 viewModel.handleAnnouncementTap(group.primaryNotification)
                 announcementNavigationTarget = .init(id: group.primaryNotification.id)
             } else {
+                AppLogger.info("notifications", "[NotificationsListView] Notification tapped type=\(group.primaryNotification.type.rawValue) id=\(group.primaryNotification.id)")
                 viewModel.handleNotificationTap(group.primaryNotification, group: group)
             }
         }

@@ -109,7 +109,7 @@ struct ContentView: View {
             }
             handleScenePhaseChange(from: oldPhase, to: newPhase)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
             // AppLaunchManager already handles state change on sign out notification
             // Just log for debugging - don't call performCriticalLaunch again
             AppLogger.info("app", "Received userDidSignOut notification - AppLaunchManager will update state")

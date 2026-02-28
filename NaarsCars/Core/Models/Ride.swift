@@ -54,6 +54,8 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
     let reviewSkipped: Bool?
     let reviewSkippedAt: Date?
     let estimatedCost: Double?
+    /// First parsed flight code from notes (e.g. DL123), saved in background after creation
+    let flightNormalized: String?
     let createdAt: Date
     let updatedAt: Date
     
@@ -90,6 +92,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         case reviewSkipped = "review_skipped"
         case reviewSkippedAt = "review_skipped_at"
         case estimatedCost = "estimated_cost"
+        case flightNormalized = "flight_normalized"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         // Joined fields are not in CodingKeys - they're populated separately
@@ -114,6 +117,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         reviewSkipped: Bool? = nil,
         reviewSkippedAt: Date? = nil,
         estimatedCost: Double? = nil,
+        flightNormalized: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         poster: Profile? = nil,
@@ -137,6 +141,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         self.reviewSkipped = reviewSkipped
         self.reviewSkippedAt = reviewSkippedAt
         self.estimatedCost = estimatedCost
+        self.flightNormalized = flightNormalized
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.poster = poster

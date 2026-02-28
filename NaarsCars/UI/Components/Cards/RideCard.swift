@@ -102,6 +102,11 @@ struct RideCard: View {
                     .foregroundColor(.secondary)
             }
             
+            // Flight (persisted or parsed from notes; tappable to open status search)
+            if let flightInfo = FlightInfo.displayInfo(for: ride) {
+                FlightRowView(flightInfo: flightInfo, style: .compact)
+            }
+            
             // Claimer info (when claimed or completed)
             if ride.claimedBy != nil {
                 Divider()

@@ -97,7 +97,7 @@ struct SignupInviteCodeView: View {
             // Handle deep link: https://naarscars.com/signup?code=CODE
             handleDeepLink(url)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("handleInviteCodeDeepLink"))) { notification in
+        .onReceive(NotificationCenter.default.publisher(for: .handleInviteCodeDeepLink)) { notification in
             if let url = notification.userInfo?["url"] as? URL {
                 handleDeepLink(url)
             }

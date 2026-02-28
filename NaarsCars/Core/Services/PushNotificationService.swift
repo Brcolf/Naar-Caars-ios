@@ -57,8 +57,9 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
 
     // #region agent log
-    /// Debug ingest for push handoff (Simulator: POST to ingest URL).
+    /// Debug ingest for push handoff (Simulator: POST to ingest URL). Only sends when `Constants.Debug.pushIngestURL` is set; otherwise no request is made to avoid connection-refused logs.
     static func pushDebugLog(location: String, message: String, data: [String: Any] = [:]) {
+        guard let url = Constants.Debug.pushIngestURL else { return }
         let payload: [String: Any] = [
             "location": location,
             "message": message,
@@ -67,7 +68,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             "hypothesisId": "push_handoff"
         ]
         guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:7242/ingest/547993df-d4e8-4b58-b95e-4cee214a76f6")!)
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
@@ -695,15 +696,6 @@ final class PushNotificationService: NSObject, ObservableObject {
     func clearBadge() {
         UIApplication.shared.applicationIconBadgeNumber = 0
     }
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let showReviewPrompt = Notification.Name("showReviewPrompt")
-    static let showCompletionPrompt = Notification.Name("showCompletionPrompt")
-    static let dismissNotificationsSurface = Notification.Name("dismissNotificationsSurface")
-    static let conversationUnreadCountsUpdated = Notification.Name("conversationUnreadCountsUpdated")
 }
 
 // MARK: - Completion Response

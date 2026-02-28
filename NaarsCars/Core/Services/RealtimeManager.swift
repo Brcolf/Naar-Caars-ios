@@ -18,8 +18,8 @@ typealias RealtimeUpdateCallback = (RealtimeRecord) -> Void
 typealias RealtimeDeleteCallback = (RealtimeRecord) -> Void
 
 /// Canonical representation of a decoded Supabase Realtime event.
-struct RealtimeRecord {
-    enum EventType {
+struct RealtimeRecord: @unchecked Sendable {
+    enum EventType: Sendable {
         case insert
         case update
         case delete
@@ -228,7 +228,6 @@ final class RealtimeManager {
         "rides:sync",
         "favors:sync",
         "notifications:sync",
-        "notifications:all",
         "town-hall-",
         "requests-dashboard-"
     ]
@@ -355,6 +354,17 @@ final class RealtimeManager {
             tasks.append(Task {
                 for await action in insertStream {
                     guard let record = RealtimePayloadAdapter.decodeInsert(action, table: table) else {
+                        Task {
+                            await PerformanceMonitor.shared.record(
+                                operation: "realtime_decode_failure",
+                                duration: 0,
+                                metadata: [
+                                "table": table,
+                                "event_type": "insert",
+                                "channel": channelName
+                                ]
+                            )
+                        }
                         continue
                     }
                     onInsert(record)
@@ -366,6 +376,17 @@ final class RealtimeManager {
             tasks.append(Task {
                 for await action in updateStream {
                     guard let record = RealtimePayloadAdapter.decodeUpdate(action, table: table) else {
+                        Task {
+                            await PerformanceMonitor.shared.record(
+                                operation: "realtime_decode_failure",
+                                duration: 0,
+                                metadata: [
+                                "table": table,
+                                "event_type": "update",
+                                "channel": channelName
+                                ]
+                            )
+                        }
                         continue
                     }
                     onUpdate(record)
@@ -377,6 +398,17 @@ final class RealtimeManager {
             tasks.append(Task {
                 for await action in deleteStream {
                     guard let record = RealtimePayloadAdapter.decodeDelete(action, table: table) else {
+                        Task {
+                            await PerformanceMonitor.shared.record(
+                                operation: "realtime_decode_failure",
+                                duration: 0,
+                                metadata: [
+                                "table": table,
+                                "event_type": "delete",
+                                "channel": channelName
+                                ]
+                            )
+                        }
                         continue
                     }
                     onDelete(record)

@@ -1,0 +1,7002 @@
+[
+  {
+    "iata": "HIR",
+    "name": "Honiara International Airport",
+    "lat": -9.428,
+    "lon": 160.054993,
+    "tz": null
+  },
+  {
+    "iata": "LAE",
+    "name": "Nadzab Tomodachi International Airport",
+    "lat": -6.567995,
+    "lon": 146.726544,
+    "tz": null
+  },
+  {
+    "iata": "POM",
+    "name": "Port Moresby Jacksons International Airport",
+    "lat": -9.44338,
+    "lon": 147.220001,
+    "tz": null
+  },
+  {
+    "iata": "GOH",
+    "name": "Nuuk International Airport",
+    "lat": 64.191066,
+    "lon": -51.67914,
+    "tz": null
+  },
+  {
+    "iata": "AEY",
+    "name": "Akureyri International Airport",
+    "lat": 65.656573,
+    "lon": -18.072018,
+    "tz": null
+  },
+  {
+    "iata": "KEF",
+    "name": "Keflavik International Airport",
+    "lat": 63.985001,
+    "lon": -22.6056,
+    "tz": null
+  },
+  {
+    "iata": "PRN",
+    "name": "Priština Adem Jashari International Airport",
+    "lat": 42.5728,
+    "lon": 21.035801,
+    "tz": null
+  },
+  {
+    "iata": "YEG",
+    "name": "Edmonton International Airport",
+    "lat": 53.3097,
+    "lon": -113.580002,
+    "tz": null
+  },
+  {
+    "iata": "YHZ",
+    "name": "Halifax / Stanfield International Airport",
+    "lat": 44.880798,
+    "lon": -63.508598,
+    "tz": null
+  },
+  {
+    "iata": "YLW",
+    "name": "Kelowna International Airport",
+    "lat": 49.9561,
+    "lon": -119.377998,
+    "tz": null
+  },
+  {
+    "iata": "YOW",
+    "name": "Ottawa Macdonald-Cartier International Airport",
+    "lat": 45.322498,
+    "lon": -75.669197,
+    "tz": null
+  },
+  {
+    "iata": "YQB",
+    "name": "Quebec Jean Lesage International Airport",
+    "lat": 46.7911,
+    "lon": -71.393303,
+    "tz": null
+  },
+  {
+    "iata": "YUL",
+    "name": "Montreal / Pierre Elliott Trudeau International Airport",
+    "lat": 45.467837,
+    "lon": -73.742294,
+    "tz": null
+  },
+  {
+    "iata": "YVR",
+    "name": "Vancouver International Airport",
+    "lat": 49.193901,
+    "lon": -123.183998,
+    "tz": null
+  },
+  {
+    "iata": "YWG",
+    "name": "Winnipeg / James Armstrong Richardson International Airport",
+    "lat": 49.91,
+    "lon": -97.239899,
+    "tz": null
+  },
+  {
+    "iata": "YXE",
+    "name": "Saskatoon John G. Diefenbaker International Airport",
+    "lat": 52.170723,
+    "lon": -106.700793,
+    "tz": null
+  },
+  {
+    "iata": "YYC",
+    "name": "Calgary International Airport",
+    "lat": 51.118822,
+    "lon": -114.009933,
+    "tz": null
+  },
+  {
+    "iata": "YYJ",
+    "name": "Victoria International Airport",
+    "lat": 48.647201,
+    "lon": -123.427792,
+    "tz": null
+  },
+  {
+    "iata": "YYT",
+    "name": "St. John's International Airport",
+    "lat": 47.618599,
+    "lon": -52.7519,
+    "tz": null
+  },
+  {
+    "iata": "YYZ",
+    "name": "Toronto Pearson International Airport",
+    "lat": 43.675935,
+    "lon": -79.629421,
+    "tz": null
+  },
+  {
+    "iata": "BJA",
+    "name": "Soummam–Abane Ramdane Airport",
+    "lat": 36.712547,
+    "lon": 5.069909,
+    "tz": null
+  },
+  {
+    "iata": "ALG",
+    "name": "Houari Boumediene Airport",
+    "lat": 36.693886,
+    "lon": 3.214531,
+    "tz": null
+  },
+  {
+    "iata": "DJG",
+    "name": "Tiska Djanet Airport",
+    "lat": 24.285448,
+    "lon": 9.463652,
+    "tz": null
+  },
+  {
+    "iata": "TMR",
+    "name": "Aguenar – Hadj Bey Akhamok Airport",
+    "lat": 22.810992,
+    "lon": 5.450832,
+    "tz": null
+  },
+  {
+    "iata": "GJL",
+    "name": "Jijel Ferhat Abbas Airport",
+    "lat": 36.794125,
+    "lon": 5.873652,
+    "tz": null
+  },
+  {
+    "iata": "AAE",
+    "name": "Annaba Rabah Bitat Airport",
+    "lat": 36.826781,
+    "lon": 7.81334,
+    "tz": null
+  },
+  {
+    "iata": "CZL",
+    "name": "Mohamed Boudiaf International Airport",
+    "lat": 36.276001,
+    "lon": 6.62039,
+    "tz": null
+  },
+  {
+    "iata": "BLJ",
+    "name": "Batna Mostefa Ben Boulaid Airport",
+    "lat": 35.752102,
+    "lon": 6.30859,
+    "tz": null
+  },
+  {
+    "iata": "CFK",
+    "name": "Chlef Aboubakr Belkaid International Airport",
+    "lat": 36.216614,
+    "lon": 1.341114,
+    "tz": null
+  },
+  {
+    "iata": "TLM",
+    "name": "Zenata – Messali El Hadj Airport",
+    "lat": 35.012732,
+    "lon": -1.457117,
+    "tz": null
+  },
+  {
+    "iata": "ORN",
+    "name": "Oran Es-Sénia (Ahmed Ben Bella) International Airport",
+    "lat": 35.620648,
+    "lon": -0.622486,
+    "tz": null
+  },
+  {
+    "iata": "BSK",
+    "name": "Biskra - Mohamed Khider Airport",
+    "lat": 34.79318,
+    "lon": 5.738899,
+    "tz": null
+  },
+  {
+    "iata": "COO",
+    "name": "Cotonou Cadjehoun International Airport",
+    "lat": 6.35723,
+    "lon": 2.38435,
+    "tz": null
+  },
+  {
+    "iata": "OUA",
+    "name": "Ouagadougou Thomas Sankara International Airport",
+    "lat": 12.3532,
+    "lon": -1.51242,
+    "tz": null
+  },
+  {
+    "iata": "BOY",
+    "name": "Bobo Dioulasso Airport",
+    "lat": 11.1601,
+    "lon": -4.33097,
+    "tz": null
+  },
+  {
+    "iata": "ACC",
+    "name": "Kotoka International Airport",
+    "lat": 5.60519,
+    "lon": -0.166786,
+    "tz": null
+  },
+  {
+    "iata": "TML",
+    "name": "Yakubu Tali International Airport",
+    "lat": 9.553909,
+    "lon": -0.86606,
+    "tz": null
+  },
+  {
+    "iata": "KMS",
+    "name": "Prempeh I International Airport",
+    "lat": 6.71456,
+    "lon": -1.59082,
+    "tz": null
+  },
+  {
+    "iata": "ABJ",
+    "name": "Félix-Houphouët-Boigny International Airport",
+    "lat": 5.26139,
+    "lon": -3.92629,
+    "tz": null
+  },
+  {
+    "iata": "ASK",
+    "name": "Yamoussoukro International Airport",
+    "lat": 6.90317,
+    "lon": -5.36558,
+    "tz": null
+  },
+  {
+    "iata": "ABV",
+    "name": "Nnamdi Azikiwe International Airport",
+    "lat": 9.00679,
+    "lon": 7.26317,
+    "tz": null
+  },
+  {
+    "iata": "ABB",
+    "name": "Asaba International Airport",
+    "lat": 6.204167,
+    "lon": 6.665278,
+    "tz": null
+  },
+  {
+    "iata": "BCU",
+    "name": "Sir Abubakar Tafawa Balewa Bauchi State International Airport",
+    "lat": 10.482833,
+    "lon": 9.744,
+    "tz": null
+  },
+  {
+    "iata": "ENU",
+    "name": "Akanu Ibiam International Airport",
+    "lat": 6.473718,
+    "lon": 7.560463,
+    "tz": null
+  },
+  {
+    "iata": "ILR",
+    "name": "General Tunde Idiagbon International Airport",
+    "lat": 8.44021,
+    "lon": 4.49392,
+    "tz": null
+  },
+  {
+    "iata": "KAD",
+    "name": "Kaduna International Airport",
+    "lat": 10.696,
+    "lon": 7.32011,
+    "tz": null
+  },
+  {
+    "iata": "KAN",
+    "name": "Mallam Aminu Kano International Airport",
+    "lat": 12.045613,
+    "lon": 8.523566,
+    "tz": null
+  },
+  {
+    "iata": "MIU",
+    "name": "Maiduguri International Airport",
+    "lat": 11.854163,
+    "lon": 13.080702,
+    "tz": null
+  },
+  {
+    "iata": "LOS",
+    "name": "Murtala Muhammed International Airport",
+    "lat": 6.57737,
+    "lon": 3.32116,
+    "tz": null
+  },
+  {
+    "iata": "PHC",
+    "name": "Port Harcourt International Airport",
+    "lat": 5.01549,
+    "lon": 6.94959,
+    "tz": null
+  },
+  {
+    "iata": "SKO",
+    "name": "Sadiq Abubakar III International Airport",
+    "lat": 12.915729,
+    "lon": 5.207547,
+    "tz": null
+  },
+  {
+    "iata": "NIM",
+    "name": "Diori Hamani International Airport",
+    "lat": 13.4815,
+    "lon": 2.18361,
+    "tz": null
+  },
+  {
+    "iata": "TUN",
+    "name": "Tunis Carthage International Airport",
+    "lat": 36.851002,
+    "lon": 10.2272,
+    "tz": null
+  },
+  {
+    "iata": "DJE",
+    "name": "Djerba Zarzis International Airport",
+    "lat": 33.873719,
+    "lon": 10.7773,
+    "tz": null
+  },
+  {
+    "iata": "SFA",
+    "name": "Sfax Thyna International Airport",
+    "lat": 34.717999,
+    "lon": 10.691,
+    "tz": null
+  },
+  {
+    "iata": "LRL",
+    "name": "Niamtougou International Airport",
+    "lat": 9.766675,
+    "lon": 1.090944,
+    "tz": null
+  },
+  {
+    "iata": "LFW",
+    "name": "Lomé–Tokoin International Airport",
+    "lat": 6.16561,
+    "lon": 1.25451,
+    "tz": null
+  },
+  {
+    "iata": "BRU",
+    "name": "Brussels Airport",
+    "lat": 50.901402,
+    "lon": 4.48444,
+    "tz": null
+  },
+  {
+    "iata": "CRL",
+    "name": "Brussels South Charleroi Airport",
+    "lat": 50.461963,
+    "lon": 4.459562,
+    "tz": null
+  },
+  {
+    "iata": "OST",
+    "name": "Ostend-Bruges International Airport",
+    "lat": 51.1998,
+    "lon": 2.874673,
+    "tz": null
+  },
+  {
+    "iata": "BER",
+    "name": "Berlin Brandenburg Airport",
+    "lat": 52.361738,
+    "lon": 13.502341,
+    "tz": null
+  },
+  {
+    "iata": "DRS",
+    "name": "Dresden Airport",
+    "lat": 51.134123,
+    "lon": 13.767831,
+    "tz": null
+  },
+  {
+    "iata": "ERF",
+    "name": "Erfurt-Weimar Airport",
+    "lat": 50.978281,
+    "lon": 10.960713,
+    "tz": null
+  },
+  {
+    "iata": "FRA",
+    "name": "Frankfurt Main Airport",
+    "lat": 50.026706,
+    "lon": 8.55835,
+    "tz": null
+  },
+  {
+    "iata": "FMO",
+    "name": "Münster Osnabrück Airport",
+    "lat": 52.133816,
+    "lon": 7.688482,
+    "tz": null
+  },
+  {
+    "iata": "HAM",
+    "name": "Hamburg Helmut Schmidt Airport",
+    "lat": 53.630402,
+    "lon": 9.98823,
+    "tz": null
+  },
+  {
+    "iata": "CGN",
+    "name": "Cologne Bonn Airport",
+    "lat": 50.865898,
+    "lon": 7.14274,
+    "tz": null
+  },
+  {
+    "iata": "DUS",
+    "name": "Düsseldorf Airport",
+    "lat": 51.289501,
+    "lon": 6.76678,
+    "tz": null
+  },
+  {
+    "iata": "MUC",
+    "name": "Munich Airport",
+    "lat": 48.353802,
+    "lon": 11.7861,
+    "tz": null
+  },
+  {
+    "iata": "NUE",
+    "name": "Nuremberg Airport",
+    "lat": 49.498699,
+    "lon": 11.078056,
+    "tz": null
+  },
+  {
+    "iata": "LEJ",
+    "name": "Leipzig/Halle Airport",
+    "lat": 51.420657,
+    "lon": 12.232705,
+    "tz": null
+  },
+  {
+    "iata": "SCN",
+    "name": "Saarbrücken Airport",
+    "lat": 49.217562,
+    "lon": 7.111667,
+    "tz": null
+  },
+  {
+    "iata": "STR",
+    "name": "Stuttgart Airport",
+    "lat": 48.689899,
+    "lon": 9.22196,
+    "tz": null
+  },
+  {
+    "iata": "HAJ",
+    "name": "Hannover Airport",
+    "lat": 52.461102,
+    "lon": 9.68508,
+    "tz": null
+  },
+  {
+    "iata": "BRE",
+    "name": "Bremen Airport",
+    "lat": 53.046786,
+    "lon": 8.78932,
+    "tz": null
+  },
+  {
+    "iata": "HHN",
+    "name": "Frankfurt-Hahn Airport",
+    "lat": 49.946353,
+    "lon": 7.261734,
+    "tz": null
+  },
+  {
+    "iata": "FMM",
+    "name": "Memmingen Allgau Airport",
+    "lat": 47.988092,
+    "lon": 10.238248,
+    "tz": null
+  },
+  {
+    "iata": "PAD",
+    "name": "Paderborn Lippstadt Airport",
+    "lat": 51.612527,
+    "lon": 8.617459,
+    "tz": null
+  },
+  {
+    "iata": "NRN",
+    "name": "Weeze (Niederrhein) Airport",
+    "lat": 51.601362,
+    "lon": 6.141228,
+    "tz": null
+  },
+  {
+    "iata": "DTM",
+    "name": "Dortmund Airport",
+    "lat": 51.518299,
+    "lon": 7.61224,
+    "tz": null
+  },
+  {
+    "iata": "FDH",
+    "name": "Bodensee Airport Friedrichshafen",
+    "lat": 47.671299,
+    "lon": 9.51149,
+    "tz": null
+  },
+  {
+    "iata": "FKB",
+    "name": "Karlsruhe Baden-Baden Airport",
+    "lat": 48.7794,
+    "lon": 8.0805,
+    "tz": null
+  },
+  {
+    "iata": "KSF",
+    "name": "Kassel Airport",
+    "lat": 51.418395,
+    "lon": 9.391638,
+    "tz": null
+  },
+  {
+    "iata": "EES",
+    "name": "Berenice International Airport / Banas Cape Air Base",
+    "lat": 23.980437,
+    "lon": 35.460277,
+    "tz": null
+  },
+  {
+    "iata": "TLL",
+    "name": "Lennart Meri Tallinn Airport",
+    "lat": 59.413246,
+    "lon": 24.83264,
+    "tz": null
+  },
+  {
+    "iata": "HEL",
+    "name": "Helsinki Vantaa Airport",
+    "lat": 60.318363,
+    "lon": 24.963341,
+    "tz": null
+  },
+  {
+    "iata": "IVL",
+    "name": "Ivalo Airport",
+    "lat": 68.6073,
+    "lon": 27.4053,
+    "tz": null
+  },
+  {
+    "iata": "KTT",
+    "name": "Kittilä International Airport",
+    "lat": 67.700996,
+    "lon": 24.8468,
+    "tz": null
+  },
+  {
+    "iata": "KUO",
+    "name": "Kuopio Airport",
+    "lat": 63.007099,
+    "lon": 27.7978,
+    "tz": null
+  },
+  {
+    "iata": "LPP",
+    "name": "Lappeenranta Airport",
+    "lat": 61.044601,
+    "lon": 28.144743,
+    "tz": null
+  },
+  {
+    "iata": "MHQ",
+    "name": "Mariehamn Airport",
+    "lat": 60.1222,
+    "lon": 19.898199,
+    "tz": null
+  },
+  {
+    "iata": "OUL",
+    "name": "Oulu Airport",
+    "lat": 64.930099,
+    "lon": 25.354601,
+    "tz": null
+  },
+  {
+    "iata": "RVN",
+    "name": "Rovaniemi Airport",
+    "lat": 66.563327,
+    "lon": 25.829751,
+    "tz": null
+  },
+  {
+    "iata": "TMP",
+    "name": "Tampere-Pirkkala Airport",
+    "lat": 61.414101,
+    "lon": 23.604401,
+    "tz": null
+  },
+  {
+    "iata": "TKU",
+    "name": "Turku Airport",
+    "lat": 60.514099,
+    "lon": 22.2628,
+    "tz": null
+  },
+  {
+    "iata": "VAA",
+    "name": "Vaasa Airport",
+    "lat": 63.05023,
+    "lon": 21.762543,
+    "tz": null
+  },
+  {
+    "iata": "BFS",
+    "name": "Belfast International Airport",
+    "lat": 54.657501,
+    "lon": -6.21583,
+    "tz": null
+  },
+  {
+    "iata": "BHX",
+    "name": "Birmingham Airport",
+    "lat": 52.453899,
+    "lon": -1.74803,
+    "tz": null
+  },
+  {
+    "iata": "MAN",
+    "name": "Manchester Airport",
+    "lat": 53.349375,
+    "lon": -2.279521,
+    "tz": null
+  },
+  {
+    "iata": "CWL",
+    "name": "Cardiff International Airport",
+    "lat": 51.396702,
+    "lon": -3.34333,
+    "tz": null
+  },
+  {
+    "iata": "BRS",
+    "name": "Bristol Airport",
+    "lat": 51.382326,
+    "lon": -2.716453,
+    "tz": null
+  },
+  {
+    "iata": "LPL",
+    "name": "Liverpool John Lennon Airport",
+    "lat": 53.334863,
+    "lon": -2.849637,
+    "tz": null
+  },
+  {
+    "iata": "LTN",
+    "name": "London Luton Airport",
+    "lat": 51.874699,
+    "lon": -0.368333,
+    "tz": null
+  },
+  {
+    "iata": "LGW",
+    "name": "London Gatwick Airport",
+    "lat": 51.148744,
+    "lon": -0.185739,
+    "tz": null
+  },
+  {
+    "iata": "LHR",
+    "name": "London Heathrow Airport",
+    "lat": 51.470748,
+    "lon": -0.459909,
+    "tz": null
+  },
+  {
+    "iata": "LBA",
+    "name": "Leeds Bradford Airport",
+    "lat": 53.865898,
+    "lon": -1.66057,
+    "tz": null
+  },
+  {
+    "iata": "IOM",
+    "name": "Isle of Man Airport",
+    "lat": 54.083081,
+    "lon": -4.623871,
+    "tz": null
+  },
+  {
+    "iata": "NCL",
+    "name": "Newcastle International Airport",
+    "lat": 55.037958,
+    "lon": -1.689577,
+    "tz": null
+  },
+  {
+    "iata": "EMA",
+    "name": "East Midlands Airport",
+    "lat": 52.8311,
+    "lon": -1.32806,
+    "tz": null
+  },
+  {
+    "iata": "ABZ",
+    "name": "Aberdeen International Airport",
+    "lat": 57.2019,
+    "lon": -2.19778,
+    "tz": null
+  },
+  {
+    "iata": "GLA",
+    "name": "Glasgow Airport",
+    "lat": 55.871899,
+    "lon": -4.43306,
+    "tz": null
+  },
+  {
+    "iata": "EDI",
+    "name": "Edinburgh Airport",
+    "lat": 55.950145,
+    "lon": -3.372288,
+    "tz": null
+  },
+  {
+    "iata": "PIK",
+    "name": "Glasgow Prestwick Airport",
+    "lat": 55.501499,
+    "lon": -4.577182,
+    "tz": null
+  },
+  {
+    "iata": "STN",
+    "name": "London Stansted Airport",
+    "lat": 51.884998,
+    "lon": 0.235,
+    "tz": null
+  },
+  {
+    "iata": "MPN",
+    "name": "Mount Pleasant Airport / RAF Mount Pleasant",
+    "lat": -51.822642,
+    "lon": -58.445777,
+    "tz": null
+  },
+  {
+    "iata": "AMS",
+    "name": "Amsterdam Airport Schiphol",
+    "lat": 52.308601,
+    "lon": 4.76389,
+    "tz": null
+  },
+  {
+    "iata": "MST",
+    "name": "Maastricht Aachen Airport",
+    "lat": 50.911087,
+    "lon": 5.769401,
+    "tz": null
+  },
+  {
+    "iata": "EIN",
+    "name": "Eindhoven Airport",
+    "lat": 51.4501,
+    "lon": 5.37453,
+    "tz": null
+  },
+  {
+    "iata": "GRQ",
+    "name": "Groningen Airport Eelde",
+    "lat": 53.119107,
+    "lon": 6.577652,
+    "tz": null
+  },
+  {
+    "iata": "RTM",
+    "name": "Rotterdam The Hague Airport",
+    "lat": 51.956902,
+    "lon": 4.43722,
+    "tz": null
+  },
+  {
+    "iata": "ORK",
+    "name": "Cork International Airport",
+    "lat": 51.841301,
+    "lon": -8.49111,
+    "tz": null
+  },
+  {
+    "iata": "DUB",
+    "name": "Dublin Airport",
+    "lat": 53.428713,
+    "lon": -6.262121,
+    "tz": null
+  },
+  {
+    "iata": "NOC",
+    "name": "Ireland West Airport Knock",
+    "lat": 53.910439,
+    "lon": -8.817002,
+    "tz": null
+  },
+  {
+    "iata": "SNN",
+    "name": "Shannon Airport",
+    "lat": 52.702,
+    "lon": -8.92482,
+    "tz": null
+  },
+  {
+    "iata": "AAR",
+    "name": "Aarhus Airport",
+    "lat": 56.303331,
+    "lon": 10.618286,
+    "tz": null
+  },
+  {
+    "iata": "BLL",
+    "name": "Billund Airport",
+    "lat": 55.740335,
+    "lon": 9.157019,
+    "tz": null
+  },
+  {
+    "iata": "CPH",
+    "name": "Copenhagen Kastrup Airport",
+    "lat": 55.617901,
+    "lon": 12.656,
+    "tz": null
+  },
+  {
+    "iata": "ODE",
+    "name": "Odense Hans Christian Andersen Airport",
+    "lat": 55.475307,
+    "lon": 10.327206,
+    "tz": null
+  },
+  {
+    "iata": "FAE",
+    "name": "Vágar Airport",
+    "lat": 62.063256,
+    "lon": -7.275782,
+    "tz": null
+  },
+  {
+    "iata": "AAL",
+    "name": "Aalborg Airport",
+    "lat": 57.094763,
+    "lon": 9.84993,
+    "tz": null
+  },
+  {
+    "iata": "LUX",
+    "name": "Luxembourg-Findel International Airport",
+    "lat": 49.626845,
+    "lon": 6.212134,
+    "tz": null
+  },
+  {
+    "iata": "AES",
+    "name": "Ålesund Airport",
+    "lat": 62.560443,
+    "lon": 6.110845,
+    "tz": null
+  },
+  {
+    "iata": "BOO",
+    "name": "Bodø Airport",
+    "lat": 67.269203,
+    "lon": 14.3653,
+    "tz": null
+  },
+  {
+    "iata": "BGO",
+    "name": "Bergen Airport, Flesland",
+    "lat": 60.2934,
+    "lon": 5.21814,
+    "tz": null
+  },
+  {
+    "iata": "KRS",
+    "name": "Kristiansand Airport",
+    "lat": 58.204201,
+    "lon": 8.08537,
+    "tz": null
+  },
+  {
+    "iata": "EVE",
+    "name": "Harstad/Narvik Airport",
+    "lat": 68.491302,
+    "lon": 16.678101,
+    "tz": null
+  },
+  {
+    "iata": "OSL",
+    "name": "Oslo-Gardermoen International Airport",
+    "lat": 60.193901,
+    "lon": 11.1004,
+    "tz": null
+  },
+  {
+    "iata": "TOS",
+    "name": "Tromsø Airport",
+    "lat": 69.683296,
+    "lon": 18.9189,
+    "tz": null
+  },
+  {
+    "iata": "TRF",
+    "name": "Sandefjord Airport, Torp",
+    "lat": 59.186699,
+    "lon": 10.2586,
+    "tz": null
+  },
+  {
+    "iata": "TRD",
+    "name": "Trondheim Airport, Værnes",
+    "lat": 63.457802,
+    "lon": 10.924,
+    "tz": null
+  },
+  {
+    "iata": "SVG",
+    "name": "Stavanger Airport, Sola",
+    "lat": 58.876701,
+    "lon": 5.63778,
+    "tz": null
+  },
+  {
+    "iata": "GDN",
+    "name": "Gdańsk Lech Wałęsa Airport",
+    "lat": 54.377602,
+    "lon": 18.4662,
+    "tz": null
+  },
+  {
+    "iata": "KRK",
+    "name": "Kraków John Paul II International Airport",
+    "lat": 50.077702,
+    "lon": 19.7848,
+    "tz": null
+  },
+  {
+    "iata": "KTW",
+    "name": "Katowice Wojciech Korfanty International Airport",
+    "lat": 50.476015,
+    "lon": 19.080705,
+    "tz": null
+  },
+  {
+    "iata": "LUZ",
+    "name": "Lublin Airport",
+    "lat": 51.240157,
+    "lon": 22.713461,
+    "tz": null
+  },
+  {
+    "iata": "LCJ",
+    "name": "Łódź Władysław Reymont Airport",
+    "lat": 51.721901,
+    "lon": 19.3981,
+    "tz": null
+  },
+  {
+    "iata": "WMI",
+    "name": "Warsaw Modlin Airport",
+    "lat": 52.451099,
+    "lon": 20.6518,
+    "tz": null
+  },
+  {
+    "iata": "POZ",
+    "name": "Poznań-Ławica Airport",
+    "lat": 52.421598,
+    "lon": 16.823359,
+    "tz": null
+  },
+  {
+    "iata": "RZE",
+    "name": "Rzeszów-Jasionka Airport",
+    "lat": 50.109791,
+    "lon": 22.024155,
+    "tz": null
+  },
+  {
+    "iata": "SZZ",
+    "name": "Solidarity Szczecin–Goleniów Airport",
+    "lat": 53.584702,
+    "lon": 14.9022,
+    "tz": null
+  },
+  {
+    "iata": "WAW",
+    "name": "Warsaw Chopin Airport",
+    "lat": 52.165699,
+    "lon": 20.9671,
+    "tz": null
+  },
+  {
+    "iata": "WRO",
+    "name": "Copernicus Wrocław Airport",
+    "lat": 51.103719,
+    "lon": 16.882096,
+    "tz": null
+  },
+  {
+    "iata": "GOT",
+    "name": "Göteborg Landvetter Airport",
+    "lat": 57.6628,
+    "lon": 12.2798,
+    "tz": null
+  },
+  {
+    "iata": "NYO",
+    "name": "Stockholm Skavsta Airport",
+    "lat": 58.789656,
+    "lon": 16.911479,
+    "tz": null
+  },
+  {
+    "iata": "SCR",
+    "name": "Scandinavian Mountains Airport",
+    "lat": 61.16508,
+    "lon": 12.83352,
+    "tz": null
+  },
+  {
+    "iata": "MMX",
+    "name": "Malmö Sturup Airport",
+    "lat": 55.535564,
+    "lon": 13.376327,
+    "tz": null
+  },
+  {
+    "iata": "KRN",
+    "name": "Kiruna Airport",
+    "lat": 67.821999,
+    "lon": 20.3368,
+    "tz": null
+  },
+  {
+    "iata": "UME",
+    "name": "Umeå Airport",
+    "lat": 63.791801,
+    "lon": 20.282801,
+    "tz": null
+  },
+  {
+    "iata": "VST",
+    "name": "Stockholm Västerås Airport",
+    "lat": 59.589401,
+    "lon": 16.6336,
+    "tz": null
+  },
+  {
+    "iata": "LLA",
+    "name": "Luleå Airport",
+    "lat": 65.5438,
+    "lon": 22.122,
+    "tz": null
+  },
+  {
+    "iata": "ARN",
+    "name": "Stockholm-Arlanda Airport",
+    "lat": 59.64849,
+    "lon": 17.928829,
+    "tz": null
+  },
+  {
+    "iata": "LPI",
+    "name": "Linköping City Airport",
+    "lat": 58.404909,
+    "lon": 15.684499,
+    "tz": null
+  },
+  {
+    "iata": "VBY",
+    "name": "Visby Airport",
+    "lat": 57.6628,
+    "lon": 18.346201,
+    "tz": null
+  },
+  {
+    "iata": "LPX",
+    "name": "Liepāja International Airport",
+    "lat": 56.517502,
+    "lon": 21.096901,
+    "tz": null
+  },
+  {
+    "iata": "RIX",
+    "name": "Riga International Airport",
+    "lat": 56.920752,
+    "lon": 23.970711,
+    "tz": null
+  },
+  {
+    "iata": "KUN",
+    "name": "Kaunas International Airport",
+    "lat": 54.963965,
+    "lon": 24.08582,
+    "tz": null
+  },
+  {
+    "iata": "PLQ",
+    "name": "Palanga International Airport",
+    "lat": 55.973202,
+    "lon": 21.093901,
+    "tz": null
+  },
+  {
+    "iata": "VNO",
+    "name": "Vilnius International Airport",
+    "lat": 54.634102,
+    "lon": 25.285801,
+    "tz": null
+  },
+  {
+    "iata": "BFN",
+    "name": "Bram Fischer International Airport",
+    "lat": -29.092699,
+    "lon": 26.302401,
+    "tz": null
+  },
+  {
+    "iata": "CPT",
+    "name": "Cape Town International Airport",
+    "lat": -33.97403,
+    "lon": 18.604333,
+    "tz": null
+  },
+  {
+    "iata": "ELS",
+    "name": "King Phalo Airport",
+    "lat": -33.035599,
+    "lon": 27.825899,
+    "tz": null
+  },
+  {
+    "iata": "GRJ",
+    "name": "George Airport",
+    "lat": -34.0056,
+    "lon": 22.378902,
+    "tz": null
+  },
+  {
+    "iata": "KIM",
+    "name": "Kimberley Airport",
+    "lat": -28.805401,
+    "lon": 24.764872,
+    "tz": null
+  },
+  {
+    "iata": "MQP",
+    "name": "Kruger Mpumalanga International Airport",
+    "lat": -25.383327,
+    "lon": 31.105325,
+    "tz": null
+  },
+  {
+    "iata": "HLA",
+    "name": "Lanseria International Airport",
+    "lat": -25.938964,
+    "lon": 27.926642,
+    "tz": null
+  },
+  {
+    "iata": "DUR",
+    "name": "King Shaka International Airport",
+    "lat": -29.614444,
+    "lon": 31.119722,
+    "tz": null
+  },
+  {
+    "iata": "JNB",
+    "name": "O.R. Tambo International Airport",
+    "lat": -26.140081,
+    "lon": 28.246801,
+    "tz": null
+  },
+  {
+    "iata": "PLZ",
+    "name": "Chief Dawid Stuurman International Airport",
+    "lat": -33.989715,
+    "lon": 25.617353,
+    "tz": null
+  },
+  {
+    "iata": "PTG",
+    "name": "Polokwane International Airport",
+    "lat": -23.845269,
+    "lon": 29.458615,
+    "tz": null
+  },
+  {
+    "iata": "UTN",
+    "name": "Upington International Airport",
+    "lat": -28.400517,
+    "lon": 21.263357,
+    "tz": null
+  },
+  {
+    "iata": "FRW",
+    "name": "Phillip Gaonwe Matante International Airport",
+    "lat": -21.159183,
+    "lon": 27.468826,
+    "tz": null
+  },
+  {
+    "iata": "BBK",
+    "name": "Kasane International Airport",
+    "lat": -17.831653,
+    "lon": 25.166195,
+    "tz": null
+  },
+  {
+    "iata": "MUB",
+    "name": "Maun International Airport",
+    "lat": -19.970491,
+    "lon": 23.431409,
+    "tz": null
+  },
+  {
+    "iata": "GBE",
+    "name": "Sir Seretse Khama International Airport",
+    "lat": -24.555201,
+    "lon": 25.9182,
+    "tz": null
+  },
+  {
+    "iata": "BZV",
+    "name": "Maya-Maya International Airport",
+    "lat": -4.2517,
+    "lon": 15.253,
+    "tz": null
+  },
+  {
+    "iata": "PNR",
+    "name": "Antonio Agostinho-Neto International Airport",
+    "lat": -4.81603,
+    "lon": 11.8866,
+    "tz": null
+  },
+  {
+    "iata": "MTS",
+    "name": "Matsapha International Airport",
+    "lat": -26.528919,
+    "lon": 31.307577,
+    "tz": null
+  },
+  {
+    "iata": "SHO",
+    "name": "King Mswati III International Airport",
+    "lat": -26.358611,
+    "lon": 31.716944,
+    "tz": null
+  },
+  {
+    "iata": "BGF",
+    "name": "Bangui M'Poko International Airport",
+    "lat": 4.39848,
+    "lon": 18.518801,
+    "tz": null
+  },
+  {
+    "iata": "BSG",
+    "name": "Bata International Airport",
+    "lat": 1.90547,
+    "lon": 9.80568,
+    "tz": null
+  },
+  {
+    "iata": "GEM",
+    "name": "President Obiang Nguema International Airport",
+    "lat": 1.676437,
+    "lon": 11.024904,
+    "tz": null
+  },
+  {
+    "iata": "SSG",
+    "name": "Malabo International Airport",
+    "lat": 3.75527,
+    "lon": 8.70872,
+    "tz": null
+  },
+  {
+    "iata": "MRU",
+    "name": "Sir Seewoosagur Ramgoolam International Airport",
+    "lat": -20.430201,
+    "lon": 57.683601,
+    "tz": null
+  },
+  {
+    "iata": "DLA",
+    "name": "Douala International Airport",
+    "lat": 4.00608,
+    "lon": 9.71948,
+    "tz": null
+  },
+  {
+    "iata": "GOU",
+    "name": "Garoua International Airport",
+    "lat": 9.334785,
+    "lon": 13.372129,
+    "tz": null
+  },
+  {
+    "iata": "NSI",
+    "name": "Yaoundé Nsimalen International Airport",
+    "lat": 3.72256,
+    "lon": 11.5533,
+    "tz": null
+  },
+  {
+    "iata": "LVI",
+    "name": "Harry Mwanga Nkumbula International Airport",
+    "lat": -17.821524,
+    "lon": 25.819642,
+    "tz": null
+  },
+  {
+    "iata": "LUN",
+    "name": "Kenneth Kaunda International Airport",
+    "lat": -15.330833,
+    "lon": 28.452722,
+    "tz": null
+  },
+  {
+    "iata": "MFU",
+    "name": "Mfuwe International Airport",
+    "lat": -13.2589,
+    "lon": 31.9366,
+    "tz": null
+  },
+  {
+    "iata": "NLA",
+    "name": "Simon Mwansa Kapwepwe International Airport",
+    "lat": -12.96513,
+    "lon": 28.515624,
+    "tz": null
+  },
+  {
+    "iata": "HAH",
+    "name": "Prince Said Ibrahim International Airport",
+    "lat": -11.5337,
+    "lon": 43.2719,
+    "tz": null
+  },
+  {
+    "iata": "DZA",
+    "name": "Dzaoudzi Pamandzi International Airport",
+    "lat": -12.809319,
+    "lon": 45.281815,
+    "tz": null
+  },
+  {
+    "iata": "RUN",
+    "name": "Roland Garros Airport",
+    "lat": -20.890087,
+    "lon": 55.518894,
+    "tz": null
+  },
+  {
+    "iata": "ZSE",
+    "name": "Saint-Pierre Pierrefonds Airport",
+    "lat": -21.319362,
+    "lon": 55.422506,
+    "tz": null
+  },
+  {
+    "iata": "TNR",
+    "name": "Ivato International Airport",
+    "lat": -18.7969,
+    "lon": 47.478802,
+    "tz": null
+  },
+  {
+    "iata": "TMM",
+    "name": "Toamasina Ambalamanasy Airport",
+    "lat": -18.113537,
+    "lon": 49.392262,
+    "tz": null
+  },
+  {
+    "iata": "MJN",
+    "name": "Amborovy Airport",
+    "lat": -15.666842,
+    "lon": 46.351233,
+    "tz": null
+  },
+  {
+    "iata": "NBJ",
+    "name": "Dr. Antonio Agostinho Neto International Airport",
+    "lat": -9.050734,
+    "lon": 13.499078,
+    "tz": null
+  },
+  {
+    "iata": "LAD",
+    "name": "Quatro de Fevereiro International Airport",
+    "lat": -8.85837,
+    "lon": 13.2312,
+    "tz": null
+  },
+  {
+    "iata": "POG",
+    "name": "Port Gentil International Airport",
+    "lat": -0.711739,
+    "lon": 8.75438,
+    "tz": null
+  },
+  {
+    "iata": "LBV",
+    "name": "Libreville Leon M'ba International Airport",
+    "lat": 0.458951,
+    "lon": 9.41214,
+    "tz": null
+  },
+  {
+    "iata": "MVB",
+    "name": "M'Vengue El Hadj Omar Bongo Ondimba International Airport",
+    "lat": -1.65616,
+    "lon": 13.438,
+    "tz": null
+  },
+  {
+    "iata": "TMS",
+    "name": "São Tomé International Airport",
+    "lat": 0.378175,
+    "lon": 6.71215,
+    "tz": null
+  },
+  {
+    "iata": "BEW",
+    "name": "Beira International Airport",
+    "lat": -19.7964,
+    "lon": 34.9076,
+    "tz": null
+  },
+  {
+    "iata": "MPM",
+    "name": "Maputo Airport",
+    "lat": -25.920799,
+    "lon": 32.572601,
+    "tz": null
+  },
+  {
+    "iata": "APL",
+    "name": "Nampula Airport",
+    "lat": -15.1056,
+    "lon": 39.281799,
+    "tz": null
+  },
+  {
+    "iata": "TET",
+    "name": "Tete Airport",
+    "lat": -16.104799,
+    "lon": 33.640202,
+    "tz": null
+  },
+  {
+    "iata": "SEZ",
+    "name": "Seychelles International Airport",
+    "lat": -4.67434,
+    "lon": 55.521801,
+    "tz": null
+  },
+  {
+    "iata": "NDJ",
+    "name": "N'Djamena International Airport",
+    "lat": 12.1337,
+    "lon": 15.034,
+    "tz": null
+  },
+  {
+    "iata": "BUQ",
+    "name": "Joshua Mqabuko Nkomo International Airport",
+    "lat": -20.016284,
+    "lon": 28.622897,
+    "tz": null
+  },
+  {
+    "iata": "VFA",
+    "name": "Victoria Falls International Airport",
+    "lat": -18.097437,
+    "lon": 25.836867,
+    "tz": null
+  },
+  {
+    "iata": "HRE",
+    "name": "Robert Gabriel Mugabe International Airport",
+    "lat": -17.931801,
+    "lon": 31.0928,
+    "tz": null
+  },
+  {
+    "iata": "BLZ",
+    "name": "Chileka International Airport",
+    "lat": -15.677189,
+    "lon": 34.972319,
+    "tz": null
+  },
+  {
+    "iata": "LLW",
+    "name": "Kamuzu International Airport",
+    "lat": -13.7894,
+    "lon": 33.780998,
+    "tz": null
+  },
+  {
+    "iata": "MSU",
+    "name": "Moshoeshoe I International Airport",
+    "lat": -29.456277,
+    "lon": 27.554456,
+    "tz": null
+  },
+  {
+    "iata": "WVB",
+    "name": "Walvis Bay International Airport",
+    "lat": -22.979332,
+    "lon": 14.647102,
+    "tz": null
+  },
+  {
+    "iata": "WDH",
+    "name": "Hosea Kutako International Airport",
+    "lat": -22.4799,
+    "lon": 17.4709,
+    "tz": null
+  },
+  {
+    "iata": "FIH",
+    "name": "Ndjili International Airport",
+    "lat": -4.38575,
+    "lon": 15.4446,
+    "tz": null
+  },
+  {
+    "iata": "FKI",
+    "name": "Bangoka International Airport",
+    "lat": 0.481639,
+    "lon": 25.337999,
+    "tz": null
+  },
+  {
+    "iata": "GOM",
+    "name": "Goma International Airport",
+    "lat": -1.666758,
+    "lon": 29.238037,
+    "tz": null
+  },
+  {
+    "iata": "FBM",
+    "name": "Lubumbashi International Airport",
+    "lat": -11.591494,
+    "lon": 27.530753,
+    "tz": null
+  },
+  {
+    "iata": "BKO",
+    "name": "Modibo Keita International Airport",
+    "lat": 12.5335,
+    "lon": -7.94994,
+    "tz": null
+  },
+  {
+    "iata": "TOM",
+    "name": "Tombouktou Airport",
+    "lat": 16.730499,
+    "lon": -3.00758,
+    "tz": null
+  },
+  {
+    "iata": "BJL",
+    "name": "Banjul International Airport",
+    "lat": 13.338,
+    "lon": -16.652201,
+    "tz": null
+  },
+  {
+    "iata": "FUE",
+    "name": "Fuerteventura Airport",
+    "lat": 28.4527,
+    "lon": -13.8638,
+    "tz": null
+  },
+  {
+    "iata": "LPA",
+    "name": "Gran Canaria Airport",
+    "lat": 27.9319,
+    "lon": -15.3866,
+    "tz": null
+  },
+  {
+    "iata": "ACE",
+    "name": "César Manrique-Lanzarote Airport",
+    "lat": 28.945499,
+    "lon": -13.6052,
+    "tz": null
+  },
+  {
+    "iata": "TFS",
+    "name": "Tenerife Sur Airport",
+    "lat": 28.0445,
+    "lon": -16.5725,
+    "tz": null
+  },
+  {
+    "iata": "TFN",
+    "name": "Tenerife Norte-Ciudad de La Laguna Airport",
+    "lat": 28.482752,
+    "lon": -16.341707,
+    "tz": null
+  },
+  {
+    "iata": "FNA",
+    "name": "Lungi International Airport",
+    "lat": 8.61644,
+    "lon": -13.1955,
+    "tz": null
+  },
+  {
+    "iata": "OXB",
+    "name": "Osvaldo Vieira International Airport",
+    "lat": 11.894262,
+    "lon": -15.653596,
+    "tz": null
+  },
+  {
+    "iata": "ROB",
+    "name": "Roberts International Airport",
+    "lat": 6.23379,
+    "lon": -10.3623,
+    "tz": null
+  },
+  {
+    "iata": "AGA",
+    "name": "Al Massira Airport",
+    "lat": 30.322478,
+    "lon": -9.412003,
+    "tz": null
+  },
+  {
+    "iata": "OZG",
+    "name": "Zagora Airport",
+    "lat": 30.265788,
+    "lon": -5.860808,
+    "tz": null
+  },
+  {
+    "iata": "FEZ",
+    "name": "Fes Saïss International Airport",
+    "lat": 33.927299,
+    "lon": -4.97796,
+    "tz": null
+  },
+  {
+    "iata": "OUD",
+    "name": "Oujda Angads Airport",
+    "lat": 34.789558,
+    "lon": -1.926041,
+    "tz": null
+  },
+  {
+    "iata": "SMW",
+    "name": "Smara Airport",
+    "lat": 26.731987,
+    "lon": -11.683655,
+    "tz": null
+  },
+  {
+    "iata": "BEM",
+    "name": "Beni Mellal Airport",
+    "lat": 32.401895,
+    "lon": -6.315905,
+    "tz": null
+  },
+  {
+    "iata": "RBA",
+    "name": "Rabat-Salé Airport",
+    "lat": 34.051498,
+    "lon": -6.75152,
+    "tz": null
+  },
+  {
+    "iata": "VIL",
+    "name": "Dakhla Airport",
+    "lat": 23.7183,
+    "lon": -15.932,
+    "tz": null
+  },
+  {
+    "iata": "EUN",
+    "name": "Laayoune Hassan I International Airport",
+    "lat": 27.142467,
+    "lon": -13.224947,
+    "tz": null
+  },
+  {
+    "iata": "CMN",
+    "name": "Mohammed V International Airport",
+    "lat": 33.3675,
+    "lon": -7.58997,
+    "tz": null
+  },
+  {
+    "iata": "NDR",
+    "name": "Nador Al Aaroui International Airport",
+    "lat": 34.9888,
+    "lon": -3.02821,
+    "tz": null
+  },
+  {
+    "iata": "RAK",
+    "name": "Marrakesh Menara Airport",
+    "lat": 31.604807,
+    "lon": -8.035788,
+    "tz": null
+  },
+  {
+    "iata": "OZZ",
+    "name": "Ouarzazate International Airport",
+    "lat": 30.9391,
+    "lon": -6.90943,
+    "tz": null
+  },
+  {
+    "iata": "TTU",
+    "name": "Sania Ramel Airport",
+    "lat": 35.594299,
+    "lon": -5.32002,
+    "tz": null
+  },
+  {
+    "iata": "TNG",
+    "name": "Tangier Ibn Battuta Airport",
+    "lat": 35.731741,
+    "lon": -5.921459,
+    "tz": null
+  },
+  {
+    "iata": "DSS",
+    "name": "Blaise Diagne International Airport",
+    "lat": 14.670878,
+    "lon": -17.072829,
+    "tz": null
+  },
+  {
+    "iata": "DKR",
+    "name": "Léopold Sédar Senghor International Airport",
+    "lat": 14.742337,
+    "lon": -17.479222,
+    "tz": null
+  },
+  {
+    "iata": "NKC",
+    "name": "Nouakchott–Oumtounsy International Airport",
+    "lat": 18.31,
+    "lon": -15.969722,
+    "tz": null
+  },
+  {
+    "iata": "ATR",
+    "name": "Atar International Airport",
+    "lat": 20.505823,
+    "lon": -13.043744,
+    "tz": null
+  },
+  {
+    "iata": "NDB",
+    "name": "Nouadhibou International Airport",
+    "lat": 20.932404,
+    "lon": -17.030199,
+    "tz": null
+  },
+  {
+    "iata": "CKY",
+    "name": "Ahmed Sékou Touré International Airport",
+    "lat": 9.57689,
+    "lon": -13.612,
+    "tz": null
+  },
+  {
+    "iata": "SID",
+    "name": "Amílcar Cabral International Airport",
+    "lat": 16.7414,
+    "lon": -22.9494,
+    "tz": null
+  },
+  {
+    "iata": "BVC",
+    "name": "Aristides Pereira International Airport",
+    "lat": 16.136499,
+    "lon": -22.888901,
+    "tz": null
+  },
+  {
+    "iata": "RAI",
+    "name": "Nelson Mandela International Airport",
+    "lat": 14.941126,
+    "lon": -23.484728,
+    "tz": null
+  },
+  {
+    "iata": "VXE",
+    "name": "Cesaria Evora International Airport",
+    "lat": 16.833363,
+    "lon": -25.055308,
+    "tz": null
+  },
+  {
+    "iata": "ADD",
+    "name": "Addis Ababa Bole International Airport",
+    "lat": 8.97789,
+    "lon": 38.799301,
+    "tz": null
+  },
+  {
+    "iata": "DIR",
+    "name": "Aba Tenna Dejazmach Yilma International Airport",
+    "lat": 9.623549,
+    "lon": 41.855027,
+    "tz": null
+  },
+  {
+    "iata": "JIJ",
+    "name": "Gerad Wilwal International Airport",
+    "lat": 9.331907,
+    "lon": 42.911811,
+    "tz": null
+  },
+  {
+    "iata": "AWA",
+    "name": "Hawassa International Airport",
+    "lat": 7.100611,
+    "lon": 38.396455,
+    "tz": null
+  },
+  {
+    "iata": "BJM",
+    "name": "Bujumbura Melchior Ndadaye International Airport",
+    "lat": -3.32402,
+    "lon": 29.318501,
+    "tz": null
+  },
+  {
+    "iata": "BSA",
+    "name": "Bender Qassim International Airport",
+    "lat": 11.275235,
+    "lon": 49.139231,
+    "tz": null
+  },
+  {
+    "iata": "HGA",
+    "name": "Egal International Airport",
+    "lat": 9.514082,
+    "lon": 44.083469,
+    "tz": null
+  },
+  {
+    "iata": "MGQ",
+    "name": "Aden Adde International Airport",
+    "lat": 2.01444,
+    "lon": 45.304699,
+    "tz": null
+  },
+  {
+    "iata": "JIB",
+    "name": "Djibouti-Ambouli Airport",
+    "lat": 11.5473,
+    "lon": 43.1595,
+    "tz": null
+  },
+  {
+    "iata": "RDL",
+    "name": "Bardawil International Airport",
+    "lat": 30.410714,
+    "lon": 33.15535,
+    "tz": null
+  },
+  {
+    "iata": "DBB",
+    "name": "El Alamein International Airport",
+    "lat": 30.924324,
+    "lon": 28.46161,
+    "tz": null
+  },
+  {
+    "iata": "AAC",
+    "name": "El Arish International Airport",
+    "lat": 31.055324,
+    "lon": 33.827964,
+    "tz": null
+  },
+  {
+    "iata": "ATZ",
+    "name": "Asyut International Airport",
+    "lat": 27.045962,
+    "lon": 31.01276,
+    "tz": null
+  },
+  {
+    "iata": "HBE",
+    "name": "Alexandria International Airport",
+    "lat": 30.93249,
+    "lon": 29.696437,
+    "tz": null
+  },
+  {
+    "iata": "ABS",
+    "name": "Abu Simbel Airport",
+    "lat": 22.374402,
+    "lon": 31.609881,
+    "tz": null
+  },
+  {
+    "iata": "CAI",
+    "name": "Cairo International Airport",
+    "lat": 30.111534,
+    "lon": 31.396694,
+    "tz": null
+  },
+  {
+    "iata": "CCE",
+    "name": "Capital International Airport",
+    "lat": 30.06465,
+    "lon": 31.839974,
+    "tz": null
+  },
+  {
+    "iata": "HRG",
+    "name": "Hurghada International Airport",
+    "lat": 27.176776,
+    "lon": 33.796692,
+    "tz": null
+  },
+  {
+    "iata": "LXR",
+    "name": "Luxor International Airport",
+    "lat": 25.671018,
+    "lon": 32.706446,
+    "tz": null
+  },
+  {
+    "iata": "RMF",
+    "name": "Marsa Alam International Airport",
+    "lat": 25.555548,
+    "lon": 34.59245,
+    "tz": null
+  },
+  {
+    "iata": "MUH",
+    "name": "Mersa Matruh International Airport",
+    "lat": 31.324313,
+    "lon": 27.22227,
+    "tz": null
+  },
+  {
+    "iata": "PSD",
+    "name": "Port Said International Airport",
+    "lat": 31.279285,
+    "lon": 32.240582,
+    "tz": null
+  },
+  {
+    "iata": "SKV",
+    "name": "Saint Catherine International Airport",
+    "lat": 28.684292,
+    "lon": 34.064409,
+    "tz": null
+  },
+  {
+    "iata": "HMB",
+    "name": "Sohag International Airport",
+    "lat": 26.342515,
+    "lon": 31.743017,
+    "tz": null
+  },
+  {
+    "iata": "SSH",
+    "name": "Sharm El Sheikh International Airport",
+    "lat": 27.977272,
+    "lon": 34.394717,
+    "tz": null
+  },
+  {
+    "iata": "ASW",
+    "name": "Aswan International Airport",
+    "lat": 23.961075,
+    "lon": 32.820382,
+    "tz": null
+  },
+  {
+    "iata": "SPX",
+    "name": "Sphinx International Airport",
+    "lat": 30.108179,
+    "lon": 30.895728,
+    "tz": null
+  },
+  {
+    "iata": "TCP",
+    "name": "Taba International Airport",
+    "lat": 29.594496,
+    "lon": 34.775752,
+    "tz": null
+  },
+  {
+    "iata": "ASM",
+    "name": "Asmara International Airport",
+    "lat": 15.2919,
+    "lon": 38.910702,
+    "tz": null
+  },
+  {
+    "iata": "ASA",
+    "name": "Assab International Airport",
+    "lat": 13.0718,
+    "lon": 42.645,
+    "tz": null
+  },
+  {
+    "iata": "JUB",
+    "name": "Juba International Airport",
+    "lat": 4.87201,
+    "lon": 31.601101,
+    "tz": null
+  },
+  {
+    "iata": "EDL",
+    "name": "Eldoret International Airport",
+    "lat": 0.404458,
+    "lon": 35.238899,
+    "tz": null
+  },
+  {
+    "iata": "NBO",
+    "name": "Jomo Kenyatta International Airport",
+    "lat": -1.31924,
+    "lon": 36.927799,
+    "tz": null
+  },
+  {
+    "iata": "KIS",
+    "name": "Kisumu International Airport",
+    "lat": -0.086139,
+    "lon": 34.728901,
+    "tz": null
+  },
+  {
+    "iata": "MBA",
+    "name": "Moi International Airport",
+    "lat": -4.03483,
+    "lon": 39.5942,
+    "tz": null
+  },
+  {
+    "iata": "SRX",
+    "name": "Sirt International Airport / Ghardabiya Airbase",
+    "lat": 31.058578,
+    "lon": 16.597095,
+    "tz": null
+  },
+  {
+    "iata": "BEN",
+    "name": "Benina International Airport",
+    "lat": 32.096802,
+    "lon": 20.269501,
+    "tz": null
+  },
+  {
+    "iata": "MJI",
+    "name": "Mitiga International Airport",
+    "lat": 32.89177,
+    "lon": 13.287878,
+    "tz": null
+  },
+  {
+    "iata": "LAQ",
+    "name": "Al Abraq International Airport",
+    "lat": 32.789036,
+    "lon": 21.954864,
+    "tz": null
+  },
+  {
+    "iata": "KGL",
+    "name": "Kigali International Airport",
+    "lat": -1.96863,
+    "lon": 30.1395,
+    "tz": null
+  },
+  {
+    "iata": "PZU",
+    "name": "Port Sudan New International Airport",
+    "lat": 19.434558,
+    "lon": 37.234125,
+    "tz": null
+  },
+  {
+    "iata": "KRT",
+    "name": "Khartoum International Airport",
+    "lat": 15.5895,
+    "lon": 32.5532,
+    "tz": null
+  },
+  {
+    "iata": "DAR",
+    "name": "Julius Nyerere International Airport",
+    "lat": -6.873499,
+    "lon": 39.207288,
+    "tz": null
+  },
+  {
+    "iata": "JRO",
+    "name": "Kilimanjaro International Airport",
+    "lat": -3.427049,
+    "lon": 37.07353,
+    "tz": null
+  },
+  {
+    "iata": "MWZ",
+    "name": "Mwanza International Airport",
+    "lat": -2.446563,
+    "lon": 32.936049,
+    "tz": null
+  },
+  {
+    "iata": "ZNZ",
+    "name": "Abeid Amani Karume International Airport",
+    "lat": -6.22202,
+    "lon": 39.224899,
+    "tz": null
+  },
+  {
+    "iata": "EBB",
+    "name": "Entebbe International Airport",
+    "lat": 0.042386,
+    "lon": 32.443501,
+    "tz": null
+  },
+  {
+    "iata": "DHX",
+    "name": "Dhoho International Airport",
+    "lat": -7.750278,
+    "lon": 111.947222,
+    "tz": null
+  },
+  {
+    "iata": "NMI",
+    "name": "Navi Mumbai International Airport",
+    "lat": 18.984597,
+    "lon": 73.065253,
+    "tz": null
+  },
+  {
+    "iata": "DXN",
+    "name": "Noida International Airport",
+    "lat": 28.179868,
+    "lon": 77.611843,
+    "tz": null
+  },
+  {
+    "iata": "ABQ",
+    "name": "Albuquerque International Sunport",
+    "lat": 35.039976,
+    "lon": -106.608925,
+    "tz": null
+  },
+  {
+    "iata": "ALB",
+    "name": "Albany International Airport",
+    "lat": 42.748299,
+    "lon": -73.801697,
+    "tz": null
+  },
+  {
+    "iata": "ATL",
+    "name": "Hartsfield Jackson Atlanta International Airport",
+    "lat": 33.6367,
+    "lon": -84.428101,
+    "tz": null
+  },
+  {
+    "iata": "AUS",
+    "name": "Austin Bergstrom International Airport",
+    "lat": 30.197535,
+    "lon": -97.662015,
+    "tz": null
+  },
+  {
+    "iata": "BDL",
+    "name": "Bradley International Airport",
+    "lat": 41.938555,
+    "lon": -72.688016,
+    "tz": null
+  },
+  {
+    "iata": "BHM",
+    "name": "Birmingham-Shuttlesworth International Airport",
+    "lat": 33.562877,
+    "lon": -86.750712,
+    "tz": null
+  },
+  {
+    "iata": "BNA",
+    "name": "Nashville International Airport",
+    "lat": 36.1245,
+    "lon": -86.6782,
+    "tz": null
+  },
+  {
+    "iata": "BOI",
+    "name": "Boise Air Terminal/Gowen Field",
+    "lat": 43.5644,
+    "lon": -116.223,
+    "tz": null
+  },
+  {
+    "iata": "BOS",
+    "name": "Boston Logan International Airport",
+    "lat": 42.36197,
+    "lon": -71.0079,
+    "tz": null
+  },
+  {
+    "iata": "BUF",
+    "name": "Buffalo Niagara International Airport",
+    "lat": 42.940498,
+    "lon": -78.732201,
+    "tz": null
+  },
+  {
+    "iata": "BUR",
+    "name": "Bobe Hope / Hollywood Burbank Airport",
+    "lat": 34.202834,
+    "lon": -118.35805,
+    "tz": null
+  },
+  {
+    "iata": "BWI",
+    "name": "Baltimore/Washington International Thurgood Marshall Airport",
+    "lat": 39.1754,
+    "lon": -76.668297,
+    "tz": null
+  },
+  {
+    "iata": "CHS",
+    "name": "Charleston International Airport",
+    "lat": 32.896159,
+    "lon": -80.038151,
+    "tz": null
+  },
+  {
+    "iata": "CLE",
+    "name": "Cleveland Hopkins International Airport",
+    "lat": 41.411701,
+    "lon": -81.8498,
+    "tz": null
+  },
+  {
+    "iata": "CLT",
+    "name": "Charlotte Douglas International Airport",
+    "lat": 35.214001,
+    "lon": -80.9431,
+    "tz": null
+  },
+  {
+    "iata": "CMH",
+    "name": "John Glenn Columbus International Airport",
+    "lat": 39.998001,
+    "lon": -82.891899,
+    "tz": null
+  },
+  {
+    "iata": "COS",
+    "name": "City of Colorado Springs Municipal Airport",
+    "lat": 38.805801,
+    "lon": -104.700996,
+    "tz": null
+  },
+  {
+    "iata": "CVG",
+    "name": "Cincinnati Northern Kentucky International Airport",
+    "lat": 39.048801,
+    "lon": -84.667801,
+    "tz": null
+  },
+  {
+    "iata": "DAL",
+    "name": "Dallas Love Field",
+    "lat": 32.844776,
+    "lon": -96.847653,
+    "tz": null
+  },
+  {
+    "iata": "DCA",
+    "name": "Ronald Reagan Washington National Airport",
+    "lat": 38.8521,
+    "lon": -77.037697,
+    "tz": null
+  },
+  {
+    "iata": "DEN",
+    "name": "Denver International Airport",
+    "lat": 39.860027,
+    "lon": -104.673792,
+    "tz": null
+  },
+  {
+    "iata": "DFW",
+    "name": "Dallas Fort Worth International Airport",
+    "lat": 32.896801,
+    "lon": -97.038002,
+    "tz": null
+  },
+  {
+    "iata": "DSM",
+    "name": "Des Moines International Airport",
+    "lat": 41.534027,
+    "lon": -93.656719,
+    "tz": null
+  },
+  {
+    "iata": "DTW",
+    "name": "Detroit Metropolitan Wayne County Airport",
+    "lat": 42.21377,
+    "lon": -83.353786,
+    "tz": null
+  },
+  {
+    "iata": "ELP",
+    "name": "El Paso International Airport",
+    "lat": 31.809908,
+    "lon": -106.375607,
+    "tz": null
+  },
+  {
+    "iata": "EWR",
+    "name": "Newark Liberty International Airport",
+    "lat": 40.692501,
+    "lon": -74.168701,
+    "tz": null
+  },
+  {
+    "iata": "FAT",
+    "name": "Fresno Yosemite International Airport",
+    "lat": 36.775767,
+    "lon": -119.718018,
+    "tz": null
+  },
+  {
+    "iata": "FLL",
+    "name": "Fort Lauderdale Hollywood International Airport",
+    "lat": 26.072599,
+    "lon": -80.152702,
+    "tz": null
+  },
+  {
+    "iata": "GEG",
+    "name": "Spokane International Airport",
+    "lat": 47.6199,
+    "lon": -117.533997,
+    "tz": null
+  },
+  {
+    "iata": "GRR",
+    "name": "Gerald R. Ford International Airport",
+    "lat": 42.880798,
+    "lon": -85.522797,
+    "tz": null
+  },
+  {
+    "iata": "GSO",
+    "name": "Piedmont Triad International Airport",
+    "lat": 36.09937,
+    "lon": -79.937262,
+    "tz": null
+  },
+  {
+    "iata": "DSY",
+    "name": "Dara Sakor International Airport",
+    "lat": 10.914244,
+    "lon": 103.226652,
+    "tz": null
+  },
+  {
+    "iata": "KTI",
+    "name": "Techo International Airport",
+    "lat": 11.359987,
+    "lon": 104.921272,
+    "tz": null
+  },
+  {
+    "iata": "HOU",
+    "name": "William P. Hobby Airport",
+    "lat": 29.645336,
+    "lon": -95.276812,
+    "tz": null
+  },
+  {
+    "iata": "IAD",
+    "name": "Washington Dulles International Airport",
+    "lat": 38.9445,
+    "lon": -77.455803,
+    "tz": null
+  },
+  {
+    "iata": "IAH",
+    "name": "George Bush Intercontinental Airport",
+    "lat": 29.9844,
+    "lon": -95.3414,
+    "tz": null
+  },
+  {
+    "iata": "IND",
+    "name": "Indianapolis International Airport",
+    "lat": 39.7173,
+    "lon": -86.294403,
+    "tz": null
+  },
+  {
+    "iata": "JAX",
+    "name": "Jacksonville International Airport",
+    "lat": 30.492469,
+    "lon": -81.687813,
+    "tz": null
+  },
+  {
+    "iata": "JFK",
+    "name": "John F. Kennedy International Airport",
+    "lat": 40.639447,
+    "lon": -73.779317,
+    "tz": null
+  },
+  {
+    "iata": "LAS",
+    "name": "Harry Reid International Airport",
+    "lat": 36.083361,
+    "lon": -115.151817,
+    "tz": null
+  },
+  {
+    "iata": "LAX",
+    "name": "Los Angeles International Airport",
+    "lat": 33.942501,
+    "lon": -118.407997,
+    "tz": null
+  },
+  {
+    "iata": "LGA",
+    "name": "LaGuardia Airport",
+    "lat": 40.777199,
+    "lon": -73.872597,
+    "tz": null
+  },
+  {
+    "iata": "LGB",
+    "name": "Long Beach International Airport",
+    "lat": 33.816523,
+    "lon": -118.149891,
+    "tz": null
+  },
+  {
+    "iata": "MCI",
+    "name": "Kansas City International Airport",
+    "lat": 39.301699,
+    "lon": -94.713893,
+    "tz": null
+  },
+  {
+    "iata": "MCO",
+    "name": "Orlando International Airport",
+    "lat": 28.429399,
+    "lon": -81.308998,
+    "tz": null
+  },
+  {
+    "iata": "MDW",
+    "name": "Chicago Midway International Airport",
+    "lat": 41.785999,
+    "lon": -87.752403,
+    "tz": null
+  },
+  {
+    "iata": "MEM",
+    "name": "Memphis International Airport",
+    "lat": 35.043845,
+    "lon": -89.97634,
+    "tz": null
+  },
+  {
+    "iata": "MIA",
+    "name": "Miami International Airport",
+    "lat": 25.7932,
+    "lon": -80.290604,
+    "tz": null
+  },
+  {
+    "iata": "MKE",
+    "name": "General Mitchell International Airport",
+    "lat": 42.947201,
+    "lon": -87.896599,
+    "tz": null
+  },
+  {
+    "iata": "MSP",
+    "name": "Minneapolis–Saint Paul International Airport / Wold–Chamberlain Field",
+    "lat": 44.880081,
+    "lon": -93.221741,
+    "tz": null
+  },
+  {
+    "iata": "MSY",
+    "name": "Louis Armstrong New Orleans International Airport",
+    "lat": 29.993401,
+    "lon": -90.258003,
+    "tz": null
+  },
+  {
+    "iata": "MYR",
+    "name": "Myrtle Beach International Airport",
+    "lat": 33.679699,
+    "lon": -78.928299,
+    "tz": null
+  },
+  {
+    "iata": "OAK",
+    "name": "San Francisco Bay Oakland International Airport",
+    "lat": 37.720085,
+    "lon": -122.221184,
+    "tz": null
+  },
+  {
+    "iata": "OKC",
+    "name": "OKC Will Rogers World Airport",
+    "lat": 35.393388,
+    "lon": -97.598248,
+    "tz": null
+  },
+  {
+    "iata": "OMA",
+    "name": "Eppley Airfield",
+    "lat": 41.3032,
+    "lon": -95.894096,
+    "tz": null
+  },
+  {
+    "iata": "ONT",
+    "name": "Ontario International Airport",
+    "lat": 34.056,
+    "lon": -117.600998,
+    "tz": null
+  },
+  {
+    "iata": "ORD",
+    "name": "Chicago O'Hare International Airport",
+    "lat": 41.9786,
+    "lon": -87.9048,
+    "tz": null
+  },
+  {
+    "iata": "ORF",
+    "name": "Norfolk International Airport",
+    "lat": 36.895341,
+    "lon": -76.201,
+    "tz": null
+  },
+  {
+    "iata": "PBI",
+    "name": "Palm Beach International Airport",
+    "lat": 26.683201,
+    "lon": -80.095596,
+    "tz": null
+  },
+  {
+    "iata": "PDX",
+    "name": "Portland International Airport",
+    "lat": 45.588699,
+    "lon": -122.598,
+    "tz": null
+  },
+  {
+    "iata": "PHL",
+    "name": "Philadelphia International Airport",
+    "lat": 39.871899,
+    "lon": -75.241096,
+    "tz": null
+  },
+  {
+    "iata": "PHX",
+    "name": "Phoenix Sky Harbor International Airport",
+    "lat": 33.435302,
+    "lon": -112.005905,
+    "tz": null
+  },
+  {
+    "iata": "PIE",
+    "name": "St. Petersburg Clearwater International Airport",
+    "lat": 27.9102,
+    "lon": -82.687401,
+    "tz": null
+  },
+  {
+    "iata": "PIT",
+    "name": "Pittsburgh International Airport",
+    "lat": 40.491501,
+    "lon": -80.232903,
+    "tz": null
+  },
+  {
+    "iata": "PNS",
+    "name": "Pensacola International Airport",
+    "lat": 30.472718,
+    "lon": -87.186639,
+    "tz": null
+  },
+  {
+    "iata": "PSP",
+    "name": "Palm Springs International Airport",
+    "lat": 33.8297,
+    "lon": -116.507004,
+    "tz": null
+  },
+  {
+    "iata": "PVD",
+    "name": "Rhode Island T. F. Green International Airport",
+    "lat": 41.725038,
+    "lon": -71.425668,
+    "tz": null
+  },
+  {
+    "iata": "PWM",
+    "name": "Portland International Jetport",
+    "lat": 43.646198,
+    "lon": -70.309303,
+    "tz": null
+  },
+  {
+    "iata": "RDU",
+    "name": "Raleigh-Durham International Airport",
+    "lat": 35.878659,
+    "lon": -78.7873,
+    "tz": null
+  },
+  {
+    "iata": "RIC",
+    "name": "Richmond International Airport",
+    "lat": 37.505199,
+    "lon": -77.319702,
+    "tz": null
+  },
+  {
+    "iata": "RNO",
+    "name": "Reno Tahoe International Airport",
+    "lat": 39.4991,
+    "lon": -119.767998,
+    "tz": null
+  },
+  {
+    "iata": "ROC",
+    "name": "Frederick Douglass Greater Rochester International Airport",
+    "lat": 43.1189,
+    "lon": -77.672401,
+    "tz": null
+  },
+  {
+    "iata": "RSW",
+    "name": "Southwest Florida International Airport",
+    "lat": 26.534685,
+    "lon": -81.752816,
+    "tz": null
+  },
+  {
+    "iata": "SAN",
+    "name": "San Diego International Airport",
+    "lat": 32.733601,
+    "lon": -117.190002,
+    "tz": null
+  },
+  {
+    "iata": "SAT",
+    "name": "San Antonio International Airport",
+    "lat": 29.533701,
+    "lon": -98.469803,
+    "tz": null
+  },
+  {
+    "iata": "SAV",
+    "name": "Savannah Hilton Head International Airport",
+    "lat": 32.126591,
+    "lon": -81.19998,
+    "tz": null
+  },
+  {
+    "iata": "SBD",
+    "name": "San Bernardino International Airport",
+    "lat": 34.096717,
+    "lon": -117.236596,
+    "tz": null
+  },
+  {
+    "iata": "SDF",
+    "name": "Louisville Muhammad Ali International Airport",
+    "lat": 38.1706,
+    "lon": -85.735076,
+    "tz": null
+  },
+  {
+    "iata": "SEA",
+    "name": "Seattle–Tacoma International Airport",
+    "lat": 47.447943,
+    "lon": -122.310276,
+    "tz": null
+  },
+  {
+    "iata": "SFB",
+    "name": "Orlando Sanford International Airport",
+    "lat": 28.774277,
+    "lon": -81.234626,
+    "tz": null
+  },
+  {
+    "iata": "SFO",
+    "name": "San Francisco International Airport",
+    "lat": 37.619806,
+    "lon": -122.374821,
+    "tz": null
+  },
+  {
+    "iata": "SJC",
+    "name": "Norman Y. Mineta San Jose International Airport",
+    "lat": 37.362452,
+    "lon": -121.929188,
+    "tz": null
+  },
+  {
+    "iata": "SLC",
+    "name": "Salt Lake City International Airport",
+    "lat": 40.78886,
+    "lon": -111.979866,
+    "tz": null
+  },
+  {
+    "iata": "SMF",
+    "name": "Sacramento International Airport",
+    "lat": 38.6954,
+    "lon": -121.591003,
+    "tz": null
+  },
+  {
+    "iata": "SNA",
+    "name": "John Wayne Orange County International Airport",
+    "lat": 33.675063,
+    "lon": -117.869281,
+    "tz": null
+  },
+  {
+    "iata": "SRQ",
+    "name": "Sarasota Bradenton International Airport",
+    "lat": 27.394631,
+    "lon": -82.554359,
+    "tz": null
+  },
+  {
+    "iata": "STL",
+    "name": "St. Louis Lambert International Airport",
+    "lat": 38.748697,
+    "lon": -90.370003,
+    "tz": null
+  },
+  {
+    "iata": "SYR",
+    "name": "Syracuse Hancock International Airport",
+    "lat": 43.111198,
+    "lon": -76.1063,
+    "tz": null
+  },
+  {
+    "iata": "TPA",
+    "name": "Tampa International Airport",
+    "lat": 27.9755,
+    "lon": -82.533203,
+    "tz": null
+  },
+  {
+    "iata": "TUL",
+    "name": "Tulsa International Airport",
+    "lat": 36.197084,
+    "lon": -95.886225,
+    "tz": null
+  },
+  {
+    "iata": "TUS",
+    "name": "Tucson International Airport",
+    "lat": 32.115004,
+    "lon": -110.938053,
+    "tz": null
+  },
+  {
+    "iata": "TYS",
+    "name": "McGhee Tyson Airport",
+    "lat": 35.811001,
+    "lon": -83.994003,
+    "tz": null
+  },
+  {
+    "iata": "TIA",
+    "name": "Tirana International Airport Mother Teresa",
+    "lat": 41.4147,
+    "lon": 19.7206,
+    "tz": null
+  },
+  {
+    "iata": "BOJ",
+    "name": "Burgas Airport",
+    "lat": 42.569917,
+    "lon": 27.515173,
+    "tz": null
+  },
+  {
+    "iata": "PDV",
+    "name": "Plovdiv International Airport",
+    "lat": 42.067799,
+    "lon": 24.8508,
+    "tz": null
+  },
+  {
+    "iata": "SOF",
+    "name": "Sofia Airport",
+    "lat": 42.696357,
+    "lon": 23.417671,
+    "tz": null
+  },
+  {
+    "iata": "VAR",
+    "name": "Varna Airport",
+    "lat": 43.232101,
+    "lon": 27.8251,
+    "tz": null
+  },
+  {
+    "iata": "ECN",
+    "name": "Ercan International Airport",
+    "lat": 35.153064,
+    "lon": 33.507352,
+    "tz": null
+  },
+  {
+    "iata": "LCA",
+    "name": "Larnaca International Airport",
+    "lat": 34.875099,
+    "lon": 33.624901,
+    "tz": null
+  },
+  {
+    "iata": "PFO",
+    "name": "Paphos International Airport",
+    "lat": 34.717999,
+    "lon": 32.485699,
+    "tz": null
+  },
+  {
+    "iata": "DBV",
+    "name": "Dubrovnik Ruđer Bošković Airport",
+    "lat": 42.562247,
+    "lon": 18.265543,
+    "tz": null
+  },
+  {
+    "iata": "PUY",
+    "name": "Pula Airport",
+    "lat": 44.893501,
+    "lon": 13.9222,
+    "tz": null
+  },
+  {
+    "iata": "RJK",
+    "name": "Rijeka Airport",
+    "lat": 45.216376,
+    "lon": 14.57085,
+    "tz": null
+  },
+  {
+    "iata": "SPU",
+    "name": "Split Saint Jerome Airport",
+    "lat": 43.538898,
+    "lon": 16.298,
+    "tz": null
+  },
+  {
+    "iata": "ZAG",
+    "name": "Zagreb Franjo Tuđman International Airport",
+    "lat": 45.742901,
+    "lon": 16.0688,
+    "tz": null
+  },
+  {
+    "iata": "ZAD",
+    "name": "Zadar Airport",
+    "lat": 44.096986,
+    "lon": 15.353565,
+    "tz": null
+  },
+  {
+    "iata": "ALC",
+    "name": "Alicante-Elche Miguel Hernández Airport",
+    "lat": 38.2822,
+    "lon": -0.558156,
+    "tz": null
+  },
+  {
+    "iata": "OVD",
+    "name": "Asturias Airport",
+    "lat": 43.563599,
+    "lon": -6.03462,
+    "tz": null
+  },
+  {
+    "iata": "BIO",
+    "name": "Bilbao Airport",
+    "lat": 43.301102,
+    "lon": -2.91061,
+    "tz": null
+  },
+  {
+    "iata": "BCN",
+    "name": "Josep Tarradellas Barcelona-El Prat Airport",
+    "lat": 41.2971,
+    "lon": 2.07846,
+    "tz": null
+  },
+  {
+    "iata": "GRO",
+    "name": "Girona-Costa Brava Airport",
+    "lat": 41.904639,
+    "lon": 2.761774,
+    "tz": null
+  },
+  {
+    "iata": "IBZ",
+    "name": "Ibiza Airport",
+    "lat": 38.872898,
+    "lon": 1.37312,
+    "tz": null
+  },
+  {
+    "iata": "LEN",
+    "name": "León Int'l Airport",
+    "lat": 42.590709,
+    "lon": -5.653406,
+    "tz": null
+  },
+  {
+    "iata": "MAD",
+    "name": "Adolfo Suárez Madrid–Barajas Airport",
+    "lat": 40.493407,
+    "lon": -3.572249,
+    "tz": null
+  },
+  {
+    "iata": "AGP",
+    "name": "Málaga-Costa del Sol Airport",
+    "lat": 36.6749,
+    "lon": -4.49911,
+    "tz": null
+  },
+  {
+    "iata": "RMU",
+    "name": "Region of Murcia International Airport",
+    "lat": 37.802852,
+    "lon": -1.124884,
+    "tz": null
+  },
+  {
+    "iata": "PMI",
+    "name": "Palma de Mallorca Airport",
+    "lat": 39.551701,
+    "lon": 2.73881,
+    "tz": null
+  },
+  {
+    "iata": "REU",
+    "name": "Reus Airport",
+    "lat": 41.147509,
+    "lon": 1.168354,
+    "tz": null
+  },
+  {
+    "iata": "SCQ",
+    "name": "Santiago-Rosalía de Castro Airport",
+    "lat": 42.896301,
+    "lon": -8.41514,
+    "tz": null
+  },
+  {
+    "iata": "VLC",
+    "name": "Valencia Airport",
+    "lat": 39.489162,
+    "lon": -0.480961,
+    "tz": null
+  },
+  {
+    "iata": "ZAZ",
+    "name": "Zaragoza Airport",
+    "lat": 41.666199,
+    "lon": -1.04155,
+    "tz": null
+  },
+  {
+    "iata": "SVQ",
+    "name": "Seville Airport",
+    "lat": 37.417999,
+    "lon": -5.89311,
+    "tz": null
+  },
+  {
+    "iata": "BOD",
+    "name": "Bordeaux–Mérignac Airport",
+    "lat": 44.82865,
+    "lon": -0.715356,
+    "tz": null
+  },
+  {
+    "iata": "TLS",
+    "name": "Toulouse-Blagnac Airport",
+    "lat": 43.629101,
+    "lon": 1.36382,
+    "tz": null
+  },
+  {
+    "iata": "BIA",
+    "name": "Bastia-Poretta International airport",
+    "lat": 42.5527,
+    "lon": 9.48373,
+    "tz": null
+  },
+  {
+    "iata": "FSC",
+    "name": "Figari Sud-Corse Airport",
+    "lat": 41.50185,
+    "lon": 9.097092,
+    "tz": null
+  },
+  {
+    "iata": "CFE",
+    "name": "Clermont-Ferrand Auvergne airport",
+    "lat": 45.786701,
+    "lon": 3.16917,
+    "tz": null
+  },
+  {
+    "iata": "LYS",
+    "name": "Lyon Saint-Exupéry Airport",
+    "lat": 45.725996,
+    "lon": 5.090139,
+    "tz": null
+  },
+  {
+    "iata": "MRS",
+    "name": "Marseille Provence Airport",
+    "lat": 43.438088,
+    "lon": 5.2125,
+    "tz": null
+  },
+  {
+    "iata": "NCE",
+    "name": "Nice-Côte d'Azur Airport",
+    "lat": 43.658401,
+    "lon": 7.21587,
+    "tz": null
+  },
+  {
+    "iata": "BVA",
+    "name": "Beauvais-Tillé airport",
+    "lat": 49.454399,
+    "lon": 2.11278,
+    "tz": null
+  },
+  {
+    "iata": "LBG",
+    "name": "Paris-Le Bourget International Airport",
+    "lat": 48.962276,
+    "lon": 2.436539,
+    "tz": null
+  },
+  {
+    "iata": "CDG",
+    "name": "Charles de Gaulle International Airport",
+    "lat": 49.00896,
+    "lon": 2.554117,
+    "tz": null
+  },
+  {
+    "iata": "ORY",
+    "name": "Paris-Orly Airport",
+    "lat": 48.72333,
+    "lon": 2.37944,
+    "tz": null
+  },
+  {
+    "iata": "LIL",
+    "name": "Lille Airport",
+    "lat": 50.566564,
+    "lon": 3.102429,
+    "tz": null
+  },
+  {
+    "iata": "BES",
+    "name": "Brest Bretagne airport",
+    "lat": 48.447899,
+    "lon": -4.41854,
+    "tz": null
+  },
+  {
+    "iata": "BSL",
+    "name": "EuroAirport Basel–Mulhouse–Freiburg",
+    "lat": 47.60068,
+    "lon": 7.521117,
+    "tz": null
+  },
+  {
+    "iata": "SXB",
+    "name": "Strasbourg Airport",
+    "lat": 48.5383,
+    "lon": 7.62823,
+    "tz": null
+  },
+  {
+    "iata": "FSP",
+    "name": "Saint-Pierre Pointe-Blanche Airport",
+    "lat": 46.762651,
+    "lon": -56.17499,
+    "tz": null
+  },
+  {
+    "iata": "ATH",
+    "name": "Athens Eleftherios Venizelos International Airport",
+    "lat": 37.936401,
+    "lon": 23.9445,
+    "tz": null
+  },
+  {
+    "iata": "HER",
+    "name": "Heraklion International Nikos Kazantzakis Airport",
+    "lat": 35.339699,
+    "lon": 25.1803,
+    "tz": null
+  },
+  {
+    "iata": "KGS",
+    "name": "Kos International Airport \"Ippokratis\"",
+    "lat": 36.794523,
+    "lon": 27.09115,
+    "tz": null
+  },
+  {
+    "iata": "CFU",
+    "name": "Corfu Ioannis Kapodistrias International Airport",
+    "lat": 39.60145,
+    "lon": 19.912179,
+    "tz": null
+  },
+  {
+    "iata": "KVA",
+    "name": "Kavala Alexander the Great International Airport",
+    "lat": 40.9133,
+    "lon": 24.6192,
+    "tz": null
+  },
+  {
+    "iata": "RHO",
+    "name": "Rhodes International Airport \"Diagoras\"",
+    "lat": 36.405399,
+    "lon": 28.086201,
+    "tz": null
+  },
+  {
+    "iata": "CHQ",
+    "name": "Chania International Airport",
+    "lat": 35.531207,
+    "lon": 24.150673,
+    "tz": null
+  },
+  {
+    "iata": "JTR",
+    "name": "Santorini International Airport",
+    "lat": 36.400045,
+    "lon": 25.478638,
+    "tz": null
+  },
+  {
+    "iata": "SKG",
+    "name": "Thessaloniki Macedonia International Airport",
+    "lat": 40.51928,
+    "lon": 22.970009,
+    "tz": null
+  },
+  {
+    "iata": "BUD",
+    "name": "Budapest Liszt Ferenc International Airport",
+    "lat": 47.43018,
+    "lon": 19.262393,
+    "tz": null
+  },
+  {
+    "iata": "DEB",
+    "name": "Debrecen International Airport",
+    "lat": 47.489469,
+    "lon": 21.616278,
+    "tz": null
+  },
+  {
+    "iata": "PEV",
+    "name": "Pécs-Pogány International Airport",
+    "lat": 45.988891,
+    "lon": 18.242044,
+    "tz": null
+  },
+  {
+    "iata": "BRI",
+    "name": "Bari Karol Wojtyła International Airport",
+    "lat": 41.138901,
+    "lon": 16.760599,
+    "tz": null
+  },
+  {
+    "iata": "PSR",
+    "name": "Abruzzo Airport",
+    "lat": 42.431079,
+    "lon": 14.182981,
+    "tz": null
+  },
+  {
+    "iata": "BDS",
+    "name": "Brindisi Airport",
+    "lat": 40.6576,
+    "lon": 17.947001,
+    "tz": null
+  },
+  {
+    "iata": "SUF",
+    "name": "Lamezia Terme Sant'Eufemia International Airport",
+    "lat": 38.906214,
+    "lon": 16.246007,
+    "tz": null
+  },
+  {
+    "iata": "CTA",
+    "name": "Catania-Fontanarossa Airport",
+    "lat": 37.466801,
+    "lon": 15.0664,
+    "tz": null
+  },
+  {
+    "iata": "PMO",
+    "name": "Falcone–Borsellino Airport",
+    "lat": 38.175999,
+    "lon": 13.091,
+    "tz": null
+  },
+  {
+    "iata": "CAG",
+    "name": "Cagliari Elmas Airport",
+    "lat": 39.251499,
+    "lon": 9.05428,
+    "tz": null
+  },
+  {
+    "iata": "OLB",
+    "name": "Olbia Costa Smeralda Airport",
+    "lat": 40.898953,
+    "lon": 9.518457,
+    "tz": null
+  },
+  {
+    "iata": "MXP",
+    "name": "Milan Malpensa International Airport",
+    "lat": 45.6306,
+    "lon": 8.72811,
+    "tz": null
+  },
+  {
+    "iata": "BGY",
+    "name": "Il Caravaggio International Airport",
+    "lat": 45.669362,
+    "lon": 9.708851,
+    "tz": null
+  },
+  {
+    "iata": "TRN",
+    "name": "Turin Airport",
+    "lat": 45.200802,
+    "lon": 7.64963,
+    "tz": null
+  },
+  {
+    "iata": "GOA",
+    "name": "Genoa Cristoforo Colombo Airport",
+    "lat": 44.412039,
+    "lon": 8.840732,
+    "tz": null
+  },
+  {
+    "iata": "LIN",
+    "name": "Milano Linate Airport",
+    "lat": 45.445099,
+    "lon": 9.27674,
+    "tz": null
+  },
+  {
+    "iata": "BLQ",
+    "name": "Bologna Guglielmo Marconi Airport",
+    "lat": 44.5354,
+    "lon": 11.2887,
+    "tz": null
+  },
+  {
+    "iata": "TSF",
+    "name": "Treviso Airport",
+    "lat": 45.648399,
+    "lon": 12.1944,
+    "tz": null
+  },
+  {
+    "iata": "TRS",
+    "name": "Trieste Airport",
+    "lat": 45.827499,
+    "lon": 13.4722,
+    "tz": null
+  },
+  {
+    "iata": "RMI",
+    "name": "Federico Fellini International Airport",
+    "lat": 44.020024,
+    "lon": 12.612198,
+    "tz": null
+  },
+  {
+    "iata": "VRN",
+    "name": "Verona Villafranca Valerio Catullo Airport",
+    "lat": 45.394955,
+    "lon": 10.887303,
+    "tz": null
+  },
+  {
+    "iata": "VCE",
+    "name": "Venice Marco Polo Airport",
+    "lat": 45.505299,
+    "lon": 12.3519,
+    "tz": null
+  },
+  {
+    "iata": "CIA",
+    "name": "Ciampino–G. B. Pastine International Airport",
+    "lat": 41.798769,
+    "lon": 12.595331,
+    "tz": null
+  },
+  {
+    "iata": "FCO",
+    "name": "Rome–Fiumicino Leonardo da Vinci International Airport",
+    "lat": 41.804532,
+    "lon": 12.251998,
+    "tz": null
+  },
+  {
+    "iata": "NAP",
+    "name": "Naples International Airport",
+    "lat": 40.886002,
+    "lon": 14.2908,
+    "tz": null
+  },
+  {
+    "iata": "PSA",
+    "name": "Pisa International Airport",
+    "lat": 43.683899,
+    "lon": 10.3927,
+    "tz": null
+  },
+  {
+    "iata": "FLR",
+    "name": "Florence Airport, Peretola",
+    "lat": 43.808558,
+    "lon": 11.202822,
+    "tz": null
+  },
+  {
+    "iata": "PEG",
+    "name": "Perugia San Francesco d'Assisi – Umbria International Airport",
+    "lat": 43.095901,
+    "lon": 12.5132,
+    "tz": null
+  },
+  {
+    "iata": "LJU",
+    "name": "Ljubljana Jože Pučnik Airport",
+    "lat": 46.223701,
+    "lon": 14.4576,
+    "tz": null
+  },
+  {
+    "iata": "JCL",
+    "name": "České Budějovice South Bohemian Airport",
+    "lat": 48.948171,
+    "lon": 14.42832,
+    "tz": null
+  },
+  {
+    "iata": "KLV",
+    "name": "Karlovy Vary Airport",
+    "lat": 50.202999,
+    "lon": 12.915,
+    "tz": null
+  },
+  {
+    "iata": "OSR",
+    "name": "Leoš Janáček Airport Ostrava",
+    "lat": 49.696301,
+    "lon": 18.111099,
+    "tz": null
+  },
+  {
+    "iata": "PED",
+    "name": "Pardubice Airport",
+    "lat": 50.015049,
+    "lon": 15.73981,
+    "tz": null
+  },
+  {
+    "iata": "PRG",
+    "name": "Václav Havel Airport Prague",
+    "lat": 50.100874,
+    "lon": 14.259911,
+    "tz": null
+  },
+  {
+    "iata": "TLV",
+    "name": "Ben Gurion International Airport",
+    "lat": 32.011398,
+    "lon": 34.8867,
+    "tz": null
+  },
+  {
+    "iata": "ETM",
+    "name": "Ramon International Airport",
+    "lat": 29.727009,
+    "lon": 35.014116,
+    "tz": null
+  },
+  {
+    "iata": "MLA",
+    "name": "Malta International Airport",
+    "lat": 35.845932,
+    "lon": 14.491546,
+    "tz": null
+  },
+  {
+    "iata": "GRZ",
+    "name": "Graz Airport",
+    "lat": 46.9911,
+    "lon": 15.4396,
+    "tz": null
+  },
+  {
+    "iata": "INN",
+    "name": "Innsbruck Airport",
+    "lat": 47.260201,
+    "lon": 11.344,
+    "tz": null
+  },
+  {
+    "iata": "KLU",
+    "name": "Klagenfurt Airport",
+    "lat": 46.642502,
+    "lon": 14.3377,
+    "tz": null
+  },
+  {
+    "iata": "LNZ",
+    "name": "Linz-Hörsching Airport",
+    "lat": 48.235362,
+    "lon": 14.188128,
+    "tz": null
+  },
+  {
+    "iata": "SZG",
+    "name": "Salzburg Airport",
+    "lat": 47.793301,
+    "lon": 13.0043,
+    "tz": null
+  },
+  {
+    "iata": "VIE",
+    "name": "Vienna International Airport",
+    "lat": 48.110298,
+    "lon": 16.5697,
+    "tz": null
+  },
+  {
+    "iata": "FAO",
+    "name": "Faro - Gago Coutinho International Airport",
+    "lat": 37.015909,
+    "lon": -7.970939,
+    "tz": null
+  },
+  {
+    "iata": "FNC",
+    "name": "Cristiano Ronaldo International Airport",
+    "lat": 32.697812,
+    "lon": -16.774613,
+    "tz": null
+  },
+  {
+    "iata": "PDL",
+    "name": "João Paulo II Airport",
+    "lat": 37.741199,
+    "lon": -25.697901,
+    "tz": null
+  },
+  {
+    "iata": "OPO",
+    "name": "Francisco de Sá Carneiro Airport",
+    "lat": 41.2481,
+    "lon": -8.68139,
+    "tz": null
+  },
+  {
+    "iata": "LIS",
+    "name": "Lisbon Humberto Delgado Airport",
+    "lat": 38.7813,
+    "lon": -9.13592,
+    "tz": null
+  },
+  {
+    "iata": "BNX",
+    "name": "Banja Luka International Airport",
+    "lat": 44.941399,
+    "lon": 17.297501,
+    "tz": null
+  },
+  {
+    "iata": "OMO",
+    "name": "Mostar International Airport",
+    "lat": 43.282489,
+    "lon": 17.846101,
+    "tz": null
+  },
+  {
+    "iata": "SJJ",
+    "name": "Sarajevo International Airport",
+    "lat": 43.8246,
+    "lon": 18.331499,
+    "tz": null
+  },
+  {
+    "iata": "TZL",
+    "name": "Tuzla International Airport",
+    "lat": 44.459858,
+    "lon": 18.723627,
+    "tz": null
+  },
+  {
+    "iata": "BCM",
+    "name": "Bacău George Enescu International  Airport",
+    "lat": 46.5219,
+    "lon": 26.910299,
+    "tz": null
+  },
+  {
+    "iata": "BBU",
+    "name": "Bucharest Băneasa Aurel Vlaicu International Airport",
+    "lat": 44.503133,
+    "lon": 26.102944,
+    "tz": null
+  },
+  {
+    "iata": "GHV",
+    "name": "Brașov-Ghimbav International Airport",
+    "lat": 45.70558,
+    "lon": 25.522871,
+    "tz": null
+  },
+  {
+    "iata": "CND",
+    "name": "Mihail Kogălniceanu International Airport",
+    "lat": 44.362202,
+    "lon": 28.4883,
+    "tz": null
+  },
+  {
+    "iata": "CLJ",
+    "name": "Avram Iancu Cluj International Airport",
+    "lat": 46.786042,
+    "lon": 23.685733,
+    "tz": null
+  },
+  {
+    "iata": "CRA",
+    "name": "Craiova International Airport",
+    "lat": 44.3181,
+    "lon": 23.888599,
+    "tz": null
+  },
+  {
+    "iata": "IAS",
+    "name": "Iaşi International Airport",
+    "lat": 47.179633,
+    "lon": 27.621431,
+    "tz": null
+  },
+  {
+    "iata": "OMR",
+    "name": "Oradea International Airport",
+    "lat": 47.025299,
+    "lon": 21.9025,
+    "tz": null
+  },
+  {
+    "iata": "OTP",
+    "name": "Bucharest Henri Coandă International Airport",
+    "lat": 44.571792,
+    "lon": 26.103285,
+    "tz": null
+  },
+  {
+    "iata": "SBZ",
+    "name": "Sibiu International Airport",
+    "lat": 45.785841,
+    "lon": 24.086666,
+    "tz": null
+  },
+  {
+    "iata": "SCV",
+    "name": "Suceava Ștefan cel Mare International Airport",
+    "lat": 47.6875,
+    "lon": 26.354099,
+    "tz": null
+  },
+  {
+    "iata": "TSR",
+    "name": "Timișoara Traian Vuia International Airport",
+    "lat": 45.809898,
+    "lon": 21.3379,
+    "tz": null
+  },
+  {
+    "iata": "GVA",
+    "name": "Geneva Cointrin International Airport",
+    "lat": 46.238098,
+    "lon": 6.10895,
+    "tz": null
+  },
+  {
+    "iata": "ZRH",
+    "name": "Zürich Airport",
+    "lat": 47.458056,
+    "lon": 8.548056,
+    "tz": null
+  },
+  {
+    "iata": "ESB",
+    "name": "Esenboğa International Airport",
+    "lat": 40.128101,
+    "lon": 32.995098,
+    "tz": null
+  },
+  {
+    "iata": "ADA",
+    "name": "Adana Şakirpaşa Airport",
+    "lat": 36.982201,
+    "lon": 35.280399,
+    "tz": null
+  },
+  {
+    "iata": "AYT",
+    "name": "Antalya International Airport",
+    "lat": 36.898701,
+    "lon": 30.800501,
+    "tz": null
+  },
+  {
+    "iata": "GZT",
+    "name": "Gaziantep Oğuzeli International Airport",
+    "lat": 36.947201,
+    "lon": 37.478699,
+    "tz": null
+  },
+  {
+    "iata": "KYA",
+    "name": "Konya Airport",
+    "lat": 37.979,
+    "lon": 32.561901,
+    "tz": null
+  },
+  {
+    "iata": "ASR",
+    "name": "Kayseri Erkilet International Airport",
+    "lat": 38.770401,
+    "lon": 35.495399,
+    "tz": null
+  },
+  {
+    "iata": "NAV",
+    "name": "Nevşehir Kapadokya Airport",
+    "lat": 38.7719,
+    "lon": 34.5345,
+    "tz": null
+  },
+  {
+    "iata": "ISL",
+    "name": "İstanbul Atatürk Airport",
+    "lat": 40.971913,
+    "lon": 28.823714,
+    "tz": null
+  },
+  {
+    "iata": "ADB",
+    "name": "Adnan Menderes International Airport",
+    "lat": 38.2924,
+    "lon": 27.157,
+    "tz": null
+  },
+  {
+    "iata": "DLM",
+    "name": "Dalaman International Airport",
+    "lat": 36.7131,
+    "lon": 28.7925,
+    "tz": null
+  },
+  {
+    "iata": "AOE",
+    "name": "Hasan Polatkan Airport",
+    "lat": 39.811644,
+    "lon": 30.519268,
+    "tz": null
+  },
+  {
+    "iata": "GNY",
+    "name": "Şanlıurfa GAP Airport",
+    "lat": 37.445663,
+    "lon": 38.895592,
+    "tz": null
+  },
+  {
+    "iata": "COV",
+    "name": "Çukurova International Airport",
+    "lat": 36.891478,
+    "lon": 35.071235,
+    "tz": null
+  },
+  {
+    "iata": "EDO",
+    "name": "Balıkesir Koca Seyit Airport",
+    "lat": 39.552533,
+    "lon": 27.010192,
+    "tz": null
+  },
+  {
+    "iata": "BJV",
+    "name": "Milas Bodrum International Airport",
+    "lat": 37.249314,
+    "lon": 27.66401,
+    "tz": null
+  },
+  {
+    "iata": "SAW",
+    "name": "Istanbul Sabiha Gökçen International Airport",
+    "lat": 40.898602,
+    "lon": 29.3092,
+    "tz": null
+  },
+  {
+    "iata": "IST",
+    "name": "İstanbul Airport",
+    "lat": 41.274874,
+    "lon": 28.732136,
+    "tz": null
+  },
+  {
+    "iata": "RZV",
+    "name": "Rize–Artvin Airport",
+    "lat": 41.179766,
+    "lon": 40.848802,
+    "tz": null
+  },
+  {
+    "iata": "RMO",
+    "name": "Chişinău International Airport",
+    "lat": 46.92774,
+    "lon": 28.931704,
+    "tz": null
+  },
+  {
+    "iata": "OHD",
+    "name": "Ohrid St. Paul the Apostle Airport",
+    "lat": 41.18,
+    "lon": 20.7423,
+    "tz": null
+  },
+  {
+    "iata": "SKP",
+    "name": "Skopje International Airport",
+    "lat": 41.958087,
+    "lon": 21.622581,
+    "tz": null
+  },
+  {
+    "iata": "GIB",
+    "name": "Gibraltar Airport",
+    "lat": 36.151679,
+    "lon": -5.34978,
+    "tz": null
+  },
+  {
+    "iata": "BEG",
+    "name": "Belgrade Nikola Tesla Airport",
+    "lat": 44.818401,
+    "lon": 20.309099,
+    "tz": null
+  },
+  {
+    "iata": "INI",
+    "name": "Niš Constantine the Great Airport",
+    "lat": 43.336538,
+    "lon": 21.856242,
+    "tz": null
+  },
+  {
+    "iata": "TGD",
+    "name": "Podgorica Airport / Podgorica Golubovci Airbase",
+    "lat": 42.359402,
+    "lon": 19.2519,
+    "tz": null
+  },
+  {
+    "iata": "BTS",
+    "name": "M. R. Štefánik Airport",
+    "lat": 48.1702,
+    "lon": 17.2127,
+    "tz": null
+  },
+  {
+    "iata": "PLS",
+    "name": "Providenciales International Airport",
+    "lat": 21.773697,
+    "lon": -72.268321,
+    "tz": null
+  },
+  {
+    "iata": "LRM",
+    "name": "Casa De Campo International Airport",
+    "lat": 18.452222,
+    "lon": -68.911111,
+    "tz": null
+  },
+  {
+    "iata": "PUJ",
+    "name": "Punta Cana International Airport",
+    "lat": 18.567093,
+    "lon": -68.364558,
+    "tz": null
+  },
+  {
+    "iata": "SDQ",
+    "name": "Las Américas International Airport",
+    "lat": 18.429701,
+    "lon": -69.6689,
+    "tz": null
+  },
+  {
+    "iata": "STI",
+    "name": "Cibao International Airport",
+    "lat": 19.40406,
+    "lon": -70.604431,
+    "tz": null
+  },
+  {
+    "iata": "GUA",
+    "name": "La Aurora International Airport",
+    "lat": 14.582896,
+    "lon": -90.527515,
+    "tz": null
+  },
+  {
+    "iata": "SAP",
+    "name": "Ramón Villeda Morales International Airport",
+    "lat": 15.4526,
+    "lon": -87.923599,
+    "tz": null
+  },
+  {
+    "iata": "RTB",
+    "name": "Juan Manuel Gálvez International Airport",
+    "lat": 16.316799,
+    "lon": -86.523003,
+    "tz": null
+  },
+  {
+    "iata": "XPL",
+    "name": "Palmerola International Airport",
+    "lat": 14.3824,
+    "lon": -87.621201,
+    "tz": null
+  },
+  {
+    "iata": "KIN",
+    "name": "Norman Manley International Airport",
+    "lat": 17.935699,
+    "lon": -76.787498,
+    "tz": null
+  },
+  {
+    "iata": "MBJ",
+    "name": "Sangster International Airport",
+    "lat": 18.50342,
+    "lon": -77.91323,
+    "tz": null
+  },
+  {
+    "iata": "ACA",
+    "name": "General Juan N. Álvarez International Airport",
+    "lat": 16.757126,
+    "lon": -99.753113,
+    "tz": null
+  },
+  {
+    "iata": "AGU",
+    "name": "Aguascalientes International Airport",
+    "lat": 21.699589,
+    "lon": -102.318372,
+    "tz": null
+  },
+  {
+    "iata": "HUX",
+    "name": "Bahías de Huatulco International Airport",
+    "lat": 15.775437,
+    "lon": -96.260456,
+    "tz": null
+  },
+  {
+    "iata": "CUL",
+    "name": "Bachigualato Federal International Airport",
+    "lat": 24.76504,
+    "lon": -107.475228,
+    "tz": null
+  },
+  {
+    "iata": "CJS",
+    "name": "Abraham González International Airport",
+    "lat": 31.636673,
+    "lon": -106.428533,
+    "tz": null
+  },
+  {
+    "iata": "CUU",
+    "name": "General Roberto Fierro Villalobos International Airport",
+    "lat": 28.702649,
+    "lon": -105.963764,
+    "tz": null
+  },
+  {
+    "iata": "CZM",
+    "name": "Cozumel International Airport",
+    "lat": 20.514922,
+    "lon": -86.928538,
+    "tz": null
+  },
+  {
+    "iata": "GDL",
+    "name": "Guadalajara International Airport",
+    "lat": 20.523342,
+    "lon": -103.310108,
+    "tz": null
+  },
+  {
+    "iata": "HMO",
+    "name": "General Ignacio L. Pesqueira International Airport",
+    "lat": 29.092811,
+    "lon": -111.053015,
+    "tz": null
+  },
+  {
+    "iata": "BJX",
+    "name": "Guanajuato International Airport",
+    "lat": 20.992695,
+    "lon": -101.480284,
+    "tz": null
+  },
+  {
+    "iata": "LTO",
+    "name": "Loreto International Airport",
+    "lat": 25.989549,
+    "lon": -111.348408,
+    "tz": null
+  },
+  {
+    "iata": "MID",
+    "name": "Manuel Crescencio Rejón International Airport",
+    "lat": 20.930485,
+    "lon": -89.645462,
+    "tz": null
+  },
+  {
+    "iata": "MLM",
+    "name": "General Francisco J. Mujica International Airport",
+    "lat": 19.849899,
+    "lon": -101.025002,
+    "tz": null
+  },
+  {
+    "iata": "MEX",
+    "name": "Mexico City Benito Juárez International Airport",
+    "lat": 19.435822,
+    "lon": -99.07033,
+    "tz": null
+  },
+  {
+    "iata": "MTY",
+    "name": "Monterrey International Airport",
+    "lat": 25.778521,
+    "lon": -100.106989,
+    "tz": null
+  },
+  {
+    "iata": "MZT",
+    "name": "General Rafael Buelna International Airport",
+    "lat": 23.162823,
+    "lon": -106.264517,
+    "tz": null
+  },
+  {
+    "iata": "OAX",
+    "name": "Xoxocotlán International Airport",
+    "lat": 16.998773,
+    "lon": -96.726092,
+    "tz": null
+  },
+  {
+    "iata": "PBC",
+    "name": "Hermanos Serdán International Airport",
+    "lat": 19.158465,
+    "lon": -98.371582,
+    "tz": null
+  },
+  {
+    "iata": "PVR",
+    "name": "Puerto Vallarta International Airport",
+    "lat": 20.679913,
+    "lon": -105.254391,
+    "tz": null
+  },
+  {
+    "iata": "QRO",
+    "name": "Querétaro Intercontinental Airport",
+    "lat": 20.618779,
+    "lon": -100.186449,
+    "tz": null
+  },
+  {
+    "iata": "SJD",
+    "name": "Los Cabos International Airport",
+    "lat": 23.151919,
+    "lon": -109.720731,
+    "tz": null
+  },
+  {
+    "iata": "NLU",
+    "name": "Felipe Ángeles International Airport",
+    "lat": 19.743824,
+    "lon": -99.01507,
+    "tz": null
+  },
+  {
+    "iata": "TIJ",
+    "name": "General Abelardo L. Rodriguez International Airport",
+    "lat": 32.541043,
+    "lon": -116.969976,
+    "tz": null
+  },
+  {
+    "iata": "TQO",
+    "name": "Felipe Carrillo Puerto International Airport Tulum",
+    "lat": 20.172098,
+    "lon": -87.660272,
+    "tz": null
+  },
+  {
+    "iata": "TLC",
+    "name": "Adolfo López Mateos International Airport",
+    "lat": 19.3369,
+    "lon": -99.56583,
+    "tz": null
+  },
+  {
+    "iata": "CUN",
+    "name": "Cancún International Airport",
+    "lat": 21.040817,
+    "lon": -86.87347,
+    "tz": null
+  },
+  {
+    "iata": "VSA",
+    "name": "Carlos Rovirosa Pérez International Airport",
+    "lat": 17.994283,
+    "lon": -92.818199,
+    "tz": null
+  },
+  {
+    "iata": "VER",
+    "name": "General Heriberto Jara International Airport",
+    "lat": 19.139589,
+    "lon": -96.188602,
+    "tz": null
+  },
+  {
+    "iata": "ZIH",
+    "name": "Ixtapa-Zihuatanejo International Airport",
+    "lat": 17.601771,
+    "lon": -101.460629,
+    "tz": null
+  },
+  {
+    "iata": "MGA",
+    "name": "Augusto C. Sandino (Managua) International Airport",
+    "lat": 12.1415,
+    "lon": -86.168198,
+    "tz": null
+  },
+  {
+    "iata": "PTY",
+    "name": "Tocumen International Airport",
+    "lat": 9.07136,
+    "lon": -79.383499,
+    "tz": null
+  },
+  {
+    "iata": "LIR",
+    "name": "Daniel Oduber Quirós International Airport",
+    "lat": 10.5933,
+    "lon": -85.544403,
+    "tz": null
+  },
+  {
+    "iata": "SJO",
+    "name": "Juan Santamaría International Airport",
+    "lat": 9.99386,
+    "lon": -84.208801,
+    "tz": null
+  },
+  {
+    "iata": "SAL",
+    "name": "El Salvador International Airport Saint Óscar Arnulfo Romero y Galdámez",
+    "lat": 13.44447,
+    "lon": -89.055784,
+    "tz": null
+  },
+  {
+    "iata": "CAP",
+    "name": "Cap Haitien International Airport",
+    "lat": 19.725547,
+    "lon": -72.20071,
+    "tz": null
+  },
+  {
+    "iata": "PAP",
+    "name": "Toussaint Louverture International Airport",
+    "lat": 18.580023,
+    "lon": -72.292596,
+    "tz": null
+  },
+  {
+    "iata": "CMW",
+    "name": "Ignacio Agramonte International Airport",
+    "lat": 21.419909,
+    "lon": -77.848039,
+    "tz": null
+  },
+  {
+    "iata": "SCU",
+    "name": "Antonio Maceo International Airport",
+    "lat": 19.97474,
+    "lon": -75.835504,
+    "tz": null
+  },
+  {
+    "iata": "HAV",
+    "name": "José Martí International Airport",
+    "lat": 22.989201,
+    "lon": -82.409103,
+    "tz": null
+  },
+  {
+    "iata": "HOG",
+    "name": "Frank Pais International Airport",
+    "lat": 20.785148,
+    "lon": -76.315526,
+    "tz": null
+  },
+  {
+    "iata": "SNU",
+    "name": "Abel Santamaria International Airport",
+    "lat": 22.492215,
+    "lon": -79.943119,
+    "tz": null
+  },
+  {
+    "iata": "VRA",
+    "name": "Juan Gualberto Gomez International Airport",
+    "lat": 23.034401,
+    "lon": -81.435303,
+    "tz": null
+  },
+  {
+    "iata": "GCM",
+    "name": "Owen Roberts International Airport",
+    "lat": 19.292801,
+    "lon": -81.357697,
+    "tz": null
+  },
+  {
+    "iata": "FPO",
+    "name": "Grand Bahama International Airport",
+    "lat": 26.557996,
+    "lon": -78.695583,
+    "tz": null
+  },
+  {
+    "iata": "NAS",
+    "name": "Lynden Pindling International Airport",
+    "lat": 25.039,
+    "lon": -77.466202,
+    "tz": null
+  },
+  {
+    "iata": "ZSA",
+    "name": "San Salvador International Airport",
+    "lat": 24.063041,
+    "lon": -74.523233,
+    "tz": null
+  },
+  {
+    "iata": "BZE",
+    "name": "Philip S. W. Goldson International Airport",
+    "lat": 17.539951,
+    "lon": -88.303556,
+    "tz": null
+  },
+  {
+    "iata": "RAR",
+    "name": "Rarotonga International Airport",
+    "lat": -21.2027,
+    "lon": -159.806,
+    "tz": null
+  },
+  {
+    "iata": "NAN",
+    "name": "Nadi International Airport",
+    "lat": -17.761822,
+    "lon": 177.437843,
+    "tz": null
+  },
+  {
+    "iata": "SUV",
+    "name": "Nausori International Airport",
+    "lat": -18.044226,
+    "lon": 178.561486,
+    "tz": null
+  },
+  {
+    "iata": "TBU",
+    "name": "Fua'amotu International Airport",
+    "lat": -21.241438,
+    "lon": -175.149164,
+    "tz": null
+  },
+  {
+    "iata": "VAV",
+    "name": "Vava'u International Airport",
+    "lat": -18.5853,
+    "lon": -173.962006,
+    "tz": null
+  },
+  {
+    "iata": "TRW",
+    "name": "Bonriki International Airport",
+    "lat": 1.38164,
+    "lon": 173.147003,
+    "tz": null
+  },
+  {
+    "iata": "WLS",
+    "name": "Hihifo Airport",
+    "lat": -13.239445,
+    "lon": -176.19865,
+    "tz": null
+  },
+  {
+    "iata": "PHH",
+    "name": "Pokhara International Airport",
+    "lat": 28.1838,
+    "lon": 84.0147,
+    "tz": null
+  },
+  {
+    "iata": "APW",
+    "name": "Faleolo International Airport",
+    "lat": -13.83,
+    "lon": -172.007996,
+    "tz": null
+  },
+  {
+    "iata": "PPG",
+    "name": "Pago Pago International Airport",
+    "lat": -14.331,
+    "lon": -170.710007,
+    "tz": null
+  },
+  {
+    "iata": "PPT",
+    "name": "Fa'a'ā International Airport",
+    "lat": -17.553472,
+    "lon": -149.606936,
+    "tz": null
+  },
+  {
+    "iata": "VLI",
+    "name": "Bauerfield International Airport",
+    "lat": -17.699301,
+    "lon": 168.320007,
+    "tz": null
+  },
+  {
+    "iata": "NOU",
+    "name": "La Tontouta International Airport",
+    "lat": -22.014601,
+    "lon": 166.212997,
+    "tz": null
+  },
+  {
+    "iata": "AKL",
+    "name": "Auckland International Airport",
+    "lat": -37.01199,
+    "lon": 174.786331,
+    "tz": null
+  },
+  {
+    "iata": "CHC",
+    "name": "Christchurch International Airport",
+    "lat": -43.489029,
+    "lon": 172.532065,
+    "tz": null
+  },
+  {
+    "iata": "ZQN",
+    "name": "Queenstown Airport",
+    "lat": -45.019205,
+    "lon": 168.746379,
+    "tz": null
+  },
+  {
+    "iata": "WLG",
+    "name": "Wellington International Airport",
+    "lat": -41.327202,
+    "lon": 174.804993,
+    "tz": null
+  },
+  {
+    "iata": "HEA",
+    "name": "Herat - Khwaja Abdullah Ansari International Airport",
+    "lat": 34.209999,
+    "lon": 62.228298,
+    "tz": null
+  },
+  {
+    "iata": "KBL",
+    "name": "Kabul International Airport",
+    "lat": 34.565899,
+    "lon": 69.212303,
+    "tz": null
+  },
+  {
+    "iata": "KDH",
+    "name": "Ahmad Shah Baba International Airport",
+    "lat": 31.505769,
+    "lon": 65.847963,
+    "tz": null
+  },
+  {
+    "iata": "MZR",
+    "name": "Mazar-i-Sharif International Airport",
+    "lat": 36.70412,
+    "lon": 67.210459,
+    "tz": null
+  },
+  {
+    "iata": "BAH",
+    "name": "Bahrain International Airport",
+    "lat": 26.267295,
+    "lon": 50.63764,
+    "tz": null
+  },
+  {
+    "iata": "OCS",
+    "name": "Corisco International Airport",
+    "lat": 0.910937,
+    "lon": 9.33027,
+    "tz": null
+  },
+  {
+    "iata": "AHB",
+    "name": "Abha International Airport",
+    "lat": 18.2404,
+    "lon": 42.656601,
+    "tz": null
+  },
+  {
+    "iata": "HOF",
+    "name": "Al-Ahsa International Airport",
+    "lat": 25.285299,
+    "lon": 49.485199,
+    "tz": null
+  },
+  {
+    "iata": "DMM",
+    "name": "King Fahd International Airport",
+    "lat": 26.4691,
+    "lon": 49.798209,
+    "tz": null
+  },
+  {
+    "iata": "DHA",
+    "name": "King Abdulaziz Air Base",
+    "lat": 26.2654,
+    "lon": 50.152,
+    "tz": null
+  },
+  {
+    "iata": "ELQ",
+    "name": "Prince Naif bin Abdulaziz International Airport",
+    "lat": 26.302799,
+    "lon": 43.774399,
+    "tz": null
+  },
+  {
+    "iata": "JED",
+    "name": "King Abdulaziz International Airport",
+    "lat": 21.680241,
+    "lon": 39.157436,
+    "tz": null
+  },
+  {
+    "iata": "MED",
+    "name": "Prince Mohammad Bin Abdulaziz Airport",
+    "lat": 24.5534,
+    "lon": 39.705101,
+    "tz": null
+  },
+  {
+    "iata": "NUM",
+    "name": "Neom Bay Airport",
+    "lat": 27.924261,
+    "lon": 35.29358,
+    "tz": null
+  },
+  {
+    "iata": "RUH",
+    "name": "King Khalid International Airport",
+    "lat": 24.9576,
+    "lon": 46.698799,
+    "tz": null
+  },
+  {
+    "iata": "AJF",
+    "name": "Al-Jawf International Airport",
+    "lat": 29.783301,
+    "lon": 40.100905,
+    "tz": null
+  },
+  {
+    "iata": "TUU",
+    "name": "Prince Sultan bin Abdulaziz International Airport",
+    "lat": 28.3711,
+    "lon": 36.624865,
+    "tz": null
+  },
+  {
+    "iata": "TIF",
+    "name": "Taif International Airport",
+    "lat": 21.484739,
+    "lon": 40.544074,
+    "tz": null
+  },
+  {
+    "iata": "YNB",
+    "name": "Prince Abdulmohsen Bin Abdulaziz International Airport",
+    "lat": 24.144199,
+    "lon": 38.0634,
+    "tz": null
+  },
+  {
+    "iata": "ABD",
+    "name": "Abadan Ayatollah Jami International Airport",
+    "lat": 30.367887,
+    "lon": 48.230075,
+    "tz": null
+  },
+  {
+    "iata": "AWZ",
+    "name": "Qasem Soleimani International Airport",
+    "lat": 31.3364,
+    "lon": 48.763789,
+    "tz": null
+  },
+  {
+    "iata": "KIH",
+    "name": "Kish International Airport",
+    "lat": 26.525427,
+    "lon": 53.980462,
+    "tz": null
+  },
+  {
+    "iata": "IFN",
+    "name": "Isfahan Shahid Beheshti International Airport",
+    "lat": 32.755142,
+    "lon": 51.883877,
+    "tz": null
+  },
+  {
+    "iata": "IKA",
+    "name": "Imam Khomeini International Airport",
+    "lat": 35.4161,
+    "lon": 51.152199,
+    "tz": null
+  },
+  {
+    "iata": "THR",
+    "name": "Mehrabad International Airport",
+    "lat": 35.689175,
+    "lon": 51.314392,
+    "tz": null
+  },
+  {
+    "iata": "PYK",
+    "name": "Payam International Airport",
+    "lat": 35.7761,
+    "lon": 50.826698,
+    "tz": null
+  },
+  {
+    "iata": "BND",
+    "name": "Bandar Abbas International Airport",
+    "lat": 27.2183,
+    "lon": 56.3778,
+    "tz": null
+  },
+  {
+    "iata": "KER",
+    "name": "Ayatollah Hashemi Rafsanjani International Airport",
+    "lat": 30.271276,
+    "lon": 56.949692,
+    "tz": null
+  },
+  {
+    "iata": "GSM",
+    "name": "Qeshm International Airport",
+    "lat": 26.754639,
+    "lon": 55.902353,
+    "tz": null
+  },
+  {
+    "iata": "XBJ",
+    "name": "Birjand International Airport",
+    "lat": 32.896525,
+    "lon": 59.281258,
+    "tz": null
+  },
+  {
+    "iata": "MHD",
+    "name": "Mashhad International Airport",
+    "lat": 36.234821,
+    "lon": 59.642949,
+    "tz": null
+  },
+  {
+    "iata": "SYZ",
+    "name": "Shiraz Shahid Dastghaib International Airport",
+    "lat": 29.5392,
+    "lon": 52.589802,
+    "tz": null
+  },
+  {
+    "iata": "ZAH",
+    "name": "Zahedan International Airport",
+    "lat": 29.4757,
+    "lon": 60.9062,
+    "tz": null
+  },
+  {
+    "iata": "AMM",
+    "name": "Queen Alia International Airport",
+    "lat": 31.722601,
+    "lon": 35.993198,
+    "tz": null
+  },
+  {
+    "iata": "ADJ",
+    "name": "Marka International (Amman Civil) Airport",
+    "lat": 31.9727,
+    "lon": 35.9916,
+    "tz": null
+  },
+  {
+    "iata": "AQJ",
+    "name": "King Hussein International Airport",
+    "lat": 29.611601,
+    "lon": 35.018101,
+    "tz": null
+  },
+  {
+    "iata": "KWI",
+    "name": "Kuwait International Airport",
+    "lat": 29.224487,
+    "lon": 47.969813,
+    "tz": null
+  },
+  {
+    "iata": "BEY",
+    "name": "Beirut Rafic Hariri International Airport",
+    "lat": 33.819833,
+    "lon": 35.487443,
+    "tz": null
+  },
+  {
+    "iata": "DQM",
+    "name": "Duqm International Airport",
+    "lat": 19.501944,
+    "lon": 57.634167,
+    "tz": null
+  },
+  {
+    "iata": "AUH",
+    "name": "Zayed International Airport",
+    "lat": 24.440966,
+    "lon": 54.649237,
+    "tz": null
+  },
+  {
+    "iata": "AZI",
+    "name": "Al Bateen Executive Airport",
+    "lat": 24.427062,
+    "lon": 54.459866,
+    "tz": null
+  },
+  {
+    "iata": "AAN",
+    "name": "Al Ain International Airport",
+    "lat": 24.2617,
+    "lon": 55.6092,
+    "tz": null
+  },
+  {
+    "iata": "DXB",
+    "name": "Dubai International Airport",
+    "lat": 25.24979,
+    "lon": 55.370992,
+    "tz": null
+  },
+  {
+    "iata": "DWC",
+    "name": "Al Maktoum International Airport",
+    "lat": 24.896171,
+    "lon": 55.16235,
+    "tz": null
+  },
+  {
+    "iata": "FJR",
+    "name": "Fujairah International Airport",
+    "lat": 25.108411,
+    "lon": 56.328061,
+    "tz": null
+  },
+  {
+    "iata": "RKT",
+    "name": "Ras Al Khaimah International Airport",
+    "lat": 25.613501,
+    "lon": 55.938801,
+    "tz": null
+  },
+  {
+    "iata": "SHJ",
+    "name": "Sharjah International Airport",
+    "lat": 25.3286,
+    "lon": 55.5172,
+    "tz": null
+  },
+  {
+    "iata": "MCT",
+    "name": "Muscat International Airport",
+    "lat": 23.600218,
+    "lon": 58.285268,
+    "tz": null
+  },
+  {
+    "iata": "SLL",
+    "name": "Salalah International Airport",
+    "lat": 17.0387,
+    "lon": 54.091301,
+    "tz": null
+  },
+  {
+    "iata": "OHS",
+    "name": "Suhar International Airport",
+    "lat": 24.38604,
+    "lon": 56.62541,
+    "tz": null
+  },
+  {
+    "iata": "LYP",
+    "name": "Faisalabad International Airport",
+    "lat": 31.364923,
+    "lon": 72.995319,
+    "tz": null
+  },
+  {
+    "iata": "GWD",
+    "name": "New Gwadar International Airport",
+    "lat": 25.296733,
+    "lon": 62.498822,
+    "tz": null
+  },
+  {
+    "iata": "ISB",
+    "name": "Islamabad International Airport",
+    "lat": 33.549,
+    "lon": 72.82566,
+    "tz": null
+  },
+  {
+    "iata": "KHI",
+    "name": "Jinnah International Airport",
+    "lat": 24.9065,
+    "lon": 67.160797,
+    "tz": null
+  },
+  {
+    "iata": "LHE",
+    "name": "Allama Iqbal International Airport",
+    "lat": 31.521601,
+    "lon": 74.403603,
+    "tz": null
+  },
+  {
+    "iata": "MUX",
+    "name": "Multan International Airport",
+    "lat": 30.203199,
+    "lon": 71.419098,
+    "tz": null
+  },
+  {
+    "iata": "PEW",
+    "name": "Bacha Khan International Airport",
+    "lat": 33.9939,
+    "lon": 71.514603,
+    "tz": null
+  },
+  {
+    "iata": "UET",
+    "name": "Quetta International Airport",
+    "lat": 30.2514,
+    "lon": 66.937798,
+    "tz": null
+  },
+  {
+    "iata": "KDU",
+    "name": "Skardu International Airport",
+    "lat": 35.33866,
+    "lon": 75.538648,
+    "tz": null
+  },
+  {
+    "iata": "SKT",
+    "name": "Sialkot International Airport",
+    "lat": 32.535941,
+    "lon": 74.364623,
+    "tz": null
+  },
+  {
+    "iata": "TUK",
+    "name": "Turbat International Airport",
+    "lat": 25.984767,
+    "lon": 63.028856,
+    "tz": null
+  },
+  {
+    "iata": "BGW",
+    "name": "Baghdad International Airport / New Al Muthana Air Base",
+    "lat": 33.262501,
+    "lon": 44.2346,
+    "tz": null
+  },
+  {
+    "iata": "OSM",
+    "name": "Mosul International Airport",
+    "lat": 36.305801,
+    "lon": 43.1474,
+    "tz": null
+  },
+  {
+    "iata": "EBL",
+    "name": "Erbil International Airport",
+    "lat": 36.236047,
+    "lon": 43.946615,
+    "tz": null
+  },
+  {
+    "iata": "KIK",
+    "name": "Kirkuk International Airport",
+    "lat": 35.469501,
+    "lon": 44.3489,
+    "tz": null
+  },
+  {
+    "iata": "BSR",
+    "name": "Basra International Airport",
+    "lat": 30.549101,
+    "lon": 47.662102,
+    "tz": null
+  },
+  {
+    "iata": "NJF",
+    "name": "Al Najaf International Airport",
+    "lat": 31.991116,
+    "lon": 44.405019,
+    "tz": null
+  },
+  {
+    "iata": "ALP",
+    "name": "Aleppo International Airport",
+    "lat": 36.181262,
+    "lon": 37.226869,
+    "tz": null
+  },
+  {
+    "iata": "DAM",
+    "name": "Damascus International Airport",
+    "lat": 33.411499,
+    "lon": 36.515598,
+    "tz": null
+  },
+  {
+    "iata": "DIA",
+    "name": "Doha International Airport",
+    "lat": 25.259431,
+    "lon": 51.565528,
+    "tz": null
+  },
+  {
+    "iata": "DOH",
+    "name": "Hamad International Airport",
+    "lat": 25.273056,
+    "lon": 51.608056,
+    "tz": null
+  },
+  {
+    "iata": "ADE",
+    "name": "Aden International Airport",
+    "lat": 12.829564,
+    "lon": 45.029976,
+    "tz": null
+  },
+  {
+    "iata": "RIY",
+    "name": "Riyan International Airport",
+    "lat": 14.662241,
+    "lon": 49.375289,
+    "tz": null
+  },
+  {
+    "iata": "SAH",
+    "name": "Sanaa International Airport",
+    "lat": 15.4763,
+    "lon": 44.2197,
+    "tz": null
+  },
+  {
+    "iata": "GXF",
+    "name": "Seiyun Hadhramaut International Airport",
+    "lat": 15.965887,
+    "lon": 48.788146,
+    "tz": null
+  },
+  {
+    "iata": "ANC",
+    "name": "Ted Stevens Anchorage International Airport",
+    "lat": 61.179004,
+    "lon": -149.992561,
+    "tz": null
+  },
+  {
+    "iata": "ROP",
+    "name": "Rota International Airport",
+    "lat": 14.173267,
+    "lon": 145.241103,
+    "tz": null
+  },
+  {
+    "iata": "GUM",
+    "name": "Antonio B. Won Pat International Airport",
+    "lat": 13.485,
+    "lon": 144.797282,
+    "tz": null
+  },
+  {
+    "iata": "TIQ",
+    "name": "Tinian International Airport",
+    "lat": 15.000453,
+    "lon": 145.618974,
+    "tz": null
+  },
+  {
+    "iata": "KOA",
+    "name": "Ellison Onizuka Kona International Airport at Keāhole",
+    "lat": 19.738783,
+    "lon": -156.045603,
+    "tz": null
+  },
+  {
+    "iata": "LIH",
+    "name": "Lihue Airport",
+    "lat": 21.974393,
+    "lon": -159.337146,
+    "tz": null
+  },
+  {
+    "iata": "HNL",
+    "name": "Daniel K. Inouye International Airport",
+    "lat": 21.318387,
+    "lon": -157.92567,
+    "tz": null
+  },
+  {
+    "iata": "OGG",
+    "name": "Kahului International Airport",
+    "lat": 20.896263,
+    "lon": -156.431837,
+    "tz": null
+  },
+  {
+    "iata": "MAJ",
+    "name": "Marshall Islands International Airport",
+    "lat": 7.06511,
+    "lon": 171.271656,
+    "tz": null
+  },
+  {
+    "iata": "CXI",
+    "name": "Cassidy International Airport",
+    "lat": 1.986278,
+    "lon": -157.350011,
+    "tz": null
+  },
+  {
+    "iata": "TKK",
+    "name": "Chuuk International Airport",
+    "lat": 7.46187,
+    "lon": 151.843002,
+    "tz": null
+  },
+  {
+    "iata": "ROR",
+    "name": "Roman Tmetuchl International Airport",
+    "lat": 7.366965,
+    "lon": 134.544085,
+    "tz": null
+  },
+  {
+    "iata": "KSA",
+    "name": "Kosrae International Airport",
+    "lat": 5.35698,
+    "lon": 162.957993,
+    "tz": null
+  },
+  {
+    "iata": "YAP",
+    "name": "Yap International Airport",
+    "lat": 9.49891,
+    "lon": 138.082993,
+    "tz": null
+  },
+  {
+    "iata": "KHH",
+    "name": "Kaohsiung International Airport",
+    "lat": 22.577101,
+    "lon": 120.349998,
+    "tz": null
+  },
+  {
+    "iata": "RMQ",
+    "name": "Taichung International Airport / Ching Chuang Kang Air Base",
+    "lat": 24.2647,
+    "lon": 120.621002,
+    "tz": null
+  },
+  {
+    "iata": "TNN",
+    "name": "Tainan International Airport / Tainan Air Base",
+    "lat": 22.950399,
+    "lon": 120.206001,
+    "tz": null
+  },
+  {
+    "iata": "MZG",
+    "name": "Penghu Magong Airport",
+    "lat": 23.568701,
+    "lon": 119.627998,
+    "tz": null
+  },
+  {
+    "iata": "TSA",
+    "name": "Taipei Songshan International Airport",
+    "lat": 25.067244,
+    "lon": 121.552822,
+    "tz": null
+  },
+  {
+    "iata": "TPE",
+    "name": "Taiwan Taoyuan International Airport",
+    "lat": 25.0777,
+    "lon": 121.233002,
+    "tz": null
+  },
+  {
+    "iata": "HUN",
+    "name": "Hualien Chiashan Airport",
+    "lat": 24.023163,
+    "lon": 121.617991,
+    "tz": null
+  },
+  {
+    "iata": "NRT",
+    "name": "Narita International Airport",
+    "lat": 35.76858,
+    "lon": 140.388714,
+    "tz": null
+  },
+  {
+    "iata": "KIX",
+    "name": "Kansai International Airport",
+    "lat": 34.427299,
+    "lon": 135.244003,
+    "tz": null
+  },
+  {
+    "iata": "UKB",
+    "name": "Kobe Airport",
+    "lat": 34.632801,
+    "lon": 135.223999,
+    "tz": null
+  },
+  {
+    "iata": "CTS",
+    "name": "New Chitose Airport",
+    "lat": 42.774753,
+    "lon": 141.690414,
+    "tz": null
+  },
+  {
+    "iata": "HKD",
+    "name": "Hakodate Airport",
+    "lat": 41.77,
+    "lon": 140.822006,
+    "tz": null
+  },
+  {
+    "iata": "FUK",
+    "name": "Fukuoka Airport",
+    "lat": 33.585899,
+    "lon": 130.451004,
+    "tz": null
+  },
+  {
+    "iata": "KOJ",
+    "name": "Kagoshima Airport",
+    "lat": 31.8034,
+    "lon": 130.718994,
+    "tz": null
+  },
+  {
+    "iata": "KMI",
+    "name": "Miyazaki Airport",
+    "lat": 31.877199,
+    "lon": 131.449005,
+    "tz": null
+  },
+  {
+    "iata": "KKJ",
+    "name": "Kitakyushu Airport",
+    "lat": 33.845901,
+    "lon": 131.035004,
+    "tz": null
+  },
+  {
+    "iata": "HSG",
+    "name": "Kyushu Saga International Airport",
+    "lat": 33.1497,
+    "lon": 130.302002,
+    "tz": null
+  },
+  {
+    "iata": "KMJ",
+    "name": "Kumamoto Airport",
+    "lat": 32.837299,
+    "lon": 130.854996,
+    "tz": null
+  },
+  {
+    "iata": "NGS",
+    "name": "Nagasaki Airport",
+    "lat": 32.916901,
+    "lon": 129.914001,
+    "tz": null
+  },
+  {
+    "iata": "NGO",
+    "name": "Chubu Centrair International Airport",
+    "lat": 34.858398,
+    "lon": 136.804993,
+    "tz": null
+  },
+  {
+    "iata": "KMQ",
+    "name": "Komatsu Airport / JASDF Komatsu Air Base",
+    "lat": 36.393407,
+    "lon": 136.406895,
+    "tz": null
+  },
+  {
+    "iata": "FSZ",
+    "name": "Mount Fuji Shizuoka Airport",
+    "lat": 34.795022,
+    "lon": 138.190976,
+    "tz": null
+  },
+  {
+    "iata": "HIJ",
+    "name": "Hiroshima Airport",
+    "lat": 34.4361,
+    "lon": 132.919006,
+    "tz": null
+  },
+  {
+    "iata": "OKJ",
+    "name": "Okayama Momotaro Airport",
+    "lat": 34.756901,
+    "lon": 133.854996,
+    "tz": null
+  },
+  {
+    "iata": "KCZ",
+    "name": "Kochi Ryoma Airport",
+    "lat": 33.545217,
+    "lon": 133.670166,
+    "tz": null
+  },
+  {
+    "iata": "MYJ",
+    "name": "Matsuyama Airport",
+    "lat": 33.826893,
+    "lon": 132.700114,
+    "tz": null
+  },
+  {
+    "iata": "ITM",
+    "name": "Osaka Itami International Airport",
+    "lat": 34.780853,
+    "lon": 135.440829,
+    "tz": null
+  },
+  {
+    "iata": "TKS",
+    "name": "Tokushima Awaodori Airport / JMSDF Tokushima Air Base",
+    "lat": 34.132559,
+    "lon": 134.607816,
+    "tz": null
+  },
+  {
+    "iata": "TAK",
+    "name": "Takamatsu Airport",
+    "lat": 34.214963,
+    "lon": 134.015454,
+    "tz": null
+  },
+  {
+    "iata": "AOJ",
+    "name": "Aomori Airport",
+    "lat": 40.733777,
+    "lon": 140.689477,
+    "tz": null
+  },
+  {
+    "iata": "KIJ",
+    "name": "Niigata Airport",
+    "lat": 37.954166,
+    "lon": 139.112189,
+    "tz": null
+  },
+  {
+    "iata": "SDJ",
+    "name": "Sendai Airport",
+    "lat": 38.139702,
+    "lon": 140.917007,
+    "tz": null
+  },
+  {
+    "iata": "HND",
+    "name": "Tokyo Haneda International Airport",
+    "lat": 35.549678,
+    "lon": 139.786958,
+    "tz": null
+  },
+  {
+    "iata": "MWX",
+    "name": "Muan International Airport",
+    "lat": 34.991406,
+    "lon": 126.382814,
+    "tz": null
+  },
+  {
+    "iata": "YNY",
+    "name": "Yangyang International Airport",
+    "lat": 38.060481,
+    "lon": 128.669822,
+    "tz": null
+  },
+  {
+    "iata": "CJU",
+    "name": "Jeju International Airport",
+    "lat": 33.512058,
+    "lon": 126.492548,
+    "tz": null
+  },
+  {
+    "iata": "PUS",
+    "name": "Gimhae International Airport",
+    "lat": 35.179501,
+    "lon": 128.938004,
+    "tz": null
+  },
+  {
+    "iata": "ICN",
+    "name": "Incheon International Airport",
+    "lat": 37.469101,
+    "lon": 126.450996,
+    "tz": null
+  },
+  {
+    "iata": "GMP",
+    "name": "Gimpo International Airport",
+    "lat": 37.5583,
+    "lon": 126.791,
+    "tz": null
+  },
+  {
+    "iata": "TAE",
+    "name": "Daegu International Airport",
+    "lat": 35.894394,
+    "lon": 128.656989,
+    "tz": null
+  },
+  {
+    "iata": "CJJ",
+    "name": "Cheongju International Airport/Cheongju Air Base (K-59/G-513)",
+    "lat": 36.71556,
+    "lon": 127.500289,
+    "tz": null
+  },
+  {
+    "iata": "OKA",
+    "name": "Naha International Airport",
+    "lat": 26.192437,
+    "lon": 127.639804,
+    "tz": null
+  },
+  {
+    "iata": "DNA",
+    "name": "Kadena Air Base",
+    "lat": 26.351667,
+    "lon": 127.769444,
+    "tz": null
+  },
+  {
+    "iata": "SFS",
+    "name": "Subic Bay International Airport / Naval Air Station Cubi Point",
+    "lat": 14.794833,
+    "lon": 120.271883,
+    "tz": null
+  },
+  {
+    "iata": "CRK",
+    "name": "Clark International Airport / Clark Air Base",
+    "lat": 15.186,
+    "lon": 120.559998,
+    "tz": null
+  },
+  {
+    "iata": "LAO",
+    "name": "Laoag International Airport",
+    "lat": 18.175089,
+    "lon": 120.531006,
+    "tz": null
+  },
+  {
+    "iata": "DRP",
+    "name": "Bicol International Airport",
+    "lat": 13.111915,
+    "lon": 123.676829,
+    "tz": null
+  },
+  {
+    "iata": "MNL",
+    "name": "Ninoy Aquino International Airport",
+    "lat": 14.5086,
+    "lon": 121.019997,
+    "tz": null
+  },
+  {
+    "iata": "DVO",
+    "name": "Francisco Bangoy International Airport",
+    "lat": 7.12552,
+    "lon": 125.646004,
+    "tz": null
+  },
+  {
+    "iata": "GES",
+    "name": "General Santos International Airport",
+    "lat": 6.057208,
+    "lon": 125.096243,
+    "tz": null
+  },
+  {
+    "iata": "CGY",
+    "name": "Laguindingan International Airport",
+    "lat": 8.612203,
+    "lon": 124.456496,
+    "tz": null
+  },
+  {
+    "iata": "ZAM",
+    "name": "Zamboanga International Airport",
+    "lat": 6.92242,
+    "lon": 122.059998,
+    "tz": null
+  },
+  {
+    "iata": "BCD",
+    "name": "Bacolod-Silay International Airport",
+    "lat": 10.776237,
+    "lon": 123.018879,
+    "tz": null
+  },
+  {
+    "iata": "ILO",
+    "name": "Iloilo International Airport",
+    "lat": 10.833017,
+    "lon": 122.493358,
+    "tz": null
+  },
+  {
+    "iata": "KLO",
+    "name": "Kalibo International Airport",
+    "lat": 11.6794,
+    "lon": 122.375999,
+    "tz": null
+  },
+  {
+    "iata": "CEB",
+    "name": "Mactan Cebu International Airport",
+    "lat": 10.309261,
+    "lon": 123.97974,
+    "tz": null
+  },
+  {
+    "iata": "PPS",
+    "name": "Puerto Princesa International Airport / PAF Antonio Bautista Air Base",
+    "lat": 9.742044,
+    "lon": 118.75911,
+    "tz": null
+  },
+  {
+    "iata": "RSI",
+    "name": "Red Sea International Airport",
+    "lat": 25.627975,
+    "lon": 37.088914,
+    "tz": null
+  },
+  {
+    "iata": "ROS",
+    "name": "Rosario Islas Malvinas International Airport",
+    "lat": -32.9036,
+    "lon": -60.785,
+    "tz": null
+  },
+  {
+    "iata": "AEP",
+    "name": "Aeroparque Jorge Newbery",
+    "lat": -34.559419,
+    "lon": -58.415536,
+    "tz": null
+  },
+  {
+    "iata": "COR",
+    "name": "Ingeniero Aeronáutico Ambrosio L.V. Taravella International Airport",
+    "lat": -31.312346,
+    "lon": -64.208329,
+    "tz": null
+  },
+  {
+    "iata": "EZE",
+    "name": "Ezeiza International Airport - Ministro Pistarini",
+    "lat": -34.8222,
+    "lon": -58.5358,
+    "tz": null
+  },
+  {
+    "iata": "MDZ",
+    "name": "Governor Francisco Gabrielli International Airport",
+    "lat": -32.831699,
+    "lon": -68.7929,
+    "tz": null
+  },
+  {
+    "iata": "RES",
+    "name": "Resistencia International Airport",
+    "lat": -27.44991,
+    "lon": -59.056125,
+    "tz": null
+  },
+  {
+    "iata": "SLA",
+    "name": "Martín Miguel de Güemes International Airport",
+    "lat": -24.856001,
+    "lon": -65.486198,
+    "tz": null
+  },
+  {
+    "iata": "JUJ",
+    "name": "Gobernador Horacio Guzman International Airport",
+    "lat": -24.392799,
+    "lon": -65.097801,
+    "tz": null
+  },
+  {
+    "iata": "CRD",
+    "name": "General Enrique Mosconi International Airport",
+    "lat": -45.786941,
+    "lon": -67.463355,
+    "tz": null
+  },
+  {
+    "iata": "FTE",
+    "name": "El Calafate - Commander Armando Tola International Airport",
+    "lat": -50.281997,
+    "lon": -72.053949,
+    "tz": null
+  },
+  {
+    "iata": "RGL",
+    "name": "Piloto Civil Norberto Fernández International Airport",
+    "lat": -51.608791,
+    "lon": -69.308948,
+    "tz": null
+  },
+  {
+    "iata": "NQN",
+    "name": "Presidente Perón International Airport",
+    "lat": -38.949001,
+    "lon": -68.155701,
+    "tz": null
+  },
+  {
+    "iata": "BRC",
+    "name": "Teniente Luis Candelaria International Airport",
+    "lat": -41.151199,
+    "lon": -71.157501,
+    "tz": null
+  },
+  {
+    "iata": "AJU",
+    "name": "Aracaju - Santa Maria International Airport",
+    "lat": -10.984129,
+    "lon": -37.071789,
+    "tz": null
+  },
+  {
+    "iata": "BEL",
+    "name": "Val de Cans/Júlio Cezar Ribeiro International Airport",
+    "lat": -1.379279,
+    "lon": -48.476207,
+    "tz": null
+  },
+  {
+    "iata": "BSB",
+    "name": "Presidente Juscelino Kubitschek International Airport",
+    "lat": -15.869167,
+    "lon": -47.920834,
+    "tz": null
+  },
+  {
+    "iata": "BVB",
+    "name": "Atlas Brasil Cantanhede International Airport",
+    "lat": 2.84615,
+    "lon": -60.690648,
+    "tz": null
+  },
+  {
+    "iata": "CNF",
+    "name": "Tancredo Neves International Airport",
+    "lat": -19.63571,
+    "lon": -43.966928,
+    "tz": null
+  },
+  {
+    "iata": "CWB",
+    "name": "Curitiba-Afonso Pena International Airport",
+    "lat": -25.5285,
+    "lon": -49.1758,
+    "tz": null
+  },
+  {
+    "iata": "CGB",
+    "name": "Várzea Grande–Marechal Rondon International Airport",
+    "lat": -15.6529,
+    "lon": -56.116699,
+    "tz": null
+  },
+  {
+    "iata": "MAO",
+    "name": "Eduardo Gomes International Airport",
+    "lat": -3.03861,
+    "lon": -60.049702,
+    "tz": null
+  },
+  {
+    "iata": "IGU",
+    "name": "Cataratas International Airport",
+    "lat": -25.594167,
+    "lon": -54.489444,
+    "tz": null
+  },
+  {
+    "iata": "FLN",
+    "name": "Hercílio Luz International Airport",
+    "lat": -27.670279,
+    "lon": -48.552502,
+    "tz": null
+  },
+  {
+    "iata": "FOR",
+    "name": "Pinto Martins International Airport",
+    "lat": -3.775833,
+    "lon": -38.532222,
+    "tz": null
+  },
+  {
+    "iata": "GIG",
+    "name": "Rio Galeão – Tom Jobim International Airport",
+    "lat": -22.809999,
+    "lon": -43.250557,
+    "tz": null
+  },
+  {
+    "iata": "GYN",
+    "name": "Santa Genoveva International Airport",
+    "lat": -16.632,
+    "lon": -49.220699,
+    "tz": null
+  },
+  {
+    "iata": "GRU",
+    "name": "São Paulo/Guarulhos–Governor André Franco Montoro International Airport",
+    "lat": -23.431274,
+    "lon": -46.469954,
+    "tz": null
+  },
+  {
+    "iata": "JPA",
+    "name": "Presidente Castro Pinto International Airport",
+    "lat": -7.148691,
+    "lon": -34.950554,
+    "tz": null
+  },
+  {
+    "iata": "VCP",
+    "name": "Viracopos International Airport",
+    "lat": -23.007404,
+    "lon": -47.134502,
+    "tz": null
+  },
+  {
+    "iata": "MCZ",
+    "name": "Zumbi dos Palmares International Airport",
+    "lat": -9.512559,
+    "lon": -35.791839,
+    "tz": null
+  },
+  {
+    "iata": "NVT",
+    "name": "Ministro Victor Konder International Airport",
+    "lat": -26.879431,
+    "lon": -48.650979,
+    "tz": null
+  },
+  {
+    "iata": "POA",
+    "name": "Porto Alegre-Salgado Filho International Airport",
+    "lat": -29.993984,
+    "lon": -51.167482,
+    "tz": null
+  },
+  {
+    "iata": "BPS",
+    "name": "Porto Seguro International Airport",
+    "lat": -16.438426,
+    "lon": -39.080584,
+    "tz": null
+  },
+  {
+    "iata": "PVH",
+    "name": "Governador Jorge Teixeira de Oliveira International Airport",
+    "lat": -8.708491,
+    "lon": -63.902338,
+    "tz": null
+  },
+  {
+    "iata": "RBR",
+    "name": "Rio Branco-Plácido de Castro International Airport",
+    "lat": -9.869031,
+    "lon": -67.893984,
+    "tz": null
+  },
+  {
+    "iata": "REC",
+    "name": "Recife/Guararapes - Gilberto Freyre International Airport",
+    "lat": -8.12747,
+    "lon": -34.922961,
+    "tz": null
+  },
+  {
+    "iata": "SDU",
+    "name": "Santos Dumont Airport",
+    "lat": -22.910397,
+    "lon": -43.16282,
+    "tz": null
+  },
+  {
+    "iata": "NAT",
+    "name": "Rio Grande do Norte/São Gonçalo do Amarante–Governador Aluízio Alves International Airport",
+    "lat": -5.769822,
+    "lon": -35.36661,
+    "tz": null
+  },
+  {
+    "iata": "SLZ",
+    "name": "Marechal Cunha Machado International Airport",
+    "lat": -2.586386,
+    "lon": -44.235008,
+    "tz": null
+  },
+  {
+    "iata": "CGH",
+    "name": "Congonhas–Deputado Freitas Nobre Airport",
+    "lat": -23.627657,
+    "lon": -46.654601,
+    "tz": null
+  },
+  {
+    "iata": "SSA",
+    "name": "Deputado Luiz Eduardo Magalhães International Airport",
+    "lat": -12.908611,
+    "lon": -38.322498,
+    "tz": null
+  },
+  {
+    "iata": "VIX",
+    "name": "Eurico de Aguiar Salles International Airport",
+    "lat": -20.258,
+    "lon": -40.285,
+    "tz": null
+  },
+  {
+    "iata": "PUQ",
+    "name": "President Carlos Ibáñez International Airport",
+    "lat": -53.002602,
+    "lon": -70.854599,
+    "tz": null
+  },
+  {
+    "iata": "SCL",
+    "name": "Comodoro Arturo Merino Benítez International Airport",
+    "lat": -33.393002,
+    "lon": -70.785797,
+    "tz": null
+  },
+  {
+    "iata": "ANF",
+    "name": "Andrés Sabella Gálvez International Airport",
+    "lat": -23.445274,
+    "lon": -70.445232,
+    "tz": null
+  },
+  {
+    "iata": "CCP",
+    "name": "Carriel Sur International Airport",
+    "lat": -36.77235,
+    "lon": -73.062828,
+    "tz": null
+  },
+  {
+    "iata": "IPC",
+    "name": "Mataveri International Airport",
+    "lat": -27.165411,
+    "lon": -109.421027,
+    "tz": null
+  },
+  {
+    "iata": "ZCO",
+    "name": "La Araucanía International Airport",
+    "lat": -38.9259,
+    "lon": -72.6515,
+    "tz": null
+  },
+  {
+    "iata": "PMC",
+    "name": "El Tepual International Airport",
+    "lat": -41.443093,
+    "lon": -73.094065,
+    "tz": null
+  },
+  {
+    "iata": "GYE",
+    "name": "José Joaquín de Olmedo International Airport",
+    "lat": -2.15742,
+    "lon": -79.883598,
+    "tz": null
+  },
+  {
+    "iata": "UIO",
+    "name": "Mariscal Sucre International Airport",
+    "lat": -0.125399,
+    "lon": -78.354306,
+    "tz": null
+  },
+  {
+    "iata": "SNC",
+    "name": "General Ulpiano Paez International Airport",
+    "lat": -2.210057,
+    "lon": -80.985067,
+    "tz": null
+  },
+  {
+    "iata": "ESM",
+    "name": "Carlos Concha Torres International Airport",
+    "lat": 0.978519,
+    "lon": -79.626602,
+    "tz": null
+  },
+  {
+    "iata": "ASU",
+    "name": "Silvio Pettirossi International Airport",
+    "lat": -25.240156,
+    "lon": -57.519227,
+    "tz": null
+  },
+  {
+    "iata": "ENO",
+    "name": "Teniente Ramon A. Ayub Gonzalez International Airport",
+    "lat": -27.227537,
+    "lon": -55.837584,
+    "tz": null
+  },
+  {
+    "iata": "AGT",
+    "name": "Guaraní International Airport",
+    "lat": -25.457186,
+    "lon": -54.839544,
+    "tz": null
+  },
+  {
+    "iata": "BOG",
+    "name": "El Dorado International Airport",
+    "lat": 4.70159,
+    "lon": -74.1469,
+    "tz": null
+  },
+  {
+    "iata": "BAQ",
+    "name": "Ernesto Cortissoz International Airport",
+    "lat": 10.8896,
+    "lon": -74.7808,
+    "tz": null
+  },
+  {
+    "iata": "CTG",
+    "name": "Rafael Nuñez International Airport",
+    "lat": 10.4424,
+    "lon": -75.513,
+    "tz": null
+  },
+  {
+    "iata": "CLO",
+    "name": "Alfonso Bonilla Aragon International Airport",
+    "lat": 3.542717,
+    "lon": -76.381898,
+    "tz": null
+  },
+  {
+    "iata": "MDE",
+    "name": "Jose Maria Córdova International Airport",
+    "lat": 6.16454,
+    "lon": -75.4231,
+    "tz": null
+  },
+  {
+    "iata": "ADZ",
+    "name": "Gustavo Rojas Pinilla International Airport",
+    "lat": 12.5836,
+    "lon": -81.7112,
+    "tz": null
+  },
+  {
+    "iata": "SRE",
+    "name": "Alcantarí International Airport",
+    "lat": -19.246835,
+    "lon": -65.149611,
+    "tz": null
+  },
+  {
+    "iata": "CBB",
+    "name": "Jorge Wilsterman International Airport",
+    "lat": -17.421105,
+    "lon": -66.177102,
+    "tz": null
+  },
+  {
+    "iata": "LPB",
+    "name": "El Alto International Airport",
+    "lat": -16.510272,
+    "lon": -68.189416,
+    "tz": null
+  },
+  {
+    "iata": "ORU",
+    "name": "Juan Mendoza International Airport",
+    "lat": -17.956151,
+    "lon": -67.075829,
+    "tz": null
+  },
+  {
+    "iata": "VVI",
+    "name": "Viru Viru International Airport",
+    "lat": -17.6448,
+    "lon": -63.135399,
+    "tz": null
+  },
+  {
+    "iata": "PBM",
+    "name": "Johan Adolf Pengel International Airport",
+    "lat": 5.45283,
+    "lon": -55.187801,
+    "tz": null
+  },
+  {
+    "iata": "CAY",
+    "name": "Cayenne – Félix Eboué Airport",
+    "lat": 4.819964,
+    "lon": -52.361326,
+    "tz": null
+  },
+  {
+    "iata": "PCL",
+    "name": "Cap FAP David Abenzur Rengifo International Airport",
+    "lat": -8.378064,
+    "lon": -74.574495,
+    "tz": null
+  },
+  {
+    "iata": "CIX",
+    "name": "Capitán FAP José A. Quiñones González International Airport",
+    "lat": -6.789223,
+    "lon": -79.828254,
+    "tz": null
+  },
+  {
+    "iata": "LIM",
+    "name": "Jorge Chávez International Airport",
+    "lat": -12.0219,
+    "lon": -77.114305,
+    "tz": null
+  },
+  {
+    "iata": "JUL",
+    "name": "Inca Manco Capac International Airport",
+    "lat": -15.467689,
+    "lon": -70.15653,
+    "tz": null
+  },
+  {
+    "iata": "IQT",
+    "name": "Coronel FAP Francisco Secada Vignetta International Airport",
+    "lat": -3.78474,
+    "lon": -73.3088,
+    "tz": null
+  },
+  {
+    "iata": "AQP",
+    "name": "Rodríguez Ballón International Airport",
+    "lat": -16.340786,
+    "lon": -71.569485,
+    "tz": null
+  },
+  {
+    "iata": "TRU",
+    "name": "Capitán FAP Carlos Martínez de Pinillos International Airport",
+    "lat": -8.082382,
+    "lon": -79.108821,
+    "tz": null
+  },
+  {
+    "iata": "PIO",
+    "name": "Captain Renán Elías Olivera International Airport",
+    "lat": -13.7449,
+    "lon": -76.220299,
+    "tz": null
+  },
+  {
+    "iata": "CUZ",
+    "name": "Alejandro Velasco Astete International Airport",
+    "lat": -13.5357,
+    "lon": -71.938797,
+    "tz": null
+  },
+  {
+    "iata": "MVD",
+    "name": "Carrasco General Cesáreo L. Berisso International Airport",
+    "lat": -34.835647,
+    "lon": -56.026497,
+    "tz": null
+  },
+  {
+    "iata": "BLA",
+    "name": "General José Antonio Anzoategui International Airport",
+    "lat": 10.111111,
+    "lon": -64.692222,
+    "tz": null
+  },
+  {
+    "iata": "BRM",
+    "name": "Jacinto Lara International Airport",
+    "lat": 10.042747,
+    "lon": -69.35862,
+    "tz": null
+  },
+  {
+    "iata": "MAR",
+    "name": "La Chinita International Airport",
+    "lat": 10.557542,
+    "lon": -71.729307,
+    "tz": null
+  },
+  {
+    "iata": "PMV",
+    "name": "Del Caribe Santiago Mariño International Airport",
+    "lat": 10.912603,
+    "lon": -63.966599,
+    "tz": null
+  },
+  {
+    "iata": "CCS",
+    "name": "Maiquetía Simón Bolívar International Airport",
+    "lat": 10.602214,
+    "lon": -66.991174,
+    "tz": null
+  },
+  {
+    "iata": "PZO",
+    "name": "General Manuel Carlos Piar International Airport",
+    "lat": 8.28853,
+    "lon": -62.760399,
+    "tz": null
+  },
+  {
+    "iata": "VLN",
+    "name": "Arturo Michelena International Airport",
+    "lat": 10.149733,
+    "lon": -67.928398,
+    "tz": null
+  },
+  {
+    "iata": "GEO",
+    "name": "Cheddi Jagan International Airport",
+    "lat": 6.49855,
+    "lon": -58.254101,
+    "tz": null
+  },
+  {
+    "iata": "ANU",
+    "name": "V. C. Bird International Airport",
+    "lat": 17.1367,
+    "lon": -61.792702,
+    "tz": null
+  },
+  {
+    "iata": "BGI",
+    "name": "Grantley Adams International Airport",
+    "lat": 13.074667,
+    "lon": -59.491034,
+    "tz": null
+  },
+  {
+    "iata": "FDF",
+    "name": "Martinique Aimé Césaire International Airport",
+    "lat": 14.591,
+    "lon": -61.003201,
+    "tz": null
+  },
+  {
+    "iata": "PTP",
+    "name": "Maryse Condé International Airport",
+    "lat": 16.265443,
+    "lon": -61.532754,
+    "tz": null
+  },
+  {
+    "iata": "GND",
+    "name": "Maurice Bishop International Airport",
+    "lat": 12.003996,
+    "lon": -61.785302,
+    "tz": null
+  },
+  {
+    "iata": "STT",
+    "name": "Cyril E. King Airport",
+    "lat": 18.337091,
+    "lon": -64.977251,
+    "tz": null
+  },
+  {
+    "iata": "SJU",
+    "name": "Luis Munoz Marin International Airport",
+    "lat": 18.4394,
+    "lon": -66.001801,
+    "tz": null
+  },
+  {
+    "iata": "SKB",
+    "name": "Robert L. Bradshaw International Airport",
+    "lat": 17.310845,
+    "lon": -62.719117,
+    "tz": null
+  },
+  {
+    "iata": "UVF",
+    "name": "Hewanorra International Airport",
+    "lat": 13.7332,
+    "lon": -60.952599,
+    "tz": null
+  },
+  {
+    "iata": "AUA",
+    "name": "Queen Beatrix International Airport",
+    "lat": 12.501056,
+    "lon": -70.014281,
+    "tz": null
+  },
+  {
+    "iata": "BON",
+    "name": "Flamingo International Airport",
+    "lat": 12.131,
+    "lon": -68.268501,
+    "tz": null
+  },
+  {
+    "iata": "CUR",
+    "name": "Hato International Airport",
+    "lat": 12.1889,
+    "lon": -68.959801,
+    "tz": null
+  },
+  {
+    "iata": "SXM",
+    "name": "Princess Juliana International Airport",
+    "lat": 18.041,
+    "lon": -63.108898,
+    "tz": null
+  },
+  {
+    "iata": "MNI",
+    "name": "John A. Osborne Airport",
+    "lat": 16.791835,
+    "lon": -62.193204,
+    "tz": null
+  },
+  {
+    "iata": "TAB",
+    "name": "A.N.R. Robinson International Airport",
+    "lat": 11.149571,
+    "lon": -60.831298,
+    "tz": null
+  },
+  {
+    "iata": "POS",
+    "name": "Piarco International Airport",
+    "lat": 10.597811,
+    "lon": -61.337463,
+    "tz": null
+  },
+  {
+    "iata": "EIS",
+    "name": "Terrance B. Lettsome International Airport",
+    "lat": 18.445492,
+    "lon": -64.541707,
+    "tz": null
+  },
+  {
+    "iata": "SVD",
+    "name": "Argyle International Airport",
+    "lat": 13.159725,
+    "lon": -61.148801,
+    "tz": null
+  },
+  {
+    "iata": "BDA",
+    "name": "L.F. Wade International Airport",
+    "lat": 32.363802,
+    "lon": -64.67824,
+    "tz": null
+  },
+  {
+    "iata": "ALA",
+    "name": "Almaty International Airport",
+    "lat": 43.354267,
+    "lon": 77.042828,
+    "tz": null
+  },
+  {
+    "iata": "NQZ",
+    "name": "Nursultan Nazarbayev International Airport",
+    "lat": 51.027035,
+    "lon": 71.467094,
+    "tz": null
+  },
+  {
+    "iata": "KOV",
+    "name": "Kokshetau International Airport",
+    "lat": 53.329102,
+    "lon": 69.594597,
+    "tz": null
+  },
+  {
+    "iata": "PPK",
+    "name": "Petropavl International Airport",
+    "lat": 54.775622,
+    "lon": 69.187415,
+    "tz": null
+  },
+  {
+    "iata": "DMB",
+    "name": "Taraz International Airport",
+    "lat": 42.8536,
+    "lon": 71.303596,
+    "tz": null
+  },
+  {
+    "iata": "BSZ",
+    "name": "Manas International Airport",
+    "lat": 43.061298,
+    "lon": 74.4776,
+    "tz": null
+  },
+  {
+    "iata": "OSS",
+    "name": "Osh International Airport",
+    "lat": 40.609001,
+    "lon": 72.793297,
+    "tz": null
+  },
+  {
+    "iata": "CIT",
+    "name": "Shymkent International Airport",
+    "lat": 42.365021,
+    "lon": 69.47564,
+    "tz": null
+  },
+  {
+    "iata": "HSA",
+    "name": "Hazrat Sultan International Airport",
+    "lat": 43.311742,
+    "lon": 68.550185,
+    "tz": null
+  },
+  {
+    "iata": "DZN",
+    "name": "Zhezkazgan National Airport",
+    "lat": 47.708953,
+    "lon": 67.738094,
+    "tz": null
+  },
+  {
+    "iata": "KGF",
+    "name": "Sary-Arka Airport",
+    "lat": 49.670799,
+    "lon": 73.334396,
+    "tz": null
+  },
+  {
+    "iata": "BXY",
+    "name": "Baikonur Krayniy International Airport",
+    "lat": 45.621994,
+    "lon": 63.210773,
+    "tz": null
+  },
+  {
+    "iata": "KZO",
+    "name": "Korkyt Ata International Airport",
+    "lat": 44.706902,
+    "lon": 65.592499,
+    "tz": null
+  },
+  {
+    "iata": "URA",
+    "name": "Manshuk Mametova International Airport",
+    "lat": 51.151976,
+    "lon": 51.543652,
+    "tz": null
+  },
+  {
+    "iata": "UKK",
+    "name": "Oskemen International Airport",
+    "lat": 50.035033,
+    "lon": 82.496057,
+    "tz": null
+  },
+  {
+    "iata": "PWQ",
+    "name": "Pavlodar International Airport",
+    "lat": 52.194982,
+    "lon": 77.073088,
+    "tz": null
+  },
+  {
+    "iata": "PLX",
+    "name": "Semei International Airport",
+    "lat": 50.351295,
+    "lon": 80.234398,
+    "tz": null
+  },
+  {
+    "iata": "SCO",
+    "name": "Aktau International Airport",
+    "lat": 43.860093,
+    "lon": 51.09086,
+    "tz": null
+  },
+  {
+    "iata": "GUW",
+    "name": "Atyrau International Airport",
+    "lat": 47.121318,
+    "lon": 51.820343,
+    "tz": null
+  },
+  {
+    "iata": "AKX",
+    "name": "Aktobe International Airport",
+    "lat": 50.248116,
+    "lon": 57.204144,
+    "tz": null
+  },
+  {
+    "iata": "KSN",
+    "name": "Kostanay International Airport",
+    "lat": 53.206902,
+    "lon": 63.550301,
+    "tz": null
+  },
+  {
+    "iata": "GYD",
+    "name": "Heydar Aliyev International Airport",
+    "lat": 40.467499,
+    "lon": 50.0467,
+    "tz": null
+  },
+  {
+    "iata": "GNJ",
+    "name": "Ganja International Airport",
+    "lat": 40.738692,
+    "lon": 46.320383,
+    "tz": null
+  },
+  {
+    "iata": "NAJ",
+    "name": "Nakhchivan International Airport",
+    "lat": 39.188801,
+    "lon": 45.458401,
+    "tz": null
+  },
+  {
+    "iata": "IKU",
+    "name": "Issyk-Kul International Airport",
+    "lat": 42.585584,
+    "lon": 76.701181,
+    "tz": null
+  },
+  {
+    "iata": "LWN",
+    "name": "Shirak International Airport",
+    "lat": 40.750401,
+    "lon": 43.859299,
+    "tz": null
+  },
+  {
+    "iata": "EVN",
+    "name": "Zvartnots International Airport",
+    "lat": 40.148941,
+    "lon": 44.397887,
+    "tz": null
+  },
+  {
+    "iata": "YKS",
+    "name": "Platon Oyunsky Yakutsk International Airport",
+    "lat": 62.0933,
+    "lon": 129.770996,
+    "tz": null
+  },
+  {
+    "iata": "KUT",
+    "name": "David the Builder Kutaisi International Airport",
+    "lat": 42.177448,
+    "lon": 42.485353,
+    "tz": null
+  },
+  {
+    "iata": "BUS",
+    "name": "Alexander Kartveli Batumi International Airport",
+    "lat": 41.60939,
+    "lon": 41.600315,
+    "tz": null
+  },
+  {
+    "iata": "TBS",
+    "name": "Tbilisi International Airport",
+    "lat": 41.669201,
+    "lon": 44.9547,
+    "tz": null
+  },
+  {
+    "iata": "PKC",
+    "name": "Yelizovo Airport",
+    "lat": 53.168716,
+    "lon": 158.451068,
+    "tz": null
+  },
+  {
+    "iata": "VVO",
+    "name": "Vladivostok International Airport",
+    "lat": 43.396256,
+    "lon": 132.148155,
+    "tz": null
+  },
+  {
+    "iata": "HTA",
+    "name": "Chita-Kadala International Airport",
+    "lat": 52.024841,
+    "lon": 113.305839,
+    "tz": null
+  },
+  {
+    "iata": "IKT",
+    "name": "Irkutsk International Airport",
+    "lat": 52.266707,
+    "lon": 104.395563,
+    "tz": null
+  },
+  {
+    "iata": "UUD",
+    "name": "Baikal International Airport",
+    "lat": 51.808614,
+    "lon": 107.439652,
+    "tz": null
+  },
+  {
+    "iata": "OZH",
+    "name": "Zaporizhzhia International Airport",
+    "lat": 47.866962,
+    "lon": 35.314723,
+    "tz": null
+  },
+  {
+    "iata": "SIP",
+    "name": "Simferopol International Airport",
+    "lat": 45.0522,
+    "lon": 33.975101,
+    "tz": null
+  },
+  {
+    "iata": "LWO",
+    "name": "Lviv International Airport",
+    "lat": 49.8125,
+    "lon": 23.9561,
+    "tz": null
+  },
+  {
+    "iata": "UDJ",
+    "name": "Uzhhorod International Airport",
+    "lat": 48.6343,
+    "lon": 22.263399,
+    "tz": null
+  },
+  {
+    "iata": "ODS",
+    "name": "Odesa International Airport",
+    "lat": 46.427196,
+    "lon": 30.672649,
+    "tz": null
+  },
+  {
+    "iata": "LED",
+    "name": "Pulkovo Airport",
+    "lat": 59.800301,
+    "lon": 30.262501,
+    "tz": null
+  },
+  {
+    "iata": "MMK",
+    "name": "Emperor Nicholas II Murmansk Airport",
+    "lat": 68.7817,
+    "lon": 32.750801,
+    "tz": null
+  },
+  {
+    "iata": "PKV",
+    "name": "Princess Olga Pskov International Airport",
+    "lat": 57.781316,
+    "lon": 28.39384,
+    "tz": null
+  },
+  {
+    "iata": "BQT",
+    "name": "Brest International Airport",
+    "lat": 52.108138,
+    "lon": 23.89676,
+    "tz": null
+  },
+  {
+    "iata": "KGD",
+    "name": "Khrabrovo Airport",
+    "lat": 54.889882,
+    "lon": 20.598216,
+    "tz": null
+  },
+  {
+    "iata": "MSQ",
+    "name": "Minsk National Airport",
+    "lat": 53.888071,
+    "lon": 28.039964,
+    "tz": null
+  },
+  {
+    "iata": "ABA",
+    "name": "Abakan International Airport",
+    "lat": 53.740002,
+    "lon": 91.385002,
+    "tz": null
+  },
+  {
+    "iata": "BAX",
+    "name": "Barnaul Gherman Titov International Airport",
+    "lat": 53.361285,
+    "lon": 83.539701,
+    "tz": null
+  },
+  {
+    "iata": "KEJ",
+    "name": "Alexei Leonov Kemerovo International Airport",
+    "lat": 55.2701,
+    "lon": 86.107201,
+    "tz": null
+  },
+  {
+    "iata": "KJA",
+    "name": "Krasnoyarsk International Airport",
+    "lat": 56.175743,
+    "lon": 92.485788,
+    "tz": null
+  },
+  {
+    "iata": "OVB",
+    "name": "Novosibirsk Tolmachevo Airport",
+    "lat": 55.019756,
+    "lon": 82.618675,
+    "tz": null
+  },
+  {
+    "iata": "OMS",
+    "name": "Omsk Central Airport",
+    "lat": 54.963124,
+    "lon": 73.312418,
+    "tz": null
+  },
+  {
+    "iata": "TOF",
+    "name": "Tomsk Kamov Airport",
+    "lat": 56.380299,
+    "lon": 85.208298,
+    "tz": null
+  },
+  {
+    "iata": "NSK",
+    "name": "Alykel International Airport",
+    "lat": 69.307951,
+    "lon": 87.325906,
+    "tz": null
+  },
+  {
+    "iata": "KRR",
+    "name": "Krasnodar Pashkovsky International Airport",
+    "lat": 45.034465,
+    "lon": 39.174215,
+    "tz": null
+  },
+  {
+    "iata": "GRV",
+    "name": "Akhmat Kadyrov Grozny International Airport",
+    "lat": 43.388106,
+    "lon": 45.699772,
+    "tz": null
+  },
+  {
+    "iata": "MCX",
+    "name": "Makhachkala Uytash International Airport",
+    "lat": 42.816799,
+    "lon": 47.652302,
+    "tz": null
+  },
+  {
+    "iata": "MRV",
+    "name": "Mineralnye Vody Airport",
+    "lat": 44.225101,
+    "lon": 43.081902,
+    "tz": null
+  },
+  {
+    "iata": "ROV",
+    "name": "Platov International Airport",
+    "lat": 47.493888,
+    "lon": 39.924722,
+    "tz": null
+  },
+  {
+    "iata": "AER",
+    "name": "Sochi International Airport",
+    "lat": 43.449902,
+    "lon": 39.9566,
+    "tz": null
+  },
+  {
+    "iata": "ASF",
+    "name": "Astrakhan Narimanovo Boris M. Kustodiev International Airport",
+    "lat": 46.282843,
+    "lon": 48.010511,
+    "tz": null
+  },
+  {
+    "iata": "VOG",
+    "name": "Volgograd International Airport",
+    "lat": 48.78134,
+    "lon": 44.339194,
+    "tz": null
+  },
+  {
+    "iata": "CEK",
+    "name": "Kurchatov Chelyabinsk International Airport",
+    "lat": 55.303141,
+    "lon": 61.504927,
+    "tz": null
+  },
+  {
+    "iata": "MQF",
+    "name": "Magnitogorsk International Airport",
+    "lat": 53.391991,
+    "lon": 58.755235,
+    "tz": null
+  },
+  {
+    "iata": "NJC",
+    "name": "Nizhnevartovsk Airport",
+    "lat": 60.949299,
+    "lon": 76.483597,
+    "tz": null
+  },
+  {
+    "iata": "PEE",
+    "name": "Perm International Airport",
+    "lat": 57.914501,
+    "lon": 56.021198,
+    "tz": null
+  },
+  {
+    "iata": "SGC",
+    "name": "Surgut International Airport",
+    "lat": 61.340501,
+    "lon": 73.405782,
+    "tz": null
+  },
+  {
+    "iata": "SVX",
+    "name": "Koltsovo Airport",
+    "lat": 56.743099,
+    "lon": 60.8027,
+    "tz": null
+  },
+  {
+    "iata": "TJM",
+    "name": "Roshchino International Airport",
+    "lat": 57.178984,
+    "lon": 65.327696,
+    "tz": null
+  },
+  {
+    "iata": "ASB",
+    "name": "Ashgabat International Airport",
+    "lat": 37.986801,
+    "lon": 58.361,
+    "tz": null
+  },
+  {
+    "iata": "CRZ",
+    "name": "Türkmenabat International Airport",
+    "lat": 38.930662,
+    "lon": 63.563982,
+    "tz": null
+  },
+  {
+    "iata": "DYU",
+    "name": "Dushanbe International Airport",
+    "lat": 38.543746,
+    "lon": 68.822977,
+    "tz": null
+  },
+  {
+    "iata": "LBD",
+    "name": "Khujand International Airport",
+    "lat": 40.215401,
+    "lon": 69.694702,
+    "tz": null
+  },
+  {
+    "iata": "NMA",
+    "name": "Namangan International Airport",
+    "lat": 40.984622,
+    "lon": 71.5578,
+    "tz": null
+  },
+  {
+    "iata": "AZN",
+    "name": "Andijan International Airport",
+    "lat": 40.727699,
+    "lon": 72.293999,
+    "tz": null
+  },
+  {
+    "iata": "NCU",
+    "name": "Nukus International Airport",
+    "lat": 42.4884,
+    "lon": 59.623299,
+    "tz": null
+  },
+  {
+    "iata": "UGC",
+    "name": "Urgench International Airport",
+    "lat": 41.58274,
+    "lon": 60.64338,
+    "tz": null
+  },
+  {
+    "iata": "NVI",
+    "name": "Navoi International Airport",
+    "lat": 40.117599,
+    "lon": 65.172658,
+    "tz": null
+  },
+  {
+    "iata": "BHK",
+    "name": "Bukhara International Airport",
+    "lat": 39.775002,
+    "lon": 64.483299,
+    "tz": null
+  },
+  {
+    "iata": "SKD",
+    "name": "Samarkand International Airport",
+    "lat": 39.698187,
+    "lon": 66.98421,
+    "tz": null
+  },
+  {
+    "iata": "TAS",
+    "name": "Tashkent International Airport",
+    "lat": 41.2579,
+    "lon": 69.281197,
+    "tz": null
+  },
+  {
+    "iata": "ZIA",
+    "name": "Zhukovsky International Airport",
+    "lat": 55.553299,
+    "lon": 38.150002,
+    "tz": null
+  },
+  {
+    "iata": "DME",
+    "name": "Domodedovo International Airport",
+    "lat": 55.408798,
+    "lon": 37.9063,
+    "tz": null
+  },
+  {
+    "iata": "IAR",
+    "name": "Golden Ring Yaroslavl International Airport",
+    "lat": 57.560699,
+    "lon": 40.157398,
+    "tz": null
+  },
+  {
+    "iata": "SVO",
+    "name": "Sheremetyevo International Airport",
+    "lat": 55.976858,
+    "lon": 37.41121,
+    "tz": null
+  },
+  {
+    "iata": "VOZ",
+    "name": "Voronezh International Airport",
+    "lat": 51.813683,
+    "lon": 39.231711,
+    "tz": null
+  },
+  {
+    "iata": "VKO",
+    "name": "Vnukovo International Airport",
+    "lat": 55.591499,
+    "lon": 37.261501,
+    "tz": null
+  },
+  {
+    "iata": "GOJ",
+    "name": "Nizhny Novgorod / Strigino International Airport",
+    "lat": 56.227351,
+    "lon": 43.785152,
+    "tz": null
+  },
+  {
+    "iata": "KZN",
+    "name": "Kazan International Airport",
+    "lat": 55.606201,
+    "lon": 49.278702,
+    "tz": null
+  },
+  {
+    "iata": "ULV",
+    "name": "Ulyanovsk Baratayevka Airport",
+    "lat": 54.268299,
+    "lon": 48.2267,
+    "tz": null
+  },
+  {
+    "iata": "SKX",
+    "name": "Saransk International Airport",
+    "lat": 54.12513,
+    "lon": 45.212257,
+    "tz": null
+  },
+  {
+    "iata": "GSV",
+    "name": "Gagarin International Airport",
+    "lat": 51.712778,
+    "lon": 46.171111,
+    "tz": null
+  },
+  {
+    "iata": "UFA",
+    "name": "Ufa International Airport",
+    "lat": 54.557499,
+    "lon": 55.874401,
+    "tz": null
+  },
+  {
+    "iata": "KUF",
+    "name": "Kurumoch International Airport",
+    "lat": 53.504902,
+    "lon": 50.164299,
+    "tz": null
+  },
+  {
+    "iata": "AMD",
+    "name": "Sardar Vallabh Patel International Airport",
+    "lat": 23.0772,
+    "lon": 72.634697,
+    "tz": null
+  },
+  {
+    "iata": "BOM",
+    "name": "Chhatrapati Shivaji Maharaj International Airport",
+    "lat": 19.088699,
+    "lon": 72.867897,
+    "tz": null
+  },
+  {
+    "iata": "BDQ",
+    "name": "Vadodara International Airport",
+    "lat": 22.336201,
+    "lon": 73.226303,
+    "tz": null
+  },
+  {
+    "iata": "BHO",
+    "name": "Raja Bhoj International Airport",
+    "lat": 23.2875,
+    "lon": 77.337402,
+    "tz": null
+  },
+  {
+    "iata": "HSR",
+    "name": "Rajkot International Airport",
+    "lat": 22.378824,
+    "lon": 71.039391,
+    "tz": null
+  },
+  {
+    "iata": "IDR",
+    "name": "Devi Ahilya Bai Holkar International Airport",
+    "lat": 22.721404,
+    "lon": 75.80051,
+    "tz": null
+  },
+  {
+    "iata": "NAG",
+    "name": "Dr. Babasaheb Ambedkar International Airport",
+    "lat": 21.092199,
+    "lon": 79.047203,
+    "tz": null
+  },
+  {
+    "iata": "ISK",
+    "name": "Nashik International Airport",
+    "lat": 20.119101,
+    "lon": 73.912903,
+    "tz": null
+  },
+  {
+    "iata": "PNQ",
+    "name": "Pune International Airport",
+    "lat": 18.5821,
+    "lon": 73.919701,
+    "tz": null
+  },
+  {
+    "iata": "SAG",
+    "name": "Shirdi International Airport",
+    "lat": 19.689211,
+    "lon": 74.373655,
+    "tz": null
+  },
+  {
+    "iata": "STV",
+    "name": "Surat International Airport",
+    "lat": 21.115531,
+    "lon": 72.743251,
+    "tz": null
+  },
+  {
+    "iata": "CMB",
+    "name": "Bandaranaike International Colombo Airport",
+    "lat": 7.18076,
+    "lon": 79.884102,
+    "tz": null
+  },
+  {
+    "iata": "RML",
+    "name": "Colombo Ratmalana International Airport",
+    "lat": 6.821638,
+    "lon": 79.885859,
+    "tz": null
+  },
+  {
+    "iata": "JAF",
+    "name": "Jaffna International Airport",
+    "lat": 9.79233,
+    "lon": 80.070099,
+    "tz": null
+  },
+  {
+    "iata": "HRI",
+    "name": "Mattala Rajapaksa International Airport",
+    "lat": 6.283878,
+    "lon": 81.124163,
+    "tz": null
+  },
+  {
+    "iata": "PNH",
+    "name": "Phnom Penh International Airport",
+    "lat": 11.547155,
+    "lon": 104.844699,
+    "tz": null
+  },
+  {
+    "iata": "SAI",
+    "name": "Siem Reap-Angkor International Airport",
+    "lat": 13.36974,
+    "lon": 104.223831,
+    "tz": null
+  },
+  {
+    "iata": "KOS",
+    "name": "Sihanouk International Airport",
+    "lat": 10.570557,
+    "lon": 103.632067,
+    "tz": null
+  },
+  {
+    "iata": "IXB",
+    "name": "Bagdogra Airport",
+    "lat": 26.6812,
+    "lon": 88.328598,
+    "tz": null
+  },
+  {
+    "iata": "VNS",
+    "name": "Lal Bahadur Shastri International Airport",
+    "lat": 25.452171,
+    "lon": 82.862549,
+    "tz": null
+  }
+]

@@ -11,6 +11,13 @@ import CoreLocation
 import MapKit
 internal import Combine
 
+#if DEBUG
+private func _locationPerfLog(_ phase: String) {
+    let t = CFAbsoluteTimeGetCurrent()
+    print(String(format: "[LocationPerf] %.3f %@", t, phase))
+}
+#endif
+
 // MARK: - Models
 
 /// Place prediction from location autocomplete (works with both MapKit and Google Places)
@@ -105,12 +112,21 @@ final class LocationService: NSObject, ObservableObject {
     private var searchContinuation: CheckedContinuation<[PlacePrediction], Error>?
     
     private override init() {
+        #if DEBUG
+        _locationPerfLog("LocationService.init start")
+        #endif
         super.init()
         // Use 'self' instead of 'LocationService.shared' to avoid circular reference during initialization
         searchCompleter.delegate = self
         searchCompleter.resultTypes = [.address, .pointOfInterest]
         searchCompleter.region = seattleRegion
+        #if DEBUG
+        _locationPerfLog("LocationService.init before loadRecentLocations")
+        #endif
         loadRecentLocations()
+        #if DEBUG
+        _locationPerfLog("LocationService.init end")
+        #endif
     }
     
     // MARK: - Public Methods (MapKit Implementation)
@@ -121,7 +137,9 @@ final class LocationService: NSObject, ObservableObject {
     /// - Throws: LocationError if search fails
     func searchPlaces(query: String) async throws -> [PlacePrediction] {
         guard !query.isEmpty, query.count >= 2 else { return [] }
-        
+        #if DEBUG
+        _locationPerfLog("searchPlaces query dispatch '\(query.prefix(20))...'")
+        #endif
         return try await withCheckedThrowingContinuation { continuation in
             // Cancel any previous search
             searchCompleter.cancel()
@@ -214,11 +232,20 @@ final class LocationService: NSObject, ObservableObject {
     }
     
     private func loadRecentLocations() {
+        #if DEBUG
+        _locationPerfLog("loadRecentLocations start")
+        #endif
         guard let data = UserDefaults.standard.data(forKey: "recent_locations"),
               let locations = try? JSONDecoder().decode([SavedLocation].self, from: data) else {
+            #if DEBUG
+            _locationPerfLog("loadRecentLocations end (no data or decode failed)")
+            #endif
             return
         }
         recentLocations = locations
+        #if DEBUG
+        _locationPerfLog("loadRecentLocations end (count=\(locations.count))")
+        #endif
     }
     
     private func persistRecentLocations() {
@@ -232,6 +259,9 @@ final class LocationService: NSObject, ObservableObject {
 extension LocationService: MKLocalSearchCompleterDelegate {
     nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
         Task { @MainActor in
+            #if DEBUG
+            _locationPerfLog("completerDidUpdateResults received (count=\(completer.results.count))")
+            #endif
             let predictions = completer.results.map { completion in
                 PlacePrediction(
                     placeID: completion.title, // Use title as ID for MapKit
@@ -240,7 +270,9 @@ extension LocationService: MKLocalSearchCompleterDelegate {
                     fullText: "\(completion.title), \(completion.subtitle)"
                 )
             }
-            
+            #if DEBUG
+            _locationPerfLog("completerDidUpdateResults resuming continuation")
+            #endif
             // Resume continuation with results
             searchContinuation?.resume(returning: predictions)
             searchContinuation = nil

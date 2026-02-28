@@ -212,8 +212,7 @@ struct ConversationDetailView: View {
                 object: nil,
                 userInfo: ["conversationId": conversationId]
             )
-            // Stop observing typing indicators
-            viewModel.stopTypingObservation()
+            viewModel.stop()
 #if DEBUG
             debugFrameDropMonitor.stop()
 #endif
@@ -872,7 +871,7 @@ struct ConversationDetailView: View {
             await loadConversationDetails()
             
             // Post notification to refresh conversations list
-            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
+            NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
         } catch {
             AppLogger.error("messaging", "Error adding participants: \(error.localizedDescription)")
         }

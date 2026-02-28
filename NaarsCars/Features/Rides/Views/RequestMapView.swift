@@ -101,6 +101,7 @@ struct RequestMapView: View {
                 }
             }
         }
+        .frame(minHeight: 200)
         .onChange(of: selectedRequest) { _, newValue in
             if let request = newValue {
                 // Center map on selected request

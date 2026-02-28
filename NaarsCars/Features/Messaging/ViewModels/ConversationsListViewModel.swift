@@ -47,6 +47,7 @@ final class ConversationsListViewModel: ObservableObject {
     private let pageSize = 10
     private var currentOffset = 0
     private var searchTask: Task<Void, Never>?
+    private var loadTask: Task<Void, Never>?
     private var lastRemoteSyncAt: Date = .distantPast
     
     init(
@@ -162,7 +163,16 @@ final class ConversationsListViewModel: ObservableObject {
     }
     
     deinit {}
-    
+
+    /// Call from view onDisappear to cancel in-flight work so VM can tear down safely.
+    func stop() {
+        AppLogger.info("messaging", "[ConversationsListVM] stop() called; cancelling loadTask and searchTask")
+        loadTask?.cancel()
+        loadTask = nil
+        searchTask?.cancel()
+        searchTask = nil
+    }
+
     func loadConversations() async {
         let showLoading = Self.shouldShowLoading(conversations: conversations)
         if showLoading {
@@ -195,21 +205,21 @@ final class ConversationsListViewModel: ObservableObject {
         }
         lastRemoteSyncAt = now
 
-        // 2. Sync from remote in background
-        Task {
+        // 2. Sync from remote in background (stored so we can cancel on disappear)
+        loadTask?.cancel()
+        loadTask = Task { @MainActor in
+            defer { loadTask = nil }
             do {
                 try await repository.syncConversations(userId: userId)
-                // Re-fetch local data after sync to update UI
+                guard !Task.isCancelled else { return }
                 let updatedConversations = try repository.getConversations()
                 self.applyLocalConversations(updatedConversations, animated: false)
-                
-                // Set the pagination offset to match what we have loaded
                 currentOffset = self.conversations.count
-                
-                // Hydrate profiles for updated conversations
                 await hydrateProfiles(for: updatedConversations)
             } catch {
-                AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
+                if !Task.isCancelled {
+                    AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
+                }
             }
         }
     }

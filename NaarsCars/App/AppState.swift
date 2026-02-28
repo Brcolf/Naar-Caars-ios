@@ -85,7 +85,7 @@ final class AppState: ObservableObject {
             .store(in: &cancellables)
         
         // Listen for signout events
-        NotificationCenter.default.publisher(for: NSNotification.Name("userDidSignOut"))
+        NotificationCenter.default.publisher(for: .userDidSignOut)
             .sink { [weak self] _ in
                 Task { @MainActor [weak self] in
                     await SyncEngineOrchestrator.shared.teardownAll()

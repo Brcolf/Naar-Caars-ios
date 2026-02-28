@@ -30,7 +30,12 @@ struct RideDetailView: View {
     @State private var clearedAnchors: Set<RequestDetailAnchor> = []
     @State private var toastMessage: String? = nil
     @State private var showSuccess = false
-    
+    @State private var isOpeningMaps = false
+    @State private var openMapsTask: Task<Void, Never>?
+    @State private var openMapsLocationProvider: CurrentLocationProvider?
+    @AppStorage("preferredMapsApp") private var preferredMapsApp: String = ""
+    @State private var showMapsChoiceDialog = false
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -61,6 +66,17 @@ struct RideDetailView: View {
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await viewModel.loadRide(id: rideId) }
         .task { await viewModel.loadRide(id: rideId) }
+        .onReceive(NotificationCenter.default.publisher(for: .rideFlightEnrichmentDidComplete)) { notification in
+            guard let s = notification.userInfo?[RideFlightEnrichmentNotification.rideIdKey] as? String,
+                  let id = UUID(uuidString: s), id == rideId else { return }
+            Task { await viewModel.loadRide(id: rideId) }
+        }
+        .onDisappear {
+            openMapsTask?.cancel()
+            openMapsLocationProvider?.stop()
+            openMapsTask = nil
+            openMapsLocationProvider = nil
+        }
         .sheet(isPresented: $showEditRide) {
             if let ride = viewModel.ride {
                 EditRideView(ride: ride) {
@@ -276,18 +292,43 @@ struct RideDetailView: View {
                     Label("ride_detail_route_map".localized, systemImage: "map.fill")
                         .font(.naarsTitle3)
                     Spacer()
-                    Text("ride_detail_tap_open_maps".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
+                    if isOpeningMaps {
+                        Text("ride_detail_opening_maps".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("ride_detail_tap_open_maps".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                
+
                 RouteMapView(pickup: ride.pickup, destination: ride.destination)
                     .contentShape(Rectangle()) // Ensure the entire area is tappable
+                    .overlay(isOpeningMaps ? Color.black.opacity(0.15) : nil)
+                    .allowsHitTesting(!isOpeningMaps)
                     .onTapGesture {
-                        openInExternalMaps(ride: ride)
+                        handleMapTap(ride: ride)
                     }
+                    .onLongPressGesture(minimumDuration: 0.5) {
+                        showMapsChoiceDialog = true
+                    }
+                    .accessibilityHint("ride_detail_map_open_maps_hint".localized)
             }
             .cardStyle()
+            .confirmationDialog("ride_detail_open_in_maps_title".localized, isPresented: $showMapsChoiceDialog, titleVisibility: .visible) {
+                Button("ride_detail_maps_apple".localized) {
+                    preferredMapsApp = PreferredMapsApp.apple.rawValue
+                    openInExternalMaps(ride: ride, provider: .apple)
+                }
+                Button("ride_detail_maps_google".localized) {
+                    preferredMapsApp = PreferredMapsApp.google.rawValue
+                    openInExternalMaps(ride: ride, provider: .google)
+                }
+                Button("ride_detail_cancel".localized, role: .cancel) {}
+            } message: {
+                Text("ride_detail_open_in_maps_message".localized)
+            }
             
             // Time and Seats Info
             HStack(spacing: Constants.Spacing.md) {
@@ -390,6 +431,12 @@ struct RideDetailView: View {
                 .cardStyle()
                 .id(RequestDetailAnchor.claimerCard.anchorId(for: .ride))
                 .requestHighlight(highlightedAnchor == .claimerCard)
+            }
+            
+            // Flight (persisted or parsed from notes; tappable to open status search)
+            if let flightInfo = FlightInfo.displayInfo(for: ride) {
+                FlightRowView(flightInfo: flightInfo, style: .detail)
+                    .cardStyle()
             }
             
             // Notes & Gift
@@ -600,66 +647,74 @@ struct RideDetailView: View {
         }
     }
     
-    private func openInExternalMaps(ride: Ride) {
-        AppLogger.info("rides", "[RideDetailView] Opening external maps for ride: \(ride.id)")
-        let pickup = ride.pickup.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let destination = ride.destination.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        
-        // Google Maps Universal Link (more reliable for multi-stop)
-        // https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=[DEST]&waypoints=[PICKUP]&travelmode=driving
-        let googleMapsUrl = URL(string: "comgooglemaps://?saddr=&daddr=\(destination)&waypoints=\(pickup)&directionsmode=driving")
-        let googleMapsWebUrl = URL(string: "\(Constants.URLs.googleMapsDirections)?api=1&origin=My+Location&destination=\(destination)&waypoints=\(pickup)&travelmode=driving")
-        
-        // Apple Maps multi-stop via MKMapItem
-        // This is the most robust way to handle multiple stops in Apple Maps on iOS
-        let appleMapsMultiStop = {
-            let geocoder = CLGeocoder()
-            Task {
-                do {
-                    let pickupPlacemarks = try await geocoder.geocodeAddressString(ride.pickup)
-                    let destPlacemarks = try await geocoder.geocodeAddressString(ride.destination)
-                    
-                    guard let pickupPlacemark = pickupPlacemarks.first,
-                          let destPlacemark = destPlacemarks.first else {
-                        throw NSError(domain: "Maps", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not geocode addresses"])
-                    }
-                    
-                    let pickupItem = MKMapItem(placemark: MKPlacemark(placemark: pickupPlacemark))
-                    pickupItem.name = "Pickup: \(ride.pickup)"
-                    
-                    let destItem = MKMapItem(placemark: MKPlacemark(placemark: destPlacemark))
-                    destItem.name = "Destination: \(ride.destination)"
-                    
-                    // Launch Apple Maps with current location as start, then pickup, then destination
-                    // Note: MKMapItem.openMaps only supports a destination, but we can pass multiple items
-                    // The first item in the array is the destination, but if we want current -> pickup -> dest, 
-                    // we use the direction mode to help.
-                    let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
-                    MKMapItem.openMaps(with: [pickupItem, destItem], launchOptions: launchOptions)
-                    AppLogger.info("rides", "[RideDetailView] Opened Apple Maps via MKMapItem")
-                } catch {
-                    AppLogger.warning("rides", "[RideDetailView] Apple Maps multi-stop failed: \(error.localizedDescription)")
-                    // Fallback to simple URL if geocoding fails
-                    if let url = URL(string: "http://maps.apple.com/?saddr=\(pickup)&daddr=\(destination)") {
-                        await UIApplication.shared.open(url)
-                    }
-                }
+    private func handleMapTap(ride: Ride) {
+        AppLogger.info("rides", "[RideMapTap] tapped rideId=\(ride.id)")
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        if let preferred = PreferredMapsApp(rawValue: preferredMapsApp) {
+            openInExternalMaps(ride: ride, provider: preferred)
+        } else {
+            showMapsChoiceDialog = true
+        }
+    }
+
+    private func openInExternalMaps(ride: Ride, provider: PreferredMapsApp) {
+        isOpeningMaps = true
+        let locationProvider = CurrentLocationProvider()
+        openMapsLocationProvider = locationProvider
+        openMapsTask = Task {
+            await openInExternalMapsAsync(ride: ride, locationProvider: locationProvider, mapsProvider: provider)
+            await MainActor.run {
+                isOpeningMaps = false
+                openMapsTask = nil
+                openMapsLocationProvider = nil
             }
         }
-        
-        if let url = googleMapsUrl, UIApplication.shared.canOpenURL(url) {
-            AppLogger.info("rides", "[RideDetailView] Opening Google Maps App")
-            Task { @MainActor in
-                await UIApplication.shared.open(url)
+    }
+
+    private func openInExternalMapsAsync(ride: Ride, locationProvider: CurrentLocationProvider, mapsProvider: PreferredMapsApp) async {
+        await withTaskCancellationHandler {
+            AppLogger.info("rides", "[RideMapTap] requesting current location...")
+            async let currentCoordResult = withCheckedContinuation { (cont: CheckedContinuation<CLLocationCoordinate2D?, Never>) in
+                locationProvider.requestCurrentLocation(timeout: Constants.Maps.locationRequestTimeout) { coord in
+                    cont.resume(returning: coord)
+                }
             }
-        } else if let url = googleMapsWebUrl, UIApplication.shared.canOpenURL(URL(string: "comgooglemaps://")!) {
-            // This is a backup check for the universal link
-            Task { @MainActor in
-                await UIApplication.shared.open(url)
+            async let pickupTask = MapService.shared.geocode(address: ride.pickup)
+            async let dropoffTask = MapService.shared.geocode(address: ride.destination)
+
+            let currentCoord = await currentCoordResult
+            if Task.isCancelled { return }
+            if let c = currentCoord {
+                AppLogger.info("rides", "[RideMapTap] got current location lat/lon=\(c.latitude),\(c.longitude)")
             }
-        } else {
-            AppLogger.info("rides", "[RideDetailView] Attempting Apple Maps Multi-Stop")
-            appleMapsMultiStop()
+            let pickupCoord = try? await pickupTask
+            let dropoffCoord = try? await dropoffTask
+            if Task.isCancelled { return }
+            await MainActor.run {
+                switch mapsProvider {
+                case .apple:
+                    MapsLaunchCoordinator.openAppleMaps(
+                        rideId: ride.id,
+                        pickupCoord: pickupCoord,
+                        dropoffCoord: dropoffCoord,
+                        currentCoord: currentCoord,
+                        pickupAddress: ride.pickup,
+                        dropoffAddress: ride.destination
+                    )
+                case .google:
+                    MapsLaunchCoordinator.openGoogleMaps(
+                        rideId: ride.id,
+                        pickupCoord: pickupCoord,
+                        dropoffCoord: dropoffCoord,
+                        currentCoord: currentCoord,
+                        pickupAddress: ride.pickup,
+                        dropoffAddress: ride.destination
+                    )
+                }
+            }
+        } onCancel: {
+            locationProvider.stop()
         }
     }
     

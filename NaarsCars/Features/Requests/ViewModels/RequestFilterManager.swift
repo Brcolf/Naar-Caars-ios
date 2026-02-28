@@ -53,6 +53,7 @@ final class RequestFilterManager: ObservableObject {
                 reviewSkipped: sdRide.reviewSkipped,
                 reviewSkippedAt: sdRide.reviewSkippedAt,
                 estimatedCost: sdRide.estimatedCost,
+                flightNormalized: sdRide.flightNormalized,
                 createdAt: sdRide.createdAt,
                 updatedAt: sdRide.updatedAt,
                 poster: poster,

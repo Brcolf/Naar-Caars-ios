@@ -9,6 +9,21 @@ import Foundation
 import SwiftUI
 internal import Combine
 
+/// Unified intent for notification taps; applied after the notifications sheet has dismissed.
+enum NotificationIntent: Equatable {
+    case showReview(rideId: UUID?, favorId: UUID?)
+    case showRequestCompletion(requestId: UUID, requestType: RequestType)
+    case openConversation(conversationId: UUID, scrollTarget: NavigationCoordinator.ConversationScrollTarget?)
+    case openRide(rideId: UUID, anchor: RequestNotificationTarget?)
+    case openFavor(favorId: UUID, anchor: RequestNotificationTarget?)
+    case openTownHallPost(postId: UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode)
+    case openAnnouncements(scrollToNotificationId: UUID?)
+    case openProfile(userId: UUID)
+    case openAdminPanel
+    case openPendingUsers
+    case openDashboard
+}
+
 /// Global navigation coordinator for handling deep links from push notifications
 @MainActor
 final class NavigationCoordinator: ObservableObject {
@@ -24,6 +39,8 @@ final class NavigationCoordinator: ObservableObject {
     @Published var showReviewPrompt: Bool = false
     @Published var reviewPromptRideId: UUID?
     @Published var reviewPromptFavorId: UUID?
+    /// Set when applying deferred .showRequestCompletion; MainTabView enqueues completion prompt then clears.
+    @Published var pendingCompletionPromptFromDeferred: (RequestType, UUID)?
     @Published var pendingDeepLink: DeepLink?
     @Published var showDeepLinkConfirmation: Bool = false
     
@@ -194,11 +211,65 @@ final class NavigationCoordinator: ObservableObject {
         }
     }
     
-    /// Show review prompt for a completed request
+    // MARK: - Deferred notification intent (apply after notifications sheet dismisses)
+
+    /// Intent stored when user taps a notification; applied in MainTabView sheet onDismiss.
+    private(set) var deferredNotificationIntent: NotificationIntent?
+
+    /// Store intent and request dismissal of the notifications sheet; do not set pendingIntent/showReviewPrompt directly from the list.
+    func deferNotificationIntent(_ intent: NotificationIntent) {
+        AppLogger.info("navigation", "[NavigationCoordinator] deferNotificationIntent: \(intent)")
+        deferredNotificationIntent = intent
+    }
+
+    /// Apply stored intent (set show flags / ids / nav path), then clear. Call from MainTabView notifications sheet onDismiss.
+    func applyDeferredNotificationIntentIfNeeded() {
+        guard let intent = deferredNotificationIntent else { return }
+        deferredNotificationIntent = nil
+        AppLogger.info("navigation", "[NavigationCoordinator] applyDeferredNotificationIntentIfNeeded: \(intent)")
+
+        switch intent {
+        case .showReview(let rideId, let favorId):
+            reviewPromptRideId = rideId
+            reviewPromptFavorId = favorId
+            showReviewPrompt = true
+        case .showRequestCompletion(let requestId, let requestType):
+            pendingCompletionPromptFromDeferred = (requestType, requestId)
+        case .openConversation(let conversationId, let scrollTarget):
+            pendingIntent = .conversation(conversationId, scrollTarget: scrollTarget)
+            selectedTab = .messages
+        case .openRide(let rideId, let anchor):
+            pendingIntent = .ride(rideId, anchor: anchor)
+            selectedTab = .requests
+        case .openFavor(let favorId, let anchor):
+            pendingIntent = .favor(favorId, anchor: anchor)
+            selectedTab = .requests
+        case .openTownHallPost(let postId, let mode):
+            pendingIntent = .townHallPost(postId, mode: mode)
+            selectedTab = .community
+        case .openAnnouncements(let scrollToNotificationId):
+            pendingIntent = .announcements(scrollToNotificationId: scrollToNotificationId)
+            selectedTab = .community
+        case .openProfile(let userId):
+            pendingIntent = .profile(userId)
+            selectedTab = .profile
+        case .openAdminPanel:
+            pendingIntent = .adminPanel
+            selectedTab = .profile
+        case .openPendingUsers:
+            pendingIntent = .pendingUsers
+            selectedTab = .profile
+        case .openDashboard:
+            pendingIntent = .dashboard
+            selectedTab = .requests
+        }
+    }
+
     /// - Parameters:
     ///   - rideId: The ride ID (if ride)
     ///   - favorId: The favor ID (if favor)
     func showReviewPromptFor(rideId: UUID? = nil, favorId: UUID? = nil) {
+        AppLogger.info("navigation", "[NavigationCoordinator] Queued pendingReview rideId=\(rideId?.uuidString ?? "nil") favorId=\(favorId?.uuidString ?? "nil")")
         reviewPromptRideId = rideId
         reviewPromptFavorId = favorId
         showReviewPrompt = true
@@ -209,7 +280,7 @@ final class NavigationCoordinator: ObservableObject {
     private func setupNotificationListeners() {
         // Listen for deep link notifications from AppDelegate
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToRide"),
+            forName: .navigateToRide,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -225,7 +296,7 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToFavor"),
+            forName: .navigateToFavor,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -241,7 +312,7 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToConversation"),
+            forName: .navigateToConversation,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -264,7 +335,7 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToProfile"),
+            forName: .navigateToProfile,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -279,7 +350,7 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToTownHall"),
+            forName: .navigateToTownHall,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -298,7 +369,7 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToAdminPanel"),
+            forName: .navigateToAdminPanel,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -309,7 +380,7 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToPendingUsers"),
+            forName: .navigateToPendingUsers,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -320,7 +391,7 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToNotifications"),
+            forName: .navigateToNotifications,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -330,7 +401,7 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("dismissNotificationsSheet"),
+            forName: .dismissNotificationsSheet,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -343,7 +414,7 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToAnnouncements"),
+            forName: .navigateToAnnouncements,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -355,7 +426,7 @@ final class NavigationCoordinator: ObservableObject {
         }
 
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("navigateToDashboard"),
+            forName: .navigateToDashboard,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -365,7 +436,7 @@ final class NavigationCoordinator: ObservableObject {
         }
         
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("showReviewPrompt"),
+            forName: .showReviewPrompt,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -429,18 +500,9 @@ final class NavigationCoordinator: ObservableObject {
         pendingIntent = nil
     }
     
-    /// Apply navigation that was deferred until after the notifications sheet dismissed.
-    /// Call from MainTabView's notifications sheet onDismiss.
-    func applyDeferredIntentAfterNotificationsDismissal() {
-        guard let intent = pendingIntent else { return }
-        if case .notifications = intent {
-            return
-        }
-        selectedTab = intent.targetTab
-    }
-    
     /// Reset review prompt state
     func resetReviewPrompt() {
+        AppLogger.info("navigation", "[NavigationCoordinator] Cleared pendingReview")
         showReviewPrompt = false
         reviewPromptRideId = nil
         reviewPromptFavorId = nil

@@ -35,7 +35,13 @@ final class ConversationSearchManager: ObservableObject {
     deinit {
         searchTask?.cancel()
     }
-    
+
+    /// Call from owning VM stop() so search can be torn down when conversation screen disappears.
+    func stop() {
+        searchTask?.cancel()
+        searchTask = nil
+    }
+
     // MARK: - Setup
     
     private func setupSearchDebounce() {

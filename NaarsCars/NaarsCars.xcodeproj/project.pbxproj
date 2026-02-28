@@ -103,6 +103,20 @@
 		A891C6D6BC044E179A160A11 /* PromptModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC65578777D3482FAB1B2D57 /* PromptModelsTests.swift */; };
 		AABD5781380A404FB7CEC993 /* UI/Components/Common/RequestQAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B46A4F46EBC4F41B44382F7 /* UI/Components/Common/RequestQAView.swift */; };
 		ABDC25223C774AFABDB1C31C /* Core/Services/RideService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD0A9CD93A24C578046DC46 /* Core/Services/RideService.swift */; };
+		AC02E53A2F3D902500355A45 /* NotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5392F3D902500355A45 /* NotificationNames.swift */; };
+		AC02E53C2F442F8600355A45 /* FlightInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E53B2F442F8600355A45 /* FlightInfo.swift */; };
+		AC02E53F2F442F9600355A45 /* FlightNumberParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E53E2F442F9600355A45 /* FlightNumberParser.swift */; };
+		AC02E5402F442F9600355A45 /* AirportRouteParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E53D2F442F9600355A45 /* AirportRouteParser.swift */; };
+		AC02E5432F442FCB00355A45 /* AirportDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5422F442FCB00355A45 /* AirportDatabase.swift */; };
+		AC02E5442F442FCB00355A45 /* AirlineDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5412F442FCB00355A45 /* AirlineDatabase.swift */; };
+		AC02E5472F442FEF00355A45 /* FlightRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5462F442FEF00355A45 /* FlightRowView.swift */; };
+		AC02E5482F442FEF00355A45 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5452F442FEF00355A45 /* CachedAsyncImage.swift */; };
+		AC02E54B2F44322000355A45 /* CurrentLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5492F44322000355A45 /* CurrentLocationProvider.swift */; };
+		AC02E54C2F44322000355A45 /* RideDirectionsLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E54A2F44322000355A45 /* RideDirectionsLauncher.swift */; };
+		AC02E54E2F44358900355A45 /* MapsLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E54D2F44358900355A45 /* MapsLaunchCoordinator.swift */; };
+		AC02E5522F4435D000355A45 /* airports.json in Resources */ = {isa = PBXBuildFile; fileRef = AC02E5502F4435D000355A45 /* airports.json */; };
+		AC02E5532F4435D000355A45 /* airlines.json in Resources */ = {isa = PBXBuildFile; fileRef = AC02E54F2F4435D000355A45 /* airlines.json */; };
+		AC02E5552F4436D300355A45 /* FlightCodeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC02E5542F4436D300355A45 /* FlightCodeParser.swift */; };
 		AC12004B2F37B2090043BFAE /* LocalAttachmentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12004A2F37B2090043BFAE /* LocalAttachmentStorage.swift */; };
 		AC12004D2F37B21E0043BFAE /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12004C2F37B21E0043BFAE /* Haptics.swift */; };
 		AC12004F2F37B2330043BFAE /* MessageSendWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */; };
@@ -506,6 +520,20 @@
 		A5BD6728D2674DDB93C700C3 /* TownHallPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPost.swift; sourceTree = "<group>"; };
 		A7517715836A495AAD05F791 /* UI/Components/Feedback/SkeletonFavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Feedback/SkeletonFavorCard.swift; sourceTree = "<group>"; };
 		A8E7B755A4BA49CC87DB470C /* UI/Components/Common/CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Common/CachedAsyncImage.swift; sourceTree = "<group>"; };
+		AC02E5392F3D902500355A45 /* NotificationNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationNames.swift; sourceTree = "<group>"; };
+		AC02E53B2F442F8600355A45 /* FlightInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightInfo.swift; sourceTree = "<group>"; };
+		AC02E53D2F442F9600355A45 /* AirportRouteParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportRouteParser.swift; sourceTree = "<group>"; };
+		AC02E53E2F442F9600355A45 /* FlightNumberParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightNumberParser.swift; sourceTree = "<group>"; };
+		AC02E5412F442FCB00355A45 /* AirlineDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirlineDatabase.swift; sourceTree = "<group>"; };
+		AC02E5422F442FCB00355A45 /* AirportDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportDatabase.swift; sourceTree = "<group>"; };
+		AC02E5452F442FEF00355A45 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
+		AC02E5462F442FEF00355A45 /* FlightRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightRowView.swift; sourceTree = "<group>"; };
+		AC02E5492F44322000355A45 /* CurrentLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentLocationProvider.swift; sourceTree = "<group>"; };
+		AC02E54A2F44322000355A45 /* RideDirectionsLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideDirectionsLauncher.swift; sourceTree = "<group>"; };
+		AC02E54D2F44358900355A45 /* MapsLaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapsLaunchCoordinator.swift; sourceTree = "<group>"; };
+		AC02E54F2F4435D000355A45 /* airlines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = airlines.json; sourceTree = "<group>"; };
+		AC02E5502F4435D000355A45 /* airports.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = airports.json; sourceTree = "<group>"; };
+		AC02E5542F4436D300355A45 /* FlightCodeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightCodeParser.swift; sourceTree = "<group>"; };
 		AC12004A2F37B2090043BFAE /* LocalAttachmentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAttachmentStorage.swift; sourceTree = "<group>"; };
 		AC12004C2F37B21E0043BFAE /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSendWorker.swift; sourceTree = "<group>"; };
@@ -902,6 +930,15 @@
 				1C74567335D747008AFF1A27 /* PromptQueue.swift */,
 			);
 			path = Prompts;
+			sourceTree = "<group>";
+		};
+		AC02E5512F4435D000355A45 /* FlightData */ = {
+			isa = PBXGroup;
+			children = (
+				AC02E54F2F4435D000355A45 /* airlines.json */,
+				AC02E5502F4435D000355A45 /* airports.json */,
+			);
+			path = FlightData;
 			sourceTree = "<group>";
 		};
 		AC1200692F3AE5E10043BFAE /* Decoding */ = {
@@ -1514,6 +1551,7 @@
 		ACDCBDF62F0B77C200956D1C /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				AC02E5512F4435D000355A45 /* FlightData */,
 				ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */,
 			);
 			path = Resources;
@@ -1603,6 +1641,11 @@
 		ACDCBE002F0B783F00956D1C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AC02E54D2F44358900355A45 /* MapsLaunchCoordinator.swift */,
+				AC02E5492F44322000355A45 /* CurrentLocationProvider.swift */,
+				AC02E54A2F44322000355A45 /* RideDirectionsLauncher.swift */,
+				AC02E5412F442FCB00355A45 /* AirlineDatabase.swift */,
+				AC02E5422F442FCB00355A45 /* AirportDatabase.swift */,
 				AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */,
 				AC4F1E1F2F23497B00CC5DBA /* PersistentImageService.swift */,
 				AC27A0022F1EDCDC00E3B58F /* CrashReportingService.swift */,
@@ -1655,6 +1698,7 @@
 		ACDCBE012F0B784900956D1C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AC02E53B2F442F8600355A45 /* FlightInfo.swift */,
 				AC1201162F3D7A890043BFAE /* NotificationTypeRegistry.swift */,
 				AC4F1E0A2F21C0C900CC5DBA /* NotificationGrouping.swift */,
 				AC4F1E0B2F21C0C900CC5DBA /* RequestNotificationMapping.swift */,
@@ -1696,6 +1740,10 @@
 		ACDCBE032F0B785900956D1C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				AC02E5542F4436D300355A45 /* FlightCodeParser.swift */,
+				AC02E53D2F442F9600355A45 /* AirportRouteParser.swift */,
+				AC02E53E2F442F9600355A45 /* FlightNumberParser.swift */,
+				AC02E5392F3D902500355A45 /* NotificationNames.swift */,
 				AC12004C2F37B21E0043BFAE /* Haptics.swift */,
 				AC12004A2F37B2090043BFAE /* LocalAttachmentStorage.swift */,
 				1544F95BBD294CC9BB040650 /* Throttler.swift */,
@@ -1814,6 +1862,8 @@
 		ACDCBE0C2F0B78C300956D1C /* Common */ = {
 			isa = PBXGroup;
 			children = (
+				AC02E5452F442FEF00355A45 /* CachedAsyncImage.swift */,
+				AC02E5462F442FEF00355A45 /* FlightRowView.swift */,
 				AC8197A22F14C216003BB08B /* StarRatingInput.swift */,
 				AC8197A32F14C216003BB08B /* TimePickerView.swift */,
 				AC305F1A2F0DB85B0063AFDF /* NotificationBadge.swift */,
@@ -2119,6 +2169,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */,
+				AC02E5522F4435D000355A45 /* airports.json in Resources */,
+				AC02E5532F4435D000355A45 /* airlines.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2180,6 +2232,8 @@
 				ACDCBE252F0B7D9C00956D1C /* SupabaseService.swift in Sources */,
 				AC305F3F2F0DBC430063AFDF /* AnyCodable.swift in Sources */,
 				AC35AB5C2F0F080F0012096B /* TownHallFeedView.swift in Sources */,
+				AC02E54B2F44322000355A45 /* CurrentLocationProvider.swift in Sources */,
+				AC02E54C2F44322000355A45 /* RideDirectionsLauncher.swift in Sources */,
 				AC8197A72F14C232003BB08B /* RouteMapView.swift in Sources */,
 				AC35AB5D2F0F080F0012096B /* CreatePostView.swift in Sources */,
 				AC35AB5F2F0F080F0012096B /* CreatePostViewModel.swift in Sources */,
@@ -2316,9 +2370,12 @@
 				AC27A00F2F1EFB6800E3B58F /* GuidelinesAcceptanceSheet.swift in Sources */,
 				AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */,
 				AC27A0102F1EFB6800E3B58F /* CommunityGuidelinesView.swift in Sources */,
+				AC02E54E2F44358900355A45 /* MapsLaunchCoordinator.swift in Sources */,
 				4779EAF6DB234F378D72E66E /* Core/Services/FavorService.swift in Sources */,
 				ACD19A472F14D001009C1DE5 /* RequestDeduplicator.swift in Sources */,
 				ACBF4B082F12CBAE006A7C8A /* MessagesListView.swift in Sources */,
+				AC02E5472F442FEF00355A45 /* FlightRowView.swift in Sources */,
+				AC02E5482F442FEF00355A45 /* CachedAsyncImage.swift in Sources */,
 				498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */,
 				B4A1D20E9F3B4E2CA1B2C3D5 /* InAppToastManager.swift in Sources */,
 				9DC77EA5FFCB49719D54EB1D /* Core/Services/NotificationService.swift in Sources */,
@@ -2397,12 +2454,17 @@
 				F7AC2A8B9067EDB202D90D32 /* SDMigrationPlan.swift in Sources */,
 				AC4F1E1B2F23340500CC5DBA /* MessagingSyncEngine.swift in Sources */,
 				AC4F1E1C2F23340500CC5DBA /* MessagingRepository.swift in Sources */,
+				AC02E53F2F442F9600355A45 /* FlightNumberParser.swift in Sources */,
+				AC02E5402F442F9600355A45 /* AirportRouteParser.swift in Sources */,
 				E1A3B5C92F7A9A1E00A1B2C3 /* TownHallRepository.swift in Sources */,
 				E1A3B5CA2F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift in Sources */,
 				AC35AB522F0F01B70012096B /* UnclaimSheet.swift in Sources */,
 				AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */,
 				AC8197A52F14C216003BB08B /* TimePickerView.swift in Sources */,
+				AC02E5432F442FCB00355A45 /* AirportDatabase.swift in Sources */,
+				AC02E5442F442FCB00355A45 /* AirlineDatabase.swift in Sources */,
 				AC305F092F0DB8250063AFDF /* RequestQA.swift in Sources */,
+				AC02E53A2F3D902500355A45 /* NotificationNames.swift in Sources */,
 				1F3872FD24264ABC8AD8779C /* UI/Components/Feedback/SkeletonConversationRow.swift in Sources */,
 				37A84B2CFC7F4599A6EE5839 /* UI/Components/Feedback/SkeletonLeaderboardRow.swift in Sources */,
 				414266AE4B5045A291093087 /* UI/Components/Feedback/SkeletonRideCard.swift in Sources */,
@@ -2430,11 +2492,13 @@
 				F7CB32F6B088508DD93B0E65 /* ConversationAvatar.swift in Sources */,
 				90E5FC41592C41315408C689 /* ConversationMediaGalleryView.swift in Sources */,
 				DB23210070BA65715FB8A802 /* ConversationRow.swift in Sources */,
+				AC02E5552F4436D300355A45 /* FlightCodeParser.swift in Sources */,
 				D3F01BA00A876E67805116BB /* ConversationSearchBar.swift in Sources */,
 				FE2C92F79C0AD11E2776D6D1 /* MessageSearchResultRow.swift in Sources */,
 				B4C432DDC4F442F7CDE15C6B /* ReactionDetailsSheet.swift in Sources */,
 				BB02F82EF439230EA9DA35FD /* ReportMessageSheet.swift in Sources */,
 				CB4898E7D326A088A4E084EC /* ScrollToBottomButton.swift in Sources */,
+				AC02E53C2F442F8600355A45 /* FlightInfo.swift in Sources */,
 				8ECD2A46F115E80E6D8F83D5 /* AccountSettingsSection.swift in Sources */,
 				F4B8654C88D233D11774D379 /* AppearanceSettingsSection.swift in Sources */,
 				A5A30259453694D2D7425AF2 /* MessagingSettingsSection.swift in Sources */,
@@ -2663,7 +2727,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = NaarsCars/NaarsCarsDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = WT4DGUYKL4;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
@@ -2709,7 +2773,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = WT4DGUYKL4;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;

@@ -31,26 +31,16 @@ final class FavorsDashboardViewModel: ObservableObject {
     private var modelContext: ModelContext?
     private let favorService: any FavorServiceProtocol
     private let authService: any AuthServiceProtocol
-    private let realtimeManager: RealtimeManager
-    
+    private var loadTask: Task<Void, Never>?
+
     // MARK: - Lifecycle
     
     init(
         favorService: any FavorServiceProtocol = FavorService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared,
-        realtimeManager: RealtimeManager = .shared
+        authService: any AuthServiceProtocol = AuthService.shared
     ) {
         self.favorService = favorService
         self.authService = authService
-        self.realtimeManager = realtimeManager
-    }
-
-    deinit {
-        // Use Task.detached to clean up subscriptions without capturing self
-        let realtimeManager = realtimeManager
-        Task.detached {
-            await realtimeManager.unsubscribe(channelName: "favors-dashboard")
-        }
     }
     
     // MARK: - Public Methods
@@ -101,40 +91,38 @@ final class FavorsDashboardViewModel: ObservableObject {
         return filtered.sorted { $0.date < $1.date }
     }
     
-    /// Guard to prevent concurrent loads
-    private var isLoadInFlight = false
-    /// Debounce task for realtime-triggered reloads
-    private var realtimeReloadTask: Task<Void, Never>?
-    
+    /// Call from view onDisappear to cancel in-flight load so VM can tear down safely.
+    func stop() {
+        AppLogger.info("favors", "[FavorsDashboardVM] stop() called; cancelling loadTask")
+        loadTask?.cancel()
+        loadTask = nil
+    }
+
     /// Load favors based on current filter
     /// - Parameter showLoadingIndicator: If false, reloads silently (used for realtime updates to avoid flicker)
     func loadFavors(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
-        guard !isLoadInFlight else { return }
-        isLoadInFlight = true
-        defer { isLoadInFlight = false }
-        
-        if showLoadingIndicator {
-            isLoading = true
-        }
-        error = nil
-        defer {
-            if showLoadingIndicator {
-                isLoading = false
+        loadTask?.cancel()
+        loadTask = Task { @MainActor in
+            defer { loadTask = nil }
+            guard !Task.isCancelled else { return }
+            if showLoadingIndicator { isLoading = true }
+            error = nil
+            defer { if !Task.isCancelled && showLoadingIndicator { isLoading = false } }
+            do {
+                let fetchedFavors = try await favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
+                guard !Task.isCancelled else { return }
+                if let context = modelContext {
+                    syncFavorsToSwiftData(fetchedFavors, in: context)
+                    try? context.save()
+                }
+            } catch {
+                if !Task.isCancelled {
+                    self.error = error.localizedDescription
+                    AppLogger.error("favors", "Error loading favors: \(error.localizedDescription)")
+                }
             }
         }
-        
-        do {
-            let fetchedFavors = try await favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
-            
-            // Sync to SwiftData
-            if let context = modelContext {
-                syncFavorsToSwiftData(fetchedFavors, in: context)
-                try? context.save()
-            }
-        } catch {
-            self.error = error.localizedDescription
-            AppLogger.error("favors", "Error loading favors: \(error.localizedDescription)")
-        }
+        await loadTask?.value
     }
     
     private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) {
@@ -193,62 +181,6 @@ final class FavorsDashboardViewModel: ObservableObject {
         await loadFavors(forceRefresh: true)
     }
     
-    /// Setup realtime subscription for live updates
-    func setupRealtimeSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "favors-dashboard",
-                table: "favors",
-                filter: nil,
-                onInsert: { [weak self] action in
-                    Task { @MainActor in
-                        await self?.handleFavorInsert(action)
-                    }
-                },
-                onUpdate: { [weak self] action in
-                    Task { @MainActor in
-                        await self?.handleFavorUpdate(action)
-                    }
-                },
-                onDelete: { [weak self] action in
-                    Task { @MainActor in
-                        await self?.handleFavorDelete(action)
-                    }
-                }
-            )
-        }
-    }
-    
-    /// Cleanup realtime subscription
-    func cleanupRealtimeSubscription() {
-        Task {
-            await realtimeManager.unsubscribe(channelName: "favors-dashboard")
-        }
-    }
-    
-    // MARK: - Private Methods
-    
-    /// Debounced silent reload for realtime events (prevents rapid consecutive reloads and UI flicker)
-    private func debouncedSilentReload() {
-        realtimeReloadTask?.cancel()
-        realtimeReloadTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s debounce
-            guard !Task.isCancelled else { return }
-            await self?.loadFavors(showLoadingIndicator: false)
-        }
-    }
-    
-    private func handleFavorInsert(_ record: RealtimeRecord) async {
-        debouncedSilentReload()
-    }
-    
-    private func handleFavorUpdate(_ record: RealtimeRecord) async {
-        debouncedSilentReload()
-    }
-    
-    private func handleFavorDelete(_ record: RealtimeRecord) async {
-        debouncedSilentReload()
-    }
 }
 
 

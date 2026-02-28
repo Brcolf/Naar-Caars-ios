@@ -31,25 +31,23 @@ final class RidesDashboardViewModel: ObservableObject {
     private var modelContext: ModelContext?
     private let rideService: any RideServiceProtocol
     private let authService: any AuthServiceProtocol
-    private let realtimeManager: RealtimeManager
-    
+    private var loadTask: Task<Void, Never>?
+    private var flightEnrichmentObserver: (any NSObjectProtocol)?
+
     // MARK: - Lifecycle
     
     init(
         rideService: any RideServiceProtocol = RideService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared,
-        realtimeManager: RealtimeManager = .shared
+        authService: any AuthServiceProtocol = AuthService.shared
     ) {
         self.rideService = rideService
         self.authService = authService
-        self.realtimeManager = realtimeManager
-    }
-
-    deinit {
-        // Use Task.detached to clean up subscriptions without capturing self
-        let realtimeManager = realtimeManager
-        Task.detached {
-            await realtimeManager.unsubscribe(channelName: "rides-dashboard")
+        flightEnrichmentObserver = NotificationCenter.default.addObserver(
+            forName: .rideFlightEnrichmentDidComplete,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { await self?.loadRides(forceRefresh: true, showLoadingIndicator: false) }
         }
     }
     
@@ -82,6 +80,7 @@ final class RidesDashboardViewModel: ObservableObject {
                 reviewSkipped: sd.reviewSkipped,
                 reviewSkippedAt: sd.reviewSkippedAt,
                 estimatedCost: sd.estimatedCost,
+                flightNormalized: sd.flightNormalized,
                 createdAt: sd.createdAt,
                 updatedAt: sd.updatedAt,
                 qaCount: sd.qaCount
@@ -102,40 +101,42 @@ final class RidesDashboardViewModel: ObservableObject {
         return filtered.sorted { $0.date < $1.date }
     }
     
-    /// Guard to prevent concurrent loads
-    private var isLoadInFlight = false
-    /// Debounce task for realtime-triggered reloads
-    private var realtimeReloadTask: Task<Void, Never>?
-    
+    /// Call from view onDisappear to cancel in-flight load so VM can tear down safely.
+    func stop() {
+        AppLogger.info("rides", "[RidesDashboardVM] stop() called; cancelling loadTask")
+        loadTask?.cancel()
+        loadTask = nil
+        if let o = flightEnrichmentObserver {
+            NotificationCenter.default.removeObserver(o)
+            flightEnrichmentObserver = nil
+        }
+    }
+
     /// Load rides based on current filter
     /// - Parameter showLoadingIndicator: If false, reloads silently (used for realtime updates to avoid flicker)
     func loadRides(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
-        guard !isLoadInFlight else { return }
-        isLoadInFlight = true
-        defer { isLoadInFlight = false }
-        
-        if showLoadingIndicator {
-            isLoading = true
-        }
-        error = nil
-        defer {
-            if showLoadingIndicator {
-                isLoading = false
+        loadTask?.cancel()
+        loadTask = Task { @MainActor in
+            defer { loadTask = nil }
+            guard !Task.isCancelled else { return }
+            if showLoadingIndicator { isLoading = true }
+            error = nil
+            defer { if !Task.isCancelled && showLoadingIndicator { isLoading = false } }
+            do {
+                let fetchedRides = try await rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
+                guard !Task.isCancelled else { return }
+                if let context = modelContext {
+                    syncRidesToSwiftData(fetchedRides, in: context)
+                    try? context.save()
+                }
+            } catch {
+                if !Task.isCancelled {
+                    self.error = error.localizedDescription
+                    AppLogger.error("rides", "Error loading rides: \(error)")
+                }
             }
         }
-        
-        do {
-            let fetchedRides = try await rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
-            
-            // Sync to SwiftData
-            if let context = modelContext {
-                syncRidesToSwiftData(fetchedRides, in: context)
-                try? context.save()
-            }
-        } catch {
-            self.error = error.localizedDescription
-            AppLogger.error("rides", "Error loading rides: \(error)")
-        }
+        await loadTask?.value
     }
     
     private func syncRidesToSwiftData(_ rides: [Ride], in context: ModelContext) {
@@ -158,6 +159,7 @@ final class RidesDashboardViewModel: ObservableObject {
                 existing.reviewSkipped = ride.reviewSkipped
                 existing.reviewSkippedAt = ride.reviewSkippedAt
                 existing.estimatedCost = ride.estimatedCost
+                existing.flightNormalized = ride.flightNormalized
             } else {
                 let sdRide = SDRide(
                     id: ride.id,
@@ -176,6 +178,7 @@ final class RidesDashboardViewModel: ObservableObject {
                     reviewSkipped: ride.reviewSkipped,
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost,
+                    flightNormalized: ride.flightNormalized,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
                     qaCount: ride.qaCount ?? 0
@@ -195,66 +198,6 @@ final class RidesDashboardViewModel: ObservableObject {
         await loadRides(forceRefresh: true)
     }
     
-    /// Setup realtime subscription for live updates
-    func setupRealtimeSubscription() {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "rides-dashboard",
-                table: "rides",
-                filter: nil,
-                onInsert: { [weak self] action in
-                    Task { @MainActor in
-                        await self?.handleRideInsert(action)
-                    }
-                },
-                onUpdate: { [weak self] action in
-                    Task { @MainActor in
-                        await self?.handleRideUpdate(action)
-                    }
-                },
-                onDelete: { [weak self] action in
-                    Task { @MainActor in
-                        await self?.handleRideDelete(action)
-                    }
-                }
-            )
-        }
-    }
-    
-    /// Cleanup realtime subscription
-    func cleanupRealtimeSubscription() {
-        Task {
-            await realtimeManager.unsubscribe(channelName: "rides-dashboard")
-        }
-    }
-    
-    // MARK: - Private Methods
-    
-    /// Debounced silent reload for realtime events (prevents rapid consecutive reloads and UI flicker)
-    private func debouncedSilentReload() {
-        realtimeReloadTask?.cancel()
-        realtimeReloadTask = Task { @MainActor [weak self] in
-            // Small debounce to batch rapid consecutive events
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
-            guard !Task.isCancelled else { return }
-            await self?.loadRides(showLoadingIndicator: false)
-        }
-    }
-    
-    private func handleRideInsert(_ record: RealtimeRecord) async {
-        // Silent reload to avoid loading spinner flash
-        debouncedSilentReload()
-    }
-    
-    private func handleRideUpdate(_ record: RealtimeRecord) async {
-        // Silent reload to avoid loading spinner flash
-        debouncedSilentReload()
-    }
-    
-    private func handleRideDelete(_ record: RealtimeRecord) async {
-        // Silent reload to avoid loading spinner flash
-        debouncedSilentReload()
-    }
 }
 
 

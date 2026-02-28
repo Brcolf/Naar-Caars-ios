@@ -42,9 +42,12 @@ final class RequestsDashboardViewModel: ObservableObject {
     private let summaryManager: RequestNotificationSummaryManager
     private let realtimeHandler: RequestRealtimeHandler
     private var managerCancellables = Set<AnyCancellable>()
+    /// In-flight load task; cancelled in stop() to avoid use-after-free when view disappears.
+    private var loadTask: Task<Void, Never>?
+    private var flightEnrichmentObserver: (any NSObjectProtocol)?
 
     // MARK: - Lifecycle
-
+    
     init(
         rideService: any RideServiceProtocol = RideService.shared,
         favorService: any FavorServiceProtocol = FavorService.shared,
@@ -86,12 +89,28 @@ final class RequestsDashboardViewModel: ObservableObject {
                 await self?.loadRequests(forceRefresh: true)
             }
         )
+        flightEnrichmentObserver = NotificationCenter.default.addObserver(
+            forName: .rideFlightEnrichmentDidComplete,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { await self?.loadRequests(forceRefresh: true, showLoadingIndicator: false) }
+        }
     }
 
     deinit {
-        let handler = realtimeHandler
-        Task { @MainActor in
-            handler.cleanupRealtimeSubscription()
+        // Cleanup is done in stop() from onDisappear. Do not start Task or touch MainActor state here (deinit is nonisolated).
+    }
+
+    /// Call from view onDisappear to cancel in-flight work and realtime subscription so VM can tear down safely.
+    func stop() {
+        AppLogger.info("requests", "[RequestsDashboardVM] stop() called; cancelling loadTask and realtime subscription")
+        loadTask?.cancel()
+        loadTask = nil
+        realtimeHandler.cleanupRealtimeSubscription()
+        if let o = flightEnrichmentObserver {
+            NotificationCenter.default.removeObserver(o)
+            flightEnrichmentObserver = nil
         }
     }
 
@@ -118,40 +137,39 @@ final class RequestsDashboardViewModel: ObservableObject {
     }
 
     /// Load requests (rides + favors) from network and sync to SwiftData
-    func loadRequests(forceRefresh: Bool = false) async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        
-        do {
-            // Fetch everything from Supabase (Full Mirror Sync)
-            async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
-            async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
-            
-            let rides = try await ridesTask
-            let favors = try await favorsTask
-            
-            // Don't update state if the task was cancelled
+    func loadRequests(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
+        loadTask?.cancel()
+        loadTask = Task { @MainActor in
+            defer { loadTask = nil }
             guard !Task.isCancelled else { return }
-            
-            // Sync to SwiftData
-            if let context = modelContext {
-                syncRidesToSwiftData(rides, in: context)
-                syncFavorsToSwiftData(favors, in: context)
-                try? context.save()
+            if showLoadingIndicator { isLoading = true }
+            error = nil
+            defer { if !Task.isCancelled && showLoadingIndicator { isLoading = false } }
+            do {
+                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
+                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
+                let rides = try await ridesTask
+                let favors = try await favorsTask
+                guard !Task.isCancelled else { return }
+                if let context = modelContext {
+                    syncRidesToSwiftData(rides, in: context)
+                    syncFavorsToSwiftData(favors, in: context)
+                    try? context.save()
+                }
+                refreshFilteredRequests()
+                await refreshUnseenRequestKeys()
+            } catch is CancellationError {
+                return
+            } catch let error as NSError where error.code == NSURLErrorCancelled {
+                return
+            } catch {
+                if !Task.isCancelled {
+                    self.error = error.localizedDescription
+                    AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
+                }
             }
-            refreshFilteredRequests()
-            await refreshUnseenRequestKeys()
-        } catch is CancellationError {
-            // Silently ignore task cancellation — normal during SwiftUI
-            // lifecycle (view redraws, pull-to-refresh superseded, etc.)
-            return
-        } catch let error as NSError where error.code == NSURLErrorCancelled {
-            return
-        } catch {
-            self.error = error.localizedDescription
-            AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
         }
+        await loadTask?.value
     }
 
     private func syncRidesToSwiftData(_ rides: [Ride], in context: ModelContext) {
@@ -175,6 +193,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.reviewSkipped = ride.reviewSkipped
                 existing.reviewSkippedAt = ride.reviewSkippedAt
                 existing.estimatedCost = ride.estimatedCost
+                existing.flightNormalized = ride.flightNormalized
                 existing.posterName = ride.poster?.name
                 existing.posterAvatarUrl = ride.poster?.avatarUrl
                 existing.claimerName = ride.claimer?.name
@@ -199,6 +218,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                     reviewSkipped: ride.reviewSkipped,
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost,
+                    flightNormalized: ride.flightNormalized,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
                     posterName: ride.poster?.name,

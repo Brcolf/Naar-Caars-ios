@@ -8,6 +8,7 @@
 import SwiftUI
 import Supabase
 import PhotosUI
+import OSLog
 
 /// Popup for editing conversation details
 struct MessageDetailsPopup: View {
@@ -336,7 +337,7 @@ struct MessageDetailsPopup: View {
             }
             
             // Post notification to refresh conversations list
-            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
+            NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
             
             dismiss()
         } catch {
@@ -418,8 +419,14 @@ struct MessageDetailsPopup: View {
             
             self.participants = profiles
             AppLogger.info("messaging", "[MessageDetailsPopup] Reloaded \(profiles.count) active participants")
+#if DEBUG
+            AppLogger.database.debug("[Membership] [MessageDetailsPopup] loadParticipants returned: \(profiles.map { $0.id }.map(\.uuidString))")
+#endif
         } catch {
             AppLogger.error("messaging", "[MessageDetailsPopup] Error loading participants: \(error.localizedDescription)")
+#if DEBUG
+            AppLogger.database.debug("[Membership] [MessageDetailsPopup] loadParticipants error: \(error)")
+#endif
         }
     }
     
@@ -440,9 +447,13 @@ struct MessageDetailsPopup: View {
                 createAnnouncement: true
             )
             
-            // Remove from local list
-            participants.removeAll { $0.id == userId }
+            // Refetch from authoritative source so UI and parent stay in sync
+            await loadParticipants()
+            NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
             
+#if DEBUG
+            AppLogger.database.debug("[Membership] [MessageDetailsPopup] After remove: refetched \(participants.count) participants")
+#endif
             AppLogger.info("messaging", "[MessageDetailsPopup] Successfully removed participant")
         } catch {
             AppLogger.error("messaging", "[MessageDetailsPopup] Failed to remove participant: \(error.localizedDescription)")
@@ -462,9 +473,11 @@ struct MessageDetailsPopup: View {
                 userId: currentUserId,
                 createAnnouncement: true
             )
-            
+#if DEBUG
+            AppLogger.database.debug("[Membership] [MessageDetailsPopup] leaveConversation succeeded, dismissing")
+#endif
             // Post notification to refresh conversations list
-            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
+            NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
             
             dismiss()
         } catch {

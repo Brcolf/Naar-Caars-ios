@@ -25,32 +25,46 @@ final class PendingUsersViewModel: ObservableObject {
     private let adminService = AdminService.shared
     private let badgeManager: any BadgeCountManaging
     private let supabase = SupabaseService.shared.client
+    private var loadTask: Task<Void, Never>?
 
     init(badgeManager: any BadgeCountManaging = BadgeCountManager.shared) {
         self.badgeManager = badgeManager
     }
     
     // MARK: - Public Methods
-    
+
+    /// Call from view onDisappear to cancel in-flight load so VM can tear down safely.
+    func stop() {
+        AppLogger.info("admin", "[PendingUsersVM] stop() called; cancelling loadTask")
+        loadTask?.cancel()
+        loadTask = nil
+    }
+
     /// Load pending users
     func loadPendingUsers() async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        
-        do {
-            let users = try await adminService.fetchPendingUsers()
-            pendingUsers = users
-            
-            // Fetch inviter profiles for users who have invitedBy
-            let inviterIds = users.compactMap { $0.invitedBy }
-            if !inviterIds.isEmpty {
-                await loadInviterProfiles(inviterIds: Set(inviterIds))
+        loadTask?.cancel()
+        loadTask = Task { @MainActor in
+            defer { loadTask = nil }
+            guard !Task.isCancelled else { return }
+            isLoading = true
+            error = nil
+            defer { if !Task.isCancelled { isLoading = false } }
+            do {
+                let users = try await adminService.fetchPendingUsers()
+                guard !Task.isCancelled else { return }
+                pendingUsers = users
+                let inviterIds = users.compactMap { $0.invitedBy }
+                if !inviterIds.isEmpty {
+                    await loadInviterProfiles(inviterIds: Set(inviterIds))
+                }
+            } catch {
+                if !Task.isCancelled {
+                    self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+                    AppLogger.error("admin", "Error loading pending users: \(error.localizedDescription)")
+                }
             }
-        } catch {
-            self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
-            AppLogger.error("admin", "Error loading pending users: \(error.localizedDescription)")
         }
+        await loadTask?.value
     }
     
     /// Load inviter profiles

@@ -24,6 +24,8 @@ final class NotificationsListViewModel: ObservableObject {
     private let navigationRouter: NotificationNavigationRouter
     private let realtimeHandler: NotificationRealtimeHandler
     private var managerCancellables = Set<AnyCancellable>()
+    /// In-flight load/refresh task; cancelled in stop() and on next load to avoid use-after-free when view disappears.
+    private var loadTask: Task<Void, Never>?
 
     init(
         notificationService: any NotificationServiceProtocol = NotificationService.shared,
@@ -50,12 +52,24 @@ final class NotificationsListViewModel: ObservableObject {
         realtimeHandler.setupRealtimeSubscription { [weak self] reason, fallback in
             await self?.handleRealtimeReload(reason: reason, fallback: fallback)
         }
+        #if DEBUG
+        print("[NotificationsListVM] init")
+        #endif
     }
 
     deinit {
-        Task { @MainActor in
-            await realtimeHandler.stop()
-        }
+        #if DEBUG
+        print("[NotificationsListVM] deinit")
+        #endif
+        // Cleanup is done in stop() from onDisappear. Do not start Task or touch MainActor state here (deinit is nonisolated).
+    }
+
+    /// Call from view onDisappear to cancel in-flight work and realtime subscription so VM can tear down safely.
+    func stop() {
+        AppLogger.info("notifications", "[NotificationsListVM] stop() called; cancelling loadTask and realtime observer")
+        loadTask?.cancel()
+        loadTask = nil
+        realtimeHandler.cancelAndRemoveObserver()
     }
 
     /// Set up the model context for SwiftData operations
@@ -74,35 +88,47 @@ final class NotificationsListViewModel: ObservableObject {
     }
 
     func loadNotifications(forceRefresh: Bool = false) async {
-        guard let userId = authService.currentUserId else {
-            error = .notAuthenticated
-            return
-        }
-        
-        isLoading = true
-        error = nil
-        
-        do {
-            if let context = modelContext {
-                refreshUnreadCount(from: context, userId: userId)
+        loadTask?.cancel()
+        loadTask = Task { @MainActor in
+            defer { loadTask = nil }
+            guard !Task.isCancelled else { return }
+            guard let userId = authService.currentUserId else {
+                error = .notAuthenticated
+                return
             }
-            
-            let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: forceRefresh)
-            
-            // Sync to SwiftData
-            if let context = modelContext {
-                syncNotificationsToSwiftData(fetched, in: context)
-                try? context.save()
-                refreshUnreadCount(from: context, userId: userId)
-            } else {
-                self.unreadCount = fetched.filter { !$0.read }.count
+            #if DEBUG
+            print("[NotificationsListVM] loadNotifications start forceRefresh=\(forceRefresh)")
+            #endif
+            isLoading = true
+            error = nil
+            do {
+                if let context = modelContext {
+                    refreshUnreadCount(from: context, userId: userId)
+                }
+                guard !Task.isCancelled else { isLoading = false; return }
+                let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: forceRefresh)
+                guard !Task.isCancelled else { isLoading = false; return }
+                if let context = modelContext {
+                    syncNotificationsToSwiftData(fetched, in: context)
+                    try? context.save()
+                    refreshUnreadCount(from: context, userId: userId)
+                } else {
+                    unreadCount = fetched.filter { !$0.read }.count
+                }
+            } catch {
+                if !Task.isCancelled {
+                    self.error = AppError.processingError(error.localizedDescription)
+                    AppLogger.error("notifications", "Error loading notifications: \(error.localizedDescription)")
+                }
             }
-        } catch {
-            self.error = AppError.processingError(error.localizedDescription)
-            AppLogger.error("notifications", "Error loading notifications: \(error.localizedDescription)")
+            if !Task.isCancelled {
+                isLoading = false
+            }
+            #if DEBUG
+            print("[NotificationsListVM] loadNotifications end cancelled=\(Task.isCancelled)")
+            #endif
         }
-
-        isLoading = false
+        await loadTask?.value
     }
 
     private func syncNotificationsToSwiftData(_ notifications: [AppNotification], in context: ModelContext) {

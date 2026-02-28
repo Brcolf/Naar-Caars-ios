@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if DEBUG
+import os
+#endif
 
 /// Login view for email/password authentication
 struct LoginView: View {
@@ -15,6 +18,10 @@ struct LoginView: View {
     @State private var showPasswordReset = false
     @State private var showError = false
     @State private var showSuccess = false
+#if DEBUG
+    @FocusState private var emailFocused: Bool
+    private static let _firstTapPerfLog = OSLog(subsystem: "com.naarscars.app", category: "FirstTapPerf")
+#endif
     
     var body: some View {
         ScrollView {
@@ -49,6 +56,15 @@ struct LoginView: View {
                             .accessibilityIdentifier("login.email")
                             .accessibilityLabel("Email address")
                             .accessibilityHint("Enter your email to sign in")
+#if DEBUG
+                            .focused($emailFocused)
+                            .onChange(of: emailFocused) { _, focused in
+                                if focused {
+                                    os_signpost(.event, log: Self._firstTapPerfLog, name: "LoginEmailFocus")
+                                    FirstTapPerfLogger.logFocusDelivered(source: "login")
+                                }
+                            }
+#endif
                     }
                     
                     // Password field

@@ -35,4 +35,7 @@ GoogleService-Info.plist
 
 # Keep existing NaarsCars/.gitignore patterns
 
+# MCP config
+.mcp.json
+
 

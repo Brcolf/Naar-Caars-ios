@@ -116,6 +116,7 @@ struct MainTabView: View {
         }
         .onChange(of: navigationCoordinator.showReviewPrompt) { _, show in
             guard show else { return }
+            AppLogger.info("app", "[MainTabView] Presenting ReviewModal (showReviewPrompt=true)")
             Task { @MainActor in
                 if let userId = AuthService.shared.currentUserId {
                     let rideId = navigationCoordinator.reviewPromptRideId
@@ -123,7 +124,7 @@ struct MainTabView: View {
                     if let rideId { await promptCoordinator.enqueueReviewPrompt(requestType: .ride, requestId: rideId, userId: userId) }
                     if let favorId { await promptCoordinator.enqueueReviewPrompt(requestType: .favor, requestId: favorId, userId: userId) }
                 }
-                navigationCoordinator.resetReviewPrompt()
+                // Do not clear here; clear when review sheet dismisses (onReviewSubmitted/onReviewSkipped).
             }
         }
         .task {
@@ -149,7 +150,18 @@ struct MainTabView: View {
         .offlineBanner()
         .sheet(isPresented: notificationsSheetBinding, onDismiss: {
             isNotificationsSheetVisible = false
-            navigationCoordinator.applyDeferredIntentAfterNotificationsDismissal()
+            AppLogger.info("app", "[MainTabView] Notifications sheet onDismiss — applying deferred intent")
+            Task { @MainActor in
+                await Task.yield()
+                navigationCoordinator.applyDeferredNotificationIntentIfNeeded()
+                if let (requestType, requestId) = navigationCoordinator.pendingCompletionPromptFromDeferred {
+                    navigationCoordinator.pendingCompletionPromptFromDeferred = nil
+                    if let userId = AuthService.shared.currentUserId {
+                        AppLogger.info("app", "[MainTabView] Enqueueing completion prompt after sheet dismiss requestType=\(requestType) requestId=\(requestId)")
+                        await promptCoordinator.enqueueCompletionPrompt(requestType: requestType, requestId: requestId, userId: userId)
+                    }
+                }
+            }
         }) {
             NotificationsListView()
                 .environmentObject(appState)
@@ -193,8 +205,18 @@ struct MainTabView: View {
                     requestTitle: review.requestTitle,
                     fulfillerId: review.fulfillerId,
                     fulfillerName: review.fulfillerName,
-                    onReviewSubmitted: { Task { await promptCoordinator.finishReviewPrompt() } },
-                    onReviewSkipped: { Task { await promptCoordinator.finishReviewPrompt() } }
+                    onReviewSubmitted: {
+                        Task {
+                            await promptCoordinator.finishReviewPrompt()
+                            navigationCoordinator.resetReviewPrompt()
+                        }
+                    },
+                    onReviewSkipped: {
+                        Task {
+                            await promptCoordinator.finishReviewPrompt()
+                            navigationCoordinator.resetReviewPrompt()
+                        }
+                    }
                 )
             }
         }

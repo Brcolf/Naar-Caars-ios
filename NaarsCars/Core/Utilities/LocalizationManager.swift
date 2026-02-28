@@ -97,7 +97,3 @@ struct AppLanguage: Identifiable {
     var id: String { code }
 }
 
-extension Notification.Name {
-    static let languageDidChange = Notification.Name("languageDidChange")
-}
-

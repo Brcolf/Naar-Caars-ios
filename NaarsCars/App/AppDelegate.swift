@@ -35,6 +35,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Register MetricKit subscriber for app hangs/crash diagnostics payloads
         setupMetricKitIfNeeded()
         
+        #if DEBUG
+        FirstTapPerfLogger.startKeyboardObserver()
+        #endif
+        
         // Handle deep link if app was opened via URL
         if let url = launchOptions?[.url] as? URL {
             handleURL(url)
@@ -124,7 +128,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         if url.host == "naarscars.com" || url.host == "www.naarscars.com",
            url.path == "/signup" {
             NotificationCenter.default.post(
-                name: NSNotification.Name("handleInviteCodeDeepLink"),
+                name: .handleInviteCodeDeepLink,
                 object: nil,
                 userInfo: ["url": url]
             )
@@ -265,7 +269,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 payload.merge(requestPayload) { _, new in new }
             }
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToRide"),
+                name: .navigateToRide,
                 object: nil,
                 userInfo: payload
             )
@@ -281,7 +285,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 payload.merge(requestPayload) { _, new in new }
             }
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToFavor"),
+                name: .navigateToFavor,
                 object: nil,
                 userInfo: payload
             )
@@ -295,7 +299,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 payload["messageId"] = messageId
             }
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToConversation"),
+                name: .navigateToConversation,
                 object: nil,
                 userInfo: payload
             )
@@ -303,7 +307,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .profile(let id):
             AppLogger.info("app", "Navigate to profile: \(id)")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToProfile"),
+                name: .navigateToProfile,
                 object: nil,
                 userInfo: ["userId": id]
             )
@@ -311,14 +315,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .notifications:
             AppLogger.info("app", "Navigate to notifications")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToNotifications"),
+                name: .navigateToNotifications,
                 object: nil
             )
 
         case .announcements(let notificationId):
             AppLogger.info("app", "Navigate to announcements")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToAnnouncements"),
+                name: .navigateToAnnouncements,
                 object: nil,
                 userInfo: ["notificationId": notificationId as Any]
             )
@@ -326,14 +330,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .townHall:
             AppLogger.info("app", "Navigate to town hall")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToTownHall"),
+                name: .navigateToTownHall,
                 object: nil
             )
             
         case .townHallPostComments(let id):
             AppLogger.info("app", "Navigate to town hall post comments: \(id)")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToTownHall"),
+                name: .navigateToTownHall,
                 object: nil,
                 userInfo: ["postId": id, "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.openComments.rawValue]
             )
@@ -341,7 +345,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .townHallPostHighlight(let id):
             AppLogger.info("app", "Navigate to town hall post highlight: \(id)")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToTownHall"),
+                name: .navigateToTownHall,
                 object: nil,
                 userInfo: ["postId": id, "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.highlightPost.rawValue]
             )
@@ -349,21 +353,21 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .adminPanel:
             AppLogger.info("app", "Navigate to admin panel")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToAdminPanel"),
+                name: .navigateToAdminPanel,
                 object: nil
             )
             
         case .pendingUsers:
             AppLogger.info("app", "Navigate to pending users list")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToPendingUsers"),
+                name: .navigateToPendingUsers,
                 object: nil
             )
 
         case .dashboard:
             AppLogger.info("app", "Navigate to dashboard")
             NotificationCenter.default.post(
-                name: NSNotification.Name("navigateToDashboard"),
+                name: .navigateToDashboard,
                 object: nil
             )
             
@@ -488,6 +492,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func didReceive(_ payloads: [MXDiagnosticPayload]) {
         guard PerformanceMonitor.isMetricKitEnabled else { return }
         for payload in payloads {
+            logHangDiagnosticsIfPresent(payload)
             let data = payload.jsonRepresentation()
             if PerformanceMonitor.isVerboseLoggingEnabled {
                 let snippet = String(data: data, encoding: .utf8)?
@@ -504,4 +509,63 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             }
         }
     }
+
+    @available(iOS 14.0, *)
+    private func logHangDiagnosticsIfPresent(_ payload: MXDiagnosticPayload) {
+        guard let hangs = payload.hangDiagnostics, !hangs.isEmpty else { return }
+        for (index, hang) in hangs.enumerated() {
+            let duration = hang.hangDuration
+            let durationSec = duration.converted(to: .seconds).value
+            let callStackData = hang.callStackTree.jsonRepresentation()
+            let stackPreview = String(data: callStackData, encoding: .utf8).map { String($0.prefix(3000)) } ?? "unreadable"
+            AppLogger.warning(
+                "performance",
+                "MetricKit HANG[\(index)] duration=\(String(format: "%.2f", durationSec))s callStackTree(\(callStackData.count) bytes): \(stackPreview)..."
+            )
+        }
+    }
 }
+
+// MARK: - FirstTapPerfLogger (DEBUG only)
+
+#if DEBUG
+/// DEBUG-only timing for first-tap text-input stall diagnosis. One log line per event with delta from session start.
+enum FirstTapPerfLogger {
+    private static let logPrefix = "[FirstTapPerf]"
+    private static var sessionStart: CFAbsoluteTime?
+    private static var sessionSource: String?
+
+    static func logFocusDelivered(source: String) {
+        let t = CFAbsoluteTimeGetCurrent()
+        sessionStart = t
+        sessionSource = source
+        print("\(logPrefix) focus_delivered source=\(source) t=\(String(format: "%.3f", t)) delta_ms=0")
+    }
+
+    static func logDeferredDropdownDone(deltaMs: Int) {
+        guard sessionStart != nil else { return }
+        let t = CFAbsoluteTimeGetCurrent()
+        let d = sessionStart.map { Int((t - $0) * 1000) } ?? 0
+        print("\(logPrefix) deferred_dropdown_done t=\(String(format: "%.3f", t)) delta_ms=\(d) (defer_work=\(deltaMs)ms)")
+    }
+
+    static func logKeyboardVisible() {
+        guard let start = sessionStart, let source = sessionSource else { return }
+        let t = CFAbsoluteTimeGetCurrent()
+        let deltaMs = Int((t - start) * 1000)
+        print("\(logPrefix) keyboard_visible source=\(source) t=\(String(format: "%.3f", t)) delta_ms=\(deltaMs)")
+        sessionStart = nil
+        sessionSource = nil
+    }
+
+    static func startKeyboardObserver() {
+        NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardDidShowNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            logKeyboardVisible()
+        }
+    }
+}
+#endif

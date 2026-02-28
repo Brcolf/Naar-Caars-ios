@@ -150,9 +150,11 @@ final class RideService {
         
         let ride: Ride = try createDecoder().decode(Ride.self, from: response.data)
         
+        #if DEBUG
+        AppLogger.info("rides", "[FlightAudit] createRide completed; rideId=\(ride.id), notesLength=\(notes?.count ?? 0), notesPreview=\(notes.map { String($0.prefix(80)) } ?? "nil")")
+        #endif
+        
         // Calculate and save estimated cost asynchronously (don't block ride creation)
-        // Use Task {} to run on MainActor since MapService is @MainActor
-        // This allows the ride to be returned immediately while cost calculation happens in background
         let rideId = ride.id
         let pickupAddress = ride.pickup
         let destinationAddress = ride.destination
@@ -164,7 +166,61 @@ final class RideService {
             )
         }
         
+        // Parse and save flight code from notes in background (same lifecycle as cost enrichment)
+        let notesForFlight = notes
+        Task {
+            await self.parseAndSaveFlightInfo(rideId: rideId, notes: notesForFlight)
+        }
+        
         return ride
+    }
+    
+    /// Parse first flight code from notes and persist to ride (async, non-blocking). Open-data only; no flight-status API.
+    private func parseAndSaveFlightInfo(rideId: UUID, notes: String?) async {
+        #if DEBUG
+        AppLogger.info("rides", "[FlightAudit] parseAndSaveFlightInfo entered; rideId=\(rideId), notesNil=\(notes == nil), notesLength=\(notes?.count ?? 0)")
+        #endif
+        guard let result = FlightCodeParser.parseFirstFlightCode(from: notes) else {
+            #if DEBUG
+            AppLogger.info("rides", "[FlightAudit] parseAndSaveFlightInfo parser returned nil (no match)")
+            #endif
+            return
+        }
+        #if DEBUG
+        AppLogger.info("rides", "[FlightAudit] parseAndSaveFlightInfo parser success; normalized=\(result.normalized)")
+        #endif
+        do {
+            try Task.checkCancellation()
+            let updateData: [String: AnyCodable] = [
+                "flight_normalized": AnyCodable(result.normalized)
+            ]
+            try await supabase
+                .from("rides")
+                .update(updateData)
+                .eq("id", value: rideId.uuidString)
+                .execute()
+            AppLogger.info("rides", "Parsed and saved flight \(result.normalized) for ride \(rideId)")
+            #if DEBUG
+            AppLogger.info("rides", "[FlightAudit] parseAndSaveFlightInfo persistence success")
+            let notesPreview = (notes ?? "").prefix(60)
+            AppLogger.info("rides", "[FlightAudit] summary: rideId=\(rideId), notesPreview=\(notesPreview), normalized=\(result.normalized), persisted=true")
+            #endif
+            // Notify UI to refetch so ride card/detail show flight without manual refresh
+            Task { @MainActor in
+                NotificationCenter.default.post(
+                    name: .rideFlightEnrichmentDidComplete,
+                    object: nil,
+                    userInfo: [RideFlightEnrichmentNotification.rideIdKey: rideId.uuidString]
+                )
+            }
+        } catch is CancellationError {
+            AppLogger.info("rides", "Flight parse task cancelled for ride \(rideId)")
+        } catch {
+            AppLogger.error("rides", "Failed to save flight for ride \(rideId): \(error.localizedDescription)")
+            #if DEBUG
+            AppLogger.error("rides", "[FlightAudit] parseAndSaveFlightInfo persistence failed: \(error)")
+            #endif
+        }
     }
     
     /// Calculate and save estimated cost for a ride (asynchronous, non-blocking)
@@ -663,4 +719,3 @@ final class RideService {
 }
 
 extension RideService: RideServiceProtocol {}
-

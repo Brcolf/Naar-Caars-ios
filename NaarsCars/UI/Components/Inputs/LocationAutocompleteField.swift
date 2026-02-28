@@ -2,11 +2,28 @@
 //  LocationAutocompleteField.swift
 //  NaarsCars
 //
-//  Reusable location autocomplete field using Google Places API
+//  Reusable location autocomplete field using MapKit (MKLocalSearchCompleter).
+//
+//  PERFORMANCE / INSTRUMENTS (DEBUG):
+//  - Reproduce stall: Open Create Ride → tap into "Pickup location" field → observe delay.
+//  - Time Profiler: Product → Profile → Time Profiler → record → reproduce tap → stop.
+//    Inspect main thread; look for gaps between "focus gained" and next work.
+//  - Main Thread Checker: Edit Scheme → Run → Diagnostics → Main Thread Checker.
+//  - Console: filter by "[LocationPerf]" for signpost/timing; check for "main thread blocked >500ms".
 //
 
 import SwiftUI
 import CoreLocation
+import os
+
+#if DEBUG
+private let _locationPerfLog = OSLog(subsystem: "com.naarscars.location", category: "LocationPerf")
+
+private func _locationFieldPerfLog(_ phase: String, mainThread: Bool = Thread.isMainThread) {
+    let t = CFAbsoluteTimeGetCurrent()
+    print(String(format: "[LocationPerf] %.3f main=%@ %@", t, mainThread ? "Y" : "N", phase))
+}
+#endif
 
 /// Reusable location autocomplete field with dropdown suggestions
 struct LocationAutocompleteField: View {
@@ -22,6 +39,8 @@ struct LocationAutocompleteField: View {
     @State private var showDropdown = false
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
+    /// Snapshot of recents when dropdown opens; avoids reading ObservableObject in body (reduces main-thread work on focus).
+    @State private var recentLocationsSnapshot: [SavedLocation] = []
     
     private let locationService = LocationService.shared
     
@@ -65,11 +84,11 @@ struct LocationAutocompleteField: View {
             .background(Color(.secondarySystemBackground))
             .cornerRadius(10)
             
-            // Dropdown suggestions
+            // Dropdown suggestions (uses snapshot so body does not read LocationService.recentLocations on main)
             if showDropdown && isFocused {
                 VStack(spacing: 0) {
                     // Recent locations (shown when field is empty)
-                    if text.isEmpty && !locationService.recentLocations.isEmpty {
+                    if text.isEmpty && !recentLocationsSnapshot.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             Text("Recent")
                                 .font(.caption)
@@ -79,7 +98,7 @@ struct LocationAutocompleteField: View {
                                 .padding(.top, 8)
                                 .padding(.bottom, 4)
                             
-                            ForEach(locationService.recentLocations) { location in
+                            ForEach(recentLocationsSnapshot) { location in
                                 RecentLocationRow(location: location) {
                                     selectRecent(location)
                                 }
@@ -121,8 +140,66 @@ struct LocationAutocompleteField: View {
             }
         }
         .onChange(of: isFocused) { _, focused in
-            showDropdown = focused && (!text.isEmpty || !locationService.recentLocations.isEmpty)
+            #if DEBUG
+            let t0 = CFAbsoluteTimeGetCurrent()
+            os_signpost(.begin, log: _locationPerfLog, name: "FocusHandler")
+            if focused {
+                os_signpost(.event, log: _locationPerfLog, name: "FocusGained")
+                _locationFieldPerfLog("focus gained (tap into field) entry")
+                FirstTapPerfLogger.logFocusDelivered(source: "pickup")
+            }
+            #endif
+            if !focused {
+                showDropdown = false
+                recentLocationsSnapshot = []
+                #if DEBUG
+                os_signpost(.end, log: _locationPerfLog, name: "FocusHandler")
+                _locationFieldPerfLog("focus lost handler exit, \(Int((CFAbsoluteTimeGetCurrent() - t0) * 1000))ms")
+                #endif
+                return
+            }
+            // Defer dropdown work to next run loop so gesture/keyboard can complete; avoids main-thread stall.
+            #if DEBUG
+            let capturedFocusTime = t0
+            #endif
+            Task { @MainActor in
+                #if DEBUG
+                let deferStart = CFAbsoluteTimeGetCurrent()
+                let gapMs = Int((deferStart - capturedFocusTime) * 1000)
+                if gapMs > 500 {
+                    _locationFieldPerfLog("WARNING: main thread blocked \(gapMs)ms before deferred dropdown ran")
+                }
+                os_signpost(.begin, log: _locationPerfLog, name: "DeferredDropdown")
+                #endif
+                // Short yield so keyboard/input session can establish; avoids "gesture gate timed out" and ~3s stall.
+                try? await Task.sleep(nanoseconds: Constants.Timing.locationDropdownAfterFocusNanoseconds)
+                guard isFocused else {
+                    #if DEBUG
+                    os_signpost(.end, log: _locationPerfLog, name: "DeferredDropdown")
+                    os_signpost(.end, log: _locationPerfLog, name: "FocusHandler")
+                    _locationFieldPerfLog("focus deferred dropdown skipped (lost focus during delay)")
+                    #endif
+                    return
+                }
+                let recents = locationService.recentLocations
+                recentLocationsSnapshot = recents
+                showDropdown = !text.isEmpty || !recents.isEmpty
+                #if DEBUG
+                os_signpost(.end, log: _locationPerfLog, name: "DeferredDropdown")
+                os_signpost(.end, log: _locationPerfLog, name: "FocusHandler")
+                let deferMs = Int((CFAbsoluteTimeGetCurrent() - deferStart) * 1000)
+                _locationFieldPerfLog("focus deferred dropdown done, recents=\(recents.count), \(deferMs)ms")
+                FirstTapPerfLogger.logDeferredDropdownDone(deltaMs: deferMs)
+                #endif
+            }
+            #if DEBUG
+            let entryMs = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+            _locationFieldPerfLog("focus gained handler exit (deferred), \(entryMs)ms")
+            #endif
         }
+        #if DEBUG
+        .onAppear { _locationFieldPerfLog("LocationAutocompleteField onAppear (body evaluated)") }
+        #endif
     }
     
     // MARK: - Private Methods
@@ -138,20 +215,36 @@ struct LocationAutocompleteField: View {
         }
         
         // Debounce search (300ms)
+        #if DEBUG
+        _locationFieldPerfLog("performSearch debounce scheduled (300ms)")
+        os_signpost(.begin, log: _locationPerfLog, name: "DebounceWait")
+        #endif
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
-            
+            #if DEBUG
+            os_signpost(.end, log: _locationPerfLog, name: "DebounceWait")
+            _locationFieldPerfLog("performSearch debounce fired, main=\(Thread.isMainThread)")
+            #endif
             guard !Task.isCancelled else { return }
-            
+            #if DEBUG
+            _locationFieldPerfLog("performSearch after debounce, calling searchPlaces")
+            os_signpost(.begin, log: _locationPerfLog, name: "AutocompleteSearch")
+            #endif
             isSearching = true
             showDropdown = true
             
             do {
                 let results = try await locationService.searchPlaces(query: query)
-                
+                #if DEBUG
+                _locationFieldPerfLog("performSearch first result received (count=\(results.count))")
+                #endif
                 guard !Task.isCancelled else { return }
                 
                 await MainActor.run {
+                    #if DEBUG
+                    os_signpost(.end, log: _locationPerfLog, name: "AutocompleteSearch")
+                    _locationFieldPerfLog("performSearch applying results to state")
+                    #endif
                     predictions = results
                     isSearching = false
                 }
@@ -159,6 +252,9 @@ struct LocationAutocompleteField: View {
                 guard !Task.isCancelled else { return }
                 
                 await MainActor.run {
+                    #if DEBUG
+                    os_signpost(.end, log: _locationPerfLog, name: "AutocompleteSearch")
+                    #endif
                     predictions = []
                     isSearching = false
                     AppLogger.warning("location", "LocationAutocompleteField search error: \(error.localizedDescription)")
@@ -184,6 +280,7 @@ struct LocationAutocompleteField: View {
                     longitude: details.coordinate.longitude
                 )
                 locationService.saveRecentLocation(saved)
+                recentLocationsSnapshot = locationService.recentLocations
                 
                 // Call completion handler
                 onSelect?(details)

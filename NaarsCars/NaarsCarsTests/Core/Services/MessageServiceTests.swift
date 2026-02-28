@@ -116,7 +116,7 @@ final class ConversationDetailViewModelRealtimeTests: XCTestCase {
         )
 
         NotificationCenter.default.post(
-            name: NSNotification.Name("conversationUpdated"),
+            name: .conversationUpdated,
             object: conversationId,
             userInfo: ["message": newMessage]
         )

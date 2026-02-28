@@ -20,7 +20,7 @@ final class NavigationCoordinatorTests: XCTestCase {
         coordinator.pendingIntent = .notifications
 
         NotificationCenter.default.post(
-            name: NSNotification.Name("dismissNotificationsSheet"),
+            name: .dismissNotificationsSheet,
             object: nil
         )
 

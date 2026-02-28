@@ -114,12 +114,9 @@ struct RidesDashboardView: View {
                 if viewMode == .list {
                     viewModel.setup(modelContext: modelContext)
                     await viewModel.loadRides()
-                    viewModel.setupRealtimeSubscription()
                 }
             }
-            .onDisappear {
-                viewModel.cleanupRealtimeSubscription()
-            }
+            .onDisappear { viewModel.stop() }
         }
     }
     

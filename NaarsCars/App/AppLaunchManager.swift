@@ -72,7 +72,7 @@ final class AppLaunchManager: ObservableObject {
         AppLogger.info("launch", "Initializing - setting up notification listener")
         
         // Use direct NotificationCenter observer instead of Combine for reliability
-        let notificationName = NSNotification.Name("userDidSignOut")
+        let notificationName: Notification.Name = .userDidSignOut
         AppLogger.info("launch", "Setting up observer for notification: '\(notificationName.rawValue)'")
         
         signOutObserver = NotificationCenter.default.addObserver(

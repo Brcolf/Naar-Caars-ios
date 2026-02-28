@@ -79,6 +79,7 @@ struct AnnouncementsView: View {
                 viewModel.setup(modelContext: modelContext)
                 await viewModel.loadNotifications()
             }
+            .onDisappear { viewModel.stop() }
         }
     }
 

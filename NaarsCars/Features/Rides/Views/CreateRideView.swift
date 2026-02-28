@@ -15,6 +15,8 @@ struct CreateRideView: View {
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
+    /// Deferred so LocationService init runs off the first frame while user sets date/time.
+    @State private var locationServiceReady = false
     
     var body: some View {
         NavigationStack {
@@ -34,31 +36,44 @@ struct CreateRideView: View {
                 }
                 
                 Section("ride_create_section_route".localized) {
-                    LocationAutocompleteField(
-                        label: "",
-                        placeholder: "ride_create_pickup_placeholder".localized,
-                        text: $viewModel.pickup,
-                        icon: "location.circle.fill",
-                        accessibilityId: "createRide.pickup"
-                    ) { details in
-                        // Optional: Store coordinates for future map integration
-                        // viewModel.pickupCoordinate = details.coordinate
+                    if locationServiceReady {
+                        LocationAutocompleteField(
+                            label: "",
+                            placeholder: "ride_create_pickup_placeholder".localized,
+                            text: $viewModel.pickup,
+                            icon: "location.circle.fill",
+                            accessibilityId: "createRide.pickup"
+                        ) { details in
+                            // Optional: Store coordinates for future map integration
+                            // viewModel.pickupCoordinate = details.coordinate
+                        }
+                        .accessibilityLabel("Pickup location")
+                        .accessibilityHint("Enter the pickup address")
+                        
+                        LocationAutocompleteField(
+                            label: "",
+                            placeholder: "ride_create_destination_placeholder".localized,
+                            text: $viewModel.destination,
+                            icon: "mappin.circle.fill",
+                            accessibilityId: "createRide.destination"
+                        ) { details in
+                            // Optional: Store coordinates for future map integration
+                            // viewModel.destinationCoordinate = details.coordinate
+                        }
+                        .accessibilityLabel("Destination")
+                        .accessibilityHint("Enter the destination address")
+                    } else {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                            Text("ride_create_route_loading".localized)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Loading route fields")
                     }
-                    .accessibilityLabel("Pickup location")
-                    .accessibilityHint("Enter the pickup address")
-                    
-                    LocationAutocompleteField(
-                        label: "",
-                        placeholder: "ride_create_destination_placeholder".localized,
-                        text: $viewModel.destination,
-                        icon: "mappin.circle.fill",
-                        accessibilityId: "createRide.destination"
-                    ) { details in
-                        // Optional: Store coordinates for future map integration
-                        // viewModel.destinationCoordinate = details.coordinate
-                    }
-                    .accessibilityLabel("Destination")
-                    .accessibilityHint("Enter the destination address")
                 }
                 
                 Section("ride_create_section_details".localized) {
@@ -108,6 +123,13 @@ struct CreateRideView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .onAppear {
+                // Initialize LocationService off the first frame so date/time section stays responsive.
+                Task { @MainActor in
+                    _ = LocationService.shared
+                    locationServiceReady = true
+                }
+            }
             .navigationTitle("ride_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

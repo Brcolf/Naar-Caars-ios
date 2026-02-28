@@ -58,6 +58,10 @@ final class RideDetailViewModel: ObservableObject {
             ride = fetchedRide
             qaItems = fetchedQA
         } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
             self.error = error.localizedDescription
             AppLogger.error("rides", "Error loading ride: \(error)")
         }

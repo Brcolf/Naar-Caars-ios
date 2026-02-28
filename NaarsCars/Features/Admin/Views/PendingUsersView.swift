@@ -59,6 +59,7 @@ struct PendingUsersView: View {
             .refreshable {
                 await viewModel.loadPendingUsers()
             }
+            .onDisappear { viewModel.stop() }
             .alert("admin_approve_user".localized, isPresented: $showingApproveConfirmation) {
                 Button("common_cancel".localized, role: .cancel) {
                     userToApprove = nil

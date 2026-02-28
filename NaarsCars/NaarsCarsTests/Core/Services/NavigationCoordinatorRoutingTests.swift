@@ -34,8 +34,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
 
     func testApplyPendingNavigation_RideSelectsRequestsTab() {
         let id = UUID()
-        coordinator.pendingIntent = .ride(id)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openRide(rideId: id, anchor: nil))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
         if case .ride(let routedId, _) = coordinator.pendingIntent {
             XCTAssertEqual(routedId, id)
@@ -46,8 +46,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
 
     func testApplyPendingNavigation_FavorSelectsRequestsTab() {
         let id = UUID()
-        coordinator.pendingIntent = .favor(id)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openFavor(favorId: id, anchor: nil))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
         if case .favor(let routedId, _) = coordinator.pendingIntent {
             XCTAssertEqual(routedId, id)
@@ -58,8 +58,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
 
     func testApplyPendingNavigation_ConversationSelectsMessagesTab() {
         let id = UUID()
-        coordinator.pendingIntent = .conversation(id)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openConversation(conversationId: id, scrollTarget: nil))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .messages)
         if case .conversation(let routedId, _) = coordinator.pendingIntent {
             XCTAssertEqual(routedId, id)
@@ -70,8 +70,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
 
     func testApplyPendingNavigation_TownHallCommentsSelectsCommunityTab() {
         let id = UUID()
-        coordinator.pendingIntent = .townHallPost(id, mode: .openComments)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openTownHallPost(postId: id, mode: .openComments))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .community)
         let consumed = coordinator.consumeTownHallNavigationTarget()
         XCTAssertEqual(consumed?.postId, id)
@@ -80,8 +80,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
 
     func testApplyPendingNavigation_TownHallHighlightSelectsCommunityTab() {
         let id = UUID()
-        coordinator.pendingIntent = .townHallPost(id, mode: .highlightPost)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openTownHallPost(postId: id, mode: .highlightPost))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .community)
         let consumed = coordinator.consumeTownHallNavigationTarget()
         XCTAssertEqual(consumed?.postId, id)
@@ -89,21 +89,21 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
     }
 
     func testApplyPendingNavigation_PendingUsersSelectsProfileTab() {
-        coordinator.pendingIntent = .pendingUsers
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openPendingUsers)
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .profile)
     }
 
     func testApplyPendingNavigation_EnterAppSelectsRequestsTab() {
-        coordinator.pendingIntent = .dashboard
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openDashboard)
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
     }
 
     func testApplyPendingNavigation_RequestsTabOnlySelectsRequestsTab() {
         coordinator.selectedTab = .community
-        coordinator.pendingIntent = .dashboard
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openDashboard)
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
     }
 
@@ -116,8 +116,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
             highlightAnchor: .mainTop,
             shouldAutoClear: true
         )
-        coordinator.pendingIntent = .ride(target.requestId, anchor: target)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openRide(rideId: target.requestId, anchor: target))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
         let consumed = coordinator.consumeRequestNavigationTarget(for: .ride, requestId: target.requestId)
         XCTAssertEqual(consumed, target)
@@ -132,8 +132,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
             highlightAnchor: .mainTop,
             shouldAutoClear: true
         )
-        coordinator.pendingIntent = .favor(target.requestId, anchor: target)
-        coordinator.applyDeferredIntentAfterNotificationsDismissal()
+        coordinator.deferNotificationIntent(.openFavor(favorId: target.requestId, anchor: target))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
         let consumed = coordinator.consumeRequestNavigationTarget(for: .favor, requestId: target.requestId)
         XCTAssertEqual(consumed, target)

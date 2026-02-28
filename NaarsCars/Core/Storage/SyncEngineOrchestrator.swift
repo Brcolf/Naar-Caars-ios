@@ -32,24 +32,28 @@ final class SyncEngineOrchestrator {
 
     func startAll() {
         for engine in engines {
+            AppLogger.info("sync", "Starting \(engine.engineName)")
             engine.startSync()
         }
     }
 
     func pauseAll() async {
         for engine in engines {
+            AppLogger.info("sync", "Pausing \(engine.engineName)")
             await engine.pauseSync()
         }
     }
 
     func resumeAll() async {
         for engine in engines {
+            AppLogger.info("sync", "Resuming \(engine.engineName)")
             await engine.resumeSync()
         }
     }
 
     func teardownAll() async {
         for engine in engines {
+            AppLogger.info("sync", "Tearing down \(engine.engineName)")
             await engine.teardown()
         }
     }

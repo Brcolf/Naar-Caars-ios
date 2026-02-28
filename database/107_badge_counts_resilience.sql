@@ -1,7 +1,7 @@
 -- Migration: Harden get_badge_counts RPC null handling
 -- Ensures all counters and detail arrays are always non-null.
 
-CREATE OR REPLACE FUNCTION get_badge_counts(
+CREATE OR REPLACE FUNCTION public.get_badge_counts(
     p_user_id UUID DEFAULT NULL,
     p_include_details BOOLEAN DEFAULT FALSE
 ) RETURNS JSONB AS $$
@@ -22,8 +22,8 @@ BEGIN
     -- Messages: total unread messages for user (only in their conversations)
     SELECT COALESCE(COUNT(*), 0)::int
     INTO v_messages_total
-    FROM messages m
-    JOIN conversation_participants cp
+    FROM public.messages m
+    JOIN public.conversation_participants cp
         ON cp.conversation_id = m.conversation_id
         AND cp.user_id = v_user_id
     WHERE m.from_id <> v_user_id
@@ -31,15 +31,15 @@ BEGIN
 
     -- Cleanup: Mark 'message' and 'added_to_conversation' notifications as read
     -- if there are no unread messages in that conversation.
-    UPDATE notifications n
+    UPDATE public.notifications n
     SET read = true
     WHERE n.user_id = v_user_id
       AND n.read = false
       AND n.type IN ('message', 'added_to_conversation')
       AND n.conversation_id IS NOT NULL
       AND NOT EXISTS (
-          SELECT 1 FROM messages m
-          JOIN conversation_participants cp
+          SELECT 1 FROM public.messages m
+          JOIN public.conversation_participants cp
               ON cp.conversation_id = m.conversation_id
               AND cp.user_id = v_user_id
           WHERE m.conversation_id = n.conversation_id
@@ -47,7 +47,8 @@ BEGIN
             AND NOT (COALESCE(m.read_by, ARRAY[]::uuid[]) @> ARRAY[v_user_id]::uuid[])
       );
 
-    -- Requests: distinct requests with unseen activity (Model A)
+    -- Requests tab: only notifications for requests that still have a dashboard card (open/pending).
+    -- Exclude ride_completed, favor_completed, review_* (bell-only).
     WITH unread_requests AS (
         SELECT DISTINCT
             CASE
@@ -55,14 +56,13 @@ BEGIN
                 WHEN favor_id IS NOT NULL THEN 'favor:' || favor_id::text
                 ELSE NULL
             END AS request_key
-        FROM notifications
+        FROM public.notifications
         WHERE user_id = v_user_id
           AND read = false
           AND type IN (
-              'new_ride', 'ride_update', 'ride_claimed', 'ride_unclaimed', 'ride_completed',
-              'new_favor', 'favor_update', 'favor_claimed', 'favor_unclaimed', 'favor_completed',
-              'completion_reminder', 'qa_activity', 'qa_question', 'qa_answer',
-              'review_request', 'review_reminder'
+              'new_ride', 'ride_update', 'ride_claimed', 'ride_unclaimed',
+              'new_favor', 'favor_update', 'favor_claimed', 'favor_unclaimed',
+              'completion_reminder', 'qa_activity', 'qa_question', 'qa_answer'
           )
     )
     SELECT COALESCE(COUNT(*), 0)::int
@@ -73,7 +73,7 @@ BEGIN
     -- Community: unread Town Hall notifications
     SELECT COALESCE(COUNT(*), 0)::int
     INTO v_community_total
-    FROM notifications
+    FROM public.notifications
     WHERE user_id = v_user_id
       AND read = false
       AND type IN ('town_hall_post', 'town_hall_comment', 'town_hall_reaction');
@@ -83,7 +83,7 @@ BEGIN
     -- For announcements, only the most recent non-stale one is counted.
     WITH bell_fresh AS (
         SELECT *
-        FROM notifications
+        FROM public.notifications
         WHERE user_id = v_user_id
           AND type NOT IN ('message', 'added_to_conversation')
           AND (read = false OR created_at > NOW() - INTERVAL '24 hours')
@@ -146,8 +146,8 @@ BEGIN
         INTO v_conversation_details
         FROM (
             SELECT m.conversation_id, COUNT(*)::int AS unread_count
-            FROM messages m
-            JOIN conversation_participants cp
+            FROM public.messages m
+            JOIN public.conversation_participants cp
                 ON cp.conversation_id = m.conversation_id
                 AND cp.user_id = v_user_id
             WHERE m.from_id <> v_user_id
@@ -166,14 +166,13 @@ BEGIN
                 CASE WHEN ride_id IS NOT NULL THEN 'ride' ELSE 'favor' END AS request_type,
                 COALESCE(ride_id, favor_id) AS request_id,
                 COUNT(*)::int AS unread_count
-            FROM notifications
+            FROM public.notifications
             WHERE user_id = v_user_id
               AND read = false
               AND type IN (
-                  'new_ride', 'ride_update', 'ride_claimed', 'ride_unclaimed', 'ride_completed',
-                  'new_favor', 'favor_update', 'favor_claimed', 'favor_unclaimed', 'favor_completed',
-                  'completion_reminder', 'qa_activity', 'qa_question', 'qa_answer',
-                  'review_request', 'review_reminder'
+                  'new_ride', 'ride_update', 'ride_claimed', 'ride_unclaimed',
+                  'new_favor', 'favor_update', 'favor_claimed', 'favor_unclaimed',
+                  'completion_reminder', 'qa_activity', 'qa_question', 'qa_answer'
               )
               AND (ride_id IS NOT NULL OR favor_id IS NOT NULL)
             GROUP BY request_type, request_id
@@ -192,4 +191,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO '';
 
-GRANT EXECUTE ON FUNCTION get_badge_counts(UUID, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_badge_counts(UUID, BOOLEAN) TO authenticated;

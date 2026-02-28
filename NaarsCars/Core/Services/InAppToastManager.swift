@@ -51,7 +51,7 @@ final class InAppToastManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        notificationCenter.publisher(for: NSNotification.Name("conversationUpdated"))
+        notificationCenter.publisher(for: .conversationUpdated)
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
                 self?.handleConversationUpdated(notification)
@@ -139,7 +139,3 @@ struct InAppMessageToast: Identifiable, Equatable {
     let receivedAt: Date
 }
 
-extension Notification.Name {
-    static let messageThreadDidAppear = Notification.Name("messageThreadDidAppear")
-    static let messageThreadDidDisappear = Notification.Name("messageThreadDidDisappear")
-}

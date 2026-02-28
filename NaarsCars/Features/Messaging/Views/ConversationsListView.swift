@@ -318,6 +318,7 @@ struct ConversationsListView: View {
                 loadSavedPreferences()
                 await viewModel.loadConversations()
             }
+            .onDisappear { viewModel.stop() }
             .toast(message: $toastMessage)
             .trackScreen("ConversationsList")
         }

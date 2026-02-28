@@ -81,7 +81,18 @@ final class ConversationDetailViewModel: ObservableObject {
             NotificationCenter.default.removeObserver(observer)
         }
     }
-    
+
+    /// Call from view onDisappear to cancel in-flight work and observers so VM can tear down safely.
+    func stop() {
+        AppLogger.info("messaging", "[ConversationDetailVM] stop() called; removing conversation observer, stopping typing and search")
+        if let observer = conversationUpdatedObserver {
+            NotificationCenter.default.removeObserver(observer)
+            conversationUpdatedObserver = nil
+        }
+        typingManager.stopTypingObservation()
+        searchManager.stop()
+    }
+
     /// Forward objectWillChange from child managers so the view updates
     private func setupManagerObservation() {
         searchManager.objectWillChange
@@ -178,7 +189,7 @@ final class ConversationDetailViewModel: ObservableObject {
     
     private func setupConversationUpdatedObserver() {
         conversationUpdatedObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("conversationUpdated"),
+            forName: .conversationUpdated,
             object: nil,
             queue: nil
         ) { [weak self] notification in
@@ -423,6 +434,9 @@ final class ConversationDetailViewModel: ObservableObject {
     }
 
     func conversationDidAppear() {
+        if conversationUpdatedObserver == nil {
+            setupConversationUpdatedObserver()
+        }
         guard let userId = authService.currentUserId else { return }
         Task {
             await scheduleLastSeenHeartbeat(userId: userId)
