@@ -506,6 +506,70 @@ final class RealtimeManager {
         }
     }
 
+    // MARK: - Staggered Reconnection
+
+    /// Priority tiers for staggered reconnection on app foreground.
+    /// Channels are reconnected in tier order with small delays between tiers
+    /// to avoid flooding the MainActor with simultaneous sync events.
+    private static let reconnectionTiers: [[String]] = [
+        // Tier 1 (highest priority): User-facing messaging channels
+        ["messages:", "typing:"],
+        // Tier 2: Dashboard sync channels
+        ["rides:sync", "favors:sync"],
+        // Tier 3: Remaining channels (notifications, town-hall, requests, etc.)
+        // — handled implicitly by resubscribing everything not yet restored
+    ]
+
+    /// Delay between reconnection tiers (milliseconds)
+    private static let tierDelayMilliseconds: UInt64 = 200
+
+    /// Resubscribe to tracked channels in priority order with small delays
+    /// between tiers so that user-facing channels recover first and buffered
+    /// events don't all hit the MainActor simultaneously.
+    private func resubscribeStaggered() async {
+        let allConfigs = subscriptionConfigs
+        guard !allConfigs.isEmpty else { return }
+
+        var resubscribed = Set<String>()
+
+        for tier in Self.reconnectionTiers {
+            let tierConfigs = allConfigs.filter { channelName, _ in
+                tier.contains(where: { channelName.hasPrefix($0) })
+                    && !resubscribed.contains(channelName)
+            }
+
+            for (_, config) in tierConfigs {
+                await subscribe(
+                    channelName: config.channelName,
+                    table: config.table,
+                    filter: config.filter,
+                    onInsert: config.onInsert,
+                    onUpdate: config.onUpdate,
+                    onDelete: config.onDelete
+                )
+                resubscribed.insert(config.channelName)
+            }
+
+            // Small yield between tiers to let the UI settle
+            if !tierConfigs.isEmpty {
+                try? await Task.sleep(nanoseconds: Self.tierDelayMilliseconds * 1_000_000)
+            }
+        }
+
+        // Final tier: everything not yet resubscribed
+        let remainingConfigs = allConfigs.filter { !resubscribed.contains($0.key) }
+        for (_, config) in remainingConfigs {
+            await subscribe(
+                channelName: config.channelName,
+                table: config.table,
+                filter: config.filter,
+                onInsert: config.onInsert,
+                onUpdate: config.onUpdate,
+                onDelete: config.onDelete
+            )
+        }
+    }
+
     /// Set up observers for app lifecycle events
     private func setupAppLifecycleObservers() {
         #if os(iOS) || os(tvOS)
@@ -589,9 +653,9 @@ final class RealtimeManager {
             await realtime.setAuth(accessToken)
         }
 
-        await resubscribeAll()
+        await resubscribeStaggered()
         AppLogger.realtime.info(
-            "Resubscribed \(self.subscriptionConfigs.count) tracked channel(s) on \(reason)"
+            "Resubscribed \(self.subscriptionConfigs.count) tracked channel(s) on \(reason) (staggered)"
         )
     }
     
