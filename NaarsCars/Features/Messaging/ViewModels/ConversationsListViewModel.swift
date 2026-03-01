@@ -27,14 +27,19 @@ struct MessageSearchResult: Identifiable {
 /// ViewModel for conversations list
 @MainActor
 final class ConversationsListViewModel: ObservableObject {
-    @Published var conversations: [ConversationWithDetails] = []
+    @Published var conversations: [ConversationWithDetails] = [] {
+        didSet { recomputeFilteredConversations() }
+    }
+    @Published private(set) var filteredConversations: [ConversationWithDetails] = []
     @Published var isLoading: Bool = false
     @Published var isLoadingMore: Bool = false
     @Published var hasMoreConversations: Bool = true
     @Published var error: AppError?
     
     // MARK: - Search State
-    @Published var searchText: String = ""
+    @Published var searchText: String = "" {
+        didSet { recomputeFilteredConversations() }
+    }
     @Published var searchResults: [MessageSearchResult] = []
     @Published var isSearching: Bool = false
     
@@ -113,6 +118,32 @@ final class ConversationsListViewModel: ObservableObject {
         return conversations.filter { !hiddenIds.contains($0.conversation.id) }
     }
     
+    private func recomputeFilteredConversations() {
+        if searchText.isEmpty {
+            filteredConversations = conversations
+            return
+        }
+        let query = searchText.lowercased()
+        filteredConversations = conversations.filter { convo in
+            // Search in conversation title
+            if let title = convo.conversation.title?.lowercased(),
+               title.contains(query) {
+                return true
+            }
+            // Search in participant names
+            let participantNames = convo.otherParticipants.map { $0.name.lowercased() }
+            if participantNames.contains(where: { $0.contains(query) }) {
+                return true
+            }
+            // Search in last message
+            if let lastMessage = convo.lastMessage?.text.lowercased(),
+               lastMessage.contains(query) {
+                return true
+            }
+            return false
+        }
+    }
+
     private func setupUnreadCountObservers() {
         NotificationCenter.default.publisher(for: .conversationUnreadCountsUpdated)
             .receive(on: RunLoop.main)

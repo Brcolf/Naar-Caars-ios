@@ -28,32 +28,6 @@ struct ConversationsListView: View {
         !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
-    /// Filter conversations based on search (local name/title filtering)
-    private var filteredConversations: [ConversationWithDetails] {
-        if viewModel.searchText.isEmpty {
-            return viewModel.conversations
-        }
-        let query = viewModel.searchText.lowercased()
-        return viewModel.conversations.filter { convo in
-            // Search in conversation title
-            if let title = convo.conversation.title?.lowercased(),
-               title.contains(query) {
-                return true
-            }
-            // Search in participant names
-            let participantNames = convo.otherParticipants.map { $0.name.lowercased() }
-            if participantNames.contains(where: { $0.contains(query) }) {
-                return true
-            }
-            // Search in last message
-            if let lastMessage = convo.lastMessage?.text.lowercased(),
-               lastMessage.contains(query) {
-                return true
-            }
-            return false
-        }
-    }
-    
     // MARK: - Subviews
     
     @ViewBuilder
@@ -97,9 +71,9 @@ struct ConversationsListView: View {
     private var searchResultsList: some View {
         List {
             // Show matching conversations first (by name)
-            if !filteredConversations.isEmpty {
+            if !viewModel.filteredConversations.isEmpty {
                 Section {
-                    ForEach(filteredConversations) { conversationDetail in
+                    ForEach(viewModel.filteredConversations) { conversationDetail in
                         conversationRow(for: conversationDetail)
                     }
                 } header: {
@@ -147,7 +121,7 @@ struct ConversationsListView: View {
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
-            } else if !viewModel.searchText.isEmpty && filteredConversations.isEmpty {
+            } else if !viewModel.searchText.isEmpty && viewModel.filteredConversations.isEmpty {
                 // No results at all
                 VStack(spacing: Constants.Spacing.sm) {
                     Image(systemName: "magnifyingglass")
@@ -235,7 +209,7 @@ struct ConversationsListView: View {
     
     /// Sort conversations: pinned first, then by last update
     private var sortedConversations: [ConversationWithDetails] {
-        filteredConversations.sorted { a, b in
+        viewModel.filteredConversations.sorted { a, b in
             let aPinned = pinnedConversations.contains(a.conversation.id)
             let bPinned = pinnedConversations.contains(b.conversation.id)
             
