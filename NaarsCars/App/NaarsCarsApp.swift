@@ -114,6 +114,7 @@ struct NaarsCarsApp: App {
         SyncEngineOrchestrator.shared.register(DashboardSyncEngine.shared)
         SyncEngineOrchestrator.shared.register(TownHallSyncEngine.shared)
         SyncEngineOrchestrator.shared.setupAll(modelContext: context)
+        DashboardSyncEngine.shared.setupBackgroundActor(container: container)
 
         // Sync engines are intentionally started after first interactive launch state
         // in AppLaunchManager.performDeferredLoading(userId:) to keep startup lean.

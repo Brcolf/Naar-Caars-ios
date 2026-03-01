@@ -139,6 +139,7 @@
 		AC1200A52F3AFC9B0043BFAE /* NavigationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200A42F3AFC9B0043BFAE /* NavigationIntent.swift */; };
 		AC1200B12F3C11110043BFAE /* SyncEngineProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200B02F3C11110043BFAE /* SyncEngineProtocol.swift */; };
 		AC1200B32F3C11110043BFAE /* SyncEngineOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200B22F3C11110043BFAE /* SyncEngineOrchestrator.swift */; };
+		B7F4E2A2C3D5489E00AABB11 /* BackgroundSyncActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */; };
 		AC1200B52F3C22220043BFAE /* NavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200B42F3C22220043BFAE /* NavigationCoordinator.swift */; };
 		AC12010C2F3D73E60043BFAE /* ReviewServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1201082F3D73E60043BFAE /* ReviewServiceProtocol.swift */; };
 		AC12010D2F3D73E60043BFAE /* FavorServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1201042F3D73E60043BFAE /* FavorServiceProtocol.swift */; };
@@ -556,6 +557,7 @@
 		AC1200A42F3AFC9B0043BFAE /* NavigationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationIntent.swift; sourceTree = "<group>"; };
 		AC1200B02F3C11110043BFAE /* SyncEngineProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineProtocol.swift; sourceTree = "<group>"; };
 		AC1200B22F3C11110043BFAE /* SyncEngineOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineOrchestrator.swift; sourceTree = "<group>"; };
+		B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncActor.swift; sourceTree = "<group>"; };
 		AC1200B42F3C22220043BFAE /* NavigationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationCoordinator.swift; sourceTree = "<group>"; };
 		AC1201002F3D73E60043BFAE /* AuthServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceProtocol.swift; sourceTree = "<group>"; };
 		AC1201012F3D73E60043BFAE /* BadgeCountManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeCountManaging.swift; sourceTree = "<group>"; };
@@ -1202,6 +1204,7 @@
 		AC4F1E182F23340500CC5DBA /* Storage */ = {
 			isa = PBXGroup;
 			children = (
+				B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */,
 				F6CC1F9ACBA66945C7ACCD5A /* NotificationRepository.swift */,
 				AC4F1E1D2F23495600CC5DBA /* DashboardSyncEngine.swift */,
 				AC4F1E142F23340500CC5DBA /* MessagingMapper.swift */,
@@ -2291,6 +2294,7 @@
 				ACBF4AA72F12CAB9006A7C8A /* String+Localization.swift in Sources */,
 				ACBF4AA82F12CAB9006A7C8A /* Number+Localization.swift in Sources */,
 				AC4F1E1E2F23495600CC5DBA /* DashboardSyncEngine.swift in Sources */,
+				B7F4E2A2C3D5489E00AABB11 /* BackgroundSyncActor.swift in Sources */,
 				ACBF4AA92F12CAB9006A7C8A /* Date+Localization.swift in Sources */,
 				ACD19A572F14D3C5009C1DE5 /* PerformanceMonitor.swift in Sources */,
 				AC305EF72F0DB7BD0063AFDF /* SignupDetailsView.swift in Sources */,
