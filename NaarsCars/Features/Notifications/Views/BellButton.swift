@@ -24,7 +24,7 @@ struct BellButton: View {
                     .font(.naarsTitle3)
                     .id("app.chrome.bellIcon")
 
-                if badgeManager.bellBadgeCount > 0 {
+                if badgeManager.counts.bell > 0 {
                     Text(badgeText)
                         .font(.caption2)
                         .fontWeight(.semibold)
@@ -38,16 +38,16 @@ struct BellButton: View {
                 }
             }
         }
-        .accessibilityLabel(badgeManager.bellBadgeCount > 0 ? "Notifications, \(badgeManager.bellBadgeCount) unread" : "Notifications")
+        .accessibilityLabel(badgeManager.counts.bell > 0 ? "Notifications, \(badgeManager.counts.bell) unread" : "Notifications")
         .accessibilityHint("Double-tap to view your notifications")
         .accessibilityIdentifier("bell.button")
     }
 
     private var badgeText: String {
-        if badgeManager.bellBadgeCount > 99 {
+        if badgeManager.counts.bell > 99 {
             return "99+"
         }
-        return "\(badgeManager.bellBadgeCount)"
+        return "\(badgeManager.counts.bell)"
     }
 }
 

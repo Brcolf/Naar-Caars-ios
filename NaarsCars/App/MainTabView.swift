@@ -49,7 +49,7 @@ struct MainTabView: View {
             // Combined dashboard with rides and favors
             RequestsDashboardView()
                 .tag(0)
-                .badge(badgeManager.requestsBadgeCount > 0 ? String(badgeManager.requestsBadgeCount) : nil)
+                .badge(badgeManager.counts.requests > 0 ? String(badgeManager.counts.requests) : nil)
                 .tabItem {
                     Label("nav_tab_requests".localized, systemImage: "car.fill")
                 }
@@ -57,7 +57,7 @@ struct MainTabView: View {
             
             ConversationsListView()
                 .tag(1)
-                .badge(badgeManager.messagesBadgeCount > 0 ? String(badgeManager.messagesBadgeCount) : nil)
+                .badge(badgeManager.counts.messages > 0 ? String(badgeManager.counts.messages) : nil)
                 .tabItem {
                     Label("nav_tab_messages".localized, systemImage: "message.fill")
                 }
@@ -65,7 +65,7 @@ struct MainTabView: View {
             
             CommunityTabView()
                 .tag(2)
-                .badge(badgeManager.communityBadgeCount > 0 ? String(badgeManager.communityBadgeCount) : nil)
+                .badge(badgeManager.counts.community > 0 ? String(badgeManager.counts.community) : nil)
                 .tabItem {
                     Label("nav_tab_community".localized, systemImage: "person.3.fill")
                 }
@@ -73,7 +73,7 @@ struct MainTabView: View {
             
             MyProfileView()
                 .tag(3)
-                .badge(badgeManager.profileBadgeCount > 0 ? String(badgeManager.profileBadgeCount) : nil)
+                .badge(badgeManager.counts.profile > 0 ? String(badgeManager.counts.profile) : nil)
                 .tabItem {
                     Label("nav_tab_profile".localized, systemImage: "person.fill")
                 }

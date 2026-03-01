@@ -11,12 +11,7 @@ import XCTest
 @MainActor
 final class BadgeCountManagerTests: XCTestCase {
     override func tearDown() {
-        let manager = BadgeCountManager.shared
-        manager.requestsBadgeCount = 0
-        manager.messagesBadgeCount = 0
-        manager.communityBadgeCount = 0
-        manager.bellBadgeCount = 0
-        manager.totalUnreadCount = 0
+        BadgeCountManager.shared.resetCountsForTesting()
         super.tearDown()
     }
 
@@ -37,16 +32,36 @@ final class BadgeCountManagerTests: XCTestCase {
         XCTAssertEqual(values.count, 4)
     }
 
+    func testBadgeCountsDefaultsToZero() {
+        let counts = BadgeCountManager.BadgeCounts()
+        XCTAssertEqual(counts.requests, 0)
+        XCTAssertEqual(counts.messages, 0)
+        XCTAssertEqual(counts.community, 0)
+        XCTAssertEqual(counts.profile, 0)
+        XCTAssertEqual(counts.adminPanel, 0)
+        XCTAssertEqual(counts.bell, 0)
+        XCTAssertEqual(counts.totalUnread, 0)
+    }
+
+    func testBadgeCountsEquatable() {
+        var a = BadgeCountManager.BadgeCounts()
+        let b = BadgeCountManager.BadgeCounts()
+        XCTAssertEqual(a, b)
+
+        a.requests = 1
+        XCTAssertNotEqual(a, b)
+    }
+
     func testTotalUnreadCountContractMatchesComponentSum() {
-        let manager = BadgeCountManager.shared
-        manager.requestsBadgeCount = 2
-        manager.messagesBadgeCount = 5
-        manager.communityBadgeCount = 3
-        manager.bellBadgeCount = 7
+        var counts = BadgeCountManager.BadgeCounts()
+        counts.requests = 2
+        counts.messages = 5
+        counts.community = 3
+        counts.bell = 7
 
-        let expected = manager.requestsBadgeCount + manager.messagesBadgeCount + manager.communityBadgeCount
-        manager.totalUnreadCount = expected
+        let expectedTotal = counts.requests + counts.messages + counts.community
+        counts.totalUnread = expectedTotal
 
-        XCTAssertEqual(manager.totalUnreadCount, expected)
+        XCTAssertEqual(counts.totalUnread, expectedTotal)
     }
 }

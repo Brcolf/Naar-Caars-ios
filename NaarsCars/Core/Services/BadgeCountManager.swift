@@ -30,28 +30,21 @@ final class BadgeCountManager: ObservableObject {
     
     static let shared = BadgeCountManager()
     
-    // MARK: - Published Properties
-    
-    /// Badge count for Requests tab (new requests + Q&A activity)
-    @Published var requestsBadgeCount: Int = 0
-    
-    /// Badge count for Messages tab (unread messages)
-    @Published var messagesBadgeCount: Int = 0
-    
-    /// Badge count for Community tab (new Town Hall posts/comments)
-    @Published var communityBadgeCount: Int = 0
-    
-    /// Badge count for Profile tab (admin: pending approvals)
-    @Published var profileBadgeCount: Int = 0
-    
-    /// Badge count for Admin Panel within Profile (pending approvals)
-    @Published var adminPanelBadgeCount: Int = 0
+    // MARK: - Badge Counts
 
-    /// Badge count for Bell (non-message notifications)
-    @Published var bellBadgeCount: Int = 0
-    
-    /// Total unread notification count (for app icon badge)
-    @Published var totalUnreadCount: Int = 0
+    /// All badge values coalesced into a single struct so that
+    /// `refreshAllBadges()` emits only ONE `objectWillChange` per cycle.
+    struct BadgeCounts: Equatable {
+        var requests: Int = 0
+        var messages: Int = 0
+        var community: Int = 0
+        var profile: Int = 0
+        var adminPanel: Int = 0
+        var bell: Int = 0
+        var totalUnread: Int = 0
+    }
+
+    @Published private(set) var counts = BadgeCounts()
 
     /// True when badge values are being served from cached/zero data due to RPC failure.
     @Published private(set) var isBadgeStale: Bool = false
@@ -209,12 +202,16 @@ final class BadgeCountManager: ObservableObject {
 
             let profile = await profileCount
 
-            requestsBadgeCount = counts.requestsTotal
-            messagesBadgeCount = counts.messagesTotal
-            communityBadgeCount = counts.communityTotal
-            profileBadgeCount = profile
-            adminPanelBadgeCount = profile  // Same as profile badge for admins
-            bellBadgeCount = counts.bellTotal
+            // Build a single struct and assign once → one objectWillChange emission
+            var newCounts = BadgeCounts()
+            newCounts.requests = counts.requestsTotal
+            newCounts.messages = counts.messagesTotal
+            newCounts.community = counts.communityTotal
+            newCounts.profile = profile
+            newCounts.adminPanel = profile  // Same as profile badge for admins
+            newCounts.bell = counts.bellTotal
+            newCounts.totalUnread = counts.requestsTotal + counts.messagesTotal + counts.communityTotal
+            self.counts = newCounts
 
             // Broadcast conversation-level unread counts to any active view models
             NotificationCenter.default.post(
@@ -223,9 +220,7 @@ final class BadgeCountManager: ObservableObject {
                 userInfo: ["counts": counts.conversationDetails]
             )
 
-            // Calculate total for app icon badge
-            totalUnreadCount = counts.requestsTotal + counts.messagesTotal + counts.communityTotal
-            updateAppIconBadge(totalUnreadCount)
+            updateAppIconBadge(self.counts.totalUnread)
 
             AppLogger.info("badges", "Counts synced: requests=\(counts.requestsTotal), messages=\(counts.messagesTotal), community=\(counts.communityTotal), bell=\(counts.bellTotal)")
         } catch is CancellationError {
@@ -279,9 +274,11 @@ final class BadgeCountManager: ObservableObject {
                 try? MessagingRepository.shared.save(changedConversationIds: Set([conversationId]))
             }
 
-            messagesBadgeCount = max(messagesBadgeCount - previousConversationUnread, 0)
-            totalUnreadCount = requestsBadgeCount + messagesBadgeCount + communityBadgeCount
-            updateAppIconBadge(totalUnreadCount)
+            var updated = counts
+            updated.messages = max(updated.messages - previousConversationUnread, 0)
+            updated.totalUnread = updated.requests + updated.messages + updated.community
+            counts = updated
+            updateAppIconBadge(counts.totalUnread)
             return
         }
         
@@ -469,6 +466,14 @@ final class BadgeCountManager: ObservableObject {
             "badges",
             "Badge RPC failed (code=\(postgrestCode)); using fallback counts for \(Int(backoffSeconds))s: \(error.localizedDescription)"
         )
+    }
+
+    // MARK: - Testing Helpers
+
+    /// Reset all badge counts to zero. Intended for test tearDown only.
+    func resetCountsForTesting() {
+        counts = BadgeCounts()
+        isBadgeStale = false
     }
 
     // MARK: - Debug Helpers
