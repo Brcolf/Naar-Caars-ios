@@ -18,9 +18,9 @@ final class TypingIndicatorManager {
     private let messageService: MessageService
     private let authService: AuthService
     private let realtimeManager: RealtimeManager
-    private var typingDebounceTask: Task<Void, Never>?
-    private var typingSignalTask: Task<Void, Never>?
-    private var typingRefreshTask: Task<Void, Never>?
+    nonisolated(unsafe) private var typingDebounceTask: Task<Void, Never>?
+    nonisolated(unsafe) private var typingSignalTask: Task<Void, Never>?
+    nonisolated(unsafe) private var typingRefreshTask: Task<Void, Never>?
     private var isObservingTyping = false
     private var lastTypingSignal: Date = .distantPast
 

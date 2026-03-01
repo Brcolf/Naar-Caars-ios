@@ -25,7 +25,7 @@ final class ConversationSearchManager {
     
     private let conversationId: UUID
     private let messageService: MessageService
-    private var searchTask: Task<Void, Never>?
+    nonisolated(unsafe) private var searchTask: Task<Void, Never>?
     private let searchTextSubject = CurrentValueSubject<String, Never>("")
     private var cancellables = Set<AnyCancellable>()
     private let searchPageSize = Constants.PageSizes.searchInConversation
