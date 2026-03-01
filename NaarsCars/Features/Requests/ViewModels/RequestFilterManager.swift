@@ -160,11 +160,15 @@ final class RequestFilterManager {
         in context: ModelContext,
         requestNotificationSummaries: [String: RequestNotificationSummary]
     ) -> [RequestFilter: Int] {
+        // Single fetch of ALL rides and favors (2 queries instead of 6)
+        let allRides = (try? context.fetch(FetchDescriptor<SDRide>())) ?? []
+        let allFavors = (try? context.fetch(FetchDescriptor<SDFavor>())) ?? []
+
         var counts: [RequestFilter: Int] = [:]
         for filterCase in RequestFilter.allCases {
-            let rides = fetchFilteredRides(in: context, filter: filterCase)
-            let favors = fetchFilteredFavors(in: context, filter: filterCase)
-            let requests = getFilteredRequests(rides: rides, favors: favors, filter: filterCase)
+            let filteredRides = filterRidesInMemory(allRides, for: filterCase)
+            let filteredFavors = filterFavorsInMemory(allFavors, for: filterCase)
+            let requests = getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filterCase)
             let unreadTotal = requests.reduce(0) { total, request in
                 total + (requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0)
             }
@@ -183,6 +187,44 @@ final class RequestFilterManager {
             return resolveRequestTarget(requestType: .ride, requestId: ride.id, latestType: summary.latestUnreadType)
         case .favor(let favor):
             return resolveRequestTarget(requestType: .favor, requestId: favor.id, latestType: summary.latestUnreadType)
+        }
+    }
+
+    /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredRides`.
+    private func filterRidesInMemory(_ rides: [SDRide], for filter: RequestFilter) -> [SDRide] {
+        guard let userId = authService.currentUserId else { return [] }
+        switch filter {
+        case .open:
+            return rides.filter { $0.status == "open" && $0.claimedBy == nil }
+        case .mine:
+            // Matches the predicate (status != completed && (poster or claimer))
+            // then the post-fetch participantIds check.
+            return rides.filter {
+                $0.status != "completed"
+                    && ($0.userId == userId || $0.claimedBy == userId)
+            }.filter {
+                $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId
+            }
+        case .claimed:
+            return rides.filter { $0.claimedBy == userId && $0.status != "completed" }
+        }
+    }
+
+    /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredFavors`.
+    private func filterFavorsInMemory(_ favors: [SDFavor], for filter: RequestFilter) -> [SDFavor] {
+        guard let userId = authService.currentUserId else { return [] }
+        switch filter {
+        case .open:
+            return favors.filter { $0.status == "open" && $0.claimedBy == nil }
+        case .mine:
+            return favors.filter {
+                $0.status != "completed"
+                    && ($0.userId == userId || $0.claimedBy == userId)
+            }.filter {
+                $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId
+            }
+        case .claimed:
+            return favors.filter { $0.claimedBy == userId && $0.status != "completed" }
         }
     }
 
