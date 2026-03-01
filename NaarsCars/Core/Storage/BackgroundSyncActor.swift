@@ -2,8 +2,9 @@
 //  BackgroundSyncActor.swift
 //  NaarsCars
 //
-//  @ModelActor for off-MainActor SwiftData writes during dashboard sync.
+//  @ModelActor for off-MainActor SwiftData writes during sync engines.
 //  SwiftUI @Query properties auto-update via persistent store observation.
+//  Combine-backed publishers (messaging) are refreshed on MainActor after save.
 //
 
 import Foundation
@@ -40,7 +41,95 @@ actor BackgroundSyncActor {
         try modelContext.save()
     }
 
+    /// Sync conversations (and their last messages) from network response to SwiftData.
+    /// Returns the set of conversation IDs that were changed so the caller can refresh publishers.
+    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID) throws -> Set<UUID> {
+        var changedIds = Set<UUID>()
+
+        // Batch fetch all existing SDConversations and SDMessages at once
+        let allLocalConvs = (try? modelContext.fetch(FetchDescriptor<SDConversation>())) ?? []
+        let existingConvById = Dictionary(uniqueKeysWithValues: allLocalConvs.map { ($0.id, $0) })
+
+        let allLocalMsgs = (try? modelContext.fetch(FetchDescriptor<SDMessage>())) ?? []
+        let existingMsgById = Dictionary(uniqueKeysWithValues: allLocalMsgs.map { ($0.id, $0) })
+
+        let serverConvIds = Set(payloads.map { $0.conversationId })
+
+        for payload in payloads {
+            changedIds.insert(payload.conversationId)
+
+            // Upsert conversation
+            if let existing = existingConvById[payload.conversationId] {
+                existing.title = payload.title
+                existing.groupImageUrl = payload.groupImageUrl
+                existing.isArchived = payload.isArchived
+                existing.updatedAt = payload.updatedAt
+                existing.unreadCount = payload.unreadCount
+                existing.participantIds = payload.participantIds
+            } else {
+                let newSDConv = SDConversation(
+                    id: payload.conversationId,
+                    title: payload.title,
+                    groupImageUrl: payload.groupImageUrl,
+                    createdBy: payload.createdBy,
+                    isArchived: payload.isArchived,
+                    createdAt: payload.createdAt,
+                    updatedAt: payload.updatedAt,
+                    participantIds: payload.participantIds
+                )
+                newSDConv.unreadCount = payload.unreadCount
+                modelContext.insert(newSDConv)
+            }
+
+            // Upsert last message if present
+            if let msg = payload.lastMessage {
+                upsertSDMessage(msg, existingById: existingMsgById, conversationId: payload.conversationId)
+            }
+        }
+
+        // Delete stale conversations not on server
+        for local in allLocalConvs where !serverConvIds.contains(local.id) {
+            modelContext.delete(local)
+            changedIds.insert(local.id)
+        }
+
+        try modelContext.save()
+        return changedIds
+    }
+
     // MARK: - Internal sync logic
+
+    /// Upsert a single SDMessage using a pre-fetched lookup dictionary.
+    /// Intentionally does NOT manage publisher state — that stays on MainActor.
+    private func upsertSDMessage(_ message: Message, existingById: [UUID: SDMessage], conversationId: UUID) {
+        if let existing = existingById[message.id] {
+            existing.text = message.text
+            existing.readBy = message.readBy
+            existing.imageUrl = message.imageUrl
+            existing.audioUrl = message.audioUrl
+            existing.audioDuration = message.audioDuration
+            existing.latitude = message.latitude
+            existing.longitude = message.longitude
+            existing.locationName = message.locationName
+            existing.messageType = message.messageType?.rawValue ?? "text"
+            existing.replyToId = message.replyToId
+            existing.editedAt = message.editedAt
+            existing.deletedAt = message.deletedAt
+            existing.status = message.sendStatus?.rawValue ?? "sent"
+            existing.localAttachmentPath = message.localAttachmentPath
+            existing.syncError = message.syncError
+            existing.isPending = (message.sendStatus?.rawValue ?? "sent") == "sending"
+        } else {
+            let sdMsg = MessagingMapper.mapToSDMessage(message)
+            // Link to conversation if it exists in this context
+            let convId = conversationId
+            let convFetch = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == convId })
+            if let sdConv = try? modelContext.fetch(convFetch).first {
+                sdMsg.conversation = sdConv
+            }
+            modelContext.insert(sdMsg)
+        }
+    }
 
     private func syncRidesInternal(_ rides: [Ride]) {
         guard !rides.isEmpty else { return }
@@ -223,5 +312,36 @@ actor BackgroundSyncActor {
         sd.claimerName = favor.claimer?.name
         sd.claimerAvatarUrl = favor.claimer?.avatarUrl
         sd.participantIds = favor.participants?.map { $0.id } ?? []
+    }
+}
+
+// MARK: - Conversation sync payload
+
+/// Lightweight, Sendable value type for passing conversation data across actor boundaries.
+/// Extracted from ConversationWithDetails on MainActor before being sent to BackgroundSyncActor.
+struct ConversationSyncPayload: Sendable {
+    let conversationId: UUID
+    let title: String?
+    let groupImageUrl: String?
+    let createdBy: UUID
+    let isArchived: Bool
+    let createdAt: Date
+    let updatedAt: Date
+    let participantIds: [UUID]
+    let unreadCount: Int
+    let lastMessage: Message?
+
+    init(from remote: ConversationWithDetails, currentUserId: UUID) {
+        self.conversationId = remote.conversation.id
+        self.title = remote.conversation.title
+        self.groupImageUrl = remote.conversation.groupImageUrl
+        self.createdBy = remote.conversation.createdBy
+        self.isArchived = remote.conversation.isArchived
+        self.createdAt = remote.conversation.createdAt
+        self.updatedAt = remote.conversation.updatedAt
+        self.unreadCount = remote.unreadCount
+        self.lastMessage = remote.lastMessage
+        // Collect participant IDs from otherParticipants + current user
+        self.participantIds = remote.otherParticipants.map { $0.id } + [currentUserId]
     }
 }

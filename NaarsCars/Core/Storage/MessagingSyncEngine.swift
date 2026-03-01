@@ -10,20 +10,27 @@ import SwiftData
 final class MessagingSyncEngine: SyncEngineProtocol {
     static let shared = MessagingSyncEngine()
     let engineName = "messaging"
-    
+
     private let repository = MessagingRepository.shared
+    private let conversationService = ConversationService.shared
     private let realtimeManager = RealtimeManager.shared
     private let authService = AuthService.shared
     private var modelContext: ModelContext?
+    private var backgroundActor: BackgroundSyncActor?
     private var lastStartSyncAt: Date = .distantPast
     let health = SyncHealthMetrics()
 
     private init() {}
-    
+
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
     }
-    
+
+    /// Initialize the background actor for off-MainActor SwiftData writes
+    func setupBackgroundActor(container: ModelContainer) {
+        self.backgroundActor = BackgroundSyncActor(modelContainer: container)
+    }
+
     func startSync() {
         setupMessagesSubscription()
 
@@ -36,7 +43,21 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         if let userId = authService.currentUserId {
             Task {
                 do {
-                    try await repository.syncConversations(userId: userId)
+                    // Step 1: Fetch conversations from network
+                    let remoteConversations = try await conversationService.fetchConversations(userId: userId)
+
+                    // Step 2: Write to SwiftData on background actor (if available)
+                    if let backgroundActor {
+                        let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
+                        let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
+
+                        // Step 3: Refresh Combine publishers on MainActor
+                        repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
+                    } else {
+                        // Fallback: use repository's MainActor path if actor not yet wired
+                        try await repository.syncConversations(userId: userId)
+                    }
+
                     health.recordSuccess()
                 } catch {
                     health.recordFailure(error)
@@ -60,6 +81,7 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     func teardown() async {
         await pauseSync()
         modelContext = nil
+        backgroundActor = nil
         lastStartSyncAt = .distantPast
     }
 

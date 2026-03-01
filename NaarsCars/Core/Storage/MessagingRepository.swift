@@ -490,6 +490,13 @@ final class MessagingRepository {
         }
     }
 
+    /// Refresh Combine publishers after a background actor write has persisted data.
+    /// The MainActor model context re-fetches from the store and pushes new values to subscribers.
+    func refreshPublishersAfterBackgroundSync(changedConversationIds: Set<UUID> = []) {
+        refreshConversationsPublisher()
+        refreshMessagesPublishers(changedConversationIds: changedConversationIds)
+    }
+
     private func refreshConversationsPublisher() {
         conversationsSubject.send((try? getConversations()) ?? [])
     }
