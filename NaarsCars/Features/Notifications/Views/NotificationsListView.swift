@@ -20,14 +20,14 @@ struct NotificationsListView: View {
     @Query(sort: \SDNotification.createdAt, order: .reverse) private var sdNotifications: [SDNotification]
     
     var body: some View {
-        let groups = viewModel.getNotificationGroups(sdNotifications: sdNotifications)
+        let data = viewModel.computeGroupedNotifications(sdNotifications: sdNotifications)
 
         NavigationStack {
-            content(groups: groups)
+            content(data: data)
                 .navigationTitle("notifications_title".localized)
                 .id("bell.notificationsList")
                 .toolbar {
-                    if !groups.isEmpty && viewModel.unreadCount > 0 {
+                    if !data.isEmpty && viewModel.unreadCount > 0 {
                         ToolbarItem(placement: .navigationBarTrailing) {
                             Button("notifications_mark_all_read".localized) {
                                 HapticManager.success()
@@ -60,8 +60,8 @@ struct NotificationsListView: View {
     // MARK: - Subviews
     
     @ViewBuilder
-    private func content(groups: [NotificationGroup]) -> some View {
-        if viewModel.isLoading && groups.isEmpty {
+    private func content(data: GroupedNotifications) -> some View {
+        if viewModel.isLoading && data.isEmpty {
             List {
                 ForEach(0..<5) { _ in
                     SkeletonNotificationRow()
@@ -76,7 +76,7 @@ struct NotificationsListView: View {
                 error: error.localizedDescription,
                 retryAction: { Task { await viewModel.loadNotifications() } }
             )
-        } else if groups.isEmpty {
+        } else if data.isEmpty {
             EmptyStateView(
                 icon: "bell.fill",
                 title: "notifications_no_notifications".localized,
@@ -85,35 +85,29 @@ struct NotificationsListView: View {
                 action: nil
             )
         } else {
-            notificationsList(groups: groups)
+            notificationsList(data: data)
         }
     }
     
     @ViewBuilder
-    private func notificationsList(groups: [NotificationGroup]) -> some View {
+    private func notificationsList(data: GroupedNotifications) -> some View {
         List {
-            let pinned = groups.filter { $0.isPinned }
-            let regular = groups.filter { !$0.isPinned }
-            let grouped = Dictionary(grouping: regular) { group in
-                Calendar.current.startOfDay(for: group.primaryNotification.createdAt)
-            }
-            
-            if !pinned.isEmpty {
+            if !data.pinned.isEmpty {
                 Section {
-                    ForEach(pinned) { group in
+                    ForEach(data.pinned) { group in
                         notificationRow(for: group)
                     }
                 }
             }
-            
-            ForEach(grouped.keys.sorted(by: >), id: \.self) { day in
-                Section(header: Text(dayString(day))) {
-                    ForEach(grouped[day] ?? []) { group in
+
+            ForEach(data.sections, id: \.date) { section in
+                Section(header: Text(dayString(section.date))) {
+                    ForEach(section.groups) { group in
                         notificationRow(for: group)
                     }
                 }
             }
-            
+
             // Archived-notification hint
             Section {
                 Text("notifications_archived_hint".localized)

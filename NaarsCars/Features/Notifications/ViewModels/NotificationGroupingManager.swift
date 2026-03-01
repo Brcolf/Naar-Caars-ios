@@ -9,6 +9,23 @@ import Foundation
 import Observation
 import SwiftData
 
+/// Precomputed notification sections ready for display.
+struct GroupedNotifications {
+    let pinned: [NotificationGroup]
+    let sections: [(date: Date, groups: [NotificationGroup])]
+
+    /// All groups across pinned and sections, for emptiness / count checks.
+    var allGroups: [NotificationGroup] {
+        pinned + sections.flatMap { $0.groups }
+    }
+
+    var isEmpty: Bool {
+        pinned.isEmpty && sections.isEmpty
+    }
+
+    static let empty = GroupedNotifications(pinned: [], sections: [])
+}
+
 /// Extracted grouping/filtering logic for notifications.
 @MainActor
 @Observable
@@ -52,5 +69,19 @@ final class NotificationGroupingManager {
     func getNotificationGroups(sdNotifications: [SDNotification]) -> [NotificationGroup] {
         let filtered = getFilteredNotifications(sdNotifications: sdNotifications)
         return NotificationGrouping.groupBellNotifications(from: filtered)
+    }
+
+    /// Precompute pinned groups and date-sectioned regular groups for display.
+    func computeGroupedNotifications(sdNotifications: [SDNotification]) -> GroupedNotifications {
+        let allGroups = getNotificationGroups(sdNotifications: sdNotifications)
+        let pinned = allGroups.filter { $0.isPinned }
+        let regular = allGroups.filter { !$0.isPinned }
+        let dict = Dictionary(grouping: regular) { group in
+            Calendar.current.startOfDay(for: group.primaryNotification.createdAt)
+        }
+        let sections = dict.keys.sorted(by: >).map { date in
+            (date: date, groups: dict[date] ?? [])
+        }
+        return GroupedNotifications(pinned: pinned, sections: sections)
     }
 }

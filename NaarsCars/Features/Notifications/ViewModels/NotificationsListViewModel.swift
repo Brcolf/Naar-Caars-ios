@@ -76,6 +76,11 @@ final class NotificationsListViewModel: ObservableObject {
         groupingManager.getNotificationGroups(sdNotifications: sdNotifications)
     }
 
+    /// Get precomputed grouped notifications (pinned + date-sectioned) for display
+    func computeGroupedNotifications(sdNotifications: [SDNotification]) -> GroupedNotifications {
+        groupingManager.computeGroupedNotifications(sdNotifications: sdNotifications)
+    }
+
     func loadNotifications(forceRefresh: Bool = false) async {
         loadTask?.cancel()
         loadTask = Task { @MainActor in
