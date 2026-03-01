@@ -7,13 +7,14 @@
 
 import Foundation
 import SwiftData
-internal import Combine
+import Observation
 
 /// Extracted request-notification summary logic for dashboard badges/anchors.
 @MainActor
-final class RequestNotificationSummaryManager: ObservableObject {
-    @Published var unseenRequestKeys: Set<String> = []
-    @Published var requestNotificationSummaries: [String: RequestNotificationSummary] = [:]
+@Observable
+final class RequestNotificationSummaryManager {
+    var unseenRequestKeys: Set<String> = []
+    var requestNotificationSummaries: [String: RequestNotificationSummary] = [:]
 
     private let authService: AuthService
     private let notificationService: NotificationService

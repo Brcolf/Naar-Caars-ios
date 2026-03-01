@@ -7,11 +7,12 @@
 
 import Foundation
 import SwiftData
-internal import Combine
+import Observation
 
 /// Handles requests dashboard refreshes driven by centralized sync-engine notifications.
 @MainActor
-final class RequestRealtimeHandler: ObservableObject {
+@Observable
+final class RequestRealtimeHandler {
     private var requestsReloadTask: Task<Void, Never>?
     private var requestNotificationRefreshTask: Task<Void, Never>?
 

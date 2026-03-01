@@ -7,11 +7,12 @@
 
 import Foundation
 import SwiftData
-internal import Combine
+import Observation
 
 /// Extracted filtering/badge helper logic for requests dashboard.
 @MainActor
-final class RequestFilterManager: ObservableObject {
+@Observable
+final class RequestFilterManager {
     private let authService: AuthService
 
     init(authService: AuthService = .shared) {

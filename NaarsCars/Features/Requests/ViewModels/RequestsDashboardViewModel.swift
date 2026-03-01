@@ -41,7 +41,6 @@ final class RequestsDashboardViewModel: ObservableObject {
     private let filterManager: RequestFilterManager
     private let summaryManager: RequestNotificationSummaryManager
     private let realtimeHandler: RequestRealtimeHandler
-    private var managerCancellables = Set<AnyCancellable>()
     /// In-flight load task; cancelled in stop() to avoid use-after-free when view disappears.
     private var loadTask: Task<Void, Never>?
     private var flightEnrichmentObserver: (any NSObjectProtocol)?
@@ -59,16 +58,6 @@ final class RequestsDashboardViewModel: ObservableObject {
         filterManager = RequestFilterManager()
         summaryManager = RequestNotificationSummaryManager()
         realtimeHandler = RequestRealtimeHandler()
-
-        filterManager.objectWillChange
-            .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &managerCancellables)
-        summaryManager.objectWillChange
-            .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &managerCancellables)
-        realtimeHandler.objectWillChange
-            .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &managerCancellables)
 
         realtimeHandler.configure(
             modelContextProvider: { [weak self] in self?.modelContext },
