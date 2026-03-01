@@ -6,22 +6,27 @@
 //
 
 import Foundation
+import Observation
 internal import Combine
 
 /// Manages in-conversation message search state and logic
 @MainActor
-final class ConversationSearchManager: ObservableObject {
-    @Published var searchText: String = ""
-    @Published var searchResults: [Message] = []
-    @Published var currentSearchIndex: Int = 0
-    @Published var isSearchActive: Bool = false
-    @Published var isSearchingMessages: Bool = false
-    @Published var isLoadingOlderSearchResults: Bool = false
-    @Published var canLoadOlderSearchResults: Bool = false
+@Observable
+final class ConversationSearchManager {
+    var searchText: String = "" {
+        didSet { searchTextSubject.send(searchText) }
+    }
+    var searchResults: [Message] = []
+    var currentSearchIndex: Int = 0
+    var isSearchActive: Bool = false
+    var isSearchingMessages: Bool = false
+    var isLoadingOlderSearchResults: Bool = false
+    var canLoadOlderSearchResults: Bool = false
     
     private let conversationId: UUID
     private let messageService: MessageService
     private var searchTask: Task<Void, Never>?
+    private let searchTextSubject = CurrentValueSubject<String, Never>("")
     private var cancellables = Set<AnyCancellable>()
     private let searchPageSize = Constants.PageSizes.searchInConversation
     private var reachedOldestSearchResult = false
@@ -45,7 +50,7 @@ final class ConversationSearchManager: ObservableObject {
     // MARK: - Setup
     
     private func setupSearchDebounce() {
-        $searchText
+        searchTextSubject
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .removeDuplicates()
             .sink { [weak self] query in

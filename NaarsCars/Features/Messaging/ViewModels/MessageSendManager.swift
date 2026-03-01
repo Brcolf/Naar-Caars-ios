@@ -7,11 +7,12 @@
 
 import Foundation
 import UIKit
-internal import Combine
+import Observation
 
 /// Extracted send/edit/unsend/retry logic for conversation detail.
 @MainActor
-final class MessageSendManager: ObservableObject {
+@Observable
+final class MessageSendManager {
     private let messageService: MessageService
     private let mediaService: MessageMediaService
     private let reactionService: MessageReactionService

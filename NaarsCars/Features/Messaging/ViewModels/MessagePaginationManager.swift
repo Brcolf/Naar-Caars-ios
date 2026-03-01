@@ -6,11 +6,12 @@
 //
 
 import Foundation
-internal import Combine
+import Observation
 
 /// Extracted message load/pagination logic for conversation detail.
 @MainActor
-final class MessagePaginationManager: ObservableObject {
+@Observable
+final class MessagePaginationManager {
     private let pageSize = Constants.PageSizes.messages
     private let initialRenderLimit = Constants.PageSizes.messagesInitialRender
     private var oldestMessageId: UUID?

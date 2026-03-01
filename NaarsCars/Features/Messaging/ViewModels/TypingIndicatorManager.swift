@@ -6,12 +6,13 @@
 //
 
 import Foundation
-internal import Combine
+import Observation
 
 /// Manages typing indicator realtime observation and status updates for a conversation
 @MainActor
-final class TypingIndicatorManager: ObservableObject {
-    @Published var typingUsers: [TypingUser] = []
+@Observable
+final class TypingIndicatorManager {
+    var typingUsers: [TypingUser] = []
     
     private let conversationId: UUID
     private let messageService: MessageService

@@ -73,7 +73,6 @@ final class ConversationDetailViewModel: ObservableObject {
         setupLocalObservation()
         setupMetadataObservation()
         setupConversationUpdatedObserver()
-        setupManagerObservation()
     }
     
     deinit {
@@ -93,22 +92,6 @@ final class ConversationDetailViewModel: ObservableObject {
         searchManager.stop()
     }
 
-    /// Forward objectWillChange from child managers so the view updates
-    private func setupManagerObservation() {
-        searchManager.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
-        typingManager.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
-        paginationManager.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
-        sendManager.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
-    }
-    
     private func setupLocalObservation() {
         repository.getMessagesPublisher(for: conversationId)
             .sink { [weak self] updatedMessages in
