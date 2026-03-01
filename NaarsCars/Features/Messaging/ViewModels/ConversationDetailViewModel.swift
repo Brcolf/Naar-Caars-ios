@@ -13,7 +13,10 @@ internal import Combine
 /// ViewModel for conversation detail
 @MainActor
 final class ConversationDetailViewModel: ObservableObject {
-    @Published var messages: [Message] = []
+    @Published var messages: [Message] = [] {
+        didSet { recomputeCellConfigurations() }
+    }
+    @Published private(set) var messageCellConfigurations: [UUID: MessageCellConfiguration] = [:]
     @Published var isLoading: Bool = false
     @Published var isLoadingMore: Bool = false
     @Published var hasMoreMessages: Bool = true
@@ -75,6 +78,48 @@ final class ConversationDetailViewModel: ObservableObject {
         setupConversationUpdatedObserver()
     }
     
+    // MARK: - Cell Configuration Cache
+
+    /// Recompute per-message cell display configurations.
+    /// Called automatically via the `messages` didSet observer.
+    private func recomputeCellConfigurations() {
+        var configs: [UUID: MessageCellConfiguration] = [:]
+        for (index, message) in messages.enumerated() {
+            configs[message.id] = MessageCellConfiguration(
+                messageId: message.id,
+                isFirstInSeries: isFirstInSeries(at: index),
+                isLastInSeries: isLastInSeries(at: index),
+                showDateSeparator: shouldShowDateSeparator(at: index)
+            )
+        }
+        messageCellConfigurations = configs
+    }
+
+    /// Check if message is the first in a consecutive series from the same sender
+    private func isFirstInSeries(at index: Int) -> Bool {
+        MessageSeriesHelper.isFirstInSeries(messages: messages, at: index)
+    }
+
+    /// Check if message is the last in a consecutive series from the same sender
+    private func isLastInSeries(at index: Int) -> Bool {
+        MessageSeriesHelper.isLastInSeries(messages: messages, at: index)
+    }
+
+    /// Check if we should show a date separator before this message
+    private func shouldShowDateSeparator(at index: Int) -> Bool {
+        guard index > 0 else { return true } // Always show for first message
+
+        let currentMessage = messages[index]
+        let previousMessage = messages[index - 1]
+
+        // Check if different day
+        let calendar = Calendar.current
+        let currentDay = calendar.startOfDay(for: currentMessage.createdAt)
+        let previousDay = calendar.startOfDay(for: previousMessage.createdAt)
+
+        return currentDay != previousDay
+    }
+
     deinit {
         if let observer = conversationUpdatedObserver {
             NotificationCenter.default.removeObserver(observer)

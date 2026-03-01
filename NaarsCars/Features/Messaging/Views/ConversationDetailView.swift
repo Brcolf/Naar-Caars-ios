@@ -371,18 +371,10 @@ struct ConversationDetailView: View {
     }
     
 
-    /// Cell configurations for MessagesCollectionView (hashable per-message display options).
+    /// Cell configurations for MessagesCollectionView — cached in the ViewModel and
+    /// recomputed only when the messages array changes (not on every view body evaluation).
     private var messageCellConfigurations: [UUID: MessageCellConfiguration] {
-        var configs: [UUID: MessageCellConfiguration] = [:]
-        for (index, message) in viewModel.messages.enumerated() {
-            configs[message.id] = MessageCellConfiguration(
-                messageId: message.id,
-                isFirstInSeries: isFirstInSeries(at: index),
-                isLastInSeries: isLastInSeries(at: index),
-                showDateSeparator: shouldShowDateSeparator(at: index)
-            )
-        }
-        return configs
+        viewModel.messageCellConfigurations
     }
 
     @State private var shouldScrollToBottom = false
@@ -646,21 +638,19 @@ struct ConversationDetailView: View {
             .padding()
         } else {
             ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                let isFirst = isFirstInSeries(at: index)
-                let isLast = isLastInSeries(at: index)
-                let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
+                let config = messageCellConfigurations[message.id]
                 let replyChain = replyChainContext(at: index)
 
                 VStack(spacing: 0) {
-                    if shouldShowDateSeparator {
+                    if config?.showDateSeparator == true {
                         DateSeparatorView(date: message.createdAt)
                             .padding(.vertical, 16)
                     }
 
                     createMessageBubble(
                         message: message,
-                        isFirst: isFirst,
-                        isLast: isLast,
+                        isFirst: config?.isFirstInSeries ?? true,
+                        isLast: config?.isLastInSeries ?? true,
                         replyChain: replyChain
                     )
                 }
@@ -748,16 +738,6 @@ struct ConversationDetailView: View {
         }
     }
     
-    /// Check if message is the first in a consecutive series from the same sender
-    private func isFirstInSeries(at index: Int) -> Bool {
-        MessageSeriesHelper.isFirstInSeries(messages: viewModel.messages, at: index)
-    }
-    
-    /// Check if message is the last in a consecutive series from the same sender
-    private func isLastInSeries(at index: Int) -> Bool {
-        MessageSeriesHelper.isLastInSeries(messages: viewModel.messages, at: index)
-    }
-
     private struct ReplyChainContext {
         let hasPrevious: Bool
         let hasNext: Bool
@@ -777,21 +757,6 @@ struct ConversationDetailView: View {
     private func replyChainContextForMessage(_ message: Message) -> ReplyChainContext? {
         guard let index = viewModel.messages.firstIndex(where: { $0.id == message.id }) else { return nil }
         return replyChainContext(at: index)
-    }
-    
-    /// Check if we should show a date separator before this message
-    private func shouldShowDateSeparator(at index: Int) -> Bool {
-        guard index > 0 else { return true } // Always show for first message
-        
-        let currentMessage = viewModel.messages[index]
-        let previousMessage = viewModel.messages[index - 1]
-        
-        // Check if different day
-        let calendar = Calendar.current
-        let currentDay = calendar.startOfDay(for: currentMessage.createdAt)
-        let previousDay = calendar.startOfDay(for: previousMessage.createdAt)
-        
-        return currentDay != previousDay
     }
     
     // MARK: - Inline Typing Indicator
