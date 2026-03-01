@@ -208,10 +208,17 @@ final class DashboardSyncEngine: SyncEngineProtocol {
     // MARK: - Sync Logic (Internal)
     
     private func syncRides(_ rides: [Ride], in context: ModelContext) {
+        guard !rides.isEmpty else { return }
+
+        // Single batch fetch: get ALL existing SDRides at once
+        let allLocalDescriptor = FetchDescriptor<SDRide>()
+        let allLocal = (try? context.fetch(allLocalDescriptor)) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+        let serverIds = Set(rides.map { $0.id })
+
+        // Upsert
         for ride in rides {
-            let id = ride.id
-            let fetchDescriptor = FetchDescriptor<SDRide>(predicate: #Predicate { $0.id == id })
-            if let existing = try? context.fetch(fetchDescriptor).first {
+            if let existing = existingById[ride.id] {
                 updateSDRide(existing, with: ride)
             } else {
                 let sdRide = SDRide(
@@ -245,22 +252,24 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             }
         }
 
-        // Remove local rides that no longer exist on the server
-        guard !rides.isEmpty else { return }
-        let serverIds = Set(rides.map { $0.id })
-        let allLocalDescriptor = FetchDescriptor<SDRide>()
-        if let allLocal = try? context.fetch(allLocalDescriptor) {
-            for local in allLocal where !serverIds.contains(local.id) {
-                context.delete(local)
-            }
+        // Delete stale (reuse allLocal from batch fetch)
+        for local in allLocal where !serverIds.contains(local.id) {
+            context.delete(local)
         }
     }
     
     private func syncFavors(_ favors: [Favor], in context: ModelContext) {
+        guard !favors.isEmpty else { return }
+
+        // Single batch fetch: get ALL existing SDFavors at once
+        let allLocalDescriptor = FetchDescriptor<SDFavor>()
+        let allLocal = (try? context.fetch(allLocalDescriptor)) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+        let serverIds = Set(favors.map { $0.id })
+
+        // Upsert
         for favor in favors {
-            let id = favor.id
-            let fetchDescriptor = FetchDescriptor<SDFavor>(predicate: #Predicate { $0.id == id })
-            if let existing = try? context.fetch(fetchDescriptor).first {
+            if let existing = existingById[favor.id] {
                 updateSDFavor(existing, with: favor)
             } else {
                 let sdFavor = SDFavor(
@@ -292,22 +301,23 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             }
         }
 
-        // Remove local favors that no longer exist on the server
-        guard !favors.isEmpty else { return }
-        let serverIds = Set(favors.map { $0.id })
-        let allLocalDescriptor = FetchDescriptor<SDFavor>()
-        if let allLocal = try? context.fetch(allLocalDescriptor) {
-            for local in allLocal where !serverIds.contains(local.id) {
-                context.delete(local)
-            }
+        // Delete stale (reuse allLocal from batch fetch)
+        for local in allLocal where !serverIds.contains(local.id) {
+            context.delete(local)
         }
     }
     
     private func syncNotifications(_ notifications: [AppNotification], in context: ModelContext) {
+        guard !notifications.isEmpty else { return }
+
+        // Single batch fetch: get ALL existing SDNotifications at once
+        let allLocalDescriptor = FetchDescriptor<SDNotification>()
+        let allLocal = (try? context.fetch(allLocalDescriptor)) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+
+        // Upsert
         for notification in notifications {
-            let id = notification.id
-            let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.id == id })
-            if let existing = try? context.fetch(fetchDescriptor).first {
+            if let existing = existingById[notification.id] {
                 existing.read = notification.read
                 existing.pinned = notification.pinned
                 existing.title = notification.title
