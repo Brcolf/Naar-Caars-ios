@@ -109,12 +109,11 @@ final class BadgeCountManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // Defer to next run loop so the first frame after foreground isn't blocked (reduces freeze).
-            DispatchQueue.main.async {
-                Task { @MainActor [weak self] in
-                    await self?.refreshAllBadges(reason: "didBecomeActive")
-                    self?.updatePollingInterval(reason: "didBecomeActive")
-                }
+            Task { [weak self] in
+                // Yield once so the first frame after foreground isn't blocked
+                await Task.yield()
+                await self?.refreshAllBadges(reason: "didBecomeActive")
+                self?.updatePollingInterval(reason: "didBecomeActive")
             }
         }
 
