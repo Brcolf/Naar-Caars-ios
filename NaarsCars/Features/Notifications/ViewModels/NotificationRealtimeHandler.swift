@@ -6,11 +6,12 @@
 //
 
 import Foundation
-internal import Combine
+import Observation
 
 /// Handles debounced notifications-list refreshes from centralized sync notifications.
 @MainActor
-final class NotificationRealtimeHandler: ObservableObject {
+@Observable
+final class NotificationRealtimeHandler {
     private var notificationsDidSyncObserver: NSObjectProtocol?
     private var realtimeReloadTask: Task<Void, Never>?
 

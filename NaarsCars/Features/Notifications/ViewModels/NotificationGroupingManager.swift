@@ -6,12 +6,13 @@
 //
 
 import Foundation
+import Observation
 import SwiftData
-internal import Combine
 
 /// Extracted grouping/filtering logic for notifications.
 @MainActor
-final class NotificationGroupingManager: ObservableObject {
+@Observable
+final class NotificationGroupingManager {
     private let authService: AuthService
 
     init(authService: AuthService = .shared) {

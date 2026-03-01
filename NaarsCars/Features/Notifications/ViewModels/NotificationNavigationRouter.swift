@@ -6,11 +6,12 @@
 //
 
 import Foundation
-internal import Combine
+import Observation
 
 /// Extracted tap-routing/navigation logic for notifications.
 @MainActor
-final class NotificationNavigationRouter: ObservableObject {
+@Observable
+final class NotificationNavigationRouter {
     private let authService: AuthService
 
     init(authService: AuthService = .shared) {

@@ -23,7 +23,6 @@ final class NotificationsListViewModel: ObservableObject {
     private let groupingManager: NotificationGroupingManager
     private let navigationRouter: NotificationNavigationRouter
     private let realtimeHandler: NotificationRealtimeHandler
-    private var managerCancellables = Set<AnyCancellable>()
     /// In-flight load/refresh task; cancelled in stop() and on next load to avoid use-after-free when view disappears.
     private var loadTask: Task<Void, Never>?
 
@@ -38,16 +37,6 @@ final class NotificationsListViewModel: ObservableObject {
         groupingManager = NotificationGroupingManager()
         navigationRouter = NotificationNavigationRouter()
         realtimeHandler = NotificationRealtimeHandler()
-
-        groupingManager.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &managerCancellables)
-        navigationRouter.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &managerCancellables)
-        realtimeHandler.objectWillChange
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &managerCancellables)
 
         realtimeHandler.setupRealtimeSubscription { [weak self] reason, fallback in
             await self?.handleRealtimeReload(reason: reason, fallback: fallback)
