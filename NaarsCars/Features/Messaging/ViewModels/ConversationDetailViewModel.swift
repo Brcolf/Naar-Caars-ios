@@ -14,7 +14,10 @@ internal import Combine
 @MainActor
 final class ConversationDetailViewModel: ObservableObject {
     @Published var messages: [Message] = [] {
-        didSet { recomputeCellConfigurations() }
+        didSet {
+            recomputeCellConfigurations()
+            recomputeUnreadCount()
+        }
     }
     @Published private(set) var messageCellConfigurations: [UUID: MessageCellConfiguration] = [:]
     @Published var isLoading: Bool = false
@@ -46,12 +49,7 @@ final class ConversationDetailViewModel: ObservableObject {
     var isLoadingOlderSearchResults: Bool { searchManager.isLoadingOlderSearchResults }
     var canLoadOlderSearchResults: Bool { searchManager.canLoadOlderSearchResults }
     @Published var editingMessage: Message? = nil
-    var unreadCount: Int {
-        guard let userId = authService.currentUserId else { return 0 }
-        return messages.filter { message in
-            message.fromId != userId && !message.readBy.contains(userId)
-        }.count
-    }
+    @Published private(set) var unreadCount: Int = 0
     
     let conversationId: UUID
     private let messageService: any MessageServiceProtocol
@@ -79,6 +77,18 @@ final class ConversationDetailViewModel: ObservableObject {
     }
     
     // MARK: - Cell Configuration Cache
+
+    /// Recompute unread count from the current messages array.
+    /// Called automatically via the `messages` didSet observer.
+    private func recomputeUnreadCount() {
+        guard let userId = authService.currentUserId else {
+            unreadCount = 0
+            return
+        }
+        unreadCount = messages.filter { message in
+            message.fromId != userId && !message.readBy.contains(userId)
+        }.count
+    }
 
     /// Recompute per-message cell display configurations.
     /// Called automatically via the `messages` didSet observer.
