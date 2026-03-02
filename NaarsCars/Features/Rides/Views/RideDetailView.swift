@@ -432,7 +432,22 @@ struct RideDetailView: View {
                 .id(RequestDetailAnchor.claimerCard.anchorId(for: .ride))
                 .requestHighlight(highlightedAnchor == .claimerCard)
             }
-            
+
+            // Review Section (for completed rides)
+            if ride.claimedBy != nil {
+                RequestReviewSection(
+                    requestType: "ride",
+                    requestId: ride.id,
+                    posterId: ride.userId,
+                    claimerId: ride.claimedBy,
+                    isCompleted: ride.status == .completed,
+                    requestTitle: "\(ride.pickup) → \(ride.destination)",
+                    onReviewSubmitted: {
+                        Task { await viewModel.loadRide(id: rideId) }
+                    }
+                )
+            }
+
             // Flight (persisted or parsed from notes; tappable to open status search)
             if let flightInfo = FlightInfo.displayInfo(for: ride) {
                 FlightRowView(flightInfo: flightInfo, style: .detail)
