@@ -18,7 +18,10 @@ struct Review: Codable, Identifiable, Equatable {
     let comment: String?
     let imageUrl: String?
     let createdAt: Date
-    
+
+    // Joined data (not from database)
+    var fulfillerName: String?
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {

@@ -18,6 +18,7 @@ enum PostType: String, Codable {
     case userPost = "user_post"
     case review = "review"
     case completion = "completion"
+    case announcement = "announcement"
 }
 
 /// Town hall post model
@@ -69,8 +70,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         try container.encode(content, forKey: .content)
         try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
         try container.encodeIfPresent(pinned, forKey: .pinned)
-        // Exclude type - not in database schema
-        // try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(type, forKey: .type)
         try container.encodeIfPresent(reviewId, forKey: .reviewId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)

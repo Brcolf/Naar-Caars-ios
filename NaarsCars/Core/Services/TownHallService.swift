@@ -471,22 +471,47 @@ final class TownHallService {
         return counts
     }
     
-    /// Fetch review data for review IDs
+    /// Fetch review data for review IDs, enriched with fulfiller names
     private func fetchReviews(reviewIds: [UUID]) async -> [UUID: Review] {
         guard !reviewIds.isEmpty else { return [:] }
-        
+
         let response = try? await supabase
             .from("reviews")
             .select()
             .in("id", values: reviewIds.map { $0.uuidString })
             .execute()
-        
+
         guard let data = response?.data else { return [:] }
-        
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let reviews = (try? decoder.decode([Review].self, from: data)) ?? []
-        
+        var reviews = (try? decoder.decode([Review].self, from: data)) ?? []
+
+        // Fetch fulfiller names
+        let fulfillerIds = Set(reviews.map { $0.fulfillerId })
+        if !fulfillerIds.isEmpty {
+            let profileResponse = try? await supabase
+                .from("profiles")
+                .select("id, name")
+                .in("id", values: fulfillerIds.map { $0.uuidString })
+                .execute()
+
+            if let profileData = profileResponse?.data {
+                struct ProfileName: Decodable {
+                    let id: UUID
+                    let name: String
+                }
+                let profiles = (try? JSONDecoder().decode([ProfileName].self, from: profileData)) ?? []
+                let nameMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.name) })
+
+                reviews = reviews.map { review in
+                    var enriched = review
+                    enriched.fulfillerName = nameMap[review.fulfillerId]
+                    return enriched
+                }
+            }
+        }
+
         return Dictionary(uniqueKeysWithValues: reviews.map { ($0.id, $0) })
     }
     

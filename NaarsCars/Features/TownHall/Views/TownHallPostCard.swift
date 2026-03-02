@@ -47,13 +47,33 @@ struct TownHallPostCard: View {
         return PostTitleExtractor.extractTitle(from: post.content)
     }
     
+    private var isAnnouncement: Bool {
+        post.type == .announcement
+    }
+
+    private var isReview: Bool {
+        post.type == .review
+    }
+
     // Show stars if post is related to a review
     private var starRating: Int? {
-        guard let type = post.type, type == .review else { return nil }
-        if let review = post.review {
-            return review.rating
+        guard isReview, let review = post.review else { return nil }
+        return review.rating
+    }
+
+    /// "Reviewed Jane Doe for a ride"
+    private var reviewSubtitle: String? {
+        guard isReview, let review = post.review else { return nil }
+        var text = "Reviewed"
+        if let name = review.fulfillerName {
+            text += " \(name)"
         }
-        return nil
+        if review.rideId != nil {
+            text += " for a ride"
+        } else if review.favorId != nil {
+            text += " for a favor"
+        }
+        return text
     }
     
     var body: some View {
@@ -66,25 +86,48 @@ struct TownHallPostCard: View {
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
-                
+
                 Spacer()
-                
-                // Star rating for review posts
+
+                // Visual star rating for review posts
                 if let rating = starRating {
-                    HStack(spacing: Constants.Spacing.xs) {
-                        Image(systemName: "star.fill")
-                            .font(.naarsCaption)
-                            .foregroundColor(.yellow)
-                        Text("\(rating)")
-                            .font(.naarsCaption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
+                    HStack(spacing: 2) {
+                        ForEach(1...5, id: \.self) { star in
+                            Image(systemName: star <= rating ? "star.fill" : "star")
+                                .font(.caption2)
+                                .foregroundColor(star <= rating ? .yellow : .secondary.opacity(0.3))
+                        }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, Constants.Spacing.xs)
-                    .background(Color.naarsCardBackground)
-                    .cornerRadius(8)
                 }
+            }
+
+            // Type badge row
+            if isAnnouncement {
+                HStack(spacing: 6) {
+                    Image(systemName: "megaphone.fill")
+                        .font(.caption2)
+                    Text("Announcement")
+                        .font(.naarsCaption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.naarsPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.naarsPrimary.opacity(0.1))
+                .cornerRadius(6)
+            } else if isReview {
+                HStack(spacing: 6) {
+                    Image(systemName: "star.fill")
+                        .font(.caption2)
+                    Text("Review")
+                        .font(.naarsCaption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.orange)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(6)
             }
             
             // Author and time row
@@ -113,11 +156,26 @@ struct TownHallPostCard: View {
                 
                 Spacer()
                 
+                // Pin icon for pinned announcements
+                if post.pinned == true {
+                    Image(systemName: "pin.fill")
+                        .font(.caption2)
+                        .foregroundColor(.naarsPrimary)
+                }
+
                 // Time ago (right-aligned)
                 Text(post.createdAt.timeAgo)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.trailing)
+            }
+
+            // Review subtitle: "Reviewed Jane Doe for a ride"
+            if let subtitle = reviewSubtitle {
+                Text(subtitle)
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+                    .italic()
             }
             
             Divider()
@@ -249,7 +307,11 @@ struct TownHallPostCard: View {
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.naarsPrimary.opacity(0.6), lineWidth: isHighlighted ? 2 : 0)
+                .stroke(
+                    isAnnouncement ? Color.naarsPrimary.opacity(0.6) :
+                    isHighlighted ? Color.naarsPrimary.opacity(0.6) : Color.clear,
+                    lineWidth: (isAnnouncement || isHighlighted) ? 2 : 0
+                )
         )
         .sheet(isPresented: $showComments) {
             PostCommentsView(postId: post.id)

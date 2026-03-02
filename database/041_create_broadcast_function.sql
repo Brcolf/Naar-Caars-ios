@@ -20,15 +20,15 @@ DECLARE
     v_notification_id UUID;
     v_post_id UUID;
 BEGIN
-    -- Get the calling admin's user ID
     v_admin_id := auth.uid();
 
-    -- Create a town hall post for this broadcast
+    -- Create a town hall post for this broadcast with type = 'announcement'
     INSERT INTO town_hall_posts (
         user_id,
         title,
         content,
         pinned,
+        type,
         created_at,
         updated_at
     ) VALUES (
@@ -36,6 +36,7 @@ BEGIN
         p_title,
         p_body,
         p_pinned,
+        'announcement',
         NOW(),
         NOW()
     )
@@ -77,8 +78,6 @@ END;
 $$;
 
 -- Grant execute permission to authenticated users
--- (RLS will verify admin status on the client side, but this allows the function to run)
 GRANT EXECUTE ON FUNCTION send_broadcast_notifications TO authenticated;
 
--- Add comment
 COMMENT ON FUNCTION send_broadcast_notifications IS 'Sends broadcast notifications to all approved users with a linked town hall post. Must be called by admin users only.';
