@@ -194,6 +194,7 @@ struct RequestsDashboardView: View {
             .refreshable {
                 await viewModel.refreshRequests()
             }
+            .background(Color.naarsBackground)
             .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
                 guard case .requestListScroll(let key) = intent else { return }
                 scrollToRequest(key, proxy: proxy)

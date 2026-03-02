@@ -38,6 +38,8 @@ struct LeaderboardView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.naarsBackground)
                 } else if let error = viewModel.error, viewModel.entries.isEmpty {
                     ErrorView(
                         error: error.localizedDescription,
@@ -77,6 +79,8 @@ struct LeaderboardView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.naarsBackground)
                 }
             }
             .navigationTitle("leaderboard_title".localized)

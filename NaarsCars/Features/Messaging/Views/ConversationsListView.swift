@@ -41,6 +41,8 @@ struct ConversationsListView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.naarsBackground)
             .accessibilityLabel("Loading conversations")
         } else if let error = viewModel.error {
             ErrorView(
@@ -138,9 +140,11 @@ struct ConversationsListView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.naarsBackground)
         .searchable(text: $viewModel.searchText, prompt: "Search messages")
     }
-    
+
     @ViewBuilder
     private var conversationsList: some View {
         List {
@@ -201,6 +205,8 @@ struct ConversationsListView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.naarsBackground)
         .searchable(text: $viewModel.searchText, prompt: "Search messages")
         .refreshable {
             await viewModel.refreshConversations()

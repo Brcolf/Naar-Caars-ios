@@ -99,7 +99,7 @@ extension Color {
         case .dark:
             return UIColor(hex: "121212") // Material Design dark background
         default:
-            return UIColor(hex: "F8F9FA") // Light gray background
+            return UIColor(hex: "F2F2F7") // iOS system grouped background
         }
     })
     

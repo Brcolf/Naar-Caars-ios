@@ -144,31 +144,26 @@ struct ConversationRow: View {
 struct FadingTitleText: View {
     let text: String
     let maxWidth: CGFloat
-    
+
     var body: some View {
-        ZStack(alignment: .leading) {
-            // Full text (starts from left, may overflow)
-            Text(text)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Overlay gradient for fade effect (on the right side)
-            HStack(spacing: 0) {
-                Spacer()
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: Color.naarsBackgroundSecondary.opacity(0), location: 0.0),
-                        .init(color: Color.naarsBackgroundSecondary.opacity(0.5), location: 0.3),
-                        .init(color: Color.naarsBackgroundSecondary, location: 0.8)
-                    ]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: 40)
-            }
-            .allowsHitTesting(false)
-        }
-        .frame(width: maxWidth, alignment: .leading)
-        .clipped()
+        Text(text)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: maxWidth, alignment: .leading)
+            .clipped()
+            .mask(
+                HStack(spacing: 0) {
+                    Rectangle().fill(Color.black)
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .clear, location: 1.0)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: 40)
+                }
+            )
     }
 }

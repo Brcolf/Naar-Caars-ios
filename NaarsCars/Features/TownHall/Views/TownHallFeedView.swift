@@ -71,8 +71,9 @@ struct TownHallFeedView: View {
             }
             .padding()
         }
+        .background(Color.naarsBackground)
     }
-    
+
     private func errorView(_ error: AppError) -> some View {
         ErrorView(
             error: error.localizedDescription,
@@ -125,6 +126,7 @@ struct TownHallFeedView: View {
             .refreshable {
                 await viewModel.refreshPosts()
             }
+            .background(Color.naarsBackground)
             .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
                 guard case .townHallPost(let postId, let mode) = intent else { return }
                 let anchorId = "community.townHall.postCard(\(postId))"

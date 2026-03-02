@@ -130,6 +130,7 @@ struct MyProfileView: View {
                     }
                     .padding()
                 }
+                .background(Color.naarsBackground)
                 .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
                     guard let intent else { return }
                     applyProfileIntent(intent, proxy: proxy)

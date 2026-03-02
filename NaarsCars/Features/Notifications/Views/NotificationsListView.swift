@@ -70,6 +70,8 @@ struct NotificationsListView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.naarsBackground)
             .accessibilityLabel("Loading notifications")
         } else if let error = viewModel.error {
             ErrorView(
@@ -119,6 +121,8 @@ struct NotificationsListView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.naarsBackground)
         .refreshable { await viewModel.refreshNotifications() }
     }
     
