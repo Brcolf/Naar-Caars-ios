@@ -231,6 +231,8 @@
 		AC8197BC2F14C2C1003BB08B /* LeaveReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197B72F14C2C1003BB08B /* LeaveReviewView.swift */; };
 		AC8197BD2F14C2C1003BB08B /* ReviewPromptManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197B52F14C2C1003BB08B /* ReviewPromptManager.swift */; };
 		AC8197BE2F14C2C1003BB08B /* ReviewPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197B82F14C2C1003BB08B /* ReviewPromptSheet.swift */; };
+		BB6705E6EDE1409D910974CC /* RequestReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5179A2C7372483EB7DF87B2 /* RequestReviewSection.swift */; };
+		7422883A999340009A1A2AC6 /* AllReviewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E89E0222FC4F1288E9AE2A /* AllReviewsView.swift */; };
 		AC8197C02F14C34A003BB08B /* MessageDetailsPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197BF2F14C34A003BB08B /* MessageDetailsPopup.swift */; };
 		AC91779D2F0B9A330077133C /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC91779C2F0B9A330077133C /* MainTabView.swift */; };
 		AC9178FB2F0BA7010077133C /* AppLaunchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */; };
@@ -679,6 +681,8 @@
 		AC8197B52F14C2C1003BB08B /* ReviewPromptManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptManager.swift; sourceTree = "<group>"; };
 		AC8197B72F14C2C1003BB08B /* LeaveReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveReviewView.swift; sourceTree = "<group>"; };
 		AC8197B82F14C2C1003BB08B /* ReviewPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptSheet.swift; sourceTree = "<group>"; };
+		C5179A2C7372483EB7DF87B2 /* RequestReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestReviewSection.swift; sourceTree = "<group>"; };
+		27E89E0222FC4F1288E9AE2A /* AllReviewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllReviewsView.swift; sourceTree = "<group>"; };
 		AC8197BF2F14C34A003BB08B /* MessageDetailsPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageDetailsPopup.swift; sourceTree = "<group>"; };
 		AC91779C2F0B9A330077133C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AC9178FA2F0BA7010077133C /* AppLaunchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchManager.swift; sourceTree = "<group>"; };
@@ -1253,6 +1257,8 @@
 			children = (
 				AC8197B72F14C2C1003BB08B /* LeaveReviewView.swift */,
 				AC8197B82F14C2C1003BB08B /* ReviewPromptSheet.swift */,
+				C5179A2C7372483EB7DF87B2 /* RequestReviewSection.swift */,
+				27E89E0222FC4F1288E9AE2A /* AllReviewsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2419,6 +2425,8 @@
 				AC8197BC2F14C2C1003BB08B /* LeaveReviewView.swift in Sources */,
 				AC8197BD2F14C2C1003BB08B /* ReviewPromptManager.swift in Sources */,
 				AC8197BE2F14C2C1003BB08B /* ReviewPromptSheet.swift in Sources */,
+				BB6705E6EDE1409D910974CC /* RequestReviewSection.swift in Sources */,
+				7422883A999340009A1A2AC6 /* AllReviewsView.swift in Sources */,
 				F7A2B4C5D6E7481A9B3C4D5E /* CompletionPromptProvider.swift in Sources */,
 				F7A2B4C5D6E7481A9B3C4D5F /* ReviewPromptProvider.swift in Sources */,
 				F7A2B4C5D6E7481A9B3C4D60 /* PromptSideEffects.swift in Sources */,
