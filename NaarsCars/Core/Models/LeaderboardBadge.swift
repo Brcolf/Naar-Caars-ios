@@ -34,4 +34,24 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .bigSaver: return "dollarsign.circle.fill"
         }
     }
+
+    var emoji: String {
+        switch self {
+        case .roadWarrior: return "🚗"
+        case .goodNeighbor: return "🤝"
+        case .streakChampion: return "🔥"
+        case .fiveStar: return "⭐"
+        case .bigSaver: return "💰"
+        }
+    }
+
+    var badgeDescription: String {
+        switch self {
+        case .roadWarrior: return "badge_road_warrior_desc".localized
+        case .goodNeighbor: return "badge_good_neighbor_desc".localized
+        case .streakChampion: return "badge_streak_champ_desc".localized
+        case .fiveStar: return "badge_five_star_desc".localized
+        case .bigSaver: return "badge_big_saver_desc".localized
+        }
+    }
 }
