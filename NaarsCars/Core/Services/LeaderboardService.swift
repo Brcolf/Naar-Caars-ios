@@ -162,6 +162,24 @@ final class LeaderboardService {
         return spotlights
     }
 
+    // MARK: - Fetch User Badges
+
+    /// Fetch badges for a single user (all-time)
+    func fetchUserBadges(userId: UUID) async throws -> [LeaderboardBadge] {
+        let client = await SupabaseService.shared.client
+
+        let response = try await client
+            .rpc("get_user_badges", params: ["target_user_id": userId.uuidString])
+            .execute()
+
+        let decoder = JSONDecoder()
+        let rawBadges = try decoder.decode([String].self, from: response.data)
+        let badges = rawBadges.compactMap { LeaderboardBadge(rawValue: $0) }
+
+        AppLogger.info("leaderboard", "Fetched \(badges.count) badges for user: \(userId)")
+        return badges
+    }
+
     // MARK: - Find User Rank
 
     /// Find current user's rank in leaderboard
