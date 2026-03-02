@@ -77,6 +77,7 @@ final class ReviewPromptProvider: ReviewPromptProviding {
     }
 
     func fetchReviewPrompt(requestType: RequestType, requestId: UUID, userId: UUID) async throws -> ReviewPrompt? {
+        // Try unread notifications first (fast path)
         let notifications = try await dependencies.fetchNotifications(userId, true)
         let pending = notifications
             .filter { !$0.read && ($0.type == .reviewRequest || $0.type == .reviewReminder) }
@@ -87,6 +88,44 @@ final class ReviewPromptProvider: ReviewPromptProviding {
                (requestType == .favor && notification.favorId == requestId) {
                 return try await buildPrompt(from: notification, userId: userId)
             }
+        }
+
+        // Fallback: build prompt directly from request data (notifications may already be read)
+        return try await buildPromptFromRequest(requestType: requestType, requestId: requestId, userId: userId)
+    }
+
+    /// Build a review prompt directly from ride/favor data, without requiring a notification.
+    /// Used when the user taps a review notification that has already been marked as read.
+    private func buildPromptFromRequest(requestType: RequestType, requestId: UUID, userId: UUID) async throws -> ReviewPrompt? {
+        if requestType == .ride {
+            let ride = try await dependencies.fetchRide(requestId)
+            guard ride.userId == userId, let fulfillerId = ride.claimedBy else { return nil }
+            guard !ride.reviewed else { return nil }
+            let fulfillerName = (try? await dependencies.fetchProfile(fulfillerId))?.name ?? "Someone"
+            return ReviewPrompt(
+                id: requestId,
+                requestType: .ride,
+                requestId: requestId,
+                requestTitle: "\(ride.pickup) → \(ride.destination)",
+                fulfillerId: fulfillerId,
+                fulfillerName: fulfillerName,
+                createdAt: Date()
+            )
+        }
+        if requestType == .favor {
+            let favor = try await dependencies.fetchFavor(requestId)
+            guard favor.userId == userId, let fulfillerId = favor.claimedBy else { return nil }
+            guard !favor.reviewed else { return nil }
+            let fulfillerName = (try? await dependencies.fetchProfile(fulfillerId))?.name ?? "Someone"
+            return ReviewPrompt(
+                id: requestId,
+                requestType: .favor,
+                requestId: requestId,
+                requestTitle: favor.title,
+                fulfillerId: fulfillerId,
+                fulfillerName: fulfillerName,
+                createdAt: Date()
+            )
         }
         return nil
     }
