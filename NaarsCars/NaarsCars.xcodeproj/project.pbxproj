@@ -202,6 +202,7 @@
 		AC4F1DEF2F209C6200CC5DBA /* DevNotificationTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
+		869E0816F1EEEA81 /* MessageInteractionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C50E643BCD4E75C /* MessageInteractionOverlay.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
 		AC4F1E0C2F21C0C900CC5DBA /* RequestNotificationMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E0B2F21C0C900CC5DBA /* RequestNotificationMapping.swift */; };
 		AC4F1E0D2F21C0C900CC5DBA /* NotificationGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E0A2F21C0C900CC5DBA /* NotificationGrouping.swift */; };
@@ -649,6 +650,7 @@
 		AC35AB612F0F08AC0012096B /* TownHallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallService.swift; sourceTree = "<group>"; };
 		AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevNotificationTestView.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
+		9C50E643BCD4E75C /* MessageInteractionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageInteractionOverlay.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
 		AC4F1E0A2F21C0C900CC5DBA /* NotificationGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationGrouping.swift; sourceTree = "<group>"; };
@@ -1908,6 +1910,7 @@
 			children = (
 				AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */,
 				AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */,
+				9C50E643BCD4E75C /* MessageInteractionOverlay.swift */,
 				AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */,
 				AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */,
 				AC8197882F14C198003BB08B /* ReactionPicker.swift */,
@@ -2466,6 +2469,7 @@
 				978C66F9CB8840BF84FFBF5C /* Features/Rides/Views/EditRideView.swift in Sources */,
 				AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */,
 				AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */,
+				869E0816F1EEEA81 /* MessageInteractionOverlay.swift in Sources */,
 				AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */,
 				45BD6598267841EF999E58AA /* Features/Rides/Views/RideDetailView.swift in Sources */,
 				5801D0508DC74CBA8508CB60 /* Features/Rides/Views/RidesDashboardView.swift in Sources */,

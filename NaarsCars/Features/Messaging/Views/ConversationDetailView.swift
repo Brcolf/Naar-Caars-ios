@@ -226,40 +226,7 @@ struct ConversationDetailView: View {
         .toast(message: $toastMessage)
         .trackScreen("ConversationDetail")
         .fullScreenCover(isPresented: $showInteractionOverlay) {
-            if let message = interactionMessage {
-                MessageInteractionOverlay(
-                    message: message,
-                    messageFrame: interactionFrame,
-                    isFromCurrentUser: isFromCurrentUser(message),
-                    currentUserReaction: currentUserReaction(for: message),
-                    onReact: { reaction in
-                        Task { await viewModel.addReaction(messageId: message.id, reaction: reaction) }
-                    },
-                    onReply: {
-                        replyingToMessage = ReplyContext(from: message)
-                    },
-                    onCopy: { },
-                    onEdit: isFromCurrentUser(message) ? {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            replyingToMessage = nil
-                            viewModel.startEditing(message)
-                        }
-                    } : nil,
-                    onUnsend: (isFromCurrentUser(message) && message.canUnsend) ? {
-                        showUnsendConfirmation = true
-                        messageToUnsend = message
-                    } : nil,
-                    onReport: !isFromCurrentUser(message) ? {
-                        messageToReport = message
-                        showReportSheet = true
-                    } : nil,
-                    onDismiss: {
-                        showInteractionOverlay = false
-                        interactionMessage = nil
-                    }
-                )
-                .presentationBackground(.clear)
-            }
+            interactionOverlayContent
         }
         .fullScreenCover(isPresented: $showImageViewer) {
             if let imageUrl = selectedImageUrl {
@@ -355,6 +322,47 @@ struct ConversationDetailView: View {
         guard let userId = AuthService.shared.currentUserId,
               let reactions = message.reactions else { return nil }
         return reactions.reactions.first(where: { $0.value.contains(userId) })?.key
+    }
+
+    // MARK: - Interaction Overlay
+
+    @ViewBuilder
+    private var interactionOverlayContent: some View {
+        if let message = interactionMessage {
+            let isMine = isFromCurrentUser(message)
+            MessageInteractionOverlay(
+                message: message,
+                messageFrame: interactionFrame,
+                isFromCurrentUser: isMine,
+                currentUserReaction: currentUserReaction(for: message),
+                onReact: { reaction in
+                    Task { await viewModel.addReaction(messageId: message.id, reaction: reaction) }
+                },
+                onReply: {
+                    replyingToMessage = ReplyContext(from: message)
+                },
+                onCopy: { },
+                onEdit: isMine ? {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        replyingToMessage = nil
+                        viewModel.startEditing(message)
+                    }
+                } : nil,
+                onUnsend: (isMine && message.canUnsend) ? {
+                    showUnsendConfirmation = true
+                    messageToUnsend = message
+                } : nil,
+                onReport: !isMine ? {
+                    messageToReport = message
+                    showReportSheet = true
+                } : nil,
+                onDismiss: {
+                    showInteractionOverlay = false
+                    interactionMessage = nil
+                }
+            )
+            .presentationBackground(.clear)
+        }
     }
 
     /// Check if this is a group conversation (more than 2 participants)
