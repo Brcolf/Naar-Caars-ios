@@ -546,10 +546,13 @@ struct MessageBubble: View {
                 )
             }
         )
-        .onLongPressGesture(minimumDuration: 0.4) {
-            HapticManager.mediumImpact()
+        .onLongPressGesture(minimumDuration: 0.4, pressing: { isPressing in
+            if isPressing {
+                HapticManager.mediumImpact()
+            }
+        }, perform: {
             onLongPress?()
-        }
+        })
     }
     
     private func toggleTimestamp() {
