@@ -26,7 +26,7 @@ struct AllReviewsView: View {
                 }
             } else if let error = error, reviews.isEmpty {
                 ErrorView(
-                    error: error,
+                    error: error.localizedDescription,
                     retryAction: { Task { await loadReviews() } }
                 )
             } else if reviews.isEmpty {
@@ -115,6 +115,5 @@ private struct SkeletonReviewCard: View {
         .padding()
         .background(Color.naarsBackgroundSecondary.opacity(0.5))
         .cornerRadius(12)
-        .shimmer()
     }
 }
