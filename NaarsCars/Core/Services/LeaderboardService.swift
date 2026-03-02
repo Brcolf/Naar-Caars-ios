@@ -56,7 +56,7 @@ extension LeaderboardPeriod {
     }
 }
 
-/// Parameters for Supabase RPC `get_leaderboard`.
+/// Parameters for Supabase leaderboard RPC calls.
 /// Declared at top level to avoid unintended global actor isolation.
 private struct LeaderboardParams: Encodable, Sendable {
     let start_date: String
@@ -111,7 +111,7 @@ final class LeaderboardService {
         let client = await SupabaseService.shared.client
         
         let response = try await client
-            .rpc("get_leaderboard", params: params)
+            .rpc("get_xp_leaderboard", params: params)
             .execute()
         
         // Decode entries
@@ -126,12 +126,44 @@ final class LeaderboardService {
         }
         
         // Filter out users with 0 fulfilled requests (only show active users)
-        entries = entries.filter { $0.requestsFulfilled > 0 || $0.requestsMade > 0 }
+        entries = entries.filter { $0.xp > 0 }
         
         AppLogger.info("leaderboard", "Fetched \(entries.count) leaderboard entries for period: \(period.displayName)")
         return entries
     }
     
+    // MARK: - Fetch Spotlights
+
+    /// Fetch spotlight winners for the leaderboard
+    func fetchSpotlights(period: LeaderboardPeriod) async throws -> [SpotlightEntry] {
+        let (startDate, endDate) = period.dateRange
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+
+        let params = LeaderboardParams(
+            start_date: dateFormatter.string(from: startDate),
+            end_date: dateFormatter.string(from: endDate)
+        )
+
+        let client = await SupabaseService.shared.client
+
+        let response = try await client
+            .rpc("get_leaderboard_spotlights", params: params)
+            .execute()
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let spotlights = try decoder.decode([SpotlightEntry].self, from: response.data)
+
+        AppLogger.info("leaderboard", "Fetched \(spotlights.count) spotlight entries for period: \(period.displayName)")
+        return spotlights
+    }
+
+    // MARK: - Find User Rank
+
     /// Find current user's rank in leaderboard
     /// - Parameters:
     ///   - userId: Current user's ID
