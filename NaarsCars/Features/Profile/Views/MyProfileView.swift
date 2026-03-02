@@ -212,10 +212,10 @@ struct MyProfileView: View {
                 }
                 
                 if let userId = userId {
-                    await viewModel.loadProfile(userId: userId)
-                    Task {
-                        badges = (try? await LeaderboardService.shared.fetchUserBadges(userId: userId)) ?? []
-                    }
+                    async let profileTask: Void = viewModel.loadProfile(userId: userId)
+                    async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
+                    await profileTask
+                    badges = (try? await badgesTask) ?? []
                 } else {
                     viewModel.error = AppError.notAuthenticated
                 }

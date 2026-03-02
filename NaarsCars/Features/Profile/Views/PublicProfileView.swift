@@ -62,10 +62,10 @@ struct PublicProfileView: View {
         .navigationTitle(viewModel.profile?.name ?? "nav_tab_profile".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await viewModel.loadProfile(userId: userId)
-            Task {
-                badges = (try? await LeaderboardService.shared.fetchUserBadges(userId: userId)) ?? []
-            }
+            async let profileTask: Void = viewModel.loadProfile(userId: userId)
+            async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
+            await profileTask
+            badges = (try? await badgesTask) ?? []
         }
         .trackScreen("PublicProfile")
     }
