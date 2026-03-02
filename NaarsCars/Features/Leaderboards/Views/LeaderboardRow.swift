@@ -23,38 +23,42 @@ struct LeaderboardRow: View {
                 size: 44
             )
             
-            // Name and stats
+            // Name and badges
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.name)
                     .font(.naarsHeadline)
                     .foregroundColor(.primary)
-                
-                HStack(spacing: 12) {
-                    Label("\(entry.requestsFulfilled)", systemImage: "checkmark.circle.fill")
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                    
-                    Label("\(entry.requestsMade)", systemImage: "plus.circle")
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
+
+                if !entry.topBadges.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(entry.topBadges, id: \.self) { badge in
+                            Label(badge.displayName, systemImage: badge.iconName)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.naarsPrimary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.naarsPrimary.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                    }
                 }
             }
             
             Spacer()
             
-            // Score (requests fulfilled)
+            // XP score
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(entry.requestsFulfilled)")
+                Text("\(entry.xp)")
                     .font(.naarsTitle3)
                     .fontWeight(.semibold)
                     .foregroundColor(.naarsPrimary)
-                
-                Text("leaderboard_fulfilled".localized)
+
+                Text("XP")
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(entry.requestsFulfilled) requests fulfilled")
+            .accessibilityLabel("\(entry.xp) experience points")
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
@@ -101,39 +105,37 @@ struct LeaderboardRow: View {
                 userId: UUID(),
                 name: "Bob M.",
                 avatarUrl: nil,
+                xp: 450,
+                badges: [.roadWarrior, .bigSaver],
+                streakWeeks: 5,
                 requestsFulfilled: 15,
                 requestsMade: 8,
                 rank: 1
             )
         )
-        
+
         LeaderboardRow(
             entry: LeaderboardEntry(
                 userId: UUID(),
                 name: "Jane D.",
                 avatarUrl: nil,
+                xp: 310,
+                badges: [.fiveStar],
+                streakWeeks: 3,
                 requestsFulfilled: 12,
                 requestsMade: 5,
                 rank: 2
             )
         )
-        
-        LeaderboardRow(
-            entry: LeaderboardEntry(
-                userId: AuthService.shared.currentUserId ?? UUID(),
-                name: "You",
-                avatarUrl: nil,
-                requestsFulfilled: 10,
-                requestsMade: 3,
-                rank: 3
-            )
-        )
-        
+
         LeaderboardRow(
             entry: LeaderboardEntry(
                 userId: UUID(),
                 name: "Sara K.",
                 avatarUrl: nil,
+                xp: 85,
+                badges: [],
+                streakWeeks: 0,
                 requestsFulfilled: 8,
                 requestsMade: 6,
                 rank: 4
