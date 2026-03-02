@@ -51,6 +51,7 @@
 		4C32271EC04DAB4DDACF2475 /* ReviewRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A89F5AE28B17AD11B6782F /* ReviewRowView.swift */; };
 		4CB804EE388840589F935D34 /* PromptCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F276C77E68740EFBB9E1D03 /* PromptCoordinatorTests.swift */; };
 		4D869E20F203460F8918E0AA /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9507F3043D4ECAA63F8A7E /* AvatarView.swift */; };
+		B1C3D4E5F6A7B8C9D0E1F2A3 /* BadgeListSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D5E6F7A8B9C0D1E2F3 /* BadgeListSection.swift */; };
 		4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38377B814A4C1DABEE16D4 /* RateLimiter.swift */; };
 		5412C40716694F42A9B5BD40 /* Throttler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1544F95BBD294CC9BB040650 /* Throttler.swift */; };
 		54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F45926523F4D0C8FA974D1 /* LoadingView.swift */; };
@@ -851,6 +852,7 @@
 		DC7376A9C08B0F1B1E337948 /* ConversationSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationSearchBar.swift; sourceTree = "<group>"; };
 		DD6F1D4A53DC4F0A8013FCEC /* Features/Rides/Views/RidesDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/Views/RidesDashboardView.swift; sourceTree = "<group>"; };
 		DF9507F3043D4ECAA63F8A7E /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
+		A2B3C4D5E6F7A8B9C0D1E2F3 /* BadgeListSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeListSection.swift; sourceTree = "<group>"; };
 		E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallRepository.swift; sourceTree = "<group>"; };
 		E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallSyncEngine.swift; sourceTree = "<group>"; };
 		E210047167A33C93B77C8A8C /* AccountSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsSection.swift; sourceTree = "<group>"; };
@@ -1892,6 +1894,7 @@
 				AC305F1A2F0DB85B0063AFDF /* NotificationBadge.swift */,
 				AC305F1B2F0DB85B0063AFDF /* RequestQAView.swift */,
 				DF9507F3043D4ECAA63F8A7E /* AvatarView.swift */,
+				A2B3C4D5E6F7A8B9C0D1E2F3 /* BadgeListSection.swift */,
 				FD26EB8EAA724DBEA94FE07E /* UserAvatarLink.swift */,
 				9EC5E565C0F6486FA8791B60 /* StarRatingView.swift */,
 				8FB76606AE8564ADFB21E84E /* ProfileStatsCard.swift */,
@@ -2364,6 +2367,7 @@
 				ACD19A512F14D2D7009C1DE5 /* NetworkRetryHelper.swift in Sources */,
 				AC279FFF2F1ECE0100E3B58F /* AppTheme.swift in Sources */,
 				4D869E20F203460F8918E0AA /* AvatarView.swift in Sources */,
+				B1C3D4E5F6A7B8C9D0E1F2A3 /* BadgeListSection.swift in Sources */,
 				74F10B329CDE4E56913B6098 /* UserAvatarLink.swift in Sources */,
 				5539038B67914970B5B5155F /* StarRatingView.swift in Sources */,
 				06B825CE696F4C0C8ACDF684 /* ReviewCard.swift in Sources */,

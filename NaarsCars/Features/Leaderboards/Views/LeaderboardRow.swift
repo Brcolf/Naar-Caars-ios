@@ -16,33 +16,18 @@ struct LeaderboardRow: View {
             // Rank badge
             rankBadge
             
-            // Avatar
+            // Avatar with badge overlay
             AvatarView(
                 imageUrl: entry.avatarUrl,
                 name: entry.name,
-                size: 44
+                size: 44,
+                badges: entry.badges
             )
-            
-            // Name and badges
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.name)
-                    .font(.naarsHeadline)
-                    .foregroundColor(.primary)
 
-                if !entry.topBadges.isEmpty {
-                    HStack(spacing: 6) {
-                        ForEach(entry.topBadges, id: \.self) { badge in
-                            Label(badge.displayName, systemImage: badge.iconName)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.naarsPrimary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.naarsPrimary.opacity(0.1))
-                                .cornerRadius(4)
-                        }
-                    }
-                }
-            }
+            // Name
+            Text(entry.name)
+                .font(.naarsHeadline)
+                .foregroundColor(.primary)
             
             Spacer()
             

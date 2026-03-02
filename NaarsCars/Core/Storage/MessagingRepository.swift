@@ -102,18 +102,12 @@ final class MessagingRepository {
             }
         }
         
-        // Check for conversations that exist locally but not on remote (deleted elsewhere)
-        let localDescriptor = FetchDescriptor<SDConversation>()
-        let localConversations = try modelContext.fetch(localDescriptor)
-        let remoteIds = Set(remoteConversations.map { $0.conversation.id })
-        
-        for local in localConversations {
-            if !remoteIds.contains(local.id) {
-                modelContext.delete(local)
-                changedConversationIds.insert(local.id)
-            }
-        }
-        
+        // Note: We do NOT delete local conversations missing from the remote result,
+        // because the sync only fetches a single page (default limit 10). Deleting
+        // conversations not in that page would destroy paginated data the user has
+        // already scrolled through. Conversations are removed via the explicit
+        // soft-delete flow (deleteConversation) instead.
+
         try save(changedConversationIds: changedConversationIds)
     }
     
@@ -225,6 +219,7 @@ final class MessagingRepository {
             text: text,
             imageUrl: imageUrl,
             createdAt: Date(),
+            messageType: imageUrl != nil ? .image : .text,
             replyToId: replyToId
         )
         

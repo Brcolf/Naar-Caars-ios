@@ -27,6 +27,7 @@ struct MyProfileView: View {
     @State private var showDeleteError = false
     @State private var deleteErrorMessage = ""
     @State private var showSettings = false
+    @State private var badges: [LeaderboardBadge] = []
     @State private var showPendingUsersList = false
     @State private var showAdminPanel = false
     @State private var toastMessage: String? = nil
@@ -56,7 +57,11 @@ struct MyProfileView: View {
                             
                             // Invite Codes Section
                             inviteCodesSection()
-                            
+
+                            // Badges Section
+                            BadgeListSection(earnedBadges: badges)
+                                .padding(.horizontal)
+
                             // Reviews Section
                             reviewsSection()
                             
@@ -207,7 +212,10 @@ struct MyProfileView: View {
                 }
                 
                 if let userId = userId {
-                    await viewModel.loadProfile(userId: userId)
+                    async let profileTask: Void = viewModel.loadProfile(userId: userId)
+                    async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
+                    await profileTask
+                    badges = (try? await badgesTask) ?? []
                 } else {
                     viewModel.error = AppError.notAuthenticated
                 }
@@ -311,7 +319,8 @@ struct MyProfileView: View {
                 AvatarView(
                     imageUrl: profile.avatarUrl,
                     name: profile.name,
-                    size: 100
+                    size: 100,
+                    badges: badges
                 )
             }
             .accessibilityLabel("Profile photo for \(profile.name)")

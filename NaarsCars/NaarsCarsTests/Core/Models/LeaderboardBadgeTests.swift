@@ -33,4 +33,10 @@ final class LeaderboardBadgeTests: XCTestCase {
         let badges = try JSONDecoder().decode([LeaderboardBadge].self, from: json)
         XCTAssertEqual(badges, [.roadWarrior, .fiveStar])
     }
+
+    func testAllBadgesHaveEmoji() {
+        for badge in LeaderboardBadge.allCases {
+            XCTAssertFalse(badge.emoji.isEmpty)
+        }
+    }
 }

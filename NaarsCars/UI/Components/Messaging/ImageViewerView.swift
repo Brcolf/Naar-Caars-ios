@@ -18,6 +18,8 @@ struct ImageViewerView: View {
     @State private var lastOffset: CGSize = .zero
     @State private var showControls = true
     @GestureState private var dragOffset: CGSize = .zero
+    @State private var loadedImage: UIImage?
+    @State private var loadFailed = false
     
     private let minScale: CGFloat = 1.0
     private let maxScale: CGFloat = 5.0
@@ -34,48 +36,43 @@ struct ImageViewerView: View {
                         }
                     }
                 
-                // Image
-                AsyncImage(url: imageUrl) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.5)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(scale)
-                            .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
-                            .gesture(combinedGesture)
-                            .onTapGesture(count: 2) {
-                                // Double tap to zoom in/out
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    if scale > 1.0 {
-                                        scale = 1.0
-                                        offset = .zero
-                                    } else {
-                                        scale = 2.5
-                                    }
+                // Image (loaded via PersistentImageService disk cache)
+                if let uiImage = loadedImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .scaleEffect(scale)
+                        .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
+                        .gesture(combinedGesture)
+                        .onTapGesture(count: 2) {
+                            // Double tap to zoom in/out
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if scale > 1.0 {
+                                    scale = 1.0
+                                    offset = .zero
+                                } else {
+                                    scale = 2.5
                                 }
                             }
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    showControls.toggle()
-                                }
-                            }
-                    case .failure:
-                        VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white.opacity(0.6))
-                            Text("Failed to load image")
-                                .font(.naarsBody)
-                                .foregroundColor(.white.opacity(0.6))
                         }
-                    @unknown default:
-                        EmptyView()
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showControls.toggle()
+                            }
+                        }
+                } else if loadFailed {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 40))
+                            .foregroundColor(.white.opacity(0.6))
+                        Text("messaging_failed_to_load_image".localized)
+                            .font(.naarsBody)
+                            .foregroundColor(.white.opacity(0.6))
                     }
+                } else {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
                 }
                 
                 // Controls overlay
@@ -110,7 +107,9 @@ struct ImageViewerView: View {
                                 }
                                 .foregroundColor(.white)
                             }
-                            
+                            .disabled(loadedImage == nil)
+                            .opacity(loadedImage != nil ? 1.0 : 0.4)
+
                             // Save button
                             Button(action: saveImage) {
                                 VStack(spacing: 6) {
@@ -121,6 +120,8 @@ struct ImageViewerView: View {
                                 }
                                 .foregroundColor(.white)
                             }
+                            .disabled(loadedImage == nil)
+                            .opacity(loadedImage != nil ? 1.0 : 0.4)
                         }
                         .padding(.bottom, 40)
                     }
@@ -129,6 +130,16 @@ struct ImageViewerView: View {
             }
         }
         .statusBar(hidden: !showControls)
+        .task {
+            let loaded = await PersistentImageService.shared.getImage(for: imageUrl.absoluteString)
+            if let loaded {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    self.loadedImage = loaded
+                }
+            } else {
+                loadFailed = true
+            }
+        }
     }
     
     // MARK: - Gestures
@@ -175,32 +186,22 @@ struct ImageViewerView: View {
     // MARK: - Actions
     
     private func shareImage() {
-        Task {
-            guard let data = try? Data(contentsOf: imageUrl),
-                  let image = UIImage(data: data) else { return }
-            
-            await MainActor.run {
-                let activityVC = UIActivityViewController(activityItems: [image], applicationActivities: nil)
-                
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let rootViewController = windowScene.windows.first?.rootViewController {
-                    rootViewController.present(activityVC, animated: true)
-                }
-            }
+        guard let image = loadedImage else { return }
+        let activityVC = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(activityVC, animated: true)
         }
     }
-    
+
     private func saveImage() {
-        Task {
-            guard let data = try? Data(contentsOf: imageUrl),
-                  let image = UIImage(data: data) else { return }
-            
-            UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-            
-            // Haptic feedback
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-        }
+        guard let image = loadedImage else { return }
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+
+        // Haptic feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
     }
 }
 
