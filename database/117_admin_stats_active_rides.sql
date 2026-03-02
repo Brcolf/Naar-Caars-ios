@@ -22,7 +22,7 @@ BEGIN
                 r.destination AS subtitle,
                 r.date,
                 r.time,
-                r.status,
+                r.status::TEXT AS status,
                 r.claimed_by,
                 poster.name AS poster_name,
                 claimer.name AS claimer_name
@@ -40,7 +40,7 @@ BEGIN
                 f.location AS subtitle,
                 f.date,
                 f.time,
-                f.status,
+                f.status::TEXT AS status,
                 f.claimed_by,
                 poster.name AS poster_name,
                 claimer.name AS claimer_name
