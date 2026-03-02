@@ -13,6 +13,7 @@ struct PublicProfileView: View {
     @StateObject private var viewModel = PublicProfileViewModel()
     @EnvironmentObject var appState: AppState
     @State private var isPhoneRevealed = false
+    @State private var badges: [LeaderboardBadge] = []
     
     var body: some View {
         ScrollView {
@@ -37,6 +38,10 @@ struct PublicProfileView: View {
                         sendMessageButton(userId: profile.id)
                     }
                     
+                    // Badges Section
+                    BadgeListSection(earnedBadges: badges)
+                        .padding(.horizontal)
+
                     // Reviews Section
                     reviewsSection()
                 } else if viewModel.isLoading {
@@ -58,6 +63,9 @@ struct PublicProfileView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.loadProfile(userId: userId)
+            Task {
+                badges = (try? await LeaderboardService.shared.fetchUserBadges(userId: userId)) ?? []
+            }
         }
         .trackScreen("PublicProfile")
     }
@@ -69,7 +77,8 @@ struct PublicProfileView: View {
             AvatarView(
                 imageUrl: profile.avatarUrl,
                 name: profile.name,
-                size: 120
+                size: 120,
+                badges: badges
             )
             
             Text(profile.name)
