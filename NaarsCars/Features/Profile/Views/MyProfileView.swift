@@ -20,7 +20,7 @@ struct MyProfileView: View {
     @State private var showRateLimitAlert = false
     @State private var rateLimitMessage: String?
     @State private var showInvitationWorkflow = false
-    @State private var showAllReviews = false
+
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
     @State private var isDeletingAccount = false
@@ -407,20 +407,23 @@ struct MyProfileView: View {
     
     private func reviewsSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("profile_reviews".localized)
-                    .font(.naarsHeadline)
-                Spacer()
-                if viewModel.reviews.count > 5 {
-                    Button(showAllReviews ? "profile_show_less".localized : "profile_show_all".localized) {
-                        withAnimation {
-                            showAllReviews.toggle()
-                        }
+            NavigationLink {
+                if let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId {
+                    AllReviewsView(userId: userId)
+                }
+            } label: {
+                HStack {
+                    Text("profile_reviews".localized)
+                        .font(.naarsHeadline)
+                    Spacer()
+                    if !viewModel.reviews.isEmpty {
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .font(.naarsCaption)
-                    .foregroundColor(.naarsPrimary)
                 }
             }
+            .disabled(viewModel.reviews.isEmpty)
             
             if viewModel.reviews.isEmpty {
                 EmptyStateView(
@@ -430,8 +433,7 @@ struct MyProfileView: View {
                     customImage: "naars_Profile_icon"
                 )
             } else {
-                let reviewsToShow = showAllReviews ? viewModel.reviews : Array(viewModel.reviews.prefix(5))
-                ForEach(reviewsToShow) { review in
+                ForEach(Array(viewModel.reviews.prefix(5))) { review in
                     ReviewRow(review: review)
                 }
             }
