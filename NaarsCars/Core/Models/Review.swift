@@ -21,6 +21,9 @@ struct Review: Codable, Identifiable, Equatable {
 
     // Joined data (not from database)
     var fulfillerName: String?
+    var reviewerName: String?
+    var reviewerAvatarUrl: String?
+    var requestTitle: String?
 
     // MARK: - CodingKeys
     
