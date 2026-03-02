@@ -15,16 +15,74 @@ private struct AdminCheck: Decodable {
     enum CodingKeys: String, CodingKey { case isAdmin = "is_admin" }
 }
 
-private struct UserIdResponse: Decodable {
-    let claimedBy: UUID?
-    enum CodingKeys: String, CodingKey { case claimedBy = "claimed_by" }
-}
-
 private struct BroadcastParams: Codable, Sendable {
     let p_title: String
     let p_body: String
     let p_type: String
     let p_pinned: Bool
+}
+
+// MARK: - Admin Stats DTOs
+
+struct AdminDashboardStats: Decodable {
+    let fulfilledCount: Int
+    let totalSavings: Double
+    let activeRidesCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case fulfilledCount = "fulfilled_count"
+        case totalSavings = "total_savings"
+        case activeRidesCount = "active_rides_count"
+    }
+}
+
+struct FulfilledPeriod: Decodable, Identifiable {
+    let periodStart: Date
+    let rideCount: Int
+    let favorCount: Int
+    let totalCount: Int
+
+    var id: Date { periodStart }
+
+    enum CodingKeys: String, CodingKey {
+        case periodStart = "period_start"
+        case rideCount = "ride_count"
+        case favorCount = "favor_count"
+        case totalCount = "total_count"
+    }
+}
+
+struct SavingsPeriod: Decodable, Identifiable {
+    let periodStart: Date
+    let totalSavings: Double
+    let rideCount: Int
+
+    var id: Date { periodStart }
+
+    enum CodingKeys: String, CodingKey {
+        case periodStart = "period_start"
+        case totalSavings = "total_savings"
+        case rideCount = "ride_count"
+    }
+}
+
+struct ActiveRideRow: Decodable, Identifiable {
+    let id: UUID
+    let pickup: String
+    let destination: String
+    let date: Date
+    let time: String
+    let status: String
+    let claimedBy: UUID?
+    let posterName: String?
+    let claimerName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, pickup, destination, date, time, status
+        case claimedBy = "claimed_by"
+        case posterName = "poster_name"
+        case claimerName = "claimer_name"
+    }
 }
 
 // MARK: - Nonisolated Helper Functions
@@ -126,67 +184,67 @@ final class AdminService {
         return profiles
     }
     
-    /// Fetch admin statistics
-    /// - Returns: Tuple with (pendingCount, totalMembers, activeMembers)
-    /// - Throws: AppError if not admin or fetch fails
-    func fetchAdminStats() async throws -> (pendingCount: Int, totalMembers: Int, activeMembers: Int) {
+    /// Fetch admin dashboard summary stats via RPC
+    func fetchDashboardStats() async throws -> AdminDashboardStats {
         try await verifyAdminStatus()
-        
-        // Fetch pending count
-        let pendingResponse = try await supabase
-            .from("profiles")
-            .select("id", head: true, count: .exact)
-            .eq("approved", value: false)
+
+        let response = try await supabase
+            .rpc("admin_dashboard_stats")
             .execute()
-        
-        let pendingCount = pendingResponse.count ?? 0
-        
-        // Fetch total approved members count
-        let membersResponse = try await supabase
-            .from("profiles")
-            .select("id", head: true, count: .exact)
-            .eq("approved", value: true)
+
+        let stats = try JSONDecoder().decode(AdminDashboardStats.self, from: response.data)
+
+        AppLogger.info("admin", "Dashboard stats: \(stats.fulfilledCount) fulfilled, $\(stats.totalSavings) savings, \(stats.activeRidesCount) active")
+        return stats
+    }
+
+    /// Fetch fulfilled requests breakdown by period
+    func fetchFulfilledBreakdown(period: String, count: Int = 12) async throws -> [FulfilledPeriod] {
+        try await verifyAdminStatus()
+
+        let params: [String: AnyCodable] = [
+            "p_period": AnyCodable(period),
+            "p_count": AnyCodable(count)
+        ]
+
+        let response = try await supabase
+            .rpc("admin_stats_fulfilled", params: params)
             .execute()
-        
-        let totalMembers = membersResponse.count ?? 0
-        
-        // Active members = users with at least 1 completed ride or favor as claimer
-        // For MVP, we'll count distinct users who have completed requests
-        var activeMembers = 0
-        
-        do {
-            // Query for distinct claimed_by users from completed rides
-            let ridesResponse = try await supabase
-                .from("rides")
-                .select("claimed_by")
-                .eq("status", value: "completed")
-                .execute()
-            
-            // Count distinct claimed_by from completed favors
-            let favorsResponse = try await supabase
-                .from("favors")
-                .select("claimed_by")
-                .eq("status", value: "completed")
-                .execute()
-            
-            let decoder = JSONDecoder()
-            let rides: [UserIdResponse] = try decoder.decode([UserIdResponse].self, from: ridesResponse.data)
-            let favors: [UserIdResponse] = try decoder.decode([UserIdResponse].self, from: favorsResponse.data)
-            
-            // Combine and get unique user IDs
-            var activeUserIds = Set<UUID>()
-            rides.compactMap { $0.claimedBy }.forEach { activeUserIds.insert($0) }
-            favors.compactMap { $0.claimedBy }.forEach { activeUserIds.insert($0) }
-            
-            activeMembers = activeUserIds.count
-        } catch {
-            // If query fails, use totalMembers as approximation
-            AppLogger.warning("admin", "Could not fetch active members count: \(error.localizedDescription)")
-            activeMembers = totalMembers
-        }
-        
-        AppLogger.info("admin", "Stats: \(pendingCount) pending, \(totalMembers) members, \(activeMembers) active")
-        return (pendingCount, totalMembers, activeMembers)
+
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
+        let periods = try decoder.decode([FulfilledPeriod]?.self, from: response.data)
+        return periods ?? []
+    }
+
+    /// Fetch savings breakdown by period
+    func fetchSavingsBreakdown(period: String, count: Int = 12) async throws -> [SavingsPeriod] {
+        try await verifyAdminStatus()
+
+        let params: [String: AnyCodable] = [
+            "p_period": AnyCodable(period),
+            "p_count": AnyCodable(count)
+        ]
+
+        let response = try await supabase
+            .rpc("admin_stats_savings", params: params)
+            .execute()
+
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
+        let periods = try decoder.decode([SavingsPeriod]?.self, from: response.data)
+        return periods ?? []
+    }
+
+    /// Fetch all active (unfinished) rides
+    func fetchActiveRides() async throws -> [ActiveRideRow] {
+        try await verifyAdminStatus()
+
+        let response = try await supabase
+            .rpc("admin_stats_active_rides")
+            .execute()
+
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
+        let rides = try decoder.decode([ActiveRideRow]?.self, from: response.data)
+        return rides ?? []
     }
     
     // MARK: - User Management
