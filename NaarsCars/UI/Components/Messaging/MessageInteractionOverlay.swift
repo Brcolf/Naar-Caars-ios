@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-/// Full-screen overlay shown on message long-press with reaction picker and action menu
+/// Overlay shown on message long-press with reaction picker and action menu.
+/// Designed to be used as a ZStack layer on top of conversation content (NOT fullScreenCover).
 struct MessageInteractionOverlay: View {
     let message: Message
-    let messageFrame: CGRect
+    let messageContent: AnyView
     let isFromCurrentUser: Bool
     let currentUserReaction: String?
 
-    // Action callbacks
     let onReact: (String) -> Void
     let onReply: () -> Void
     let onCopy: () -> Void
@@ -26,40 +26,31 @@ struct MessageInteractionOverlay: View {
     @State private var appeared = false
 
     var body: some View {
-        ZStack {
-            // Blurred background
-            BlurView(style: .systemUltraThinMaterialDark)
-                .ignoresSafeArea()
-                .opacity(appeared ? 1 : 0)
-                .onTapGesture { dismiss() }
+        VStack(spacing: 12) {
+            Spacer()
 
-            VStack(spacing: 8) {
-                Spacer()
+            // Reaction picker
+            ReactionPicker(
+                currentUserReaction: currentUserReaction,
+                onReactionSelected: { reaction in
+                    onReact(reaction)
+                    dismiss()
+                },
+                onDismiss: { dismiss() }
+            )
 
-                // Reaction picker above message
-                ReactionPicker(
-                    currentUserReaction: currentUserReaction,
-                    onReactionSelected: { reaction in
-                        onReact(reaction)
-                        dismiss()
-                    },
-                    onDismiss: { dismiss() }
-                )
-                .padding(.horizontal, 16)
+            // Message preview
+            messageContent
+                .scaleEffect(appeared ? 1.02 : 0.98)
 
-                // Spacer for message position
-                Spacer()
-                    .frame(height: max(messageFrame.height, 40))
+            // Action buttons
+            actionButtons
 
-                // Action buttons below message
-                actionButtons
-                    .padding(.horizontal, 16)
-
-                Spacer()
-            }
-            .scaleEffect(appeared ? 1.0 : 0.9)
-            .opacity(appeared ? 1 : 0)
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .scaleEffect(appeared ? 1.0 : 0.92)
+        .opacity(appeared ? 1 : 0)
         .onAppear {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                 appeared = true
