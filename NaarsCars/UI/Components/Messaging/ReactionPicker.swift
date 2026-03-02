@@ -2,69 +2,90 @@
 //  ReactionPicker.swift
 //  NaarsCars
 //
-//  Reaction picker component for messages
+//  Reaction picker with quick-access row and expandable extended grid
 //
 
 import SwiftUI
 
-/// Reaction picker overlay (displays on long press)
+/// Reaction picker with iMessage-style quick-access row and expandable extras
 struct ReactionPicker: View {
+    let currentUserReaction: String?
     let onReactionSelected: (String) -> Void
     let onDismiss: () -> Void
-    
-    private let reactions = ["👍", "👎", "❤️", "😂", "‼️", "HaHa"]
-    
-    /// Human-readable description for each reaction emoji
-    private func reactionDescription(_ reaction: String) -> String {
-        switch reaction {
-        case "👍": return "thumbs up"
-        case "👎": return "thumbs down"
-        case "❤️": return "heart"
-        case "😂": return "laughing face"
-        case "‼️": return "double exclamation mark"
-        case "HaHa": return "ha ha"
-        default: return reaction
-        }
-    }
-    
+
+    @State private var showExtended = false
+
+    private let quickReactions = ["❤️", "👍", "👎", "😂", "‼️", "❓"]
+    private let extendedReactions = ["🔥", "👏", "😢", "😮", "🙏", "💯", "🎉", "😍", "🤔", "💀", "😱", "👀", "✅", "❌", "🙌"]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5)
+
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(reactions, id: \.self) { reaction in
-                Button(action: {
-                    onReactionSelected(reaction)
-                    onDismiss()
-                }) {
-                    Text(reaction)
-                        .font(.system(size: 32))
-                        .padding(8)
-                        .background(Color.naarsBackgroundSecondary)
-                        .clipShape(Circle())
-                        .shadow(radius: 4)
+        VStack(spacing: 8) {
+            // Quick-access row
+            HStack(spacing: 10) {
+                ForEach(quickReactions, id: \.self) { reaction in
+                    reactionButton(reaction)
                 }
-                .buttonStyle(PlainButtonStyle())
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-                .accessibilityLabel("React with \(reactionDescription(reaction))")
-                .accessibilityHint("Double-tap to add this reaction")
+
+                // Expand button
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        showExtended.toggle()
+                    }
+                } label: {
+                    Image(systemName: showExtended ? "chevron.up" : "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 36, height: 36)
+                        .background(Color(.systemGray5))
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel(showExtended ? "Show fewer reactions" : "Show more reactions")
+            }
+
+            // Extended grid
+            if showExtended {
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(extendedReactions, id: \.self) { reaction in
+                        reactionButton(reaction)
+                    }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.naarsCardBackground)
-                .shadow(radius: 8)
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
         )
+    }
+
+    private func reactionButton(_ reaction: String) -> some View {
+        let isSelected = currentUserReaction == reaction
+        return Button {
+            HapticManager.selectionChanged()
+            onReactionSelected(reaction)
+            onDismiss()
+        } label: {
+            Text(reaction)
+                .font(.system(size: 28))
+                .frame(width: 40, height: 40)
+                .background(isSelected ? Color.naarsPrimary.opacity(0.2) : Color.clear)
+                .clipShape(Circle())
+                .scaleEffect(isSelected ? 1.15 : 1.0)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("React with \(reaction)")
     }
 }
 
 #Preview {
     ReactionPicker(
-        onReactionSelected: { reaction in
-            AppLogger.info("messaging", "Reaction selected: \(reaction)")
-        },
+        currentUserReaction: "❤️",
+        onReactionSelected: { _ in },
         onDismiss: {}
     )
     .padding()
 }
-

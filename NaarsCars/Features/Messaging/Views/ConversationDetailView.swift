@@ -25,9 +25,10 @@ struct ConversationDetailView: View {
     @State private var showImagePicker = false
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageToSend: UIImage?
-    @State private var showReactionPicker = false
-    @State private var reactionPickerMessageId: UUID?
-    @State private var reactionPickerPosition: CGPoint = .zero
+    // Message interaction overlay state
+    @State private var interactionMessage: Message?
+    @State private var interactionFrame: CGRect = .zero
+    @State private var showInteractionOverlay = false
     @State private var showReactionDetails = false
     @State private var reactionDetailsMessage: Message?
     @State private var reactionProfiles: [String: [Profile]] = [:]
@@ -224,6 +225,9 @@ struct ConversationDetailView: View {
         }
         .toast(message: $toastMessage)
         .trackScreen("ConversationDetail")
+        .fullScreenCover(isPresented: $showInteractionOverlay) {
+            interactionOverlayContent
+        }
         .fullScreenCover(isPresented: $showImageViewer) {
             if let imageUrl = selectedImageUrl {
                 ImageViewerView(imageUrl: imageUrl, onDismiss: {
@@ -313,7 +317,54 @@ struct ConversationDetailView: View {
     private func isFromCurrentUser(_ message: Message) -> Bool {
         message.fromId == AuthService.shared.currentUserId
     }
-    
+
+    private func currentUserReaction(for message: Message) -> String? {
+        guard let userId = AuthService.shared.currentUserId,
+              let reactions = message.reactions else { return nil }
+        return reactions.reactions.first(where: { $0.value.contains(userId) })?.key
+    }
+
+    // MARK: - Interaction Overlay
+
+    @ViewBuilder
+    private var interactionOverlayContent: some View {
+        if let message = interactionMessage {
+            let isMine = isFromCurrentUser(message)
+            MessageInteractionOverlay(
+                message: message,
+                messageFrame: interactionFrame,
+                isFromCurrentUser: isMine,
+                currentUserReaction: currentUserReaction(for: message),
+                onReact: { reaction in
+                    Task { await viewModel.addReaction(messageId: message.id, reaction: reaction) }
+                },
+                onReply: {
+                    replyingToMessage = ReplyContext(from: message)
+                },
+                onCopy: { },
+                onEdit: isMine ? {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        replyingToMessage = nil
+                        viewModel.startEditing(message)
+                    }
+                } : nil,
+                onUnsend: (isMine && message.canUnsend) ? {
+                    showUnsendConfirmation = true
+                    messageToUnsend = message
+                } : nil,
+                onReport: !isMine ? {
+                    messageToReport = message
+                    showReportSheet = true
+                } : nil,
+                onDismiss: {
+                    showInteractionOverlay = false
+                    interactionMessage = nil
+                }
+            )
+            .presentationBackground(.clear)
+        }
+    }
+
     /// Check if this is a group conversation (more than 2 participants)
     private var isGroup: Bool {
         participantsViewModel.participants.count > 2
@@ -345,11 +396,19 @@ struct ConversationDetailView: View {
             replySpine: replyChain.map { (showTop: $0.hasPrevious, showBottom: $0.hasNext) },
             isFailed: message.sendStatus == .failed,
             onLongPress: {
-                reactionPickerMessageId = message.id
-                showReactionPicker = true
+                interactionMessage = message
+                showInteractionOverlay = true
             },
             onReactionTap: { reaction in
-                showReactionDetails(for: message)
+                if reaction == nil {
+                    // Remove own reaction
+                    Task { await viewModel.removeReaction(messageId: message.id) }
+                } else if reaction == "__details__" {
+                    // Show details sheet
+                    showReactionDetails(for: message)
+                } else {
+                    showReactionDetails(for: message)
+                }
             },
             onReply: {
                 withAnimation(.easeOut(duration: 0.2)) {
@@ -491,6 +550,7 @@ struct ConversationDetailView: View {
                     }
                 }
             }
+            .coordinateSpace(name: "messageList")
             .overlay(alignment: .bottomTrailing) {
                 if showScrollToBottom {
                     ScrollToBottomButton(
@@ -507,37 +567,6 @@ struct ConversationDetailView: View {
                     .padding(.trailing, 16)
                     .padding(.bottom, 8)
                     .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .overlay(alignment: .center) {
-                if showReactionPicker {
-                    VStack {
-                        Spacer()
-                        ReactionPicker(
-                            onReactionSelected: { reaction in
-                                HapticManager.selectionChanged()
-                                if let messageId = reactionPickerMessageId {
-                                    Task {
-                                        await viewModel.addReaction(messageId: messageId, reaction: reaction)
-                                    }
-                                }
-                                showReactionPicker = false
-                                reactionPickerMessageId = nil
-                            },
-                            onDismiss: {
-                                showReactionPicker = false
-                                reactionPickerMessageId = nil
-                            }
-                        )
-                        .padding(.bottom, 100)
-                        Spacer()
-                    }
-                    .background(Color.black.opacity(0.3))
-                    .transition(.scale.combined(with: .opacity))
-                    .onTapGesture {
-                        showReactionPicker = false
-                        reactionPickerMessageId = nil
-                    }
                 }
             }
 
