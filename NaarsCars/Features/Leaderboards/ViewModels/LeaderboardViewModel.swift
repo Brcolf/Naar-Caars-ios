@@ -19,14 +19,15 @@ final class LeaderboardViewModel: ObservableObject {
     @Published var selectedPeriod: LeaderboardPeriod = .allTime
     @Published var error: AppError?
     @Published var currentUserRank: Int?
-    
+    @Published var spotlights: [SpotlightEntry] = []
+
     // MARK: - Private Properties
     
     private let leaderboardService = LeaderboardService.shared
     private let authService: any AuthServiceProtocol
     
-    // Cache: [Period: (entries, cachedAt)]
-    private var cachedEntries: [LeaderboardPeriod: (entries: [LeaderboardEntry], cachedAt: Date)] = [:]
+    // Cache: [Period: (entries, spotlights, cachedAt)]
+    private var cachedEntries: [LeaderboardPeriod: (entries: [LeaderboardEntry], spotlights: [SpotlightEntry], cachedAt: Date)] = [:]
     private let cacheTTL: TimeInterval = 900 // 15 minutes
     
     init(authService: any AuthServiceProtocol = AuthService.shared) {
@@ -42,6 +43,7 @@ final class LeaderboardViewModel: ObservableObject {
         if let cached = cachedEntries[selectedPeriod],
            Date().timeIntervalSince(cached.cachedAt) < cacheTTL {
             entries = cached.entries
+            spotlights = cached.spotlights
             updateCurrentUserRank()
             // Refresh in background
             Task { await fetchFresh(showLoading: false) }
@@ -64,20 +66,19 @@ final class LeaderboardViewModel: ObservableObject {
         if showLoading { isLoading = true }
         error = nil
         defer { if showLoading { isLoading = false } }
-        
+
         do {
-            let freshEntries = try await leaderboardService.fetchLeaderboard(period: selectedPeriod)
+            async let entriesTask = leaderboardService.fetchLeaderboard(period: selectedPeriod)
+            async let spotlightsTask = leaderboardService.fetchSpotlights(period: selectedPeriod)
+
+            let (freshEntries, freshSpotlights) = try await (entriesTask, spotlightsTask)
             entries = freshEntries
-            cachedEntries[selectedPeriod] = (freshEntries, Date())
+            spotlights = freshSpotlights
+            cachedEntries[selectedPeriod] = (freshEntries, freshSpotlights, Date())
             updateCurrentUserRank()
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             AppLogger.error("leaderboard", "Error loading leaderboard: \(error.localizedDescription)")
-            
-            // Keep showing cached data if available
-            if cachedEntries[selectedPeriod] == nil {
-                // No cache - entries will be empty, error will be shown
-            }
         }
     }
     
