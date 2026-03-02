@@ -26,6 +26,7 @@ extension Notification.Name {
 
     // MARK: - Messaging
     static let conversationUpdated = Notification.Name("conversationUpdated")
+    static let messageReactionChanged = Notification.Name("messageReactionChanged")
 
     // MARK: - Prompts (moved from PushNotificationService.swift)
     static let showReviewPrompt = Notification.Name("showReviewPrompt")

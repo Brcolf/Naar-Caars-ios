@@ -74,6 +74,7 @@ final class ConversationDetailViewModel: ObservableObject {
         setupLocalObservation()
         setupMetadataObservation()
         setupConversationUpdatedObserver()
+        setupReactionChangedObserver()
     }
     
     // MARK: - Cell Configuration Cache
@@ -145,6 +146,7 @@ final class ConversationDetailViewModel: ObservableObject {
         }
         typingManager.stopTypingObservation()
         searchManager.stop()
+        MessagingSyncEngine.shared.teardownReactionsSubscription(conversationId: conversationId)
     }
 
     private func setupLocalObservation() {
@@ -176,6 +178,32 @@ final class ConversationDetailViewModel: ObservableObject {
             }
             .store(in: &cancellables)
     }
+
+    /// Subscribe to real-time reaction changes and refresh the affected message's reactions
+    private func setupReactionChangedObserver() {
+        NotificationCenter.default.publisher(for: .messageReactionChanged)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let self,
+                      let messageId = notification.userInfo?["messageId"] as? UUID,
+                      let convId = notification.userInfo?["conversationId"] as? UUID,
+                      convId == self.conversationId else { return }
+                Task {
+                    await self.refreshReactions(for: messageId)
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func refreshReactions(for messageId: UUID) async {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        do {
+            let reactions = try await MessageReactionService.shared.fetchReactions(messageId: messageId)
+            messages[index].reactions = reactions.reactions.isEmpty ? nil : reactions
+        } catch {
+            AppLogger.error("messaging", "Failed to refresh reactions: \(error)")
+        }
+    }
     
     func loadMessages() async {
         error = nil
@@ -194,6 +222,7 @@ final class ConversationDetailViewModel: ObservableObject {
         } setHasMoreMessages: { [weak self] value in
             self?.hasMoreMessages = value
         }
+        MessagingSyncEngine.shared.setupReactionsSubscription(conversationId: conversationId)
     }
     
     func loadMoreMessages() async {

@@ -159,6 +159,41 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         }
     }
 
+    /// Subscribe to reaction changes for a specific conversation
+    func setupReactionsSubscription(conversationId: UUID) {
+        Task {
+            await realtimeManager.subscribe(
+                channelName: "reactions:\(conversationId.uuidString)",
+                table: "message_reactions",
+                onInsert: { [weak self] record in
+                    self?.handleReactionChange(record, conversationId: conversationId)
+                },
+                onDelete: { [weak self] record in
+                    self?.handleReactionChange(record, conversationId: conversationId)
+                }
+            )
+        }
+    }
+
+    /// Unsubscribe from reaction changes for a conversation
+    func teardownReactionsSubscription(conversationId: UUID) {
+        Task {
+            await realtimeManager.unsubscribe(channelName: "reactions:\(conversationId.uuidString)")
+        }
+    }
+
+    /// Handle an incoming reaction change event
+    private func handleReactionChange(_ event: RealtimeRecord, conversationId: UUID) {
+        guard let messageIdString = event.record["message_id"] as? String,
+              let messageId = UUID(uuidString: messageIdString) else { return }
+
+        NotificationCenter.default.post(
+            name: .messageReactionChanged,
+            object: nil,
+            userInfo: ["messageId": messageId, "conversationId": conversationId]
+        )
+    }
+
     static func shouldIgnoreReadByUpdate(
         record: [String: Any],
         oldRecord: [String: Any]
