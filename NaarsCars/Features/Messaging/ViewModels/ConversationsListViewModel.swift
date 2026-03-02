@@ -246,6 +246,7 @@ final class ConversationsListViewModel: ObservableObject {
                 let updatedConversations = try repository.getConversations()
                 self.applyLocalConversations(updatedConversations, animated: false)
                 currentOffset = self.conversations.count
+                hasMoreConversations = true // Reset so pagination can continue after sync
                 await hydrateProfiles(for: updatedConversations)
             } catch {
                 if !Task.isCancelled {

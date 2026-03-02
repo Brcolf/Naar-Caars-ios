@@ -200,16 +200,24 @@ final class MessageService {
     ///   - type: The message type to filter by (e.g. "image", "audio", "link")
     /// - Returns: Array of messages of the given type, ordered newest first
     func fetchMediaMessages(conversationId: UUID, type: String) async throws -> [Message] {
-        let response = try await supabase
+        var query = supabase
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .eq("conversation_id", value: conversationId.uuidString)
-            .eq("message_type", value: type)
             .is("deleted_at", value: nil)
+
+        // For images, also match legacy messages that have image_url but wrong message_type
+        if type == "image" {
+            query = query.or("message_type.eq.image,image_url.not.is.null")
+        } else {
+            query = query.eq("message_type", value: type)
+        }
+
+        let response = try await query
             .order("created_at", ascending: false)
             .limit(100)
             .execute()
-        
+
         let decoder = createDateDecoder()
         let messages = try decoder.decode([Message].self, from: response.data)
         return messages
@@ -429,6 +437,7 @@ final class MessageService {
             fromId: fromId,
             text: text,
             imageUrl: imageUrl,
+            messageType: imageUrl != nil ? .image : .text,
             replyToId: replyToId
         )
         

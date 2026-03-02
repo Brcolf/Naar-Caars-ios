@@ -140,7 +140,23 @@ struct ConversationMediaGalleryView: View {
         }
         .fullScreenCover(isPresented: $showImageViewer) {
             if let imageUrl = selectedImageUrl {
-                fullscreenImageViewer(imageUrl: imageUrl)
+                ImageViewerView(imageUrl: imageUrl, onDismiss: {
+                    showImageViewer = false
+                    selectedImageUrl = nil
+                })
+            } else {
+                // Fallback dismiss for edge-case state timing
+                Color.black.ignoresSafeArea()
+                    .overlay(alignment: .topTrailing) {
+                        Button { showImageViewer = false } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(12)
+                                .background(Circle().fill(Color.black.opacity(0.5)))
+                        }
+                        .padding()
+                    }
             }
         }
     }
@@ -334,62 +350,6 @@ struct ConversationMediaGalleryView: View {
         return String(format: "%d:%02d", minutes, secs)
     }
     
-    // MARK: - Fullscreen Image Viewer
-    
-    @ViewBuilder
-    private func fullscreenImageViewer(imageUrl: URL) -> some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            AsyncImage(url: imageUrl) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                case .failure:
-                    VStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 40))
-                            .foregroundColor(.white.opacity(0.6))
-                        Text("messaging_failed_to_load_image".localized)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                default:
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                }
-            }
-            
-            // Close button
-            VStack {
-                HStack {
-                    Spacer()
-                    ShareLink(item: imageUrl) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.naarsCallout).fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                    .padding(.trailing, 8)
-                    
-                    Button {
-                        showImageViewer = false
-                        selectedImageUrl = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(12)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                }
-                .padding()
-                Spacer()
-            }
-        }
-    }
 }
 
 // MARK: - Preview
