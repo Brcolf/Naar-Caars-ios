@@ -262,6 +262,7 @@
 		ACBF4AB12F12CAD7006A7C8A /* TownHallVote.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAF2F12CAD7006A7C8A /* TownHallVote.swift */; };
 		94F0B5F35F30418A961E24BD /* LeaderboardBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CCC483BC224571827086FF /* LeaderboardBadge.swift */; };
 		ACBF4AB22F12CAD7006A7C8A /* LeaderboardEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAA2F12CAD7006A7C8A /* LeaderboardEntry.swift */; };
+		E8B4F0A65D9C58F3B2C1A674 /* SpotlightEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A3E91F4C8B47E2A1B0F563 /* SpotlightEntry.swift */; };
 		ACBF4AB32F12CAD7006A7C8A /* RequestItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAD2F12CAD7006A7C8A /* RequestItem.swift */; };
 		ACBF4AB42F12CAD7006A7C8A /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAB2F12CAD7006A7C8A /* MapModels.swift */; };
 		ACBF4AB52F12CAD7006A7C8A /* TownHallComment.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAE2F12CAD7006A7C8A /* TownHallComment.swift */; };
@@ -706,6 +707,7 @@
 		ACBF4AA62F12CAB9006A7C8A /* String+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Localization.swift"; sourceTree = "<group>"; };
 		C8CCC483BC224571827086FF /* LeaderboardBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardBadge.swift; sourceTree = "<group>"; };
 		ACBF4AAA2F12CAD7006A7C8A /* LeaderboardEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardEntry.swift; sourceTree = "<group>"; };
+		D7A3E91F4C8B47E2A1B0F563 /* SpotlightEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightEntry.swift; sourceTree = "<group>"; };
 		ACBF4AAB2F12CAD7006A7C8A /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
 		ACBF4AAC2F12CAD7006A7C8A /* RequestFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestFilter.swift; sourceTree = "<group>"; };
 		ACBF4AAD2F12CAD7006A7C8A /* RequestItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestItem.swift; sourceTree = "<group>"; };
@@ -1720,6 +1722,7 @@
 				AC4F1E0B2F21C0C900CC5DBA /* RequestNotificationMapping.swift */,
 				C8CCC483BC224571827086FF /* LeaderboardBadge.swift */,
 				ACBF4AAA2F12CAD7006A7C8A /* LeaderboardEntry.swift */,
+				D7A3E91F4C8B47E2A1B0F563 /* SpotlightEntry.swift */,
 				ACBF4AAB2F12CAD7006A7C8A /* MapModels.swift */,
 				ACBF4AAC2F12CAD7006A7C8A /* RequestFilter.swift */,
 				ACBF4AAD2F12CAD7006A7C8A /* RequestItem.swift */,
@@ -2446,6 +2449,7 @@
 				ACBF4AB12F12CAD7006A7C8A /* TownHallVote.swift in Sources */,
 				94F0B5F35F30418A961E24BD /* LeaderboardBadge.swift in Sources */,
 				ACBF4AB22F12CAD7006A7C8A /* LeaderboardEntry.swift in Sources */,
+				E8B4F0A65D9C58F3B2C1A674 /* SpotlightEntry.swift in Sources */,
 				ACBF4AB32F12CAD7006A7C8A /* RequestItem.swift in Sources */,
 				ACBF4AB42F12CAD7006A7C8A /* MapModels.swift in Sources */,
 				AC1201172F3D7A8A0043BFAE /* NotificationTypeRegistry.swift in Sources */,
