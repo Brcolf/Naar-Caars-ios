@@ -53,6 +53,7 @@ struct MessageInputBar: View {
     // Expanded attachment menu
     @State private var showAttachmentMenu = false
     @State private var lastTypingSignalAt: Date = .distantPast
+    @State private var sendButtonScale: CGFloat = 1.0
     
     var body: some View {
         VStack(spacing: 0) {
@@ -128,11 +129,22 @@ struct MessageInputBar: View {
                     .accessibilityLabel("Message")
                     .accessibilityHint("Type your message here")
                 
-                Button(action: onSend) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
+                        sendButtonScale = 0.8
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                            sendButtonScale = 1.0
+                        }
+                    }
+                    onSend()
+                }) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
                         .foregroundColor(isDisabled ? .gray : .naarsPrimary)
                 }
+                .scaleEffect(sendButtonScale)
                 .disabled(isDisabled)
                 .accessibilityIdentifier("message.send")
             }
