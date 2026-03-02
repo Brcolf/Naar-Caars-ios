@@ -135,43 +135,16 @@ final class ReviewService {
         AppLogger.info("reviews", "Skipped review for request: \(requestId)")
     }
     
-    /// Check if user can still review a request (within 7 days of completion)
+    /// Check if user can still review a request
     /// - Parameters:
     ///   - requestType: "ride" or "favor"
     ///   - requestId: Request ID
-    /// - Returns: True if can still review, false otherwise
+    /// - Returns: Always true — reviews have no time limit
     func canStillReview(
         requestType: String,
         requestId: UUID
     ) async throws -> Bool {
-        let tableName = requestType == "ride" ? "rides" : "favors"
-        
-        // Fetch request to check completion time
-        let response = try await supabase
-            .from(tableName)
-            .select("updated_at, review_skipped_at")
-            .eq("id", value: requestId.uuidString)
-            .single()
-            .execute()
-        
-        struct RequestInfo: Codable {
-            let updatedAt: Date
-            let reviewSkippedAt: Date?
-            
-            enum CodingKeys: String, CodingKey {
-                case updatedAt = "updated_at"
-                case reviewSkippedAt = "review_skipped_at"
-            }
-        }
-        
-        let requestInfo = try createDecoder().decode(RequestInfo.self, from: response.data)
-        
-        // Use skipped_at if available, otherwise use updated_at (completion time)
-        let referenceDate = requestInfo.reviewSkippedAt ?? requestInfo.updatedAt
-        let daysSince = Date().timeIntervalSince(referenceDate) / 86400 // 86400 seconds = 1 day
-        
-        // Can review within 7 days
-        return daysSince <= 7.0
+        return true
     }
     
     // MARK: - Private Helpers
