@@ -146,7 +146,29 @@ final class ReviewService {
     ) async throws -> Bool {
         return true
     }
-    
+
+    /// Fetch the review for a specific request
+    /// - Parameters:
+    ///   - requestType: "ride" or "favor"
+    ///   - requestId: The request UUID
+    /// - Returns: The review if one exists, nil otherwise
+    func fetchReviewForRequest(
+        requestType: String,
+        requestId: UUID
+    ) async throws -> Review? {
+        let column = requestType == "ride" ? "ride_id" : "favor_id"
+
+        let response: [Review] = try await supabase
+            .from("reviews")
+            .select()
+            .eq(column, value: requestId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+
+        return response.first
+    }
+
     // MARK: - Private Helpers
     
     /// Create decoder with custom date formatting for Supabase
