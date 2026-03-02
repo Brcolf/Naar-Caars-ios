@@ -27,8 +27,8 @@ struct ConversationDetailView: View {
     @State private var imageToSend: UIImage?
     // Message interaction overlay state
     @State private var interactionMessage: Message?
-    @State private var interactionFrame: CGRect = .zero
     @State private var showInteractionOverlay = false
+    @State private var messageFrames: [UUID: CGRect] = [:]
     @State private var showReactionDetails = false
     @State private var reactionDetailsMessage: Message?
     @State private var reactionProfiles: [String: [Profile]] = [:]
@@ -107,14 +107,30 @@ struct ConversationDetailView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // In-conversation search bar
-            if viewModel.isSearchActive {
-                ConversationSearchBar(viewModel: viewModel)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+        ZStack {
+            VStack(spacing: 0) {
+                // In-conversation search bar
+                if viewModel.isSearchActive {
+                    ConversationSearchBar(viewModel: viewModel)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                messagesListView
             }
 
-            messagesListView
+            // Reaction interaction overlay
+            if showInteractionOverlay {
+                BlurView(style: .systemUltraThinMaterialDark)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showInteractionOverlay = false
+                        }
+                        interactionMessage = nil
+                    }
+
+                interactionOverlayContent
+            }
         }
         .id(threadAnchorId)
         .navigationTitle(conversationTitle)
@@ -225,9 +241,6 @@ struct ConversationDetailView: View {
         }
         .toast(message: $toastMessage)
         .trackScreen("ConversationDetail")
-        .fullScreenCover(isPresented: $showInteractionOverlay) {
-            interactionOverlayContent
-        }
         .fullScreenCover(isPresented: $showImageViewer) {
             if let imageUrl = selectedImageUrl {
                 ImageViewerView(imageUrl: imageUrl, onDismiss: {
@@ -332,7 +345,7 @@ struct ConversationDetailView: View {
             let isMine = isFromCurrentUser(message)
             MessageInteractionOverlay(
                 message: message,
-                messageFrame: interactionFrame,
+                messageContent: AnyView(messageBubbleSnapshot(for: message)),
                 isFromCurrentUser: isMine,
                 currentUserReaction: currentUserReaction(for: message),
                 onReact: { reaction in
@@ -357,12 +370,26 @@ struct ConversationDetailView: View {
                     showReportSheet = true
                 } : nil,
                 onDismiss: {
-                    showInteractionOverlay = false
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        showInteractionOverlay = false
+                    }
                     interactionMessage = nil
                 }
             )
-            .presentationBackground(.clear)
         }
+    }
+
+    @ViewBuilder
+    private func messageBubbleSnapshot(for message: Message) -> some View {
+        MessageBubble(
+            message: message,
+            isFromCurrentUser: isFromCurrentUser(message),
+            isFirstInSeries: true,
+            isLastInSeries: true,
+            shouldAnimate: false,
+            totalParticipants: totalParticipantsCount
+        )
+        .allowsHitTesting(false)
     }
 
     /// Check if this is a group conversation (more than 2 participants)
