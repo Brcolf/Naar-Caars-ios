@@ -286,14 +286,70 @@ final class ProfileService {
     /// - Returns: Array of reviews
     /// - Throws: AppError if fetch fails
     func fetchReviews(forUserId userId: UUID) async throws -> [Review] {
-        let reviews: [Review] = try await supabase
+        var reviews: [Review] = try await supabase
             .from("reviews")
             .select()
             .eq("fulfiller_id", value: userId.uuidString)
             .order("created_at", ascending: false)
             .execute()
             .value
-        
+
+        // Batch-fetch reviewer profiles
+        let reviewerIds = Array(Set(reviews.map(\.reviewerId)))
+        let profiles = try await fetchProfiles(userIds: reviewerIds)
+        let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+
+        // Batch-fetch ride titles
+        let rideIds = reviews.compactMap(\.rideId)
+        var rideTitleMap: [UUID: String] = [:]
+        if !rideIds.isEmpty {
+            struct RideTitle: Decodable {
+                let id: UUID
+                let pickup: String
+                let destination: String
+            }
+            let rides: [RideTitle] = try await supabase
+                .from("rides")
+                .select("id, pickup, destination")
+                .in("id", values: rideIds.map(\.uuidString))
+                .execute()
+                .value
+            for ride in rides {
+                rideTitleMap[ride.id] = "\(ride.pickup) → \(ride.destination)"
+            }
+        }
+
+        // Batch-fetch favor titles
+        let favorIds = reviews.compactMap(\.favorId)
+        var favorTitleMap: [UUID: String] = [:]
+        if !favorIds.isEmpty {
+            struct FavorTitle: Decodable {
+                let id: UUID
+                let title: String
+            }
+            let favors: [FavorTitle] = try await supabase
+                .from("favors")
+                .select("id, title")
+                .in("id", values: favorIds.map(\.uuidString))
+                .execute()
+                .value
+            for favor in favors {
+                favorTitleMap[favor.id] = favor.title
+            }
+        }
+
+        // Enrich reviews with joined data
+        for i in reviews.indices {
+            let profile = profileMap[reviews[i].reviewerId]
+            reviews[i].reviewerName = profile?.name
+            reviews[i].reviewerAvatarUrl = profile?.avatarUrl
+            if let rideId = reviews[i].rideId {
+                reviews[i].requestTitle = rideTitleMap[rideId]
+            } else if let favorId = reviews[i].favorId {
+                reviews[i].requestTitle = favorTitleMap[favorId]
+            }
+        }
+
         return reviews
     }
     
