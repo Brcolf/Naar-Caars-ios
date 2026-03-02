@@ -303,18 +303,11 @@ struct MessageBubble: View {
             if !isFromCurrentUser && showAvatar {
                 if isLastInSeries {
                     // Show avatar for last message in series
-                    if let sender = message.sender {
-                        AvatarView(
-                            imageUrl: sender.avatarUrl,
-                            name: sender.name,
-                            size: 28
-                        )
-                    } else {
-                        // Placeholder avatar
-                        Circle()
-                            .fill(Color(.systemGray4))
-                            .frame(width: 28, height: 28)
-                    }
+                    AvatarView(
+                        imageUrl: message.sender?.avatarUrl,
+                        name: message.sender?.name ?? "?",
+                        size: 28
+                    )
                 } else {
                     // Spacer to maintain alignment
                     Spacer()
