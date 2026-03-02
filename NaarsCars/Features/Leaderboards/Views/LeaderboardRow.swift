@@ -53,12 +53,12 @@ struct LeaderboardRow: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.naarsPrimary)
 
-                Text("XP")
+                Text("leaderboard_xp".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(entry.xp) experience points")
+            .accessibilityLabel("leaderboard_xp_accessibility".localized(with: entry.xp))
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)

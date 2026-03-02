@@ -43,5 +43,7 @@ struct SpotlightCard: View {
         .padding(12)
         .background(Color.naarsCardBackground)
         .cornerRadius(10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(spotlight.displayCategory): \(spotlight.name), \(spotlight.formattedValue)")
     }
 }

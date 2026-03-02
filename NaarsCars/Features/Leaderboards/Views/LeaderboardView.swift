@@ -91,7 +91,7 @@ struct LeaderboardView: View {
                                     .listRowBackground(Color.clear)
                                 }
                             } header: {
-                                Text("Spotlights")
+                                Text("leaderboard_spotlights".localized)
                                     .font(.naarsHeadline)
                                     .foregroundColor(.primary)
                                     .textCase(nil)

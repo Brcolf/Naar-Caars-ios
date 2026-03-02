@@ -46,8 +46,11 @@ struct CompleteSheet: View {
                 VStack(spacing: 12) {
                     PrimaryButton(title: "claim_complete_confirm".localized) {
                         onConfirm()
-                        toastMessage = requestType == "ride" ? "+5 XP (+ savings bonus)" : "+10 XP"
                         showSuccess = true
+                        // Show XP toast after success checkmark appears
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            toastMessage = requestType == "ride" ? "toast_xp_ride".localized : "toast_xp_favor".localized
+                        }
                     }
                     .accessibilityIdentifier("complete.confirm")
                     

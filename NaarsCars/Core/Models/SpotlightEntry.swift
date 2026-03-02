@@ -8,7 +8,7 @@
 import Foundation
 
 /// A spotlight winner on the leaderboard
-struct SpotlightEntry: Codable, Identifiable, Equatable {
+struct SpotlightEntry: Codable, Identifiable, Equatable, Sendable {
     let category: String
     let userId: UUID
     let name: String
@@ -27,8 +27,8 @@ struct SpotlightEntry: Codable, Identifiable, Equatable {
 
     var displayCategory: String {
         switch category {
-        case "longest_streak": return "Longest Streak"
-        case "rising_star": return "Rising Star"
+        case "longest_streak": return "spotlight_longest_streak".localized
+        case "rising_star": return "spotlight_rising_star".localized
         default: return category
         }
     }
@@ -43,8 +43,8 @@ struct SpotlightEntry: Codable, Identifiable, Equatable {
 
     var formattedValue: String {
         switch category {
-        case "longest_streak": return "\(value)w streak"
-        case "rising_star": return "+\(value) XP"
+        case "longest_streak": return "spotlight_streak_value".localized(with: value)
+        case "rising_star": return "spotlight_rising_value".localized(with: value)
         default: return "\(value)"
         }
     }

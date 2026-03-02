@@ -8,7 +8,7 @@
 import Foundation
 
 /// Leaderboard entry model
-struct LeaderboardEntry: Codable, Identifiable, Equatable {
+struct LeaderboardEntry: Codable, Identifiable, Equatable, Sendable {
     let userId: UUID
     let name: String
     let avatarUrl: String?
