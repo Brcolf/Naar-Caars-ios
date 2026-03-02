@@ -282,6 +282,9 @@
 		ACBF4AE42F12CB30006A7C8A /* UserManagementViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AD82F12CB30006A7C8A /* UserManagementViewModel.swift */; };
 		ACBF4AE52F12CB30006A7C8A /* UserManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADF2F12CB30006A7C8A /* UserManagementView.swift */; };
 		ACBF4AE62F12CB30006A7C8A /* AdminPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADB2F12CB30006A7C8A /* AdminPanelView.swift */; };
+		6E07107A39F34EF8BB18E906 /* AdminSavingsOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C38AD07C9E24F7DA0CB0473 /* AdminSavingsOverlay.swift */; };
+		29B5514DB4FE4929B899DD71 /* AdminFulfilledOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E89E62B8474335B17DBAA2 /* AdminFulfilledOverlay.swift */; };
+		651EB16F25F14DBFAEBB220F /* AdminActiveRidesOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2DA70245FC43A1B820199C /* AdminActiveRidesOverlay.swift */; };
 		ACBF4AE72F12CB30006A7C8A /* BroadcastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADC2F12CB30006A7C8A /* BroadcastView.swift */; };
 		ACBF4AE82F12CB30006A7C8A /* PendingUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADE2F12CB30006A7C8A /* PendingUsersView.swift */; };
 		ACBF4AE92F12CB30006A7C8A /* AdminInviteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADA2F12CB30006A7C8A /* AdminInviteView.swift */; };
@@ -723,6 +726,9 @@
 		ACBF4AD82F12CB30006A7C8A /* UserManagementViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManagementViewModel.swift; sourceTree = "<group>"; };
 		ACBF4ADA2F12CB30006A7C8A /* AdminInviteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminInviteView.swift; sourceTree = "<group>"; };
 		ACBF4ADB2F12CB30006A7C8A /* AdminPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPanelView.swift; sourceTree = "<group>"; };
+		2C38AD07C9E24F7DA0CB0473 /* AdminSavingsOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminSavingsOverlay.swift; sourceTree = "<group>"; };
+		68E89E62B8474335B17DBAA2 /* AdminFulfilledOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminFulfilledOverlay.swift; sourceTree = "<group>"; };
+		1D2DA70245FC43A1B820199C /* AdminActiveRidesOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminActiveRidesOverlay.swift; sourceTree = "<group>"; };
 		ACBF4ADC2F12CB30006A7C8A /* BroadcastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastView.swift; sourceTree = "<group>"; };
 		ACBF4ADD2F12CB30006A7C8A /* PendingUserDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUserDetailView.swift; sourceTree = "<group>"; };
 		ACBF4ADE2F12CB30006A7C8A /* PendingUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUsersView.swift; sourceTree = "<group>"; };
@@ -1403,6 +1409,9 @@
 				AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */,
 				ACBF4ADA2F12CB30006A7C8A /* AdminInviteView.swift */,
 				ACBF4ADB2F12CB30006A7C8A /* AdminPanelView.swift */,
+				2C38AD07C9E24F7DA0CB0473 /* AdminSavingsOverlay.swift */,
+				68E89E62B8474335B17DBAA2 /* AdminFulfilledOverlay.swift */,
+				1D2DA70245FC43A1B820199C /* AdminActiveRidesOverlay.swift */,
 				ACBF4ADC2F12CB30006A7C8A /* BroadcastView.swift */,
 				ACBF4ADD2F12CB30006A7C8A /* PendingUserDetailView.swift */,
 				ACBF4ADE2F12CB30006A7C8A /* PendingUsersView.swift */,
@@ -2356,6 +2365,9 @@
 				AC4F1E0D2F21C0C900CC5DBA /* NotificationGrouping.swift in Sources */,
 				ACD19A4F2F14D269009C1DE5 /* JSONDecoderFactory.swift in Sources */,
 				ACBF4AE62F12CB30006A7C8A /* AdminPanelView.swift in Sources */,
+				6E07107A39F34EF8BB18E906 /* AdminSavingsOverlay.swift in Sources */,
+				29B5514DB4FE4929B899DD71 /* AdminFulfilledOverlay.swift in Sources */,
+				651EB16F25F14DBFAEBB220F /* AdminActiveRidesOverlay.swift in Sources */,
 				AC8197A92F14C250003BB08B /* MKPolyline+Extensions.swift in Sources */,
 				ACBF4AE72F12CB30006A7C8A /* BroadcastView.swift in Sources */,
 				ACBF4B142F12CC04006A7C8A /* PendingApprovalView.swift in Sources */,
