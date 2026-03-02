@@ -129,11 +129,11 @@ BEGIN
     --    week runs per user.
     -- ---------------------------------------------------------------
     fulfilled_weeks AS (
-        -- Distinct (user, year, week) pairs for completed fulfillments
+        -- Distinct (user, week_start) pairs for completed fulfillments
+        -- Using DATE_TRUNC('week', ...) for correct year-boundary handling
         SELECT DISTINCT
             claimed_by AS uid,
-            EXTRACT(ISOYEAR FROM updated_at)::INT AS yr,
-            EXTRACT(WEEK FROM updated_at)::INT    AS wk
+            DATE_TRUNC('week', updated_at)::DATE AS week_start
         FROM rides
         WHERE claimed_by IS NOT NULL
           AND status = 'completed'
@@ -143,33 +143,26 @@ BEGIN
 
         SELECT DISTINCT
             claimed_by AS uid,
-            EXTRACT(ISOYEAR FROM updated_at)::INT AS yr,
-            EXTRACT(WEEK FROM updated_at)::INT    AS wk
+            DATE_TRUNC('week', updated_at)::DATE AS week_start
         FROM favors
         WHERE claimed_by IS NOT NULL
           AND status = 'completed'
           AND updated_at::date BETWEEN start_date AND end_date
     ),
     week_numbered AS (
-        -- Assign a dense sequential number to each user's active weeks
         SELECT
             uid,
-            yr,
-            wk,
-            -- Combine year+week into a single sortable integer for gap detection
-            -- Use (yr * 53 + wk) so consecutive weeks across year boundaries
-            -- still show a gap of 1 (approximately; exact ISO week handling)
-            (yr * 53 + wk) AS yw_seq,
-            ROW_NUMBER() OVER (PARTITION BY uid ORDER BY yr, wk) AS rn
+            week_start,
+            ROW_NUMBER() OVER (PARTITION BY uid ORDER BY week_start) AS rn
         FROM fulfilled_weeks
     ),
     streaks AS (
-        -- Gaps-and-islands: group consecutive weeks by (yw_seq - rn)
+        -- Gaps-and-islands: group consecutive weeks by (week_start - rn * 7 days)
         SELECT
             uid,
             COUNT(*)::BIGINT AS streak_len
         FROM week_numbered
-        GROUP BY uid, (yw_seq - rn)
+        GROUP BY uid, (week_start - (rn * INTERVAL '7 days'))
     ),
     longest_streaks AS (
         SELECT
