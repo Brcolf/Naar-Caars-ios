@@ -178,7 +178,9 @@ struct MainTabView: View {
                 await acceptGuidelines()
             }
         }
-        .fullScreenCover(item: $promptCoordinator.activePrompt) { prompt in
+        .fullScreenCover(item: $promptCoordinator.activePrompt, onDismiss: {
+            navigationCoordinator.resetReviewPrompt()
+        }) { prompt in
             switch prompt {
             case .completion(let completion):
                 CompletionPromptView(
