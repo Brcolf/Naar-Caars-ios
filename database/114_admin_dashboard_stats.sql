@@ -31,11 +31,12 @@ BEGIN
     FROM rides
     WHERE estimated_cost IS NOT NULL;
 
-    -- Count unfinished rides (open + pending + confirmed)
-    SELECT COUNT(*)
-    INTO v_active
-    FROM rides
-    WHERE status IN ('open', 'pending', 'confirmed');
+    -- Count unfinished rides AND favors (open + pending + confirmed)
+    SELECT (
+        SELECT COUNT(*) FROM rides WHERE status IN ('open', 'pending', 'confirmed')
+    ) + (
+        SELECT COUNT(*) FROM favors WHERE status IN ('open', 'pending', 'confirmed')
+    ) INTO v_active;
 
     RETURN json_build_object(
         'fulfilled_count', v_fulfilled,

@@ -66,19 +66,22 @@ struct SavingsPeriod: Decodable, Identifiable {
     }
 }
 
-struct ActiveRideRow: Decodable, Identifiable {
+struct ActiveRequestRow: Decodable, Identifiable {
     let id: UUID
-    let pickup: String
-    let destination: String
+    let type: String
+    let title: String
+    let subtitle: String?
     let date: Date
-    let time: String
+    let time: String?
     let status: String
     let claimedBy: UUID?
     let posterName: String?
     let claimerName: String?
 
+    var isRide: Bool { type == "ride" }
+
     enum CodingKeys: String, CodingKey {
-        case id, pickup, destination, date, time, status
+        case id, type, title, subtitle, date, time, status
         case claimedBy = "claimed_by"
         case posterName = "poster_name"
         case claimerName = "claimer_name"
@@ -234,8 +237,8 @@ final class AdminService {
         return periods ?? []
     }
 
-    /// Fetch all active (unfinished) rides
-    func fetchActiveRides() async throws -> [ActiveRideRow] {
+    /// Fetch all active (unfinished) rides and favors
+    func fetchActiveRequests() async throws -> [ActiveRequestRow] {
         try await verifyAdminStatus()
 
         let response = try await supabase
@@ -243,8 +246,8 @@ final class AdminService {
             .execute()
 
         let decoder = DateDecoderFactory.makeSupabaseDecoder()
-        let rides = try decoder.decode([ActiveRideRow]?.self, from: response.data)
-        return rides ?? []
+        let requests = try decoder.decode([ActiveRequestRow]?.self, from: response.data)
+        return requests ?? []
     }
     
     // MARK: - User Management

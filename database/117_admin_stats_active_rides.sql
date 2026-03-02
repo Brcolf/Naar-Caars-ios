@@ -1,5 +1,5 @@
--- Migration: Admin stats active (unfinished) rides
--- Returns all rides with status open/pending/confirmed with poster/claimer names
+-- Migration: Admin stats active (unfinished) rides and favors
+-- Returns all rides and favors with status open/pending/confirmed with poster/claimer names
 
 CREATE OR REPLACE FUNCTION admin_stats_active_rides()
 RETURNS JSON AS $$
@@ -17,8 +17,9 @@ BEGIN
         FROM (
             SELECT
                 r.id,
-                r.pickup,
-                r.destination,
+                'ride' AS type,
+                r.pickup AS title,
+                r.destination AS subtitle,
                 r.date,
                 r.time,
                 r.status,
@@ -29,7 +30,26 @@ BEGIN
             LEFT JOIN profiles poster ON poster.id = r.user_id
             LEFT JOIN profiles claimer ON claimer.id = r.claimed_by
             WHERE r.status IN ('open', 'pending', 'confirmed')
-            ORDER BY r.date ASC, r.time ASC
+
+            UNION ALL
+
+            SELECT
+                f.id,
+                'favor' AS type,
+                f.title AS title,
+                f.location AS subtitle,
+                f.date,
+                f.time,
+                f.status,
+                f.claimed_by,
+                poster.name AS poster_name,
+                claimer.name AS claimer_name
+            FROM favors f
+            LEFT JOIN profiles poster ON poster.id = f.user_id
+            LEFT JOIN profiles claimer ON claimer.id = f.claimed_by
+            WHERE f.status IN ('open', 'pending', 'confirmed')
+
+            ORDER BY date ASC, time ASC
         ) t
     );
 END;

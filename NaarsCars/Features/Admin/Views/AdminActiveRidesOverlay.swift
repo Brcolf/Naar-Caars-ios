@@ -2,14 +2,14 @@
 //  AdminActiveRidesOverlay.swift
 //  NaarsCars
 //
-//  Overlay listing all unfinished rides
+//  Overlay listing all unfinished rides and favors
 //
 
 import SwiftUI
 
 struct AdminActiveRidesOverlay: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var rides: [ActiveRideRow] = []
+    @State private var requests: [ActiveRequestRow] = []
     @State private var isLoading = false
     @State private var error: String?
 
@@ -25,25 +25,34 @@ struct AdminActiveRidesOverlay: View {
                     Text(error)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if rides.isEmpty {
+                } else if requests.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "checkmark.circle")
                             .font(.system(size: 48))
                             .foregroundColor(.naarsSuccess)
-                        Text("No active rides")
+                        Text("No active requests")
                             .font(.naarsHeadline)
-                        Text("All rides have been completed")
+                        Text("All rides and favors have been completed")
                             .font(.naarsBody)
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(rides) { ride in
+                    List(requests) { request in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text(ride.posterName ?? "Unknown")
+                                // Type badge
+                                Text(request.isRide ? "Ride" : "Favor")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(request.isRide ? Color.naarsPrimary : Color.orange)
+                                    .cornerRadius(4)
+
+                                Text(request.posterName ?? "Unknown")
                                     .font(.naarsHeadline)
-                                if let claimer = ride.claimerName {
+                                if let claimer = request.claimerName {
                                     Image(systemName: "arrow.right")
                                         .font(.naarsCaption)
                                         .foregroundColor(.secondary)
@@ -51,20 +60,28 @@ struct AdminActiveRidesOverlay: View {
                                         .font(.naarsHeadline)
                                 }
                                 Spacer()
-                                statusBadge(ride.status)
+                                statusBadge(request.status)
                             }
 
-                            HStack(spacing: 4) {
-                                Text(ride.pickup)
-                                Image(systemName: "arrow.right")
-                                    .font(.caption2)
-                                Text(ride.destination)
+                            // Title/route info
+                            if request.isRide {
+                                HStack(spacing: 4) {
+                                    Text(request.title)
+                                    Image(systemName: "arrow.right")
+                                        .font(.caption2)
+                                    Text(request.subtitle ?? "")
+                                }
+                                .font(.naarsBody)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                            } else {
+                                Text(request.title)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
                             }
-                            .font(.naarsBody)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
 
-                            Text(formatDate(ride.date))
+                            Text(formatDate(request.date))
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
@@ -73,7 +90,7 @@ struct AdminActiveRidesOverlay: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Active Rides")
+            .navigationTitle("Active Requests")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -90,10 +107,10 @@ struct AdminActiveRidesOverlay: View {
         defer { isLoading = false }
 
         do {
-            rides = try await adminService.fetchActiveRides()
+            requests = try await adminService.fetchActiveRequests()
         } catch {
             self.error = "Failed to load data"
-            AppLogger.error("admin", "Active rides overlay error: \(error.localizedDescription)")
+            AppLogger.error("admin", "Active requests overlay error: \(error.localizedDescription)")
         }
     }
 
