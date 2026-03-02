@@ -94,6 +94,50 @@ struct ConversationDetailView: View {
         return "Chat"
     }
 
+    private var conversationHeaderView: some View {
+        HStack(spacing: 8) {
+            // Avatar
+            if isGroup {
+                if let groupImageUrl = conversationDetail?.conversation.groupImageUrl {
+                    AvatarView(imageUrl: groupImageUrl, name: conversationTitle, size: 32)
+                } else {
+                    // Multi-avatar stack for groups without image
+                    groupAvatarStack
+                }
+            } else {
+                // DM: show other person's avatar
+                let other = participantsViewModel.participants.first { $0.id != AuthService.shared.currentUserId }
+                AvatarView(imageUrl: other?.avatarUrl, name: other?.name ?? "?", size: 32)
+            }
+
+            // Title
+            VStack(alignment: .leading, spacing: 1) {
+                Text(conversationTitle)
+                    .font(.naarsSubheadline)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                if isGroup {
+                    Text("\(participantsViewModel.participants.count) members")
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
+    private var groupAvatarStack: some View {
+        let others = participantsViewModel.participants
+            .filter { $0.id != AuthService.shared.currentUserId }
+            .prefix(3)
+        return ZStack {
+            ForEach(Array(others.enumerated()), id: \.element.id) { index, participant in
+                AvatarView(imageUrl: participant.avatarUrl, name: participant.name, size: 26)
+                    .offset(x: CGFloat(index) * 12)
+            }
+        }
+        .frame(width: CGFloat(min(others.count, 3)) * 12 + 14, height: 32)
+    }
+
     private var threadAnchorId: String {
         "messages.thread(\(conversationId))"
     }
@@ -133,10 +177,12 @@ struct ConversationDetailView: View {
             }
         }
         .id(threadAnchorId)
-        .navigationTitle(conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                conversationHeaderView
+            }
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 // Media gallery button
                 NavigationLink {
@@ -154,13 +200,11 @@ struct ConversationDetailView: View {
                 }
                 .accessibilityLabel(viewModel.isSearchActive ? "Close search" : "Search messages")
                 
-                // Edit button for group conversations (opens message details popup)
-                if participantsViewModel.participants.count > 2 {
-                    Button {
-                        showMessageDetails = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
+                // Info button (opens message details popup)
+                Button {
+                    showMessageDetails = true
+                } label: {
+                    Image(systemName: "info.circle")
                 }
             }
         }
