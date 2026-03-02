@@ -14,6 +14,7 @@ struct CompleteSheet: View {
     let onConfirm: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var showSuccess = false
+    @State private var toastMessage: String? = nil
     
     var body: some View {
         NavigationStack {
@@ -45,6 +46,7 @@ struct CompleteSheet: View {
                 VStack(spacing: 12) {
                     PrimaryButton(title: "claim_complete_confirm".localized) {
                         onConfirm()
+                        toastMessage = requestType == "ride" ? "+5 XP (+ savings bonus)" : "+10 XP"
                         showSuccess = true
                     }
                     .accessibilityIdentifier("complete.confirm")
@@ -62,6 +64,7 @@ struct CompleteSheet: View {
             .navigationTitle("claim_complete_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
         }
+        .toast(message: $toastMessage, style: .success)
         .successCheckmark(isShowing: $showSuccess)
         .onChange(of: showSuccess) { _, newValue in
             if !newValue {
