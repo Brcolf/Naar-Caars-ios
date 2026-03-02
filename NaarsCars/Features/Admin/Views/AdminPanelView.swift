@@ -12,6 +12,9 @@ import SwiftUI
 struct AdminPanelView: View {
     @StateObject private var viewModel = AdminPanelViewModel()
     @Environment(\.dismiss) private var dismiss
+    @State private var showFulfilledOverlay = false
+    @State private var showSavingsOverlay = false
+    @State private var showActiveRidesOverlay = false
     
     var body: some View {
         Group {
@@ -83,29 +86,47 @@ struct AdminPanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("admin_stats".localized)
                 .font(.naarsTitle3)
-            
+
             HStack(spacing: 16) {
-                StatCard(
-                    title: "admin_stat_pending".localized,
-                    value: "\(viewModel.pendingCount)",
-                    icon: "clock.fill",
-                    color: .naarsWarning
-                )
-                
-                StatCard(
-                    title: "admin_stat_members".localized,
-                    value: "\(viewModel.totalMembers)",
-                    icon: "person.3.fill",
-                    color: .naarsPrimary
-                )
-                
-                StatCard(
-                    title: "admin_stat_active".localized,
-                    value: "\(viewModel.activeMembers)",
-                    icon: "checkmark.circle.fill",
-                    color: .naarsSuccess
-                )
+                Button { showFulfilledOverlay = true } label: {
+                    StatCard(
+                        title: "Fulfilled",
+                        value: "\(viewModel.fulfilledCount)",
+                        icon: "checkmark.circle.fill",
+                        color: .naarsSuccess
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button { showSavingsOverlay = true } label: {
+                    StatCard(
+                        title: "Savings",
+                        value: viewModel.formattedSavings,
+                        icon: "dollarsign.circle.fill",
+                        color: .naarsSuccess
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button { showActiveRidesOverlay = true } label: {
+                    StatCard(
+                        title: "Active",
+                        value: "\(viewModel.activeRidesCount)",
+                        icon: "clock.fill",
+                        color: .naarsWarning
+                    )
+                }
+                .buttonStyle(.plain)
             }
+        }
+        .sheet(isPresented: $showFulfilledOverlay) {
+            AdminFulfilledOverlay()
+        }
+        .sheet(isPresented: $showSavingsOverlay) {
+            AdminSavingsOverlay()
+        }
+        .sheet(isPresented: $showActiveRidesOverlay) {
+            AdminActiveRidesOverlay()
         }
     }
     
@@ -172,16 +193,6 @@ struct AdminPanelView: View {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.naarsWarning)
                     Text("admin_pending_approvals".localized)
-                    if viewModel.pendingCount > 0 {
-                        Spacer()
-                        Text("\(viewModel.pendingCount)")
-                            .font(.naarsCaption)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.naarsWarning)
-                            .cornerRadius(12)
-                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -196,7 +207,7 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.pendingUsers")
-            .accessibilityLabel("Pending approvals\(viewModel.pendingCount > 0 ? ", \(viewModel.pendingCount) pending" : "")")
+            .accessibilityLabel("Pending approvals")
             .accessibilityHint("Double-tap to review pending user approvals")
             
             NavigationLink(destination: UserManagementView()) {
