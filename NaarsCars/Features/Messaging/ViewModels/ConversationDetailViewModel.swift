@@ -457,10 +457,15 @@ final class ConversationDetailViewModel: ObservableObject {
               !messages.contains(where: { $0.id == newMessage.id }) else {
             return
         }
-        
+
         messages = paginationManager.insertNewMessage(newMessage, into: messages)
         scheduleReplyContextHydration()
-        
+
+        // Haptic feedback for incoming messages
+        if newMessage.fromId != authService.currentUserId {
+            HapticManager.lightImpact()
+        }
+
         // Keep read receipts immediate for incoming messages while throttling last_seen writes.
         if let userId = authService.currentUserId,
            newMessage.fromId != userId {

@@ -239,7 +239,7 @@ struct MessageBubble: View {
             
             if !isFromCurrentUser { Spacer(minLength: 60) }
         }
-        .padding(.vertical, isLastInSeries ? 8 : 2)
+        .padding(.vertical, isLastInSeries ? 12 : 2)
     }
     
     // MARK: - System Message View
@@ -526,7 +526,7 @@ struct MessageBubble: View {
                     }
                 }
         )
-        .padding(.vertical, isLastInSeries ? 8 : 2)
+        .padding(.vertical, isLastInSeries ? 12 : 2)
         .contentShape(Rectangle())
         .onTapGesture {
             toggleTimestamp()
@@ -883,58 +883,111 @@ struct BubbleShape: Shape {
     let showTail: Bool
     
     func path(in rect: CGRect) -> Path {
-        let cornerRadius: CGFloat = 18
-        let tailWidth: CGFloat = 6
-        let tailHeight: CGFloat = 8
-        
-        var path = Path()
-        
-        if showTail {
-            if isFromCurrentUser {
-                // Right-aligned bubble with tail on bottom-right
-                path.addRoundedRect(
-                    in: CGRect(x: 0, y: 0, width: rect.width - tailWidth, height: rect.height),
-                    cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
-                )
-                
-                // Tail
-                path.move(to: CGPoint(x: rect.width - tailWidth, y: rect.height - tailHeight - 4))
-                path.addQuadCurve(
-                    to: CGPoint(x: rect.width, y: rect.height),
-                    control: CGPoint(x: rect.width - tailWidth + 2, y: rect.height - 2)
-                )
-                path.addQuadCurve(
-                    to: CGPoint(x: rect.width - tailWidth - 4, y: rect.height),
-                    control: CGPoint(x: rect.width - tailWidth - 2, y: rect.height)
-                )
-                path.closeSubpath()
-            } else {
-                // Left-aligned bubble with tail on bottom-left
-                path.addRoundedRect(
-                    in: CGRect(x: tailWidth, y: 0, width: rect.width - tailWidth, height: rect.height),
-                    cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
-                )
-                
-                // Tail
-                path.move(to: CGPoint(x: tailWidth, y: rect.height - tailHeight - 4))
-                path.addQuadCurve(
-                    to: CGPoint(x: 0, y: rect.height),
-                    control: CGPoint(x: tailWidth - 2, y: rect.height - 2)
-                )
-                path.addQuadCurve(
-                    to: CGPoint(x: tailWidth + 4, y: rect.height),
-                    control: CGPoint(x: tailWidth + 2, y: rect.height)
-                )
-                path.closeSubpath()
-            }
-        } else {
-            // No tail - just rounded rectangle
-            path.addRoundedRect(
-                in: rect,
-                cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
-            )
+        let cr: CGFloat = 18 // corner radius
+
+        guard showTail else {
+            var path = Path()
+            path.addRoundedRect(in: rect, cornerSize: CGSize(width: cr, height: cr))
+            return path
         }
-        
+
+        let tailW: CGFloat = 8   // how far tail extends outward
+        let tailH: CGFloat = 10  // how far tail extends below bubble
+        var path = Path()
+
+        if isFromCurrentUser {
+            // Bubble body occupies rect minus tail width on right
+            let bw = rect.width - tailW // bubble width
+            let bh = rect.height        // bubble height
+
+            // Start at top-left corner
+            path.move(to: CGPoint(x: cr, y: 0))
+
+            // Top edge
+            path.addLine(to: CGPoint(x: bw - cr, y: 0))
+
+            // Top-right corner
+            path.addArc(center: CGPoint(x: bw - cr, y: cr),
+                         radius: cr, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+
+            // Right edge down to tail start
+            path.addLine(to: CGPoint(x: bw, y: bh - cr))
+
+            // Tail: smooth transition from right edge → outward → down → back inward
+            path.addCurve(
+                to: CGPoint(x: bw + tailW, y: bh + tailH),
+                control1: CGPoint(x: bw, y: bh - 2),
+                control2: CGPoint(x: bw + tailW, y: bh + 2)
+            )
+            path.addCurve(
+                to: CGPoint(x: bw - cr, y: bh),
+                control1: CGPoint(x: bw + tailW - 2, y: bh + tailH),
+                control2: CGPoint(x: bw - 4, y: bh)
+            )
+
+            // Bottom edge
+            path.addLine(to: CGPoint(x: cr, y: bh))
+
+            // Bottom-left corner
+            path.addArc(center: CGPoint(x: cr, y: bh - cr),
+                         radius: cr, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+
+            // Left edge
+            path.addLine(to: CGPoint(x: 0, y: cr))
+
+            // Top-left corner
+            path.addArc(center: CGPoint(x: cr, y: cr),
+                         radius: cr, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+
+            path.closeSubpath()
+        } else {
+            // Received message: tail on bottom-left
+            let bx = tailW            // bubble starts after tail space
+            let bw = rect.width       // total width
+            let bh = rect.height
+
+            // Start at top-left corner (offset by tailW)
+            path.move(to: CGPoint(x: bx + cr, y: 0))
+
+            // Top edge
+            path.addLine(to: CGPoint(x: bw - cr, y: 0))
+
+            // Top-right corner
+            path.addArc(center: CGPoint(x: bw - cr, y: cr),
+                         radius: cr, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+
+            // Right edge
+            path.addLine(to: CGPoint(x: bw, y: bh - cr))
+
+            // Bottom-right corner
+            path.addArc(center: CGPoint(x: bw - cr, y: bh - cr),
+                         radius: cr, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+
+            // Bottom edge
+            path.addLine(to: CGPoint(x: bx + cr, y: bh))
+
+            // Tail: smooth transition from bottom edge → outward left → down → back inward
+            path.addCurve(
+                to: CGPoint(x: 0, y: bh + tailH),
+                control1: CGPoint(x: bx + 4, y: bh),
+                control2: CGPoint(x: 2, y: bh + tailH)
+            )
+            path.addCurve(
+                to: CGPoint(x: bx, y: bh - cr),
+                control1: CGPoint(x: 0, y: bh + 2),
+                control2: CGPoint(x: bx, y: bh - 2)
+            )
+
+            // Left edge
+            path.addLine(to: CGPoint(x: bx, y: cr))
+
+            // Top-left corner
+            path.addArc(center: CGPoint(x: bx + cr, y: cr),
+                         radius: cr, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+
+            path.closeSubpath()
+        }
+
         return path
     }
 }
