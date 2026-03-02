@@ -43,7 +43,7 @@ final class MessageReactionService {
     func addReaction(messageId: UUID, userId: UUID, reaction: String) async throws {
         // Validate reaction
         guard MessageReaction.validReactions.contains(reaction) else {
-            throw AppError.invalidInput("Invalid reaction. Must be one of: \(MessageReaction.validReactions.joined(separator: ", "))")
+            throw AppError.invalidInput("Invalid reaction")
         }
         
         // Check if user is a participant in the conversation

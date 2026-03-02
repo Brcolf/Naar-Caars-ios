@@ -12,7 +12,7 @@ struct MessageReaction: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let messageId: UUID
     let userId: UUID
-    let reaction: String // 👍 👎 ❤️ 😂 ‼️ or "HaHa"
+    let reaction: String // Any valid emoji reaction
     let createdAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -37,8 +37,14 @@ struct MessageReaction: Codable, Identifiable, Equatable, Sendable {
         self.createdAt = createdAt
     }
     
-    /// Valid reaction values
-    static let validReactions = ["👍", "👎", "❤️", "😂", "‼️", "HaHa"]
+    /// Quick-access reactions (iMessage set)
+    static let quickReactions = ["❤️", "👍", "👎", "😂", "‼️", "❓"]
+
+    /// Extended curated reactions
+    static let extendedReactions = ["🔥", "👏", "😢", "😮", "🙏", "💯", "🎉", "😍", "🤔", "💀", "😱", "👀", "✅", "❌", "🙌"]
+
+    /// All valid reactions
+    static let validReactions = quickReactions + extendedReactions
     
     /// Check if reaction is valid
     var isValid: Bool {
