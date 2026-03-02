@@ -342,7 +342,22 @@ struct FavorDetailView: View {
                 .id(RequestDetailAnchor.claimerCard.anchorId(for: .favor))
                 .requestHighlight(highlightedAnchor == .claimerCard)
             }
-            
+
+            // Review Section (for completed favors)
+            if favor.claimedBy != nil {
+                RequestReviewSection(
+                    requestType: "favor",
+                    requestId: favor.id,
+                    posterId: favor.userId,
+                    claimerId: favor.claimedBy,
+                    isCompleted: favor.status == .completed,
+                    requestTitle: favor.title,
+                    onReviewSubmitted: {
+                        Task { await viewModel.loadFavor(id: favorId) }
+                    }
+                )
+            }
+
             // Requirements & Gift
             if (favor.requirements != nil && !favor.requirements!.isEmpty) || (favor.gift != nil && !favor.gift!.isEmpty) {
                 VStack(alignment: .leading, spacing: Constants.Spacing.md) {
