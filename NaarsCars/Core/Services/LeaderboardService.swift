@@ -125,7 +125,7 @@ final class LeaderboardService {
             entries[index].rank = index + 1
         }
         
-        // Filter out users with 0 fulfilled requests (only show active users)
+        // Belt-and-suspenders: SQL already filters xp > 0
         entries = entries.filter { $0.xp > 0 }
         
         AppLogger.info("leaderboard", "Fetched \(entries.count) leaderboard entries for period: \(period.displayName)")

@@ -49,8 +49,25 @@ struct LeaderboardEntry: Codable, Identifiable, Equatable {
         return userId == currentUserId
     }
     
+    // MARK: - Decodable
+
+    /// Custom decoder that gracefully skips unknown badge strings
+    /// for forward-compatibility with server-side badge additions
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        name = try container.decode(String.self, forKey: .name)
+        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
+        xp = try container.decode(Int.self, forKey: .xp)
+        let rawBadges = try container.decode([String].self, forKey: .badges)
+        badges = rawBadges.compactMap { LeaderboardBadge(rawValue: $0) }
+        streakWeeks = try container.decode(Int.self, forKey: .streakWeeks)
+        requestsFulfilled = try container.decode(Int.self, forKey: .requestsFulfilled)
+        requestsMade = try container.decode(Int.self, forKey: .requestsMade)
+    }
+
     // MARK: - Initializers
-    
+
     init(
         userId: UUID,
         name: String,

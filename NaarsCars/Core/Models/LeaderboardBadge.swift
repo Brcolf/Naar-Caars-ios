@@ -13,7 +13,6 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
     case goodNeighbor = "good_neighbor"
     case streakChampion = "streak_champion"
     case fiveStar = "five_star"
-    case risingStar = "rising_star"
     case bigSaver = "big_saver"
 
     var displayName: String {
@@ -22,7 +21,6 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .goodNeighbor: return "Good Neighbor"
         case .streakChampion: return "Streak Champ"
         case .fiveStar: return "Five Star"
-        case .risingStar: return "Rising Star"
         case .bigSaver: return "Big Saver"
         }
     }
@@ -33,7 +31,6 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .goodNeighbor: return "person.2.fill"
         case .streakChampion: return "flame.fill"
         case .fiveStar: return "star.fill"
-        case .risingStar: return "rocket.fill"
         case .bigSaver: return "dollarsign.circle.fill"
         }
     }
