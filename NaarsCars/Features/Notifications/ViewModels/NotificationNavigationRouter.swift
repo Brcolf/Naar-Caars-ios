@@ -58,8 +58,15 @@ final class NotificationNavigationRouter {
                 markAsRead(notification)
             }
         }
-        let intent = NotificationIntent.openAnnouncements(scrollToNotificationId: notification.id)
-        AppLogger.info("notifications", "[NotificationNavigationRouter] Announcement tapped: \(notification.id); deferring intent and requesting dismissal")
+        // If broadcast has a linked town hall post, navigate there instead
+        let intent: NotificationIntent
+        if let postId = notification.townHallPostId {
+            intent = .openTownHallPost(postId: postId, mode: .highlightPost)
+            AppLogger.info("notifications", "[NotificationNavigationRouter] Broadcast tapped with town hall post: \(postId); deferring intent")
+        } else {
+            intent = .openAnnouncements(scrollToNotificationId: notification.id)
+            AppLogger.info("notifications", "[NotificationNavigationRouter] Announcement tapped: \(notification.id); deferring intent")
+        }
         NavigationCoordinator.shared.deferNotificationIntent(intent)
         NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
     }

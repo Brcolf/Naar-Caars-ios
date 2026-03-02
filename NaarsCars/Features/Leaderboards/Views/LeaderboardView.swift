@@ -68,7 +68,7 @@ struct LeaderboardView: View {
                         if let userRank = viewModel.currentUserRank,
                            !viewModel.entries.contains(where: { $0.isCurrentUser }) {
                             Divider()
-                            
+
                             HStack {
                                 Text("leaderboard_your_rank".localized(with: userRank))
                                     .font(.naarsHeadline)
@@ -76,6 +76,27 @@ struct LeaderboardView: View {
                                 Spacer()
                             }
                             .padding()
+                        }
+
+                        // Spotlights section
+                        if !viewModel.spotlights.isEmpty {
+                            Section {
+                                ForEach(viewModel.spotlights) { spotlight in
+                                    NavigationLink(destination: PublicProfileView(userId: spotlight.userId)) {
+                                        SpotlightCard(spotlight: spotlight)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                }
+                            } header: {
+                                Text("leaderboard_spotlights".localized)
+                                    .font(.naarsHeadline)
+                                    .foregroundColor(.primary)
+                                    .textCase(nil)
+                                    .padding(.top, 8)
+                            }
                         }
                     }
                     .listStyle(.plain)

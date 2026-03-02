@@ -17,30 +17,43 @@ final class LeaderboardServiceTests: XCTestCase {
         leaderboardService = LeaderboardService.shared
     }
     
-    /// Test that fetchLeaderboard returns entries ordered by fulfilled count
-    func testFetchLeaderboard_OrderedByCount() async throws {
+    /// Test that fetchLeaderboard returns entries ordered by XP
+    func testFetchLeaderboard_OrderedByXP() async throws {
         // Given: A request to fetch leaderboard
         // Note: This test requires a real Supabase connection and database function
-        // In a real scenario, you'd mock the Supabase client
-        
+
         // When: Fetching leaderboard
         do {
             let entries = try await leaderboardService.fetchLeaderboard(period: .allTime)
-            
-            // Then: Entries should be ordered by requestsFulfilled descending
-            var previousCount: Int? = nil
+
+            // Then: Entries should be ordered by XP descending
+            var previousXP: Int? = nil
             for entry in entries {
-                if let prev = previousCount {
-                    XCTAssertGreaterThanOrEqual(prev, entry.requestsFulfilled, "Entries should be ordered by fulfilled count descending")
+                if let prev = previousXP {
+                    XCTAssertGreaterThanOrEqual(prev, entry.xp, "Entries should be ordered by XP descending")
                 }
-                previousCount = entry.requestsFulfilled
+                previousXP = entry.xp
             }
-            
-            // Test passes if we get here
+
             XCTAssertTrue(true, "Leaderboard entries are correctly ordered")
         } catch {
-            // If this fails due to authentication, network, or missing database function, that's expected in unit tests
             XCTFail("Failed to fetch leaderboard: \(error.localizedDescription)")
+        }
+    }
+
+    /// Test that fetchSpotlights returns valid spotlight entries
+    func testFetchSpotlights() async throws {
+        do {
+            let spotlights = try await leaderboardService.fetchSpotlights(period: .allTime)
+
+            // Should return 0-2 spotlights
+            XCTAssertLessThanOrEqual(spotlights.count, 2)
+            for spotlight in spotlights {
+                XCTAssertTrue(["longest_streak", "rising_star"].contains(spotlight.category))
+                XCTAssertGreaterThan(spotlight.value, 0)
+            }
+        } catch {
+            XCTFail("Failed to fetch spotlights: \(error.localizedDescription)")
         }
     }
     
