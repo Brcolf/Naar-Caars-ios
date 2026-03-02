@@ -11,6 +11,14 @@ import MapKit
 import UIKit
 internal import Combine
 
+/// Preference key for capturing message frame positions in the scroll coordinate space
+struct MessageFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
 /// Message bubble component with iMessage-style design
 struct MessageBubble: View {
     let message: Message
@@ -41,7 +49,7 @@ struct MessageBubble: View {
     var isFailed: Bool = false
     
     var onLongPress: (() -> Void)? = nil
-    var onReactionTap: ((String) -> Void)? = nil
+    var onReactionTap: ((String?) -> Void)? = nil
     var onReply: (() -> Void)? = nil
     var onCopy: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
@@ -387,12 +395,25 @@ struct MessageBubble: View {
                         }
                     }
                 }
-                
-                // Reactions (if any)
-                if let reactions = message.reactions, !reactions.reactions.isEmpty {
-                    reactionsView(reactions: reactions)
+                .overlay(alignment: isFromCurrentUser ? .bottomLeading : .bottomTrailing) {
+                    if let reactions = message.reactions, !reactions.reactions.isEmpty {
+                        reactionBadge(reactions: reactions)
+                            .offset(y: 12)
+                            .onTapGesture {
+                                if let userId = AuthService.shared.currentUserId,
+                                   reactions.allUserIds.contains(userId) {
+                                    onReactionTap?(nil)
+                                } else {
+                                    onLongPress?()
+                                }
+                            }
+                            .onLongPressGesture {
+                                onReactionTap?("__details__")
+                            }
+                    }
                 }
-                
+                .padding(.bottom, (message.reactions?.reactions.isEmpty == false) ? 10 : 0)
+
                 // Failed state: show retry prompt
                 if isFailed && isFromCurrentUser {
                     HStack(spacing: Constants.Spacing.xs) {
@@ -517,76 +538,18 @@ struct MessageBubble: View {
         .onTapGesture {
             toggleTimestamp()
         }
-        .contextMenu {
-            // Reactions quick access
-            Button {
-                onLongPress?()
-            } label: {
-                Label("React", systemImage: "face.smiling")
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: MessageFramePreferenceKey.self,
+                    value: [message.id: geo.frame(in: .named("messageList"))]
+                )
             }
-            
-            // Reply
-            if onReply != nil {
-                Button {
-                    onReply?()
-                } label: {
-                    Label("Reply", systemImage: "arrowshape.turn.up.left")
-                }
-            }
-            
-            // Copy text
-            if !message.text.isEmpty {
-                Button {
-                    UIPasteboard.general.string = message.text
-                    let generator = UINotificationFeedbackGenerator()
-                    generator.notificationOccurred(.success)
-                    onCopy?()
-                } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
-                }
-            }
-            
-            // Edit (only for own text messages)
-            if isFromCurrentUser, onEdit != nil, !message.text.isEmpty, !message.isAudioMessage, !message.isLocationMessage {
-                Button {
-                    onEdit?()
-                } label: {
-                    Label("Edit", systemImage: "pencil")
-                }
-            }
-            
-            Divider()
-            
-            // Unsend (only for own messages within 15 minutes)
-            if isFromCurrentUser, onUnsend != nil, message.canUnsend {
-                Button(role: .destructive) {
-                    onUnsend?()
-                } label: {
-                    Label("Unsend", systemImage: "arrow.uturn.backward")
-                }
-            }
-            
-            // Delete (only for own messages)
-            if isFromCurrentUser && onDelete != nil {
-                Button(role: .destructive) {
-                    onDelete?()
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-            
-            // Report (only for other users' messages)
-            if !isFromCurrentUser {
-                Divider()
-                
-                Button(role: .destructive) {
-                    onReport?()
-                } label: {
-                    Label("Report", systemImage: "exclamationmark.triangle")
-                }
-            }
+        )
+        .onLongPressGesture(minimumDuration: 0.4) {
+            HapticManager.mediumImpact()
+            onLongPress?()
         }
-        // Long press is handled by .contextMenu above — no separate gesture needed
     }
     
     private func toggleTimestamp() {
@@ -802,39 +765,34 @@ struct MessageBubble: View {
         .buttonStyle(PlainButtonStyle())
     }
     
-    // MARK: - Reactions View
-    
-    private func reactionsView(reactions: MessageReactions) -> some View {
-        HStack(spacing: Constants.Spacing.xs) {
-            ForEach(reactions.sortedReactions.prefix(5), id: \.reaction) { reactionData in
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    onReactionTap?(reactionData.reaction)
-                }) {
-                    HStack(spacing: 2) {
-                        Text(reactionData.reaction)
-                            .font(.naarsSubheadline)
-                        if reactionData.count > 1 {
-                            Text("\(reactionData.count)")
-                                .font(.naarsCaption).fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color(.systemGray5))
-                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel("\(reactionData.reaction) reaction, \(reactionData.count)")
-                .accessibilityHint("Double-tap to toggle this reaction")
+    // MARK: - Reaction Badge
+
+    private func reactionBadge(reactions: MessageReactions) -> some View {
+        let sorted = reactions.sortedReactions.prefix(5)
+        let totalCount = reactions.reactions.values.reduce(0) { $0 + $1.count }
+
+        return HStack(spacing: 2) {
+            ForEach(sorted, id: \.reaction) { data in
+                Text(data.reaction)
+                    .font(.system(size: 14))
+            }
+            if totalCount > 1 {
+                Text("\(totalCount)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
             }
         }
-        .padding(.top, 4)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(Color(.systemGray4), lineWidth: 0.5)
+        )
     }
 }
 
