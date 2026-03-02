@@ -132,6 +132,7 @@
 		AC12007B2F3AE6160043BFAE /* ClaimServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200782F3AE6160043BFAE /* ClaimServiceTests.swift */; };
 		AC12007C2F3AE6160043BFAE /* FavorServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200792F3AE6160043BFAE /* FavorServiceTests.swift */; };
 		AC12007D2F3AE6160043BFAE /* RideServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12007A2F3AE6160043BFAE /* RideServiceTests.swift */; };
+		9EA284B4C7D741C6BAB08C47 /* LeaderboardBadgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DE2B20301F44F4BBD59ACF /* LeaderboardBadgeTests.swift */; };
 		AC1200812F3AE6270043BFAE /* LeaderboardEntryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12007F2F3AE6260043BFAE /* LeaderboardEntryTests.swift */; };
 		AC1200822F3AE6270043BFAE /* TownHallPostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200802F3AE6260043BFAE /* TownHallPostTests.swift */; };
 		AC1200832F3AE6270043BFAE /* AppNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12007E2F3AE6260043BFAE /* AppNotificationTests.swift */; };
@@ -259,6 +260,7 @@
 		ACBF4AA92F12CAB9006A7C8A /* Date+Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AA42F12CAB9006A7C8A /* Date+Localization.swift */; };
 		ACBF4AB02F12CAD7006A7C8A /* RequestFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAC2F12CAD7006A7C8A /* RequestFilter.swift */; };
 		ACBF4AB12F12CAD7006A7C8A /* TownHallVote.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAF2F12CAD7006A7C8A /* TownHallVote.swift */; };
+		94F0B5F35F30418A961E24BD /* LeaderboardBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CCC483BC224571827086FF /* LeaderboardBadge.swift */; };
 		ACBF4AB22F12CAD7006A7C8A /* LeaderboardEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAA2F12CAD7006A7C8A /* LeaderboardEntry.swift */; };
 		ACBF4AB32F12CAD7006A7C8A /* RequestItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAD2F12CAD7006A7C8A /* RequestItem.swift */; };
 		ACBF4AB42F12CAD7006A7C8A /* MapModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AAB2F12CAD7006A7C8A /* MapModels.swift */; };
@@ -554,6 +556,7 @@
 		AC1200792F3AE6160043BFAE /* FavorServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorServiceTests.swift; sourceTree = "<group>"; };
 		AC12007A2F3AE6160043BFAE /* RideServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideServiceTests.swift; sourceTree = "<group>"; };
 		AC12007E2F3AE6260043BFAE /* AppNotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotificationTests.swift; sourceTree = "<group>"; };
+		D6DE2B20301F44F4BBD59ACF /* LeaderboardBadgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardBadgeTests.swift; sourceTree = "<group>"; };
 		AC12007F2F3AE6260043BFAE /* LeaderboardEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardEntryTests.swift; sourceTree = "<group>"; };
 		AC1200802F3AE6260043BFAE /* TownHallPostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostTests.swift; sourceTree = "<group>"; };
 		AC1200842F3AE63E0043BFAE /* ConversationParticipantsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationParticipantsViewModelTests.swift; sourceTree = "<group>"; };
@@ -701,6 +704,7 @@
 		ACBF4AA42F12CAB9006A7C8A /* Date+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Localization.swift"; sourceTree = "<group>"; };
 		ACBF4AA52F12CAB9006A7C8A /* Number+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Number+Localization.swift"; sourceTree = "<group>"; };
 		ACBF4AA62F12CAB9006A7C8A /* String+Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Localization.swift"; sourceTree = "<group>"; };
+		C8CCC483BC224571827086FF /* LeaderboardBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardBadge.swift; sourceTree = "<group>"; };
 		ACBF4AAA2F12CAD7006A7C8A /* LeaderboardEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardEntry.swift; sourceTree = "<group>"; };
 		ACBF4AAB2F12CAD7006A7C8A /* MapModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapModels.swift; sourceTree = "<group>"; };
 		ACBF4AAC2F12CAD7006A7C8A /* RequestFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestFilter.swift; sourceTree = "<group>"; };
@@ -1714,6 +1718,7 @@
 				AC1201162F3D7A890043BFAE /* NotificationTypeRegistry.swift */,
 				AC4F1E0A2F21C0C900CC5DBA /* NotificationGrouping.swift */,
 				AC4F1E0B2F21C0C900CC5DBA /* RequestNotificationMapping.swift */,
+				C8CCC483BC224571827086FF /* LeaderboardBadge.swift */,
 				ACBF4AAA2F12CAD7006A7C8A /* LeaderboardEntry.swift */,
 				ACBF4AAB2F12CAD7006A7C8A /* MapModels.swift */,
 				ACBF4AAC2F12CAD7006A7C8A /* RequestFilter.swift */,
@@ -1968,6 +1973,7 @@
 			isa = PBXGroup;
 			children = (
 				AC12007E2F3AE6260043BFAE /* AppNotificationTests.swift */,
+				D6DE2B20301F44F4BBD59ACF /* LeaderboardBadgeTests.swift */,
 				AC12007F2F3AE6260043BFAE /* LeaderboardEntryTests.swift */,
 				AC1200802F3AE6260043BFAE /* TownHallPostTests.swift */,
 				137CEAA3220D4C2D9BE917E3 /* ProfileTests.swift */,
@@ -2438,6 +2444,7 @@
 				0941BD9C7EC44451957AA1B3 /* Features/Rides/ViewModels/RidesDashboardViewModel.swift in Sources */,
 				ACBF4AB02F12CAD7006A7C8A /* RequestFilter.swift in Sources */,
 				ACBF4AB12F12CAD7006A7C8A /* TownHallVote.swift in Sources */,
+				94F0B5F35F30418A961E24BD /* LeaderboardBadge.swift in Sources */,
 				ACBF4AB22F12CAD7006A7C8A /* LeaderboardEntry.swift in Sources */,
 				ACBF4AB32F12CAD7006A7C8A /* RequestItem.swift in Sources */,
 				ACBF4AB42F12CAD7006A7C8A /* MapModels.swift in Sources */,
@@ -2580,6 +2587,7 @@
 				AC9DDD3C2F2B13BC003465D3 /* NavigationCoordinatorTests.swift in Sources */,
 				AC9DDD372F2B139C003465D3 /* CreatePostViewModelTests.swift in Sources */,
 				AC9DDD382F2B139C003465D3 /* InAppToastManagerTests.swift in Sources */,
+				9EA284B4C7D741C6BAB08C47 /* LeaderboardBadgeTests.swift in Sources */,
 				AC1200812F3AE6270043BFAE /* LeaderboardEntryTests.swift in Sources */,
 				AC1200822F3AE6270043BFAE /* TownHallPostTests.swift in Sources */,
 				AC1200832F3AE6270043BFAE /* AppNotificationTests.swift in Sources */,
