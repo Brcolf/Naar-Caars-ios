@@ -25757,37 +25757,37 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rides I Helped With"
+            "value" : "Helped With"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Viajes en los que ayudé"
+            "value" : "Ayudé con"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "내가 도운 라이드"
+            "value" : "도운 요청"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chuyến đi tôi đã giúp"
+            "value" : "Đã giúp"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "我帮助过的行程"
+            "value" : "帮助过的"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "我幫助過的行程"
+            "value" : "幫助過的"
           }
         }
       }
