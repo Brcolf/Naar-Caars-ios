@@ -9,11 +9,16 @@ import SwiftUI
 
 /// Second step of signup flow: user details and account creation
 struct SignupDetailsView: View {
+    enum SignupField: Hashable {
+        case name, email, password, confirmPassword, car
+    }
+
     @ObservedObject var viewModel: SignupViewModel
     let validatedInviteCode: InviteCode
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState
-    
+    @FocusState private var focusedField: SignupField?
+
     var body: some View {
         VStack(spacing: 24) {
             // Header
@@ -32,120 +37,78 @@ struct SignupDetailsView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     // Name field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("signup_full_name_label".localized)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.primary)
-                        
-                        TextField("signup_name_placeholder".localized, text: $viewModel.name)
-                            .textFieldStyle(.roundedBorder)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("signup.name")
-                            .onChange(of: viewModel.name) { _, _ in
-                                if viewModel.nameError != nil {
-                                    viewModel.nameError = nil
-                                }
-                            }
-                        
-                        if let error = viewModel.nameError {
-                            Text(error)
-                                .font(.naarsCaption)
-                                .foregroundColor(.naarsError)
-                                .accessibilityLabel("Error: \(error)")
-                        }
+                    NaarsTextField(
+                        placeholder: "signup_name_placeholder".localized,
+                        text: $viewModel.name,
+                        autocapitalization: .words,
+                        errorMessage: viewModel.nameError,
+                        accessibilityId: "signup.name"
+                    )
+                    .focused($focusedField, equals: .name)
+                    .onChange(of: viewModel.name) { _, _ in
+                        if viewModel.nameError != nil { viewModel.nameError = nil }
                     }
-                    
+
                     // Email field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("signup_email_label".localized)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.primary)
-                        
-                        TextField("signup_email_placeholder".localized, text: $viewModel.email)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("signup.email")
-                            .onChange(of: viewModel.email) { _, _ in
-                                if viewModel.emailError != nil {
-                                    viewModel.emailError = nil
-                                }
-                            }
-                        
-                        if let error = viewModel.emailError {
-                            Text(error)
-                                .font(.naarsCaption)
-                                .foregroundColor(.naarsError)
-                                .accessibilityLabel("Error: \(error)")
-                        }
+                    NaarsTextField(
+                        placeholder: "signup_email_placeholder".localized,
+                        text: $viewModel.email,
+                        keyboardType: .emailAddress,
+                        textContentType: .emailAddress,
+                        errorMessage: viewModel.emailError,
+                        accessibilityId: "signup.email"
+                    )
+                    .focused($focusedField, equals: .email)
+                    .onChange(of: viewModel.email) { _, _ in
+                        if viewModel.emailError != nil { viewModel.emailError = nil }
                     }
-                    
+
                     // Password field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("signup_password_label".localized)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.primary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        NaarsTextField(
+                            placeholder: "signup_password_placeholder".localized,
+                            text: $viewModel.password,
+                            isSecure: true,
+                            textContentType: .newPassword,
+                            errorMessage: viewModel.passwordError,
+                            accessibilityId: "signup.password"
+                        )
+                        .focused($focusedField, equals: .password)
+                        .onChange(of: viewModel.password) { _, _ in
+                            if viewModel.passwordError != nil { viewModel.passwordError = nil }
+                            if viewModel.confirmPasswordError != nil { viewModel.confirmPasswordError = nil }
+                        }
 
-                        SecureField("signup_password_placeholder".localized, text: $viewModel.password)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("signup.password")
-                            .onChange(of: viewModel.password) { _, _ in
-                                if viewModel.passwordError != nil {
-                                    viewModel.passwordError = nil
-                                }
-                                if viewModel.confirmPasswordError != nil {
-                                    viewModel.confirmPasswordError = nil
-                                }
-                            }
-
-                        if let error = viewModel.passwordError {
-                            Text(error)
-                                .font(.naarsCaption)
-                                .foregroundColor(.naarsError)
-                                .accessibilityLabel("Error: \(error)")
-                        } else {
+                        if viewModel.passwordError == nil {
                             Text("signup_password_hint".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
+                                .padding(.leading, 20)
                         }
                     }
 
                     // Confirm password field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("signup_confirm_password_label".localized)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.primary)
-
-                        SecureField("signup_confirm_password_placeholder".localized, text: $viewModel.confirmPassword)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("signup.confirmPassword")
-                            .onChange(of: viewModel.confirmPassword) { _, _ in
-                                if viewModel.confirmPasswordError != nil {
-                                    viewModel.confirmPasswordError = nil
-                                }
-                            }
-
-                        if let error = viewModel.confirmPasswordError {
-                            Text(error)
-                                .font(.naarsCaption)
-                                .foregroundColor(.naarsError)
-                                .accessibilityLabel("Error: \(error)")
-                        }
+                    NaarsTextField(
+                        placeholder: "signup_confirm_password_placeholder".localized,
+                        text: $viewModel.confirmPassword,
+                        isSecure: true,
+                        textContentType: .newPassword,
+                        errorMessage: viewModel.confirmPasswordError,
+                        accessibilityId: "signup.confirmPassword"
+                    )
+                    .focused($focusedField, equals: .confirmPassword)
+                    .onChange(of: viewModel.confirmPassword) { _, _ in
+                        if viewModel.confirmPasswordError != nil { viewModel.confirmPasswordError = nil }
                     }
 
                     // Car field (optional)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("signup_car_label".localized)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.primary)
-                        
-                        TextField("signup_car_placeholder".localized, text: $viewModel.car)
-                            .textFieldStyle(.roundedBorder)
-                            .textInputAutocapitalization(.words)
-                            .accessibilityIdentifier("signup.car")
-                    }
+                    NaarsTextField(
+                        placeholder: "signup_car_placeholder".localized,
+                        text: $viewModel.car,
+                        autocapitalization: .words,
+                        accessibilityId: "signup.car"
+                    )
+                    .focused($focusedField, equals: .car)
                 }
                 .padding(.horizontal)
             }
@@ -219,11 +182,30 @@ struct SignupDetailsView: View {
         .navigationTitle("signup_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Button { moveFocus(forward: false) } label: { Image(systemName: "chevron.up") }
+                    .disabled(focusedField == .name)
+                Button { moveFocus(forward: true) } label: { Image(systemName: "chevron.down") }
+                    .disabled(focusedField == .car)
+                Spacer()
+                Button("Done") { focusedField = nil }
+            }
+        }
         .onAppear {
             // Ensure the ViewModel has the validated invite code set
             if viewModel.validatedInviteCode == nil {
                 viewModel.validatedInviteCode = validatedInviteCode
             }
+        }
+    }
+
+    private func moveFocus(forward: Bool) {
+        let fields: [SignupField] = [.name, .email, .password, .confirmPassword, .car]
+        guard let current = focusedField, let index = fields.firstIndex(of: current) else { return }
+        let next = forward ? fields.index(after: index) : fields.index(before: index)
+        if fields.indices.contains(next) {
+            focusedField = fields[next]
         }
     }
 }
