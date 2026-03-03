@@ -448,7 +448,51 @@ final class ProfileService {
         
         return ridesCount + favorsCount
     }
-    
+
+    // MARK: - Savings & XP Operations
+
+    /// Fetch total savings for a user (all time)
+    func fetchUserTotalSavings(userId: UUID) async throws -> Double {
+        let response = try await supabase
+            .rpc("get_user_total_savings")
+            .execute()
+
+        let value = try JSONDecoder().decode(Double.self, from: response.data)
+        return value
+    }
+
+    /// Fetch total XP for a user
+    func fetchUserTotalXP(userId: UUID) async throws -> Int {
+        let response = try await supabase
+            .rpc("get_user_total_xp")
+            .execute()
+
+        let value = try JSONDecoder().decode(Int.self, from: response.data)
+        return value
+    }
+
+    /// Fetch savings breakdown by period
+    func fetchUserSavingsBreakdown(period: String) async throws -> [UserSavingsPeriod] {
+        let response = try await supabase
+            .rpc("get_user_savings", params: ["p_period": period])
+            .execute()
+
+        let decoder = JSONDecoder()
+        let periods = try decoder.decode([UserSavingsPeriod].self, from: response.data)
+        return periods
+    }
+
+    /// Fetch XP event history for the current user
+    func fetchUserXPEvents() async throws -> [XPEvent] {
+        let response = try await supabase
+            .rpc("get_user_xp_events")
+            .execute()
+
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
+        let events = try decoder.decode([XPEvent].self, from: response.data)
+        return events
+    }
+
     /// Delete user account and all associated data
     /// Uses database function to handle cascade deletion
     /// Also revokes Apple Sign-In if linked (required by Apple for account deletion)

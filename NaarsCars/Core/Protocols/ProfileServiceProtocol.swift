@@ -21,4 +21,8 @@ protocol ProfileServiceProtocol: AnyObject {
         avatarUrl: String?,
         shouldUpdateAvatar: Bool
     ) async throws
+    func fetchUserTotalSavings(userId: UUID) async throws -> Double
+    func fetchUserTotalXP(userId: UUID) async throws -> Int
+    func fetchUserSavingsBreakdown(period: String) async throws -> [UserSavingsPeriod]
+    func fetchUserXPEvents() async throws -> [XPEvent]
 }
