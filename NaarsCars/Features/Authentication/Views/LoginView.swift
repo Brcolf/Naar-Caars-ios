@@ -18,11 +18,17 @@ struct LoginView: View {
     @State private var showPasswordReset = false
     @State private var showError = false
     @State private var showSuccess = false
+
+    enum LoginField: Hashable { case email, password }
+    @FocusState private var focusedField: LoginField?
+
+    @AppStorage("saveUsernameEnabled") private var saveUsernameEnabled = false
+    @AppStorage("savedUsername") private var savedUsername = ""
+
 #if DEBUG
-    @FocusState private var emailFocused: Bool
     private static let _firstTapPerfLog = OSLog(subsystem: "com.naarscars.app", category: "FirstTapPerf")
 #endif
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -33,54 +39,35 @@ struct LoginView: View {
                         .scaledToFit()
                         .frame(maxWidth: 280, maxHeight: 120)
                         .accessibilityLabel("Naar's Cars - Community Ride Sharing")
-                    
+
                     Text("auth_login_title".localized)
                         .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 20)
-                
+
                 // Form
                 VStack(spacing: 16) {
                     // Email field
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("auth_email_label".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                        
-                        TextField("auth_email_placeholder".localized, text: $viewModel.email)
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                            .autocapitalization(.none)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("login.email")
-                            .accessibilityLabel("Email address")
-                            .accessibilityHint("Enter your email to sign in")
-#if DEBUG
-                            .focused($emailFocused)
-                            .onChange(of: emailFocused) { _, focused in
-                                if focused {
-                                    os_signpost(.event, log: Self._firstTapPerfLog, name: "LoginEmailFocus")
-                                    FirstTapPerfLogger.logFocusDelivered(source: "login")
-                                }
-                            }
-#endif
-                    }
-                    
+                    NaarsTextField(
+                        placeholder: "auth_email_placeholder".localized,
+                        text: $viewModel.email,
+                        keyboardType: .emailAddress,
+                        textContentType: .emailAddress,
+                        accessibilityId: "login.email"
+                    )
+                    .focused($focusedField, equals: .email)
+
                     // Password field
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("auth_password_label".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                        
-                        SecureField("auth_password_placeholder".localized, text: $viewModel.password)
-                            .textContentType(.password)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("login.password")
-                            .accessibilityLabel("Password")
-                            .accessibilityHint("Enter your password")
-                    }
-                    
+                    NaarsTextField(
+                        placeholder: "auth_password_placeholder".localized,
+                        text: $viewModel.password,
+                        isSecure: true,
+                        textContentType: .password,
+                        accessibilityId: "login.password"
+                    )
+                    .focused($focusedField, equals: .password)
+
                     // Error message
                     if let error = viewModel.error {
                         Text(error.localizedDescription)
@@ -88,12 +75,19 @@ struct LoginView: View {
                             .foregroundColor(.naarsError)
                             .padding(.horizontal)
                     }
-                    
+
+                    // Save Username toggle
+                    Toggle("auth_save_username".localized, isOn: $saveUsernameEnabled)
+                        .font(.naarsCaption)
+                        .tint(.naarsPrimary)
+                        .padding(.horizontal, 4)
+
                     // Login button
                     Button(action: {
                         Task {
                             await viewModel.login()
                             if viewModel.error == nil {
+                                if saveUsernameEnabled { savedUsername = viewModel.email } else { savedUsername = "" }
                                 showSuccess = true
                             }
                         }
@@ -108,16 +102,30 @@ struct LoginView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(viewModel.isLoading || viewModel.email.isEmpty || viewModel.password.isEmpty)
-                .accessibilityIdentifier("login.submit")
-                    
+                    .accessibilityIdentifier("login.submit")
+
+                    // Sign up link
+                    HStack {
+                        Text("auth_no_account".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+
+                        NavigationLink("auth_sign_up".localized) {
+                            SignupInviteCodeView()
+                        }
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsPrimary)
+                        .accessibilityIdentifier("login.signup")
+                    }
+
                     // Forgot password
                     Button("auth_forgot_password".localized) {
                         showPasswordReset = true
                     }
                     .font(.naarsCaption)
                     .foregroundColor(.naarsPrimary)
-                .accessibilityIdentifier("login.forgot")
-                    
+                    .accessibilityIdentifier("login.forgot")
+
                     // Divider
                     HStack {
                         Rectangle()
@@ -132,7 +140,7 @@ struct LoginView: View {
                             .foregroundColor(.secondary.opacity(0.3))
                     }
                     .padding(.vertical, 8)
-                    
+
                     // Apple Sign-In button
                     AppleSignInButton(
                         onRequest: { request in
@@ -145,7 +153,7 @@ struct LoginView: View {
                                     inviteCodeId: nil,
                                     isNewUser: false
                                 )
-                                
+
                                 // If successful, trigger AppLaunchManager to re-check auth state
                                 if appleSignInViewModel.error == nil {
                                     await AppLaunchManager.shared.performCriticalLaunch()
@@ -158,25 +166,20 @@ struct LoginView: View {
                     .disabled(viewModel.isLoading || appleSignInViewModel.isLoading)
                 }
                 .padding(.horizontal)
-                
-                // Sign up link
-                HStack {
-                    Text("auth_no_account".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                    
-                    NavigationLink("auth_sign_up".localized) {
-                        SignupInviteCodeView()
-                    }
-                    .font(.naarsCaption)
-                    .foregroundColor(.naarsPrimary)
-                    .accessibilityIdentifier("login.signup")
-                }
-                .padding(.top)
             }
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Button { if focusedField == .password { focusedField = .email } } label: { Image(systemName: "chevron.up") }
+                    .disabled(focusedField == .email)
+                Button { if focusedField == .email { focusedField = .password } } label: { Image(systemName: "chevron.down") }
+                    .disabled(focusedField == .password)
+                Spacer()
+                Button("Done") { focusedField = nil }
+            }
+        }
         .sheet(isPresented: $showPasswordReset) {
             PasswordResetView()
         }
@@ -187,6 +190,22 @@ struct LoginView: View {
         }
         .successCheckmark(isShowing: $showSuccess)
         .trackScreen("Login")
+        .onAppear {
+            if saveUsernameEnabled && !savedUsername.isEmpty {
+                viewModel.email = savedUsername
+            }
+        }
+        .onChange(of: saveUsernameEnabled) { _, enabled in
+            if !enabled { savedUsername = "" }
+        }
+#if DEBUG
+        .onChange(of: focusedField) { _, newValue in
+            if newValue == .email {
+                os_signpost(.event, log: Self._firstTapPerfLog, name: "LoginEmailFocus")
+                FirstTapPerfLogger.logFocusDelivered(source: "login")
+            }
+        }
+#endif
     }
 }
 
@@ -195,7 +214,3 @@ struct LoginView: View {
         LoginView()
     }
 }
-
-
-
-
