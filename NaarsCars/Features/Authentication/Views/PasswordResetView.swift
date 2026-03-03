@@ -12,6 +12,7 @@ struct PasswordResetView: View {
     @StateObject private var viewModel = PasswordResetViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var showSuccess = false
+    @FocusState private var isEmailFocused: Bool
     
     var body: some View {
         NavigationStack {
@@ -24,17 +25,14 @@ struct PasswordResetView: View {
                         .padding(.horizontal)
                     
                     // Email field
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("password_reset_email_label".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                        
-                        TextField("password_reset_email_placeholder".localized, text: $viewModel.email)
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                            .autocapitalization(.none)
-                            .textFieldStyle(.roundedBorder)
-                    }
+                    NaarsTextField(
+                        placeholder: "password_reset_email_placeholder".localized,
+                        text: $viewModel.email,
+                        keyboardType: .emailAddress,
+                        textContentType: .emailAddress,
+                        accessibilityId: "passwordReset.email"
+                    )
+                    .focused($isEmailFocused)
                     .padding(.horizontal)
                     
                     // Error message
@@ -86,6 +84,10 @@ struct PasswordResetView: View {
                     Button("common_cancel".localized) {
                         dismiss()
                     }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { isEmailFocused = false }
                 }
             }
         }

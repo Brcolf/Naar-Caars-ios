@@ -19,7 +19,8 @@ struct SignupInviteCodeView: View {
     @State private var validatedCode: InviteCode?
     @State private var showMethodChoice = false
     @State private var showError = false
-    
+    @FocusState private var isCodeFocused: Bool
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -38,17 +39,15 @@ struct SignupInviteCodeView: View {
                 .padding(.top, 20)
                 
                 // Invite code field
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("signup_invite_code_label".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                    
-                    TextField("signup_invite_code_placeholder".localized, text: $inviteCode)
-                        .textInputAutocapitalization(.characters)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(isValidating)
-                        .accessibilityIdentifier("signup.inviteCode")
-                }
+                NaarsTextField(
+                    placeholder: "signup_invite_code_placeholder".localized,
+                    text: $inviteCode,
+                    autocapitalization: .characters,
+                    autocorrectionDisabled: true,
+                    accessibilityId: "signup.inviteCode"
+                )
+                .focused($isCodeFocused)
+                .disabled(isValidating)
                 .padding(.horizontal)
                 
                 // Error message
@@ -79,6 +78,12 @@ struct SignupInviteCodeView: View {
                 .accessibilityIdentifier("signup.inviteNext")
             }
             .padding()
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { isCodeFocused = false }
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("signup_title".localized)
