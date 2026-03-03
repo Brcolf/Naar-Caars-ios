@@ -8,13 +8,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_review()
  SECURITY DEFINER
  SET search_path TO ''
 AS $function$
-DECLARE
-    reviewer_name TEXT;
-    fulfiller_name TEXT;
 BEGIN
-    SELECT name INTO reviewer_name FROM public.profiles WHERE id = NEW.reviewer_id;
-    SELECT name INTO fulfiller_name FROM public.profiles WHERE id = NEW.fulfiller_id;
-
     INSERT INTO public.town_hall_posts (user_id, title, content, review_id, type)
     VALUES (
         NEW.reviewer_id,
