@@ -17,7 +17,8 @@ struct UserAvatarLink: View {
             AvatarView(
                 imageUrl: profile.avatarUrl,
                 name: profile.name,
-                size: size
+                size: size,
+                userId: profile.id
             )
         }
     }

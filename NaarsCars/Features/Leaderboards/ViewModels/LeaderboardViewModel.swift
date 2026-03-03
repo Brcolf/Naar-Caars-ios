@@ -16,7 +16,7 @@ final class LeaderboardViewModel: ObservableObject {
     
     @Published var entries: [LeaderboardEntry] = []
     @Published var isLoading: Bool = false
-    @Published var selectedPeriod: LeaderboardPeriod = .allTime
+    @Published var selectedPeriod: LeaderboardPeriod = .thisMonth
     @Published var error: AppError?
     @Published var currentUserRank: Int?
     @Published var spotlights: [SpotlightEntry] = []
@@ -73,6 +73,7 @@ final class LeaderboardViewModel: ObservableObject {
 
             let (freshEntries, freshSpotlights) = try await (entriesTask, spotlightsTask)
             entries = freshEntries
+            BadgeCache.shared.storeBatch(entries: freshEntries)
             spotlights = freshSpotlights
             cachedEntries[selectedPeriod] = (freshEntries, freshSpotlights, Date())
             updateCurrentUserRank()

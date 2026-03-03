@@ -13,6 +13,7 @@ struct AvatarView: View {
     let name: String
     var size: CGFloat = 50
     var badges: [LeaderboardBadge] = []
+    var userId: UUID? = nil
 
     private var initials: String {
         let components = name.components(separatedBy: " ")
@@ -41,13 +42,19 @@ struct AvatarView: View {
 
     /// Clock angles (degrees clockwise from 12 o'clock) for each badge count
     private var badgeAngles: [Double] {
-        let displayBadges = Array(badges.prefix(3))
+        let displayBadges = Array(resolvedBadges.prefix(3))
         switch displayBadges.count {
         case 1: return [180]
         case 2: return [150, 210]
         case 3: return [120, 180, 240]
         default: return []
         }
+    }
+
+    private var resolvedBadges: [LeaderboardBadge] {
+        if !badges.isEmpty { return badges }
+        guard let userId = userId, size >= 40 else { return [] }
+        return BadgeCache.shared.badges(for: userId)
     }
 
     var body: some View {
@@ -69,7 +76,7 @@ struct AvatarView: View {
             .clipShape(Circle())
 
             // Badge overlay
-            let displayBadges = Array(badges.prefix(3))
+            let displayBadges = Array(resolvedBadges.prefix(3))
             let angles = badgeAngles
             ForEach(Array(zip(displayBadges.indices, displayBadges)), id: \.0) { index, badge in
                 badgeView(emoji: badge.emoji)
@@ -80,8 +87,8 @@ struct AvatarView: View {
             }
         }
         .frame(
-            width: badges.isEmpty ? size : size + badgeContainerSize,
-            height: badges.isEmpty ? size : size + badgeContainerSize
+            width: resolvedBadges.isEmpty ? size : size + badgeContainerSize,
+            height: resolvedBadges.isEmpty ? size : size + badgeContainerSize
         )
         .accessibilityLabel("Avatar for \(name)")
     }

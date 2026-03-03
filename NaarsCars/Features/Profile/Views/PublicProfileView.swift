@@ -66,6 +66,7 @@ struct PublicProfileView: View {
             async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
             await profileTask
             badges = (try? await badgesTask) ?? []
+            BadgeCache.shared.store(badges: badges, for: userId)
         }
         .trackScreen("PublicProfile")
     }
