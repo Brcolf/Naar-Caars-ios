@@ -21,6 +21,8 @@ final class MyProfileViewModel: ObservableObject {
     @Published var inviteStats: InviteStats?
     @Published var averageRating: Double?
     @Published var fulfilledCount: Int = 0
+    @Published var totalSavings: Double = 0
+    @Published var totalXP: Int = 0
     @Published var isLoading: Bool = false
     @Published var error: AppError?
     
@@ -52,15 +54,19 @@ final class MyProfileViewModel: ObservableObject {
             async let inviteStatsTask = inviteService.getInviteStats(userId: userId)
             async let ratingTask = profileService.calculateAverageRating(userId: userId)
             async let countTask = profileService.fetchFulfilledCount(userId: userId)
-            
+            async let savingsTask = profileService.fetchUserTotalSavings(userId: userId)
+            async let xpTask = profileService.fetchUserTotalXP(userId: userId)
+
             // Wait for all tasks to complete
-            let (fetchedProfile, fetchedReviews, fetchedCode, fetchedStats, fetchedRating, fetchedCount) = try await (
+            let (fetchedProfile, fetchedReviews, fetchedCode, fetchedStats, fetchedRating, fetchedCount, fetchedSavings, fetchedXP) = try await (
                 profileTask,
                 reviewsTask,
                 inviteCodeTask,
                 inviteStatsTask,
                 ratingTask,
-                countTask
+                countTask,
+                savingsTask,
+                xpTask
             )
             
             // Update published properties
@@ -70,7 +76,9 @@ final class MyProfileViewModel: ObservableObject {
             inviteStats = fetchedStats
             averageRating = fetchedRating
             fulfilledCount = fetchedCount
-            
+            totalSavings = fetchedSavings
+            totalXP = fetchedXP
+
         } catch {
             self.error = error as? AppError ?? AppError.unknown(error.localizedDescription)
         }
