@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct NaarsTextField: View {
     let placeholder: String
@@ -24,20 +25,22 @@ struct NaarsTextField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 0) {
-                Group {
-                    if isSecure && !isPasswordVisible {
-                        SecureField(placeholder, text: $text)
-                    } else {
-                        TextField(placeholder, text: $text)
-                            .keyboardType(keyboardType)
-                            .autocorrectionDisabled(autocorrectionDisabled)
-                    }
+                if isSecure && !isPasswordVisible {
+                    SecureField(placeholder, text: $text)
+                        .textContentType(textContentType)
+                        .font(.naarsBody)
+                        .focused($isFocused)
+                        .conditionalAccessibilityId(accessibilityId)
+                } else {
+                    TextField(placeholder, text: $text)
+                        .keyboardType(keyboardType)
+                        .textContentType(textContentType)
+                        .textInputAutocapitalization(autocapitalization)
+                        .autocorrectionDisabled(autocorrectionDisabled)
+                        .font(.naarsBody)
+                        .focused($isFocused)
+                        .conditionalAccessibilityId(accessibilityId)
                 }
-                .textContentType(textContentType)
-                .textInputAutocapitalization(autocapitalization)
-                .font(.naarsBody)
-                .focused($isFocused)
-                .conditionalAccessibilityId(accessibilityId)
 
                 if isSecure {
                     Button {
