@@ -18,6 +18,7 @@ final class FavorDetailViewModel: ObservableObject {
     @Published var qaItems: [RequestQA] = []
     @Published var isLoading: Bool = false
     @Published var error: String?
+    @Published var showCalendarOffer: Bool = false
     
     // MARK: - Private Properties
     
@@ -130,6 +131,44 @@ final class FavorDetailViewModel: ObservableObject {
     var canAskQuestions: Bool {
         guard let favor = favor else { return false }
         return favor.claimedBy == nil
+    }
+
+    // MARK: - Calendar Offer
+
+    /// Check and trigger calendar offer for confirmed favors
+    func checkCalendarOffer() {
+        guard let favor = favor,
+              favor.status == .confirmed,
+              let currentUserId = authService.currentUserId else { return }
+
+        let isClaimer = favor.claimedBy == currentUserId
+        let isParticipant = favor.participants?.contains(where: { $0.id == currentUserId }) ?? false
+        let isPoster = favor.userId == currentUserId
+        guard isClaimer || isParticipant || isPoster else { return }
+
+        guard CalendarOfferTracker.shared.shouldOffer(requestType: "favor", requestId: favor.id) else { return }
+
+        let eventTime = RequestItem.favor(favor).eventTime
+        guard eventTime > Date() else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.showCalendarOffer = true
+        }
+    }
+
+    /// Handle user accepting the calendar offer
+    func acceptCalendarOffer() async {
+        guard let favor = favor else { return }
+        let eventId = await CalendarService.shared.createEventForFavor(favor)
+        if eventId != nil {
+            CalendarOfferTracker.shared.recordEventCreated(requestType: "favor", requestId: favor.id)
+        }
+    }
+
+    /// Handle user dismissing the calendar offer
+    func dismissCalendarOffer() {
+        guard let favor = favor else { return }
+        CalendarOfferTracker.shared.recordDismissal(requestType: "favor", requestId: favor.id)
     }
 }
 

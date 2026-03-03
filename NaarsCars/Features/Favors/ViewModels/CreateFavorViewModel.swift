@@ -24,6 +24,7 @@ final class CreateFavorViewModel: ObservableObject {
     @Published var minute: Int = 0
     @Published var isAM: Bool = true
     @Published var hasTime: Bool = false // Track if user wants to specify time
+    @Published var timezone: String = "America/Los_Angeles"
     @Published var gift: String = ""
     @Published var selectedParticipantIds: Set<UUID> = []
     
@@ -101,7 +102,8 @@ final class CreateFavorViewModel: ObservableObject {
                 requirements: requirements.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : requirements.trimmingCharacters(in: .whitespacesAndNewlines),
                 date: date,
                 time: formattedTime,
-                gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines)
+                gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines),
+                timezone: timezone
             )
             
             // Add participants if any were selected (max 5)

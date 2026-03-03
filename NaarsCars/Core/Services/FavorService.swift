@@ -110,6 +110,7 @@ final class FavorService {
     ///   - date: Date when favor is needed
     ///   - time: Optional time (formatted as "HH:mm:ss")
     ///   - gift: Optional gift/compensation
+    ///   - timezone: IANA timezone identifier (e.g. "America/Los_Angeles")
     /// - Returns: Created favor
     /// - Throws: AppError if creation fails
     func createFavor(
@@ -121,7 +122,8 @@ final class FavorService {
         requirements: String? = nil,
         date: Date,
         time: String? = nil,
-        gift: String? = nil
+        gift: String? = nil,
+        timezone: String
     ) async throws -> Favor {
         // Format date as "yyyy-MM-dd" using local timezone
         // Important: Use local timezone to match what the user selected in DatePicker
@@ -138,7 +140,8 @@ final class FavorService {
             "location": AnyCodable(location),
             "duration": AnyCodable(duration.rawValue),
             "date": AnyCodable(dateString),
-            "status": AnyCodable("open")
+            "status": AnyCodable("open"),
+            "timezone": AnyCodable(timezone)
         ]
         
         if let description = description {
@@ -180,6 +183,7 @@ final class FavorService {
     ///   - date: Optional new date
     ///   - time: Optional new time
     ///   - gift: Optional new gift
+    ///   - timezone: Optional new IANA timezone identifier
     /// - Returns: Updated favor
     /// - Throws: AppError if update fails
     func updateFavor(
@@ -191,7 +195,8 @@ final class FavorService {
         requirements: String? = nil,
         date: Date? = nil,
         time: String? = nil,
-        gift: String? = nil
+        gift: String? = nil,
+        timezone: String? = nil
     ) async throws -> Favor {
         var updates: [String: AnyCodable] = [:]
         
@@ -224,15 +229,18 @@ final class FavorService {
         if let gift = gift {
             updates["gift"] = AnyCodable(gift)
         }
-        
+        if let timezone = timezone {
+            updates["timezone"] = AnyCodable(timezone)
+        }
+
         // Always update updated_at
         let dateFormatter = ISO8601DateFormatter()
         updates["updated_at"] = AnyCodable(dateFormatter.string(from: Date()))
-        
+
         guard !updates.isEmpty else {
             throw AppError.invalidInput("No fields to update")
         }
-        
+
         // Fetch original favor to check if claimer needs notification
         let originalFavor = try? await fetchFavor(id: id)
         

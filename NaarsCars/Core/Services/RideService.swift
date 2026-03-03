@@ -110,6 +110,7 @@ final class RideService {
     ///   - seats: Number of seats (default: 1)
     ///   - notes: Optional notes
     ///   - gift: Optional gift/compensation
+    ///   - timezone: IANA timezone identifier (e.g. "America/Los_Angeles")
     /// - Returns: Created ride
     /// - Throws: AppError if creation fails
     func createRide(
@@ -120,7 +121,8 @@ final class RideService {
         destination: String,
         seats: Int = 1,
         notes: String? = nil,
-        gift: String? = nil
+        gift: String? = nil,
+        timezone: String
     ) async throws -> Ride {
         // Format date as "yyyy-MM-dd" using local timezone
         // Important: Use local timezone to match what the user selected in DatePicker
@@ -141,7 +143,8 @@ final class RideService {
             "seats": AnyCodable(seats),
             "notes": AnyCodable(notes as Any),
             "gift": AnyCodable(gift as Any),
-            "status": AnyCodable("open")
+            "status": AnyCodable("open"),
+            "timezone": AnyCodable(timezone)
         ]
         
         // Insert ride
@@ -286,6 +289,7 @@ final class RideService {
     ///   - seats: Optional new seat count
     ///   - notes: Optional new notes
     ///   - gift: Optional new gift
+    ///   - timezone: Optional new IANA timezone identifier
     /// - Returns: Updated ride
     /// - Throws: AppError if update fails
     func updateRide(
@@ -296,7 +300,8 @@ final class RideService {
         destination: String? = nil,
         seats: Int? = nil,
         notes: String? = nil,
-        gift: String? = nil
+        gift: String? = nil,
+        timezone: String? = nil
     ) async throws -> Ride {
         var updates: [String: AnyCodable] = [:]
         
@@ -326,15 +331,18 @@ final class RideService {
         if let gift = gift {
             updates["gift"] = AnyCodable(gift)
         }
-        
+        if let timezone = timezone {
+            updates["timezone"] = AnyCodable(timezone)
+        }
+
         // Always update updated_at
         let dateFormatter = ISO8601DateFormatter()
         updates["updated_at"] = AnyCodable(dateFormatter.string(from: Date()))
-        
+
         guard !updates.isEmpty else {
             throw AppError.invalidInput("No fields to update")
         }
-        
+
         // Fetch original ride to check if claimer needs notification
         let originalRide = try? await fetchRide(id: id)
         

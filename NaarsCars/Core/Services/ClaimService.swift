@@ -100,6 +100,14 @@ final class ClaimService {
                 claimerId: claimerId
             )
 
+            // Queue push notification for poster (with calendar event data)
+            await queueClaimPushNotification(
+                requestType: requestType,
+                requestId: requestId,
+                posterId: posterId,
+                claimerName: profile.name
+            )
+
             // Completion reminders are server-scheduled via database triggers.
             await PerformanceMonitor.shared.record(
                 operation: "claim.request.success",
@@ -402,7 +410,100 @@ final class ClaimService {
             .insert(notificationData)
             .execute()
     }
-    
+
+    /// Queue a push notification with calendar event data when request is claimed
+    private func queueClaimPushNotification(
+        requestType: String,
+        requestId: UUID,
+        posterId: UUID,
+        claimerName: String
+    ) async {
+        do {
+            let title = requestType == "ride" ? "Ride Claimed!" : "Favor Claimed!"
+            let body = "\(claimerName) is helping with your \(requestType) request"
+
+            // Fetch request details for calendar event data in the push payload
+            let tableName = requestType == "ride" ? "rides" : "favors"
+            let selectFields = requestType == "ride"
+                ? "date, time, pickup, destination, notes, timezone"
+                : "date, time, location, title, description, duration, timezone"
+
+            let response = try await supabase
+                .from(tableName)
+                .select(selectFields)
+                .eq("id", value: requestId.uuidString)
+                .single()
+                .execute()
+
+            var eventData: [String: Any] = [
+                "\(requestType)_id": requestId.uuidString
+            ]
+
+            // Parse response and build event data for calendar creation on the client
+            if let json = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any] {
+                let storedTimezone = json["timezone"] as? String ?? "America/Los_Angeles"
+                let tz = TimeZone(identifier: storedTimezone) ?? TimeZone(identifier: "America/Los_Angeles")!
+
+                if let dateStr = json["date"] as? String,
+                   let timeStr = json["time"] as? String {
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd"
+                    if let date = dateFormatter.date(from: dateStr) {
+                        let timeParts = timeStr.split(separator: ":")
+                        if timeParts.count >= 2,
+                           let hour = Int(timeParts[0]),
+                           let minute = Int(timeParts[1]) {
+                            var calendar = Calendar.current
+                            calendar.timeZone = tz
+                            var components = calendar.dateComponents([.year, .month, .day], from: date)
+                            components.hour = hour
+                            components.minute = minute
+                            components.timeZone = tz
+                            if let eventDate = calendar.date(from: components) {
+                                let isoFormatter = ISO8601DateFormatter()
+                                eventData["event_date"] = isoFormatter.string(from: eventDate)
+                            }
+                        }
+                    }
+                }
+
+                eventData["event_timezone"] = storedTimezone
+
+                if requestType == "ride" {
+                    let pickup = json["pickup"] as? String ?? ""
+                    let destination = json["destination"] as? String ?? ""
+                    eventData["event_title"] = "Ride: \(pickup) → \(destination)"
+                    eventData["event_location"] = pickup
+                    if let notes = json["notes"] as? String {
+                        eventData["event_notes"] = notes
+                    }
+                } else {
+                    eventData["event_title"] = "Favor: \(json["title"] as? String ?? "")"
+                    if let location = json["location"] as? String {
+                        eventData["event_location"] = location
+                    }
+                    if let desc = json["description"] as? String {
+                        eventData["event_notes"] = desc
+                    }
+                }
+            }
+
+            // Call queue_push_notification RPC
+            try await supabase.rpc("queue_push_notification", params: [
+                "p_recipient_user_id": AnyCodable(posterId.uuidString),
+                "p_notification_type": AnyCodable(requestType == "ride" ? "ride_claimed" : "favor_claimed"),
+                "p_title": AnyCodable(title),
+                "p_body": AnyCodable(body),
+                "p_data": AnyCodable(eventData)
+            ]).execute()
+
+            AppLogger.info("claims", "Queued claim push notification for poster \(posterId)")
+        } catch {
+            // Non-fatal: push notification failure shouldn't break the claim flow
+            AppLogger.error("claims", "Failed to queue claim push notification: \(error)")
+        }
+    }
+
 }
 
 extension ClaimService: ClaimServiceProtocol {}

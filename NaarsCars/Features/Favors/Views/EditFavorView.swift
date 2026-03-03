@@ -61,6 +61,8 @@ struct EditFavorView: View {
                             isAM: $viewModel.isAM
                         )
                     }
+
+                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
                 }
                 
                 Section("favor_edit_details".localized) {
@@ -104,7 +106,8 @@ struct EditFavorView: View {
                                     requirements: viewModel.requirements.isEmpty ? nil : viewModel.requirements,
                                     date: viewModel.date,
                                     time: formattedTime,
-                                    gift: viewModel.gift.isEmpty ? nil : viewModel.gift
+                                    gift: viewModel.gift.isEmpty ? nil : viewModel.gift,
+                                    timezone: viewModel.timezone
                                 )
                                 // Notify parent to refresh before dismissing
                                 onSaved?()
@@ -130,6 +133,8 @@ struct EditFavorView: View {
                 viewModel.date = favor.date
                 viewModel.gift = favor.gift ?? ""
                 
+                viewModel.timezone = favor.timezone
+
                 // Parse existing time if available
                 if let timeString = favor.time,
                    let parsedTime = viewModel.parseTime(timeString) {

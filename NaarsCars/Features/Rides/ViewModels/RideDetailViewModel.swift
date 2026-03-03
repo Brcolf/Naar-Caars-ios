@@ -18,6 +18,7 @@ final class RideDetailViewModel: ObservableObject {
     @Published var qaItems: [RequestQA] = []
     @Published var isLoading: Bool = false
     @Published var error: String?
+    @Published var showCalendarOffer: Bool = false
     
     // MARK: - Private Properties
     
@@ -131,6 +132,48 @@ final class RideDetailViewModel: ObservableObject {
     var canAskQuestions: Bool {
         guard let ride = ride else { return false }
         return ride.claimedBy == nil
+    }
+
+    // MARK: - Calendar Offer
+
+    /// Check and trigger calendar offer for confirmed rides
+    func checkCalendarOffer() {
+        guard let ride = ride,
+              ride.status == .confirmed,
+              let currentUserId = authService.currentUserId else { return }
+
+        // Offer to claimer or participants (anyone involved)
+        let isClaimer = ride.claimedBy == currentUserId
+        let isParticipant = ride.participants?.contains(where: { $0.id == currentUserId }) ?? false
+        let isPoster = ride.userId == currentUserId
+        guard isClaimer || isParticipant || isPoster else { return }
+
+        // Check tracker
+        guard CalendarOfferTracker.shared.shouldOffer(requestType: "ride", requestId: ride.id) else { return }
+
+        // Don't offer for past events
+        let eventTime = RequestItem.ride(ride).eventTime
+        guard eventTime > Date() else { return }
+
+        // Brief delay so the view settles before showing alert
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.showCalendarOffer = true
+        }
+    }
+
+    /// Handle user accepting the calendar offer
+    func acceptCalendarOffer() async {
+        guard let ride = ride else { return }
+        let eventId = await CalendarService.shared.createEventForRide(ride)
+        if eventId != nil {
+            CalendarOfferTracker.shared.recordEventCreated(requestType: "ride", requestId: ride.id)
+        }
+    }
+
+    /// Handle user dismissing the calendar offer
+    func dismissCalendarOffer() {
+        guard let ride = ride else { return }
+        CalendarOfferTracker.shared.recordDismissal(requestType: "ride", requestId: ride.id)
     }
 }
 

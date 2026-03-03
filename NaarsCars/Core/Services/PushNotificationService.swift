@@ -20,6 +20,7 @@ enum NotificationAction: String {
     case reply = "MESSAGE_REPLY"
     case markRead = "MESSAGE_MARK_READ"
     case viewRequest = "VIEW_REQUEST"
+    case addToCalendar = "ADD_TO_CALENDAR"
 }
 
 /// Notification category identifiers
@@ -27,6 +28,7 @@ enum NotificationCategory: String {
     case completionReminder = "COMPLETION_REMINDER"
     case message = "MESSAGE"
     case newRequest = "NEW_REQUEST"
+    case requestClaimed = "REQUEST_CLAIMED"
 }
 
 /// Service for push notification operations
@@ -143,10 +145,31 @@ final class PushNotificationService: NSObject, ObservableObject {
             options: []
         )
         
+        // Claimed Request category with Add to Calendar and View Details actions
+        let addToCalendarAction = UNNotificationAction(
+            identifier: NotificationAction.addToCalendar.rawValue,
+            title: "Add to Calendar",
+            options: [.foreground]
+        )
+
+        let viewClaimedRequestAction = UNNotificationAction(
+            identifier: NotificationAction.viewRequest.rawValue,
+            title: "View Details",
+            options: [.foreground]
+        )
+
+        let requestClaimedCategory = UNNotificationCategory(
+            identifier: NotificationCategory.requestClaimed.rawValue,
+            actions: [addToCalendarAction, viewClaimedRequestAction],
+            intentIdentifiers: [],
+            options: []
+        )
+
         notificationCenter.setNotificationCategories([
             completionCategory,
             messageCategory,
-            newRequestCategory
+            newRequestCategory,
+            requestClaimedCategory
         ])
         
         AppLogger.info("push", "Notification categories configured")

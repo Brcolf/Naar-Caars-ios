@@ -87,6 +87,8 @@ struct CreateFavorView: View {
                         .accessibilityLabel("Favor time")
                         .accessibilityHint("Set the time for this favor")
                     }
+
+                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
                 }
                 
                 Section("favor_create_section_details".localized) {
@@ -183,7 +185,7 @@ struct CreateFavorView: View {
                 )
             }
             .trackScreen("CreateFavor")
-            .alert("Error", isPresented: $showErrorAlert) {
+            .alert("common_error".localized, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {
                     showErrorAlert = false
                 }

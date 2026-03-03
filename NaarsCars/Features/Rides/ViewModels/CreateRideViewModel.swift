@@ -18,6 +18,7 @@ final class CreateRideViewModel: ObservableObject {
     @Published var hour: Int = 9
     @Published var minute: Int = 0
     @Published var isAM: Bool = true
+    @Published var timezone: String = "America/Los_Angeles"
     @Published var pickup: String = ""
     @Published var destination: String = ""
     @Published var seats: Int = 1
@@ -102,7 +103,8 @@ final class CreateRideViewModel: ObservableObject {
                 destination: destination.trimmingCharacters(in: .whitespacesAndNewlines),
                 seats: seats,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines),
-                gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines)
+                gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines),
+                timezone: timezone
             )
             
             // Add participants if any were selected (max 5)

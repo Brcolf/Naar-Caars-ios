@@ -76,6 +76,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
     let requirements: String?
     let date: Date
     let time: String? // TIME type in PostgreSQL (optional)
+    let timezone: String
     let gift: String?
     let status: FavorStatus
     let claimedBy: UUID?
@@ -98,7 +99,14 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
     
     /// Count of Q&A questions/answers
     var qaCount: Int?
-    
+
+    // MARK: - Computed Properties
+
+    /// Resolved TimeZone from the IANA identifier stored in `timezone`
+    var timeZone: TimeZone {
+        TimeZone(identifier: timezone) ?? TimeZone(identifier: "America/Los_Angeles")!
+    }
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
@@ -111,6 +119,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         case requirements
         case date
         case time
+        case timezone
         case gift
         case status
         case claimedBy = "claimed_by"
@@ -134,6 +143,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         requirements: String? = nil,
         date: Date,
         time: String? = nil,
+        timezone: String = "America/Los_Angeles",
         gift: String? = nil,
         status: FavorStatus = .open,
         claimedBy: UUID? = nil,
@@ -156,6 +166,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         self.requirements = requirements
         self.date = date
         self.time = time
+        self.timezone = timezone
         self.gift = gift
         self.status = status
         self.claimedBy = claimedBy

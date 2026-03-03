@@ -33,6 +33,8 @@ struct CreateRideView: View {
                     )
                     .accessibilityLabel("Ride time")
                     .accessibilityHint("Set the departure time")
+
+                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
                 }
                 
                 Section("ride_create_section_route".localized) {
@@ -178,7 +180,7 @@ struct CreateRideView: View {
                 )
             }
             .trackScreen("CreateRide")
-            .alert("Error", isPresented: $showErrorAlert) {
+            .alert("common_error".localized, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {
                     showErrorAlert = false
                 }

@@ -286,6 +286,9 @@
 		ACBF4AC72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift */; };
 		ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */; };
 		ACBF4AC92F12CAE4006A7C8A /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */; };
+		B3D4FDE153794182B95A457D /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4CB4DA6D7C4FDAAD8F19F5 /* CalendarService.swift */; };
+		291A7EDB5F274955A44015C7 /* CalendarOfferTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 172C379B679B4BE19C12E800 /* CalendarOfferTracker.swift */; };
+		5DD5812BCEB14F31A2C09B31 /* TimeZonePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA64AE6017948C8800CE981 /* TimeZonePicker.swift */; };
 		EA96A0CAC38D003C51C98D94 /* BadgeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */; };
 		ACBF4AD22F12CAFF006A7C8A /* CommunityTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ACA2F12CAFF006A7C8A /* CommunityTabView.swift */; };
 		ACBF4AD32F12CAFF006A7C8A /* RequestsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ACF2F12CAFF006A7C8A /* RequestsDashboardView.swift */; };
@@ -738,6 +741,9 @@
 		ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
 		ACBF4ABA2F12CAE4006A7C8A /* InviteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteService.swift; sourceTree = "<group>"; };
 		ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
+		EE4CB4DA6D7C4FDAAD8F19F5 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		172C379B679B4BE19C12E800 /* CalendarOfferTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarOfferTracker.swift; sourceTree = "<group>"; };
+		0CA64AE6017948C8800CE981 /* TimeZonePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZonePicker.swift; sourceTree = "<group>"; };
 		131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeCache.swift; sourceTree = "<group>"; };
 		ACBF4ABC2F12CAE4006A7C8A /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		ACBF4ABD2F12CAE4006A7C8A /* MapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapService.swift; sourceTree = "<group>"; };
@@ -1706,6 +1712,7 @@
 				ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */,
 				ACBF4ABA2F12CAE4006A7C8A /* InviteService.swift */,
 				131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */,
+				EE4CB4DA6D7C4FDAAD8F19F5 /* CalendarService.swift */,
 				ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */,
 				ACBF4ABC2F12CAE4006A7C8A /* LocationService.swift */,
 				ACBF4ABD2F12CAE4006A7C8A /* MapService.swift */,
@@ -1823,6 +1830,7 @@
 				0F3D6332505646313F5B6F73 /* NetworkMonitor.swift */,
 				C55E7C97F2CAF7730FF7EC18 /* RetryableOperation.swift */,
 				68345925C3A049591611F5E6 /* RideCostModels.swift */,
+				172C379B679B4BE19C12E800 /* CalendarOfferTracker.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -1917,6 +1925,7 @@
 				AC02E5462F442FEF00355A45 /* FlightRowView.swift */,
 				AC8197A22F14C216003BB08B /* StarRatingInput.swift */,
 				AC8197A32F14C216003BB08B /* TimePickerView.swift */,
+				0CA64AE6017948C8800CE981 /* TimeZonePicker.swift */,
 				AC305F1A2F0DB85B0063AFDF /* NotificationBadge.swift */,
 				AC305F1B2F0DB85B0063AFDF /* RequestQAView.swift */,
 				DF9507F3043D4ECAA63F8A7E /* AvatarView.swift */,
@@ -2315,6 +2324,9 @@
 				AC27A0122F1F20F700E3B58F /* DateFormatters.swift in Sources */,
 				ACBF4AC92F12CAE4006A7C8A /* LeaderboardService.swift in Sources */,
 				EA96A0CAC38D003C51C98D94 /* BadgeCache.swift in Sources */,
+				B3D4FDE153794182B95A457D /* CalendarService.swift in Sources */,
+				291A7EDB5F274955A44015C7 /* CalendarOfferTracker.swift in Sources */,
+				5DD5812BCEB14F31A2C09B31 /* TimeZonePicker.swift in Sources */,
 				54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */,
 				AC4F1E102F21C11600CC5DBA /* AnnouncementsView.swift in Sources */,
 				AC4F1E112F21C11600CC5DBA /* BellButton.swift in Sources */,

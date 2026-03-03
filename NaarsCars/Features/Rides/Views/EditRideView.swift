@@ -33,8 +33,10 @@ struct EditRideView: View {
                         minute: $viewModel.minute,
                         isAM: $viewModel.isAM
                     )
+
+                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
                 }
-                
+
                 Section("ride_edit_route".localized) {
                     LocationAutocompleteField(
                         label: "",
@@ -99,7 +101,8 @@ struct EditRideView: View {
                                     destination: viewModel.destination.isEmpty ? nil : viewModel.destination,
                                     seats: viewModel.seats,
                                     notes: viewModel.notes.isEmpty ? nil : viewModel.notes,
-                                    gift: viewModel.gift.isEmpty ? nil : viewModel.gift
+                                    gift: viewModel.gift.isEmpty ? nil : viewModel.gift,
+                                    timezone: viewModel.timezone
                                 )
                                 // Notify parent to refresh before dismissing
                                 onSaved?()
@@ -130,6 +133,7 @@ struct EditRideView: View {
                     viewModel.minute = parsedTime.minute
                     viewModel.isAM = parsedTime.isAM
                 }
+                viewModel.timezone = ride.timezone
             }
         }
         .successCheckmark(isShowing: $showSuccess)

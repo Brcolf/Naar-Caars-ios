@@ -193,6 +193,23 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                     // View Details opens the app and deep-links (foreground option)
                     let deepLink = DeepLinkParser.parse(userInfo: userInfo)
                     self.handleDeepLink(deepLink, userInfo: userInfo)
+                case NotificationAction.addToCalendar.rawValue:
+                    // Add to Calendar action from claimed request notification
+                    let requestId: UUID? = {
+                        if let id = userInfo["ride_id"] as? String { return UUID(uuidString: id) }
+                        if let id = userInfo["favor_id"] as? String { return UUID(uuidString: id) }
+                        return nil
+                    }()
+
+                    let eventId = await CalendarService.shared.createEventFromPushData(userInfo)
+                    if eventId != nil, let requestId {
+                        let rType = userInfo["ride_id"] != nil ? "ride" : "favor"
+                        CalendarOfferTracker.shared.recordEventCreated(requestType: rType, requestId: requestId)
+                    }
+
+                    // Also navigate to the request detail
+                    let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+                    self.handleDeepLink(deepLink, userInfo: userInfo)
                 default:
                     // Completion reminder Yes/No actions
                     await PushNotificationService.shared.handleNotificationAction(

@@ -43,6 +43,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
     let type: String
     let date: Date
     let time: String // TIME type in PostgreSQL
+    let timezone: String
     let pickup: String
     let destination: String
     let seats: Int
@@ -72,7 +73,14 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
     
     /// Count of Q&A questions/answers
     var qaCount: Int?
-    
+
+    // MARK: - Computed Properties
+
+    /// Resolved TimeZone from the IANA identifier stored in `timezone`
+    var timeZone: TimeZone {
+        TimeZone(identifier: timezone) ?? TimeZone(identifier: "America/Los_Angeles")!
+    }
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
@@ -81,6 +89,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         case type
         case date
         case time
+        case timezone
         case pickup
         case destination
         case seats
@@ -106,6 +115,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         type: String = "request",
         date: Date,
         time: String,
+        timezone: String = "America/Los_Angeles",
         pickup: String,
         destination: String,
         seats: Int = 1,
@@ -130,6 +140,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         self.type = type
         self.date = date
         self.time = time
+        self.timezone = timezone
         self.pickup = pickup
         self.destination = destination
         self.seats = seats

@@ -65,7 +65,10 @@ struct RideDetailView: View {
         .navigationTitle("ride_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await viewModel.loadRide(id: rideId) }
-        .task { await viewModel.loadRide(id: rideId) }
+        .task {
+            await viewModel.loadRide(id: rideId)
+            viewModel.checkCalendarOffer()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .rideFlightEnrichmentDidComplete)) { notification in
             guard let s = notification.userInfo?[RideFlightEnrichmentNotification.rideIdKey] as? String,
                   let id = UUID(uuidString: s), id == rideId else { return }
@@ -98,6 +101,16 @@ struct RideDetailView: View {
             }
         } message: {
             Text("ride_detail_delete_confirmation".localized)
+        }
+        .alert("calendar_offer_title".localized, isPresented: $viewModel.showCalendarOffer) {
+            Button("calendar_offer_add".localized) {
+                Task { await viewModel.acceptCalendarOffer() }
+            }
+            Button("calendar_offer_not_now".localized, role: .cancel) {
+                viewModel.dismissCalendarOffer()
+            }
+        } message: {
+            Text("calendar_offer_ride_message".localized)
         }
         .sheet(isPresented: $showClaimSheet) {
             if let ride = viewModel.ride {
@@ -348,8 +361,14 @@ struct RideDetailView: View {
                     
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(ride.time)
-                                .font(.naarsHeadline)
+                            HStack(spacing: 4) {
+                                Text(ride.time)
+                                    .font(.naarsHeadline)
+                                let abbrev = ride.timeZone.abbreviation(for: RequestItem.ride(ride).eventTime) ?? ride.timeZone.abbreviation() ?? "PT"
+                                Text(abbrev)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
                             Text("ride_detail_time".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)

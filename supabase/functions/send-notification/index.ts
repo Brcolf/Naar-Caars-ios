@@ -47,6 +47,7 @@ const NOTIFICATION_CATEGORIES: Record<string, string> = {
   [NOTIFICATION_TYPES.COMPLETION_REMINDER]: 'COMPLETION_REMINDER',
   [NOTIFICATION_TYPES.MESSAGE]: 'MESSAGE',
   new_request: 'NEW_REQUEST',
+  request_claimed: 'REQUEST_CLAIMED',
 }
 
 // Simple in-memory rate limiter
@@ -316,6 +317,8 @@ async function sendPushToUser(
     apnsPayload.aps.category = NOTIFICATION_CATEGORIES[NOTIFICATION_TYPES.MESSAGE]
   } else if (notificationType === NOTIFICATION_TYPES.NEW_RIDE || notificationType === NOTIFICATION_TYPES.NEW_FAVOR) {
     apnsPayload.aps.category = NOTIFICATION_CATEGORIES.new_request
+  } else if (notificationType === NOTIFICATION_TYPES.RIDE_CLAIMED || notificationType === NOTIFICATION_TYPES.FAVOR_CLAIMED) {
+    apnsPayload.aps.category = NOTIFICATION_CATEGORIES.request_claimed
   }
 
   // Send push to all devices for this user

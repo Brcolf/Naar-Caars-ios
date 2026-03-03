@@ -60,7 +60,10 @@ struct FavorDetailView: View {
         .navigationTitle("favor_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await viewModel.loadFavor(id: favorId) }
-        .task { await viewModel.loadFavor(id: favorId) }
+        .task {
+            await viewModel.loadFavor(id: favorId)
+            viewModel.checkCalendarOffer()
+        }
         .sheet(isPresented: $showEditFavor) {
             if let favor = viewModel.favor {
                 EditFavorView(favor: favor) {
@@ -82,6 +85,16 @@ struct FavorDetailView: View {
             }
         } message: {
             Text("favor_detail_delete_confirmation".localized)
+        }
+        .alert("calendar_offer_title".localized, isPresented: $viewModel.showCalendarOffer) {
+            Button("calendar_offer_add".localized) {
+                Task { await viewModel.acceptCalendarOffer() }
+            }
+            Button("calendar_offer_not_now".localized, role: .cancel) {
+                viewModel.dismissCalendarOffer()
+            }
+        } message: {
+            Text("calendar_offer_favor_message".localized)
         }
         .sheet(isPresented: $showClaimSheet) {
             if let favor = viewModel.favor {
@@ -267,8 +280,14 @@ struct FavorDetailView: View {
                         if let time = favor.time {
                             Label {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(time)
-                                        .font(.naarsHeadline)
+                                    HStack(spacing: 4) {
+                                        Text(time)
+                                            .font(.naarsHeadline)
+                                        let abbrev = favor.timeZone.abbreviation(for: RequestItem.favor(favor).eventTime) ?? favor.timeZone.abbreviation() ?? "PT"
+                                        Text(abbrev)
+                                            .font(.naarsCaption)
+                                            .foregroundColor(.secondary)
+                                    }
                                     Text("favor_detail_time".localized)
                                         .font(.naarsCaption)
                                         .foregroundColor(.secondary)

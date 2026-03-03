@@ -17,7 +17,8 @@ protocol RideServiceProtocol: AnyObject {
         destination: String,
         seats: Int,
         notes: String?,
-        gift: String?
+        gift: String?,
+        timezone: String
     ) async throws -> Ride
     func addRideParticipants(rideId: UUID, userIds: [UUID], addedBy: UUID) async throws
     func fetchQA(requestId: UUID, requestType: String) async throws -> [RequestQA]

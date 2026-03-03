@@ -55,6 +55,10 @@
 		<string>MKDirectionsModePedestrian</string>
 		<string>MKDirectionsModeRideShare</string>
 	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Naar's Cars uses your camera to take profile photos.</string>
 	<key>NSFaceIDUsageDescription</key>

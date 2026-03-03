@@ -57,24 +57,33 @@ enum RequestItem: Identifiable, Equatable {
         }
     }
     
-    /// Event time for sorting (combines date + time)
+    /// The request's timezone
+    var timeZone: TimeZone {
+        switch self {
+        case .ride(let ride): return ride.timeZone
+        case .favor(let favor): return favor.timeZone
+        }
+    }
+
+    /// Event time for sorting (combines date + time using stored timezone)
     var eventTime: Date {
         switch self {
         case .ride(let ride):
-            return combineDateAndTime(date: ride.date, time: ride.time) ?? ride.date
+            return combineDateAndTime(date: ride.date, time: ride.time, timeZone: ride.timeZone) ?? ride.date
         case .favor(let favor):
             if let time = favor.time {
-                return combineDateAndTime(date: favor.date, time: time) ?? favor.date
+                return combineDateAndTime(date: favor.date, time: time, timeZone: favor.timeZone) ?? favor.date
             }
             return favor.date
         }
     }
-    
-    /// Combine date and time string into a Date
-    private func combineDateAndTime(date: Date, time: String) -> Date? {
-        let calendar = Calendar.current
+
+    /// Combine date and time string into a Date using the request's timezone
+    private func combineDateAndTime(date: Date, time: String, timeZone: TimeZone) -> Date? {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZone
         let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-        
+
         // Parse time string (format: "HH:mm:ss" or "HH:mm")
         let timeParts = time.split(separator: ":")
         guard timeParts.count >= 2,
@@ -82,7 +91,7 @@ enum RequestItem: Identifiable, Equatable {
               let minute = Int(timeParts[1]) else {
             return nil
         }
-        
+
         var components = DateComponents()
         components.year = dateComponents.year
         components.month = dateComponents.month
@@ -90,7 +99,8 @@ enum RequestItem: Identifiable, Equatable {
         components.hour = hour
         components.minute = minute
         components.second = timeParts.count > 2 ? Int(timeParts[2]) : 0
-        
+        components.timeZone = timeZone
+
         return calendar.date(from: components)
     }
     
