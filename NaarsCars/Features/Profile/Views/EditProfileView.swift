@@ -139,7 +139,8 @@ struct EditProfileView: View {
                 AvatarView(
                     imageUrl: viewModel.existingAvatarUrl,
                     name: viewModel.name,
-                    size: 120
+                    size: 120,
+                    userId: viewModel.userId
                 )
             }
             

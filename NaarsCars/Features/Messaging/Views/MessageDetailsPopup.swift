@@ -124,7 +124,8 @@ struct MessageDetailsPopup: View {
                             AvatarView(
                                 imageUrl: participant.avatarUrl,
                                 name: participant.name,
-                                size: 40
+                                size: 40,
+                                userId: participant.id
                             )
                             
                             VStack(alignment: .leading, spacing: 4) {

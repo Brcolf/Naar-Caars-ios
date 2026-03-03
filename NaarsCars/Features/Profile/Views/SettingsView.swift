@@ -748,7 +748,8 @@ struct BlockedUsersView: View {
                             AvatarView(
                                 imageUrl: blockedUser.blockedAvatarUrl,
                                 name: blockedUser.blockedName,
-                                size: 44
+                                size: 44,
+                                userId: blockedUser.blockedId
                             )
                             
                             // Name and blocked date

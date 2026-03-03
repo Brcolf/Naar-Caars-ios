@@ -12,11 +12,13 @@ struct ReviewCard: View {
     let review: Review
     let reviewerName: String?
     let reviewerAvatarUrl: String?
-    
-    init(review: Review, reviewerName: String? = nil, reviewerAvatarUrl: String? = nil) {
+    let reviewerId: UUID?
+
+    init(review: Review, reviewerName: String? = nil, reviewerAvatarUrl: String? = nil, reviewerId: UUID? = nil) {
         self.review = review
         self.reviewerName = reviewerName
         self.reviewerAvatarUrl = reviewerAvatarUrl
+        self.reviewerId = reviewerId
     }
     
     var body: some View {
@@ -27,13 +29,15 @@ struct ReviewCard: View {
                     AvatarView(
                         imageUrl: reviewerAvatarUrl,
                         name: reviewerName ?? "Anonymous",
-                        size: 40
+                        size: 40,
+                        userId: reviewerId
                     )
                 } else {
                     AvatarView(
                         imageUrl: nil,
                         name: reviewerName ?? "Anonymous",
-                        size: 40
+                        size: 40,
+                        userId: reviewerId
                     )
                 }
                 

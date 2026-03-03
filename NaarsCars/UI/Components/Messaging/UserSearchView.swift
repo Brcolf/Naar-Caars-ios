@@ -272,7 +272,8 @@ private struct UserSearchRow: View {
                 AvatarView(
                     imageUrl: profile.avatarUrl,
                     name: profile.name,
-                    size: 50
+                    size: 50,
+                    userId: profile.id
                 )
                 
                 VStack(alignment: .leading, spacing: 4) {

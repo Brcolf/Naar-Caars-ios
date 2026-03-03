@@ -100,7 +100,8 @@ private struct MemberRow: View {
             AvatarView(
                 imageUrl: member.avatarUrl,
                 name: member.name,
-                size: 44
+                size: 44,
+                userId: member.id
             )
             
             // User info

@@ -28,7 +28,7 @@ final class EditProfileViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let profileService: any ProfileServiceProtocol
-    private let userId: UUID
+    let userId: UUID
     private let originalPhoneNumber: String?
     
     /// The existing avatar URL from the profile (used as fallback while no new photo is selected)

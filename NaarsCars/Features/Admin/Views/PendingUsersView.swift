@@ -114,7 +114,8 @@ private struct PendingUserRow: View {
                 AvatarView(
                     imageUrl: user.avatarUrl,
                     name: user.name,
-                    size: 50
+                    size: 50,
+                    userId: user.id
                 )
                 
                 // User info

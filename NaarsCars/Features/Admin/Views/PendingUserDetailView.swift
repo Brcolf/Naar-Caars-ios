@@ -26,7 +26,8 @@ struct PendingUserDetailView: View {
                     AvatarView(
                         imageUrl: user.avatarUrl,
                         name: user.name,
-                        size: 80
+                        size: 80,
+                        userId: user.id
                     )
                     
                     Text(user.name)
@@ -68,7 +69,8 @@ struct PendingUserDetailView: View {
                                     AvatarView(
                                         imageUrl: inviter.avatarUrl,
                                         name: inviter.name,
-                                        size: 40
+                                        size: 40,
+                                        userId: inviter.id
                                     )
                                     
                                     Text(inviter.name)

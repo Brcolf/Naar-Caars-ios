@@ -18,7 +18,8 @@ struct ConversationAvatar: View {
                 AvatarView(
                     imageUrl: participant.avatarUrl,
                     name: participant.name,
-                    size: 50
+                    size: 50,
+                    userId: participant.id
                 )
             } else if conversationDetail.otherParticipants.count > 1 {
                 // Group avatar
