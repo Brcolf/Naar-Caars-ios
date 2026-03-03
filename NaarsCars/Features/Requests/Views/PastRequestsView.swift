@@ -10,7 +10,7 @@ import SwiftUI
 /// View for displaying past requests
 struct PastRequestsView: View {
     @StateObject private var viewModel = PastRequestsViewModel()
-    @State private var selectedFilter: PastRequestFilter = .myRequests
+    @State private var selectedFilter: PastRequestFilter
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPastRideId: UUID?
     @State private var selectedPastFavorId: UUID?
@@ -29,7 +29,11 @@ struct PastRequestsView: View {
         case myRequests = "ride_edit_my_past_requests"
         case helpedWith = "ride_edit_helped_with"
     }
-    
+
+    init(initialFilter: PastRequestFilter = .myRequests) {
+        _selectedFilter = State(initialValue: initialFilter)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
