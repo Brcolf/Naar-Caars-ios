@@ -61,12 +61,17 @@ struct TownHallPostCard: View {
         return review.rating
     }
 
-    /// "Reviewed Jane Doe for a ride"
+    /// "Brendan reviewed Jane Doe for a ride"
     private var reviewSubtitle: String? {
         guard isReview, let review = post.review else { return nil }
-        var text = "Reviewed"
+        var text = ""
+        if let author = post.author {
+            text += "\(author.name) reviewed "
+        } else {
+            text += "Reviewed "
+        }
         if let name = review.fulfillerName {
-            text += " \(name)"
+            text += name
         }
         if review.rideId != nil {
             text += " for a ride"
