@@ -71,7 +71,7 @@ final class TownHallFeedViewModel: ObservableObject {
         do {
             let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: 0)
             updateVoteCache(with: fetchedPosts)
-            posts = applyVoteCache(to: fetchedPosts)
+            posts = sortWithPinnedFirst(applyVoteCache(to: fetchedPosts))
             currentOffset = fetchedPosts.count
             hasMore = fetchedPosts.count >= pageSize
             try repository.upsertPosts(fetchedPosts)
@@ -158,7 +158,7 @@ final class TownHallFeedViewModel: ObservableObject {
         postsCancellable = repository.getPostsPublisher()
             .sink { [weak self] posts in
                 guard let self else { return }
-                self.posts = self.applyVoteCache(to: posts)
+                self.posts = self.sortWithPinnedFirst(self.applyVoteCache(to: posts))
             }
     }
 
@@ -232,7 +232,18 @@ final class TownHallFeedViewModel: ObservableObject {
         for post in new {
             map[post.id] = post
         }
-        return map.values.sorted { $0.createdAt > $1.createdAt }
+        return sortWithPinnedFirst(Array(map.values))
+    }
+
+    /// Sort posts with pinned announcements (< 7 days old) at top
+    private func sortWithPinnedFirst(_ posts: [TownHallPost]) -> [TownHallPost] {
+        let pinWindow = Date().addingTimeInterval(-7 * 24 * 3600)
+        return posts.sorted { a, b in
+            let aIsPinned = a.pinned == true && a.createdAt > pinWindow
+            let bIsPinned = b.pinned == true && b.createdAt > pinWindow
+            if aIsPinned != bIsPinned { return aIsPinned }
+            return a.createdAt > b.createdAt
+        }
     }
 }
 
