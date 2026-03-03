@@ -483,8 +483,7 @@ final class TownHallService {
 
         guard let data = response?.data else { return [:] }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
         var reviews = (try? decoder.decode([Review].self, from: data)) ?? []
 
         // Fetch fulfiller names
