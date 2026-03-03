@@ -48,6 +48,9 @@
 		4779EAF6DB234F378D72E66E /* Core/Services/FavorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38092A64DA1E4019975DEE4A /* Core/Services/FavorService.swift */; };
 		498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8AF409DE784C1FBB461F50 /* Core/Services/MessageService.swift */; };
 		4AAA0DD304984275B1F7F158 /* MyProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FA662507801456991ABCE22 /* MyProfileView.swift */; };
+		B1C2D3E4F5A6B7C8D9E0F1A2 /* ReviewsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F4A5B6C7D8E9F0A1B2 /* ReviewsSheet.swift */; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* SavingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D3E4F5A6B7C8D9E0F1A2B3 /* SavingsSheet.swift */; };
+		B3C4D5E6F7A8B9C0D1E2F3A4 /* XPHistorySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A3B4 /* XPHistorySheet.swift */; };
 		4AEC6FC9813D460387D9E4C0 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9C1B07712F4342B2190EC3 /* Conversation.swift */; };
 		4B35515A6EE441D4B9FBA18A /* AddressText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA18F86136B84CB396BD5C56 /* AddressText.swift */; };
 		4C32271EC04DAB4DDACF2475 /* ReviewRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A89F5AE28B17AD11B6782F /* ReviewRowView.swift */; };
@@ -498,6 +501,9 @@
 		5B83B70D276143ED90C7BA8E /* EditProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProfileViewModelTests.swift; sourceTree = "<group>"; };
 		5F276C77E68740EFBB9E1D03 /* PromptCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCoordinatorTests.swift; sourceTree = "<group>"; };
 		5FA662507801456991ABCE22 /* MyProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyProfileView.swift; sourceTree = "<group>"; };
+		C1D2E3F4A5B6C7D8E9F0A1B2 /* ReviewsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewsSheet.swift; sourceTree = "<group>"; };
+		C2D3E4F5A6B7C8D9E0F1A2B3 /* SavingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavingsSheet.swift; sourceTree = "<group>"; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* XPHistorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPHistorySheet.swift; sourceTree = "<group>"; };
 		609BB64D0F1C4E52B07C0A26 /* UI/Components/Cards/RideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/RideCard.swift; sourceTree = "<group>"; };
 		615290EDA85A4A0790E485F2 /* Features/Claiming/Views/ClaimSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Claiming/Views/ClaimSheet.swift; sourceTree = "<group>"; };
 		61666853D3A74441B96D50E7 /* UI/Components/Feedback/SkeletonLeaderboardRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Feedback/SkeletonLeaderboardRow.swift; sourceTree = "<group>"; };
@@ -2043,6 +2049,9 @@
 				ACBF4AF82F12CB85006A7C8A /* LanguageSettingsView.swift */,
 				ACBF4AFA2F12CB85006A7C8A /* SettingsView.swift */,
 				5FA662507801456991ABCE22 /* MyProfileView.swift */,
+				C1D2E3F4A5B6C7D8E9F0A1B2 /* ReviewsSheet.swift */,
+				C2D3E4F5A6B7C8D9E0F1A2B3 /* SavingsSheet.swift */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* XPHistorySheet.swift */,
 				82E5C134F01A4B3E9C064014 /* EditProfileView.swift */,
 				84E90AAA9A7547F4A0F8AC12 /* PublicProfileView.swift */,
 				E210047167A33C93B77C8A8C /* AccountSettingsSection.swift */,
@@ -2366,6 +2375,9 @@
 				AC27A0032F1EDCDC00E3B58F /* CrashReportingService.swift in Sources */,
 				705E4B404CE3406391EF9121 /* PublicProfileViewModel.swift in Sources */,
 				4AAA0DD304984275B1F7F158 /* MyProfileView.swift in Sources */,
+				B1C2D3E4F5A6B7C8D9E0F1A2 /* ReviewsSheet.swift in Sources */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* SavingsSheet.swift in Sources */,
+				B3C4D5E6F7A8B9C0D1E2F3A4 /* XPHistorySheet.swift in Sources */,
 				FA2BBF9801DF4FA8810D2A2C /* EditProfileView.swift in Sources */,
 				AC305EC52F0DB7890063AFDF /* NotificationsListViewModel.swift in Sources */,
 				AC305EC62F0DB7890063AFDF /* NotificationRow.swift in Sources */,
