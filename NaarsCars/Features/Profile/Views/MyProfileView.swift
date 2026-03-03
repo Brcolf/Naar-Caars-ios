@@ -31,7 +31,24 @@ struct MyProfileView: View {
     @State private var showPendingUsersList = false
     @State private var showAdminPanel = false
     @State private var toastMessage: String? = nil
-    
+    @State private var activeProfileSheet: ProfileSheet?
+
+    enum ProfileSheet: Identifiable {
+        case reviews
+        case savings
+        case pastRequests
+        case xpHistory
+
+        var id: Int {
+            switch self {
+            case .reviews: return 0
+            case .savings: return 1
+            case .pastRequests: return 2
+            case .xpHistory: return 3
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -44,8 +61,9 @@ struct MyProfileView: View {
                             // Stats Section
                             statsSection(
                                 rating: viewModel.averageRating,
-                                reviewCount: viewModel.reviews.count,
-                                fulfilledCount: viewModel.fulfilledCount
+                                totalSavings: viewModel.totalSavings,
+                                fulfilledCount: viewModel.fulfilledCount,
+                                xp: viewModel.totalXP
                             )
                             
                             // Admin Panel Link (below stats)
@@ -286,6 +304,18 @@ struct MyProfileView: View {
                     }
                 }
             }
+            .sheet(item: $activeProfileSheet) { sheet in
+                switch sheet {
+                case .reviews:
+                    ReviewsSheet(reviews: viewModel.reviews)
+                case .savings:
+                    SavingsSheet()
+                case .pastRequests:
+                    PastRequestsView(initialFilter: .helpedWith)
+                case .xpHistory:
+                    XPHistorySheet(totalXP: viewModel.totalXP)
+                }
+            }
             .onChange(of: selectedPhoto) { _, newPhoto in
                 guard let newPhoto else { return }
                 Task {
@@ -359,8 +389,17 @@ struct MyProfileView: View {
     
     // MARK: - Stats Section
     
-    private func statsSection(rating: Double?, reviewCount: Int, fulfilledCount: Int) -> some View {
-        ProfileStatsCard(rating: rating, reviewCount: reviewCount, fulfilledCount: fulfilledCount)
+    private func statsSection(rating: Double?, totalSavings: Double, fulfilledCount: Int, xp: Int) -> some View {
+        ProfileStatsCard(
+            rating: rating,
+            totalSavings: totalSavings,
+            fulfilledCount: fulfilledCount,
+            xp: xp,
+            onRatingTap: { activeProfileSheet = .reviews },
+            onSavingsTap: { activeProfileSheet = .savings },
+            onFulfilledTap: { activeProfileSheet = .pastRequests },
+            onXPTap: { activeProfileSheet = .xpHistory }
+        )
     }
     
     // MARK: - Invite Codes Section
