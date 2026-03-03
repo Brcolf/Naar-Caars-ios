@@ -46,11 +46,12 @@ struct NaarsTextField: View {
                     Button {
                         isPasswordVisible.toggle()
                     } label: {
-                        Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                        Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
                             .foregroundColor(.naarsTextSecondary)
                     }
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
+                    .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
                 }
             }
             .padding(.leading, 20)
@@ -70,6 +71,7 @@ struct NaarsTextField: View {
                     .font(.naarsCaption)
                     .foregroundColor(.naarsError)
                     .padding(.leading, 20)
+                    .accessibilityLabel("Error: \(errorMessage)")
             }
         }
     }
@@ -82,9 +84,9 @@ struct NaarsTextField: View {
 
     private var strokeColor: Color {
         if errorMessage != nil {
-            return Color.naarsError.opacity(0.5)
+            return Color.naarsError.opacity(0.3)
         }
-        return Color.naarsPrimary.opacity(0.4)
+        return Color.naarsPrimary.opacity(0.3)
     }
 }
 

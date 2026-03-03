@@ -189,7 +189,7 @@ struct SignupDetailsView: View {
                 Button { moveFocus(forward: true) } label: { Image(systemName: "chevron.down") }
                     .disabled(focusedField == .car)
                 Spacer()
-                Button("Done") { focusedField = nil }
+                Button("common_done".localized) { focusedField = nil }
             }
         }
         .onAppear {

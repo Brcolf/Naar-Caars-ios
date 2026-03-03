@@ -82,7 +82,7 @@ struct SignupInviteCodeView: View {
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") { isCodeFocused = false }
+                Button("common_done".localized) { isCodeFocused = false }
             }
         }
         .scrollDismissesKeyboard(.interactively)

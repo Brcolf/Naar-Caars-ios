@@ -87,7 +87,7 @@ struct PasswordResetView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { isEmailFocused = false }
+                    Button("common_done".localized) { isEmailFocused = false }
                 }
             }
         }

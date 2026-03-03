@@ -177,7 +177,7 @@ struct LoginView: View {
                 Button { if focusedField == .email { focusedField = .password } } label: { Image(systemName: "chevron.down") }
                     .disabled(focusedField == .password)
                 Spacer()
-                Button("Done") { focusedField = nil }
+                Button("common_done".localized) { focusedField = nil }
             }
         }
         .sheet(isPresented: $showPasswordReset) {
