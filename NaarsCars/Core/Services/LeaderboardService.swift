@@ -10,10 +10,10 @@ import Supabase
 
 /// Time period for leaderboard filtering
 enum LeaderboardPeriod: String, Codable, CaseIterable {
-    case allTime = "All Time"
-    case thisYear = "This Year"
-    case thisQuarter = "This Quarter"
     case thisMonth = "This Month"
+    case thisQuarter = "This Quarter"
+    case thisYear = "This Year"
+    case allTime = "All Time"
     
     var displayName: String {
         rawValue

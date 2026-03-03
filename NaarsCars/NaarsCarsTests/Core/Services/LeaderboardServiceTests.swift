@@ -89,6 +89,25 @@ final class LeaderboardServiceTests: XCTestCase {
         }
     }
     
+    /// Test that leaderboard badges and user badges are consistent
+    func testBadgeConsistency() async throws {
+        do {
+            let entries = try await leaderboardService.fetchLeaderboard(period: .allTime)
+            guard let firstEntry = entries.first else {
+                XCTSkip("No leaderboard entries to test")
+                return
+            }
+            let userBadges = try await leaderboardService.fetchUserBadges(userId: firstEntry.userId)
+            // All-time leaderboard badges should be subset of all-time user badges
+            for badge in firstEntry.badges {
+                XCTAssertTrue(userBadges.contains(badge),
+                              "Leaderboard badge \(badge.rawValue) not found in user badges")
+            }
+        } catch {
+            XCTFail("Badge consistency test failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Test date range calculation for different periods
     func testDateRangeCalculation() {
         let calendar = Calendar.current
