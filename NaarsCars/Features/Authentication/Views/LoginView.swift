@@ -54,6 +54,7 @@ struct LoginView: View {
                         text: $viewModel.email,
                         keyboardType: .emailAddress,
                         textContentType: .emailAddress,
+                        isFocused: focusedField == .email,
                         accessibilityId: "login.email"
                     )
                     .focused($focusedField, equals: .email)
@@ -64,6 +65,7 @@ struct LoginView: View {
                         text: $viewModel.password,
                         isSecure: true,
                         textContentType: .password,
+                        isFocused: focusedField == .password,
                         accessibilityId: "login.password"
                     )
                     .focused($focusedField, equals: .password)

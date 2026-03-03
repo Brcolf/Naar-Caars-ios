@@ -42,6 +42,7 @@ struct SignupDetailsView: View {
                         text: $viewModel.name,
                         autocapitalization: .words,
                         errorMessage: viewModel.nameError,
+                        isFocused: focusedField == .name,
                         accessibilityId: "signup.name"
                     )
                     .focused($focusedField, equals: .name)
@@ -56,6 +57,7 @@ struct SignupDetailsView: View {
                         keyboardType: .emailAddress,
                         textContentType: .emailAddress,
                         errorMessage: viewModel.emailError,
+                        isFocused: focusedField == .email,
                         accessibilityId: "signup.email"
                     )
                     .focused($focusedField, equals: .email)
@@ -71,6 +73,7 @@ struct SignupDetailsView: View {
                             isSecure: true,
                             textContentType: .newPassword,
                             errorMessage: viewModel.passwordError,
+                            isFocused: focusedField == .password,
                             accessibilityId: "signup.password"
                         )
                         .focused($focusedField, equals: .password)
@@ -94,6 +97,7 @@ struct SignupDetailsView: View {
                         isSecure: true,
                         textContentType: .newPassword,
                         errorMessage: viewModel.confirmPasswordError,
+                        isFocused: focusedField == .confirmPassword,
                         accessibilityId: "signup.confirmPassword"
                     )
                     .focused($focusedField, equals: .confirmPassword)
@@ -106,6 +110,7 @@ struct SignupDetailsView: View {
                         placeholder: "signup_car_placeholder".localized,
                         text: $viewModel.car,
                         autocapitalization: .words,
+                        isFocused: focusedField == .car,
                         accessibilityId: "signup.car"
                     )
                     .focused($focusedField, equals: .car)

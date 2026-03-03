@@ -17,10 +17,10 @@ struct NaarsTextField: View {
     var autocapitalization: TextInputAutocapitalization = .never
     var autocorrectionDisabled: Bool = true
     var errorMessage: String? = nil
+    var isFocused: Bool = false
     var accessibilityId: String? = nil
 
     @State private var isPasswordVisible = false
-    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -29,7 +29,6 @@ struct NaarsTextField: View {
                     SecureField(placeholder, text: $text)
                         .textContentType(textContentType)
                         .font(.naarsBody)
-                        .focused($isFocused)
                         .conditionalAccessibilityId(accessibilityId)
                 } else {
                     TextField(placeholder, text: $text)
@@ -38,7 +37,6 @@ struct NaarsTextField: View {
                         .textInputAutocapitalization(autocapitalization)
                         .autocorrectionDisabled(autocorrectionDisabled)
                         .font(.naarsBody)
-                        .focused($isFocused)
                         .conditionalAccessibilityId(accessibilityId)
                 }
 

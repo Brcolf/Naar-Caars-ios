@@ -44,6 +44,7 @@ struct SignupInviteCodeView: View {
                     text: $inviteCode,
                     autocapitalization: .characters,
                     autocorrectionDisabled: true,
+                    isFocused: isCodeFocused,
                     accessibilityId: "signup.inviteCode"
                 )
                 .focused($isCodeFocused)

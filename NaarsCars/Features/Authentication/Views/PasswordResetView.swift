@@ -30,6 +30,7 @@ struct PasswordResetView: View {
                         text: $viewModel.email,
                         keyboardType: .emailAddress,
                         textContentType: .emailAddress,
+                        isFocused: isEmailFocused,
                         accessibilityId: "passwordReset.email"
                     )
                     .focused($isEmailFocused)
