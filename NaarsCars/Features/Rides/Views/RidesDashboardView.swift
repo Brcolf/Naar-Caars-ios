@@ -148,7 +148,7 @@ struct RidesDashboardView: View {
         } else if filteredRides.isEmpty {
             EmptyStateView(
                 icon: "car.fill",
-                title: "No Rides Available",
+                title: "rides_empty_title".localized,
                 message: filterEmptyMessage,
                 actionTitle: "Create Ride",
                 action: {
@@ -187,11 +187,11 @@ struct RidesDashboardView: View {
     private var filterEmptyMessage: String {
         switch viewModel.filter {
         case .all:
-            return "There are no ride requests at this time. Be the first to post one!"
+            return "rides_empty_all".localized
         case .mine:
-            return "You haven't posted any ride requests yet. Create your first one!"
+            return "rides_empty_mine".localized
         case .claimed:
-            return "You haven't claimed any rides yet. Browse all rides to find one to help with!"
+            return "rides_empty_claimed".localized
         }
     }
 }

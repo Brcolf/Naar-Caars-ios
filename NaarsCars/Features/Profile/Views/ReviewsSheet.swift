@@ -17,8 +17,8 @@ struct ReviewsSheet: View {
                 if reviews.isEmpty {
                     EmptyStateView(
                         icon: "star.fill",
-                        title: "No Reviews Yet",
-                        message: "Reviews from people you've helped will appear here."
+                        title: "reviews_empty_title".localized,
+                        message: "reviews_empty_message".localized
                     )
                 } else {
                     ScrollView {
@@ -31,11 +31,11 @@ struct ReviewsSheet: View {
                     }
                 }
             }
-            .navigationTitle("Reviews")
+            .navigationTitle("reviews_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("common_done".localized) { dismiss() }
                 }
             }
         }

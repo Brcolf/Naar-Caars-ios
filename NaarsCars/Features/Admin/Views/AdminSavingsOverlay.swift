@@ -30,10 +30,10 @@ struct AdminSavingsOverlay: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Period", selection: $selectedPeriod) {
-                    Text("Week").tag("week")
-                    Text("Month").tag("month")
-                    Text("Year").tag("year")
+                Picker("savings_period_label".localized, selection: $selectedPeriod) {
+                    Text("period_week".localized).tag("week")
+                    Text("period_month".localized).tag("month")
+                    Text("period_year".localized).tag("year")
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -41,7 +41,7 @@ struct AdminSavingsOverlay: View {
                 VStack(spacing: 4) {
                     Text(formattedTotal)
                         .font(.system(size: 48, weight: .bold))
-                    Text("Total Savings")
+                    Text("savings_total_label".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                 }
@@ -65,7 +65,7 @@ struct AdminSavingsOverlay: View {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(formatCurrency(period.totalSavings))
                                     .font(.naarsHeadline)
-                                Text("\(period.rideCount) rides")
+                                Text("savings_ride_count".localized(with: period.rideCount))
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
@@ -74,11 +74,11 @@ struct AdminSavingsOverlay: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Total Savings")
+            .navigationTitle("admin_total_savings_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("common_done".localized) { dismiss() }
                 }
             }
         }
@@ -96,7 +96,7 @@ struct AdminSavingsOverlay: View {
         do {
             periods = try await adminService.fetchSavingsBreakdown(period: selectedPeriod)
         } catch {
-            self.error = "Failed to load data"
+            self.error = "common_load_error".localized
             AppLogger.error("admin", "Savings overlay error: \(error.localizedDescription)")
         }
     }
@@ -106,7 +106,7 @@ struct AdminSavingsOverlay: View {
         switch selectedPeriod {
         case "week":
             formatter.dateFormat = "MMM d, yyyy"
-            return "Week of \(formatter.string(from: date))"
+            return "admin_week_of".localized(with: formatter.string(from: date))
         case "year":
             formatter.dateFormat = "yyyy"
             return formatter.string(from: date)

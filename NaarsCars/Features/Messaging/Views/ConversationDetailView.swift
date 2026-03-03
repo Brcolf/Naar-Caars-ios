@@ -333,7 +333,7 @@ struct ConversationDetailView: View {
                 )
             }
         }
-        .alert("Unsend Message", isPresented: $showUnsendConfirmation) {
+        .alert("messaging_unsend_title".localized, isPresented: $showUnsendConfirmation) {
             Button("Cancel", role: .cancel) {
                 messageToUnsend = nil
             }

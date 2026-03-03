@@ -39,7 +39,7 @@ struct XPHistorySheet: View {
                 VStack(spacing: 4) {
                     Text("\(totalXP)")
                         .font(.system(size: 48, weight: .bold))
-                    Text("Total XP Earned")
+                    Text("xp_total_earned_label".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                 }
@@ -58,8 +58,8 @@ struct XPHistorySheet: View {
                     Spacer()
                     EmptyStateView(
                         icon: "bolt.fill",
-                        title: "No XP Yet",
-                        message: "Help neighbors with rides and favors to earn XP."
+                        title: "xp_empty_title".localized,
+                        message: "xp_empty_message".localized
                     )
                     Spacer()
                 } else {
@@ -75,7 +75,7 @@ struct XPHistorySheet: View {
                                             .frame(width: 50, alignment: .leading)
 
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text(event.description ?? (event.sourceType == "ride" ? "Ride" : "Favor"))
+                                            Text(event.description ?? (event.sourceType == "ride" ? "xp_source_ride".localized : "xp_source_favor".localized))
                                                 .font(.naarsBody)
                                                 .lineLimit(1)
                                             Text(event.createdAt.timeAgo)
@@ -96,11 +96,11 @@ struct XPHistorySheet: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("XP History")
+            .navigationTitle("xp_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("common_done".localized) { dismiss() }
                 }
             }
         }
@@ -115,7 +115,7 @@ struct XPHistorySheet: View {
         do {
             events = try await profileService.fetchUserXPEvents()
         } catch {
-            self.error = "Failed to load XP history"
+            self.error = "xp_load_error".localized
             AppLogger.error("profile", "XP history sheet error: \(error.localizedDescription)")
         }
     }

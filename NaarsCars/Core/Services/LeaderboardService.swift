@@ -16,7 +16,12 @@ enum LeaderboardPeriod: String, Codable, CaseIterable {
     case allTime = "All Time"
     
     var displayName: String {
-        rawValue
+        switch self {
+        case .thisMonth: return "leaderboard_period_this_month".localized
+        case .thisQuarter: return "leaderboard_period_this_quarter".localized
+        case .thisYear: return "leaderboard_period_this_year".localized
+        case .allTime: return "leaderboard_period_all_time".localized
+        }
     }
 }
 

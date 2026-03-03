@@ -83,7 +83,7 @@ struct RouteMapView: View {
                let destCoord = destinationCoordinate {
                 mapView(pickupCoord: pickupCoord, destCoord: destCoord)
             } else {
-                errorView(message: "Route unavailable")
+                errorView(message: "route_unavailable".localized)
             }
             
         case .error(let message):
@@ -96,7 +96,7 @@ struct RouteMapView: View {
             Color(.systemGray5)
             VStack(spacing: 8) {
                 ProgressView()
-                Text("Loading route...")
+                Text("route_loading".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -114,7 +114,7 @@ struct RouteMapView: View {
             }
             
             // Pickup marker
-            Annotation("Pickup", coordinate: pickupCoord) {
+            Annotation("route_annotation_pickup".localized, coordinate: pickupCoord) {
                 ZStack {
                     Circle()
                         .fill(Color.white)
@@ -127,7 +127,7 @@ struct RouteMapView: View {
             }
             
             // Destination marker
-            Annotation("Destination", coordinate: destCoord) {
+            Annotation("route_annotation_destination".localized, coordinate: destCoord) {
                 ZStack {
                     Circle()
                         .fill(Color.white)
@@ -164,7 +164,7 @@ struct RouteMapView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
-                            Text("Retry")
+                            Text("common_retry".localized)
                         }
                         .font(.naarsCaption)
                         .foregroundColor(.naarsPrimary)
@@ -225,11 +225,11 @@ struct RouteMapView: View {
         } catch let error as MapError {
             // Handle specific map errors with more detail
             AppLogger.error("map", "RouteMapView MapError: \(error.errorDescription ?? "unknown") | Pickup: \(pickup) | Destination: \(destination)")
-            self.loadingState = .error(error.errorDescription ?? "Route unavailable")
+            self.loadingState = .error(error.errorDescription ?? "route_unavailable".localized)
         } catch {
             // Handle generic errors with details
             AppLogger.error("map", "RouteMapView error: \(error.localizedDescription) | Pickup: \(pickup) | Destination: \(destination)")
-            self.loadingState = .error("Could not load route")
+            self.loadingState = .error("route_load_error".localized)
         }
     }
 }

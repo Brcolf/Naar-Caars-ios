@@ -43,14 +43,14 @@ struct ReactionDetailsSheet: View {
                                 Button(role: .destructive) {
                                     onRemoveReaction(reaction)
                                 } label: {
-                                    Text("Remove \(reaction)")
+                                    Text("messaging_remove_reaction".localized(with: reaction))
                                 }
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Reactions")
+            .navigationTitle("messaging_reactions_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

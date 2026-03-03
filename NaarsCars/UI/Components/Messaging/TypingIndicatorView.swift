@@ -84,14 +84,14 @@ struct TypingIndicatorView: View {
     private var typingText: String {
         switch typingUsers.count {
         case 1:
-            return "\(typingUsers[0].name) is typing..."
+            return "messaging_typing_single".localized(with: typingUsers[0].name)
         case 2:
-            return "\(typingUsers[0].name) and \(typingUsers[1].name) are typing..."
+            return "messaging_typing_two".localized(with: typingUsers[0].name, typingUsers[1].name)
         case 3:
-            return "\(typingUsers[0].name), \(typingUsers[1].name) and 1 other are typing..."
+            return "messaging_typing_three".localized(with: typingUsers[0].name, typingUsers[1].name)
         default:
             let others = typingUsers.count - 2
-            return "\(typingUsers[0].name), \(typingUsers[1].name) and \(others) others are typing..."
+            return "messaging_typing_many".localized(with: typingUsers[0].name, typingUsers[1].name, others)
         }
     }
 }

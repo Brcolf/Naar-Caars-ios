@@ -115,7 +115,7 @@ struct ConversationMediaGalleryView: View {
             }
         }
         .background(Color.naarsBackgroundSecondary)
-        .navigationTitle("Media")
+        .navigationTitle("messaging_media_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.loadImages()

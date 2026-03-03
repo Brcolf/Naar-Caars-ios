@@ -37,7 +37,7 @@ struct AddressText: View {
                 Button {
                     copyAddress()
                 } label: {
-                    Label("Copy Address", systemImage: "doc.on.doc")
+                    Label("address_copy_action".localized, systemImage: "doc.on.doc")
                 }
                 
                 Divider()
@@ -46,14 +46,14 @@ struct AddressText: View {
                 Button {
                     openInAppleMaps()
                 } label: {
-                    Label("Open in Apple Maps", systemImage: "map")
+                    Label("address_open_apple_maps".localized, systemImage: "map")
                 }
                 
                 // Open in Google Maps
                 Button {
                     openInGoogleMaps()
                 } label: {
-                    Label("Open in Google Maps", systemImage: "mappin.and.ellipse")
+                    Label("address_open_google_maps".localized, systemImage: "mappin.and.ellipse")
                 }
             }
             .overlay(alignment: .top) {
@@ -127,7 +127,7 @@ private struct CopiedToast: View {
         HStack(spacing: 6) {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.white)
-            Text("Copied!")
+            Text("address_copied_toast".localized)
                 .font(.naarsCaption)
                 .fontWeight(.medium)
                 .foregroundColor(.white)

@@ -20,7 +20,7 @@ struct ConversationSearchBar: View {
                     .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
                 
-                TextField("Search in conversation", text: $viewModel.searchText)
+                TextField("messaging_search_in_conversation".localized, text: $viewModel.searchText)
                     .font(.naarsSubheadline)
                     .focused($isFocused)
                     .textInputAutocapitalization(.never)

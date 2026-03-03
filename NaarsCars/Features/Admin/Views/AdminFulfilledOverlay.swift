@@ -23,10 +23,10 @@ struct AdminFulfilledOverlay: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Period", selection: $selectedPeriod) {
-                    Text("Week").tag("week")
-                    Text("Month").tag("month")
-                    Text("Year").tag("year")
+                Picker("savings_period_label".localized, selection: $selectedPeriod) {
+                    Text("period_week".localized).tag("week")
+                    Text("period_month".localized).tag("month")
+                    Text("period_year".localized).tag("year")
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -34,7 +34,7 @@ struct AdminFulfilledOverlay: View {
                 VStack(spacing: 4) {
                     Text("\(total)")
                         .font(.system(size: 48, weight: .bold))
-                    Text("Requests Fulfilled")
+                    Text("admin_requests_fulfilled_label".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                 }
@@ -58,7 +58,7 @@ struct AdminFulfilledOverlay: View {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(period.totalCount)")
                                     .font(.naarsHeadline)
-                                Text("\(period.rideCount) rides, \(period.favorCount) favors")
+                                Text("admin_rides_favors_count".localized(with: period.rideCount, period.favorCount))
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
@@ -67,11 +67,11 @@ struct AdminFulfilledOverlay: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Requests Fulfilled")
+            .navigationTitle("admin_requests_fulfilled_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("common_done".localized) { dismiss() }
                 }
             }
         }
@@ -89,7 +89,7 @@ struct AdminFulfilledOverlay: View {
         do {
             periods = try await adminService.fetchFulfilledBreakdown(period: selectedPeriod)
         } catch {
-            self.error = "Failed to load data"
+            self.error = "common_load_error".localized
             AppLogger.error("admin", "Fulfilled overlay error: \(error.localizedDescription)")
         }
     }
@@ -99,7 +99,7 @@ struct AdminFulfilledOverlay: View {
         switch selectedPeriod {
         case "week":
             formatter.dateFormat = "MMM d, yyyy"
-            return "Week of \(formatter.string(from: date))"
+            return "admin_week_of".localized(with: formatter.string(from: date))
         case "year":
             formatter.dateFormat = "yyyy"
             return formatter.string(from: date)

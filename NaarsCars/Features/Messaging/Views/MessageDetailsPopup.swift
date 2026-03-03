@@ -103,13 +103,13 @@ struct MessageDetailsPopup: View {
                 }
                 
                 // Title Section
-                Section("Conversation Name") {
-                    TextField("Group Name", text: $editedTitle)
+                Section("messaging_conversation_name_section".localized) {
+                    TextField("messaging_group_name_placeholder".localized, text: $editedTitle)
                         .textInputAutocapitalization(.words)
                 }
                 
                 // Participants Section
-                Section("Participants (\(participants.count))") {
+                Section("messaging_participants_count".localized(with: participants.count)) {
                     if isLoadingParticipants {
                         HStack {
                             Spacer()
@@ -194,7 +194,7 @@ struct MessageDetailsPopup: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Conversation Details")
+            .navigationTitle("messaging_conversation_details_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -266,7 +266,7 @@ struct MessageDetailsPopup: View {
                 Button("messaging_cancel".localized, role: .cancel) {
                     participantToRemove = nil
                 }
-                Button("Remove", role: .destructive) {
+                Button("common_remove".localized, role: .destructive) {
                     if let participant = participantToRemove {
                         Task {
                             await removeParticipant(userId: participant.id)

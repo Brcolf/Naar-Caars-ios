@@ -30,9 +30,9 @@ struct AdminActiveRidesOverlay: View {
                         Image(systemName: "checkmark.circle")
                             .font(.system(size: 48))
                             .foregroundColor(.naarsSuccess)
-                        Text("No active requests")
+                        Text("admin_no_active_requests".localized)
                             .font(.naarsHeadline)
-                        Text("All rides and favors have been completed")
+                        Text("admin_all_completed".localized)
                             .font(.naarsBody)
                             .foregroundColor(.secondary)
                     }
@@ -42,7 +42,7 @@ struct AdminActiveRidesOverlay: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 // Type badge
-                                Text(request.isRide ? "Ride" : "Favor")
+                                Text(request.isRide ? "common_ride".localized : "common_favor".localized)
                                     .font(.naarsCaption)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 6)
@@ -90,11 +90,11 @@ struct AdminActiveRidesOverlay: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Active Requests")
+            .navigationTitle("admin_active_requests_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("common_done".localized) { dismiss() }
                 }
             }
         }
@@ -109,7 +109,7 @@ struct AdminActiveRidesOverlay: View {
         do {
             requests = try await adminService.fetchActiveRequests()
         } catch {
-            self.error = "Failed to load data"
+            self.error = "common_load_error".localized
             AppLogger.error("admin", "Active requests overlay error: \(error.localizedDescription)")
         }
     }
@@ -117,9 +117,9 @@ struct AdminActiveRidesOverlay: View {
     @ViewBuilder
     private func statusBadge(_ status: String) -> some View {
         let (text, color): (String, Color) = switch status {
-        case "open": ("Open", .naarsSuccess)
-        case "pending": ("Pending", .naarsWarning)
-        case "confirmed": ("Claimed", .naarsPrimary)
+        case "open": ("admin_status_open".localized, .naarsSuccess)
+        case "pending": ("admin_status_pending".localized, .naarsWarning)
+        case "confirmed": ("admin_status_claimed".localized, .naarsPrimary)
         default: (status.capitalized, .gray)
         }
 

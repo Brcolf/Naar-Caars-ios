@@ -98,11 +98,11 @@ struct MessageInputBar: View {
                 // Attachment button (expands to show options)
                 Menu {
                     Button(action: onImagePickerTapped) {
-                        Label("Photo", systemImage: "photo.on.rectangle.angled")
+                        Label("messaging_menu_photo".localized, systemImage: "photo.on.rectangle.angled")
                     }
                     
                     Button(action: shareCurrentLocation) {
-                        Label("Location", systemImage: "location.fill")
+                        Label("messaging_menu_location".localized, systemImage: "location.fill")
                     }
                 } label: {
                     Image(systemName: "plus.circle.fill")
@@ -182,7 +182,7 @@ struct MessageInputBar: View {
             
             // Cancel button
             Button(action: cancelRecording) {
-                Text("Cancel")
+                Text("common_cancel".localized)
                     .font(.naarsSubheadline).fontWeight(.medium)
                     .foregroundColor(.secondary)
             }
@@ -399,7 +399,7 @@ struct MessageInputBar: View {
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
-                    Text(replyContext.text.isEmpty ? "Photo" : replyContext.text)
+                    Text(replyContext.text.isEmpty ? "messaging_menu_photo".localized : replyContext.text)
                         .font(.naarsFootnote)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
@@ -444,7 +444,7 @@ private struct LocationPickerSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                TextField("Search for a location", text: $searchText)
+                TextField("messaging_location_search_placeholder".localized, text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal)
                     .onChange(of: searchText) { _, newValue in
@@ -492,7 +492,7 @@ private struct LocationPickerSheet: View {
                 ZStack {
                     Map(position: $cameraPosition) {
                         if let coordinate = viewModel.selectedCoordinate {
-                            Annotation("Selected", coordinate: coordinate) {
+                            Annotation("messaging_location_selected".localized, coordinate: coordinate) {
                                 EmptyView()
                             }
                         }
@@ -524,7 +524,7 @@ private struct LocationPickerSheet: View {
                 .padding(.horizontal)
                 
                 Button(action: confirmSelection) {
-                    Text("Send Location")
+                    Text("messaging_send_location".localized)
                         .font(.naarsCallout).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -536,11 +536,11 @@ private struct LocationPickerSheet: View {
                 .padding(.horizontal)
                 .padding(.bottom, 12)
             }
-            .navigationTitle("Share Location")
+            .navigationTitle("messaging_share_location_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         dismiss()
                     }
                 }

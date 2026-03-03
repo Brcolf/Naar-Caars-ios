@@ -20,13 +20,13 @@ struct TimePickerView: View {
     /// Formatted time string for display
     private var timeString: String {
         let minuteStr = String(format: "%02d", minute)
-        let period = isAM ? "AM" : "PM"
+        let period = isAM ? "time_picker_am".localized : "time_picker_pm".localized
         return "\(hour):\(minuteStr) \(period)"
     }
     
     var body: some View {
         HStack {
-            Text("Time")
+            Text("time_picker_label".localized)
             
             Spacer()
             
@@ -72,20 +72,20 @@ struct TimePickerView: View {
                 Menu {
                     Button(action: { isAM = true }) {
                         if isAM {
-                            Label("AM", systemImage: "checkmark")
+                            Label("time_picker_am".localized, systemImage: "checkmark")
                         } else {
-                            Text("AM")
+                            Text("time_picker_am".localized)
                         }
                     }
                     Button(action: { isAM = false }) {
                         if !isAM {
-                            Label("PM", systemImage: "checkmark")
+                            Label("time_picker_pm".localized, systemImage: "checkmark")
                         } else {
-                            Text("PM")
+                            Text("time_picker_pm".localized)
                         }
                     }
                 } label: {
-                    Text(isAM ? "AM" : "PM")
+                    Text(isAM ? "time_picker_am".localized : "time_picker_pm".localized)
                         .frame(minWidth: 36)
                 }
                 .buttonStyle(.bordered)

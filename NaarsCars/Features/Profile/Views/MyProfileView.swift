@@ -318,7 +318,7 @@ struct MyProfileView: View {
                         do {
                             let _ = try await ProfileService.shared.uploadAvatar(imageData: data, userId: userId)
                             HapticManager.success()
-                            toastMessage = "Photo updated"
+                            toastMessage = "profile_photo_updated_toast".localized
                             await viewModel.loadProfile(userId: userId)
                         } catch {
                             AppLogger.error("profile", "Avatar upload failed: \(error.localizedDescription)")

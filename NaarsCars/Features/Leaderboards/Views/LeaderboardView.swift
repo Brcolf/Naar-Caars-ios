@@ -15,7 +15,7 @@ struct LeaderboardView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Time period picker
-                Picker("Period", selection: $viewModel.selectedPeriod) {
+                Picker("leaderboard_period_label".localized, selection: $viewModel.selectedPeriod) {
                     ForEach(LeaderboardPeriod.allCases, id: \.self) { period in
                         Text(period.displayName).tag(period)
                     }

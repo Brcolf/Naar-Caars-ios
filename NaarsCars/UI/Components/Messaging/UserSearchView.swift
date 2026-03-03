@@ -45,7 +45,7 @@ struct UserSearchView: View {
                 // Search bar with auto-focus
                 SearchBar(
                     text: $searchText,
-                    placeholder: "Search users...",
+                    placeholder: "messaging_search_users_placeholder".localized,
                     isFocused: $isSearchFocused
                 )
                 .padding()
@@ -74,7 +74,7 @@ struct UserSearchView: View {
                 if !selectedUserIds.isEmpty || (showExistingParticipants && !excludeUserIds.isEmpty) {
                     VStack(alignment: .leading, spacing: 8) {
                         let totalCount = selectedUserIds.count + (showExistingParticipants ? excludeUserIds.count : 0)
-                        Text(showExistingParticipants && !excludeUserIds.isEmpty ? "Participants (\(totalCount))" : "Selected (\(selectedUserIds.count))")
+                        Text(showExistingParticipants && !excludeUserIds.isEmpty ? "messaging_participants_count".localized(with: totalCount) : "Selected (\(selectedUserIds.count))")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
@@ -113,14 +113,14 @@ struct UserSearchView: View {
                 } else if searchResults.isEmpty && !searchText.isEmpty {
                     EmptyStateView(
                         icon: "person.fill.questionmark",
-                        title: "No Users Found",
-                        message: "Try a different search term"
+                        title: "messaging_no_users_found_title".localized,
+                        message: "messaging_no_users_found_message".localized
                     )
                 } else if searchResults.isEmpty && searchText.isEmpty {
                     EmptyStateView(
                         icon: "magnifyingglass",
-                        title: "Search for Users",
-                        message: selectedUserIds.isEmpty ? "Type a name or email to find users" : "Add more users or tap Done"
+                        title: "messaging_search_for_users_title".localized,
+                        message: selectedUserIds.isEmpty ? "messaging_search_users_hint".localized : "messaging_search_users_hint_selected".localized
                     )
                 } else {
                     List {
@@ -148,11 +148,11 @@ struct UserSearchView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Select Users")
+            .navigationTitle("messaging_select_users_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button("common_cancel".localized) {
                         AppLogger.info("messaging", "UserSearchView cancel tapped, clearing selections and dismissing")
                         selectedUserIds.removeAll()
                         dismiss()

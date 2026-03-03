@@ -61,7 +61,7 @@ struct ErrorBanner: View {
             
             if let retryAction {
                 Button(action: retryAction) {
-                    Text("Retry")
+                    Text("common_retry".localized)
                         .font(.naarsSubheadline)
                         .fontWeight(.semibold)
                         .underline()

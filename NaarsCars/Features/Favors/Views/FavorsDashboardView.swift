@@ -148,7 +148,7 @@ struct FavorsDashboardView: View {
         } else if filteredFavors.isEmpty {
             EmptyStateView(
                 icon: "hand.raised.fill",
-                title: "No Favors Available",
+                title: "favors_empty_title".localized,
                 message: filterEmptyMessage,
                 actionTitle: "Create Favor",
                 action: {
@@ -187,11 +187,11 @@ struct FavorsDashboardView: View {
     private var filterEmptyMessage: String {
         switch viewModel.filter {
         case .all:
-            return "There are no favor requests at this time. Be the first to post one!"
+            return "favors_empty_all".localized
         case .mine:
-            return "You haven't posted any favor requests yet. Create your first one!"
+            return "favors_empty_mine".localized
         case .claimed:
-            return "You haven't claimed any favors yet. Browse all favors to find one to help with!"
+            return "favors_empty_claimed".localized
         }
     }
 }

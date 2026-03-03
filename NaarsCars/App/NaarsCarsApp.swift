@@ -82,13 +82,13 @@ struct NaarsCarsApp: App {
                     Color(.systemBackground)
                 }
             }
-            .alert("Data Error", isPresented: $showDataError) {
-                Button("Clear Local Data", role: .destructive) {
+            .alert("app_data_error_title".localized, isPresented: $showDataError) {
+                Button("app_clear_local_data".localized, role: .destructive) {
                     clearLocalDataAndRetry()
                 }
-                Button("Quit", role: .cancel) { }
+                Button("app_quit".localized, role: .cancel) { }
             } message: {
-                Text("The local data store could not be loaded. You can clear local data and try again, or quit the app.")
+                Text("app_data_error_message".localized)
             }
         }
     }

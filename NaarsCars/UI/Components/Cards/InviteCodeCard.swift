@@ -19,7 +19,7 @@ struct InviteCodeCard: View {
                     .font(.system(.title3, design: .monospaced))
                     .fontWeight(.semibold)
                 
-                Text("Created \(code.createdAt.timeAgo)")
+                Text("invite_created_ago".localized(with: code.createdAt.timeAgo))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -28,7 +28,7 @@ struct InviteCodeCard: View {
             
             // Status Badge
             if code.isUsed {
-                Text("Used")
+                Text("invite_status_used".localized)
                     .font(.caption)
                     .fontWeight(.medium)
                     .padding(.horizontal, 12)
@@ -37,7 +37,7 @@ struct InviteCodeCard: View {
                     .foregroundColor(.secondary)
                     .cornerRadius(8)
             } else {
-                Text("Available")
+                Text("invite_status_available".localized)
                     .font(.caption)
                     .fontWeight(.medium)
                     .padding(.horizontal, 12)
@@ -52,11 +52,11 @@ struct InviteCodeCard: View {
                 Button {
                     UIPasteboard.general.string = code.code
                 } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
+                    Label("common_copy".localized, systemImage: "doc.on.doc")
                 }
                 
                 ShareLink(item: code.code) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                    Label("common_share".localized, systemImage: "square.and.arrow.up")
                 }
             } label: {
                 Image(systemName: "ellipsis")

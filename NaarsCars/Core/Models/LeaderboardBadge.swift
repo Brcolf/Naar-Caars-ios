@@ -18,12 +18,12 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
 
     var displayName: String {
         switch self {
-        case .roadWarrior: return "Road Warrior"
-        case .goodNeighbor: return "Good Neighbor"
-        case .streakChampion: return "Streak Champ"
-        case .fiveStar: return "Five Star"
-        case .bigSaver: return "Big Saver"
-        case .frequentCarbardian: return "Frequent Carbardian"
+        case .roadWarrior: return "badge_road_warrior_name".localized
+        case .goodNeighbor: return "badge_good_neighbor_name".localized
+        case .streakChampion: return "badge_streak_champ_name".localized
+        case .fiveStar: return "badge_five_star_name".localized
+        case .bigSaver: return "badge_big_saver_name".localized
+        case .frequentCarbardian: return "badge_frequent_carbardian_name".localized
         }
     }
 

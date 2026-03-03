@@ -59,7 +59,7 @@ struct RequestPreviewCard: View {
             
             // View details button
             Button(action: onViewDetails) {
-                Text("View Details")
+                Text("common_view_details".localized)
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

@@ -21,12 +21,12 @@ struct RequestQAView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Questions & Answers")
+            Text("qa_section_title".localized)
                 .font(.naarsTitle3)
             
             // Q&A List
             if qaItems.isEmpty {
-                Text("No questions yet. Be the first to ask!")
+                Text("qa_empty_message".localized)
                     .font(.naarsBody)
                     .foregroundColor(.secondary)
                     .padding()
@@ -79,12 +79,12 @@ struct RequestQAView: View {
             
             if isClaimed {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("This request has been claimed. Please message participants for follow-up questions.")
+                    Text("qa_claimed_message".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
 
                     PrimaryButton(
-                        title: "Message Participants",
+                        title: "qa_message_participants".localized,
                         action: {
                             onMessageParticipants?()
                         },
@@ -94,14 +94,14 @@ struct RequestQAView: View {
             } else {
                 // Post question form
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Ask a Question")
+                    Text("qa_ask_question_title".localized)
                         .font(.naarsHeadline)
                     
-                    TextField("Type your question...", text: $newQuestion, axis: .vertical)
+                    TextField("qa_question_placeholder".localized, text: $newQuestion, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(2...4)
                     
-                    PrimaryButton(title: "Post Question", action: {
+                    PrimaryButton(title: "qa_post_question_button".localized, action: {
                         Task {
                             isPosting = true
                             await onPostQuestion(newQuestion)

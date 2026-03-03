@@ -46,7 +46,7 @@ struct OfflineBannerModifier: ViewModifier {
                     HStack(spacing: Constants.Spacing.sm) {
                         Image(systemName: "wifi.slash")
                             .font(.naarsSubheadline)
-                        Text("No Internet Connection")
+                        Text("network_no_connection".localized)
                             .font(.naarsSubheadline)
                     }
                     .foregroundColor(.white)

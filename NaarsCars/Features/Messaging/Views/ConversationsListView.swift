@@ -54,7 +54,7 @@ struct ConversationsListView: View {
                 icon: "message.fill",
                 title: "messaging_no_messages_yet".localized,
                 message: "messaging_start_conversation_hint".localized,
-                actionTitle: "New Message",
+                actionTitle: "messaging_new_message".localized,
                 action: {
                     showNewMessage = true
                 },
@@ -129,7 +129,7 @@ struct ConversationsListView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 30))
                         .foregroundColor(.secondary)
-                    Text("No results for \"\(viewModel.searchText)\"")
+                    Text("messaging_search_no_results".localized(with: viewModel.searchText))
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                 }
@@ -142,7 +142,7 @@ struct ConversationsListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.naarsBackground)
-        .searchable(text: $viewModel.searchText, prompt: "Search messages")
+        .searchable(text: $viewModel.searchText, prompt: "messaging_search_prompt".localized)
     }
 
     @ViewBuilder
@@ -207,7 +207,7 @@ struct ConversationsListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.naarsBackground)
-        .searchable(text: $viewModel.searchText, prompt: "Search messages")
+        .searchable(text: $viewModel.searchText, prompt: "messaging_search_prompt".localized)
         .refreshable {
             await viewModel.refreshConversations()
         }
@@ -278,11 +278,11 @@ struct ConversationsListView: View {
                     navigationCoordinator.pendingIntent = nil
                 }
             }
-            .alert("Delete Conversation", isPresented: $showDeleteConfirmation) {
-                Button("Cancel", role: .cancel) {
+            .alert("messaging_delete_conversation_title".localized, isPresented: $showDeleteConfirmation) {
+                Button("common_cancel".localized, role: .cancel) {
                     conversationToDelete = nil
                 }
-                Button("Delete", role: .destructive) {
+                Button("common_delete".localized, role: .destructive) {
                     if let detail = conversationToDelete {
                         Task {
                             await viewModel.deleteConversation(detail.conversation)
@@ -419,7 +419,7 @@ struct ConversationsListView: View {
                 conversationToDelete = conversationDetail
                 showDeleteConfirmation = true
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label("common_delete".localized, systemImage: "trash")
             }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -436,9 +436,9 @@ struct ConversationsListView: View {
                 }
                 // Save to UserDefaults
                 savePinnedConversations()
-                toastMessage = wasPinned ? "Conversation unpinned" : "Conversation pinned"
+                toastMessage = wasPinned ? "messaging_toast_unpinned".localized : "messaging_toast_pinned".localized
             } label: {
-                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
+                Label(isPinned ? "messaging_unpin".localized : "messaging_pin".localized, systemImage: isPinned ? "pin.slash" : "pin")
             }
             .tint(.orange)
             
@@ -455,9 +455,9 @@ struct ConversationsListView: View {
                 }
                 // Save to UserDefaults
                 saveMutedConversations()
-                toastMessage = wasMuted ? "Conversation unmuted" : "Conversation muted"
+                toastMessage = wasMuted ? "messaging_toast_unmuted".localized : "messaging_toast_muted".localized
             } label: {
-                Label(isMuted ? "Unmute" : "Mute", systemImage: isMuted ? "bell" : "bell.slash")
+                Label(isMuted ? "messaging_unmute".localized : "messaging_mute".localized, systemImage: isMuted ? "bell" : "bell.slash")
             }
             .tint(.gray)
         }

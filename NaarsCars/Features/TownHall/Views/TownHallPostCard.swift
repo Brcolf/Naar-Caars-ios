@@ -64,19 +64,22 @@ struct TownHallPostCard: View {
     /// "Brendan reviewed Jane Doe for a ride"
     private var reviewSubtitle: String? {
         guard isReview, let review = post.review else { return nil }
-        var text = ""
-        if let author = post.author {
-            text += "\(author.name) reviewed "
+        let authorName = post.author?.name
+        let fulfillerName = review.fulfillerName ?? ""
+
+        // Build base: "Author reviewed Fulfiller" or "Reviewed Fulfiller"
+        var text: String
+        if let authorName {
+            text = "townhall_review_by_author".localized(with: authorName, fulfillerName)
         } else {
-            text += "Reviewed "
+            text = "townhall_review_anonymous".localized(with: fulfillerName)
         }
-        if let name = review.fulfillerName {
-            text += name
-        }
+
+        // Append type: "for a ride" or "for a favor"
         if review.rideId != nil {
-            text += " for a ride"
+            text = "townhall_review_for_ride".localized(with: text)
         } else if review.favorId != nil {
-            text += " for a favor"
+            text = "townhall_review_for_favor".localized(with: text)
         }
         return text
     }
@@ -111,7 +114,7 @@ struct TownHallPostCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "megaphone.fill")
                         .font(.caption2)
-                    Text("Announcement")
+                    Text("townhall_badge_announcement".localized)
                         .font(.naarsCaption)
                         .fontWeight(.semibold)
                 }
@@ -124,7 +127,7 @@ struct TownHallPostCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "star.fill")
                         .font(.caption2)
-                    Text("Review")
+                    Text("townhall_badge_review".localized)
                         .font(.naarsCaption)
                         .fontWeight(.semibold)
                 }

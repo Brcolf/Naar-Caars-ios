@@ -106,7 +106,7 @@ struct ReportMessageSheet: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Report Message")
+            .navigationTitle("messaging_report_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

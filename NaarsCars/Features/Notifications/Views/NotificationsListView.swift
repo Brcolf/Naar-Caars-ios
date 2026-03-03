@@ -33,7 +33,7 @@ struct NotificationsListView: View {
                                 HapticManager.success()
                                 Task {
                                     await viewModel.markAllAsRead()
-                                    toastMessage = "All caught up!"
+                                    toastMessage = "notifications_all_caught_up".localized
                                 }
                             }
                             .font(.naarsBody)

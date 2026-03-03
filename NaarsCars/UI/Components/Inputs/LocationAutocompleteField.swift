@@ -90,7 +90,7 @@ struct LocationAutocompleteField: View {
                     // Recent locations (shown when field is empty)
                     if text.isEmpty && !recentLocationsSnapshot.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text("Recent")
+                            Text("location_recent_header".localized)
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.secondary)
@@ -110,7 +110,7 @@ struct LocationAutocompleteField: View {
                     // Search predictions
                     if !predictions.isEmpty {
                         if !text.isEmpty {
-                            Text("Suggestions")
+                            Text("location_suggestions_header".localized)
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.secondary)
@@ -127,7 +127,7 @@ struct LocationAutocompleteField: View {
                             }
                         }
                     } else if !text.isEmpty && !isSearching && text.count >= 2 {
-                        Text("No results found")
+                        Text("location_no_results".localized)
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding()

@@ -23,7 +23,7 @@ struct ErrorView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.naarsError)
             
-            Text("Error")
+            Text("common_error".localized)
                 .font(.naarsTitle2)
                 .foregroundColor(.primary)
             
@@ -34,7 +34,7 @@ struct ErrorView: View {
                 .padding(.horizontal)
             
             if let retryAction = retryAction {
-                PrimaryButton(title: "Retry", action: retryAction)
+                PrimaryButton(title: "common_retry".localized, action: retryAction)
                     .padding(.horizontal)
             }
         }

@@ -27,7 +27,7 @@ struct RideCard: View {
                         Text(poster.name)
                             .font(.naarsHeadline)
                     } else {
-                        Text("Unknown User")
+                        Text("common_unknown_user".localized)
                             .font(.naarsHeadline)
                             .foregroundColor(.secondary)
                     }
@@ -116,7 +116,7 @@ struct RideCard: View {
                         Image(systemName: "hand.raised.fill")
                             .foregroundColor(.naarsPrimary)
                             .font(.naarsSubheadline)
-                        Text("Claimed by")
+                        Text("card_claimed_by".localized)
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                         Text(claimer.name)
@@ -127,7 +127,7 @@ struct RideCard: View {
                         Image(systemName: "hand.raised.fill")
                             .foregroundColor(.naarsPrimary)
                             .font(.naarsSubheadline)
-                        Text("Claimed")
+                        Text("card_claimed".localized)
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }

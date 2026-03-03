@@ -30,10 +30,10 @@ struct SavingsSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Period", selection: $selectedPeriod) {
-                    Text("Month").tag("month")
-                    Text("Year").tag("year")
-                    Text("All Time").tag("all")
+                Picker("savings_period_label".localized, selection: $selectedPeriod) {
+                    Text("period_month".localized).tag("month")
+                    Text("period_year".localized).tag("year")
+                    Text("period_all_time".localized).tag("all")
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -41,7 +41,7 @@ struct SavingsSheet: View {
                 VStack(spacing: 4) {
                     Text(formattedTotal)
                         .font(.system(size: 48, weight: .bold))
-                    Text("Total Savings")
+                    Text("savings_total_label".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                 }
@@ -60,8 +60,8 @@ struct SavingsSheet: View {
                     Spacer()
                     EmptyStateView(
                         icon: "dollarsign.circle.fill",
-                        title: "No Savings Yet",
-                        message: "Savings from shared rides will appear here."
+                        title: "savings_empty_title".localized,
+                        message: "savings_empty_message".localized
                     )
                     Spacer()
                 } else {
@@ -73,7 +73,7 @@ struct SavingsSheet: View {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(formatCurrency(period.totalSavings))
                                     .font(.naarsHeadline)
-                                Text("\(period.rideCount) rides")
+                                Text("savings_ride_count".localized(with: period.rideCount))
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
@@ -82,11 +82,11 @@ struct SavingsSheet: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("My Savings")
+            .navigationTitle("savings_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("common_done".localized) { dismiss() }
                 }
             }
         }
@@ -104,7 +104,7 @@ struct SavingsSheet: View {
         do {
             periods = try await profileService.fetchUserSavingsBreakdown(period: selectedPeriod)
         } catch {
-            self.error = "Failed to load savings"
+            self.error = "savings_load_error".localized
             AppLogger.error("profile", "Savings sheet error: \(error.localizedDescription)")
         }
     }

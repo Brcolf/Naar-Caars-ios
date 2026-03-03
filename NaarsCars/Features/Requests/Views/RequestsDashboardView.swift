@@ -28,7 +28,7 @@ struct RequestsDashboardView: View {
             // List Content (map view removed)
             listContentView
             .id("app.entry.enterApp")
-            .navigationTitle("Requests")
+            .navigationTitle("requests_nav_title".localized)
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {
@@ -40,13 +40,13 @@ struct RequestsDashboardView: View {
                         Button {
                             showCreateRide = true
                         } label: {
-                            Label("Create Ride", systemImage: "car.fill")
+                            Label("requests_create_ride".localized, systemImage: "car.fill")
                         }
                         
                         Button {
                             showCreateFavor = true
                         } label: {
-                            Label("Create Favor", systemImage: "hand.raised.fill")
+                            Label("requests_create_favor".localized, systemImage: "hand.raised.fill")
                         }
                     } label: {
                         Image(systemName: "plus")
@@ -145,7 +145,7 @@ struct RequestsDashboardView: View {
                         } else if filteredRequests.isEmpty {
                             EmptyStateView(
                                 icon: "list.bullet.rectangle",
-                                title: "No Requests Available",
+                                title: "requests_empty_title".localized,
                                 message: filterEmptyMessage,
                                 actionTitle: nil,
                                 action: nil,
@@ -236,11 +236,11 @@ struct RequestsDashboardView: View {
     private var filterEmptyMessage: String {
         switch viewModel.filter {
         case .open:
-            return "There are no open requests at this time. Be the first to post one!"
+            return "requests_empty_open".localized
         case .mine:
-            return "You haven't posted any requests yet. Create your first one!"
+            return "requests_empty_mine".localized
         case .claimed:
-            return "You haven't claimed any requests yet. Browse all requests to find one to help with!"
+            return "requests_empty_claimed".localized
         }
     }
 

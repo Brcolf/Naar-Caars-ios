@@ -692,7 +692,7 @@ struct MessageBubble: View {
                             VStack(spacing: Constants.Spacing.xs) {
                                 Image(systemName: "arrow.clockwise")
                                     .foregroundColor(.secondary)
-                                Text("Tap to retry")
+                                Text("messaging_tap_to_retry".localized)
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -856,7 +856,7 @@ struct ReplyPreviewView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Text(text.isEmpty ? "Photo" : text)
+                    Text(text.isEmpty ? "messaging_menu_photo".localized : text)
                         .font(.naarsFootnote)
                         .foregroundColor(.secondary)
                         .lineLimit(3)
