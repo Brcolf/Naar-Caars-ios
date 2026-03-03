@@ -137,8 +137,10 @@ final class AuthService: ObservableObject {
                 AppLogger.auth.warning("Sign in successful but profile not found for user: \(email)")
             }
 
-            restartRealtimeSyncEngines()
-            
+            // Sync engines are started by AppLaunchManager.performDeferredLoading()
+            // after performCriticalLaunch() completes. Starting them here too
+            // caused duplicate realtime channel subscriptions.
+
             CrashReportingService.shared.logAction("sign_in_success")
         } catch {
             // Record non-fatal error for sign-in failures
@@ -201,7 +203,7 @@ final class AuthService: ObservableObject {
             try await InviteService.shared.markInviteCodeAsUsed(inviteCode: validatedInviteCode, userId: userId)
             
             AppLogger.auth.info("Sign up successful for user: \(email)")
-            restartRealtimeSyncEngines()
+            // Sync engines started by AppLaunchManager.performDeferredLoading()
         } catch {
             // Handle errors with appropriate AppError types
             let errorMessage = error.localizedDescription.lowercased()

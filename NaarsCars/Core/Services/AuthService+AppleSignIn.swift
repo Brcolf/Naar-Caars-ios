@@ -89,8 +89,8 @@ extension AuthService {
             currentUserId = userId
         }
         
-        restartRealtimeSyncEngines()
-        
+        // Sync engines started by AppLaunchManager.performDeferredLoading()
+
         // 8. Store Apple user identifier for credential checking
         UserDefaults.standard.set(
             credential.user,
@@ -135,7 +135,7 @@ extension AuthService {
             // Update local state
             currentUserId = userId
             currentProfile = profile
-            restartRealtimeSyncEngines()
+            // Sync engines started by AppLaunchManager.performDeferredLoading()
 
             // Store Apple user identifier for credential checking
             UserDefaults.standard.set(
