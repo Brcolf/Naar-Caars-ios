@@ -41,17 +41,24 @@ final class LeaderboardServiceTests: XCTestCase {
         }
     }
 
-    /// Test that fetchSpotlights returns valid spotlight entries
+    /// Test that fetchSpotlights returns valid, deduplicated spotlight entries
     func testFetchSpotlights() async throws {
         do {
             let spotlights = try await leaderboardService.fetchSpotlights(period: .allTime)
 
-            // Should return 0-2 spotlights
-            XCTAssertLessThanOrEqual(spotlights.count, 2)
+            // Should return 0-3 spotlights with unique users
+            XCTAssertLessThanOrEqual(spotlights.count, 3)
+
+            let validCategories: Set<String> = ["longest_streak", "rising_star", "top_requester"]
             for spotlight in spotlights {
-                XCTAssertTrue(["longest_streak", "rising_star"].contains(spotlight.category))
+                XCTAssertTrue(validCategories.contains(spotlight.category),
+                              "Unexpected category: \(spotlight.category)")
                 XCTAssertGreaterThan(spotlight.value, 0)
             }
+
+            // Verify no duplicate users
+            let userIds = spotlights.map { $0.userId }
+            XCTAssertEqual(userIds.count, Set(userIds).count, "Spotlight users should be unique")
         } catch {
             XCTFail("Failed to fetch spotlights: \(error.localizedDescription)")
         }
