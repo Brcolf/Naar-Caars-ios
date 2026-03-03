@@ -31644,6 +31644,28 @@
         }
       }
     },
+    "spotlight_top_requester": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top Requester"
+          }
+        }
+      }
+    },
+    "spotlight_requester_value": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld requests"
+          }
+        }
+      }
+    },
     "Stats": {
       "extractionState": "stale",
       "localizations": {

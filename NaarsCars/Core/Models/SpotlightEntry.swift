@@ -29,6 +29,7 @@ struct SpotlightEntry: Codable, Identifiable, Equatable, Sendable {
         switch category {
         case "longest_streak": return "spotlight_longest_streak".localized
         case "rising_star": return "spotlight_rising_star".localized
+        case "top_requester": return "spotlight_top_requester".localized
         default: return category
         }
     }
@@ -37,6 +38,7 @@ struct SpotlightEntry: Codable, Identifiable, Equatable, Sendable {
         switch category {
         case "longest_streak": return "flame.fill"
         case "rising_star": return "rocket.fill"
+        case "top_requester": return "hand.raised.fill"
         default: return "star.fill"
         }
     }
@@ -45,6 +47,7 @@ struct SpotlightEntry: Codable, Identifiable, Equatable, Sendable {
         switch category {
         case "longest_streak": return "spotlight_streak_value".localized(with: value)
         case "rising_star": return "spotlight_rising_value".localized(with: value)
+        case "top_requester": return "spotlight_requester_value".localized(with: value)
         default: return "\(value)"
         }
     }
