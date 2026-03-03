@@ -158,7 +158,8 @@ final class TownHallFeedViewModel: ObservableObject {
         postsCancellable = repository.getPostsPublisher()
             .sink { [weak self] posts in
                 guard let self else { return }
-                self.posts = self.sortWithPinnedFirst(self.applyVoteCache(to: posts))
+                let enriched = self.preserveReviewEnrichment(from: self.posts, to: posts)
+                self.posts = self.sortWithPinnedFirst(self.applyVoteCache(to: enriched))
             }
     }
 
@@ -233,6 +234,25 @@ final class TownHallFeedViewModel: ObservableObject {
             map[post.id] = post
         }
         return sortWithPinnedFirst(Array(map.values))
+    }
+
+    /// Preserve review enrichment data when repository emits un-enriched posts.
+    /// The repository doesn't store joined review data, so when it fires after
+    /// a save, the emitted posts have review == nil. This merges the review data
+    /// from the current (network-enriched) posts back in.
+    private func preserveReviewEnrichment(from existing: [TownHallPost], to newPosts: [TownHallPost]) -> [TownHallPost] {
+        let reviewMap = Dictionary(uniqueKeysWithValues: existing.compactMap { post -> (UUID, Review)? in
+            guard let review = post.review else { return nil }
+            return (post.id, review)
+        })
+        guard !reviewMap.isEmpty else { return newPosts }
+        return newPosts.map { post in
+            var updated = post
+            if updated.review == nil, let review = reviewMap[post.id] {
+                updated.review = review
+            }
+            return updated
+        }
     }
 
     /// Sort posts with pinned announcements (< 7 days old) at top
