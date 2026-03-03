@@ -175,7 +175,7 @@ struct TownHallPostCard: View {
                     .multilineTextAlignment(.trailing)
             }
 
-            // Review subtitle: "Reviewed Jane Doe for a ride"
+            // Review subtitle: "Brendan reviewed Jane Doe for a ride"
             if let subtitle = reviewSubtitle {
                 Text(subtitle)
                     .font(.naarsCaption)
