@@ -71,7 +71,7 @@ struct MyProfileView: View {
                                 adminPanelLink()
                             }
                             
-                            notificationsSection()
+                            accountSettingsSection()
                             
                             // Invite Codes Section
                             inviteCodesSection()
@@ -175,13 +175,6 @@ struct MyProfileView: View {
                             AppLogger.info("profile", "Bell tapped")
                         }
 
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                        .accessibilityIdentifier("profile.settings")
-                        
                         Button("profile_edit".localized) {
                             showEditProfile = true
                         }
@@ -582,14 +575,16 @@ struct MyProfileView: View {
         .accessibilityIdentifier("profile.adminPanel")
     }
 
-    // MARK: - Notifications Link
-    
-    private func notificationsSection() -> some View {
-        NavigationLink(destination: NotificationsListView()) {
+    // MARK: - Account Settings Link
+
+    private func accountSettingsSection() -> some View {
+        Button {
+            showSettings = true
+        } label: {
             HStack {
-                Image(systemName: "bell.fill")
+                Image(systemName: "gearshape.fill")
                     .foregroundColor(.naarsPrimary)
-                Text("profile_notifications".localized)
+                Text("profile_account_settings".localized)
                     .font(.naarsHeadline)
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -600,7 +595,8 @@ struct MyProfileView: View {
             .background(Color.naarsCardBackground)
             .cornerRadius(12)
         }
-        .accessibilityIdentifier("profile.notifications")
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityIdentifier("profile.settings")
     }
 
     private func applyProfileIntent(_ intent: NavigationIntent, proxy: ScrollViewProxy) {
