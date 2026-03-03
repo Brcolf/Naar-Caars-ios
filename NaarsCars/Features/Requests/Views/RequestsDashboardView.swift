@@ -301,7 +301,7 @@ struct FilterTile: View {
             ZStack {
                 Text(title)
                     .font(.naarsSubheadline)
-                    .fontWeight(isSelected ? .semibold : .regular)
+                    .fontWeight(.medium)
                     .foregroundColor(isSelected ? .white : .primary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -322,7 +322,7 @@ struct FilterTile: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
             .background(isSelected ? Color.accentColor : Color(.systemGray5))
