@@ -14,6 +14,7 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
     case streakChampion = "streak_champion"
     case fiveStar = "five_star"
     case bigSaver = "big_saver"
+    case frequentCarbardian = "frequent_carbardian"
 
     var displayName: String {
         switch self {
@@ -22,6 +23,7 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .streakChampion: return "Streak Champ"
         case .fiveStar: return "Five Star"
         case .bigSaver: return "Big Saver"
+        case .frequentCarbardian: return "Frequent Carbardian"
         }
     }
 
@@ -32,6 +34,7 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .streakChampion: return "flame.fill"
         case .fiveStar: return "star.fill"
         case .bigSaver: return "dollarsign.circle.fill"
+        case .frequentCarbardian: return "car.2.fill"
         }
     }
 
@@ -42,6 +45,7 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .streakChampion: return "🔥"
         case .fiveStar: return "⭐"
         case .bigSaver: return "💰"
+        case .frequentCarbardian: return "🚙"
         }
     }
 
@@ -52,6 +56,7 @@ enum LeaderboardBadge: String, Codable, CaseIterable, Equatable, Sendable {
         case .streakChampion: return "badge_streak_champ_desc".localized
         case .fiveStar: return "badge_five_star_desc".localized
         case .bigSaver: return "badge_big_saver_desc".localized
+        case .frequentCarbardian: return "badge_frequent_carbardian_desc".localized
         }
     }
 }

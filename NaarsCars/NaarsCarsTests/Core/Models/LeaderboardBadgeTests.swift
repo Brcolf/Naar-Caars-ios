@@ -39,4 +39,10 @@ final class LeaderboardBadgeTests: XCTestCase {
             XCTAssertFalse(badge.emoji.isEmpty)
         }
     }
+
+    func testDecodingFrequentCarbardian() throws {
+        let json = "\"frequent_carbardian\"".data(using: .utf8)!
+        let badge = try JSONDecoder().decode(LeaderboardBadge.self, from: json)
+        XCTAssertEqual(badge, .frequentCarbardian)
+    }
 }
