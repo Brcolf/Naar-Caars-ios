@@ -59,7 +59,7 @@ final class TownHallFeedViewModel: ObservableObject {
 
         let localPosts = (try? repository.getPosts()) ?? []
         if !localPosts.isEmpty {
-            posts = applyVoteCache(to: localPosts)
+            posts = sortWithPinnedFirst(applyVoteCache(to: localPosts))
             currentOffset = localPosts.count
             hasMore = localPosts.count >= pageSize
             Task {
