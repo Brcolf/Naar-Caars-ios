@@ -109,7 +109,7 @@ final class FavorsDashboardViewModel: ObservableObject {
             error = nil
             defer { if !Task.isCancelled && showLoadingIndicator { isLoading = false } }
             do {
-                let fetchedFavors = try await favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
+                let fetchedFavors = try await favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil, excludeStatus: nil)
                 guard !Task.isCancelled else { return }
                 if let context = modelContext {
                     syncFavorsToSwiftData(fetchedFavors, in: context)

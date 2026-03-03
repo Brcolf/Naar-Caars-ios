@@ -7,7 +7,7 @@ import Foundation
 
 @MainActor
 protocol FavorServiceProtocol: AnyObject {
-    func fetchFavors(status: FavorStatus?, userId: UUID?, claimedBy: UUID?) async throws -> [Favor]
+    func fetchFavors(status: FavorStatus?, userId: UUID?, claimedBy: UUID?, excludeStatus: FavorStatus?) async throws -> [Favor]
     func fetchFavor(id: UUID) async throws -> Favor
     func createFavor(
         userId: UUID,

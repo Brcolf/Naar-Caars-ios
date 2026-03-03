@@ -286,6 +286,7 @@
 		ACBF4AC72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift */; };
 		ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */; };
 		ACBF4AC92F12CAE4006A7C8A /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */; };
+		EA96A0CAC38D003C51C98D94 /* BadgeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */; };
 		ACBF4AD22F12CAFF006A7C8A /* CommunityTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ACA2F12CAFF006A7C8A /* CommunityTabView.swift */; };
 		ACBF4AD32F12CAFF006A7C8A /* RequestsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ACF2F12CAFF006A7C8A /* RequestsDashboardView.swift */; };
 		ACBF4AD42F12CAFF006A7C8A /* RequestsDashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ACD2F12CAFF006A7C8A /* RequestsDashboardViewModel.swift */; };
@@ -737,6 +738,7 @@
 		ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
 		ACBF4ABA2F12CAE4006A7C8A /* InviteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteService.swift; sourceTree = "<group>"; };
 		ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
+		131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BadgeCache.swift; sourceTree = "<group>"; };
 		ACBF4ABC2F12CAE4006A7C8A /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		ACBF4ABD2F12CAE4006A7C8A /* MapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapService.swift; sourceTree = "<group>"; };
 		ACBF4ABE2F12CAE4006A7C8A /* TownHallCommentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallCommentService.swift; sourceTree = "<group>"; };
@@ -1703,6 +1705,7 @@
 				ACBF4AB82F12CAE4006A7C8A /* BiometricService.swift */,
 				ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */,
 				ACBF4ABA2F12CAE4006A7C8A /* InviteService.swift */,
+				131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */,
 				ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */,
 				ACBF4ABC2F12CAE4006A7C8A /* LocationService.swift */,
 				ACBF4ABD2F12CAE4006A7C8A /* MapService.swift */,
@@ -2311,6 +2314,7 @@
 				ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */,
 				AC27A0122F1F20F700E3B58F /* DateFormatters.swift in Sources */,
 				ACBF4AC92F12CAE4006A7C8A /* LeaderboardService.swift in Sources */,
+				EA96A0CAC38D003C51C98D94 /* BadgeCache.swift in Sources */,
 				54F45926523F4D0C8FA974D0 /* LoadingView.swift in Sources */,
 				AC4F1E102F21C11600CC5DBA /* AnnouncementsView.swift in Sources */,
 				AC4F1E112F21C11600CC5DBA /* BellButton.swift in Sources */,

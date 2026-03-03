@@ -123,7 +123,7 @@ final class RidesDashboardViewModel: ObservableObject {
             error = nil
             defer { if !Task.isCancelled && showLoadingIndicator { isLoading = false } }
             do {
-                let fetchedRides = try await rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
+                let fetchedRides = try await rideService.fetchRides(status: nil, userId: nil, claimedBy: nil, excludeStatus: nil)
                 guard !Task.isCancelled else { return }
                 if let context = modelContext {
                     syncRidesToSwiftData(fetchedRides, in: context)

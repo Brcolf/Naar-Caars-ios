@@ -36,13 +36,14 @@ final class FavorService {
     func fetchFavors(
         status: FavorStatus? = nil,
         userId: UUID? = nil,
-        claimedBy: UUID? = nil
+        claimedBy: UUID? = nil,
+        excludeStatus: FavorStatus? = nil
     ) async throws -> [Favor] {
         // Build query
         var query = supabase
             .from("favors")
             .select()
-        
+
         // Apply filters
         if let status = status {
             query = query.eq("status", value: status.rawValue)
@@ -52,6 +53,9 @@ final class FavorService {
         }
         if let claimedBy = claimedBy {
             query = query.eq("claimed_by", value: claimedBy.uuidString)
+        }
+        if let excludeStatus = excludeStatus {
+            query = query.neq("status", value: excludeStatus.rawValue)
         }
         
         // Execute query
@@ -321,6 +325,47 @@ final class FavorService {
         return try await ProfileService.shared.fetchProfiles(userIds: userIds)
     }
     
+    /// Batch fetch participants for multiple favors in 2 queries (participants table + profiles)
+    /// - Parameter favorIds: Array of favor UUIDs
+    /// - Returns: Dictionary mapping each favor ID to its participant profiles
+    private func fetchFavorParticipantsBatch(favorIds: [UUID]) async -> [UUID: [Profile]] {
+        guard !favorIds.isEmpty else { return [:] }
+
+        struct BatchParticipantRow: Codable {
+            let favorId: UUID
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case favorId = "favor_id"
+                case userId = "user_id"
+            }
+        }
+
+        do {
+            let response = try await supabase
+                .from("favor_participants")
+                .select("favor_id, user_id")
+                .in("favor_id", values: favorIds.map { $0.uuidString })
+                .execute()
+
+            let rows = try createDecoder().decode([BatchParticipantRow].self, from: response.data)
+            guard !rows.isEmpty else { return [:] }
+
+            let grouped = Dictionary(grouping: rows, by: { $0.favorId })
+            let allUserIds = Array(Set(rows.map { $0.userId }))
+            let profiles = try await ProfileService.shared.fetchProfiles(userIds: allUserIds)
+            let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+
+            var result: [UUID: [Profile]] = [:]
+            for (favorId, participantRows) in grouped {
+                result[favorId] = participantRows.compactMap { profileLookup[$0.userId] }
+            }
+            return result
+        } catch {
+            AppLogger.error("favors", "Error batch fetching favor participants: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
     /// Fetch favors where a user is a participant
     /// - Parameter userId: User ID
     /// - Returns: Array of favors where the user is a participant
@@ -442,19 +487,20 @@ final class FavorService {
         let profiles = (try? await ProfileService.shared.fetchProfiles(userIds: Array(allUserIds))) ?? []
         let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
         
-        // Map profiles back to favors and fetch participants
+        // Batch fetch all participants in 2 queries (participants table + profiles)
+        let participantsByFavor = await fetchFavorParticipantsBatch(favorIds: favors.map { $0.id })
+
+        // Map profiles and participants back to favors
         var enriched: [Favor] = []
         for var favor in favors {
             favor.poster = profileLookup[favor.userId]
             if let claimedBy = favor.claimedBy {
                 favor.claimer = profileLookup[claimedBy]
             }
-            if let participants = try? await fetchFavorParticipants(favorId: favor.id) {
-                favor.participants = participants
-            }
+            favor.participants = participantsByFavor[favor.id] ?? []
             enriched.append(favor)
         }
-        
+
         return enriched
     }
     

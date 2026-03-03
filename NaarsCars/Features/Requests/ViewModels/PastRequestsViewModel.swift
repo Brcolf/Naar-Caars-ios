@@ -58,8 +58,8 @@ final class PastRequestsViewModel: ObservableObject {
                     return
                 }
                 
-                async let ridesTask = rideService.fetchRides(status: nil, userId: userId, claimedBy: nil)
-                async let favorsTask = favorService.fetchFavors(status: nil, userId: userId, claimedBy: nil)
+                async let ridesTask = rideService.fetchRides(status: nil, userId: userId, claimedBy: nil, excludeStatus: nil)
+                async let favorsTask = favorService.fetchFavors(status: nil, userId: userId, claimedBy: nil, excludeStatus: nil)
                 
                 let rides = try await ridesTask
                 let favors = try await favorsTask
@@ -83,8 +83,8 @@ final class PastRequestsViewModel: ObservableObject {
                     return
                 }
                 
-                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: userId)
-                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: userId)
+                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: userId, excludeStatus: nil)
+                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: userId, excludeStatus: nil)
                 
                 let rides = try await ridesTask
                 let favors = try await favorsTask

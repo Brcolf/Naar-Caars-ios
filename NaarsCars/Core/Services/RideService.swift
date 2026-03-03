@@ -37,13 +37,14 @@ final class RideService {
     func fetchRides(
         status: RideStatus? = nil,
         userId: UUID? = nil,
-        claimedBy: UUID? = nil
+        claimedBy: UUID? = nil,
+        excludeStatus: RideStatus? = nil
     ) async throws -> [Ride] {
         // Build query
         var query = supabase
             .from("rides")
             .select()
-        
+
         // Apply filters
         if let status = status {
             query = query.eq("status", value: status.rawValue)
@@ -53,6 +54,9 @@ final class RideService {
         }
         if let claimedBy = claimedBy {
             query = query.eq("claimed_by", value: claimedBy.uuidString)
+        }
+        if let excludeStatus = excludeStatus {
+            query = query.neq("status", value: excludeStatus.rawValue)
         }
         
         // Execute query
@@ -538,6 +542,47 @@ final class RideService {
         return try await ProfileService.shared.fetchProfiles(userIds: userIds)
     }
     
+    /// Batch fetch participants for multiple rides in 2 queries (participants table + profiles)
+    /// - Parameter rideIds: Array of ride UUIDs
+    /// - Returns: Dictionary mapping each ride ID to its participant profiles
+    private func fetchRideParticipantsBatch(rideIds: [UUID]) async -> [UUID: [Profile]] {
+        guard !rideIds.isEmpty else { return [:] }
+
+        struct BatchParticipantRow: Codable {
+            let rideId: UUID
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case rideId = "ride_id"
+                case userId = "user_id"
+            }
+        }
+
+        do {
+            let response = try await supabase
+                .from("ride_participants")
+                .select("ride_id, user_id")
+                .in("ride_id", values: rideIds.map { $0.uuidString })
+                .execute()
+
+            let rows = try createDecoder().decode([BatchParticipantRow].self, from: response.data)
+            guard !rows.isEmpty else { return [:] }
+
+            let grouped = Dictionary(grouping: rows, by: { $0.rideId })
+            let allUserIds = Array(Set(rows.map { $0.userId }))
+            let profiles = try await ProfileService.shared.fetchProfiles(userIds: allUserIds)
+            let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+
+            var result: [UUID: [Profile]] = [:]
+            for (rideId, participantRows) in grouped {
+                result[rideId] = participantRows.compactMap { profileLookup[$0.userId] }
+            }
+            return result
+        } catch {
+            AppLogger.error("rides", "Error batch fetching ride participants: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
     /// Fetch rides where a user is a participant
     /// - Parameter userId: User ID
     /// - Returns: Array of rides where the user is a participant
@@ -659,19 +704,20 @@ final class RideService {
         let profiles = (try? await ProfileService.shared.fetchProfiles(userIds: Array(allUserIds))) ?? []
         let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
         
-        // Map profiles back to rides and fetch participants
+        // Batch fetch all participants in 2 queries (participants table + profiles)
+        let participantsByRide = await fetchRideParticipantsBatch(rideIds: rides.map { $0.id })
+
+        // Map profiles and participants back to rides
         var enriched: [Ride] = []
         for var ride in rides {
             ride.poster = profileLookup[ride.userId]
             if let claimedBy = ride.claimedBy {
                 ride.claimer = profileLookup[claimedBy]
             }
-            if let participants = try? await fetchRideParticipants(rideId: ride.id) {
-                ride.participants = participants
-            }
+            ride.participants = participantsByRide[ride.id] ?? []
             enriched.append(ride)
         }
-        
+
         return enriched
     }
     

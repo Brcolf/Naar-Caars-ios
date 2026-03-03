@@ -131,12 +131,19 @@ final class RequestsDashboardViewModel: ObservableObject {
         loadTask = Task { @MainActor in
             defer { loadTask = nil }
             guard !Task.isCancelled else { return }
-            if showLoadingIndicator { isLoading = true }
             error = nil
-            defer { if !Task.isCancelled && showLoadingIndicator { isLoading = false } }
+
+            // Show cached SwiftData data immediately
+            refreshFilteredRequests()
+
+            // Only show loading spinner if there's no cached data to display
+            let hasCachedData = !filteredRequests.isEmpty
+            if showLoadingIndicator && !hasCachedData { isLoading = true }
+            defer { if !Task.isCancelled { isLoading = false } }
+
             do {
-                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: nil)
-                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil)
+                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: nil, excludeStatus: .completed)
+                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil, excludeStatus: .completed)
                 let rides = try await ridesTask
                 let favors = try await favorsTask
                 guard !Task.isCancelled else { return }

@@ -7,7 +7,7 @@ import Foundation
 
 @MainActor
 protocol RideServiceProtocol: AnyObject {
-    func fetchRides(status: RideStatus?, userId: UUID?, claimedBy: UUID?) async throws -> [Ride]
+    func fetchRides(status: RideStatus?, userId: UUID?, claimedBy: UUID?, excludeStatus: RideStatus?) async throws -> [Ride]
     func fetchRide(id: UUID) async throws -> Ride
     func createRide(
         userId: UUID,
