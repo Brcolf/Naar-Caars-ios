@@ -45,9 +45,20 @@ struct NaarsCarsApp: App {
             Self.setupSyncEngines(with: newContainer)
             containerReady = true
         } catch {
-            AppLogger.error("app", "Failed to initialize SwiftData container: \(error)")
-            _container = State(initialValue: nil)
-            _showDataError = State(initialValue: true)
+            AppLogger.error("app", "SwiftData container failed, attempting auto-recovery: \(error)")
+            // Auto-clear corrupt/incompatible store and retry
+            Self.deleteStoreFiles()
+            do {
+                let recovered = try Self.createModelContainer()
+                _container = State(initialValue: recovered)
+                Self.setupSyncEngines(with: recovered)
+                containerReady = true
+                AppLogger.info("app", "SwiftData container recovered after clearing local cache")
+            } catch {
+                AppLogger.error("app", "Failed to initialize SwiftData container after recovery: \(error)")
+                _container = State(initialValue: nil)
+                _showDataError = State(initialValue: true)
+            }
         }
         
         // Test connection on app launch
@@ -86,7 +97,9 @@ struct NaarsCarsApp: App {
                 Button("app_clear_local_data".localized, role: .destructive) {
                     clearLocalDataAndRetry()
                 }
-                Button("app_quit".localized, role: .cancel) { }
+                Button("app_quit".localized, role: .cancel) {
+                    exit(0)
+                }
             } message: {
                 Text("app_data_error_message".localized)
             }
@@ -95,11 +108,15 @@ struct NaarsCarsApp: App {
     
     // MARK: - SwiftData Helpers
     
-    /// Creates a ModelContainer using the versioned schema and migration plan.
+    /// Creates a ModelContainer for all SwiftData models.
+    /// Uses unversioned schema — SwiftData handles additive property changes
+    /// (e.g. new columns with defaults) via automatic lightweight migration.
     private static func createModelContainer() throws -> ModelContainer {
         try ModelContainer(
-            for: Schema(versionedSchema: SchemaV2.self),
-            migrationPlan: NaarsCarsModelMigrationPlan.self
+            for: SDConversation.self, SDMessage.self,
+                 SDRide.self, SDFavor.self,
+                 SDNotification.self,
+                 SDTownHallPost.self, SDTownHallComment.self
         )
     }
     
@@ -127,18 +144,19 @@ struct NaarsCarsApp: App {
         }
     }
     
-    /// Deletes the SwiftData store files and attempts to recreate the container.
-    private func clearLocalDataAndRetry() {
+    /// Deletes the SQLite store files. Safe to call from init (static, no instance state).
+    private static func deleteStoreFiles() {
         let fileManager = FileManager.default
         guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
-        
-        // Remove the SQLite store and its journal files
-        let storeFiles = ["default.store", "default.store-wal", "default.store-shm"]
-        for file in storeFiles {
-            let url = appSupport.appendingPathComponent(file)
-            try? fileManager.removeItem(at: url)
+        for file in ["default.store", "default.store-wal", "default.store-shm"] {
+            try? fileManager.removeItem(at: appSupport.appendingPathComponent(file))
         }
-        
+    }
+
+    /// Deletes the SwiftData store files and attempts to recreate the container.
+    private func clearLocalDataAndRetry() {
+        Self.deleteStoreFiles()
+
         // Retry container creation
         do {
             let newContainer = try Self.createModelContainer()
