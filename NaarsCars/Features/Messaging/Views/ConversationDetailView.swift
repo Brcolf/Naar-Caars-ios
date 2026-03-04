@@ -592,31 +592,35 @@ struct ConversationDetailView: View {
                         }
                     }
                     .onChange(of: viewModel.messages.count) { oldCount, newCount in
-                        if navigationCoordinator.consumeConversationScrollTarget(for: conversationId) != nil {
-                            showScrollToBottom = false
-                            shouldScrollToBottom = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                shouldScrollToBottom = false
+                        // Defer state mutations to next run loop to avoid
+                        // "Modifying state during view update" warnings.
+                        DispatchQueue.main.async { [self] in
+                            if navigationCoordinator.consumeConversationScrollTarget(for: conversationId) != nil {
+                                showScrollToBottom = false
+                                shouldScrollToBottom = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    shouldScrollToBottom = false
+                                }
                             }
-                        }
-                        if oldCount > 0, newCount > oldCount, !viewModel.isLoadingMore {
-                            let newMessages = viewModel.messages.suffix(newCount - oldCount)
-                            for message in newMessages {
-                                newMessageIds.insert(message.id)
+                            if oldCount > 0, newCount > oldCount, !viewModel.isLoadingMore {
+                                let newMessages = viewModel.messages.suffix(newCount - oldCount)
+                                for message in newMessages {
+                                    newMessageIds.insert(message.id)
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    newMessageIds.removeAll()
+                                }
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                newMessageIds.removeAll()
+                            let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
+                            if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore && oldCount > 0 {
+                                shouldScrollToBottom = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    shouldScrollToBottom = false
+                                }
+                                showScrollToBottom = false
+                            } else if newCount > oldCount && !viewModel.isLoadingMore {
+                                showScrollToBottom = true
                             }
-                        }
-                        let lastMessageIsFromMe = viewModel.messages.last.map { $0.fromId == AuthService.shared.currentUserId } ?? false
-                        if (isAtBottom || lastMessageIsFromMe) && !viewModel.isLoadingMore && oldCount > 0 {
-                            shouldScrollToBottom = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                shouldScrollToBottom = false
-                            }
-                            showScrollToBottom = false
-                        } else if newCount > oldCount && !viewModel.isLoadingMore {
-                            showScrollToBottom = true
                         }
                     }
                 }
