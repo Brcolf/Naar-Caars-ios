@@ -59,9 +59,7 @@
 	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Naar's Cars uses your camera to take profile photos.</string>
-	<key>NSFaceIDUsageDescription</key>
+<key>NSFaceIDUsageDescription</key>
 	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
@@ -80,8 +78,6 @@
 	<array>
 		<string>remote-notification</string>
 		<string>fetch</string>
-		<string>location</string>
-		<string>processing</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>
@@ -94,7 +90,7 @@
 	</dict>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UIStatusBarStyle</key>
 	<string></string>
