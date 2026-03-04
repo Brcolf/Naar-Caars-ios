@@ -139,9 +139,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        // #region agent log
+        #if DEBUG
         PushNotificationService.pushDebugLog(location: "AppDelegate.swift:didRegisterForRemoteNotifications", message: "APNs token received", data: ["tokenPrefix": String(tokenString.prefix(12)), "hasUserId": AuthService.shared.currentUserId != nil])
-        // #endregion
+        #endif
         Task { @MainActor in
             PushNotificationService.shared.storeDeviceToken(deviceToken)
             if let userId = AuthService.shared.currentUserId {
@@ -160,9 +160,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // #region agent log
+        #if DEBUG
         PushNotificationService.pushDebugLog(location: "AppDelegate.swift:didFailToRegister", message: "APNs registration failed", data: ["error": error.localizedDescription])
-        // #endregion
+        #endif
         Log.push("Failed to register for remote notifications: \(error.localizedDescription)", type: .error)
     }
     

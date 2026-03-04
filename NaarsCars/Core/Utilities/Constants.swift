@@ -162,10 +162,12 @@ enum Constants {
         static let locationRequestTimeout: TimeInterval = 2.0
     }
 
+    #if DEBUG
     /// Debug-only configuration. When push ingest URL is nil (default), push debug logs are not sent; set to e.g. URL(string: "http://127.0.0.1:7242/ingest/...") when the ingest service is running to avoid connection-refused console noise.
     enum Debug {
         static var pushIngestURL: URL?
     }
+    #endif
 }
 
 /// Runtime feature flags for performance instrumentation.

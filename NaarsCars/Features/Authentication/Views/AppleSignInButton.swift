@@ -33,14 +33,15 @@ enum AppleSignInHelper {
     /// Generate a random nonce string for security
     /// - Parameter length: Length of nonce string (default: 32)
     /// - Returns: Random nonce string
-    static func randomNonceString(length: Int = 32) -> String {
+    static func randomNonceString(length: Int = 32) -> String? {
         precondition(length > 0)
         var randomBytes = [UInt8](repeating: 0, count: length)
         let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
-        if errorCode != errSecSuccess {
-            fatalError("Unable to generate nonce: \(errorCode)")
+        guard errorCode == errSecSuccess else {
+            AppLogger.error("auth", "Unable to generate nonce: \(errorCode)")
+            return nil
         }
-        
+
         let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
         return String(randomBytes.map { charset[Int($0) % charset.count] })
     }

@@ -37,7 +37,7 @@ final class NetworkMonitor: ObservableObject {
 
 /// View modifier that shows "No Internet" banner when offline
 struct OfflineBannerModifier: ViewModifier {
-    @ObservedObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     
     func body(content: Content) -> some View {
         content

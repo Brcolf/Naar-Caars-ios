@@ -61,7 +61,7 @@ final class ClaimService {
         
         // Verify user has phone number
         let profile = try await ProfileService.shared.fetchProfile(userId: claimerId)
-        guard profile.phoneNumber != nil, !profile.phoneNumber!.isEmpty else {
+        guard let phoneNumber = profile.phoneNumber, !phoneNumber.isEmpty else {
             await PerformanceMonitor.shared.record(
                 operation: "claim.request.rejected",
                 duration: Date().timeIntervalSince(operationStart),

@@ -58,6 +58,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         let id: UUID
     }
 
+    #if DEBUG
     // #region agent log
     /// Debug ingest for push handoff (Simulator: POST to ingest URL). Only sends when `Constants.Debug.pushIngestURL` is set; otherwise no request is made to avoid connection-refused logs.
     static func pushDebugLog(location: String, message: String, data: [String: Any] = [:]) {
@@ -77,6 +78,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
     }
     // #endregion
+    #endif
 
     // MARK: - Initialization
     

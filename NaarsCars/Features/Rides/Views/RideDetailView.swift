@@ -95,7 +95,7 @@ struct RideDetailView: View {
                         try await viewModel.deleteRide()
                         showSuccess = true
                     } catch {
-                        // Error handling
+                        toastMessage = error.localizedDescription
                     }
                 }
             }
@@ -474,7 +474,7 @@ struct RideDetailView: View {
             }
             
             // Notes & Gift
-            if (ride.notes != nil && !ride.notes!.isEmpty) || (ride.gift != nil && !ride.gift!.isEmpty) {
+            if !(ride.notes?.isEmpty ?? true) || !(ride.gift?.isEmpty ?? true) {
                 VStack(alignment: .leading, spacing: Constants.Spacing.md) {
                     if let notes = ride.notes, !notes.isEmpty {
                         VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
@@ -486,7 +486,7 @@ struct RideDetailView: View {
                         }
                     }
                     
-                    if ride.notes != nil && !ride.notes!.isEmpty && ride.gift != nil && !ride.gift!.isEmpty {
+                    if !(ride.notes?.isEmpty ?? true) && !(ride.gift?.isEmpty ?? true) {
                         Divider()
                     }
                     

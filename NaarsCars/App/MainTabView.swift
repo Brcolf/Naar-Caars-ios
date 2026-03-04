@@ -13,7 +13,7 @@ struct MainTabView: View {
     @StateObject private var badgeManager = BadgeCountManager.shared
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var promptCoordinator = PromptCoordinator.shared
-    @ObservedObject private var toastManager = InAppToastManager.shared
+    @StateObject private var toastManager = InAppToastManager.shared
     @EnvironmentObject var appState: AppState
     @State private var selectedTab = 0
     @State private var showGuidelinesAcceptance = false

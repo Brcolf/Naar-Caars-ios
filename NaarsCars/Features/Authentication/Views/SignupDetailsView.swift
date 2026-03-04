@@ -135,13 +135,17 @@ struct SignupDetailsView: View {
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
                 HStack(spacing: 4) {
-                    Link("signup_terms_of_service".localized, destination: URL(string: Constants.URLs.termsOfService)!)
-                        .font(.naarsCaption)
+                    if let tosURL = URL(string: Constants.URLs.termsOfService) {
+                        Link("signup_terms_of_service".localized, destination: tosURL)
+                            .font(.naarsCaption)
+                    }
                     Text("signup_terms_and".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
-                    Link("signup_privacy_policy".localized, destination: URL(string: Constants.URLs.privacyPolicy)!)
-                        .font(.naarsCaption)
+                    if let privacyURL = URL(string: Constants.URLs.privacyPolicy) {
+                        Link("signup_privacy_policy".localized, destination: privacyURL)
+                            .font(.naarsCaption)
+                    }
                 }
             }
             .padding(.horizontal)

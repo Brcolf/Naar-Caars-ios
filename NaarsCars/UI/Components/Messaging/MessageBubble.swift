@@ -722,7 +722,7 @@ struct MessageBubble: View {
     private func locationMessageView(latitude: Double, longitude: Double, name: String?) -> some View {
         Button(action: {
             // Open in Maps
-            let url = URL(string: "maps://?ll=\(latitude),\(longitude)")!
+            guard let url = URL(string: "maps://?ll=\(latitude),\(longitude)") else { return }
             if UIApplication.shared.canOpenURL(url) {
                 Task { @MainActor in
                     await UIApplication.shared.open(url)
@@ -999,7 +999,7 @@ private struct AudioMessageContentView: View {
     let isFromCurrentUser: Bool
     let waveformHeights: [CGFloat]
 
-    @ObservedObject private var audioPlayer = MessageAudioPlayer.shared
+    @StateObject private var audioPlayer = MessageAudioPlayer.shared
 
     var body: some View {
         let isCurrent = audioPlayer.currentUrl?.absoluteString == audioUrl

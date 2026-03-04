@@ -79,7 +79,7 @@ struct FavorDetailView: View {
                         try await viewModel.deleteFavor()
                         showSuccess = true
                     } catch {
-                        // Error handling
+                        toastMessage = error.localizedDescription
                     }
                 }
             }
@@ -378,7 +378,7 @@ struct FavorDetailView: View {
             }
 
             // Requirements & Gift
-            if (favor.requirements != nil && !favor.requirements!.isEmpty) || (favor.gift != nil && !favor.gift!.isEmpty) {
+            if !(favor.requirements?.isEmpty ?? true) || !(favor.gift?.isEmpty ?? true) {
                 VStack(alignment: .leading, spacing: Constants.Spacing.md) {
                     if let requirements = favor.requirements, !requirements.isEmpty {
                         VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
@@ -390,7 +390,7 @@ struct FavorDetailView: View {
                         }
                     }
                     
-                    if favor.requirements != nil && !favor.requirements!.isEmpty && favor.gift != nil && !favor.gift!.isEmpty {
+                    if !(favor.requirements?.isEmpty ?? true) && !(favor.gift?.isEmpty ?? true) {
                         Divider()
                     }
                     
@@ -615,7 +615,7 @@ struct FavorDetailView: View {
                 } catch {
                     AppLogger.error("favors", "Apple Maps failed: \(error.localizedDescription)")
                     // Fallback to simple URL
-                    if let url = URL(string: "http://maps.apple.com/?daddr=\(location)") {
+                    if let url = URL(string: "https://maps.apple.com/?daddr=\(location)") {
                         await UIApplication.shared.open(url)
                     }
                 }

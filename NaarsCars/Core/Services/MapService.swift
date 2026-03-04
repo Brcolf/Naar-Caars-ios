@@ -121,7 +121,7 @@ final class MapService {
         
         // Strategy: If it looks like a POI (no numbers at start, or contains "Airport", "Station", etc.), 
         // try MKLocalSearch first as it's much better for these.
-        let looksLikePOI = !trimmedAddress.first!.isNumber || 
+        let looksLikePOI = !(trimmedAddress.first?.isNumber ?? false) ||
                           trimmedAddress.localizedCaseInsensitiveContains("Airport") ||
                           trimmedAddress.localizedCaseInsensitiveContains("Station") ||
                           trimmedAddress.localizedCaseInsensitiveContains("Park")

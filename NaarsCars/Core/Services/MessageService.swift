@@ -815,7 +815,7 @@ final class MessageService {
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .in("conversation_id", values: conversationIds)
-            .ilike("text", pattern: "%\(query)%")
+            .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -826,6 +826,13 @@ final class MessageService {
         return messages
     }
     
+    /// Escape ILIKE special characters in a search query
+    private func escapeILIKE(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
+
     /// Search messages within a specific conversation
     /// - Parameters:
     ///   - query: The search text (case-insensitive contains)
@@ -846,7 +853,7 @@ final class MessageService {
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .eq("conversation_id", value: conversationId.uuidString)
-            .ilike("text", pattern: "%\(query)%")
+            .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
         
         if let before {

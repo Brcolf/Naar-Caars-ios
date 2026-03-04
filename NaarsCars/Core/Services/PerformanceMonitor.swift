@@ -158,8 +158,8 @@ actor PerformanceMonitor {
         }
         
         // Keep only last N samples
-        if let count = operationTimings[operation]?.count, count > maxSamplesPerOperation {
-            operationTimings[operation] = Array(operationTimings[operation]!.suffix(maxSamplesPerOperation))
+        if let timings = operationTimings[operation], timings.count > maxSamplesPerOperation {
+            operationTimings[operation] = Array(timings.suffix(maxSamplesPerOperation))
             operationMetadata[operation] = Array((operationMetadata[operation] ?? []).suffix(maxSamplesPerOperation))
         }
     }

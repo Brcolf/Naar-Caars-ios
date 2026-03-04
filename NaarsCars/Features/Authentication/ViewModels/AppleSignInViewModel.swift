@@ -29,7 +29,10 @@ final class AppleSignInViewModel: ObservableObject {
         request.requestedScopes = [.fullName, .email]
         
         // Generate nonce for security
-        let nonce = AppleSignInHelper.randomNonceString()
+        guard let nonce = AppleSignInHelper.randomNonceString() else {
+            error = .unknown("Unable to generate secure nonce. Please try again.")
+            return
+        }
         currentNonce = nonce
         request.nonce = AppleSignInHelper.sha256(nonce)
     }

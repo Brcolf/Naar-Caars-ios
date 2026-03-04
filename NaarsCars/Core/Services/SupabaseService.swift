@@ -165,8 +165,10 @@ final class SupabaseService: ObservableObject {
         do {
             let urlString = Secrets.supabaseURL
             AppLogger.network.debug("[SupabaseService] Testing Supabase connection...")
+            #if DEBUG
             AppLogger.network.debug("[SupabaseService] Deobfuscated URL: \(urlString)")
             AppLogger.network.debug("[SupabaseService] URL length: \(urlString.count)")
+            #endif
             
             // Verify URL is valid
             guard let url = URL(string: urlString), url.scheme == "https" else {

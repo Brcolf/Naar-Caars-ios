@@ -55,7 +55,7 @@ final class LocalizationManager: ObservableObject {
             // Set the language preference
             UserDefaults.standard.set([code], forKey: "AppleLanguages")
             // Also set it in standardUserDefaults for immediate effect
-            UserDefaults.standard.synchronize()
+
         }
         
         // Post notification for immediate updates where possible
@@ -73,7 +73,7 @@ final class LocalizationManager: ObservableObject {
             // Set the language preference array
             // iOS will use this to determine which .lproj folder to use
             UserDefaults.standard.set([appLanguage], forKey: "AppleLanguages")
-            UserDefaults.standard.synchronize()
+
             
             AppLogger.info("localization", "Initialized language preference: \(appLanguage)")
             if let languages = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String] {
@@ -82,7 +82,7 @@ final class LocalizationManager: ObservableObject {
         } else {
             // Use system language - remove custom override
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-            UserDefaults.standard.synchronize()
+
             AppLogger.info("localization", "Using system language")
         }
     }

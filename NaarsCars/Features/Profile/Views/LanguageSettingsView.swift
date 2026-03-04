@@ -9,7 +9,7 @@ import SwiftUI
 
 /// View for selecting app language
 struct LanguageSettingsView: View {
-    @ObservedObject private var localizationManager = LocalizationManager.shared
+    @StateObject private var localizationManager = LocalizationManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showRestartAlert = false
     @State private var pendingLanguage: String?

@@ -52,6 +52,7 @@ struct MessageInputBar: View {
     
     // Expanded attachment menu
     @State private var showAttachmentMenu = false
+    @State private var showMicPermissionAlert = false
     @State private var lastTypingSignalAt: Date = .distantPast
     @State private var sendButtonScale: CGFloat = 1.0
     
@@ -117,7 +118,7 @@ struct MessageInputBar: View {
                         .foregroundColor(isRecording ? .red : .naarsPrimary)
                 }
                 
-                TextField(editingMessage != nil ? "messaging_edit_placeholder".localized : "Type a message...", text: $text, axis: .vertical)
+                TextField(editingMessage != nil ? "messaging_edit_placeholder".localized : "messaging_placeholder".localized, text: $text, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
                     .submitLabel(.return)
@@ -155,6 +156,21 @@ struct MessageInputBar: View {
         .sheet(isPresented: $showLocationPicker) {
             LocationPickerSheet { coordinate, name in
                 onLocationShare?(coordinate.latitude, coordinate.longitude, name)
+            }
+        }
+        .alert("messaging_microphone_access_title".localized, isPresented: $showMicPermissionAlert) {
+            Button("messaging_open_settings".localized) {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("common_cancel".localized, role: .cancel) {}
+        } message: {
+            Text("messaging_microphone_access_message".localized)
+        }
+        .onDisappear {
+            if isRecording {
+                cancelRecording()
             }
         }
     }
@@ -211,12 +227,21 @@ struct MessageInputBar: View {
     }
     
     private func startRecording() {
-        // Request microphone permission
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            DispatchQueue.main.async {
-                if granted {
-                    beginRecording()
+        Task { @MainActor in
+            let granted: Bool
+            if #available(iOS 17, *) {
+                granted = await AVAudioApplication.requestRecordPermission()
+            } else {
+                granted = await withCheckedContinuation { continuation in
+                    AVAudioSession.sharedInstance().requestRecordPermission { result in
+                        continuation.resume(returning: result)
+                    }
                 }
+            }
+            if granted {
+                beginRecording()
+            } else {
+                showMicPermissionAlert = true
             }
         }
     }

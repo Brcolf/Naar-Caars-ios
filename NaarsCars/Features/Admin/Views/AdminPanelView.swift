@@ -74,8 +74,10 @@ struct AdminPanelView: View {
                 // Navigation Links
                 navigationSection
                 
+                #if DEBUG
                 // Dev Tools (for testing)
                 devToolsSection
+                #endif
             }
             .padding()
         }
@@ -234,6 +236,7 @@ struct AdminPanelView: View {
         }
     }
     
+    #if DEBUG
     @ViewBuilder
     private var devToolsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -269,6 +272,7 @@ struct AdminPanelView: View {
             .accessibilityHint("Double-tap to open the developer notification testing tool")
         }
     }
+    #endif
 }
 
 /// Stat card component for dashboard

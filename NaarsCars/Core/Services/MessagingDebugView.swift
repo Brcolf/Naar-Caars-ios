@@ -6,6 +6,7 @@
 //  Useful for troubleshooting loading issues, race conditions, and cache state
 //
 
+#if DEBUG
 import SwiftUI
 internal import Combine
 
@@ -326,3 +327,4 @@ final class MessagingDebugViewModel: ObservableObject {
         MessagingDebugView(conversationViewModel: ConversationsListViewModel())
     }
 }
+#endif

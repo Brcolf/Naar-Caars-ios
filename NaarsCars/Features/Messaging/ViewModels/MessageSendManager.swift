@@ -48,6 +48,10 @@ final class MessageSendManager {
         }
 
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count <= 5000 else {
+            await setError(.invalidInput("Message is too long (max 5,000 characters)"))
+            return
+        }
         setMessageText("")
         HapticManager.lightImpact()
 

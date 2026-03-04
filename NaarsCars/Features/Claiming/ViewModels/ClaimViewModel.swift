@@ -47,7 +47,7 @@ final class ClaimViewModel: ObservableObject {
         
         do {
             let profile = try await profileService.fetchProfile(userId: userId)
-            return profile.phoneNumber != nil && !profile.phoneNumber!.isEmpty
+            return !(profile.phoneNumber?.isEmpty ?? true)
         } catch {
             return false
         }
