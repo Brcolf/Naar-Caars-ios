@@ -90,12 +90,12 @@ struct MessagesCollectionView: UIViewRepresentable {
         
         if isInitialLoad {
             coordinator.dataSource?.apply(snapshot, animatingDifferences: false)
-        } else if isPagination || !isSingleNewMessage {
-            // Pagination or bulk/ambiguous update — no animation to avoid jank
-            coordinator.dataSource?.apply(snapshot, animatingDifferences: false)
+        } else if isSingleNewMessage {
+            // Single new message — apply immediately with animation
+            coordinator.applySnapshotDebounced(snapshot, animating: true, collectionView: collectionView)
         } else {
-            // Single new message at bottom — smooth insert animation
-            coordinator.dataSource?.apply(snapshot, animatingDifferences: true)
+            // Pagination, bulk update, or metadata change — debounce
+            coordinator.applySnapshotDebounced(snapshot, animating: false, collectionView: collectionView)
         }
         
         // Handle scroll-to-message
@@ -139,12 +139,38 @@ struct MessagesCollectionView: UIViewRepresentable {
         var cellConfigurations: [UUID: MessageCellConfiguration] = [:]
         var messageCellContent: ((Message, MessageCellConfiguration) -> AnyView)?
         var lastSnapshotCount = 0
+        private var pendingSnapshot: NSDiffableDataSourceSnapshot<Int, UUID>?
+        private var pendingAnimating: Bool = false
+        private var debounceWorkItem: DispatchWorkItem?
         private var isAtBottom = true
         
         init(parent: MessagesCollectionView) {
             self.parent = parent
         }
         
+        func applySnapshotDebounced(_ snapshot: NSDiffableDataSourceSnapshot<Int, UUID>, animating: Bool, collectionView: UICollectionView) {
+            // Cancel any pending apply
+            debounceWorkItem?.cancel()
+
+            // If animating (single new message), apply immediately for responsiveness
+            if animating {
+                dataSource?.apply(snapshot, animatingDifferences: true)
+                return
+            }
+
+            // For non-animated applies (pagination, bulk), debounce to coalesce rapid updates
+            pendingSnapshot = snapshot
+            pendingAnimating = false
+
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self, let pending = self.pendingSnapshot else { return }
+                self.dataSource?.apply(pending, animatingDifferences: false)
+                self.pendingSnapshot = nil
+            }
+            debounceWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+        }
+
         func setupDataSource(collectionView: UICollectionView) {
             let cellRegistration = UICollectionView.CellRegistration<MessageCollectionViewCell, UUID> { [weak self] cell, indexPath, messageId in
                 guard let self = self,
