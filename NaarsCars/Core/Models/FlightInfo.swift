@@ -59,19 +59,36 @@ struct FlightInfo: Sendable {
         )
     }
 
+    // MARK: - Display Info Cache
+
+    /// Cache to avoid re-parsing flight info on every SwiftUI view render.
+    private static var displayInfoCache: [UUID: FlightInfo?] = [:]
+    private static var displayInfoCacheKeys: [UUID: String] = [:]
+
     /// Display flight for a ride: use persisted flight_normalized if set, else extract from notes. Synchronous.
+    /// Results are cached per ride ID + content hash to avoid redundant parsing on view re-renders.
     static func displayInfo(for ride: Ride) -> FlightInfo? {
+        let cacheKey = "\(ride.flightNormalized ?? "")||\(ride.notes ?? "")"
+        if displayInfoCacheKeys[ride.id] == cacheKey {
+            return displayInfoCache[ride.id] ?? nil
+        }
+
+        let result: FlightInfo?
         if let n = ride.flightNormalized, !n.isEmpty {
             #if DEBUG
             AppLogger.info("rides", "[FlightAudit] displayInfo rideId=\(ride.id) source=persisted flight_normalized=\(n)")
             #endif
-            return fromPersisted(normalized: n)
+            result = fromPersisted(normalized: n)
+        } else {
+            result = extract(from: ride.notes, pickup: ride.pickup, destination: ride.destination)
+            #if DEBUG
+            AppLogger.info("rides", "[FlightAudit] displayInfo rideId=\(ride.id) source=\(result != nil ? "fallbackFromNotes" : "none") flight_normalized=\(ride.flightNormalized ?? "nil") fallbackCode=\(result?.normalizedFlightNumber ?? "nil")")
+            #endif
         }
-        let fallback = extract(from: ride.notes, pickup: ride.pickup, destination: ride.destination)
-        #if DEBUG
-        AppLogger.info("rides", "[FlightAudit] displayInfo rideId=\(ride.id) source=\(fallback != nil ? "fallbackFromNotes" : "none") flight_normalized=\(ride.flightNormalized ?? "nil") fallbackCode=\(fallback?.normalizedFlightNumber ?? "nil")")
-        #endif
-        return fallback
+
+        displayInfoCache[ride.id] = result
+        displayInfoCacheKeys[ride.id] = cacheKey
+        return result
     }
 
     /// Extract and enrich flight info from ride notes only (pickup/destination not used for flight code to avoid false positives like "SR 99", "NE 45th"). Uses same FlightCodeParser as persistence.
