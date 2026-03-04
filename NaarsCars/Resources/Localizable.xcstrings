@@ -18220,6 +18220,46 @@
         }
       }
     },
+    "messaging_microphone_access_message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone access is required to record audio messages. Please enable it in Settings."
+          }
+        }
+      }
+    },
+    "messaging_microphone_access_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone Access"
+          }
+        }
+      }
+    },
+    "messaging_open_settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "messaging_placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type a message..."
+          }
+        }
+      }
+    },
     "messaging_edit_placeholder" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -24939,7 +24979,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This will permanently delete your account and all associated data."
+            "value" : "This will permanently delete your account including all rides, favors, messages, reviews, and Town Hall posts. Active requests you've claimed will be reopened for others. This cannot be undone."
           }
         },
         "es" : {
@@ -33319,6 +33359,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "帳戶關聯"
+          }
+        }
+      }
+    },
+    "settings_coming_soon" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coming soon"
           }
         }
       }

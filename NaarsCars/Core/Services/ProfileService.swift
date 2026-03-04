@@ -501,7 +501,9 @@ final class ProfileService {
     func deleteAccount(userId: UUID) async throws {
         // 1. Revoke Apple Sign-In if linked (Apple App Store requirement)
         // This must be done BEFORE deleting the account
-        let _ = await AuthService.shared.revokeAppleSignIn()
+        if AuthService.shared.hasAppleSignInLinked {
+            try await AuthService.shared.revokeAppleSignIn()
+        }
         
         // 2. Use database function to delete account (handles cascade deletes)
         let params: [String: AnyCodable] = [

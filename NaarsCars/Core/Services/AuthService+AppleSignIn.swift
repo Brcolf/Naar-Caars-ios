@@ -349,68 +349,66 @@ extension AuthService {
     }
     
     // MARK: - Account Deletion with Apple Token Revocation
-    
-    /// Revoke Apple Sign-In authorization before account deletion
-    /// Apple requires that apps revoke tokens when users delete their accounts
-    /// - Returns: True if revocation was successful or no Apple account was linked
-    func revokeAppleSignIn() async -> Bool {
+
+    /// Revoke Apple Sign-In authorization before account deletion.
+    /// Apple requires that apps revoke tokens when users delete their accounts.
+    /// This method calls the `revoke-apple-token` Edge Function to perform
+    /// server-side token revocation with Apple's /auth/revoke endpoint.
+    /// - Parameter authorizationCode: A fresh authorization code obtained from ASAuthorizationAppleIDProvider
+    /// - Throws: AppError if revocation fails
+    func revokeAppleSignIn(authorizationCode: String? = nil) async throws {
         // Check if user has Apple ID linked
         guard let appleUserIdentifier = UserDefaults.standard.string(forKey: "appleUserIdentifier") else {
             // No Apple account linked, nothing to revoke
-            return true
+            return
         }
-        
-        do {
-            // Get the current credential state from Apple
-            let state = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ASAuthorizationAppleIDProvider.CredentialState, Error>) in
-                let appleIDProvider = ASAuthorizationAppleIDProvider()
-                appleIDProvider.getCredentialState(forUserID: appleUserIdentifier) { state, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: state)
-                    }
+
+        // Check credential state
+        let state = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ASAuthorizationAppleIDProvider.CredentialState, Error>) in
+            let appleIDProvider = ASAuthorizationAppleIDProvider()
+            appleIDProvider.getCredentialState(forUserID: appleUserIdentifier) { state, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: state)
                 }
             }
-            
-            // Only need to handle revocation if credential is still authorized
-            guard state == .authorized else {
-                // Credential is already revoked or transferred, clean up local storage
-                UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
-                AppLogger.auth.info("Apple credential already revoked or not found")
-                return true
-            }
-            
-            // Clear local Apple user identifier
-            // Note: Full token revocation requires server-side implementation
-            // with Apple's /auth/revoke endpoint using client_secret
-            // For now, we clear the local state and unlink the identity if possible
+        }
+
+        guard state == .authorized else {
+            // Credential already revoked or transferred
             UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
-            
-            // Try to unlink the Apple identity from Supabase
-            // This removes the association between the Apple ID and the Supabase user
+            AppLogger.auth.info("Apple credential already revoked or not found")
+            return
+        }
+
+        // Call Edge Function to revoke the token server-side
+        if let code = authorizationCode {
             do {
-                // Get current user identities
-                if let session = try? await SupabaseService.shared.client.auth.session {
-                    if let appleIdentity = session.user.identities?.first(where: { $0.provider == "apple" }) {
-                        try await SupabaseService.shared.client.auth.unlinkIdentity(appleIdentity)
-                        AppLogger.auth.info("Apple identity unlinked from Supabase")
-                    }
-                }
+                try await SupabaseService.shared.client.functions.invoke(
+                    "revoke-apple-token",
+                    options: .init(body: ["authorization_code": code])
+                )
+                AppLogger.auth.info("Apple token revoked via Edge Function")
             } catch {
-                // Log error but continue with deletion - the account will still be deleted
-                AppLogger.auth.error("Failed to unlink Apple identity: \(error.localizedDescription)")
+                AppLogger.auth.error("Edge function call failed: \(error.localizedDescription)")
+                throw AppError.processingError("Failed to revoke Apple Sign-In token: \(error.localizedDescription)")
             }
-            
-            AppLogger.auth.info("Apple Sign-In revoked successfully")
-            return true
-            
-        } catch {
-            AppLogger.auth.error("Failed to check/revoke Apple credential state: \(error.localizedDescription)")
-            // Still clean up local storage even if revocation check fails
-            UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
-            return false
+        } else {
+            AppLogger.auth.warning("No authorization code provided — skipping server-side token revocation. Edge Function secrets may not be configured yet.")
         }
+
+        // Clean up local state
+        UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
+
+        // Unlink identity from Supabase
+        if let session = try? await SupabaseService.shared.client.auth.session,
+           let appleIdentity = session.user.identities?.first(where: { $0.provider == "apple" }) {
+            try? await SupabaseService.shared.client.auth.unlinkIdentity(appleIdentity)
+            AppLogger.auth.info("Apple identity unlinked from Supabase")
+        }
+
+        AppLogger.auth.info("Apple Sign-In revoked successfully")
     }
     
     /// Check if the current user has Apple Sign-In linked
