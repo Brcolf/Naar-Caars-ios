@@ -15,7 +15,7 @@ internal import Combine
 final class ConversationDetailViewModel: ObservableObject {
     @Published var messages: [Message] = [] {
         didSet {
-            recomputeCellConfigurations()
+            recomputeCellConfigurationsIncrementally(oldMessages: oldValue)
             recomputeUnreadCount()
         }
     }
@@ -91,9 +91,8 @@ final class ConversationDetailViewModel: ObservableObject {
         }.count
     }
 
-    /// Recompute per-message cell display configurations.
-    /// Called automatically via the `messages` didSet observer.
-    private func recomputeCellConfigurations() {
+    /// Full recomputation — used only for initial load or major changes.
+    private func recomputeAllCellConfigurations() {
         var configs: [UUID: MessageCellConfiguration] = [:]
         for (index, message) in messages.enumerated() {
             configs[message.id] = MessageCellConfiguration(
@@ -103,6 +102,63 @@ final class ConversationDetailViewModel: ObservableObject {
                 showDateSeparator: shouldShowDateSeparator(at: index)
             )
         }
+        messageCellConfigurations = configs
+    }
+
+    /// Incremental recomputation — only update configs for changed/new messages
+    /// and their immediate neighbors whose series flags may have changed.
+    private func recomputeCellConfigurationsIncrementally(oldMessages: [Message]) {
+        // Fall back to full recompute if the change is complex
+        let oldIds = oldMessages.map { $0.id }
+        let newIds = messages.map { $0.id }
+
+        // If more than a few messages changed, full recompute is simpler
+        if abs(newIds.count - oldIds.count) > 3 || oldIds.isEmpty {
+            recomputeAllCellConfigurations()
+            return
+        }
+
+        // Find indices that need recomputation
+        var indicesToRecompute = Set<Int>()
+
+        // Find new message IDs not in old set
+        let oldIdSet = Set(oldIds)
+        for (index, id) in newIds.enumerated() {
+            if !oldIdSet.contains(id) {
+                // New message + neighbors
+                indicesToRecompute.insert(index)
+                if index > 0 { indicesToRecompute.insert(index - 1) }
+                if index < newIds.count - 1 { indicesToRecompute.insert(index + 1) }
+            }
+        }
+
+        // If no new messages but count/order changed, full recompute
+        if indicesToRecompute.isEmpty && oldIds != newIds {
+            recomputeAllCellConfigurations()
+            return
+        }
+
+        // If truly nothing changed, skip entirely
+        if indicesToRecompute.isEmpty { return }
+
+        // Update only affected configs
+        var configs = messageCellConfigurations
+        for index in indicesToRecompute where index < messages.count {
+            let message = messages[index]
+            configs[message.id] = MessageCellConfiguration(
+                messageId: message.id,
+                isFirstInSeries: isFirstInSeries(at: index),
+                isLastInSeries: isLastInSeries(at: index),
+                showDateSeparator: shouldShowDateSeparator(at: index)
+            )
+        }
+
+        // Remove configs for messages no longer present
+        let newIdSet = Set(newIds)
+        for id in configs.keys where !newIdSet.contains(id) {
+            configs.removeValue(forKey: id)
+        }
+
         messageCellConfigurations = configs
     }
 
