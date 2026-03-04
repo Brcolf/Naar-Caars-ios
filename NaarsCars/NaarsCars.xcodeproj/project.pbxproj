@@ -16,7 +16,6 @@
 		0C6159EB517240BB98866104 /* PromptQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C74567335D747008AFF1A27 /* PromptQueue.swift */; };
 		0ED482C5E89793EE8DDB1A5E /* SpotlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A8A07C4FDAC00EB8654CED /* SpotlightCard.swift */; };
 		104F888413964CF3A97EC9CA /* NaarsCarsUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA366FCF68554DFC9FE4A5A1 /* NaarsCarsUITestsLaunchTests.swift */; };
-		10646BABD05EB822B9ECEA89 /* SDModelVersions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C92AA3FC56434D2864223723 /* SDModelVersions.swift */; };
 		108440524D2E46CDB5C92EEB /* Features/Favors/Views/FavorDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FF9905F7A848D486578210 /* Features/Favors/Views/FavorDetailView.swift */; };
 		10A2269295B244819A10C11D /* Features/Rides/ViewModels/CreateRideViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29DE5A2E38B04FDA8AD62592 /* Features/Rides/ViewModels/CreateRideViewModel.swift */; };
 		1119728817234989A58E0200 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8948CD84AA4048398436FE5B /* PrimaryButton.swift */; };
@@ -416,7 +415,6 @@
 		F7A2B4C5D6E7481A9B3C4D61 /* CompletionPromptProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C3A1B6F5D24C1A9B7C3D51 /* CompletionPromptProviderTests.swift */; };
 		F7A2B4C5D6E7481A9B3C4D62 /* ReviewPromptProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C3A1B6F5D24C1A9B7C3D52 /* ReviewPromptProviderTests.swift */; };
 		F7A2B4C5D6E7481A9B3C4D63 /* ReviewPromptEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C3A1B6F5D24C1A9B7C3D53 /* ReviewPromptEligibilityTests.swift */; };
-		F7AC2A8B9067EDB202D90D32 /* SDMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA369987E6527A9238BB2003 /* SDMigrationPlan.swift */; };
 		F7CB32F6B088508DD93B0E65 /* ConversationAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA1B6566B98CE829519567B /* ConversationAvatar.swift */; };
 		FA2BBF9801DF4FA8810D2A2C /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E5C134F01A4B3E9C064014 /* EditProfileView.swift */; };
 		FB3400ECF3C94500BFA999EC /* PromptModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A7626088EB4EEA92769463 /* PromptModels.swift */; };
@@ -853,7 +851,6 @@
 		C8B2DB546E144D0AAE478B56 /* FavorsDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorsDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		C8CCC483BC224571827086FF /* LeaderboardBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardBadge.swift; sourceTree = "<group>"; };
 		C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiterTests.swift; sourceTree = "<group>"; };
-		C92AA3FC56434D2864223723 /* SDModelVersions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDModelVersions.swift; sourceTree = "<group>"; };
 		CA954447B9E54705B9F21D89 /* Core/Services/ClaimService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/ClaimService.swift; sourceTree = "<group>"; };
 		CA95B657AEBD47D585A99153 /* CompletionPromptViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionPromptViewTests.swift; sourceTree = "<group>"; };
 		CB5B6126D1DEB66F5840190A /* MapSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSnapshotCache.swift; sourceTree = "<group>"; };
@@ -895,7 +892,6 @@
 		E8C3A1B6F5D24C1A9B7C3D53 /* ReviewPromptEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptEligibilityTests.swift; sourceTree = "<group>"; };
 		E8C3A1B6F5D24C1A9B7C3D54 /* LeaveReviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveReviewViewModelTests.swift; sourceTree = "<group>"; };
 		EA18F86136B84CB396BD5C56 /* AddressText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressText.swift; sourceTree = "<group>"; };
-		EA369987E6527A9238BB2003 /* SDMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDMigrationPlan.swift; sourceTree = "<group>"; };
 		EAA13F58C91D42D592759C0A /* Favor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favor.swift; sourceTree = "<group>"; };
 		EE20096272154C709693972B /* Features/Rides/Views/EditRideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/Views/EditRideView.swift; sourceTree = "<group>"; };
 		EFED1E64737A4058B6CF581B /* Core/Services/PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
@@ -1260,8 +1256,6 @@
 				E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */,
 				E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */,
 				AC4F1E172F23340500CC5DBA /* SDModels.swift */,
-				C92AA3FC56434D2864223723 /* SDModelVersions.swift */,
-				EA369987E6527A9238BB2003 /* SDMigrationPlan.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -2541,8 +2535,6 @@
 				AC1201142F3D73E60043BFAE /* NotificationServiceProtocol.swift in Sources */,
 				AC1201152F3D73E60043BFAE /* ClaimServiceProtocol.swift in Sources */,
 				AC4F1E1A2F23340500CC5DBA /* SDModels.swift in Sources */,
-				10646BABD05EB822B9ECEA89 /* SDModelVersions.swift in Sources */,
-				F7AC2A8B9067EDB202D90D32 /* SDMigrationPlan.swift in Sources */,
 				AC4F1E1B2F23340500CC5DBA /* MessagingSyncEngine.swift in Sources */,
 				AC4F1E1C2F23340500CC5DBA /* MessagingRepository.swift in Sources */,
 				AC02E53F2F442F9600355A45 /* FlightNumberParser.swift in Sources */,
