@@ -150,6 +150,7 @@ actor BackgroundSyncActor {
                     type: ride.type,
                     date: ride.date,
                     time: ride.time,
+                    timezone: ride.timezone,
                     pickup: ride.pickup,
                     destination: ride.destination,
                     seats: ride.seats,
@@ -204,6 +205,7 @@ actor BackgroundSyncActor {
                     requirements: favor.requirements,
                     date: favor.date,
                     time: favor.time,
+                    timezone: favor.timezone,
                     gift: favor.gift,
                     status: favor.status.rawValue,
                     claimedBy: favor.claimedBy,
@@ -274,6 +276,7 @@ actor BackgroundSyncActor {
         sd.qaCount = ride.qaCount ?? 0
         sd.date = ride.date
         sd.time = ride.time
+        sd.timezone = ride.timezone
         sd.pickup = ride.pickup
         sd.destination = ride.destination
         sd.seats = ride.seats
@@ -303,6 +306,7 @@ actor BackgroundSyncActor {
         sd.requirements = favor.requirements
         sd.date = favor.date
         sd.time = favor.time
+        sd.timezone = favor.timezone
         sd.gift = favor.gift
         sd.reviewed = favor.reviewed
         sd.reviewSkipped = favor.reviewSkipped
