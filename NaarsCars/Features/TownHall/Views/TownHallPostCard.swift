@@ -18,6 +18,7 @@ struct TownHallPostCard: View {
     
     @State private var showDeleteAlert = false
     @State private var showComments = false
+    @State private var showReportSheet = false
     
     init(
         post: TownHallPost,
@@ -240,8 +241,21 @@ struct TownHallPostCard: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 
+                // Report button (not on own posts)
+                if !isOwnPost {
+                    Button(action: {
+                        showReportSheet = true
+                    }) {
+                        Image(systemName: "flag")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("Report post")
+                }
+
                 Spacer()
-                
+
                 // Delete button (if own post)
                 if isOwnPost, let _ = onDelete {
                     Button(action: {
@@ -323,6 +337,13 @@ struct TownHallPostCard: View {
         )
         .sheet(isPresented: $showComments) {
             PostCommentsView(postId: post.id)
+        }
+        .sheet(isPresented: $showReportSheet) {
+            ReportContentSheet(context: .post(
+                id: post.id,
+                authorId: post.userId,
+                preview: post.content.prefix(100) + (post.content.count > 100 ? "..." : "")
+            ))
         }
         .alert("townhall_delete_post".localized, isPresented: $showDeleteAlert) {
             Button("common_cancel".localized, role: .cancel) { }

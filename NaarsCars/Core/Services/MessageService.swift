@@ -710,7 +710,39 @@ final class MessageService {
         
         AppLogger.database.info("Reported message: \(messageId)")
     }
-    
+
+    /// Submit a report for a Town Hall post
+    func reportPost(reporterId: UUID, postId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await supabase.rpc(
+            "submit_report",
+            params: [
+                "p_reporter_id": reporterId.uuidString,
+                "p_reported_user_id": authorId.uuidString,
+                "p_reported_post_id": postId.uuidString,
+                "p_report_type": type.rawValue,
+                "p_description": description ?? ""
+            ]
+        ).execute()
+
+        AppLogger.database.info("Reported post: \(postId)")
+    }
+
+    /// Submit a report for a Town Hall comment
+    func reportComment(reporterId: UUID, commentId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await supabase.rpc(
+            "submit_report",
+            params: [
+                "p_reporter_id": reporterId.uuidString,
+                "p_reported_user_id": authorId.uuidString,
+                "p_reported_comment_id": commentId.uuidString,
+                "p_report_type": type.rawValue,
+                "p_description": description ?? ""
+            ]
+        ).execute()
+
+        AppLogger.database.info("Reported comment: \(commentId)")
+    }
+
     // MARK: - Blocking
     
     /// Block a user

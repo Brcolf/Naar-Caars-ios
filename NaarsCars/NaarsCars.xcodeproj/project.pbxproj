@@ -308,6 +308,7 @@
 		ACBF4AF22F12CB3D006A7C8A /* LeaderboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AEB2F12CB3D006A7C8A /* LeaderboardViewModel.swift */; };
 		ACBF4AF52F12CB72006A7C8A /* PostCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AF32F12CB72006A7C8A /* PostCommentsView.swift */; };
 		ACBF4AF62F12CB72006A7C8A /* TownHallPostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AF42F12CB72006A7C8A /* TownHallPostCard.swift */; };
+		AC0E0A012F26D00000CAFE01 /* ReportContentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0E0A002F26D00000CAFE01 /* ReportContentSheet.swift */; };
 		ACBF4AFC2F12CB86006A7C8A /* InvitationWorkflowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AF72F12CB85006A7C8A /* InvitationWorkflowView.swift */; };
 		ACBF4AFD2F12CB86006A7C8A /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AF82F12CB85006A7C8A /* LanguageSettingsView.swift */; };
 		ACBF4AFE2F12CB86006A7C8A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AFA2F12CB85006A7C8A /* SettingsView.swift */; };
@@ -767,6 +768,7 @@
 		ACBF4AEE2F12CB3D006A7C8A /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
 		ACBF4AF32F12CB72006A7C8A /* PostCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCommentsView.swift; sourceTree = "<group>"; };
 		ACBF4AF42F12CB72006A7C8A /* TownHallPostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostCard.swift; sourceTree = "<group>"; };
+		AC0E0A002F26D00000CAFE01 /* ReportContentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportContentSheet.swift; sourceTree = "<group>"; };
 		ACBF4AF72F12CB85006A7C8A /* InvitationWorkflowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvitationWorkflowView.swift; sourceTree = "<group>"; };
 		ACBF4AF82F12CB85006A7C8A /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
 		ACBF4AFA2F12CB85006A7C8A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -1237,6 +1239,7 @@
 			children = (
 				ACBF4AF32F12CB72006A7C8A /* PostCommentsView.swift */,
 				ACBF4AF42F12CB72006A7C8A /* TownHallPostCard.swift */,
+				AC0E0A002F26D00000CAFE01 /* ReportContentSheet.swift */,
 				AC35AB582F0F080F0012096B /* CreatePostView.swift */,
 				AC35AB592F0F080F0012096B /* TownHallFeedView.swift */,
 			);
@@ -2383,6 +2386,7 @@
 				7DCF598341BC4E58977B2DA8 /* Validators.swift in Sources */,
 				ACBF4AF52F12CB72006A7C8A /* PostCommentsView.swift in Sources */,
 				ACBF4AF62F12CB72006A7C8A /* TownHallPostCard.swift in Sources */,
+				AC0E0A012F26D00000CAFE01 /* ReportContentSheet.swift in Sources */,
 				ACBF4AD22F12CAFF006A7C8A /* CommunityTabView.swift in Sources */,
 				ACBF4AD32F12CAFF006A7C8A /* RequestsDashboardView.swift in Sources */,
 				ACBF4AD42F12CAFF006A7C8A /* RequestsDashboardViewModel.swift in Sources */,

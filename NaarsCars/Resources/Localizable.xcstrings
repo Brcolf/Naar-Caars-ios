@@ -20638,6 +20638,46 @@
         }
       }
     },
+    "report_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report Failed"
+          }
+        }
+      }
+    },
+    "report_this_content" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report this content"
+          }
+        }
+      }
+    },
+    "town_hall_comment" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment"
+          }
+        }
+      }
+    },
+    "town_hall_post" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post"
+          }
+        }
+      }
+    },
     "messaging_report_title" : {
       "extractionState" : "stale",
       "localizations" : {

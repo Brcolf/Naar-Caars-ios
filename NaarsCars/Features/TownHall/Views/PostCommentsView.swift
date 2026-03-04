@@ -157,6 +157,7 @@ struct CommentRow: View {
     
     @State private var showReplies = true
     @State private var showDeleteAlert = false
+    @State private var showReportSheet = false
     
     private let maxDepth = 5 // Maximum nesting depth to prevent infinite recursion
     private var indent: CGFloat {
@@ -239,7 +240,20 @@ struct CommentRow: View {
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
-                        
+
+                        // Report button (not on own comments)
+                        if !isOwnComment {
+                            Button(action: {
+                                showReportSheet = true
+                            }) {
+                                Image(systemName: "flag")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .accessibilityLabel("Report comment")
+                        }
+
                         Spacer()
                         
                         // Voting buttons on right
@@ -333,6 +347,13 @@ struct CommentRow: View {
             }
         }
         .padding(.vertical, Constants.Spacing.sm)
+        .sheet(isPresented: $showReportSheet) {
+            ReportContentSheet(context: .comment(
+                id: comment.id,
+                authorId: comment.userId,
+                preview: comment.content.prefix(100) + (comment.content.count > 100 ? "..." : "")
+            ))
+        }
         .alert("townhall_delete_comment".localized, isPresented: $showDeleteAlert) {
             Button("common_cancel".localized, role: .cancel) { }
             Button("common_delete".localized, role: .destructive) {
