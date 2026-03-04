@@ -114,6 +114,7 @@ final class SDRide {
     var type: String
     var date: Date
     var time: String
+    var timezone: String
     var pickup: String
     var destination: String
     var seats: Int
@@ -139,12 +140,13 @@ final class SDRide {
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.type = type
         self.date = date
         self.time = time
+        self.timezone = timezone
         self.pickup = pickup
         self.destination = destination
         self.seats = seats
@@ -179,6 +181,7 @@ final class SDFavor {
     var requirements: String?
     var date: Date
     var time: String?
+    var timezone: String
     var gift: String?
     var status: String // Store rawValue of FavorStatus
     var claimedBy: UUID?
@@ -198,7 +201,7 @@ final class SDFavor {
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.title = title
@@ -208,6 +211,7 @@ final class SDFavor {
         self.requirements = requirements
         self.date = date
         self.time = time
+        self.timezone = timezone
         self.gift = gift
         self.status = status
         self.claimedBy = claimedBy

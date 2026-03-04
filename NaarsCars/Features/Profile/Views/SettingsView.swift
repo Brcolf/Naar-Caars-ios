@@ -267,7 +267,7 @@ struct SettingsView: View {
                     }
                     
                     // Privacy Policy Link
-                    Link(destination: URL(string: Constants.URLs.privacyPolicy) ?? URL(string: "https://example.com")!) {
+                    Link(destination: URL(string: Constants.URLs.privacyPolicy) ?? URL(string: "about:blank")!) {
                         Label {
                             HStack {
                                 Text("settings_privacy_policy".localized)
@@ -285,7 +285,7 @@ struct SettingsView: View {
                     }
                     
                     // Terms of Service Link
-                    Link(destination: URL(string: Constants.URLs.termsOfService) ?? URL(string: "https://example.com")!) {
+                    Link(destination: URL(string: Constants.URLs.termsOfService) ?? URL(string: "about:blank")!) {
                         Label {
                             HStack {
                                 Text("settings_terms_of_service".localized)

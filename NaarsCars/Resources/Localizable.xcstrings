@@ -18220,46 +18220,6 @@
         }
       }
     },
-    "messaging_microphone_access_message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Microphone access is required to record audio messages. Please enable it in Settings."
-          }
-        }
-      }
-    },
-    "messaging_microphone_access_title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Microphone Access"
-          }
-        }
-      }
-    },
-    "messaging_open_settings" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Settings"
-          }
-        }
-      }
-    },
-    "messaging_placeholder" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Type a message..."
-          }
-        }
-      }
-    },
     "messaging_edit_placeholder" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19203,6 +19163,28 @@
         }
       }
     },
+    "messaging_microphone_access_message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone access is required to record audio messages. Please enable it in Settings."
+          }
+        }
+      }
+    },
+    "messaging_microphone_access_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone Access"
+          }
+        }
+      }
+    },
     "messaging_must_be_signed_in_to_block" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19777,6 +19759,17 @@
         }
       }
     },
+    "messaging_open_settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        }
+      }
+    },
     "messaging_original_message_unavailable" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19978,6 +19971,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已置頂"
+          }
+        }
+      }
+    },
+    "messaging_placeholder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type a message..."
           }
         }
       }
@@ -20634,46 +20638,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢舉此訊息"
-          }
-        }
-      }
-    },
-    "report_failed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Report Failed"
-          }
-        }
-      }
-    },
-    "report_this_content" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Report this content"
-          }
-        }
-      }
-    },
-    "town_hall_comment" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Comment"
-          }
-        }
-      }
-    },
-    "town_hall_post" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Post"
           }
         }
       }
@@ -27491,6 +27455,34 @@
     "Reply to comment" : {
 
     },
+    "Report comment" : {
+
+    },
+    "Report post" : {
+
+    },
+    "report_failed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report Failed"
+          }
+        }
+      }
+    },
+    "report_this_content" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report this content"
+          }
+        }
+      }
+    },
     "Request" : {
       "comment" : "A header for the section of the review form that asks about the request.",
       "extractionState" : "stale",
@@ -33403,16 +33395,6 @@
         }
       }
     },
-    "settings_coming_soon" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Coming soon"
-          }
-        }
-      }
-    },
     "settings_announcements" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -33983,6 +33965,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更改應用程式的顯示語言"
+          }
+        }
+      }
+    },
+    "settings_coming_soon" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coming soon"
           }
         }
       }
@@ -39680,6 +39673,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "市政廳"
+          }
+        }
+      }
+    },
+    "town_hall_comment" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment"
+          }
+        }
+      }
+    },
+    "town_hall_post" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post"
           }
         }
       }

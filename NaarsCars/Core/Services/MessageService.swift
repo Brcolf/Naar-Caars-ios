@@ -408,8 +408,20 @@ final class MessageService {
             .limit(1)
             .execute()
         
-        let hasParticipant = participantCheck?.data.isEmpty == false
-        let isCreator = conversationCheck?.data.isEmpty == false
+        let hasParticipant: Bool = {
+            guard let data = participantCheck?.data,
+                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            return !rows.isEmpty
+        }()
+        let isCreator: Bool = {
+            guard let data = conversationCheck?.data,
+                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return false
+            }
+            return !rows.isEmpty
+        }()
         let isParticipant = hasParticipant || isCreator
         
 #if DEBUG

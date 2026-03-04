@@ -180,6 +180,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.qaCount = ride.qaCount ?? 0
                 existing.date = ride.date
                 existing.time = ride.time
+                existing.timezone = ride.timezone
                 existing.pickup = ride.pickup
                 existing.destination = ride.destination
                 existing.seats = ride.seats
@@ -203,6 +204,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                     type: ride.type,
                     date: ride.date,
                     time: ride.time,
+                    timezone: ride.timezone,
                     pickup: ride.pickup,
                     destination: ride.destination,
                     seats: ride.seats,
@@ -247,6 +249,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.requirements = favor.requirements
                 existing.date = favor.date
                 existing.time = favor.time
+                existing.timezone = favor.timezone
                 existing.gift = favor.gift
                 existing.reviewed = favor.reviewed
                 existing.reviewSkipped = favor.reviewSkipped
@@ -268,6 +271,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                     requirements: favor.requirements,
                     date: favor.date,
                     time: favor.time,
+                    timezone: favor.timezone,
                     gift: favor.gift,
                     status: favor.status.rawValue,
                     claimedBy: favor.claimedBy,
