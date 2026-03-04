@@ -992,6 +992,42 @@ struct BubbleShape: Shape {
     }
 }
 
+/// Lightweight observer that only publishes changes when the given audio URL is the active one.
+/// Prevents non-playing audio message bubbles from re-rendering on every timer tick.
+@MainActor
+private final class AudioPlaybackState: ObservableObject {
+    @Published var isPlaying = false
+    @Published var progress: Double = 0
+    @Published var duration: Double = 0
+
+    private let audioUrl: String
+    private var cancellables = Set<AnyCancellable>()
+
+    init(audioUrl: String) {
+        self.audioUrl = audioUrl
+        let player = MessageAudioPlayer.shared
+
+        // Only publish when this URL is the active one
+        player.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                let isCurrent = player.currentUrl?.absoluteString == self.audioUrl
+                let newPlaying = isCurrent && player.isPlaying
+                let newProgress = isCurrent ? player.progress : 0
+                let newDuration = isCurrent ? player.duration : self.duration
+
+                // Only trigger view update if values actually changed for this URL
+                if newPlaying != self.isPlaying || abs(newProgress - self.progress) >= 0.01 || newDuration != self.duration {
+                    self.isPlaying = newPlaying
+                    self.progress = newProgress
+                    self.duration = newDuration
+                }
+            }
+            .store(in: &cancellables)
+    }
+}
+
 /// Isolated audio bubble content so playback timer updates only invalidate audio rows.
 private struct AudioMessageContentView: View {
     let audioUrl: String
@@ -999,17 +1035,24 @@ private struct AudioMessageContentView: View {
     let isFromCurrentUser: Bool
     let waveformHeights: [CGFloat]
 
-    @StateObject private var audioPlayer = MessageAudioPlayer.shared
+    @StateObject private var playbackState: AudioPlaybackState
+
+    init(audioUrl: String, duration: Double, isFromCurrentUser: Bool, waveformHeights: [CGFloat]) {
+        self.audioUrl = audioUrl
+        self.duration = duration
+        self.isFromCurrentUser = isFromCurrentUser
+        self.waveformHeights = waveformHeights
+        self._playbackState = StateObject(wrappedValue: AudioPlaybackState(audioUrl: audioUrl))
+    }
 
     var body: some View {
-        let isCurrent = audioPlayer.currentUrl?.absoluteString == audioUrl
-        let isPlaying = isCurrent && audioPlayer.isPlaying
-        let progress = isCurrent ? audioPlayer.progress : 0
-        let totalDuration = duration > 0 ? duration : (isCurrent ? audioPlayer.duration : 0)
+        let isPlaying = playbackState.isPlaying
+        let progress = playbackState.progress
+        let totalDuration = duration > 0 ? duration : playbackState.duration
 
         HStack(spacing: 12) {
             Button(action: {
-                audioPlayer.togglePlayback(urlString: audioUrl)
+                MessageAudioPlayer.shared.togglePlayback(urlString: audioUrl)
             }) {
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 18))
