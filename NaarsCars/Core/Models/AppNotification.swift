@@ -48,7 +48,10 @@ enum NotificationType: String, Codable, CaseIterable {
     case townHallPost = "town_hall_post"
     case townHallComment = "town_hall_comment"
     case townHallReaction = "town_hall_reaction"
-    
+
+    // Content moderation (admin-only)
+    case contentReported = "content_reported"
+
     // Announcements (admin board announcements - cannot be disabled)
     case announcement = "announcement"
     case adminAnnouncement = "admin_announcement"
@@ -81,6 +84,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return "star.fill"
         case .townHallPost, .townHallComment, .townHallReaction:
             return "building.columns.fill"
+        case .contentReported:
+            return "flag.fill"
         case .announcement, .adminAnnouncement, .broadcast:
             return "megaphone.fill"
         case .pendingApproval:
