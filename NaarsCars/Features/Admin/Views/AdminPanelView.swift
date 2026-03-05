@@ -233,6 +233,28 @@ struct AdminPanelView: View {
             .accessibilityIdentifier("admin.userManagement")
             .accessibilityLabel("All members")
             .accessibilityHint("Double-tap to manage community members")
+
+            NavigationLink(destination: AdminReportsView()) {
+                HStack {
+                    Image(systemName: "flag.fill")
+                        .foregroundColor(.red)
+                    Text("Reports")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.naarsCaption)
+                }
+                .padding()
+                .background(Color.naarsBackgroundSecondary)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.separator), lineWidth: 1)
+                )
+            }
+            .accessibilityIdentifier("admin.reports")
+            .accessibilityLabel("Reports")
+            .accessibilityHint("Double-tap to review content reports")
         }
     }
     
