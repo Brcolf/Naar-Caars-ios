@@ -15,6 +15,8 @@ struct AdminPanelView: View {
     @State private var showFulfilledOverlay = false
     @State private var showSavingsOverlay = false
     @State private var showActiveRidesOverlay = false
+    @State private var showReports = false
+    var autoOpenReports: Bool = false
     
     var body: some View {
         Group {
@@ -54,9 +56,15 @@ struct AdminPanelView: View {
             }
         }
         .navigationTitle("admin_panel_title".localized)
+        .navigationDestination(isPresented: $showReports) {
+            AdminReportsView()
+        }
         .task {
             // Verify admin access when view first appears (only once due to hasVerified flag)
             await viewModel.verifyAdminAccess()
+            if autoOpenReports {
+                showReports = true
+            }
         }
         .trackScreen("AdminPanel")
     }

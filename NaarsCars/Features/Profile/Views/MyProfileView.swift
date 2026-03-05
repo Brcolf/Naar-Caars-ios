@@ -30,6 +30,7 @@ struct MyProfileView: View {
     @State private var badges: [LeaderboardBadge] = []
     @State private var showPendingUsersList = false
     @State private var showAdminPanel = false
+    @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
     @State private var activeProfileSheet: ProfileSheet?
 
@@ -190,7 +191,8 @@ struct MyProfileView: View {
                 PendingUsersView()
             }
             .navigationDestination(isPresented: $showAdminPanel) {
-                AdminPanelView()
+                AdminPanelView(autoOpenReports: autoOpenAdminReports)
+                    .onDisappear { autoOpenAdminReports = false }
             }
             .refreshable {
                 // Try to get user ID from appState first, fallback to AuthService
@@ -605,7 +607,11 @@ struct MyProfileView: View {
         case .pendingUsers:
             showPendingUsersList = true
             navigationCoordinator.pendingIntent = nil
-        case .adminPanel, .adminReports:
+        case .adminPanel:
+            showAdminPanel = true
+            navigationCoordinator.pendingIntent = nil
+        case .adminReports:
+            autoOpenAdminReports = true
             showAdminPanel = true
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):
