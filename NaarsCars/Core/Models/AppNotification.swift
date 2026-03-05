@@ -165,6 +165,7 @@ enum NotificationType: String, Codable, CaseIterable {
             "town_hall_post",
             "town_hall_comment",
             "town_hall_reaction",
+            "content_reported",
             "announcement",
             "admin_announcement",
             "broadcast",
