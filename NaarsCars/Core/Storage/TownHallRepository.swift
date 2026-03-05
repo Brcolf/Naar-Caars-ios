@@ -42,6 +42,9 @@ final class TownHallRepository {
     func upsertPosts(_ posts: [TownHallPost]) throws {
         guard let modelContext = modelContext else { return }
 
+        let serverIds = Set(posts.map { $0.id })
+
+        // Upsert posts from server
         for post in posts {
             let id = post.id
             let fetchDescriptor = FetchDescriptor<SDTownHallPost>(predicate: #Predicate { $0.id == id })
@@ -51,6 +54,12 @@ final class TownHallRepository {
                 let sdPost = mapToSDTownHallPost(post)
                 modelContext.insert(sdPost)
             }
+        }
+
+        // Remove local posts not in the server response (e.g. hidden by moderation)
+        let allLocal = (try? modelContext.fetch(FetchDescriptor<SDTownHallPost>())) ?? []
+        for local in allLocal where !serverIds.contains(local.id) {
+            modelContext.delete(local)
         }
 
         try modelContext.save()
