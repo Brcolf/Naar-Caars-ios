@@ -18,6 +18,7 @@ enum DeepLink {
     case townHall
     case adminPanel
     case pendingUsers
+    case adminReports
     case dashboard
     case notifications
     case announcements(notificationId: UUID?)

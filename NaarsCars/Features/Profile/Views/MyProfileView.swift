@@ -161,7 +161,7 @@ struct MyProfileView: View {
                 .onAppear {
                     // Handle any intent set before this view appeared (e.g., during tab switch)
                     if let intent = navigationCoordinator.pendingIntent,
-                       intent == .pendingUsers || intent == .adminPanel {
+                       intent == .pendingUsers || intent == .adminPanel || intent == .adminReports {
                         applyProfileIntent(intent, proxy: proxy)
                     }
                 }
@@ -605,7 +605,7 @@ struct MyProfileView: View {
         case .pendingUsers:
             showPendingUsersList = true
             navigationCoordinator.pendingIntent = nil
-        case .adminPanel:
+        case .adminPanel, .adminReports:
             showAdminPanel = true
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):

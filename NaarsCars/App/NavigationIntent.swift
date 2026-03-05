@@ -25,6 +25,7 @@ enum NavigationIntent: Equatable {
     case profile(UUID)
     case adminPanel
     case pendingUsers
+    case adminReports
 
     // Cross-tab surfaces
     case notifications
@@ -39,7 +40,7 @@ enum NavigationIntent: Equatable {
             return .messages
         case .townHallPost, .announcements:
             return .community
-        case .profile, .adminPanel, .pendingUsers:
+        case .profile, .adminPanel, .pendingUsers, .adminReports:
             return .profile
         }
     }

@@ -21,6 +21,7 @@ enum NotificationIntent: Equatable {
     case openProfile(userId: UUID)
     case openAdminPanel
     case openPendingUsers
+    case openAdminReports
     case openDashboard
 }
 
@@ -137,6 +138,9 @@ final class NavigationCoordinator: ObservableObject {
         case .pendingUsers:
             pendingIntent = .pendingUsers
 
+        case .adminReports:
+            pendingIntent = .adminReports
+
         case .notifications:
             pendingIntent = .notifications
 
@@ -196,6 +200,9 @@ final class NavigationCoordinator: ObservableObject {
             return false
         case .pendingUsers:
             if case .pendingUsers = pendingIntent { return true }
+            return false
+        case .adminReports:
+            if case .adminReports = pendingIntent { return true }
             return false
         case .notifications:
             if case .notifications = pendingIntent { return true }
@@ -258,6 +265,9 @@ final class NavigationCoordinator: ObservableObject {
             selectedTab = .profile
         case .openPendingUsers:
             pendingIntent = .pendingUsers
+            selectedTab = .profile
+        case .openAdminReports:
+            pendingIntent = .adminReports
             selectedTab = .profile
         case .openDashboard:
             pendingIntent = .dashboard

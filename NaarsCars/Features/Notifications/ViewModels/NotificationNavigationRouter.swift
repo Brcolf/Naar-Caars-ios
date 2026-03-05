@@ -116,6 +116,8 @@ final class NotificationNavigationRouter {
             return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .highlightPost) }
         case .pendingApproval:
             return .openPendingUsers
+        case .contentReported:
+            return .openAdminReports
         case .review:
             if let rideId = notification.rideId { return .openRide(rideId: rideId, anchor: nil) }
             if let favorId = notification.favorId { return .openFavor(favorId: favorId, anchor: nil) }

@@ -381,6 +381,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 object: nil
             )
 
+        case .adminReports:
+            AppLogger.info("app", "Navigate to admin reports")
+            NotificationCenter.default.post(
+                name: .navigateToAdminPanel,
+                object: nil
+            )
+
         case .dashboard:
             AppLogger.info("app", "Navigate to dashboard")
             NotificationCenter.default.post(
