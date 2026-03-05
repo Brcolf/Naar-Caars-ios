@@ -19,6 +19,7 @@ struct TownHallPostCard: View {
     @State private var showDeleteAlert = false
     @State private var showComments = false
     @State private var showReportSheet = false
+    @State private var hasReported = false
     
     init(
         post: TownHallPost,
@@ -243,15 +244,25 @@ struct TownHallPostCard: View {
                 
                 // Report button (not on own posts)
                 if !isOwnPost {
-                    Button(action: {
-                        showReportSheet = true
-                    }) {
-                        Image(systemName: "flag")
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
+                    if hasReported {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flag.fill")
+                                .font(.naarsCaption)
+                            Text("Reported")
+                                .font(.naarsCaption)
+                        }
+                        .foregroundColor(.secondary.opacity(0.5))
+                    } else {
+                        Button(action: {
+                            showReportSheet = true
+                        }) {
+                            Image(systemName: "flag")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Report post")
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Report post")
                 }
 
                 Spacer()
@@ -339,11 +350,14 @@ struct TownHallPostCard: View {
             PostCommentsView(postId: post.id)
         }
         .sheet(isPresented: $showReportSheet) {
-            ReportContentSheet(context: .post(
-                id: post.id,
-                authorId: post.userId,
-                preview: post.content.prefix(100) + (post.content.count > 100 ? "..." : "")
-            ))
+            ReportContentSheet(
+                context: .post(
+                    id: post.id,
+                    authorId: post.userId,
+                    preview: post.content.prefix(100) + (post.content.count > 100 ? "..." : "")
+                ),
+                onReported: { hasReported = true }
+            )
         }
         .alert("townhall_delete_post".localized, isPresented: $showDeleteAlert) {
             Button("common_cancel".localized, role: .cancel) { }

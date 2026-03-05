@@ -158,6 +158,7 @@ struct CommentRow: View {
     @State private var showReplies = true
     @State private var showDeleteAlert = false
     @State private var showReportSheet = false
+    @State private var hasReported = false
     
     private let maxDepth = 5 // Maximum nesting depth to prevent infinite recursion
     private var indent: CGFloat {
@@ -243,15 +244,25 @@ struct CommentRow: View {
 
                         // Report button (not on own comments)
                         if !isOwnComment {
-                            Button(action: {
-                                showReportSheet = true
-                            }) {
-                                Image(systemName: "flag")
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
+                            if hasReported {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "flag.fill")
+                                        .font(.naarsCaption)
+                                    Text("Reported")
+                                        .font(.naarsCaption)
+                                }
+                                .foregroundColor(.secondary.opacity(0.5))
+                            } else {
+                                Button(action: {
+                                    showReportSheet = true
+                                }) {
+                                    Image(systemName: "flag")
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .accessibilityLabel("Report comment")
                             }
-                            .buttonStyle(PlainButtonStyle())
-                            .accessibilityLabel("Report comment")
                         }
 
                         Spacer()
@@ -348,11 +359,14 @@ struct CommentRow: View {
         }
         .padding(.vertical, Constants.Spacing.sm)
         .sheet(isPresented: $showReportSheet) {
-            ReportContentSheet(context: .comment(
-                id: comment.id,
-                authorId: comment.userId,
-                preview: comment.content.prefix(100) + (comment.content.count > 100 ? "..." : "")
-            ))
+            ReportContentSheet(
+                context: .comment(
+                    id: comment.id,
+                    authorId: comment.userId,
+                    preview: comment.content.prefix(100) + (comment.content.count > 100 ? "..." : "")
+                ),
+                onReported: { hasReported = true }
+            )
         }
         .alert("townhall_delete_comment".localized, isPresented: $showDeleteAlert) {
             Button("common_cancel".localized, role: .cancel) { }

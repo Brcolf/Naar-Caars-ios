@@ -16,6 +16,7 @@ enum ReportContext {
 /// Sheet for reporting Town Hall content
 struct ReportContentSheet: View {
     let context: ReportContext
+    var onReported: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedReportType: MessageService.ReportType = .other
@@ -157,6 +158,7 @@ struct ReportContentSheet: View {
                     description: description.isEmpty ? nil : description
                 )
             }
+            onReported?()
             dismiss()
         } catch {
             submitError = error.localizedDescription
