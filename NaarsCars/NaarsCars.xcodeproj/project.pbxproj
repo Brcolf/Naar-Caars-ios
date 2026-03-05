@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F60001B9C0D1E2 /* AdminModerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002B9C0D1E2 /* AdminModerationService.swift */; };
+		A1B2C3D4E5F60003B9C0D1E2 /* AdminReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60004B9C0D1E2 /* AdminReportsView.swift */; };
 		01E6A8138836046AD14DFDC3 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FD8E458AE888861E9F4FC0 /* ConversationService.swift */; };
 		0280A9FF8783E0B8C339C2C4 /* TypingIndicatorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CDDC8E455AA632FACFCB95 /* TypingIndicatorManager.swift */; };
 		06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6919D6DE589147EA882BA5C2 /* View+Extensions.swift */; };
@@ -440,6 +442,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F60002B9C0D1E2 /* AdminModerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminModerationService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60004B9C0D1E2 /* AdminReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminReportsView.swift; sourceTree = "<group>"; };
 		0203B70350D9463DBB993A31 /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		0356C00D127342B5A0288362 /* UI/Components/Cards/FavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/FavorCard.swift; sourceTree = "<group>"; };
 		052E6D74D4102679A004789F /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
@@ -1443,6 +1447,7 @@
 			children = (
 				AC4F1DEE2F209C6100CC5DBA /* DevNotificationTestView.swift */,
 				ACBF4ADA2F12CB30006A7C8A /* AdminInviteView.swift */,
+				A1B2C3D4E5F60004B9C0D1E2 /* AdminReportsView.swift */,
 				ACBF4ADB2F12CB30006A7C8A /* AdminPanelView.swift */,
 				2C38AD07C9E24F7DA0CB0473 /* AdminSavingsOverlay.swift */,
 				68E89E62B8474335B17DBAA2 /* AdminFulfilledOverlay.swift */,
@@ -1703,6 +1708,7 @@
 				E8C3A1B6F5D24C1A9B7C3D4E /* CompletionPromptProvider.swift */,
 				E8C3A1B6F5D24C1A9B7C3D4F /* ReviewPromptProvider.swift */,
 				E8C3A1B6F5D24C1A9B7C3D50 /* PromptSideEffects.swift */,
+				A1B2C3D4E5F60002B9C0D1E2 /* AdminModerationService.swift */,
 				ACBF4AB62F12CAE4006A7C8A /* AdminService.swift */,
 				ACBF4AB72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift */,
 				ACBF4AB82F12CAE4006A7C8A /* BiometricService.swift */,
@@ -2313,6 +2319,7 @@
 				ACBF4AC22F12CAE4006A7C8A /* MapService.swift in Sources */,
 				ACBF4AC32F12CAE4006A7C8A /* LocationService.swift in Sources */,
 				ACBF4AC42F12CAE4006A7C8A /* TownHallVoteService.swift in Sources */,
+				A1B2C3D4E5F60001B9C0D1E2 /* AdminModerationService.swift in Sources */,
 				ACBF4AC52F12CAE4006A7C8A /* AdminService.swift in Sources */,
 				AC12004F2F37B2330043BFAE /* MessageSendWorker.swift in Sources */,
 				ACBF4AC62F12CAE4006A7C8A /* BiometricService.swift in Sources */,
@@ -2428,6 +2435,7 @@
 				AC4F1E0C2F21C0C900CC5DBA /* RequestNotificationMapping.swift in Sources */,
 				AC4F1E0D2F21C0C900CC5DBA /* NotificationGrouping.swift in Sources */,
 				ACD19A4F2F14D269009C1DE5 /* JSONDecoderFactory.swift in Sources */,
+				A1B2C3D4E5F60003B9C0D1E2 /* AdminReportsView.swift in Sources */,
 				ACBF4AE62F12CB30006A7C8A /* AdminPanelView.swift in Sources */,
 				6E07107A39F34EF8BB18E906 /* AdminSavingsOverlay.swift in Sources */,
 				29B5514DB4FE4929B899DD71 /* AdminFulfilledOverlay.swift in Sources */,
