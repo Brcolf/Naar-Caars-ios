@@ -159,13 +159,29 @@ final class ConversationsListViewModel: ObservableObject {
 
     private func applyUnreadCounts(_ details: [BadgeCountManager.ConversationCountDetail]) {
         let countsById = Dictionary(uniqueKeysWithValues: details.map { ($0.conversationId, $0.unreadCount) })
-        
+
+        // Un-hide conversations that have unread messages but are currently hidden.
+        // This covers messages that arrived while the app was closed.
+        if let userId = authService.currentUserId {
+            let loadedIds = Set(conversations.map { $0.conversation.id })
+            let hiddenIds = conversationService.getHiddenConversationIds(for: userId)
+            for detail in details where detail.unreadCount > 0 && !loadedIds.contains(detail.conversationId) {
+                if hiddenIds.contains(detail.conversationId) {
+                    conversationService.unhideConversationForUser(conversationId: detail.conversationId, userId: userId)
+                    AppLogger.info("messaging", "[ConversationsListVM] Unhid conversation \(detail.conversationId) with \(detail.unreadCount) unread")
+                    // Trigger a re-sync so the conversation reappears
+                    Task { [weak self] in await self?.refreshConversations() }
+                    return
+                }
+            }
+        }
+
         var hasChanges = false
         var changedConversationIds = Set<UUID>()
         for index in conversations.indices {
             let conversationId = conversations[index].conversation.id
             let serverCount = countsById[conversationId] ?? 0
-            
+
             if conversations[index].unreadCount != serverCount {
                 let existing = conversations[index]
                 conversations[index] = ConversationWithDetails(
@@ -174,17 +190,17 @@ final class ConversationsListViewModel: ObservableObject {
                     unreadCount: serverCount,
                     otherParticipants: existing.otherParticipants
                 )
-                
+
                 // Update local SwiftData unread count to keep it in sync
                 if let sdConv = try? repository.fetchSDConversation(id: conversationId) {
                     sdConv.unreadCount = serverCount
                 }
-                
+
                 hasChanges = true
                 changedConversationIds.insert(conversationId)
             }
         }
-        
+
         if hasChanges {
             AppLogger.info("messaging", "[ConversationsListVM] Applied server-side unread counts to list and local storage")
             try? repository.save(changedConversationIds: changedConversationIds)

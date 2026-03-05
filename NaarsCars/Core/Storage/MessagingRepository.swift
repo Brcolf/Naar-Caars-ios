@@ -452,19 +452,12 @@ final class MessagingRepository {
     }
 
     func deleteConversation(id: UUID) async throws {
-        guard let modelContext = modelContext else { return }
-        
         // 1. Soft-delete: hide the conversation for the current user via UserDefaults
         try await conversationService.deleteConversation(id: id)
-        
-        // 2. Remove from local SwiftData cache so it doesn't reappear before next sync
-        let fetchDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == id })
-        if let existing = try modelContext.fetch(fetchDescriptor).first {
-            modelContext.delete(existing)
-            try save(changedConversationIds: Set([id]))
-        }
-        
-        // 3. Post notification so other observers can react
+
+        // 2. Keep the SwiftData record so it can be restored when new messages arrive.
+        //    filterHiddenConversations() already hides it from the UI.
+        //    Post notification so other observers can react.
         NotificationCenter.default.post(name: .conversationUpdated, object: id)
     }
 

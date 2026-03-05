@@ -117,7 +117,16 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                     
                 case .contentChanged, .inserted:
                     try repository.save(changedConversationIds: Set([message.conversationId]))
-                    
+
+                    // Un-hide the conversation if the user previously soft-deleted it,
+                    // so it reappears when new messages arrive (iMessage-like behavior).
+                    if result == .inserted,
+                       let userId = self.authService.currentUserId,
+                       message.fromId != userId,
+                       self.conversationService.isConversationHidden(conversationId: message.conversationId, for: userId) {
+                        self.conversationService.unhideConversationForUser(conversationId: message.conversationId, userId: userId)
+                    }
+
                     // Media Pre-caching
                     if let imageUrl = message.imageUrl {
                         precacheMedia(url: imageUrl)
