@@ -49,7 +49,9 @@ final class MessagingRepository {
         let sdConversations = try modelContext.fetch(descriptor)
         
         return sdConversations.map { sdConv in
-            let lastSDMessage = sdConv.messages?.sorted(by: { $0.createdAt > $1.createdAt }).first
+            let lastSDMessage = sdConv.messages?
+                .filter { $0.messageType != "system" && $0.deletedAt == nil }
+                .sorted(by: { $0.createdAt > $1.createdAt }).first
             let lastMessage = lastSDMessage.map { MessagingMapper.mapToMessage($0) }
             
             var conversation = MessagingMapper.mapToConversation(sdConv, lastMessage: lastMessage, unreadCount: sdConv.unreadCount)

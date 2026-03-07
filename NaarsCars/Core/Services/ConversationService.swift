@@ -218,6 +218,8 @@ final class ConversationService {
                 .from("messages")
                 .select("*, sender:profiles!messages_from_id_fkey(*)")
                 .eq("conversation_id", value: conversationId.uuidString)
+                .neq("message_type", value: "system")
+                .is("deleted_at", value: nil)
                 .order("created_at", ascending: false)
                 .limit(1)
                 .single()
