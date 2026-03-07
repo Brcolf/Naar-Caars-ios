@@ -337,7 +337,16 @@ struct MessageBubble: View {
     }
     
     private var systemMessageIcon: String {
-        if message.text.contains("added") || message.text.contains("joined") {
+        if message.text.contains("created by") {
+            // Group created event
+            return "sparkles"
+        } else if message.text.contains("removed the group name") {
+            // Name removed event
+            return "pencil.slash"
+        } else if message.text.contains("back to the conversation") {
+            // Member re-added event
+            return "person.badge.plus"
+        } else if message.text.contains("added") || message.text.contains("joined") {
             return "person.badge.plus"
         } else if message.text.contains("left") || message.text.contains("removed") {
             return "person.badge.minus"

@@ -501,7 +501,25 @@ final class ConversationService {
 
         let allUserIds = Array(Set(userIds + [createdBy]))
         await invalidateConversationCaches(for: allUserIds)
-        
+
+        // Send "Group Created" system event
+        let creatorProfile = try? await supabase
+            .from("profiles")
+            .select("name")
+            .eq("id", value: createdBy.uuidString)
+            .single()
+            .execute()
+
+        struct NameRow: Codable { let name: String }
+        if let data = creatorProfile?.data,
+           let profile = try? JSONDecoder().decode(NameRow.self, from: data) {
+            _ = try? await sendSystemMessage(
+                conversationId: conversation.id,
+                text: "Group conversation created by \(profile.name)",
+                fromId: createdBy
+            )
+        }
+
         return conversation
     }
     
@@ -546,7 +564,26 @@ final class ConversationService {
             .update(updateDict)
             .eq("id", value: conversationId.uuidString)
             .execute()
-        
+
+        // Send system event for title change or removal
+        if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
+            if let title = title, !title.isEmpty {
+                // System event: name changed
+                _ = try? await sendSystemMessage(
+                    conversationId: conversationId,
+                    text: "\(profile.name) named the group \(title)",
+                    fromId: userId
+                )
+            } else {
+                // System event: name removed
+                _ = try? await sendSystemMessage(
+                    conversationId: conversationId,
+                    text: "\(profile.name) removed the group name",
+                    fromId: userId
+                )
+            }
+        }
+
         AppLogger.database.info("Updated conversation title")
     }
     
