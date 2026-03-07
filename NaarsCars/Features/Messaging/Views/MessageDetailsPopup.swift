@@ -113,6 +113,15 @@ struct MessageDetailsPopup: View {
                 Section("messaging_conversation_name_section".localized) {
                     TextField("messaging_group_name_placeholder".localized, text: $editedTitle)
                         .textInputAutocapitalization(.words)
+                        .onChange(of: editedTitle) { _, newValue in
+                            if newValue.count > 50 {
+                                editedTitle = String(newValue.prefix(50))
+                            }
+                        }
+                    Text("\(editedTitle.count)/50")
+                        .font(.naarsCaption)
+                        .foregroundColor(editedTitle.count >= 45 ? .orange : .secondary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 
                 // Participants Section
@@ -128,26 +137,39 @@ struct MessageDetailsPopup: View {
                     
                     ForEach(participants) { participant in
                         HStack {
-                            AvatarView(
-                                imageUrl: participant.avatarUrl,
-                                name: participant.name,
-                                size: 40,
-                                userId: participant.id
-                            )
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(participant.name)
+                            if participant.name.isEmpty || participant.name == "Deleted User" {
+                                AvatarView(
+                                    imageUrl: nil,
+                                    name: "Deleted User",
+                                    size: 40,
+                                    userId: participant.id
+                                )
+
+                                Text("Deleted User")
                                     .font(.naarsBody)
-                                
-                                if participant.id == AuthService.shared.currentUserId {
-                                    Text("messaging_you".localized)
-                                        .font(.naarsCaption)
-                                        .foregroundColor(.secondary)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                AvatarView(
+                                    imageUrl: participant.avatarUrl,
+                                    name: participant.name,
+                                    size: 40,
+                                    userId: participant.id
+                                )
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(participant.name)
+                                        .font(.naarsBody)
+
+                                    if participant.id == AuthService.shared.currentUserId {
+                                        Text("messaging_you".localized)
+                                            .font(.naarsCaption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
-                            
+
                             Spacer()
-                            
+
                             // Remove button (only for non-current user)
                             if participant.id != AuthService.shared.currentUserId {
                                 Button(role: .destructive) {
@@ -525,11 +547,14 @@ struct MessageDetailsPopup: View {
             
             let rows = try decoder.decode([ParticipantRow].self, from: response.data)
             
-            // Fetch profiles for each participant
+            // Fetch profiles for each participant (show placeholder for deleted users)
             var profiles: [Profile] = []
             for row in rows {
                 if let profile = try? await ProfileService.shared.fetchProfile(userId: row.userId) {
                     profiles.append(profile)
+                } else {
+                    // Deleted user — create a placeholder profile
+                    profiles.append(Profile(id: row.userId, name: "Deleted User", email: ""))
                 }
             }
             

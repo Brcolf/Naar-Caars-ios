@@ -379,8 +379,9 @@ struct MessageBubble: View {
                     // Show avatar for last message in series
                     AvatarView(
                         imageUrl: message.sender?.avatarUrl,
-                        name: message.sender?.name ?? "?",
-                        size: 28
+                        name: message.sender?.name ?? "Deleted User",
+                        size: 28,
+                        userId: message.sender?.id ?? message.fromId
                     )
                 } else {
                     // Spacer to maintain alignment
@@ -395,8 +396,9 @@ struct MessageBubble: View {
             
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 2) {
                 // Sender name (only for received messages in group chats)
-                if !isFromCurrentUser && totalParticipants > 2 && isFirstInSeries, let sender = message.sender {
-                    Text(sender.name)
+                if !isFromCurrentUser && totalParticipants > 2 && isFirstInSeries {
+                    let senderName = message.sender?.name ?? "Deleted User"
+                    Text(senderName)
                         .font(.naarsCaption)
                         .fontWeight(.medium)
                         .foregroundColor(.secondary)
@@ -406,19 +408,34 @@ struct MessageBubble: View {
                 
                 // Replied-to message preview
                 if showReplyPreview, let replyContext = message.replyToMessage {
-                    Button {
-                        onReplyPreviewTap?(replyContext.id)
-                    } label: {
-                        ReplyPreviewView(
-                            senderName: replyContext.senderName,
-                            text: replyContext.text,
-                            hasImage: replyContext.imageUrl != nil,
-                            isFromCurrentUser: isFromCurrentUser
-                        )
-                        .frame(maxWidth: replyPreviewMaxWidth, alignment: .leading)
+                    if replyContext.text.isEmpty || replyContext.text == "[Message from deleted user]" {
+                        HStack(spacing: 4) {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.3))
+                                .frame(width: 3)
+                            Text("messaging_original_message_deleted".localized)
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .padding(.bottom, 2)
+                    } else {
+                        Button {
+                            onReplyPreviewTap?(replyContext.id)
+                        } label: {
+                            ReplyPreviewView(
+                                senderName: replyContext.senderName,
+                                text: replyContext.text,
+                                hasImage: replyContext.imageUrl != nil,
+                                isFromCurrentUser: isFromCurrentUser
+                            )
+                            .frame(maxWidth: replyPreviewMaxWidth, alignment: .leading)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .padding(.bottom, 2)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(.bottom, 2)
                 }
                 
                 // Message content

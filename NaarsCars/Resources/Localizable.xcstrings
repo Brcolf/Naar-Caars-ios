@@ -19874,6 +19874,16 @@
         }
       }
     },
+    "messaging_original_message_deleted" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original message deleted"
+          }
+        }
+      }
+    },
     "messaging_original_message_unavailable" : {
       "extractionState" : "stale",
       "localizations" : {

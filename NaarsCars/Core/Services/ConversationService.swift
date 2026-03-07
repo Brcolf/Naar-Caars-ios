@@ -532,6 +532,10 @@ final class ConversationService {
     ///   - userId: The user ID making the update (must be a participant)
     /// - Throws: AppError if update fails
     func updateConversationTitle(conversationId: UUID, title: String?, userId: UUID) async throws {
+        if let title = title, title.count > 50 {
+            throw AppError.invalidInput("Group name cannot exceed 50 characters")
+        }
+
         // Verify user is a participant
         let participantResponse = try? await supabase
             .from("conversation_participants")
