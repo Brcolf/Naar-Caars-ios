@@ -97,9 +97,6 @@ struct NaarsCarsApp: App {
                 Button("app_clear_local_data".localized, role: .destructive) {
                     clearLocalDataAndRetry()
                 }
-                Button("app_quit".localized, role: .cancel) {
-                    exit(0)
-                }
             } message: {
                 Text("app_data_error_message".localized)
             }
@@ -114,6 +111,7 @@ struct NaarsCarsApp: App {
     private static func createModelContainer() throws -> ModelContainer {
         try ModelContainer(
             for: SDConversation.self, SDMessage.self,
+                 SDDeletedMessage.self,
                  SDRide.self, SDFavor.self,
                  SDNotification.self,
                  SDTownHallPost.self, SDTownHallComment.self

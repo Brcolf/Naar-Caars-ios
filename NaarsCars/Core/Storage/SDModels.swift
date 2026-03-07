@@ -105,6 +105,20 @@ final class SDMessage {
     }
 }
 
+/// Locally hidden messages ("Delete for Me" — not synced to server)
+@Model
+final class SDDeletedMessage {
+    @Attribute(.unique) var messageId: UUID
+    var conversationId: UUID
+    var deletedAt: Date
+
+    init(messageId: UUID, conversationId: UUID, deletedAt: Date = Date()) {
+        self.messageId = messageId
+        self.conversationId = conversationId
+        self.deletedAt = deletedAt
+    }
+}
+
 // MARK: - Dashboard & Notification Models
 
 @Model

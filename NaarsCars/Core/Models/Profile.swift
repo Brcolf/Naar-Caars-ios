@@ -27,7 +27,8 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
     let notifyQaActivity: Bool
     let notifyReviewReminders: Bool
     let notifyTownHall: Bool
-    
+    let showReadReceipts: Bool?
+
     // Community guidelines acceptance
     let guidelinesAccepted: Bool
     let guidelinesAcceptedAt: Date?
@@ -48,7 +49,11 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         let lastInitial = String(components[components.count - 1].prefix(1))
         return (firstInitial + lastInitial).uppercased()
     }
-    
+
+    var effectiveShowReadReceipts: Bool {
+        showReadReceipts ?? true
+    }
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
@@ -68,6 +73,7 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         case notifyQaActivity = "notify_qa_activity"
         case notifyReviewReminders = "notify_review_reminders"
         case notifyTownHall = "notify_town_hall"
+        case showReadReceipts = "show_read_receipts"
         case guidelinesAccepted = "guidelines_accepted"
         case guidelinesAcceptedAt = "guidelines_accepted_at"
         case createdAt = "created_at"
@@ -93,6 +99,7 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         notifyQaActivity: Bool = true,
         notifyReviewReminders: Bool = true,
         notifyTownHall: Bool = true,
+        showReadReceipts: Bool? = nil,
         guidelinesAccepted: Bool = false,
         guidelinesAcceptedAt: Date? = nil,
         createdAt: Date = Date(),
@@ -114,6 +121,7 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         self.notifyQaActivity = notifyQaActivity
         self.notifyReviewReminders = notifyReviewReminders
         self.notifyTownHall = notifyTownHall
+        self.showReadReceipts = showReadReceipts
         self.guidelinesAccepted = guidelinesAccepted
         self.guidelinesAcceptedAt = guidelinesAcceptedAt
         self.createdAt = createdAt

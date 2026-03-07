@@ -128,47 +128,66 @@ struct ConversationParticipant: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let conversationId: UUID
     let userId: UUID
-    let isAdmin: Bool
     let joinedAt: Date
     var leftAt: Date?
     var lastSeen: Date?
-    
+    let addedBy: UUID?
+    var notificationsMuted: Bool
+    var mutedUntil: Date?
+    var showReadReceipts: Bool?
+
     /// Whether this participant has left the conversation
     var hasLeft: Bool {
         leftAt != nil
     }
-    
+
     /// Whether this participant is currently active (joined and not left)
     var isActive: Bool {
         leftAt == nil
     }
-    
+
+    /// Whether notifications are effectively muted (permanent or timed)
+    var isEffectivelyMuted: Bool {
+        if notificationsMuted { return true }
+        if let until = mutedUntil, until > Date() { return true }
+        return false
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case conversationId = "conversation_id"
         case userId = "user_id"
-        case isAdmin = "is_admin"
         case joinedAt = "joined_at"
         case leftAt = "left_at"
         case lastSeen = "last_seen"
+        case addedBy = "added_by"
+        case notificationsMuted = "notifications_muted"
+        case mutedUntil = "muted_until"
+        case showReadReceipts = "show_read_receipts"
     }
-    
+
     init(
         id: UUID = UUID(),
         conversationId: UUID,
         userId: UUID,
-        isAdmin: Bool = false,
         joinedAt: Date = Date(),
         leftAt: Date? = nil,
-        lastSeen: Date? = nil
+        lastSeen: Date? = nil,
+        addedBy: UUID? = nil,
+        notificationsMuted: Bool = false,
+        mutedUntil: Date? = nil,
+        showReadReceipts: Bool? = nil
     ) {
         self.id = id
         self.conversationId = conversationId
         self.userId = userId
-        self.isAdmin = isAdmin
         self.joinedAt = joinedAt
         self.leftAt = leftAt
         self.lastSeen = lastSeen
+        self.addedBy = addedBy
+        self.notificationsMuted = notificationsMuted
+        self.mutedUntil = mutedUntil
+        self.showReadReceipts = showReadReceipts
     }
 }
 
