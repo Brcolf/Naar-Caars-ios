@@ -112,11 +112,37 @@ final class MessageService {
         guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
             throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
         }
+
+        // Defense-in-depth: fetch participant's joined_at for history visibility boundary
+        let participantJoinedAt: Date? = await {
+            let resp = try? await supabase
+                .from("conversation_participants")
+                .select("joined_at")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .eq("user_id", value: currentUserId.uuidString)
+                .order("joined_at", ascending: false)
+                .limit(1)
+                .single()
+                .execute()
+            guard let data = resp?.data else { return nil }
+            struct JoinRow: Codable {
+                let joinedAt: Date
+                enum CodingKeys: String, CodingKey { case joinedAt = "joined_at" }
+            }
+            return try? createDateDecoder().decode(JoinRow.self, from: data).joinedAt
+        }()
+
         var query = supabase
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .eq("conversation_id", value: conversationId.uuidString)
-        
+
+        // History visibility: only show messages from after participant joined
+        if let participantJoinedAt = participantJoinedAt {
+            let formatter = createISO8601Formatter()
+            query = query.gte("created_at", value: formatter.string(from: participantJoinedAt))
+        }
+
         // If beforeMessageId is provided, fetch messages before that message
         if let beforeMessageId = beforeMessageId {
             // Get the created_at of the beforeMessageId message
@@ -178,12 +204,38 @@ final class MessageService {
             throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
         }
 
+        // Defense-in-depth: fetch participant's joined_at for history visibility boundary
+        let participantJoinedAt: Date? = await {
+            let resp = try? await supabase
+                .from("conversation_participants")
+                .select("joined_at")
+                .eq("conversation_id", value: conversationId.uuidString)
+                .eq("user_id", value: currentUserId.uuidString)
+                .order("joined_at", ascending: false)
+                .limit(1)
+                .single()
+                .execute()
+            guard let data = resp?.data else { return nil }
+            struct JoinRow: Codable {
+                let joinedAt: Date
+                enum CodingKeys: String, CodingKey { case joinedAt = "joined_at" }
+            }
+            return try? createDateDecoder().decode(JoinRow.self, from: data).joinedAt
+        }()
+
+        let effectiveAfter: Date
+        if let participantJoinedAt = participantJoinedAt {
+            effectiveAfter = max(after, participantJoinedAt)
+        } else {
+            effectiveAfter = after
+        }
+
         let formatter = createISO8601Formatter()
         let response = try await supabase
             .from("messages")
             .select("*, sender:profiles!messages_from_id_fkey(*)")
             .eq("conversation_id", value: conversationId.uuidString)
-            .gt("created_at", value: formatter.string(from: after))
+            .gt("created_at", value: formatter.string(from: effectiveAfter))
             .order("created_at", ascending: true)
             .limit(limit)
             .execute()
