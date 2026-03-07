@@ -35,6 +35,7 @@ struct MessageDetailsPopup: View {
     @State private var isUploadingImage = false
     
     // Leave/Remove confirmation
+    @State private var activeParticipantCount: Int = 0
     @State private var showLeaveConfirmation = false
     @State private var showRemoveConfirmation = false
     @State private var participantToRemove: Profile?
@@ -173,14 +174,27 @@ struct MessageDetailsPopup: View {
                 
                 // Leave Group Section
                 Section {
-                    Button(role: .destructive) {
-                        showLeaveConfirmation = true
-                    } label: {
+                    if activeParticipantCount > 0 && activeParticipantCount <= 3 {
                         HStack {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text("messaging_leave_conversation".localized)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("messaging_leave_conversation".localized)
+                                Text("messaging_leave_disabled_tooltip".localized)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                        .foregroundColor(.red)
+                        .foregroundColor(.secondary)
+                    } else {
+                        Button(role: .destructive) {
+                            showLeaveConfirmation = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                Text("messaging_leave_conversation".localized)
+                            }
+                            .foregroundColor(.red)
+                        }
                     }
                 }
                 
@@ -194,6 +208,15 @@ struct MessageDetailsPopup: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .task {
+                let countResp = try? await SupabaseService.shared.client
+                    .from("conversation_participants")
+                    .select("id", head: true, count: .exact)
+                    .eq("conversation_id", value: conversationId.uuidString)
+                    .is("left_at", value: nil)
+                    .execute()
+                activeParticipantCount = countResp?.count ?? 0
+            }
             .navigationTitle("messaging_conversation_details_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

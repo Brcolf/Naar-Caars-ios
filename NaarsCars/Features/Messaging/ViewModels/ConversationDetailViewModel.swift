@@ -50,7 +50,8 @@ final class ConversationDetailViewModel: ObservableObject {
     var canLoadOlderSearchResults: Bool { searchManager.canLoadOlderSearchResults }
     @Published var editingMessage: Message? = nil
     @Published private(set) var unreadCount: Int = 0
-    
+    @Published private(set) var hasLeftConversation: Bool = false
+
     let conversationId: UUID
     private let messageService: any MessageServiceProtocol
     private let authService: any AuthServiceProtocol
@@ -261,7 +262,17 @@ final class ConversationDetailViewModel: ObservableObject {
         }
     }
     
+    func checkLeftStatus() async {
+        guard let userId = authService.currentUserId else { return }
+        let hasLeft = await ConversationParticipantService.shared.hasUserLeftConversation(
+            conversationId: conversationId,
+            userId: userId
+        )
+        self.hasLeftConversation = hasLeft
+    }
+
     func loadMessages() async {
+        await checkLeftStatus()
         error = nil
         await paginationManager.loadMessages(
             conversationId: conversationId,

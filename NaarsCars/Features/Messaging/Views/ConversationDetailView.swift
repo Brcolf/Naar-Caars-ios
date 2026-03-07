@@ -649,54 +649,70 @@ struct ConversationDetailView: View {
                 TypingIndicatorView(typingUsers: viewModel.typingUsers)
                     .padding(.horizontal)
             }
-            ConversationInputContainer(
-                imageToSend: $imageToSend,
-                editingMessage: viewModel.editingMessage,
-                replyingTo: replyingToMessage,
-                focusState: $isInputFocused,
-                onSendEdit: { editedText in
-                    await viewModel.editMessage(newContent: editedText)
-                    if viewModel.error == nil {
-                        toastMessage = "toast_message_edited".localized
-                        return true
+            if viewModel.hasLeftConversation {
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack(spacing: 8) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .foregroundColor(.secondary)
+                        Text("messaging_you_left_conversation".localized)
+                            .font(.naarsFootnote)
+                            .foregroundColor(.secondary)
                     }
-                    return false
-                },
-                onSendMessage: { textToSend, image, replyToId in
-                    viewModel.clearOwnTypingStatus()
-                    await viewModel.sendMessage(textOverride: textToSend, image: image, replyToId: replyToId)
-                    imageToSend = nil
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        replyingToMessage = nil
-                    }
-                },
-                onImagePickerTapped: { showImagePicker = true },
-                onCancelReply: { replyingToMessage = nil },
-                onCancelEdit: {
-                    viewModel.cancelEdit()
-                },
-                onSendAudio: { audioURL, duration, replyToId in
-                    viewModel.clearOwnTypingStatus()
-                    await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyToId)
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        replyingToMessage = nil
-                    }
-                },
-                onSendLocation: { latitude, longitude, name, replyToId in
-                    viewModel.clearOwnTypingStatus()
-                    await viewModel.sendLocationMessage(
-                        latitude: latitude,
-                        longitude: longitude,
-                        locationName: name,
-                        replyToId: replyToId
-                    )
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        replyingToMessage = nil
-                    }
-                },
-                onTypingChanged: { viewModel.userDidType() }
-            )
-            .id("conversation.input.\(conversationId.uuidString)")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGroupedBackground))
+                }
+            } else {
+                ConversationInputContainer(
+                    imageToSend: $imageToSend,
+                    editingMessage: viewModel.editingMessage,
+                    replyingTo: replyingToMessage,
+                    focusState: $isInputFocused,
+                    onSendEdit: { editedText in
+                        await viewModel.editMessage(newContent: editedText)
+                        if viewModel.error == nil {
+                            toastMessage = "toast_message_edited".localized
+                            return true
+                        }
+                        return false
+                    },
+                    onSendMessage: { textToSend, image, replyToId in
+                        viewModel.clearOwnTypingStatus()
+                        await viewModel.sendMessage(textOverride: textToSend, image: image, replyToId: replyToId)
+                        imageToSend = nil
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            replyingToMessage = nil
+                        }
+                    },
+                    onImagePickerTapped: { showImagePicker = true },
+                    onCancelReply: { replyingToMessage = nil },
+                    onCancelEdit: {
+                        viewModel.cancelEdit()
+                    },
+                    onSendAudio: { audioURL, duration, replyToId in
+                        viewModel.clearOwnTypingStatus()
+                        await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyToId)
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            replyingToMessage = nil
+                        }
+                    },
+                    onSendLocation: { latitude, longitude, name, replyToId in
+                        viewModel.clearOwnTypingStatus()
+                        await viewModel.sendLocationMessage(
+                            latitude: latitude,
+                            longitude: longitude,
+                            locationName: name,
+                            replyToId: replyToId
+                        )
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            replyingToMessage = nil
+                        }
+                    },
+                    onTypingChanged: { viewModel.userDidType() }
+                )
+                .id("conversation.input.\(conversationId.uuidString)")
+            }
         }
     }
 
