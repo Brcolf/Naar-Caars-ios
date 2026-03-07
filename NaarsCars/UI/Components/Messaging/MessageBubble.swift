@@ -39,6 +39,12 @@ struct MessageBubble: View {
     /// Total participant count for group read receipts
     var totalParticipants: Int = 2
 
+    /// Whether this is a group conversation (shows profile photo thumbnails for read receipts)
+    var isGroupConversation: Bool = false
+
+    /// Participant profiles for group read receipt avatars
+    var participantProfiles: [Profile] = []
+
     /// Whether to show the reply preview (for thread views)
     var showReplyPreview: Bool = true
 
@@ -149,27 +155,34 @@ struct MessageBubble: View {
         }
     }
     
-    /// Read receipt indicator view
+    /// Read receipt indicator view — branches on group vs DM
     private var readReceiptIndicator: some View {
+        Group {
+            if isGroupConversation {
+                groupReadReceiptIndicator
+            } else {
+                dmReadReceiptIndicator
+            }
+        }
+    }
+
+    /// DM read receipt indicator (checkmark style)
+    private var dmReadReceiptIndicator: some View {
         Group {
             switch readStatus {
             case .failed:
-                // Red exclamation circle for failed
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(.naarsFootnote)
                     .foregroundColor(.red)
             case .sending:
-                // Clock icon for sending
                 Image(systemName: "clock")
                     .font(.naarsCaption)
                     .foregroundColor(.secondary.opacity(0.6))
             case .sent:
-                // Single checkmark for sent
                 Image(systemName: "checkmark")
                     .font(.naarsCaption).fontWeight(.semibold)
                     .foregroundColor(.secondary)
             case .delivered:
-                // Double checkmark (gray) for delivered
                 HStack(spacing: -4) {
                     Image(systemName: "checkmark")
                         .font(.naarsCaption).fontWeight(.semibold)
@@ -178,7 +191,6 @@ struct MessageBubble: View {
                 }
                 .foregroundColor(.secondary)
             case .read:
-                // Double checkmark (blue) for read
                 HStack(spacing: -4) {
                     Image(systemName: "checkmark")
                         .font(.naarsCaption).fontWeight(.semibold)
@@ -186,6 +198,59 @@ struct MessageBubble: View {
                         .font(.naarsCaption).fontWeight(.semibold)
                 }
                 .foregroundColor(.naarsPrimary)
+            }
+        }
+    }
+
+    /// Group read receipt indicator (profile photo thumbnails for delivered/read)
+    private var groupReadReceiptIndicator: some View {
+        Group {
+            switch readStatus {
+            case .failed:
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.naarsFootnote)
+                    .foregroundColor(.red)
+            case .sending:
+                Image(systemName: "clock")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary.opacity(0.6))
+            case .sent:
+                Image(systemName: "checkmark")
+                    .font(.naarsCaption).fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+            case .delivered, .read:
+                let readers = message.readBy.filter { $0 != message.fromId }
+                let readerProfiles = participantProfiles.filter { readers.contains($0.id) }
+                if readerProfiles.isEmpty {
+                    // Fallback to checkmarks if no profiles available
+                    HStack(spacing: -4) {
+                        Image(systemName: "checkmark")
+                            .font(.naarsCaption).fontWeight(.semibold)
+                        Image(systemName: "checkmark")
+                            .font(.naarsCaption).fontWeight(.semibold)
+                    }
+                    .foregroundColor(readStatus == .read ? .naarsPrimary : .secondary)
+                } else {
+                    HStack(spacing: -4) {
+                        ForEach(readerProfiles.prefix(5)) { profile in
+                            AvatarView(
+                                imageUrl: profile.avatarUrl,
+                                name: profile.name,
+                                size: 14,
+                                userId: profile.id
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(.systemBackground), lineWidth: 1)
+                            )
+                        }
+                        if readerProfiles.count > 5 {
+                            Text("+\(readerProfiles.count - 5)")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
         }
     }

@@ -229,7 +229,8 @@ struct ConversationDetailView: View {
                 parentMessageId: parent.id,
                 conversationViewModel: viewModel,
                 isGroup: isGroup,
-                totalParticipants: totalParticipantsCount
+                totalParticipants: totalParticipantsCount,
+                participantProfiles: participantsViewModel.participants
             )
         }
         .photosPicker(
@@ -431,7 +432,9 @@ struct ConversationDetailView: View {
             isFirstInSeries: true,
             isLastInSeries: true,
             shouldAnimate: false,
-            totalParticipants: totalParticipantsCount
+            totalParticipants: totalParticipantsCount,
+            isGroupConversation: isGroup,
+            participantProfiles: participantsViewModel.participants
         )
         .allowsHitTesting(false)
     }
@@ -464,6 +467,8 @@ struct ConversationDetailView: View {
             isLastInSeries: isLast,
             shouldAnimate: newMessageIds.contains(message.id),
             totalParticipants: totalParticipantsCount,
+            isGroupConversation: isGroup,
+            participantProfiles: participantsViewModel.participants,
             replySpine: replyChain.map { (showTop: $0.hasPrevious, showBottom: $0.hasNext) },
             isFailed: message.sendStatus == .failed,
             onLongPress: {
@@ -1235,6 +1240,7 @@ struct MessageThreadView: View {
     @ObservedObject var conversationViewModel: ConversationDetailViewModel
     let isGroup: Bool
     let totalParticipants: Int
+    let participantProfiles: [Profile]
 
     @StateObject private var viewModel: MessageThreadViewModel
     @Environment(\.dismiss) private var dismiss
@@ -1250,13 +1256,15 @@ struct MessageThreadView: View {
         parentMessageId: UUID,
         conversationViewModel: ConversationDetailViewModel,
         isGroup: Bool,
-        totalParticipants: Int
+        totalParticipants: Int,
+        participantProfiles: [Profile] = []
     ) {
         self.conversationId = conversationId
         self.parentMessageId = parentMessageId
         self.conversationViewModel = conversationViewModel
         self.isGroup = isGroup
         self.totalParticipants = totalParticipants
+        self.participantProfiles = participantProfiles
         _viewModel = StateObject(wrappedValue: MessageThreadViewModel(
             conversationId: conversationId,
             parentMessageId: parentMessageId
@@ -1344,6 +1352,8 @@ struct MessageThreadView: View {
                                 isFirstInSeries: isFirst,
                                 isLastInSeries: isLast,
                                 totalParticipants: totalParticipants,
+                                isGroupConversation: isGroup,
+                                participantProfiles: participantProfiles,
                                 showReplyPreview: false
                             )
                             .padding(.vertical, 2)
@@ -1425,7 +1435,9 @@ struct MessageThreadView: View {
                 showAvatar: isGroup && !isFromCurrentUser(parentMessage),
                 isFirstInSeries: true,
                 isLastInSeries: true,
-                totalParticipants: totalParticipants
+                totalParticipants: totalParticipants,
+                isGroupConversation: isGroup,
+                participantProfiles: participantProfiles
             )
             .padding(.vertical, 6)
         } else if viewModel.isLoading {

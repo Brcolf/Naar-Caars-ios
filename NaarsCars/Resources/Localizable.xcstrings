@@ -21679,6 +21679,16 @@
         }
       }
     },
+    "messaging_show_read_receipts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send Read Receipts"
+          }
+        }
+      }
+    },
     "messaging_toast_unpinned" : {
       "extractionState" : "stale",
       "localizations" : {

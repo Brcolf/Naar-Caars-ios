@@ -37,6 +37,9 @@ struct MessageDetailsPopup: View {
     // Mute state
     @State private var isConversationMuted = false
 
+    // Read receipt state
+    @State private var showReadReceiptsForConversation = true
+
     // Leave/Remove confirmation
     @State private var activeParticipantCount: Int = 0
     @State private var showLeaveConfirmation = false
@@ -216,6 +219,24 @@ struct MessageDetailsPopup: View {
                             }
                         }
                     }
+
+                    Toggle(isOn: $showReadReceiptsForConversation) {
+                        HStack {
+                            Image(systemName: "checkmark.message")
+                            Text("messaging_show_read_receipts".localized)
+                        }
+                    }
+                    .onChange(of: showReadReceiptsForConversation) { _, newValue in
+                        guard let userId = AuthService.shared.currentUserId else { return }
+                        Task {
+                            try? await SupabaseService.shared.client
+                                .from("conversation_participants")
+                                .update(["show_read_receipts": newValue])
+                                .eq("conversation_id", value: conversationId.uuidString)
+                                .eq("user_id", value: userId.uuidString)
+                                .execute()
+                        }
+                    }
                 }
 
                 // Leave Group Section
@@ -268,6 +289,24 @@ struct MessageDetailsPopup: View {
                         conversationId: conversationId,
                         userId: userId
                     )
+
+                    // Load read receipt preference
+                    let readReceiptResp = try? await SupabaseService.shared.client
+                        .from("conversation_participants")
+                        .select("show_read_receipts")
+                        .eq("conversation_id", value: conversationId.uuidString)
+                        .eq("user_id", value: userId.uuidString)
+                        .single()
+                        .execute()
+                    if let data = readReceiptResp?.data {
+                        struct ReadReceiptRow: Codable {
+                            let showReadReceipts: Bool?
+                            enum CodingKeys: String, CodingKey { case showReadReceipts = "show_read_receipts" }
+                        }
+                        if let row = try? JSONDecoder().decode(ReadReceiptRow.self, from: data) {
+                            showReadReceiptsForConversation = row.showReadReceipts ?? true
+                        }
+                    }
                 }
             }
             .navigationTitle("messaging_conversation_details_title".localized)
