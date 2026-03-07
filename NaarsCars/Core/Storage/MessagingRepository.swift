@@ -49,9 +49,20 @@ final class MessagingRepository {
         let sdConversations = try modelContext.fetch(descriptor)
         
         return sdConversations.map { sdConv in
-            let lastSDMessage = sdConv.messages?
-                .filter { $0.messageType != "system" && $0.deletedAt == nil }
-                .sorted(by: { $0.createdAt > $1.createdAt }).first
+            // Query by conversationId field (not relationship) for reliability —
+            // the @Relationship may not eagerly include all linked messages.
+            let convId = sdConv.id
+            let msgDescriptor = FetchDescriptor<SDMessage>(
+                predicate: #Predicate<SDMessage> {
+                    $0.conversationId == convId
+                    && $0.messageType != "system"
+                    && $0.deletedAt == nil
+                },
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            )
+            var msgFetch = msgDescriptor
+            msgFetch.fetchLimit = 1
+            let lastSDMessage = (try? modelContext.fetch(msgFetch))?.first
             let lastMessage = lastSDMessage.map { MessagingMapper.mapToMessage($0) }
             
             var conversation = MessagingMapper.mapToConversation(sdConv, lastMessage: lastMessage, unreadCount: sdConv.unreadCount)
