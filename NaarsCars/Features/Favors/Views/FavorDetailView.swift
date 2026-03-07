@@ -627,7 +627,7 @@ struct FavorDetailView: View {
             Task { @MainActor in
                 await UIApplication.shared.open(url)
             }
-        } else if let url = googleMapsWebUrl, UIApplication.shared.canOpenURL(URL(string: "comgooglemaps://")!) {
+        } else if let url = googleMapsWebUrl, let schemeURL = URL(string: "comgooglemaps://"), UIApplication.shared.canOpenURL(schemeURL) {
             Task { @MainActor in
                 await UIApplication.shared.open(url)
             }
