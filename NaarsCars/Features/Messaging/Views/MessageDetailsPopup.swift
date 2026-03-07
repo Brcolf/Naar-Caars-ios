@@ -34,6 +34,9 @@ struct MessageDetailsPopup: View {
     @State private var groupImage: UIImage?
     @State private var isUploadingImage = false
     
+    // Mute state
+    @State private var isConversationMuted = false
+
     // Leave/Remove confirmation
     @State private var activeParticipantCount: Int = 0
     @State private var showLeaveConfirmation = false
@@ -172,6 +175,48 @@ struct MessageDetailsPopup: View {
                     }
                 }
                 
+                // Notifications Section
+                Section("messaging_notifications_section".localized) {
+                    if isConversationMuted {
+                        Button {
+                            guard let userId = AuthService.shared.currentUserId else { return }
+                            Task {
+                                try? await ConversationMuteService.shared.unmuteConversation(
+                                    conversationId: conversationId,
+                                    userId: userId
+                                )
+                                isConversationMuted = false
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "bell")
+                                Text("messaging_unmute_notifications".localized)
+                            }
+                        }
+                    } else {
+                        Menu {
+                            ForEach(ConversationMuteService.MuteDuration.allCases, id: \.self) { duration in
+                                Button(duration.displayName) {
+                                    guard let userId = AuthService.shared.currentUserId else { return }
+                                    Task {
+                                        try? await ConversationMuteService.shared.muteConversation(
+                                            conversationId: conversationId,
+                                            userId: userId,
+                                            duration: duration
+                                        )
+                                        isConversationMuted = true
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "bell.slash")
+                                Text("messaging_mute_notifications".localized)
+                            }
+                        }
+                    }
+                }
+
                 // Leave Group Section
                 Section {
                     if activeParticipantCount > 0 && activeParticipantCount <= 3 {
@@ -216,6 +261,13 @@ struct MessageDetailsPopup: View {
                     .is("left_at", value: nil)
                     .execute()
                 activeParticipantCount = countResp?.count ?? 0
+
+                if let userId = AuthService.shared.currentUserId {
+                    isConversationMuted = await ConversationMuteService.shared.isMuted(
+                        conversationId: conversationId,
+                        userId: userId
+                    )
+                }
             }
             .navigationTitle("messaging_conversation_details_title".localized)
             .navigationBarTitleDisplayMode(.inline)

@@ -21609,6 +21609,76 @@
         }
       }
     },
+    "messaging_mute_1_hour" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For 1 Hour"
+          }
+        }
+      }
+    },
+    "messaging_mute_8_hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For 8 Hours"
+          }
+        }
+      }
+    },
+    "messaging_mute_24_hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For 24 Hours"
+          }
+        }
+      }
+    },
+    "messaging_mute_indefinitely" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Until I Turn It Back On"
+          }
+        }
+      }
+    },
+    "messaging_mute_notifications" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mute Notifications"
+          }
+        }
+      }
+    },
+    "messaging_unmute_notifications" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unmute Notifications"
+          }
+        }
+      }
+    },
+    "messaging_notifications_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
     "messaging_toast_unpinned" : {
       "extractionState" : "stale",
       "localizations" : {

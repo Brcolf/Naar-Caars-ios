@@ -179,7 +179,7 @@ serve(async (req) => {
       // Get recipient user IDs (all participants except sender)
       const { data: participants, error: participantsError } = await supabase
         .from('conversation_participants')
-        .select('user_id, last_seen')
+        .select('user_id, last_seen, notifications_muted, muted_until')
         .eq('conversation_id', conversation_id)
         .neq('user_id', sender_id)
 
@@ -192,11 +192,25 @@ serve(async (req) => {
       }
 
       // Filter out users who are actively viewing
-      const eligibleParticipants = participants.filter(p => {
+      const activeRecipients = participants.filter(p => {
         if (!p.last_seen) return true
         const secondsSinceLastSeen = (Date.now() - new Date(p.last_seen).getTime()) / 1000
         if (secondsSinceLastSeen < 60) {
           console.log(`⏭️ Skipping push for user ${p.user_id} - viewed ${secondsSinceLastSeen.toFixed(1)}s ago`)
+          return false
+        }
+        return true
+      })
+
+      // Filter out muted recipients
+      const now = new Date().toISOString()
+      const eligibleParticipants = activeRecipients.filter(p => {
+        if (p.notifications_muted) {
+          console.log(`🔇 Skipping push for user ${p.user_id} - notifications muted`)
+          return false
+        }
+        if (p.muted_until && p.muted_until > now) {
+          console.log(`🔇 Skipping push for user ${p.user_id} - muted until ${p.muted_until}`)
           return false
         }
         return true
@@ -215,7 +229,9 @@ serve(async (req) => {
       // Add skipped users
       for (const p of participants) {
         if (!eligibleParticipants.find(e => e.user_id === p.user_id)) {
-          allPushResults.push({ recipient: p.user_id, skipped: true, reason: 'user_viewing' })
+          const isMuted = p.notifications_muted || (p.muted_until && p.muted_until > now)
+          const reason = isMuted ? 'muted' : 'user_viewing'
+          allPushResults.push({ recipient: p.user_id, skipped: true, reason })
         }
       }
 
@@ -255,24 +271,43 @@ serve(async (req) => {
     // Full payload case - process single recipient
     console.log(`📨 Processing push notification for user ${recipient_user_id}, conversation ${conversation_id}`)
 
-    // Double-check if recipient is actively viewing
+    // Double-check if recipient is actively viewing or muted
     const { data: participant, error: participantError } = await supabase
       .from('conversation_participants')
-      .select('last_seen')
+      .select('last_seen, notifications_muted, muted_until')
       .eq('conversation_id', conversation_id)
       .eq('user_id', recipient_user_id)
       .single()
 
     if (participantError) {
       console.error('Error checking participant:', participantError)
-    } else if (participant?.last_seen) {
-      const secondsSinceLastSeen = (Date.now() - new Date(participant.last_seen).getTime()) / 1000
-      if (secondsSinceLastSeen < 60) {
-        console.log(`⏭️ Skipping push - user viewed conversation ${secondsSinceLastSeen.toFixed(1)}s ago`)
+    } else {
+      // Check mute status
+      if (participant?.notifications_muted) {
+        console.log(`🔇 Skipping push - user has notifications muted`)
         return new Response(
-          JSON.stringify({ skipped: true, reason: 'user_viewing', seconds_ago: secondsSinceLastSeen }),
+          JSON.stringify({ skipped: true, reason: 'muted' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+      if (participant?.muted_until && participant.muted_until > new Date().toISOString()) {
+        console.log(`🔇 Skipping push - user muted until ${participant.muted_until}`)
+        return new Response(
+          JSON.stringify({ skipped: true, reason: 'muted' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check active viewing
+      if (participant?.last_seen) {
+        const secondsSinceLastSeen = (Date.now() - new Date(participant.last_seen).getTime()) / 1000
+        if (secondsSinceLastSeen < 60) {
+          console.log(`⏭️ Skipping push - user viewed conversation ${secondsSinceLastSeen.toFixed(1)}s ago`)
+          return new Response(
+            JSON.stringify({ skipped: true, reason: 'user_viewing', seconds_ago: secondsSinceLastSeen }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
     }
 

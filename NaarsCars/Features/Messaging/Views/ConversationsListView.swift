@@ -22,6 +22,8 @@ struct ConversationsListView: View {
     @State private var pinnedConversations: Set<UUID> = []
     @State private var mutedConversations: Set<UUID> = []
     @State private var toastMessage: String? = nil
+    @State private var conversationToMute: UUID?
+    @State private var showMutePicker = false
     
     /// Whether the user is actively searching messages
     private var isMessageSearchActive: Bool {
@@ -294,8 +296,31 @@ struct ConversationsListView: View {
             } message: {
                 Text("messaging_delete_conversation_message".localized)
             }
+            .confirmationDialog("messaging_mute_notifications".localized, isPresented: $showMutePicker, titleVisibility: .visible) {
+                ForEach(ConversationMuteService.MuteDuration.allCases, id: \.self) { duration in
+                    Button(duration.displayName) {
+                        guard let conversationId = conversationToMute,
+                              let userId = AuthService.shared.currentUserId else { return }
+                        Task {
+                            try? await ConversationMuteService.shared.muteConversation(
+                                conversationId: conversationId,
+                                userId: userId,
+                                duration: duration
+                            )
+                            withAnimation {
+                                mutedConversations.insert(conversationId)
+                            }
+                            toastMessage = "messaging_toast_muted".localized
+                        }
+                    }
+                }
+                Button("common_cancel".localized, role: .cancel) {}
+            }
             .task {
                 loadSavedPreferences()
+                if let userId = AuthService.shared.currentUserId {
+                    mutedConversations = await ConversationMuteService.shared.fetchMutedConversationIds(userId: userId)
+                }
                 await viewModel.loadConversations()
             }
             .onDisappear { viewModel.stop() }
@@ -445,17 +470,22 @@ struct ConversationsListView: View {
             // Mute/Unmute button
             Button {
                 HapticManager.selectionChanged()
-                let wasMuted = isMuted
-                withAnimation {
-                    if wasMuted {
-                        mutedConversations.remove(conversationDetail.conversation.id)
-                    } else {
-                        mutedConversations.insert(conversationDetail.conversation.id)
+                if isMuted {
+                    Task {
+                        guard let userId = AuthService.shared.currentUserId else { return }
+                        try? await ConversationMuteService.shared.unmuteConversation(
+                            conversationId: conversationDetail.conversation.id,
+                            userId: userId
+                        )
+                        withAnimation {
+                            mutedConversations.remove(conversationDetail.conversation.id)
+                        }
+                        toastMessage = "messaging_toast_unmuted".localized
                     }
+                } else {
+                    conversationToMute = conversationDetail.conversation.id
+                    showMutePicker = true
                 }
-                // Save to UserDefaults
-                saveMutedConversations()
-                toastMessage = wasMuted ? "messaging_toast_unmuted".localized : "messaging_toast_muted".localized
             } label: {
                 Label(isMuted ? "messaging_unmute".localized : "messaging_mute".localized, systemImage: isMuted ? "bell" : "bell.slash")
             }
@@ -469,19 +499,10 @@ struct ConversationsListView: View {
         UserDefaults.standard.set(ids, forKey: "pinnedConversations")
     }
     
-    /// Save muted conversations to UserDefaults
-    private func saveMutedConversations() {
-        let ids = mutedConversations.map { $0.uuidString }
-        UserDefaults.standard.set(ids, forKey: "mutedConversations")
-    }
-    
     /// Load saved preferences
     private func loadSavedPreferences() {
         if let pinnedIds = UserDefaults.standard.array(forKey: "pinnedConversations") as? [String] {
             pinnedConversations = Set(pinnedIds.compactMap { UUID(uuidString: $0) })
-        }
-        if let mutedIds = UserDefaults.standard.array(forKey: "mutedConversations") as? [String] {
-            mutedConversations = Set(mutedIds.compactMap { UUID(uuidString: $0) })
         }
     }
 }

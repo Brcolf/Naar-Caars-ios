@@ -6,11 +6,66 @@
 //
 
 import Foundation
+import Security
 import UserNotifications
 import UIKit
 import Supabase
 import os
 internal import Combine
+
+// MARK: - Push Token Keychain Storage
+
+/// Stores push-related tokens in Keychain instead of UserDefaults for security.
+private enum PushTokenKeychain {
+    private static let service = "com.naarscars.push"
+
+    static func save(key: String, value: String) {
+        guard let data = value.data(using: .utf8) else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        let attrs: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+        if status == errSecItemNotFound {
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(addQuery as CFDictionary, nil)
+        }
+    }
+
+    static func read(key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let str = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return str
+    }
+
+    static func delete(key: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
 
 /// Notification action identifiers
 /// IMPORTANT: These must match AppDelegate's action identifiers for response handling
@@ -262,8 +317,8 @@ final class PushNotificationService: NSObject, ObservableObject {
         }
 
         // Record last registered state for re-registration checks
-        UserDefaults.standard.set(tokenString, forKey: lastRegisteredTokenKey)
-        UserDefaults.standard.set(userId.uuidString, forKey: tokenUserIdKey)
+        PushTokenKeychain.save(key: lastRegisteredTokenKey, value: tokenString)
+        PushTokenKeychain.save(key: tokenUserIdKey, value: userId.uuidString)
     }
     
     /// Remove device token (on logout)
@@ -285,7 +340,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// Store the latest APNs device token locally for later registration
     func storeDeviceToken(_ deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        UserDefaults.standard.set(tokenString, forKey: tokenStorageKey)
+        PushTokenKeychain.save(key: tokenStorageKey, value: tokenString)
         Log.push("Stored APNs token locally: \(tokenString.prefix(12))...")
     }
 
@@ -303,7 +358,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             Log.push("Push authorization is not enabled (status=\(settings.authorizationStatus.rawValue)); remote pushes will not be shown.", type: .info)
         }
 
-        guard let tokenString = UserDefaults.standard.string(forKey: tokenStorageKey) else {
+        guard let tokenString = PushTokenKeychain.read(key: tokenStorageKey) else {
             // #region agent log
             Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "No stored token", data: ["userId": userId.uuidString])
             // #endregion
@@ -311,8 +366,8 @@ final class PushNotificationService: NSObject, ObservableObject {
             return
         }
 
-        let lastRegisteredToken = UserDefaults.standard.string(forKey: lastRegisteredTokenKey)
-        let lastRegisteredUserId = UserDefaults.standard.string(forKey: tokenUserIdKey)
+        let lastRegisteredToken = PushTokenKeychain.read(key: lastRegisteredTokenKey)
+        let lastRegisteredUserId = PushTokenKeychain.read(key: tokenUserIdKey)
 
         if lastRegisteredToken == tokenString && lastRegisteredUserId == userId.uuidString {
             let registrationStillExists = await remoteRegistrationExists(tokenString: tokenString, userId: userId)
@@ -358,8 +413,8 @@ final class PushNotificationService: NSObject, ObservableObject {
 
     /// Clear last registered token state on sign out
     func clearRegisteredTokenState() {
-        UserDefaults.standard.removeObject(forKey: lastRegisteredTokenKey)
-        UserDefaults.standard.removeObject(forKey: tokenUserIdKey)
+        PushTokenKeychain.delete(key: lastRegisteredTokenKey)
+        PushTokenKeychain.delete(key: tokenUserIdKey)
     }
 
     /// Persist the last push payload for diagnostics
@@ -387,7 +442,7 @@ final class PushNotificationService: NSObject, ObservableObject {
 
     /// Read the stored APNs token for diagnostics
     func storedDeviceTokenString() -> String? {
-        UserDefaults.standard.string(forKey: tokenStorageKey)
+        PushTokenKeychain.read(key: tokenStorageKey)
     }
     
     // MARK: - Local Notifications
@@ -514,6 +569,15 @@ final class PushNotificationService: NSObject, ObservableObject {
     ///   - messagePreview: Preview of the message text
     ///   - conversationId: The conversation ID for deep linking
     func showLocalMessageNotification(senderName: String, messagePreview: String, conversationId: UUID) async {
+        // Suppress banners for muted conversations
+        if let userId = AuthService.shared.currentUserId {
+            let isMuted = await ConversationMuteService.shared.isMuted(
+                conversationId: conversationId,
+                userId: userId
+            )
+            if isMuted { return }
+        }
+
         // Check if we have permission first
         let settings = await notificationCenter.notificationSettings()
         guard settings.authorizationStatus == .authorized else {
