@@ -51,10 +51,8 @@ final class ConversationService {
                 do {
                     let rpcConversations = try await fetchConversationsViaRpc(userId: userId, limit: limit, offset: offset)
                     resetConversationsRpcBackoff()
-                    if !rpcConversations.isEmpty {
-                        AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
-                        return rpcConversations
-                    }
+                    AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
+                    return rpcConversations
                 } catch {
                     registerConversationsRpcFailure(error)
                 }
@@ -430,7 +428,15 @@ final class ConversationService {
         guard !userIds.isEmpty else {
             throw AppError.invalidInput("Must provide at least one user ID")
         }
-        
+
+        // Group conversations require at least 3 total participants.
+        // Convention: createdBy is always included in userIds, so userIds.count
+        // reflects the total participant count.
+        let totalParticipants = userIds.contains(createdBy) ? userIds.count : userIds.count + 1
+        guard totalParticipants >= 2 else {
+            throw AppError.invalidInput("Conversations require at least 2 participants")
+        }
+
         // Create conversation - handle RLS recursion errors
         let conversation: Conversation
         do {

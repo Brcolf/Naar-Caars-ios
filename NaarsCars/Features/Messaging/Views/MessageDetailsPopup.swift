@@ -113,7 +113,7 @@ struct MessageDetailsPopup: View {
                 }
                 
                 // Participants Section
-                Section("messaging_participants_count".localized(with: participants.count)) {
+                Section("Participants (\(activeParticipantCount > 0 ? activeParticipantCount : participants.count)/50)") {
                     if isLoadingParticipants {
                         HStack {
                             Spacer()
@@ -173,6 +173,7 @@ struct MessageDetailsPopup: View {
                             Text("messaging_add_participants".localized)
                         }
                     }
+                    .disabled(activeParticipantCount >= 50)
                 }
                 
                 // Notifications Section

@@ -53,7 +53,7 @@ final class ConversationParticipantService {
             AppLogger.warning("messaging", "No user IDs provided, returning early")
             return
         }
-        
+
         // Get conversation to check permissions
         AppLogger.info("messaging", "Fetching conversation details")
         let conversationResponse = try await supabase
@@ -62,7 +62,7 @@ final class ConversationParticipantService {
             .eq("id", value: conversationId.uuidString)
             .single()
             .execute()
-        
+
         struct ConversationInfo: Codable {
             let id: UUID
             let createdBy: UUID
@@ -70,60 +70,84 @@ final class ConversationParticipantService {
                 case id, createdBy = "created_by"
             }
         }
-        
+
         let conversationInfo = try JSONDecoder().decode(ConversationInfo.self, from: conversationResponse.data)
         AppLogger.info("messaging", "Conversation found, created by: \(conversationInfo.createdBy)")
-        
+
         // Check if addedBy has permission to add participants
         let canAdd = try await canModifyParticipants(
             conversationId: conversationId,
             userId: addedBy,
             creatorId: conversationInfo.createdBy
         )
-        
+
         guard canAdd else {
             AppLogger.error("messaging", "Permission denied: user cannot add participants")
             throw AppError.permissionDenied("You don't have permission to add participants to this conversation")
         }
-        
-        // Get existing participants to avoid duplicates
-        let existingResponse = try? await supabase
+
+        // Enforce 50-member cap
+        let countResp = try await supabase
             .from("conversation_participants")
-            .select("user_id")
+            .select("id", head: true, count: .exact)
             .eq("conversation_id", value: conversationId.uuidString)
+            .is("left_at", value: nil)
             .execute()
-        
-        struct ParticipantRow: Codable {
+        let currentActiveCount = countResp.count ?? 0
+        if currentActiveCount + userIds.count > 50 {
+            throw AppError.invalidInput("This group has reached the maximum of 50 participants.")
+        }
+
+        // Fetch all participant records for these users (including left ones)
+        let existingResp = try await supabase
+            .from("conversation_participants")
+            .select("user_id, left_at")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .in("user_id", values: userIds.map { $0.uuidString })
+            .execute()
+
+        struct ExistingRow: Codable {
             let userId: UUID
+            let leftAt: Date?
             enum CodingKeys: String, CodingKey {
                 case userId = "user_id"
+                case leftAt = "left_at"
             }
         }
-        
-        let existingParticipants: [UUID] = (try? JSONDecoder().decode([ParticipantRow].self, from: existingResponse?.data ?? Data()))?.map { $0.userId } ?? []
-        AppLogger.info("messaging", "Existing participants: \(existingParticipants.count)")
-        
-        // Filter out users who are already participants
-        let newUserIds = userIds.filter { !existingParticipants.contains($0) }
-        AppLogger.info("messaging", "New users to add (after filtering): \(newUserIds.count)")
-        
+        let decoder = DateDecoderFactory.makeMessagingDecoder()
+        let existing = (try? decoder.decode([ExistingRow].self, from: existingResp.data)) ?? []
+
+        let activeUserIds = Set(existing.filter { $0.leftAt == nil }.map { $0.userId })
+        let leftUserIds = Set(existing.filter { $0.leftAt != nil }.map { $0.userId })
+
+        // Skip already-active members
+        let newUserIds = userIds.filter { !activeUserIds.contains($0) }
+        let readdUserIds = newUserIds.filter { leftUserIds.contains($0) }
+        let freshUserIds = newUserIds.filter { !leftUserIds.contains($0) }
+
+        AppLogger.info("messaging", "Existing active: \(activeUserIds.count), previously left (re-add): \(readdUserIds.count), fresh: \(freshUserIds.count)")
+
         guard !newUserIds.isEmpty else {
-            AppLogger.info("messaging", "All users are already participants, nothing to add")
+            AppLogger.info("messaging", "All users are already active participants, nothing to add")
             AppLogger.database.debug("All users are already participants")
             return
         }
-        
-        // Insert new participants
-        let inserts = newUserIds.map { userId in
+
+        // Insert new participant records for both fresh and re-added users.
+        // Re-added users get a new record with fresh joined_at; their old
+        // soft-deleted record stays for history.
+        let allInsertIds = freshUserIds + readdUserIds
+        let inserts = allInsertIds.map { userId in
             [
                 "conversation_id": AnyCodable(conversationId.uuidString),
-                "user_id": AnyCodable(userId.uuidString)
+                "user_id": AnyCodable(userId.uuidString),
+                "added_by": AnyCodable(addedBy.uuidString)
             ]
         }
-        
-        AppLogger.info("messaging", "Inserting \(newUserIds.count) new participant(s)")
+
+        AppLogger.info("messaging", "Inserting \(allInsertIds.count) new participant record(s)")
 #if DEBUG
-        AppLogger.database.debug("[Membership] addParticipants payload: conversationId=\(conversationId), newUserIds=\(newUserIds), addedBy=\(addedBy)")
+        AppLogger.database.debug("[Membership] addParticipants payload: conversationId=\(conversationId), freshUserIds=\(freshUserIds), readdUserIds=\(readdUserIds), addedBy=\(addedBy)")
 #endif
         try await supabase
             .from("conversation_participants")
@@ -131,33 +155,44 @@ final class ConversationParticipantService {
             .execute()
         AppLogger.info("messaging", "Successfully inserted participants")
 #if DEBUG
-        await logParticipantStateAfterAction(conversationId: conversationId, action: "add(\(newUserIds))", currentUserId: addedBy)
+        await logParticipantStateAfterAction(conversationId: conversationId, action: "add(\(allInsertIds))", currentUserId: addedBy)
 #endif
         // Create announcement messages if requested
         if createAnnouncement {
             AppLogger.info("messaging", "Creating announcement messages")
-            for userId in newUserIds {
+            // Fresh adds
+            for userId in freshUserIds {
                 if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
                     let announcementText = "\(profile.name) has been added to the conversation"
-                    let announcement = Message(
-                        conversationId: conversationId,
-                        fromId: addedBy,
-                        text: announcementText
-                    )
-                    
                     do {
-                        try await supabase
-                            .from("messages")
-                            .insert(announcement)
-                            .execute()
+                        _ = try await sendSystemMessage(
+                            conversationId: conversationId,
+                            text: announcementText,
+                            fromId: addedBy
+                        )
                     } catch {
                         AppLogger.database.warning("Failed to create announcement message: \(error.localizedDescription)")
                     }
                 }
             }
+            // Re-adds
+            for userId in readdUserIds {
+                if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
+                    let announcementText = "\(profile.name) has been added back to the conversation"
+                    do {
+                        _ = try await sendSystemMessage(
+                            conversationId: conversationId,
+                            text: announcementText,
+                            fromId: addedBy
+                        )
+                    } catch {
+                        AppLogger.database.warning("Failed to create re-add announcement message: \(error.localizedDescription)")
+                    }
+                }
+            }
         }
-        
-        AppLogger.database.info("Added \(newUserIds.count) participant(s) to conversation \(conversationId)")
+
+        AppLogger.database.info("Added \(allInsertIds.count) participant(s) to conversation \(conversationId)")
     }
     
     /// Leave a conversation (self-removal)
