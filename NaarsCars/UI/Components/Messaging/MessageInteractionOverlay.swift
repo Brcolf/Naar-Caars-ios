@@ -20,6 +20,7 @@ struct MessageInteractionOverlay: View {
     let onCopy: () -> Void
     let onEdit: (() -> Void)?
     let onUnsend: (() -> Void)?
+    let onDeleteForMe: (() -> Void)?
     let onReport: (() -> Void)?
     let onDismiss: () -> Void
 
@@ -89,6 +90,14 @@ struct MessageInteractionOverlay: View {
                 Divider()
                 actionButton("Unsend", icon: "arrow.uturn.backward", isDestructive: true) {
                     onUnsend()
+                    dismiss()
+                }
+            }
+
+            if let onDeleteForMe {
+                Divider()
+                actionButton("messaging_delete_for_me".localized, icon: "eye.slash", isDestructive: true) {
+                    onDeleteForMe()
                     dismiss()
                 }
             }

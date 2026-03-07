@@ -446,6 +446,14 @@ final class ConversationDetailViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Delete for Me
+
+    /// Hide a message locally ("Delete for Me") — does NOT delete from server.
+    func deleteMessageForMe(_ message: Message) async {
+        repository.deleteMessageForMe(messageId: message.id, conversationId: conversationId)
+        messages.removeAll { $0.id == message.id }
+    }
+
     // MARK: - Audio Messages
     
     /// Send an audio message
@@ -524,6 +532,10 @@ final class ConversationDetailViewModel: ObservableObject {
               !messages.contains(where: { $0.id == newMessage.id }) else {
             return
         }
+
+        // Skip messages the user has locally deleted ("Delete for Me")
+        let deletedIds = repository.fetchLocallyDeletedMessageIds(for: conversationId)
+        guard !deletedIds.contains(newMessage.id) else { return }
 
         messages = paginationManager.insertNewMessage(newMessage, into: messages)
         scheduleReplyContextHydration()

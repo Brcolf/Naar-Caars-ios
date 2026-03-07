@@ -58,6 +58,10 @@ struct ConversationDetailView: View {
     // Unsend confirmation state
     @State private var showUnsendConfirmation = false
     @State private var messageToUnsend: Message?
+
+    // Delete for Me confirmation state
+    @State private var showDeleteForMeConfirmation = false
+    @State private var messageToDeleteForMe: Message?
     
     // Toast state
     @State private var toastMessage: String? = nil
@@ -352,8 +356,23 @@ struct ConversationDetailView: View {
         } message: {
             Text("messaging_unsend_confirmation_message".localized)
         }
+        .alert("messaging_delete_for_me".localized, isPresented: $showDeleteForMeConfirmation) {
+            Button("Cancel", role: .cancel) {
+                messageToDeleteForMe = nil
+            }
+            Button("messaging_delete_for_me".localized, role: .destructive) {
+                if let message = messageToDeleteForMe {
+                    Task {
+                        await viewModel.deleteMessageForMe(message)
+                    }
+                    messageToDeleteForMe = nil
+                }
+            }
+        } message: {
+            Text("messaging_delete_for_me_confirmation".localized)
+        }
     }
-    
+
     /// Submit a report for a message
     private func submitReport(message: Message, type: MessageService.ReportType, description: String?) async {
         guard let userId = AuthService.shared.currentUserId else { return }
@@ -410,6 +429,10 @@ struct ConversationDetailView: View {
                     showUnsendConfirmation = true
                     messageToUnsend = message
                 } : nil,
+                onDeleteForMe: {
+                    showDeleteForMeConfirmation = true
+                    messageToDeleteForMe = message
+                },
                 onReport: !isMine ? {
                     messageToReport = message
                     showReportSheet = true

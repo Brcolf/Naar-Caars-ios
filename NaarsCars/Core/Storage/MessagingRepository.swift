@@ -144,7 +144,10 @@ final class MessagingRepository {
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
         let sdMessages = try modelContext.fetch(fetchDescriptor)
-        return sdMessages.map { MessagingMapper.mapToMessage($0) }
+        let deletedIds = fetchLocallyDeletedMessageIds(for: conversationId)
+        return sdMessages
+            .filter { !deletedIds.contains($0.id) }
+            .map { MessagingMapper.mapToMessage($0) }
     }
     
     func syncMessages(conversationId: UUID) async throws {
@@ -476,6 +479,34 @@ final class MessagingRepository {
         } catch {
             AppLogger.error("messaging", "Failed to remove participant locally: \(error)")
         }
+    }
+
+    // MARK: - Delete for Me (local-only message hiding)
+
+    /// Record a message as locally hidden ("Delete for Me") so it is excluded from future fetches.
+    func deleteMessageForMe(messageId: UUID, conversationId: UUID) {
+        guard let modelContext = modelContext else { return }
+        // Avoid duplicate records
+        let existing = FetchDescriptor<SDDeletedMessage>(
+            predicate: #Predicate<SDDeletedMessage> { $0.messageId == messageId }
+        )
+        guard (try? modelContext.fetch(existing))?.isEmpty ?? true else { return }
+
+        let record = SDDeletedMessage(messageId: messageId, conversationId: conversationId)
+        modelContext.insert(record)
+        try? modelContext.save()
+        refreshMessagesPublishers(changedConversationIds: Set([conversationId]))
+        refreshConversationsPublisher()
+    }
+
+    /// Fetch all locally-deleted message IDs for a given conversation.
+    func fetchLocallyDeletedMessageIds(for conversationId: UUID) -> Set<UUID> {
+        guard let modelContext = modelContext else { return [] }
+        let descriptor = FetchDescriptor<SDDeletedMessage>(
+            predicate: #Predicate<SDDeletedMessage> { $0.conversationId == conversationId }
+        )
+        let deleted = (try? modelContext.fetch(descriptor)) ?? []
+        return Set(deleted.map { $0.messageId })
     }
 
     /// Refresh Combine publishers after a background actor write has persisted data.
