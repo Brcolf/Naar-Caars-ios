@@ -121,30 +121,38 @@ final class NotificationService {
             )
         }
         
-        do {
-            let decoded: [AppNotification] = try decoder.decode([AppNotification].self, from: response.data)
+        // Try fast-path: decode entire array at once
+        if let decoded = try? decoder.decode([AppNotification].self, from: response.data) {
             let notifications = NotificationGrouping.filterBellNotifications(from: decoded)
-            
             AppLogger.info("notifications", "Fetched \(notifications.count) notifications from network")
             return notifications
-        } catch {
-            AppLogger.error("notifications", "Decoding error: \(error)")
-            if let decodingError = error as? DecodingError {
-                switch decodingError {
-                case .typeMismatch(let type, let context):
-                    AppLogger.error("notifications", "Type mismatch: expected \(type), context: \(context)")
-                case .valueNotFound(let type, let context):
-                    AppLogger.error("notifications", "Value not found: \(type), context: \(context)")
-                case .keyNotFound(let key, let context):
-                    AppLogger.error("notifications", "Key not found: \(key.stringValue), context: \(context)")
-                case .dataCorrupted(let context):
-                    AppLogger.error("notifications", "Data corrupted: \(context)")
-                @unknown default:
-                    AppLogger.error("notifications", "Unknown decoding error")
-                }
-            }
-            throw AppError.processingError("Failed to decode notifications: \(error.localizedDescription)")
         }
+
+        // Fallback: lenient per-item decoding so one bad notification doesn't kill the list
+        struct LenientItem: Decodable {
+            let value: AppNotification?
+            init(from itemDecoder: Decoder) throws {
+                value = try? AppNotification(from: itemDecoder)
+            }
+        }
+
+        let lenient = try decoder.decode([LenientItem].self, from: response.data)
+        let decoded = lenient.compactMap(\.value)
+        let skipped = lenient.count - decoded.count
+
+        if skipped > 0 {
+            AppLogger.warning("notifications", "Skipped \(skipped) malformed notification(s) out of \(lenient.count)")
+            CrashReportingService.shared.recordError(
+                domain: CrashDomain.parsing,
+                code: CrashErrorCode.parseDecodingFailed,
+                message: "Skipped \(skipped) malformed notifications",
+                userInfo: ["total": lenient.count, "skipped": skipped]
+            )
+        }
+
+        let notifications = NotificationGrouping.filterBellNotifications(from: decoded)
+        AppLogger.info("notifications", "Fetched \(notifications.count) notifications from network (lenient decode)")
+        return notifications
     }
 
     private func invalidateCachedNotifications(for userId: UUID? = nil) {

@@ -78,7 +78,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
 
     /// Resolved TimeZone from the IANA identifier stored in `timezone`
     var timeZone: TimeZone {
-        TimeZone(identifier: timezone) ?? TimeZone(identifier: "America/Los_Angeles")!
+        TimeZone(identifier: timezone) ?? TimeZone(identifier: "America/Los_Angeles") ?? .current
     }
 
     // MARK: - CodingKeys

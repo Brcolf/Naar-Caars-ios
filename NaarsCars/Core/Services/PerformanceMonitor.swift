@@ -179,8 +179,9 @@ actor PerformanceMonitor {
         
         let sum = sorted.reduce(0, +)
         let avg = sum / Double(count)
-        let minValue = sorted.first!
-        let maxValue = sorted.last!
+        guard let minValue = sorted.first, let maxValue = sorted.last else {
+            return nil
+        }
         let p50 = sorted[count / 2]
         let p95 = sorted[min(Int(Double(count) * 0.95), count - 1)]
         let p99 = sorted[min(Int(Double(count) * 0.99), count - 1)]

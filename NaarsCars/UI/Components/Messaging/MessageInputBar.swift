@@ -18,6 +18,7 @@ struct MessageInputBar: View {
     @Binding var imageToSend: UIImage?
     let onSend: () -> Void
     let onImagePickerTapped: () -> Void
+    var onCameraTapped: (() -> Void)? = nil
     let isDisabled: Bool
     
     /// Focus state binding — allows parent to track/control keyboard focus
@@ -96,12 +97,22 @@ struct MessageInputBar: View {
             
             // Input row
             HStack(spacing: 10) {
-                // Attachment button (expands to show options)
+                // Attachment menu (iMessage-style + button)
                 Menu {
+                    if let onCameraTapped {
+                        Button(action: onCameraTapped) {
+                            Label("photo_source_camera".localized, systemImage: "camera.fill")
+                        }
+                    }
+
                     Button(action: onImagePickerTapped) {
                         Label("messaging_menu_photo".localized, systemImage: "photo.on.rectangle.angled")
                     }
-                    
+
+                    Button(action: toggleRecording) {
+                        Label("messaging_menu_voice_note".localized, systemImage: "mic.fill")
+                    }
+
                     Button(action: shareCurrentLocation) {
                         Label("messaging_menu_location".localized, systemImage: "location.fill")
                     }
@@ -109,13 +120,6 @@ struct MessageInputBar: View {
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
                         .foregroundColor(.naarsPrimary)
-                }
-                
-                // Audio record button
-                Button(action: toggleRecording) {
-                    Image(systemName: isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(isRecording ? .red : .naarsPrimary)
                 }
                 
                 TextField(editingMessage != nil ? "messaging_edit_placeholder".localized : "messaging_placeholder".localized, text: $text, axis: .vertical)

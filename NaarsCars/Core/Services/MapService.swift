@@ -175,7 +175,9 @@ final class MapService {
                     AppLogger.info("map", "Success with WA suffix: \(location.latitude), \(location.longitude)")
                     return location
                 }
-            } catch {}
+            } catch {
+                AppLogger.info("map", "WA suffix geocoding failed: \(error.localizedDescription)")
+            }
         }
         
         // Final Attempt: MKLocalSearch fallback if not already tried

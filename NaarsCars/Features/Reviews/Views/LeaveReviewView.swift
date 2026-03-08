@@ -24,6 +24,8 @@ struct LeaveReviewView: View {
     
     @State private var showSkipConfirmation = false
     @State private var showSuccess = false
+    @State private var showPhotoSource = false
+    @State private var showCameraPicker = false
     
     var body: some View {
         NavigationStack {
@@ -97,18 +99,9 @@ struct LeaveReviewView: View {
                                 }
                         }
                         
-                        PhotosPicker(
-                            selection: Binding(
-                                get: { viewModel.selectedPhoto },
-                                set: { item in
-                                    viewModel.selectedPhoto = item
-                                    Task {
-                                        await viewModel.handlePhotoSelection(item)
-                                    }
-                                }
-                            ),
-                            matching: .images
-                        ) {
+                        Button {
+                            showPhotoSource = true
+                        } label: {
                             HStack {
                                 Image(systemName: "photo")
                                 Text(viewModel.reviewImage == nil ? "review_add_photo".localized : "review_change_photo".localized)
@@ -181,8 +174,30 @@ struct LeaveReviewView: View {
             }
         }
         .successCheckmark(isShowing: $showSuccess)
+        .confirmationDialog("review_photo_source".localized, isPresented: $showPhotoSource, titleVisibility: .hidden) {
+            Button("photo_source_camera".localized) {
+                showCameraPicker = true
+            }
+            PhotosPicker(
+                selection: Binding(
+                    get: { viewModel.selectedPhoto },
+                    set: { item in
+                        viewModel.selectedPhoto = item
+                        Task { await viewModel.handlePhotoSelection(item) }
+                    }
+                ),
+                matching: .images
+            ) {
+                Text("photo_source_library".localized)
+            }
+        }
+        .sheet(isPresented: $showCameraPicker) {
+            CameraImagePicker { image in
+                viewModel.reviewImage = image
+            }
+        }
     }
-    
+
     // MARK: - Private Methods
     
     private func submitReview() async {

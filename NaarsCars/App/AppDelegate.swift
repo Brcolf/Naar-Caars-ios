@@ -85,18 +85,21 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     private func handleAppRefresh(task: BGAppRefreshTask) {
         // Schedule next refresh
         scheduleAppRefresh()
-        
-        let queue = OperationQueue()
-        queue.maxConcurrentOperationCount = 1
-        
-        task.expirationHandler = {
-            queue.cancelAllOperations()
-        }
-        
-        Task {
-            // Perform sync
+
+        let syncTask = Task {
             await DashboardSyncEngine.shared.syncAll()
-            task.setTaskCompleted(success: true)
+        }
+
+        task.expirationHandler = {
+            syncTask.cancel()
+            task.setTaskCompleted(success: false)
+        }
+
+        Task {
+            _ = await syncTask.result
+            if !syncTask.isCancelled {
+                task.setTaskCompleted(success: true)
+            }
         }
     }
     
@@ -563,21 +566,27 @@ enum FirstTapPerfLogger {
         let t = CFAbsoluteTimeGetCurrent()
         sessionStart = t
         sessionSource = source
+        #if DEBUG
         print("\(logPrefix) focus_delivered source=\(source) t=\(String(format: "%.3f", t)) delta_ms=0")
+        #endif
     }
 
     static func logDeferredDropdownDone(deltaMs: Int) {
         guard sessionStart != nil else { return }
         let t = CFAbsoluteTimeGetCurrent()
         let d = sessionStart.map { Int((t - $0) * 1000) } ?? 0
+        #if DEBUG
         print("\(logPrefix) deferred_dropdown_done t=\(String(format: "%.3f", t)) delta_ms=\(d) (defer_work=\(deltaMs)ms)")
+        #endif
     }
 
     static func logKeyboardVisible() {
         guard let start = sessionStart, let source = sessionSource else { return }
         let t = CFAbsoluteTimeGetCurrent()
         let deltaMs = Int((t - start) * 1000)
+        #if DEBUG
         print("\(logPrefix) keyboard_visible source=\(source) t=\(String(format: "%.3f", t)) delta_ms=\(deltaMs)")
+        #endif
         sessionStart = nil
         sessionSource = nil
     }

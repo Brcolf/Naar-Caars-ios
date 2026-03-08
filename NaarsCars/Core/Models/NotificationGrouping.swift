@@ -17,9 +17,11 @@ struct NotificationGroup: Identifiable, Equatable {
     let isPinned: Bool
 
     init(id: String, notifications: [AppNotification]) {
+        precondition(!notifications.isEmpty, "NotificationGroup requires at least one notification")
         let sorted = notifications.sorted { $0.createdAt > $1.createdAt }
         let pinned = sorted.filter { $0.pinned }
-        let primary = pinned.first ?? sorted.first!
+        // Safe: precondition guarantees sorted is non-empty
+        let primary = pinned.first ?? sorted[0]
         let unread = notifications.filter { !$0.read }.count
 
         self.id = id

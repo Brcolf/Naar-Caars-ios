@@ -55,8 +55,16 @@ final class MessageSendManager {
         setMessageText("")
         HapticManager.lightImpact()
 
+        // Compress image off the main thread (once, reuse for both local storage and upload)
+        let compressedImageData: Data? = await {
+            guard let image else { return nil }
+            return await Task.detached(priority: .userInitiated) {
+                image.resizedForUpload(maxDimension: 1920).jpegData(compressionQuality: 0.7)
+            }.value
+        }()
+
         var localPath: String? = nil
-        if let image = image, let imageData = image.resizedForUpload(maxDimension: 1920).jpegData(compressionQuality: 0.7) {
+        if let imageData = compressedImageData {
             localPath = LocalAttachmentStorage.save(data: imageData, extension: "jpg")
         }
 
@@ -90,7 +98,7 @@ final class MessageSendManager {
         )
 
         var imageUrl: String? = nil
-        if let image = image, let imageData = image.resizedForUpload(maxDimension: 1920).jpegData(compressionQuality: 0.7) {
+        if let imageData = compressedImageData {
             do {
                 imageUrl = try await mediaService.uploadMessageImage(
                     imageData: imageData,

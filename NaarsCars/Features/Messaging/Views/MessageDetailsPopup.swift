@@ -137,15 +137,15 @@ struct MessageDetailsPopup: View {
                     
                     ForEach(participants) { participant in
                         HStack {
-                            if participant.name.isEmpty || participant.name == "Deleted User" {
+                            if participant.name.isEmpty || participant.name == "messaging_deleted_user".localized {
                                 AvatarView(
                                     imageUrl: nil,
-                                    name: "Deleted User",
+                                    name: "messaging_deleted_user".localized,
                                     size: 40,
                                     userId: participant.id
                                 )
 
-                                Text("Deleted User")
+                                Text("messaging_deleted_user".localized)
                                     .font(.naarsBody)
                                     .foregroundColor(.secondary)
                             } else {
@@ -554,7 +554,7 @@ struct MessageDetailsPopup: View {
                     profiles.append(profile)
                 } else {
                     // Deleted user — create a placeholder profile
-                    profiles.append(Profile(id: row.userId, name: "Deleted User", email: ""))
+                    profiles.append(Profile(id: row.userId, name: "messaging_deleted_user".localized, email: ""))
                 }
             }
             

@@ -379,7 +379,7 @@ struct MessageBubble: View {
                     // Show avatar for last message in series
                     AvatarView(
                         imageUrl: message.sender?.avatarUrl,
-                        name: message.sender?.name ?? "Deleted User",
+                        name: message.sender?.name ?? "messaging_deleted_user".localized,
                         size: 28,
                         userId: message.sender?.id ?? message.fromId
                     )
@@ -397,7 +397,7 @@ struct MessageBubble: View {
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 2) {
                 // Sender name (only for received messages in group chats)
                 if !isFromCurrentUser && totalParticipants > 2 && isFirstInSeries {
-                    let senderName = message.sender?.name ?? "Deleted User"
+                    let senderName = message.sender?.name ?? "messaging_deleted_user".localized
                     Text(senderName)
                         .font(.naarsCaption)
                         .fontWeight(.medium)

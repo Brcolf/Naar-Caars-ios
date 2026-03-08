@@ -171,8 +171,12 @@ struct UserSearchView: View {
                 }
             }
         }
+        .onDisappear {
+            searchTask?.cancel()
+            searchTask = nil
+        }
     }
-    
+
     private func searchUsers(query: String) async {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         

@@ -23,6 +23,7 @@ struct ConversationDetailView: View {
     @State private var selectedUserIds: Set<UUID> = []
     @State private var conversationDetail: ConversationWithDetails?
     @State private var showImagePicker = false
+    @State private var showCameraPicker = false
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageToSend: UIImage?
     // Message interaction overlay state
@@ -242,6 +243,11 @@ struct ConversationDetailView: View {
             selection: $selectedImage,
             matching: .images
         )
+        .sheet(isPresented: $showCameraPicker) {
+            CameraImagePicker { image in
+                imageToSend = image
+            }
+        }
         .onChange(of: selectedImage) { _, newValue in
             Task {
                 if let item = newValue {
@@ -707,13 +713,14 @@ struct ConversationDetailView: View {
                     },
                     onSendMessage: { textToSend, image, replyToId in
                         viewModel.clearOwnTypingStatus()
-                        await viewModel.sendMessage(textOverride: textToSend, image: image, replyToId: replyToId)
                         imageToSend = nil
                         withAnimation(.easeOut(duration: 0.2)) {
                             replyingToMessage = nil
                         }
+                        await viewModel.sendMessage(textOverride: textToSend, image: image, replyToId: replyToId)
                     },
                     onImagePickerTapped: { showImagePicker = true },
+                    onCameraTapped: { showCameraPicker = true },
                     onCancelReply: { replyingToMessage = nil },
                     onCancelEdit: {
                         viewModel.cancelEdit()
@@ -973,6 +980,7 @@ private struct ConversationInputContainer: View {
     let onSendEdit: (String) async -> Bool
     let onSendMessage: (String, UIImage?, UUID?) async -> Void
     let onImagePickerTapped: () -> Void
+    let onCameraTapped: (() -> Void)?
     let onCancelReply: () -> Void
     let onCancelEdit: () -> Void
     let onSendAudio: (URL, Double, UUID?) async -> Void
@@ -987,6 +995,7 @@ private struct ConversationInputContainer: View {
             imageToSend: $imageToSend,
             onSend: handleSendTapped,
             onImagePickerTapped: onImagePickerTapped,
+            onCameraTapped: onCameraTapped,
             isDisabled: draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil,
             focusState: focusState,
             replyingTo: replyingTo,
@@ -1271,6 +1280,7 @@ struct MessageThreadView: View {
     @State private var messageText = ""
     @State private var imageToSend: UIImage?
     @State private var showImagePicker = false
+    @State private var showCameraPicker = false
     @State private var selectedImage: PhotosPickerItem?
     @State private var mergeRepliesTask: Task<Void, Never>?
 
@@ -1311,6 +1321,11 @@ struct MessageThreadView: View {
             selection: $selectedImage,
             matching: .images
         )
+        .sheet(isPresented: $showCameraPicker) {
+            CameraImagePicker { image in
+                imageToSend = image
+            }
+        }
         .onChange(of: selectedImage) { _, newValue in
             Task {
                 if let item = newValue, let data = try? await item.loadTransferable(type: Data.self) {
@@ -1417,6 +1432,7 @@ struct MessageThreadView: View {
                         }
                     },
                     onImagePickerTapped: { showImagePicker = true },
+                    onCameraTapped: { showCameraPicker = true },
                     isDisabled: !hasParentMessage || (messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil),
                     replyingTo: nil,
                     onCancelReply: nil,

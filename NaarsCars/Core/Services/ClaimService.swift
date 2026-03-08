@@ -442,7 +442,7 @@ final class ClaimService {
             // Parse response and build event data for calendar creation on the client
             if let json = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any] {
                 let storedTimezone = json["timezone"] as? String ?? "America/Los_Angeles"
-                let tz = TimeZone(identifier: storedTimezone) ?? TimeZone(identifier: "America/Los_Angeles")!
+                let tz = TimeZone(identifier: storedTimezone) ?? TimeZone(identifier: "America/Los_Angeles") ?? .current
 
                 if let dateStr = json["date"] as? String,
                    let timeStr = json["time"] as? String {

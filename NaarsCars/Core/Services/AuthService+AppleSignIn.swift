@@ -6,9 +6,65 @@
 //
 
 import Foundation
+import Security
 import Supabase
 import AuthenticationServices
 import OSLog
+
+// MARK: - Apple User Identifier Keychain Storage
+
+/// Stores Apple user identifier in Keychain instead of UserDefaults for security.
+private enum AppleUserKeychain {
+    private static let service = "com.naarscars.apple"
+    private static let account = "appleUserIdentifier"
+
+    static func save(_ identifier: String) {
+        guard let data = identifier.data(using: .utf8) else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let attrs: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+        if status == errSecItemNotFound {
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(addQuery as CFDictionary, nil)
+        }
+    }
+
+    static func read() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let str = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return str
+    }
+
+    static func delete() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
 
 extension AuthService {
     
@@ -92,10 +148,7 @@ extension AuthService {
         // Sync engines started by AppLaunchManager.performDeferredLoading()
 
         // 8. Store Apple user identifier for credential checking
-        UserDefaults.standard.set(
-            credential.user,
-            forKey: "appleUserIdentifier"
-        )
+        AppleUserKeychain.save(credential.user)
         
         AppLogger.auth.info("User signed up with Apple: \(userId)")
     }
@@ -138,10 +191,7 @@ extension AuthService {
             // Sync engines started by AppLaunchManager.performDeferredLoading()
 
             // Store Apple user identifier for credential checking
-            UserDefaults.standard.set(
-                credential.user,
-                forKey: "appleUserIdentifier"
-            )
+            AppleUserKeychain.save(credential.user)
 
             AppLogger.auth.info("User logged in with Apple: \(userId), approved: \(profile.approved)")
         } catch {
@@ -210,7 +260,10 @@ extension AuthService {
             AppLogger.auth.info("Apple identity linked: \(response.message ?? "")")
 
             // Store Apple user identifier for credential state checking
-            UserDefaults.standard.set(credential.user, forKey: "appleUserIdentifier")
+            AppleUserKeychain.save(credential.user)
+
+            // Refresh session so identities cache reflects the new link
+            _ = try? await SupabaseService.shared.client.auth.refreshSession()
         } else {
             let errorMsg = response.error ?? "Unknown error"
             AppLogger.auth.error("Failed to link Apple identity: \(errorMsg)")
@@ -265,12 +318,17 @@ extension AuthService {
             .execute()
             .value
 
-        if !response.success {
-            AppLogger.auth.warning("Server unlink returned: \(response.error ?? "unknown")")
+        guard response.success else {
+            let errorMsg = response.error ?? "Unknown error"
+            AppLogger.auth.error("Server unlink failed: \(errorMsg)")
+            throw AppError.processingError("Failed to unlink Apple ID: \(errorMsg)")
         }
 
+        // Refresh session so the cached identities array reflects the removal
+        _ = try? await SupabaseService.shared.client.auth.refreshSession()
+
         // Clear local Apple user identifier
-        UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
+        AppleUserKeychain.delete()
 
         AppLogger.auth.info("Apple account unlinked successfully")
     }
@@ -352,13 +410,13 @@ extension AuthService {
 
     /// Revoke Apple Sign-In authorization before account deletion.
     /// Apple requires that apps revoke tokens when users delete their accounts.
-    /// This method calls the `revoke-apple-token` Edge Function to perform
-    /// server-side token revocation with Apple's /auth/revoke endpoint.
-    /// - Parameter authorizationCode: A fresh authorization code obtained from ASAuthorizationAppleIDProvider
+    /// This method obtains a fresh authorization code from the user (presenting
+    /// the Apple Sign-In sheet), then calls the `revoke-apple-token` Edge Function
+    /// to perform server-side token revocation with Apple's /auth/revoke endpoint.
     /// - Throws: AppError if revocation fails
-    func revokeAppleSignIn(authorizationCode: String? = nil) async throws {
+    func revokeAppleSignIn() async throws {
         // Check if user has Apple ID linked
-        guard let appleUserIdentifier = UserDefaults.standard.string(forKey: "appleUserIdentifier") else {
+        guard let appleUserIdentifier = AppleUserKeychain.read() else {
             // No Apple account linked, nothing to revoke
             return
         }
@@ -377,29 +435,28 @@ extension AuthService {
 
         guard state == .authorized else {
             // Credential already revoked or transferred
-            UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
+            AppleUserKeychain.delete()
             AppLogger.auth.info("Apple credential already revoked or not found")
             return
         }
 
+        // Obtain a fresh authorization code by presenting Apple Sign-In
+        let code = try await obtainFreshAppleAuthCode()
+
         // Call Edge Function to revoke the token server-side
-        if let code = authorizationCode {
-            do {
-                try await SupabaseService.shared.client.functions.invoke(
-                    "revoke-apple-token",
-                    options: .init(body: ["authorization_code": code])
-                )
-                AppLogger.auth.info("Apple token revoked via Edge Function")
-            } catch {
-                AppLogger.auth.error("Edge function call failed: \(error.localizedDescription)")
-                throw AppError.processingError("Failed to revoke Apple Sign-In token: \(error.localizedDescription)")
-            }
-        } else {
-            AppLogger.auth.warning("No authorization code provided — skipping server-side token revocation. Edge Function secrets may not be configured yet.")
+        do {
+            try await SupabaseService.shared.client.functions.invoke(
+                "revoke-apple-token",
+                options: .init(body: ["authorization_code": code])
+            )
+            AppLogger.auth.info("Apple token revoked via Edge Function")
+        } catch {
+            AppLogger.auth.error("Edge function call failed: \(error.localizedDescription)")
+            throw AppError.processingError("Failed to revoke Apple Sign-In token: \(error.localizedDescription)")
         }
 
         // Clean up local state
-        UserDefaults.standard.removeObject(forKey: "appleUserIdentifier")
+        AppleUserKeychain.delete()
 
         // Unlink identity from Supabase
         if let session = try? await SupabaseService.shared.client.auth.session,
@@ -410,16 +467,75 @@ extension AuthService {
 
         AppLogger.auth.info("Apple Sign-In revoked successfully")
     }
-    
+
+    /// Presents the Apple Sign-In sheet to obtain a fresh authorization code
+    /// needed for token revocation. The user sees a brief Apple ID confirmation.
+    /// - Returns: The authorization code string
+    /// - Throws: AppError if the user cancels or the request fails
+    private func obtainFreshAppleAuthCode() async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            let delegate = AppleRevocationDelegate(continuation: continuation)
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            // No scopes needed — we just need a fresh auth code for revocation
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = delegate
+            // Hold a strong reference so the delegate stays alive
+            objc_setAssociatedObject(controller, "revocationDelegate", delegate, .OBJC_ASSOCIATION_RETAIN)
+            controller.performRequests()
+        }
+    }
+}
+
+// MARK: - Apple Revocation Delegate
+
+/// Lightweight delegate that bridges ASAuthorizationController delegate callbacks
+/// into a CheckedContinuation for the revocation flow.
+private final class AppleRevocationDelegate: NSObject, ASAuthorizationControllerDelegate {
+    private var continuation: CheckedContinuation<String, Error>?
+
+    init(continuation: CheckedContinuation<String, Error>) {
+        self.continuation = continuation
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let cont = continuation else { return }
+        continuation = nil
+
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let codeData = credential.authorizationCode,
+              let code = String(data: codeData, encoding: .utf8) else {
+            cont.resume(throwing: AppError.processingError("Failed to obtain authorization code from Apple"))
+            return
+        }
+        cont.resume(returning: code)
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        guard let cont = continuation else { return }
+        continuation = nil
+
+        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+            cont.resume(throwing: AppError.processingError("Account deletion requires Apple Sign-In confirmation. Please try again."))
+        } else {
+            cont.resume(throwing: AppError.processingError("Apple Sign-In failed: \(error.localizedDescription)"))
+        }
+    }
+}
+
+// MARK: - Apple Sign-In State
+
+extension AuthService {
     /// Check if the current user has Apple Sign-In linked
     var hasAppleSignInLinked: Bool {
-        UserDefaults.standard.string(forKey: "appleUserIdentifier") != nil
+        AppleUserKeychain.read() != nil
     }
 
     /// Check if the current user has an Apple identity in Supabase auth
     func checkAppleIdentityLinked() async -> Bool {
         guard let session = try? await SupabaseService.shared.client.auth.session else {
-            return UserDefaults.standard.string(forKey: "appleUserIdentifier") != nil
+            return AppleUserKeychain.read() != nil
         }
         return session.user.identities?.contains(where: { $0.provider == "apple" }) ?? false
     }

@@ -25,6 +25,7 @@ struct MyProfileView: View {
     @State private var showDeleteConfirmation = false
     @State private var isDeletingAccount = false
     @State private var showDeleteError = false
+    @State private var showDeleteSuccess = false
     @State private var deleteErrorMessage = ""
     @State private var showSettings = false
     @State private var badges: [LeaderboardBadge] = []
@@ -290,6 +291,16 @@ struct MyProfileView: View {
             } message: {
                 Text("profile_deletion_failed_message".localized + "\n\n\(deleteErrorMessage)")
             }
+            .alert("profile_account_deleted".localized, isPresented: $showDeleteSuccess) {
+                Button("common_ok".localized) {
+                    Task {
+                        try? await AuthService.shared.signOut()
+                        await AppLaunchManager.shared.performCriticalLaunch()
+                    }
+                }
+            } message: {
+                Text("profile_account_deleted_message".localized)
+            }
             .sheet(isPresented: $showInvitationWorkflow) {
                 if let userId = appState.currentUser?.id {
                     InvitationWorkflowView(userId: userId) { code in
@@ -541,14 +552,14 @@ struct MyProfileView: View {
         guard let userId = appState.currentUser?.id else {
             return
         }
-        
+
         isDeletingAccount = true
-        
+
         do {
             try await ProfileService.shared.deleteAccount(userId: userId)
-            // Account deleted - sign out and redirect
-            try await AuthService.shared.signOut()
-            await AppLaunchManager.shared.performCriticalLaunch()
+            // Account deleted — show confirmation before signing out
+            isDeletingAccount = false
+            showDeleteSuccess = true
         } catch {
             AppLogger.error("profile", "Error deleting account: \(error.localizedDescription)")
             isDeletingAccount = false

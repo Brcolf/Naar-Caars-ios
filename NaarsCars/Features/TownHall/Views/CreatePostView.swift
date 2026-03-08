@@ -14,6 +14,8 @@ struct CreatePostView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showSuccess = false
+    @State private var showCameraPicker = false
+    @State private var showPhotoSource = false
     
     var body: some View {
         NavigationStack {
@@ -56,18 +58,10 @@ struct CreatePostView: View {
                     }
                 } else {
                     Section {
-                        PhotosPicker(
-                            selection: $selectedPhotoItem,
-                            matching: .images
-                        ) {
+                        Button {
+                            showPhotoSource = true
+                        } label: {
                             Label("townhall_add_photo".localized, systemImage: "photo")
-                        }
-                        .onChange(of: selectedPhotoItem) { _, newItem in
-                            Task {
-                                if let newItem = newItem {
-                                    await loadImage(from: newItem)
-                                }
-                            }
                         }
                     } header: {
                         Text("townhall_image_optional".localized)
@@ -113,6 +107,26 @@ struct CreatePostView: View {
             }
         }
         .successCheckmark(isShowing: $showSuccess)
+        .confirmationDialog("townhall_photo_source".localized, isPresented: $showPhotoSource, titleVisibility: .hidden) {
+            Button("photo_source_camera".localized) {
+                showCameraPicker = true
+            }
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                Text("photo_source_library".localized)
+            }
+        }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            Task {
+                if let newItem = newItem {
+                    await loadImage(from: newItem)
+                }
+            }
+        }
+        .sheet(isPresented: $showCameraPicker) {
+            CameraImagePicker { image in
+                viewModel.selectedImage = image
+            }
+        }
     }
     
     private func loadImage(from item: PhotosPickerItem) async {

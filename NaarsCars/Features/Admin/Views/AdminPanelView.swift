@@ -82,10 +82,6 @@ struct AdminPanelView: View {
                 // Navigation Links
                 navigationSection
                 
-                #if DEBUG
-                // Dev Tools (for testing)
-                devToolsSection
-                #endif
             }
             .padding()
         }
@@ -265,44 +261,6 @@ struct AdminPanelView: View {
             .accessibilityHint("Double-tap to review content reports")
         }
     }
-    
-    #if DEBUG
-    @ViewBuilder
-    private var devToolsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("admin_developer_tools".localized)
-                .font(.naarsTitle3)
-            
-            NavigationLink(destination: DevNotificationTestView()) {
-                HStack {
-                    Image(systemName: "hammer.fill")
-                        .foregroundColor(.orange)
-                    Text("admin_notification_tester".localized)
-                    Spacer()
-                    Text("DEV")
-                        .font(.naarsCaption)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange)
-                        .cornerRadius(4)
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.secondary)
-                        .font(.naarsCaption)
-                }
-                .padding()
-                .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.orange.opacity(0.5), lineWidth: 1)
-                )
-            }
-            .accessibilityLabel("Notification tester")
-            .accessibilityHint("Double-tap to open the developer notification testing tool")
-        }
-    }
-    #endif
 }
 
 /// Stat card component for dashboard
