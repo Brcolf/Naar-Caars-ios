@@ -294,9 +294,9 @@ final class PushNotificationService: NSObject, ObservableObject {
                 .eq("user_id", value: userId.uuidString)
                 .execute()
             
-            // #region agent log
+            #if DEBUG
             PushNotificationService.pushDebugLog(location: "PushNotificationService.swift:registerDeviceToken", message: "Updated device token in DB", data: ["userId": userId.uuidString])
-            // #endregion
+            #endif
             AppLogger.info("push", "Updated device token for user \(userId)")
         } else {
             // Insert new token
@@ -310,9 +310,9 @@ final class PushNotificationService: NSObject, ObservableObject {
                     "last_used_at": AnyCodable(isoNow)
                 ])
                 .execute()
-            // #region agent log
+            #if DEBUG
             PushNotificationService.pushDebugLog(location: "PushNotificationService.swift:registerDeviceToken", message: "Inserted device token in DB", data: ["userId": userId.uuidString])
-            // #endregion
+            #endif
             AppLogger.info("push", "Registered device token for user \(userId)")
         }
 
@@ -348,9 +348,9 @@ final class PushNotificationService: NSObject, ObservableObject {
     func registerStoredDeviceTokenIfNeeded(userId: UUID) async {
         let settings = await notificationCenter.notificationSettings()
         let status = settings.authorizationStatus.rawValue
-        // #region agent log
+        #if DEBUG
         Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Permission check", data: ["authStatus": status, "userId": userId.uuidString])
-        // #endregion
+        #endif
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             break
@@ -359,9 +359,9 @@ final class PushNotificationService: NSObject, ObservableObject {
         }
 
         guard let tokenString = PushTokenKeychain.read(key: tokenStorageKey) else {
-            // #region agent log
+            #if DEBUG
             Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "No stored token", data: ["userId": userId.uuidString])
-            // #endregion
+            #endif
             Log.push("No stored APNs token to register for user \(userId)")
             return
         }
@@ -381,13 +381,13 @@ final class PushNotificationService: NSObject, ObservableObject {
 
         do {
             try await registerDeviceToken(tokenString: tokenString, userId: userId)
-            // #region agent log
+            #if DEBUG
             Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Registered stored token OK", data: ["userId": userId.uuidString, "tokenPrefix": String(tokenString.prefix(12))])
-            // #endregion
+            #endif
         } catch {
-            // #region agent log
+            #if DEBUG
             Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Register stored token failed", data: ["userId": userId.uuidString, "error": error.localizedDescription])
-            // #endregion
+            #endif
             Log.push("Failed to register stored APNs token: \(error.localizedDescription)", type: .error)
         }
     }
