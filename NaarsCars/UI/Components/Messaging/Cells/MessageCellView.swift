@@ -427,27 +427,29 @@ final class MessageCellView: UIView {
             y += rpSize.height + 2
         }
 
-        // Content bubble
-        let contentView = activeContentView()
-        if let cv = contentView {
+        // Content bubbles (may have multiple: e.g. text + link preview, image + caption)
+        let contentViews = visibleContentViews()
+        var primaryContentView: UIView?
+        for cv in contentViews {
             let cvSize = cv.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude))
             let x = config.isFromCurrentUser
                 ? bounds.width - cvSize.width
                 : avatarSize + avatarSpacing
             cv.frame = CGRect(x: x, y: y, width: cvSize.width, height: cvSize.height)
+            y = cv.frame.maxY + 2
+            if primaryContentView == nil { primaryContentView = cv }
+        }
+        if !contentViews.isEmpty { y += 2 }
 
-            // Reaction badge
-            if let rb = reactionBadge, !rb.isHidden {
-                let rbSize = rb.sizeThatFits(.zero)
-                let rbX = config.isFromCurrentUser ? cv.frame.minX : cv.frame.maxX - rbSize.width
-                rb.frame = CGRect(x: rbX, y: cv.frame.minY - rbSize.height / 2, width: rbSize.width, height: rbSize.height)
-            }
-
-            y = cv.frame.maxY + 4
+        // Reaction badge (anchored to first content view)
+        if let primary = primaryContentView, let rb = reactionBadge, !rb.isHidden {
+            let rbSize = rb.sizeThatFits(.zero)
+            let rbX = config.isFromCurrentUser ? primary.frame.minX : primary.frame.maxX - rbSize.width
+            rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height / 2, width: rbSize.width, height: rbSize.height)
         }
 
-        // Reply arrow icon position (to the side of the content bubble)
-        if let cv = contentView {
+        // Reply arrow icon position (to the side of the first content bubble)
+        if let cv = primaryContentView {
             let arrowSize: CGFloat = 24
             let arrowY = cv.frame.midY - arrowSize / 2
             if config.isFromCurrentUser {
@@ -484,17 +486,17 @@ final class MessageCellView: UIView {
             fr.frame.origin = CGPoint(x: x, y: y)
         }
 
-        // Avatar (bottom-aligned with content)
+        // Avatar (bottom-aligned with last content view)
         if let av = avatarView, !av.isHidden, config.isLastInSeries {
-            let contentBottom = contentView?.frame.maxY ?? y
+            let contentBottom = contentViews.last?.frame.maxY ?? y
             av.frame = CGRect(x: 0, y: contentBottom - 28, width: 28, height: 28)
         }
     }
 
-    private func activeContentView() -> UIView? {
+    private func visibleContentViews() -> [UIView] {
         [textBubble, imageBubble, audioBubble, locationBubble, linkPreviewBubble]
             .compactMap { $0 }
-            .first { !$0.isHidden }
+            .filter { !$0.isHidden }
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -516,10 +518,12 @@ final class MessageCellView: UIView {
         if let rp = replyPreview, !rp.isHidden {
             height += rp.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude)).height + 2
         }
-        // Content
-        if let cv = activeContentView() {
-            height += cv.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude)).height + 4
+        // Content — sum all visible content views
+        let cvs = visibleContentViews()
+        for cv in cvs {
+            height += cv.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude)).height + 2
         }
+        if !cvs.isEmpty { height += 2 }
         // Timestamp
         if timestampLabel?.isHidden == false { height += 18 }
         // Failed
@@ -583,8 +587,10 @@ final class MessageCellView: UIView {
             replyArrowIcon.alpha = progress
             replyArrowIcon.transform = CGAffineTransform(scaleX: progress, y: progress)
 
-            // Apply offset to content
-            activeContentView()?.transform = CGAffineTransform(translationX: swipeOffset, y: 0)
+            // Apply offset to all content views
+            for cv in visibleContentViews() {
+                cv.transform = CGAffineTransform(translationX: swipeOffset, y: 0)
+            }
 
         case .ended, .cancelled:
             if abs(swipeOffset) >= swipeThreshold {
@@ -592,7 +598,9 @@ final class MessageCellView: UIView {
             }
 
             let animator = UIViewPropertyAnimator(duration: 0.3, dampingRatio: 0.7) {
-                self.activeContentView()?.transform = .identity
+                for cv in self.visibleContentViews() {
+                    cv.transform = .identity
+                }
                 self.replyArrowIcon.alpha = 0
                 self.replyArrowIcon.transform = .identity
             }
