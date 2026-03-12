@@ -21,6 +21,8 @@ final class ImageBubbleView: UIView {
     private var loadGeneration: UInt64 = 0
     private var onTap: ((URL) -> Void)?
     private var imageURL: URL?
+    private var lastLocalPath: String?
+    private var lastRemoteUrl: String?
 
     // MARK: - Constants
 
@@ -89,11 +91,27 @@ final class ImageBubbleView: UIView {
         self.onTap = onTap
         let fileURL = LocalAttachmentStorage.fileURL(for: localPath)
         self.imageURL = fileURL
+        self.lastLocalPath = localPath
+        self.lastRemoteUrl = nil
 
-        if let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
-            showImage(img)
-        } else {
-            showError()
+        showLoading()
+
+        loadGeneration &+= 1
+        let gen = loadGeneration
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let img: UIImage? = {
+                guard let data = try? Data(contentsOf: fileURL) else { return nil }
+                return UIImage(data: data)
+            }()
+            await MainActor.run {
+                guard let self, self.loadGeneration == gen else { return }
+                if let img {
+                    self.showImage(img)
+                } else {
+                    self.showError()
+                }
+            }
         }
     }
 
@@ -111,6 +129,11 @@ final class ImageBubbleView: UIView {
         imageView.isHidden = false
         retryImageView.isHidden = true
         spinner.stopAnimating()
+
+        isAccessibilityElement = true
+        accessibilityLabel = NSLocalizedString("messaging_photo", comment: "")
+        accessibilityTraits = [.image, .button]
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_view", comment: "")
     }
 
     private func showError() {
@@ -118,6 +141,11 @@ final class ImageBubbleView: UIView {
         imageView.isHidden = true
         retryImageView.isHidden = false
         spinner.stopAnimating()
+
+        isAccessibilityElement = true
+        accessibilityLabel = NSLocalizedString("messaging_image_failed", comment: "")
+        accessibilityTraits = .button
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_retry", comment: "")
     }
 
     // MARK: - Layout
@@ -146,12 +174,27 @@ final class ImageBubbleView: UIView {
         spinner.stopAnimating()
         onTap = nil
         imageURL = nil
+        lastLocalPath = nil
+        lastRemoteUrl = nil
     }
 
     // MARK: - Tap
 
     @objc private func handleTap() {
+        // If in error state, retry the load instead of opening the viewer
+        if !retryImageView.isHidden {
+            retryLoad()
+            return
+        }
         guard let url = imageURL else { return }
         onTap?(url)
+    }
+
+    private func retryLoad() {
+        if let remoteUrl = lastRemoteUrl {
+            configure(remoteUrl: remoteUrl, onTap: onTap)
+        } else if let localPath = lastLocalPath {
+            configure(localPath: localPath, onTap: onTap)
+        }
     }
 }
