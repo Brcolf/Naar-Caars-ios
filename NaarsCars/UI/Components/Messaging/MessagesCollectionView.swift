@@ -245,7 +245,7 @@ struct MessagesCollectionView: UIViewRepresentable {
                     participantProfiles: self.parent.participantProfiles,
                     showReplyPreview: message.replyToMessage != nil,
                     replySpine: self.replyChainContext(for: message),
-                    isHighlighted: false,
+                    isHighlighted: self.parent.scrollToMessageId == messageId,
                     shouldAnimate: false
                 )
 

@@ -101,6 +101,16 @@ final class MessageCellView: UIView {
             hasAnimatedEntrance = true
         }
 
+        // Highlight flash (scroll-to-reply)
+        if config.isHighlighted {
+            backgroundColor = UIColor.naarsPrimary.withAlphaComponent(0.12)
+            UIView.animate(withDuration: 1.5, delay: 0.3, options: .curveEaseOut) {
+                self.backgroundColor = .clear
+            }
+        } else {
+            backgroundColor = .clear
+        }
+
         setNeedsLayout()
     }
 
@@ -495,6 +505,21 @@ final class MessageCellView: UIView {
             let contentBottom = contentViews.last?.frame.maxY ?? y
             av.frame = CGRect(x: 0, y: contentBottom - 28, width: 28, height: 28)
         }
+
+        // Reply spine
+        if !spineLayer.isHidden, let spine = config.replySpine, let cv = contentViews.first {
+            let spineX: CGFloat = config.isFromCurrentUser
+                ? cv.frame.maxX + 4
+                : (avatarSize > 0 ? avatarSize / 2 : cv.frame.minX - 4)
+            let topY = spine.showTop ? 0 : cv.frame.midY * 0.35
+            let bottomY = spine.showBottom ? bounds.height : cv.frame.midY + (bounds.height - cv.frame.midY) * 0.65
+
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: spineX, y: topY))
+            path.addLine(to: CGPoint(x: spineX, y: bottomY))
+            spineLayer.path = path.cgPath
+            spineLayer.frame = bounds
+        }
     }
 
     private func visibleContentViews() -> [UIView] {
@@ -533,7 +558,7 @@ final class MessageCellView: UIView {
         // Failed
         if failedRetryLabel?.isHidden == false { height += 18 }
         // Padding
-        let verticalPadding: CGFloat = config.isLastInSeries ? 12 : 2
+        let verticalPadding: CGFloat = config.isLastInSeries ? 8 : 2
         height += verticalPadding
 
         // Reaction badge offset
