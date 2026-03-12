@@ -83,6 +83,8 @@
 		799F2E0604D74163A88C8000 /* ReplyContextBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA743C9AFFC450CB093E62B /* ReplyContextBuilder.swift */; };
 		7AD025419E784FB8A81740AC /* ValidatorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEEF3BE2C3945E88F9474A1 /* ValidatorsTests.swift */; };
 		7B1D2F86F66446E8BDB780E8 /* UI/Components/Messaging/MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8A5F952BF741F1A4428874 /* UI/Components/Messaging/MessageBubble.swift */; };
+		1BE25CCB8B304E4C86A726D8 /* UI/Components/Messaging/Cells/MessageCellConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCA888648E34541A708D121 /* UI/Components/Messaging/Cells/MessageCellConfig.swift */; };
+		929F582D7CA948F4B7D47EB5 /* UI/Components/Messaging/Cells/MessageCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98AC2B14D10D4574BE3030A2 /* UI/Components/Messaging/Cells/MessageCellView.swift */; };
 		7B8F9E1C2D3E4F5A6B7C8D9E /* MessageServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A5C9D1C9E842B2A1F0F9B1 /* MessageServiceTests.swift */; };
 		7DCF598341BC4E58977B2DA8 /* Validators.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81F7CF8643154B8B926E096B /* Validators.swift */; };
 		7FC1B85E59ED46EC979DDA25 /* ProfileServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB3D74CACF14E8585D7CE07 /* ProfileServiceTests.swift */; };
@@ -786,6 +788,8 @@
 		CA95B657AEBD47D585A99153 /* CompletionPromptViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionPromptViewTests.swift; sourceTree = "<group>"; };
 		CB5B6126D1DEB66F5840190A /* MapSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSnapshotCache.swift; sourceTree = "<group>"; };
 		CC8A5F952BF741F1A4428874 /* UI/Components/Messaging/MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Messaging/MessageBubble.swift; sourceTree = "<group>"; };
+		0FCA888648E34541A708D121 /* UI/Components/Messaging/Cells/MessageCellConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UI/Components/Messaging/Cells/MessageCellConfig.swift"; sourceTree = "<group>"; };
+		98AC2B14D10D4574BE3030A2 /* UI/Components/Messaging/Cells/MessageCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UI/Components/Messaging/Cells/MessageCellView.swift"; sourceTree = "<group>"; };
 		CCEEF3BE2C3945E88F9474A1 /* ValidatorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatorsTests.swift; sourceTree = "<group>"; };
 		CD68B97AA17246109A2AD5FE /* CompletionPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionPromptView.swift; sourceTree = "<group>"; };
 		D0A7626088EB4EEA92769463 /* PromptModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModels.swift; sourceTree = "<group>"; };
@@ -998,6 +1002,8 @@
 				851D984579E2428EA0B526AB /* UI/Components/Feedback/SkeletonView.swift */,
 				CC8A5F952BF741F1A4428874 /* UI/Components/Messaging/MessageBubble.swift */,
 				135896D8F74E47F8A8EBA8B8 /* UI/Components/Messaging/MessageInputBar.swift */,
+				0FCA888648E34541A708D121 /* UI/Components/Messaging/Cells/MessageCellConfig.swift */,
+				98AC2B14D10D4574BE3030A2 /* UI/Components/Messaging/Cells/MessageCellView.swift */,
 				1F680B715D99482B82C724D7 /* Scripts/obfuscate.swift */,
 				DAE76D028B284C99BCA4B42E /* CreateFavorViewModelTests.swift */,
 				C8B2DB546E144D0AAE478B56 /* FavorsDashboardViewModelTests.swift */,
@@ -2408,6 +2414,8 @@
 				414266AE4B5045A291093087 /* UI/Components/Feedback/SkeletonRideCard.swift in Sources */,
 				7B1D2F86F66446E8BDB780E8 /* UI/Components/Messaging/MessageBubble.swift in Sources */,
 				6EE30517C86B4654BA40560D /* UI/Components/Messaging/MessageInputBar.swift in Sources */,
+				1BE25CCB8B304E4C86A726D8 /* UI/Components/Messaging/Cells/MessageCellConfig.swift in Sources */,
+				929F582D7CA948F4B7D47EB5 /* UI/Components/Messaging/Cells/MessageCellView.swift in Sources */,
 				3F36ADBA1092400BB0EBCA05 /* MessageReaction.swift in Sources */,
 				71A12E51E0A743A3B7566460 /* (null) in Sources */,
 				FE8BE874EE8F4C9F8C610393 /* (null) in Sources */,
