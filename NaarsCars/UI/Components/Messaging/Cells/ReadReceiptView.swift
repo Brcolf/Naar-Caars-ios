@@ -111,7 +111,7 @@ final class ReadReceiptView: UIView {
 
         hideAll()
 
-        if status == .read && !readByProfiles.isEmpty {
+        if (status == .delivered || status == .read) && !readByProfiles.isEmpty {
             isGroupMode = true
             // Show mini avatars for readers
             let maxAvatars = min(readByProfiles.count, 3)
