@@ -464,6 +464,7 @@ struct ConversationDetailView: View {
                     VStack {
                         Spacer()
                         ReactionPicker(
+                            currentUserReaction: nil,
                             onReactionSelected: { reaction in
                                 HapticManager.selectionChanged()
                                 if let messageId = reactionPickerMessageId {
