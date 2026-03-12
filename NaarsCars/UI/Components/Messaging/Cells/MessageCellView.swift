@@ -543,7 +543,9 @@ final class MessageCellView: UIView {
 
         longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
         longPressGesture.minimumPressDuration = 0.5
-        longPressGesture.require(toFail: panGesture)
+        // No require(toFail:) — pan and long-press coexist. Pan activates via
+        // horizontal direction lock in gestureRecognizerShouldBegin; long-press
+        // has its own 0.5s duration gate. Per spec: "Pan and long-press coexist."
         addGestureRecognizer(longPressGesture)
 
         tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
