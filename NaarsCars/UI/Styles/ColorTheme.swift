@@ -237,6 +237,11 @@ extension UIColor {
             return UIColor(hex: "FFFFFF") // White card
         }
     }
+
+    static let naarsAccent = UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark
+            ? UIColor(hex: "E0B88A") : UIColor(hex: "D4A574")
+    }
 }
 
 // MARK: - UIColor Hex Extension
