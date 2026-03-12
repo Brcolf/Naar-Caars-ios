@@ -200,6 +200,40 @@ extension Color {
     })
 }
 
+// MARK: - UIColor Brand Colors (for UIKit cell views)
+
+extension UIColor {
+    /// Primary brand color - Terracotta (adaptive)
+    static let naarsPrimary = UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "C97A64")
+        default:
+            return UIColor(hex: "B5634B")
+        }
+    }
+
+    /// Card/Surface background (adaptive)
+    static let naarsCardBackground = UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "2C2C2C")
+        default:
+            return UIColor(hex: "FFFFFF")
+        }
+    }
+
+    /// Accent color - Warm amber (adaptive)
+    static let naarsAccent = UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "E0B88A")
+        default:
+            return UIColor(hex: "D4A574")
+        }
+    }
+}
+
 // MARK: - UIColor Hex Extension
 
 extension UIColor {
