@@ -139,6 +139,7 @@
 		AC12004D2F37B21E0043BFAE /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12004C2F37B21E0043BFAE /* Haptics.swift */; };
 		AC12004F2F37B2330043BFAE /* MessageSendWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */; };
 		AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */; };
+		BPCELL012F3B00000000001A /* BubblePath.swift in Sources */ = {isa = PBXBuildFile; fileRef = BPCELL002F3B00000000001A /* BubblePath.swift */; };
 		AC12006E2F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200682F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift */; };
 		AC12006F2F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200672F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift */; };
 		AC1200702F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200662F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift */; };
@@ -566,6 +567,7 @@
 		AC12004C2F37B21E0043BFAE /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSendWorker.swift; sourceTree = "<group>"; };
 		AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesCollectionView.swift; sourceTree = "<group>"; };
+		BPCELL002F3B00000000001A /* BubblePath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePath.swift; sourceTree = "<group>"; };
 		AC1200662F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTypeDecodingTests.swift; sourceTree = "<group>"; };
 		AC1200672F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimePayloadDecodingTests.swift; sourceTree = "<group>"; };
 		AC1200682F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebhookPayloadDecodingTests.swift; sourceTree = "<group>"; };
@@ -1918,9 +1920,18 @@
 			path = Common;
 			sourceTree = "<group>";
 		};
+		BPCELL032F3B00000000001A /* Cells */ = {
+			isa = PBXGroup;
+			children = (
+				BPCELL002F3B00000000001A /* BubblePath.swift */,
+			);
+			path = Cells;
+			sourceTree = "<group>";
+		};
 		ACDCBE0D2F0B78CB00956D1C /* Messaging */ = {
 			isa = PBXGroup;
 			children = (
+				BPCELL032F3B00000000001A /* Cells */,
 				AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */,
 				AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */,
 				9C50E643BCD4E75C /* MessageInteractionOverlay.swift */,
@@ -2527,6 +2538,7 @@
 				414266AE4B5045A291093087 /* UI/Components/Feedback/SkeletonRideCard.swift in Sources */,
 				7B1D2F86F66446E8BDB780E8 /* UI/Components/Messaging/MessageBubble.swift in Sources */,
 				6EE30517C86B4654BA40560D /* UI/Components/Messaging/MessageInputBar.swift in Sources */,
+				BPCELL012F3B00000000001A /* BubblePath.swift in Sources */,
 				3F36ADBA1092400BB0EBCA05 /* MessageReaction.swift in Sources */,
 				71A12E51E0A743A3B7566460 /* (null) in Sources */,
 				FE8BE874EE8F4C9F8C610393 /* (null) in Sources */,
