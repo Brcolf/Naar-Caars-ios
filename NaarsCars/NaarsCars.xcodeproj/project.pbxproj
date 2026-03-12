@@ -58,6 +58,23 @@
 		41B955527CAF4F59BECA3D82 /* Features/Messaging/ViewModels/ConversationDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5345161137E949359785906E /* Features/Messaging/ViewModels/ConversationDetailViewModel.swift */; };
 		4485FA64AB7941C7B89F3041 /* NaarsCarsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE9B99B9E284D6FB3462A2C /* NaarsCarsUITests.swift */; };
 		457AE7AECC220A02FC433539 /* MessageSeriesHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D5C08B452DE26DCB874C6D /* MessageSeriesHelper.swift */; };
+		AA0001010000000100000001 /* BubblePath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002010000000100000001 /* BubblePath.swift */; };
+		AA0001020000000100000002 /* MessageCellConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002020000000100000002 /* MessageCellConfig.swift */; };
+		AA0001030000000100000003 /* DateSeparatorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002030000000100000003 /* DateSeparatorCell.swift */; };
+		AA0001040000000100000004 /* TextBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002040000000100000004 /* TextBubbleView.swift */; };
+		AA0001050000000100000005 /* ImageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002050000000100000005 /* ImageBubbleView.swift */; };
+		AA0001060000000100000006 /* AudioBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002060000000100000006 /* AudioBubbleView.swift */; };
+		AA0001070000000100000007 /* LocationBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002070000000100000007 /* LocationBubbleView.swift */; };
+		AA0001080000000100000008 /* LinkPreviewBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002080000000100000008 /* LinkPreviewBubbleView.swift */; };
+		AA0001090000000100000009 /* SystemMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002090000000100000009 /* SystemMessageView.swift */; };
+		AA00010A000000010000000A /* UnsentMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00020A000000010000000A /* UnsentMessageView.swift */; };
+		AA00010B000000010000000B /* ReactionBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00020B000000010000000B /* ReactionBadgeView.swift */; };
+		AA00010C000000010000000C /* ReadReceiptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00020C000000010000000C /* ReadReceiptView.swift */; };
+		AA00010D000000010000000D /* ReplyPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00020D000000010000000D /* ReplyPreviewView.swift */; };
+		AA00010E000000010000000E /* MessageCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00020E000000010000000E /* MessageCellView.swift */; };
+		AA00010F000000010000000F /* AvatarUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00020F000000010000000F /* AvatarUIView.swift */; };
+		AA0001100000000100000010 /* URLDetectionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002100000000100000010 /* URLDetectionCache.swift */; };
+		AA0001110000000100000011 /* MessageListItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002110000000100000011 /* MessageListItem.swift */; };
 		45BD6598267841EF999E58AA /* Features/Rides/Views/RideDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3715109DCDE84BC59DBAD1FE /* Features/Rides/Views/RideDetailView.swift */; };
 		4779EAF6DB234F378D72E66E /* Core/Services/FavorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38092A64DA1E4019975DEE4A /* Core/Services/FavorService.swift */; };
 		498CE2451D744F6BAC1F171D /* Core/Services/MessageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8AF409DE784C1FBB461F50 /* Core/Services/MessageService.swift */; };
@@ -858,6 +875,23 @@
 		C5C181B3B88B4730965E9536 /* ImageCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCompressor.swift; sourceTree = "<group>"; };
 		C6F732B4A1254149BF155DAD /* RealtimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeManager.swift; sourceTree = "<group>"; };
 		C7D5C08B452DE26DCB874C6D /* MessageSeriesHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSeriesHelper.swift; sourceTree = "<group>"; };
+		AA0002010000000100000001 /* BubblePath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePath.swift; sourceTree = "<group>"; };
+		AA0002020000000100000002 /* MessageCellConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCellConfig.swift; sourceTree = "<group>"; };
+		AA0002030000000100000003 /* DateSeparatorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateSeparatorCell.swift; sourceTree = "<group>"; };
+		AA0002040000000100000004 /* TextBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextBubbleView.swift; sourceTree = "<group>"; };
+		AA0002050000000100000005 /* ImageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageBubbleView.swift; sourceTree = "<group>"; };
+		AA0002060000000100000006 /* AudioBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBubbleView.swift; sourceTree = "<group>"; };
+		AA0002070000000100000007 /* LocationBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationBubbleView.swift; sourceTree = "<group>"; };
+		AA0002080000000100000008 /* LinkPreviewBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewBubbleView.swift; sourceTree = "<group>"; };
+		AA0002090000000100000009 /* SystemMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageView.swift; sourceTree = "<group>"; };
+		AA00020A000000010000000A /* UnsentMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentMessageView.swift; sourceTree = "<group>"; };
+		AA00020B000000010000000B /* ReactionBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionBadgeView.swift; sourceTree = "<group>"; };
+		AA00020C000000010000000C /* ReadReceiptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadReceiptView.swift; sourceTree = "<group>"; };
+		AA00020D000000010000000D /* ReplyPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyPreviewView.swift; sourceTree = "<group>"; };
+		AA00020E000000010000000E /* MessageCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCellView.swift; sourceTree = "<group>"; };
+		AA00020F000000010000000F /* AvatarUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarUIView.swift; sourceTree = "<group>"; };
+		AA0002100000000100000010 /* URLDetectionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLDetectionCache.swift; sourceTree = "<group>"; };
+		AA0002110000000100000011 /* MessageListItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageListItem.swift; sourceTree = "<group>"; };
 		C7DF542D0D49C32101CFB970 /* MessageMediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageMediaService.swift; sourceTree = "<group>"; };
 		C883A21FA3524173AD022D4A /* Features/Claiming/Views/CompleteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Claiming/Views/CompleteSheet.swift; sourceTree = "<group>"; };
 		C8B2DB546E144D0AAE478B56 /* FavorsDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavorsDashboardViewModelTests.swift; sourceTree = "<group>"; };
@@ -1837,6 +1871,7 @@
 				070CF66F5C655239E617CF48 /* URLDetectionCache.swift */,
 				B2232ABAD39A4B85FE53A31A /* InviteCodeFormatter.swift */,
 				C7D5C08B452DE26DCB874C6D /* MessageSeriesHelper.swift */,
+				AA0002100000000100000010 /* URLDetectionCache.swift */,
 				0F3D6332505646313F5B6F73 /* NetworkMonitor.swift */,
 				C55E7C97F2CAF7730FF7EC18 /* RetryableOperation.swift */,
 				68345925C3A049591611F5E6 /* RideCostModels.swift */,
@@ -1947,6 +1982,7 @@
 				8FB76606AE8564ADFB21E84E /* ProfileStatsCard.swift */,
 				D7A89F5AE28B17AD11B6782F /* ReviewRowView.swift */,
 				CE110002AAAA00000000000C /* AvatarUIView.swift */,
+				AA00020F000000010000000F /* AvatarUIView.swift */,
 			);
 			path = Common;
 			sourceTree = "<group>";
@@ -1966,6 +2002,23 @@
 				CE110002AAAA000000000009 /* ReadReceiptView.swift */,
 				CE110002AAAA00000000000A /* ReplyPreviewView.swift */,
 				CE110002AAAA00000000000B /* DateSeparatorCell.swift */,
+		AA0003000000000100000000 /* Cells */ = {
+			isa = PBXGroup;
+			children = (
+				AA0002010000000100000001 /* BubblePath.swift */,
+				AA0002020000000100000002 /* MessageCellConfig.swift */,
+				AA0002030000000100000003 /* DateSeparatorCell.swift */,
+				AA0002040000000100000004 /* TextBubbleView.swift */,
+				AA0002050000000100000005 /* ImageBubbleView.swift */,
+				AA0002060000000100000006 /* AudioBubbleView.swift */,
+				AA0002070000000100000007 /* LocationBubbleView.swift */,
+				AA0002080000000100000008 /* LinkPreviewBubbleView.swift */,
+				AA0002090000000100000009 /* SystemMessageView.swift */,
+				AA00020A000000010000000A /* UnsentMessageView.swift */,
+				AA00020B000000010000000B /* ReactionBadgeView.swift */,
+				AA00020C000000010000000C /* ReadReceiptView.swift */,
+				AA00020D000000010000000D /* ReplyPreviewView.swift */,
+				AA00020E000000010000000E /* MessageCellView.swift */,
 			);
 			path = Cells;
 			sourceTree = "<group>";
@@ -1974,6 +2027,8 @@
 			isa = PBXGroup;
 			children = (
 				BPCELL032F3B00000000001A /* Cells */,
+				AA0003000000000100000000 /* Cells */,
+				AA0002110000000100000011 /* MessageListItem.swift */,
 				AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */,
 				AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */,
 				9C50E643BCD4E75C /* MessageInteractionOverlay.swift */,
@@ -2611,6 +2666,23 @@
 				8473AEC4921F7ADD7433F230 /* URLDetectionCache.swift in Sources */,
 				11E63CC66A19A0FD69A3115C /* InviteCodeFormatter.swift in Sources */,
 				457AE7AECC220A02FC433539 /* MessageSeriesHelper.swift in Sources */,
+				AA0001010000000100000001 /* BubblePath.swift in Sources */,
+				AA0001020000000100000002 /* MessageCellConfig.swift in Sources */,
+				AA0001030000000100000003 /* DateSeparatorCell.swift in Sources */,
+				AA0001040000000100000004 /* TextBubbleView.swift in Sources */,
+				AA0001050000000100000005 /* ImageBubbleView.swift in Sources */,
+				AA0001060000000100000006 /* AudioBubbleView.swift in Sources */,
+				AA0001070000000100000007 /* LocationBubbleView.swift in Sources */,
+				AA0001080000000100000008 /* LinkPreviewBubbleView.swift in Sources */,
+				AA0001090000000100000009 /* SystemMessageView.swift in Sources */,
+				AA00010A000000010000000A /* UnsentMessageView.swift in Sources */,
+				AA00010B000000010000000B /* ReactionBadgeView.swift in Sources */,
+				AA00010C000000010000000C /* ReadReceiptView.swift in Sources */,
+				AA00010D000000010000000D /* ReplyPreviewView.swift in Sources */,
+				AA00010E000000010000000E /* MessageCellView.swift in Sources */,
+				AA00010F000000010000000F /* AvatarUIView.swift in Sources */,
+				AA0001100000000100000010 /* URLDetectionCache.swift in Sources */,
+				AA0001110000000100000011 /* MessageListItem.swift in Sources */,
 				DC10BA7C913BB6154D64733E /* NetworkMonitor.swift in Sources */,
 				E7FE0980E455BADC223BAD94 /* RetryableOperation.swift in Sources */,
 				3441F65522488084208BB11F /* RideCostModels.swift in Sources */,
