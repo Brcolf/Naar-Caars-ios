@@ -93,7 +93,8 @@ final class LinkPreviewBubbleView: UIView {
     func configure(url: URL, isFromCurrentUser: Bool) {
         self.url = url
         self.isFromCurrentUser = isFromCurrentUser
-        self.isCompact = !UserDefaults.standard.bool(forKey: "messaging_showLinkPreviews")
+        let prefValue = UserDefaults.standard.object(forKey: "messaging_showLinkPreviews") as? Bool ?? true
+        self.isCompact = !prefValue
 
         applyColors()
 
