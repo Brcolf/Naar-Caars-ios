@@ -363,6 +363,7 @@
 		BB02F82EF439230EA9DA35FD /* ReportMessageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C197E50D604B91F7E343DD90 /* ReportMessageSheet.swift */; };
 		BB6705E6EDE1409D910974CC /* RequestReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5179A2C7372483EB7DF87B2 /* RequestReviewSection.swift */; };
 		BF048099E99A742FD137D2B1 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DF267C946A4C7EA0397EBC /* HapticManager.swift */; };
+		8473AEC4921F7ADD7433F230 /* URLDetectionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070CF66F5C655239E617CF48 /* URLDetectionCache.swift */; };
 		BF22C161886A5354970E2BB0 /* ConversationSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D8349B50FBEA67D3FACAE74 /* ConversationSearchManager.swift */; };
 		C18A928FEE624F3EBF15DBB4 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4146003AB84F48B6A6C253DF /* Typography.swift */; };
 		C8CEEF770B7A4F8598CD5E47 /* RateLimiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CEEF770B7A4F8598CD5E48 /* RateLimiterTests.swift */; };
@@ -529,6 +530,7 @@
 		91B84369D6B04C3D809C16E8 /* Features/Favors/ViewModels/FavorsDashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Favors/ViewModels/FavorsDashboardViewModel.swift; sourceTree = "<group>"; };
 		91FF9905F7A848D486578210 /* Features/Favors/Views/FavorDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Favors/Views/FavorDetailView.swift; sourceTree = "<group>"; };
 		92DF267C946A4C7EA0397EBC /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		070CF66F5C655239E617CF48 /* URLDetectionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLDetectionCache.swift; sourceTree = "<group>"; };
 		948807370C9A43E3A55D4641 /* MyProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyProfileViewModel.swift; sourceTree = "<group>"; };
 		96A542FA637C7DC27504E5EC /* MessageReactionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageReactionService.swift; sourceTree = "<group>"; };
 		975A11D2EB5EF69E420F810E /* ConversationMediaGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationMediaGalleryView.swift; sourceTree = "<group>"; };
@@ -1800,6 +1802,7 @@
 				8C61DD37D8FD5E3294B30FDA /* DateDecoderFactory.swift */,
 				3CB28BF35B093B7E503EC0B1 /* GeocodingCacheService.swift */,
 				92DF267C946A4C7EA0397EBC /* HapticManager.swift */,
+				070CF66F5C655239E617CF48 /* URLDetectionCache.swift */,
 				B2232ABAD39A4B85FE53A31A /* InviteCodeFormatter.swift */,
 				C7D5C08B452DE26DCB874C6D /* MessageSeriesHelper.swift */,
 				0F3D6332505646313F5B6F73 /* NetworkMonitor.swift */,
@@ -2537,6 +2540,7 @@
 				DC9782CC2CD6280079573D86 /* DateDecoderFactory.swift in Sources */,
 				6098CCD8D7CBD85AF44F5B1E /* GeocodingCacheService.swift in Sources */,
 				BF048099E99A742FD137D2B1 /* HapticManager.swift in Sources */,
+				8473AEC4921F7ADD7433F230 /* URLDetectionCache.swift in Sources */,
 				11E63CC66A19A0FD69A3115C /* InviteCodeFormatter.swift in Sources */,
 				457AE7AECC220A02FC433539 /* MessageSeriesHelper.swift in Sources */,
 				DC10BA7C913BB6154D64733E /* NetworkMonitor.swift in Sources */,

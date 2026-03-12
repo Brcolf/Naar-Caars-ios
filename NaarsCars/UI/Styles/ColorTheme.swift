@@ -200,6 +200,45 @@ extension Color {
     })
 }
 
+// MARK: - UIColor Brand Colors
+
+extension UIColor {
+
+    // MARK: - Primary Brand Colors
+
+    /// Primary brand color - Terracotta (UIKit equivalent of Color.naarsPrimary)
+    static let naarsPrimary = UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "C97A64") // Lighter terracotta for dark mode
+        default:
+            return UIColor(hex: "B5634B") // Original terracotta
+        }
+    }
+
+    // MARK: - Background Colors
+
+    /// Secondary background - for grouped content (UIKit equivalent of Color.naarsBackgroundSecondary)
+    static let naarsBackgroundSecondary = UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "1E1E1E") // Slightly lighter dark
+        default:
+            return UIColor(hex: "FFFFFF") // Pure white
+        }
+    }
+
+    /// Card/Surface background (UIKit equivalent of Color.naarsCardBackground)
+    static let naarsCardBackground = UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "2C2C2C") // Elevated surface in dark mode
+        default:
+            return UIColor(hex: "FFFFFF") // White card
+        }
+    }
+}
+
 // MARK: - UIColor Hex Extension
 
 extension UIColor {
