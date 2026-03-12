@@ -163,13 +163,7 @@ struct ConversationDetailView: View {
             }
         }
         .fullScreenCover(item: $activeThreadParent) { parent in
-            MessageThreadView(
-                conversationId: conversationId,
-                parentMessageId: parent.id,
-                conversationViewModel: viewModel,
-                isGroup: isGroup,
-                totalParticipants: totalParticipantsCount
-            )
+            threadRepresentable(for: parent)
         }
         .photosPicker(
             isPresented: $showImagePicker,
@@ -231,49 +225,64 @@ struct ConversationDetailView: View {
             }
         }
         .sheet(isPresented: $showReportSheet) {
-            if let message = messageToReport {
-                ReportMessageSheet(
-                    message: message,
-                    onSubmit: { reportType, description in
-                        Task {
-                            await submitReport(message: message, type: reportType, description: description)
-                        }
-                    }
-                )
-            }
+            reportSheetContent
         }
         .sheet(isPresented: $showReactionDetails) {
-            if let message = reactionDetailsMessage, let reactions = message.reactions {
-                ReactionDetailsSheet(
-                    message: message,
-                    reactions: reactions,
-                    profilesByReaction: reactionProfiles,
-                    onRemoveReaction: { reaction in
-                        Task {
-                            await viewModel.removeReaction(messageId: message.id)
-                            await refreshReactionProfiles(for: message)
-                        }
-                    }
-                )
-            }
+            reactionDetailsContent
         }
         .alert("Unsend Message", isPresented: $showUnsendConfirmation) {
-            Button("Cancel", role: .cancel) {
-                messageToUnsend = nil
-            }
-            Button("Unsend", role: .destructive) {
-                if let message = messageToUnsend {
-                    Task {
-                        await viewModel.unsendMessage(id: message.id)
-                        if viewModel.error == nil {
-                            toastMessage = "toast_message_unsent".localized
-                        }
-                    }
-                    messageToUnsend = nil
-                }
-            }
+            unsendAlertActions
         } message: {
             Text("messaging_unsend_confirmation_message".localized)
+        }
+    }
+
+    @ViewBuilder
+    private var reportSheetContent: some View {
+        if let message = messageToReport {
+            ReportMessageSheet(
+                message: message,
+                onSubmit: { reportType, description in
+                    Task {
+                        await submitReport(message: message, type: reportType, description: description)
+                    }
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var reactionDetailsContent: some View {
+        if let message = reactionDetailsMessage, let reactions = message.reactions {
+            ReactionDetailsSheet(
+                message: message,
+                reactions: reactions,
+                profilesByReaction: reactionProfiles,
+                onRemoveReaction: { reaction in
+                    Task {
+                        await viewModel.removeReaction(messageId: message.id)
+                        await refreshReactionProfiles(for: message)
+                    }
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var unsendAlertActions: some View {
+        Button("Cancel", role: .cancel) {
+            messageToUnsend = nil
+        }
+        Button("Unsend", role: .destructive) {
+            if let message = messageToUnsend {
+                Task {
+                    await viewModel.unsendMessage(id: message.id)
+                    if viewModel.error == nil {
+                        toastMessage = "toast_message_unsent".localized
+                    }
+                }
+                messageToUnsend = nil
+            }
         }
     }
     
@@ -459,38 +468,7 @@ struct ConversationDetailView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .overlay(alignment: .center) {
-                if showReactionPicker {
-                    VStack {
-                        Spacer()
-                        ReactionPicker(
-                            currentUserReaction: nil,
-                            onReactionSelected: { reaction in
-                                HapticManager.selectionChanged()
-                                if let messageId = reactionPickerMessageId {
-                                    Task {
-                                        await viewModel.addReaction(messageId: messageId, reaction: reaction)
-                                    }
-                                }
-                                showReactionPicker = false
-                                reactionPickerMessageId = nil
-                            },
-                            onDismiss: {
-                                showReactionPicker = false
-                                reactionPickerMessageId = nil
-                            }
-                        )
-                        .padding(.bottom, 100)
-                        Spacer()
-                    }
-                    .background(Color.black.opacity(0.3))
-                    .transition(.scale.combined(with: .opacity))
-                    .onTapGesture {
-                        showReactionPicker = false
-                        reactionPickerMessageId = nil
-                    }
-                }
-            }
+            .overlay { messageInteractionOverlayView }
 
             if !viewModel.typingUsers.isEmpty {
                 TypingIndicatorView(typingUsers: viewModel.typingUsers)
@@ -599,6 +577,71 @@ struct ConversationDetailView: View {
             .onDisappear {
                 isAtBottom = false
             }
+    }
+
+    // MARK: - Thread
+
+    private func threadRepresentable(for parent: ThreadParent) -> some View {
+        MessageThreadRepresentable(
+            conversationId: conversationId,
+            parentMessageId: parent.id,
+            conversationViewModel: viewModel,
+            isGroup: isGroup,
+            totalParticipants: totalParticipantsCount,
+            participantProfiles: participantsViewModel.participants
+        )
+    }
+
+    // MARK: - Message Interaction Overlay
+
+    @ViewBuilder
+    private var messageInteractionOverlayView: some View {
+        if showReactionPicker,
+           let messageId = reactionPickerMessageId,
+           let message = viewModel.messages.first(where: { $0.id == messageId }) {
+            let isFromMe = message.fromId == AuthService.shared.currentUserId
+            let currentReaction = message.reactions?.currentUserReaction(
+                userId: AuthService.shared.currentUserId ?? UUID()
+            )
+            let canEdit = isFromMe && !message.text.isEmpty && !message.isAudioMessage && !message.isLocationMessage
+
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+                .onTapGesture { dismissOverlay() }
+
+            MessageInteractionOverlay(
+                message: message,
+                messageContent: AnyView(
+                    MessageBubble(
+                        message: message,
+                        isFromCurrentUser: isFromMe,
+                        showAvatar: false,
+                        isFirstInSeries: true,
+                        isLastInSeries: true,
+                        totalParticipants: totalParticipantsCount
+                    )
+                ),
+                isFromCurrentUser: isFromMe,
+                currentUserReaction: currentReaction,
+                onReact: { reaction in
+                    HapticManager.selectionChanged()
+                    handleOverlayAction(.react(reaction))
+                },
+                onReply: { handleOverlayAction(.reply) },
+                onCopy: { handleOverlayAction(.copy) },
+                onEdit: canEdit ? { handleOverlayAction(.edit) } : nil,
+                onUnsend: isFromMe && message.canUnsend ? { handleOverlayAction(.unsend) } : nil,
+                onDeleteForMe: { handleOverlayAction(.deleteForMe) },
+                onReport: !isFromMe ? { handleOverlayAction(.report) } : nil,
+                onDismiss: { dismissOverlay() }
+            )
+            .transition(.scale.combined(with: .opacity))
+        }
+    }
+
+    private func dismissOverlay() {
+        showReactionPicker = false
+        reactionPickerMessageId = nil
     }
 
     private func handleOverlayAction(_ action: OverlayAction) {
@@ -1076,293 +1119,7 @@ private struct ThreadParent: Identifiable {
     let id: UUID
 }
 
-@MainActor
-final class MessageThreadViewModel: ObservableObject {
-    @Published var parentMessage: Message?
-    @Published var replies: [Message] = []
-    @Published var isLoading = false
-    @Published var error: AppError?
 
-    private let conversationId: UUID
-    private let parentMessageId: UUID
-    private let messageService = MessageService.shared
-
-    init(conversationId: UUID, parentMessageId: UUID) {
-        self.conversationId = conversationId
-        self.parentMessageId = parentMessageId
-    }
-
-    func loadThread(seedMessages: [Message] = []) async {
-        isLoading = true
-        error = nil
-
-        if let seedParent = seedMessages.first(where: { $0.id == parentMessageId }) {
-            parentMessage = seedParent
-        }
-        // Don't set replies from seed; set once from network to avoid jumpy list update
-        replies = []
-
-        do {
-            parentMessage = try await messageService.fetchMessageById(parentMessageId)
-            replies = try await messageService.fetchReplies(
-                conversationId: conversationId,
-                replyToId: parentMessageId
-            )
-        } catch {
-            self.error = AppError.processingError(error.localizedDescription)
-        }
-
-        isLoading = false
-    }
-
-    func mergeReplies(from messages: [Message]) {
-        if let parent = messages.first(where: { $0.id == parentMessageId }) {
-            parentMessage = parent
-        }
-
-        let matching = messages.filter { $0.replyToId == parentMessageId }
-        guard !matching.isEmpty else { return }
-
-        var merged = replies
-        let existingIds = Set(merged.map { $0.id })
-        for message in matching where !existingIds.contains(message.id) {
-            merged.append(message)
-        }
-        merged.sort { $0.createdAt < $1.createdAt }
-        replies = merged
-    }
-}
-
-struct MessageThreadView: View {
-    let conversationId: UUID
-    let parentMessageId: UUID
-    @ObservedObject var conversationViewModel: ConversationDetailViewModel
-    let isGroup: Bool
-    let totalParticipants: Int
-
-    @StateObject private var viewModel: MessageThreadViewModel
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var messageText = ""
-    @State private var imageToSend: UIImage?
-    @State private var showImagePicker = false
-    @State private var selectedImage: PhotosPickerItem?
-    @State private var mergeRepliesTask: Task<Void, Never>?
-
-    init(
-        conversationId: UUID,
-        parentMessageId: UUID,
-        conversationViewModel: ConversationDetailViewModel,
-        isGroup: Bool,
-        totalParticipants: Int
-    ) {
-        self.conversationId = conversationId
-        self.parentMessageId = parentMessageId
-        self.conversationViewModel = conversationViewModel
-        self.isGroup = isGroup
-        self.totalParticipants = totalParticipants
-        _viewModel = StateObject(wrappedValue: MessageThreadViewModel(
-            conversationId: conversationId,
-            parentMessageId: parentMessageId
-        ))
-    }
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                threadHeader
-                Divider()
-                threadContent
-            }
-            .background(.ultraThinMaterial)
-        }
-        .photosPicker(
-            isPresented: $showImagePicker,
-            selection: $selectedImage,
-            matching: .images
-        )
-        .onChange(of: selectedImage) { _, newValue in
-            Task {
-                if let item = newValue, let data = try? await item.loadTransferable(type: Data.self) {
-                    imageToSend = UIImage(data: data)
-                } else {
-                    imageToSend = nil
-                }
-            }
-        }
-        .task {
-            await viewModel.loadThread(seedMessages: conversationViewModel.messages)
-        }
-        .onReceive(conversationViewModel.$messages) { messages in
-            mergeRepliesTask?.cancel()
-            let current = messages
-            mergeRepliesTask = Task {
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    viewModel.mergeReplies(from: current)
-                }
-            }
-        }
-    }
-
-    private var hasParentMessage: Bool {
-        viewModel.parentMessage != nil
-    }
-
-    private var threadHeader: some View {
-        HStack {
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark")
-                    .font(.naarsCallout).fontWeight(.semibold)
-                    .foregroundColor(.primary)
-            }
-            Spacer()
-            Text("messaging_thread".localized)
-                .font(.naarsBody)
-                .fontWeight(.semibold)
-            Spacer()
-            Color.clear.frame(width: 24)
-        }
-        .padding()
-    }
-
-    private var threadContent: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    parentMessageView
-
-                    if !viewModel.replies.isEmpty {
-                        ForEach(Array(viewModel.replies.enumerated()), id: \.element.id) { index, message in
-                            let isFirst = isFirstInSeries(messages: viewModel.replies, index: index)
-                            let isLast = isLastInSeries(messages: viewModel.replies, index: index)
-
-                            MessageBubble(
-                                message: message,
-                                isFromCurrentUser: isFromCurrentUser(message),
-                                showAvatar: isGroup && !isFromCurrentUser(message),
-                                isFirstInSeries: isFirst,
-                                isLastInSeries: isLast,
-                                totalParticipants: totalParticipants,
-                                showReplyPreview: false
-                            )
-                            .padding(.vertical, 2)
-                        }
-                    } else if !viewModel.isLoading {
-                        Text("messaging_no_replies_yet".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                            .padding(.vertical, 16)
-                    }
-
-                    Color.clear
-                        .frame(height: 1)
-                        .id("thread.bottom")
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-            }
-            .defaultScrollAnchor(.bottom)
-            .safeAreaInset(edge: .bottom) {
-                MessageInputBar(
-                    text: $messageText,
-                    imageToSend: $imageToSend,
-                    onSend: {
-                        let textToSend = messageText
-                        let image = imageToSend
-                        messageText = ""
-                        imageToSend = nil
-                        Task {
-                            await conversationViewModel.sendMessage(
-                                textOverride: textToSend,
-                                image: image,
-                                replyToId: parentMessageId
-                            )
-                            if messageText == textToSend {
-                                messageText = ""
-                            }
-                        }
-                    },
-                    onImagePickerTapped: { showImagePicker = true },
-                    isDisabled: !hasParentMessage || (messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil),
-                    replyingTo: nil,
-                    onCancelReply: nil,
-                    onAudioRecorded: { audioURL, duration in
-                        Task {
-                            await conversationViewModel.sendAudioMessage(
-                                audioURL: audioURL,
-                                duration: duration,
-                                replyToId: parentMessageId
-                            )
-                        }
-                    },
-                    onLocationShare: { latitude, longitude, name in
-                        Task {
-                            await conversationViewModel.sendLocationMessage(
-                                latitude: latitude,
-                                longitude: longitude,
-                                locationName: name,
-                                replyToId: parentMessageId
-                            )
-                        }
-                    }
-                )
-            }
-            .onChange(of: viewModel.replies.count) { _, _ in
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo("thread.bottom", anchor: .bottom)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var parentMessageView: some View {
-        if let parentMessage = viewModel.parentMessage {
-            MessageBubble(
-                message: parentMessage,
-                isFromCurrentUser: isFromCurrentUser(parentMessage),
-                showAvatar: isGroup && !isFromCurrentUser(parentMessage),
-                isFirstInSeries: true,
-                isLastInSeries: true,
-                totalParticipants: totalParticipants
-            )
-            .padding(.vertical, 6)
-        } else if viewModel.isLoading {
-            ProgressView()
-                .padding(.vertical, 16)
-        } else if let error = viewModel.error {
-            ErrorView(
-                error: error.localizedDescription,
-                retryAction: {
-                    Task { await viewModel.loadThread(seedMessages: conversationViewModel.messages) }
-                }
-            )
-            .padding(.vertical, 16)
-        } else {
-            Text("messaging_original_message_unavailable".localized)
-                .font(.naarsCaption)
-                .foregroundColor(.secondary)
-                .padding(.vertical, 16)
-        }
-    }
-
-    private func isFromCurrentUser(_ message: Message) -> Bool {
-        message.fromId == AuthService.shared.currentUserId
-    }
-
-    private func isFirstInSeries(messages: [Message], index: Int) -> Bool {
-        MessageSeriesHelper.isFirstInSeries(messages: messages, at: index)
-    }
-
-    private func isLastInSeries(messages: [Message], index: Int) -> Bool {
-        MessageSeriesHelper.isLastInSeries(messages: messages, at: index)
-    }
-}
 
 @MainActor
 private final class DebugFrameDropMonitor: NSObject, ObservableObject {

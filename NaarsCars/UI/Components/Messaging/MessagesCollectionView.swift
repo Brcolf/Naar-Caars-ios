@@ -175,6 +175,19 @@ struct MessagesCollectionView: UIViewRepresentable {
             coordinator.dataSource?.apply(snapshot, animatingDifferences: true)
         }
 
+        // Reconfigure visible message cells to pick up content changes
+        // (reactions, read receipts) that don't alter the snapshot structure.
+        if !isInitialLoad, let dataSource = coordinator.dataSource {
+            let visibleIds = collectionView.indexPathsForVisibleItems.compactMap {
+                dataSource.itemIdentifier(for: $0)
+            }.filter { !$0.hasPrefix("date:") }
+            if !visibleIds.isEmpty {
+                var reconfigureSnapshot = dataSource.snapshot()
+                reconfigureSnapshot.reconfigureItems(visibleIds)
+                dataSource.apply(reconfigureSnapshot, animatingDifferences: false)
+            }
+        }
+
         // Handle scroll-to-message
         if let targetId = scrollToMessageId {
             if let indexPath = coordinator.dataSource?.indexPath(for: targetId.uuidString) {

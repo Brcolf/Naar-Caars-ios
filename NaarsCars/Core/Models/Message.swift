@@ -26,6 +26,11 @@ struct MessageReactions: Equatable, Sendable {
         return reactions[reaction]?.count ?? 0
     }
     
+    /// Get the reaction emoji a specific user placed, if any
+    func currentUserReaction(userId: UUID) -> String? {
+        reactions.first { $0.value.contains(userId) }?.key
+    }
+
     /// Get all reactions (sorted by count, descending)
     var sortedReactions: [(reaction: String, count: Int, userIds: [UUID])] {
         return reactions.map { (reaction: $0.key, count: $0.value.count, userIds: $0.value) }

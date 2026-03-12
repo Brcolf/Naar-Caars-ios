@@ -290,6 +290,30 @@ final class ConversationDetailViewModel: ObservableObject {
             self?.hasMoreMessages = value
         }
         MessagingSyncEngine.shared.setupReactionsSubscription(conversationId: conversationId)
+
+        // Hydrate reactions for loaded messages (reactions aren't included in the messages query)
+        await loadReactionsForMessages()
+    }
+
+    /// Fetch reactions for all currently loaded messages
+    private func loadReactionsForMessages() async {
+        let messageIds = messages.map(\.id)
+        guard !messageIds.isEmpty else { return }
+
+        await withTaskGroup(of: (UUID, MessageReactions?).self) { group in
+            for id in messageIds {
+                group.addTask {
+                    let reactions = try? await MessageReactionService.shared.fetchReactions(messageId: id)
+                    return (id, reactions)
+                }
+            }
+            for await (id, reactions) in group {
+                if let index = messages.firstIndex(where: { $0.id == id }) {
+                    let hasReactions = reactions != nil && !(reactions!.reactions.isEmpty)
+                    messages[index].reactions = hasReactions ? reactions : nil
+                }
+            }
+        }
     }
     
     func loadMoreMessages() async {

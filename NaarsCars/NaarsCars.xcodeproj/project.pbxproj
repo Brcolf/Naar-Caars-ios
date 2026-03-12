@@ -89,6 +89,7 @@
 		618E2729DA4E4D3A9FE27998 /* Features/Claiming/Views/PhoneRequiredSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0765987B7F4487BBED3C162 /* Features/Claiming/Views/PhoneRequiredSheet.swift */; };
 				THREAD000000000000000B1 /* Features/Messaging/Views/MessageThreadViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = THREAD000000000000000A1 /* Features/Messaging/Views/MessageThreadViewController.swift */; };
 		THREAD000000000000000B2 /* Features/Messaging/Views/MessageThreadRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = THREAD000000000000000A2 /* Features/Messaging/Views/MessageThreadRepresentable.swift */; };
+		THREAD000000000000000B3 /* Features/Messaging/ViewModels/MessageThreadViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = THREAD000000000000000A3 /* MessageThreadViewModel.swift */; };
 62A581B7A6134A9FA36783A9 /* Features/Messaging/Views/ConversationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swift */; };
 		6464C27B6B61CA0C7BACBEF0 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6A4D3E7AEFF12B3E1539D8 /* ToastView.swift */; };
 		64BC8D2ADE0A0DB165CD7AC9 /* MapSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5B6126D1DEB66F5840190A /* MapSnapshotCache.swift */; };
@@ -901,6 +902,7 @@ AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileRefe
 		DAE76D028B284C99BCA4B42E /* CreateFavorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFavorViewModelTests.swift; sourceTree = "<group>"; };
 				THREAD000000000000000A1 /* Features/Messaging/Views/MessageThreadViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/Views/MessageThreadViewController.swift; sourceTree = "<group>"; };
 		THREAD000000000000000A2 /* Features/Messaging/Views/MessageThreadRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/Views/MessageThreadRepresentable.swift; sourceTree = "<group>"; };
+		THREAD000000000000000A3 /* MessageThreadViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageThreadViewModel.swift; sourceTree = "<group>"; };
 DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/Views/ConversationDetailView.swift; sourceTree = "<group>"; };
 		DC65578777D3482FAB1B2D57 /* PromptModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelsTests.swift; sourceTree = "<group>"; };
 		DC7376A9C08B0F1B1E337948 /* ConversationSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationSearchBar.swift; sourceTree = "<group>"; };
@@ -1506,6 +1508,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				F8CDDC8E455AA632FACFCB95 /* TypingIndicatorManager.swift */,
 				D15000172F3D00010043BFAE /* MessagePaginationManager.swift */,
 				D15000182F3D00010043BFAE /* MessageSendManager.swift */,
+				THREAD000000000000000A3 /* MessageThreadViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -2564,6 +2567,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				6D5101EBFBE8476BB7D9058E /* Features/Messaging/ViewModels/ConversationsListViewModel.swift in Sources */,
 				THREAD000000000000000B1 /* Features/Messaging/Views/MessageThreadViewController.swift in Sources */,
 				THREAD000000000000000B2 /* Features/Messaging/Views/MessageThreadRepresentable.swift in Sources */,
+				THREAD000000000000000B3 /* Features/Messaging/ViewModels/MessageThreadViewModel.swift in Sources */,
 				62A581B7A6134A9FA36783A9 /* Features/Messaging/Views/ConversationDetailView.swift in Sources */,
 				09248758DAA4444AB0B1BC46 /* Features/Messaging/Views/ConversationsListView.swift in Sources */,
 				10A2269295B244819A10C11D /* Features/Rides/ViewModels/CreateRideViewModel.swift in Sources */,
