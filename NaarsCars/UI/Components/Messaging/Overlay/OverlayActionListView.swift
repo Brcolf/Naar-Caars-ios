@@ -62,6 +62,16 @@ final class OverlayActionListView: UIView {
         // Reply — always
         items.append(ActionItem(action: .reply, title: "Reply", icon: "arrow.uturn.left", isDestructive: false))
 
+        // View Thread — if this message is a reply (has a parent thread)
+        if let replyToId = message.replyToId {
+            items.append(ActionItem(
+                action: .viewThread(replyToId),
+                title: NSLocalizedString("messaging_view_thread", comment: ""),
+                icon: "bubble.left.and.bubble.right",
+                isDestructive: false
+            ))
+        }
+
         // Copy — if text is non-empty
         if !message.text.isEmpty {
             items.append(ActionItem(action: .copy, title: "Copy", icon: "doc.on.doc", isDestructive: false))

@@ -12,6 +12,7 @@ enum OverlayAction {
     case react(String)
     case removeReaction
     case reply
+    case viewThread(UUID)
     case copy
     case edit
     case unsend

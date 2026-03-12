@@ -601,6 +601,58 @@ struct ConversationDetailView: View {
             }
     }
 
+    private func handleOverlayAction(_ action: OverlayAction) {
+        switch action {
+        case .react(let emoji):
+            if let messageId = reactionPickerMessageId {
+                Task { await viewModel.addReaction(messageId: messageId, reaction: emoji) }
+            }
+        case .removeReaction:
+            if let messageId = reactionPickerMessageId {
+                Task { await viewModel.removeReaction(messageId: messageId) }
+            }
+        case .reply:
+            if let messageId = reactionPickerMessageId,
+               let message = viewModel.messages.first(where: { $0.id == messageId }) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    replyingToMessage = ReplyContext(from: message)
+                }
+            }
+        case .viewThread(let parentId):
+            activeThreadParent = ThreadParent(id: parentId)
+        case .copy:
+            if let messageId = reactionPickerMessageId,
+               let message = viewModel.messages.first(where: { $0.id == messageId }) {
+                UIPasteboard.general.string = message.text
+            }
+        case .edit:
+            if let messageId = reactionPickerMessageId,
+               let message = viewModel.messages.first(where: { $0.id == messageId }) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    replyingToMessage = nil
+                    viewModel.startEditing(message)
+                }
+            }
+        case .unsend:
+            if let messageId = reactionPickerMessageId,
+               let message = viewModel.messages.first(where: { $0.id == messageId }) {
+                showUnsendConfirmation = true
+                messageToUnsend = message
+            }
+        case .deleteForMe:
+            if let messageId = reactionPickerMessageId,
+               let message = viewModel.messages.first(where: { $0.id == messageId }) {
+                Task { await viewModel.deleteMessageForMe(message) }
+            }
+        case .report:
+            if let messageId = reactionPickerMessageId,
+               let message = viewModel.messages.first(where: { $0.id == messageId }) {
+                messageToReport = message
+                showReportSheet = true
+            }
+        }
+    }
+
     private func showReactionDetails(for message: Message) {
         reactionDetailsMessage = message
         showReactionDetails = true
@@ -608,7 +660,7 @@ struct ConversationDetailView: View {
             await refreshReactionProfiles(for: message)
         }
     }
-    
+
     private func refreshReactionProfiles(for message: Message) async {
         guard let reactions = message.reactions else {
             reactionProfiles = [:]
