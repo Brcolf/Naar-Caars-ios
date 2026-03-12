@@ -600,10 +600,10 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		AC12004C2F37B21E0043BFAE /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSendWorker.swift; sourceTree = "<group>"; };
 		MSGLIST0000000000000001 /* MessageListItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageListItem.swift; sourceTree = "<group>"; };
-				OVERLAY00000000000000A1 /* OverlayAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Messaging/Overlay/OverlayAction.swift; sourceTree = "<group>"; };
-		OVERLAY00000000000000A2 /* ReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Messaging/Overlay/ReactionBarView.swift; sourceTree = "<group>"; };
-		OVERLAY00000000000000A3 /* OverlayActionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Messaging/Overlay/OverlayActionListView.swift; sourceTree = "<group>"; };
-		OVERLAY00000000000000A4 /* MessageOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Messaging/Overlay/MessageOverlayController.swift; sourceTree = "<group>"; };
+				OVERLAY00000000000000A1 /* OverlayAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/OverlayAction.swift; sourceTree = "<group>"; };
+		OVERLAY00000000000000A2 /* ReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/ReactionBarView.swift; sourceTree = "<group>"; };
+		OVERLAY00000000000000A3 /* OverlayActionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/OverlayActionListView.swift; sourceTree = "<group>"; };
+		OVERLAY00000000000000A4 /* MessageOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/MessageOverlayController.swift; sourceTree = "<group>"; };
 AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesCollectionView.swift; sourceTree = "<group>"; };
 		BPCELL002F3B00000000001A /* BubblePath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePath.swift; sourceTree = "<group>"; };
 		AC1200662F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTypeDecodingTests.swift; sourceTree = "<group>"; };

@@ -135,6 +135,7 @@ final class MessageThreadViewController: UIViewController {
     private let conversationViewModel: ConversationDetailViewModel
     private let isGroup: Bool
     private let totalParticipants: Int
+    private let participantProfiles: [Profile]
 
     private let threadViewModel: MessageThreadViewModel
 
@@ -166,6 +167,7 @@ final class MessageThreadViewController: UIViewController {
         self.conversationViewModel = conversationViewModel
         self.isGroup = isGroup
         self.totalParticipants = totalParticipants
+        self.participantProfiles = participantProfiles
         self.threadViewModel = MessageThreadViewModel(
             conversationId: conversationId,
             parentMessageId: parentMessageId
