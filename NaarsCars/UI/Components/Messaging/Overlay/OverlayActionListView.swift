@@ -60,7 +60,7 @@ final class OverlayActionListView: UIView {
         var items: [ActionItem] = []
 
         // Reply — always
-        items.append(ActionItem(action: .reply, title: "Reply", icon: "arrow.uturn.left", isDestructive: false))
+        items.append(ActionItem(action: .reply, title: NSLocalizedString("Reply", comment: ""), icon: "arrow.uturn.left", isDestructive: false))
 
         // View Thread — if this message is a reply (has a parent thread)
         if let replyToId = message.replyToId {
@@ -74,7 +74,7 @@ final class OverlayActionListView: UIView {
 
         // Copy — if text is non-empty
         if !message.text.isEmpty {
-            items.append(ActionItem(action: .copy, title: "Copy", icon: "doc.on.doc", isDestructive: false))
+            items.append(ActionItem(action: .copy, title: NSLocalizedString("Copy", comment: ""), icon: "doc.on.doc", isDestructive: false))
         }
 
         // Edit — sent messages, text-only (not audio, not location, not image-only)
@@ -82,20 +82,20 @@ final class OverlayActionListView: UIView {
            message.messageType == .text || message.messageType == nil,
            !message.isAudioMessage,
            !message.isLocationMessage {
-            items.append(ActionItem(action: .edit, title: "Edit", icon: "pencil", isDestructive: false))
+            items.append(ActionItem(action: .edit, title: NSLocalizedString("Edit", comment: ""), icon: "pencil", isDestructive: false))
         }
 
         // Undo Send — sent messages within 15 min
         if isFromCurrentUser, message.canUnsend {
-            items.append(ActionItem(action: .unsend, title: "Undo Send", icon: "arrow.uturn.backward", isDestructive: true))
+            items.append(ActionItem(action: .unsend, title: NSLocalizedString("messaging_undo_send", comment: ""), icon: "arrow.uturn.backward", isDestructive: true))
         }
 
         // Delete for Me — always
-        items.append(ActionItem(action: .deleteForMe, title: "Delete for Me", icon: "trash", isDestructive: false))
+        items.append(ActionItem(action: .deleteForMe, title: NSLocalizedString("Delete for Me", comment: ""), icon: "trash", isDestructive: true))
 
         // Report — received messages only
         if !isFromCurrentUser {
-            items.append(ActionItem(action: .report, title: "Report", icon: "exclamationmark.triangle", isDestructive: true))
+            items.append(ActionItem(action: .report, title: NSLocalizedString("messaging_report_message", comment: ""), icon: "exclamationmark.triangle", isDestructive: true))
         }
 
         return items
