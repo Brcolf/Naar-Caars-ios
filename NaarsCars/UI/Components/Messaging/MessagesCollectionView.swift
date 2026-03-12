@@ -26,6 +26,11 @@ final class MessageContentCell: UICollectionViewCell {
         contentView.addSubview(messageCellView)
         // Counter-flip: the collection view uses scaleY: -1
         contentView.transform = CGAffineTransform(scaleX: 1, y: -1)
+
+        messageCellView.onIntrinsicSizeChanged = { [weak self] in
+            guard let self, let collectionView = self.superview as? UICollectionView else { return }
+            collectionView.collectionViewLayout.invalidateLayout()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }

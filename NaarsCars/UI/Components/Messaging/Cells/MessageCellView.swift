@@ -38,6 +38,10 @@ final class MessageCellView: UIView {
     private var config: MessageCellConfig?
     weak var delegate: MessageCellDelegate?
 
+    /// Called when the cell's intrinsic size changes (e.g. timestamp toggle).
+    /// The hosting cell should invalidate its collection view layout.
+    var onIntrinsicSizeChanged: (() -> Void)?
+
     // Gesture state
     private var swipeOffset: CGFloat = 0
     private var isSwipingToReply = false
@@ -631,6 +635,7 @@ final class MessageCellView: UIView {
         if timestampLabel?.isHidden == true {
             showTimestamp(config: config)
             setNeedsLayout()
+            onIntrinsicSizeChanged?()
         }
         let workItem = DispatchWorkItem { [weak self] in
             guard let self, let config = self.config, !config.isLastInSeries else { return }
@@ -638,6 +643,7 @@ final class MessageCellView: UIView {
             self.editedLabel?.isHidden = true
             self.readReceipt?.isHidden = true
             self.setNeedsLayout()
+            self.onIntrinsicSizeChanged?()
         }
         timestampHideWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: workItem)
