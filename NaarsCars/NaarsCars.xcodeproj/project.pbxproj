@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CE110001AAAA000000000001 /* TextBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000001 /* TextBubbleView.swift */; };
+		CE110001AAAA000000000002 /* ImageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000002 /* ImageBubbleView.swift */; };
+		CE110001AAAA000000000003 /* AudioBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000003 /* AudioBubbleView.swift */; };
+		CE110001AAAA000000000004 /* LocationBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000004 /* LocationBubbleView.swift */; };
+		CE110001AAAA000000000005 /* LinkPreviewBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000005 /* LinkPreviewBubbleView.swift */; };
+		CE110001AAAA000000000006 /* SystemMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000006 /* SystemMessageView.swift */; };
+		CE110001AAAA000000000007 /* UnsentMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000007 /* UnsentMessageView.swift */; };
+		CE110001AAAA000000000008 /* ReactionBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000008 /* ReactionBadgeView.swift */; };
+		CE110001AAAA000000000009 /* ReadReceiptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000009 /* ReadReceiptView.swift */; };
+		CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000A /* ReplyPreviewView.swift */; };
+		CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000B /* DateSeparatorCell.swift */; };
+		CE110001AAAA00000000000C /* AvatarUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000C /* AvatarUIView.swift */; };
 		01E6A8138836046AD14DFDC3 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FD8E458AE888861E9F4FC0 /* ConversationService.swift */; };
 		0280A9FF8783E0B8C339C2C4 /* TypingIndicatorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CDDC8E455AA632FACFCB95 /* TypingIndicatorManager.swift */; };
 		06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6919D6DE589147EA882BA5C2 /* View+Extensions.swift */; };
@@ -436,6 +448,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		CE110002AAAA000000000001 /* TextBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextBubbleView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000002 /* ImageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageBubbleView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000003 /* AudioBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioBubbleView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000004 /* LocationBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationBubbleView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000005 /* LinkPreviewBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewBubbleView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000006 /* SystemMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000007 /* UnsentMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentMessageView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000008 /* ReactionBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionBadgeView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000009 /* ReadReceiptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadReceiptView.swift; sourceTree = "<group>"; };
+		CE110002AAAA00000000000A /* ReplyPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyPreviewView.swift; sourceTree = "<group>"; };
+		CE110002AAAA00000000000B /* DateSeparatorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateSeparatorCell.swift; sourceTree = "<group>"; };
+		CE110002AAAA00000000000C /* AvatarUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarUIView.swift; sourceTree = "<group>"; };
 		0203B70350D9463DBB993A31 /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		0356C00D127342B5A0288362 /* UI/Components/Cards/FavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/FavorCard.swift; sourceTree = "<group>"; };
 		052E6D74D4102679A004789F /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
@@ -1922,6 +1946,7 @@
 				9EC5E565C0F6486FA8791B60 /* StarRatingView.swift */,
 				8FB76606AE8564ADFB21E84E /* ProfileStatsCard.swift */,
 				D7A89F5AE28B17AD11B6782F /* ReviewRowView.swift */,
+				CE110002AAAA00000000000C /* AvatarUIView.swift */,
 			);
 			path = Common;
 			sourceTree = "<group>";
@@ -1930,6 +1955,17 @@
 			isa = PBXGroup;
 			children = (
 				BPCELL002F3B00000000001A /* BubblePath.swift */,
+				CE110002AAAA000000000001 /* TextBubbleView.swift */,
+				CE110002AAAA000000000002 /* ImageBubbleView.swift */,
+				CE110002AAAA000000000003 /* AudioBubbleView.swift */,
+				CE110002AAAA000000000004 /* LocationBubbleView.swift */,
+				CE110002AAAA000000000005 /* LinkPreviewBubbleView.swift */,
+				CE110002AAAA000000000006 /* SystemMessageView.swift */,
+				CE110002AAAA000000000007 /* UnsentMessageView.swift */,
+				CE110002AAAA000000000008 /* ReactionBadgeView.swift */,
+				CE110002AAAA000000000009 /* ReadReceiptView.swift */,
+				CE110002AAAA00000000000A /* ReplyPreviewView.swift */,
+				CE110002AAAA00000000000B /* DateSeparatorCell.swift */,
 			);
 			path = Cells;
 			sourceTree = "<group>";
@@ -2257,6 +2293,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE110001AAAA000000000001 /* TextBubbleView.swift in Sources */,
+				CE110001AAAA000000000002 /* ImageBubbleView.swift in Sources */,
+				CE110001AAAA000000000003 /* AudioBubbleView.swift in Sources */,
+				CE110001AAAA000000000004 /* LocationBubbleView.swift in Sources */,
+				CE110001AAAA000000000005 /* LinkPreviewBubbleView.swift in Sources */,
+				CE110001AAAA000000000006 /* SystemMessageView.swift in Sources */,
+				CE110001AAAA000000000007 /* UnsentMessageView.swift in Sources */,
+				CE110001AAAA000000000008 /* ReactionBadgeView.swift in Sources */,
+				CE110001AAAA000000000009 /* ReadReceiptView.swift in Sources */,
+				CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */,
+				CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */,
+				CE110001AAAA00000000000C /* AvatarUIView.swift in Sources */,
 				5412C40716694F42A9B5BD40 /* Throttler.swift in Sources */,
 				799F2E0604D74163A88C8000 /* ReplyContextBuilder.swift in Sources */,
 				F6D9BEBA8B40714CBC8DC1B8 /* NotificationRepository.swift in Sources */,

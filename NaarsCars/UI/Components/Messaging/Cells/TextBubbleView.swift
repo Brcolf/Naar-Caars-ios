@@ -74,12 +74,12 @@ final class TextBubbleView: UIView {
 
         textLabel.frame = CGRect(x: textOriginX, y: vPad, width: textSize.width, height: textSize.height)
 
-        let path = BubblePath.make(
+        let bezier = BubblePath.path(
             in: b,
             isFromCurrentUser: isFromCurrentUser,
             showTail: showTail
         )
-        bubbleLayer.path = path
+        bubbleLayer.path = bezier.cgPath
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {

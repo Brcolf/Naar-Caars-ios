@@ -6,7 +6,7 @@
 //
 
 import UIKit
-import Combine
+internal import Combine
 
 /// Pure UIKit audio bubble with waveform visualization and play/pause.
 final class AudioBubbleView: UIView {
