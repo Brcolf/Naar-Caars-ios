@@ -76,6 +76,11 @@ final class ReplyPreviewUIView: UIView {
             ? UIColor.naarsPrimary.withAlphaComponent(0.12)
             : UIColor.systemGray5
 
+        isAccessibilityElement = true
+        accessibilityLabel = "\(senderLabel.text ?? ""), \(previewLabel.text ?? "")"
+        accessibilityTraits = .button
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_scroll_to_reply", comment: "")
+
         setNeedsLayout()
     }
 

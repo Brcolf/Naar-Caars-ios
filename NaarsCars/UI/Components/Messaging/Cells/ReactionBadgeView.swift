@@ -90,10 +90,15 @@ final class ReactionBadgeView: UIView {
         let container = ReactionCapsuleView()
         container.configure(emoji: emoji, count: count)
 
+        container.isAccessibilityElement = true
+        container.accessibilityLabel = count > 1 ? "\(emoji) \(count)" : emoji
+        container.accessibilityTraits = .button
+
         let tap = UITapGestureRecognizer(target: self, action: #selector(capsuleTapped(_:)))
         container.addGestureRecognizer(tap)
 
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(capsuleLongPressed(_:)))
+        longPress.minimumPressDuration = 0.3
         container.addGestureRecognizer(longPress)
 
         return container

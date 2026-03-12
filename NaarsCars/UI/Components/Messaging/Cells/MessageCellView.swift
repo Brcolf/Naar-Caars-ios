@@ -111,6 +111,13 @@ final class MessageCellView: UIView {
             backgroundColor = .clear
         }
 
+        // Accessibility — container exposes child elements
+        isAccessibilityElement = false
+        accessibilityElements = visibleContentViews()
+            + [reactionBadge, timestampLabel, readReceipt, failedRetryLabel, replyPreview]
+                .compactMap { $0 }
+                .filter { !$0.isHidden }
+
         setNeedsLayout()
     }
 

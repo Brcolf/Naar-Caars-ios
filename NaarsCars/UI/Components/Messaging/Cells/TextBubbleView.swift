@@ -58,6 +58,10 @@ final class TextBubbleView: UIView {
             ? UIColor.naarsPrimary.cgColor
             : UIColor.systemGray5.cgColor
 
+        isAccessibilityElement = true
+        accessibilityLabel = text
+        accessibilityTraits = .staticText
+
         setNeedsLayout()
     }
 

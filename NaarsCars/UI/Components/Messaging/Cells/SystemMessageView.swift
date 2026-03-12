@@ -50,6 +50,11 @@ final class SystemMessageView: UIView {
     func configure(text: String) {
         textLabel.text = text
         iconView.image = UIImage(systemName: Self.iconName(for: text))
+
+        isAccessibilityElement = true
+        accessibilityLabel = text
+        accessibilityTraits = .staticText
+
         setNeedsLayout()
     }
 

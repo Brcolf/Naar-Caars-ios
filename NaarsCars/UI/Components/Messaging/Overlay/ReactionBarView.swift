@@ -120,7 +120,9 @@ final class ReactionBarView: UIView {
         if isSelected {
             button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.25)
             button.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
+            button.accessibilityTraits = [.button, .selected]
         }
+        button.accessibilityLabel = emoji
 
         button.addAction(UIAction { [weak self] _ in
             guard let self else { return }

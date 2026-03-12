@@ -44,6 +44,11 @@ final class DateSeparatorCell: UICollectionViewCell {
 
     func configure(date: Date) {
         dateLabel.text = Self.formatDate(date)
+
+        contentView.isAccessibilityElement = true
+        contentView.accessibilityLabel = dateLabel.text
+        contentView.accessibilityTraits = .header
+
         setNeedsLayout()
     }
 

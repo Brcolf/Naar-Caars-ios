@@ -70,6 +70,10 @@ final class AvatarUIView: UIView {
         initialsLabel.text = initials
         backgroundColor = UIColor.naarsPrimary
 
+        isAccessibilityElement = true
+        accessibilityLabel = name
+        accessibilityTraits = .image
+
         loadGeneration &+= 1
         let gen = loadGeneration
 

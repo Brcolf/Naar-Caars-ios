@@ -91,6 +91,11 @@ final class LocationBubbleView: UIView {
         self.longitude = longitude
         nameLabel.text = name ?? NSLocalizedString("messaging_shared_location", comment: "")
 
+        isAccessibilityElement = true
+        accessibilityLabel = nameLabel.text
+        accessibilityTraits = .button
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_open_maps", comment: "")
+
         mapImageView.image = nil
         spinner.startAnimating()
 

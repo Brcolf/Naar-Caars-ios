@@ -51,6 +51,11 @@ final class UnsentMessageView: UIView {
         textLabel.text = isFromCurrentUser
             ? "messaging_you_unsent_a_message".localized
             : "messaging_this_message_was_unsent".localized
+
+        isAccessibilityElement = true
+        accessibilityLabel = textLabel.text
+        accessibilityTraits = .staticText
+
         setNeedsLayout()
     }
 

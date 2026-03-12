@@ -89,6 +89,9 @@ final class AudioBubbleView: UIView {
             ? UIColor.white.withAlphaComponent(0.8)
             : UIColor.secondaryLabel
 
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+
         subscribeToPlayer()
         updateUI(isPlaying: false, progress: 0)
         setNeedsLayout()
@@ -114,6 +117,12 @@ final class AudioBubbleView: UIView {
         let iconName = isPlaying ? "pause.fill" : "play.fill"
         let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         playButton.setImage(UIImage(systemName: iconName, withConfiguration: config), for: .normal)
+
+        let statusText = isPlaying
+            ? NSLocalizedString("accessibility_audio_playing", comment: "")
+            : NSLocalizedString("accessibility_audio_paused", comment: "")
+        accessibilityLabel = "\(statusText), \(durationLabel.text ?? "")"
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_toggle", comment: "")
 
         // Waveform fill
         let filledCount = Int(progress * Double(barCount))
