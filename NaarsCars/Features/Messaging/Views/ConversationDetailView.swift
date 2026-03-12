@@ -311,67 +311,6 @@ struct ConversationDetailView: View {
         )
     }
     
-    /// Create a message bubble with all handlers
-    @ViewBuilder
-    private func createMessageBubble(
-        message: Message,
-        isFirst: Bool,
-        isLast: Bool,
-        replyChain: ReplyChainContext? = nil
-    ) -> some View {
-        MessageBubble(
-            message: message,
-            isFromCurrentUser: isFromCurrentUser(message),
-            showAvatar: isGroup && !isFromCurrentUser(message),
-            isFirstInSeries: isFirst,
-            isLastInSeries: isLast,
-            shouldAnimate: newMessageIds.contains(message.id),
-            totalParticipants: totalParticipantsCount,
-            replySpine: replyChain.map { (showTop: $0.hasPrevious, showBottom: $0.hasNext) },
-            isFailed: message.sendStatus == .failed,
-            onLongPress: {
-                reactionPickerMessageId = message.id
-                showReactionPicker = true
-            },
-            onReactionTap: { reaction in
-                showReactionDetails(for: message)
-            },
-            onReply: {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    replyingToMessage = ReplyContext(from: message)
-                }
-            },
-            onEdit: isFromCurrentUser(message) ? {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    replyingToMessage = nil // Clear reply if active
-                    viewModel.startEditing(message)
-                }
-            } : nil,
-            onUnsend: isFromCurrentUser(message) && message.canUnsend ? {
-                showUnsendConfirmation = true
-                messageToUnsend = message
-            } : nil,
-            onImageTap: { imageUrl in
-                selectedImageUrl = imageUrl
-                showImageViewer = true
-            },
-            onReport: {
-                messageToReport = message
-                showReportSheet = true
-            },
-            onReplyPreviewTap: { replyId in
-                activeThreadParent = ThreadParent(id: replyId)
-            },
-            onRetry: {
-                Task {
-                    await viewModel.retryMessage(id: message.id)
-                }
-            },
-            isHighlighted: highlightedMessageId == message.id
-        )
-    }
-    
-
     /// Cell configurations for MessagesCollectionView (hashable per-message display options).
     private var messageCellConfigurations: [UUID: MessageCellConfiguration] {
         var configs: [UUID: MessageCellConfiguration] = [:]
@@ -411,21 +350,39 @@ struct ConversationDetailView: View {
                     MessagesCollectionView(
                         messages: viewModel.messages,
                         cellConfigurations: messageCellConfigurations,
-                        messageCellContent: { message, config in
-                            AnyView(
-                                VStack(spacing: 0) {
-                                    if config.showDateSeparator {
-                                        DateSeparatorView(date: message.createdAt)
-                                            .padding(.vertical, 16)
-                                    }
-                                    createMessageBubble(
-                                        message: message,
-                                        isFirst: config.isFirstInSeries,
-                                        isLast: config.isLastInSeries,
-                                        replyChain: replyChainContextForMessage(message)
-                                    )
-                                }
-                            )
+                        participantProfiles: participantsViewModel.participants,
+                        isGroupConversation: isGroup,
+                        totalParticipants: totalParticipantsCount,
+                        onLongPress: { message, frame, snapshot in
+                            // Store for overlay presentation (Layer 4 will wire this)
+                            reactionPickerMessageId = message.id
+                            showReactionPicker = true
+                        },
+                        onSwipeReply: { message in
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                replyingToMessage = ReplyContext(from: message)
+                            }
+                        },
+                        onImageTap: { url in
+                            selectedImageUrl = url
+                            showImageViewer = true
+                        },
+                        onReplyPreviewTap: { replyToId in
+                            highlightedMessageId = replyToId
+                        },
+                        onRetry: { message in
+                            Task { await viewModel.retryMessage(id: message.id) }
+                        },
+                        onReactionTap: { message, reaction in
+                            if reaction == "__details__" {
+                                reactionDetailsMessage = message
+                                showReactionDetails = true
+                                Task { await refreshReactionProfiles(for: message) }
+                            } else if let reaction {
+                                Task { await viewModel.addReaction(messageId: message.id, reaction: reaction) }
+                            } else {
+                                Task { await viewModel.removeReaction(messageId: message.id) }
+                            }
                         },
                         onLoadMore: {
                             if viewModel.hasMoreMessages && !viewModel.isLoadingMore {
@@ -626,49 +583,7 @@ struct ConversationDetailView: View {
         }
     }
 
-    @ViewBuilder
-    private var messagesBodyView: some View {
-        if viewModel.isLoading && viewModel.messages.isEmpty {
-            ProgressView()
-                .padding()
-        } else if viewModel.messages.isEmpty {
-            VStack(spacing: Constants.Spacing.md) {
-                Image(systemName: "message.fill")
-                    .font(.system(size: 50))
-                    .foregroundColor(.secondary)
-                Text("messaging_no_messages_yet".localized)
-                    .font(.naarsBody)
-                    .foregroundColor(.secondary)
-                Text("messaging_start_the_conversation".localized)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
-        } else {
-            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                let isFirst = isFirstInSeries(at: index)
-                let isLast = isLastInSeries(at: index)
-                let shouldShowDateSeparator = shouldShowDateSeparator(at: index)
-                let replyChain = replyChainContext(at: index)
-
-                VStack(spacing: 0) {
-                    if shouldShowDateSeparator {
-                        DateSeparatorView(date: message.createdAt)
-                            .padding(.vertical, 16)
-                    }
-
-                    createMessageBubble(
-                        message: message,
-                        isFirst: isFirst,
-                        isLast: isLast,
-                        replyChain: replyChain
-                    )
-                }
-                .id(messageAnchorId(message.id))
-            }
-        }
-    }
+    // messagesBodyView removed — replaced by native UIKit cells in MessagesCollectionView
 
     
 
@@ -759,27 +674,6 @@ struct ConversationDetailView: View {
         MessageSeriesHelper.isLastInSeries(messages: viewModel.messages, at: index)
     }
 
-    private struct ReplyChainContext {
-        let hasPrevious: Bool
-        let hasNext: Bool
-    }
-
-    private func replyChainContext(at index: Int) -> ReplyChainContext? {
-        let currentMessage = viewModel.messages[index]
-        guard let replyToId = currentMessage.replyToId else { return nil }
-
-        let hasPrevious = index > 0 && viewModel.messages[index - 1].replyToId == replyToId
-        let hasNext = index < viewModel.messages.count - 1 && viewModel.messages[index + 1].replyToId == replyToId
-
-        return ReplyChainContext(hasPrevious: hasPrevious, hasNext: hasNext)
-    }
-
-    /// Look up reply chain context for a message by finding its index
-    private func replyChainContextForMessage(_ message: Message) -> ReplyChainContext? {
-        guard let index = viewModel.messages.firstIndex(where: { $0.id == message.id }) else { return nil }
-        return replyChainContext(at: index)
-    }
-    
     /// Check if we should show a date separator before this message
     private func shouldShowDateSeparator(at index: Int) -> Bool {
         guard index > 0 else { return true } // Always show for first message

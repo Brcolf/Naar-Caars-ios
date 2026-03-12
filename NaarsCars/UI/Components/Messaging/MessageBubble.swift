@@ -77,11 +77,8 @@ struct MessageBubble: View {
     
     /// Extract URLs from message text (cached to avoid re-running NSDataDetector on every render)
     private var detectedURLs: [URL] {
-        Self.urlCache.urls(for: message.text)
+        URLDetectionCache.shared.urls(for: message.text)
     }
-    
-    /// Shared URL detection cache to avoid expensive NSDataDetector on every SwiftUI body evaluation
-    private static let urlCache = URLDetectionCache()
     
     /// Check if message is a system message (announcement)
     /// Uses messageType first (fast path), falls back to text matching for legacy messages
@@ -1058,37 +1055,7 @@ private struct AudioMessageContentView: View {
     }
 }
 
-// MARK: - URL Detection Cache
-
-/// Thread-safe cache for NSDataDetector results to avoid expensive regex on every SwiftUI body evaluation
-private final class URLDetectionCache: @unchecked Sendable {
-    private var cache: [String: [URL]] = [:]
-    private let lock = NSLock()
-    private static let detector: NSDataDetector? = {
-        try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-    }()
-    
-    func urls(for text: String) -> [URL] {
-        lock.lock()
-        if let cached = cache[text] {
-            lock.unlock()
-            return cached
-        }
-        lock.unlock()
-        
-        let matches = Self.detector?.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text)) ?? []
-        let urls = matches.compactMap { match -> URL? in
-            guard let range = Range(match.range, in: text) else { return nil }
-            return URL(string: String(text[range]))
-        }
-        
-        lock.lock()
-        cache[text] = urls
-        lock.unlock()
-        
-        return urls
-    }
-}
+// URLDetectionCache extracted to NaarsCars/Core/Utilities/URLDetectionCache.swift
 
 // MARK: - Preview
 
