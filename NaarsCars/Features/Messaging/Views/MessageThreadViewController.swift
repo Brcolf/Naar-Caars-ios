@@ -22,6 +22,110 @@ private let kDividerKey = "divider"
 private let kEmptyKey = "empty"
 private let kLoadingKey = "loading"
 
+/// Non-flipped cell that hosts a MessageCellView (thread view is normal top-to-bottom).
+private final class ThreadMessageCell: UICollectionViewCell {
+    let messageCellView = MessageCellView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.addSubview(messageCellView)
+
+        messageCellView.onIntrinsicSizeChanged = { [weak self] in
+            guard let self, let collectionView = self.superview as? UICollectionView else { return }
+            collectionView.collectionViewLayout.invalidateLayout()
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        messageCellView.frame = contentView.bounds
+    }
+
+    override func preferredLayoutAttributesFitting(
+        _ layoutAttributes: UICollectionViewLayoutAttributes
+    ) -> UICollectionViewLayoutAttributes {
+        let attrs = super.preferredLayoutAttributesFitting(layoutAttributes)
+        let targetSize = CGSize(width: layoutAttributes.frame.width, height: UIView.layoutFittingCompressedSize.height)
+        let fittingSize = messageCellView.sizeThatFits(targetSize)
+        attrs.frame.size.height = fittingSize.height
+        return attrs
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        messageCellView.prepareForReuse()
+    }
+}
+
+/// Simple divider cell — pure UIKit separator line.
+private final class DividerCell: UICollectionViewCell {
+    private let line = UIView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        line.backgroundColor = .separator
+        contentView.addSubview(line)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let h = 1.0 / (window?.screen.scale ?? UIScreen.main.scale)
+        line.frame = CGRect(x: 0, y: (contentView.bounds.height - h) / 2, width: contentView.bounds.width, height: h)
+    }
+
+    override func preferredLayoutAttributesFitting(_ attrs: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
+        let a = super.preferredLayoutAttributesFitting(attrs)
+        a.frame.size.height = 24
+        return a
+    }
+}
+
+/// Simple centered label cell — used for empty state and loading.
+private final class CenteredLabelCell: UICollectionViewCell {
+    let label = UILabel()
+    let spinner = UIActivityIndicatorView(style: .medium)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        label.font = .preferredFont(forTextStyle: .caption1)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        contentView.addSubview(label)
+
+        spinner.hidesWhenStopped = true
+        contentView.addSubview(spinner)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configureAsEmpty() {
+        label.text = NSLocalizedString("messaging_no_replies_yet", comment: "")
+        label.isHidden = false
+        spinner.stopAnimating()
+    }
+
+    func configureAsLoading() {
+        label.isHidden = true
+        spinner.startAnimating()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        label.frame = contentView.bounds
+        spinner.center = CGPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
+    }
+
+    override func preferredLayoutAttributesFitting(_ attrs: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
+        let a = super.preferredLayoutAttributesFitting(attrs)
+        a.frame.size.height = 48
+        return a
+    }
+}
+
 final class MessageThreadViewController: UIViewController {
 
     // MARK: - Dependencies
@@ -162,38 +266,20 @@ final class MessageThreadViewController: UIViewController {
     // MARK: - Data Source
 
     private func setupDataSource() {
-        let messageCellRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> {
+        let messageCellRegistration = UICollectionView.CellRegistration<ThreadMessageCell, String> {
             [weak self] cell, indexPath, itemKey in
             guard let self, let messageId = Self.messageId(from: itemKey) else { return }
             self.configureMessageCell(cell, messageId: messageId, isParent: itemKey.hasPrefix(kParentPrefix))
         }
 
-        let dividerRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> { cell, _, _ in
-            cell.contentConfiguration = UIHostingConfiguration {
-                Divider()
-                    .padding(.vertical, 8)
-            }
-            .margins(.all, 0)
+        let dividerRegistration = UICollectionView.CellRegistration<DividerCell, String> { _, _, _ in }
+
+        let emptyRegistration = UICollectionView.CellRegistration<CenteredLabelCell, String> { cell, _, _ in
+            cell.configureAsEmpty()
         }
 
-        let emptyRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> { cell, _, _ in
-            cell.contentConfiguration = UIHostingConfiguration {
-                Text("messaging_no_replies_yet".localized)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-            }
-            .margins(.all, 0)
-        }
-
-        let loadingRegistration = UICollectionView.CellRegistration<UICollectionViewCell, String> { cell, _, _ in
-            cell.contentConfiguration = UIHostingConfiguration {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-            }
-            .margins(.all, 0)
+        let loadingRegistration = UICollectionView.CellRegistration<CenteredLabelCell, String> { cell, _, _ in
+            cell.configureAsLoading()
         }
 
         dataSource = UICollectionViewDiffableDataSource<Int, String>(
@@ -211,7 +297,7 @@ final class MessageThreadViewController: UIViewController {
         }
     }
 
-    private func configureMessageCell(_ cell: UICollectionViewCell, messageId: UUID, isParent: Bool) {
+    private func configureMessageCell(_ cell: ThreadMessageCell, messageId: UUID, isParent: Bool) {
         let message: Message?
         if isParent {
             message = threadViewModel.parentMessage
@@ -232,37 +318,54 @@ final class MessageThreadViewController: UIViewController {
             }
         }
 
-        cell.contentConfiguration = UIHostingConfiguration {
-            MessageBubble(
-                message: message,
-                isFromCurrentUser: isFromCurrentUser,
-                showAvatar: showAvatar,
-                isFirstInSeries: isFirst,
-                isLastInSeries: isLast,
-                totalParticipants: totalParticipants,
-                showReplyPreview: false
-            )
-            .padding(.vertical, 2)
-        }
-        .margins(.all, 0)
+        let config = MessageCellConfig(
+            message: message,
+            isFromCurrentUser: isFromCurrentUser,
+            showAvatar: showAvatar,
+            isFirstInSeries: isFirst,
+            isLastInSeries: isLast,
+            isGroupConversation: isGroup,
+            totalParticipants: totalParticipants,
+            participantProfiles: participantProfiles,
+            showReplyPreview: false,
+            replySpine: nil,
+            isHighlighted: false,
+            shouldAnimate: false
+        )
+
+        cell.messageCellView.delegate = self
+        cell.messageCellView.configure(with: config)
     }
 
     // MARK: - Input Bar
 
-    private func setupInputBar() {
-        let inputBar = MessageInputBar(
+    private func makeInputBar() -> MessageInputBar {
+        let hasParent = threadViewModel.parentMessage != nil
+        let hasContent = !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageToSend != nil
+
+        return MessageInputBar(
             text: Binding(
                 get: { [weak self] in self?.messageText ?? "" },
-                set: { [weak self] in self?.messageText = $0 }
+                set: { [weak self] in
+                    self?.messageText = $0
+                    self?.updateInputBarDisabledState()
+                }
             ),
             imageToSend: Binding(
                 get: { [weak self] in self?.imageToSend },
-                set: { [weak self] in self?.imageToSend = $0 }
+                set: { [weak self] in
+                    self?.imageToSend = $0
+                    self?.updateInputBarDisabledState()
+                }
             ),
             onSend: { [weak self] in self?.sendReply() },
             onImagePickerTapped: { },
-            isDisabled: false
+            isDisabled: !hasParent || !hasContent
         )
+    }
+
+    private func setupInputBar() {
+        let inputBar = makeInputBar()
 
         let hostingController = UIHostingController(rootView: inputBar)
         hostingController.view.backgroundColor = .clear
@@ -280,27 +383,10 @@ final class MessageThreadViewController: UIViewController {
         ])
 
         inputHostingController = hostingController
-        updateInputBarDisabledState()
     }
 
     private func updateInputBarDisabledState() {
-        let hasParent = threadViewModel.parentMessage != nil
-        let hasContent = !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageToSend != nil
-
-        let inputBar = MessageInputBar(
-            text: Binding(
-                get: { [weak self] in self?.messageText ?? "" },
-                set: { [weak self] in self?.messageText = $0 }
-            ),
-            imageToSend: Binding(
-                get: { [weak self] in self?.imageToSend },
-                set: { [weak self] in self?.imageToSend = $0 }
-            ),
-            onSend: { [weak self] in self?.sendReply() },
-            onImagePickerTapped: { },
-            isDisabled: !hasParent || !hasContent
-        )
-        inputHostingController?.rootView = inputBar
+        inputHostingController?.rootView = makeInputBar()
     }
 
     private func sendReply() {
@@ -424,5 +510,65 @@ final class MessageThreadViewController: UIViewController {
         guard let lastItem = snapshot.itemIdentifiers(inSection: kSectionReplies).last else { return }
         guard let indexPath = dataSource.indexPath(for: lastItem) else { return }
         collectionView.scrollToItem(at: indexPath, at: .bottom, animated: animated)
+    }
+}
+
+// MARK: - MessageCellDelegate
+
+extension MessageThreadViewController: MessageCellDelegate {
+    func messageCellDidLongPress(_ cell: MessageCellView, message: Message) {
+        // Thread view doesn't present the overlay
+    }
+
+    func messageCellDidTapReaction(_ cell: MessageCellView, message: Message, reaction: String?) {
+        // Thread view doesn't handle reactions directly
+    }
+
+    func messageCellDidSwipeToReply(_ cell: MessageCellView, message: Message) {
+        // Thread view doesn't support nested replies
+    }
+
+    func messageCellDidTapImage(_ cell: MessageCellView, url: URL) {
+        let imageVC = UIViewController()
+        imageVC.modalPresentationStyle = .fullScreen
+        imageVC.view.backgroundColor = .black
+
+        let iv = UIImageView()
+        iv.contentMode = .scaleAspectFit
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        imageVC.view.addSubview(iv)
+        NSLayoutConstraint.activate([
+            iv.topAnchor.constraint(equalTo: imageVC.view.topAnchor),
+            iv.bottomAnchor.constraint(equalTo: imageVC.view.bottomAnchor),
+            iv.leadingAnchor.constraint(equalTo: imageVC.view.leadingAnchor),
+            iv.trailingAnchor.constraint(equalTo: imageVC.view.trailingAnchor),
+        ])
+
+        Task {
+            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+                iv.image = img
+            }
+        }
+
+        let closeBtn = UIButton(type: .system)
+        closeBtn.setImage(UIImage(systemName: "xmark"), for: .normal)
+        closeBtn.tintColor = .white
+        closeBtn.translatesAutoresizingMaskIntoConstraints = false
+        imageVC.view.addSubview(closeBtn)
+        NSLayoutConstraint.activate([
+            closeBtn.topAnchor.constraint(equalTo: imageVC.view.safeAreaLayoutGuide.topAnchor, constant: 16),
+            closeBtn.trailingAnchor.constraint(equalTo: imageVC.view.trailingAnchor, constant: -16),
+        ])
+        closeBtn.addAction(UIAction { _ in imageVC.dismiss(animated: true) }, for: .touchUpInside)
+
+        present(imageVC, animated: true)
+    }
+
+    func messageCellDidTapReplyPreview(_ cell: MessageCellView, replyToId: UUID) {
+        // No-op in thread context
+    }
+
+    func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
+        Task { await conversationViewModel.retryMessage(id: message.id) }
     }
 }
