@@ -44,6 +44,7 @@ struct MessageInputBar: View {
     // Audio recording state
     @State private var isRecording = false
     @State private var recordingDuration: TimeInterval = 0
+    @State private var recordingStartDate: Date?
     @State private var audioRecorder: AVAudioRecorder?
     @State private var recordingTimer: Timer?
     @State private var recordingURL: URL?
@@ -85,7 +86,7 @@ struct MessageInputBar: View {
                     Button(action: { imageToSend = nil }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
-                            .background(Color.white.clipShape(Circle()))
+                            .background(Color(.systemBackground).clipShape(Circle()))
                     }
                     .offset(x: -20, y: -40)
                     
@@ -121,6 +122,8 @@ struct MessageInputBar: View {
                         .font(.title2)
                         .foregroundColor(.naarsPrimary)
                 }
+                .accessibilityLabel("messaging_menu_add".localized)
+                .accessibilityHint("messaging_menu_add_hint".localized)
                 
                 TextField(editingMessage != nil ? "messaging_edit_placeholder".localized : "messaging_placeholder".localized, text: $text, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
@@ -131,8 +134,8 @@ struct MessageInputBar: View {
                         signalTypingIfNeeded(oldValue: oldValue, newValue: newValue)
                     }
                     .accessibilityIdentifier("message.input")
-                    .accessibilityLabel("Message")
-                    .accessibilityHint("Type your message here")
+                    .accessibilityLabel("messaging_input_label".localized)
+                    .accessibilityHint("messaging_input_hint".localized)
                 
                 Button(action: {
                     withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
@@ -152,6 +155,8 @@ struct MessageInputBar: View {
                 .scaleEffect(sendButtonScale)
                 .disabled(isDisabled)
                 .accessibilityIdentifier("message.send")
+                .accessibilityLabel("messaging_send".localized)
+                .accessibilityHint("messaging_send_hint".localized)
             }
             .padding()
         }
@@ -183,11 +188,12 @@ struct MessageInputBar: View {
     
     private var audioRecordingBanner: some View {
         HStack(spacing: 12) {
-            // Recording indicator
+            // Recording indicator — pulses via repeating animation
+            // rather than timer-driven opacity to avoid main-thread redraws
             Circle()
                 .fill(Color.red)
                 .frame(width: 10, height: 10)
-                .opacity(recordingDuration.truncatingRemainder(dividingBy: 1.0) < 0.5 ? 1.0 : 0.3)
+                .modifier(PulsingOpacity())
             
             Text("messaging_recording".localized)
                 .font(.naarsSubheadline).fontWeight(.medium)
@@ -276,10 +282,14 @@ struct MessageInputBar: View {
                 isRecording = true
                 recordingDuration = 0
             }
-            
-            // Start duration timer
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                recordingDuration += 0.1
+
+            // Start duration timer — update once per second to avoid
+            // flooding the main thread with SwiftUI redraws every 100ms.
+            recordingStartDate = Date()
+            recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [recordingStartDate] _ in
+                if let start = recordingStartDate {
+                    recordingDuration = Date().timeIntervalSince(start)
+                }
             }
             
             // Haptic feedback
@@ -293,40 +303,43 @@ struct MessageInputBar: View {
     
     private func stopAndSendRecording() {
         guard let recorder = audioRecorder, let url = recordingURL else { return }
-        
+
         recorder.stop()
         recordingTimer?.invalidate()
         recordingTimer = nil
-        
-        let duration = recordingDuration
-        
+
+        // Compute exact duration from start date for accuracy
+        let duration = recordingStartDate.map { Date().timeIntervalSince($0) } ?? recordingDuration
+
         withAnimation {
             isRecording = false
         }
-        
+
         // Only send if recording is at least 1 second
         if duration >= 1.0 {
             onAudioRecorded?(url, duration)
         }
-        
+
         // Clean up
         audioRecorder = nil
         recordingURL = nil
+        recordingStartDate = nil
         recordingDuration = 0
     }
-    
+
     private func cancelRecording() {
         audioRecorder?.stop()
         audioRecorder?.deleteRecording()
         recordingTimer?.invalidate()
         recordingTimer = nil
-        
+
         withAnimation {
             isRecording = false
         }
-        
+
         audioRecorder = nil
         recordingURL = nil
+        recordingStartDate = nil
         recordingDuration = 0
     }
     
@@ -687,6 +700,24 @@ private final class LocationPickerViewModel: NSObject, ObservableObject, CLLocat
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         // Non-fatal: location permission may be denied
+    }
+}
+
+// MARK: - Pulsing Opacity (recording indicator)
+
+/// Animates opacity between 1.0 and 0.3 using a repeating SwiftUI animation
+/// instead of a high-frequency timer, keeping the main thread free.
+private struct PulsingOpacity: ViewModifier {
+    @State private var dimmed = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(dimmed ? 0.3 : 1.0)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                    dimmed = true
+                }
+            }
     }
 }
 
