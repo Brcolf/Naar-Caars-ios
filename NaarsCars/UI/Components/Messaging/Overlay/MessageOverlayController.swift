@@ -210,7 +210,7 @@ final class MessageOverlayController: UIViewController {
 
         animator.addAnimations {
             self.backdropBlur.effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-            self.snapshot.transform = CGAffineTransform(scaleX: 1.02, y: 1.02)
+            self.snapshot.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
             self.reactionBar.alpha = 1
             self.reactionBar.frame.origin.y = reactionBarTargetY
             self.actionList.alpha = 1

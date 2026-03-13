@@ -12,7 +12,7 @@ struct SkeletonConversationRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Avatar skeleton
-            SkeletonCircle(size: 50)
+            SkeletonCircle(size: 56)
             
             VStack(alignment: .leading, spacing: 8) {
                 // Name skeleton

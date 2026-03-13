@@ -18,7 +18,7 @@ struct ConversationAvatar: View {
                 AvatarView(
                     imageUrl: participant.avatarUrl,
                     name: participant.name,
-                    size: 50,
+                    size: 56,
                     userId: participant.id
                 )
             } else if conversationDetail.otherParticipants.count > 1 {
@@ -26,7 +26,7 @@ struct ConversationAvatar: View {
                 groupAvatarView
             } else {
                 // Default avatar
-                AvatarView(imageUrl: nil, name: "Unknown", size: 50)
+                AvatarView(imageUrl: nil, name: "Unknown", size: 56)
             }
         }
     }
@@ -43,7 +43,7 @@ struct ConversationAvatar: View {
                 errorView: { defaultGroupAvatar }
             )
             .scaledToFill()
-            .frame(width: 50, height: 50)
+            .frame(width: 56, height: 56)
             .clipShape(Circle())
         } else if !conversationDetail.otherParticipants.isEmpty {
             // Show composite group avatar
@@ -51,7 +51,7 @@ struct ConversationAvatar: View {
                 participants: conversationDetail.otherParticipants.map {
                     .init(imageUrl: $0.avatarUrl, name: $0.name)
                 },
-                size: 50
+                size: 56
             )
         } else {
             defaultGroupAvatar
@@ -62,7 +62,7 @@ struct ConversationAvatar: View {
         ZStack {
             Circle()
                 .fill(Color.naarsPrimary.opacity(0.2))
-                .frame(width: 50, height: 50)
+                .frame(width: 56, height: 56)
             
             Image(systemName: "person.2.fill")
                 .foregroundColor(.naarsPrimary)

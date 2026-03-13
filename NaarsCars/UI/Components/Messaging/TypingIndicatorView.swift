@@ -13,22 +13,23 @@ struct TypingIndicatorView: View {
     let typingUsers: [TypingUser]
     
     @State private var animationOffset: Int = 0
-    
+    @State private var isPulsing = false
+
     private let timer = Timer.publish(every: 0.3, on: .main, in: .common).autoconnect()
-    
+
     var body: some View {
         if !typingUsers.isEmpty {
             HStack(alignment: .bottom, spacing: 8) {
                 // Avatar(s) of typing user(s)
                 avatarStack
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     // Typing user name(s)
                     Text(typingText)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
-                    
+
                     // Animated dots bubble
                     HStack(spacing: 4) {
                         ForEach(0..<3, id: \.self) { index in
@@ -45,8 +46,14 @@ struct TypingIndicatorView: View {
                         BubbleShape(isFromCurrentUser: false, showTail: true)
                             .fill(Color(.systemGray5))
                     )
+                    .scaleEffect(isPulsing ? 1.04 : 1.0)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                            isPulsing = true
+                        }
+                    }
                 }
-                
+
                 Spacer()
             }
             .padding(.vertical, 4)

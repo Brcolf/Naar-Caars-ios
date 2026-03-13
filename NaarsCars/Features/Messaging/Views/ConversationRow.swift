@@ -16,7 +16,7 @@ struct ConversationRow: View {
         HStack(spacing: 12) {
             // Avatar on left
             ConversationAvatar(conversationDetail: conversationDetail)
-                .frame(width: 50, height: 50)
+                .frame(width: 56, height: 56)
             
             // Main content: Title, preview, and time
             VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
@@ -105,7 +105,7 @@ struct ConversationRow: View {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 11)
         .contentShape(Rectangle()) // Make entire row tappable
     }
     

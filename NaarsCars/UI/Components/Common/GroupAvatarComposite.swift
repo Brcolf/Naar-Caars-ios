@@ -9,7 +9,7 @@ import SwiftUI
 
 struct GroupAvatarComposite: View {
     let participants: [Participant]
-    var size: CGFloat = 50
+    var size: CGFloat = 56
 
     struct Participant: Sendable {
         let imageUrl: String?
