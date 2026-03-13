@@ -100,7 +100,10 @@ final class MessagingSyncEngine: SyncEngineProtocol {
             AppLogger.warning("messaging", "Failed to parse realtime message payload")
             return
         }
-        
+
+        // Block realtime messages from blocked users
+        if MessageService.shared.isBlocked(message.fromId) { return }
+
         Task {
             do {
                 let result = try repository.upsertMessageDetailed(message)
