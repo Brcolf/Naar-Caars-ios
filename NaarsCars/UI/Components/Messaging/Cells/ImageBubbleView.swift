@@ -69,6 +69,8 @@ final class ImageBubbleView: UIView {
     func configure(remoteUrl: String, onTap: ((URL) -> Void)? = nil) {
         self.onTap = onTap
         self.imageURL = URL(string: remoteUrl)
+        self.lastRemoteUrl = remoteUrl
+        self.lastLocalPath = nil
 
         showLoading()
 
