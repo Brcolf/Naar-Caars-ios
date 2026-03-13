@@ -94,6 +94,9 @@ final class MessageOverlayController: UIViewController {
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(backdropTapped))
         backdropBlur.addGestureRecognizer(tapGesture)
+        backdropBlur.isAccessibilityElement = true
+        backdropBlur.accessibilityLabel = NSLocalizedString("accessibility_close", comment: "")
+        backdropBlur.accessibilityTraits = .button
     }
 
     private func setupSnapshot() {
