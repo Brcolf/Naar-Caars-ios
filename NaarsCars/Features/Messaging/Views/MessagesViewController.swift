@@ -38,6 +38,10 @@ final class MessagesViewController: UIViewController {
         didSet { applyConfiguration() }
     }
 
+    /// Called when the camera captures an image, so the hosting layer can
+    /// keep its own image state in sync (e.g. the SwiftUI `imageToSend` binding).
+    var onCameraCapturedImage: ((UIImage) -> Void)?
+
     weak var inputDelegate: MessageInputDelegate? {
         didSet { inputBar.delegate = inputDelegate }
     }
@@ -323,5 +327,33 @@ extension MessagesViewController: MessageCellDelegate {
 
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
         configuration.onRetry?(message)
+    }
+}
+
+// MARK: - Camera Presentation
+
+extension MessagesViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+
+    /// Presents the system camera for capturing a photo.
+    func presentCamera() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else { return }
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func imagePickerController(
+        _ picker: UIImagePickerController,
+        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+    ) {
+        picker.dismiss(animated: true)
+        guard let image = info[.originalImage] as? UIImage else { return }
+        inputBar.setImagePreview(image)
+        onCameraCapturedImage?(image)
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true)
     }
 }

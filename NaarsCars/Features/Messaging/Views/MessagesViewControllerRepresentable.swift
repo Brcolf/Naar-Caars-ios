@@ -40,7 +40,6 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     let onSendMessage: (String) -> Void
     let onSendEditedMessage: (String, UUID) -> Void
     let onImagePickerTapped: () -> Void
-    let onCameraTapped: () -> Void
     let onAudioRecorded: (URL, Double) -> Void
     let onLocationRequested: () -> Void
     let onCancelReply: () -> Void
@@ -56,6 +55,9 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> MessagesViewController {
         let vc = MessagesViewController()
         vc.inputDelegate = context.coordinator
+        vc.onCameraCapturedImage = { [weak coordinator = context.coordinator] image in
+            coordinator?.parent.imageToSend = image
+        }
         context.coordinator.viewController = vc
         return vc
     }
@@ -126,7 +128,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         }
 
         func inputBarDidRequestCamera(_ bar: MessageInputAccessoryView) {
-            parent.onCameraTapped()
+            viewController?.presentCamera()
         }
 
         func inputBar(_ bar: MessageInputAccessoryView, didRecordAudio url: URL, duration: Double) {

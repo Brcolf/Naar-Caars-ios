@@ -424,9 +424,6 @@ struct ConversationDetailView: View {
                             }
                         },
                         onImagePickerTapped: { showImagePicker = true },
-                        onCameraTapped: {
-                            // Camera will be handled via UIImagePickerController from the VC
-                        },
                         onAudioRecorded: { audioURL, duration in
                             viewModel.clearOwnTypingStatus()
                             Task {
