@@ -224,9 +224,9 @@ final class ImageBubbleView: UIView {
 
     private func retryLoad() {
         if let remoteUrl = lastRemoteUrl {
-            configure(remoteUrl: remoteUrl, onTap: onTap)
+            configure(remoteUrl: remoteUrl, imageWidth: imageWidth, imageHeight: imageHeight, onTap: onTap)
         } else if let localPath = lastLocalPath {
-            configure(localPath: localPath, onTap: onTap)
+            configure(localPath: localPath, imageWidth: imageWidth, imageHeight: imageHeight, onTap: onTap)
         }
     }
 }
