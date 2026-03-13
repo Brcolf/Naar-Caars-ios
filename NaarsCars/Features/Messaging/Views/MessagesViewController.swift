@@ -121,6 +121,10 @@ final class MessagesViewController: UIViewController {
         setupDataSource()
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
         becomeFirstResponder()
     }
 
@@ -473,7 +477,7 @@ extension MessagesViewController: UIImagePickerControllerDelegate, UINavigationC
     ) {
         picker.dismiss(animated: true)
         guard let image = info[.originalImage] as? UIImage else { return }
-        inputBarController.setImage(image)
+        inputBar.setImagePreview(image)
         onCameraCapturedImage?(image)
     }
 

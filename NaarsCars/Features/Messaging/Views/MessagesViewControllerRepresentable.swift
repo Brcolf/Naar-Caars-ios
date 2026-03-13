@@ -123,22 +123,19 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
         vc.configuration = config
 
-        // Update input bar state via controller
+        // Update input bar state — use explicit UIKit methods (not controller
+        // directly) to avoid @Observable mutations inside SwiftUI render pass
+        let bar = vc.inputBar
         if let edit = editingMessage {
-            vc.inputBarController.startEditing(messageId: edit.id, text: edit.text)
+            bar.setEditContext(text: edit.text, messageId: edit.id)
         } else if let reply = replyContext {
-            vc.inputBar.setReplyContext(reply)
+            bar.setReplyContext(reply)
         } else {
-            vc.inputBarController.cancelReply()
-            vc.inputBarController.cancelEditing()
+            bar.clearReplyContext()
+            bar.clearEditContext()
         }
 
-        // Image
-        if let image = imageToSend {
-            vc.inputBarController.setImage(image)
-        } else {
-            vc.inputBarController.clearAttachment()
-        }
+        bar.setImagePreview(imageToSend)
     }
 
     // MARK: - Coordinator

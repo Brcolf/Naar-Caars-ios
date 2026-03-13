@@ -487,7 +487,7 @@ final class MessageCellView: UIView {
         // Reaction badge (anchored to first content view)
         if let primary = primaryContentView, let rb = reactionBadge, !rb.isHidden {
             let rbSize = rb.sizeThatFits(.zero)
-            let rbX = config.isFromCurrentUser ? primary.frame.minX + 8 : primary.frame.maxX - rbSize.width - 8
+            let rbX = config.isFromCurrentUser ? primary.frame.minX : primary.frame.maxX - rbSize.width
             rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height / 2, width: rbSize.width, height: rbSize.height)
         }
 

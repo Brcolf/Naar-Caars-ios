@@ -43,12 +43,34 @@ final class MessageInputAccessoryView: UIView {
 
     func setEditContext(text: String, messageId: UUID) {
         controller.startEditing(messageId: messageId, text: text)
+        textView.text = text
+        placeholderLabel.isHidden = !text.isEmpty
         showEditBanner(text: text)
+        updateSendButtonState()
+        invalidateIntrinsicContentSize()
     }
 
     func clearEditContext() {
         controller.cancelEditing()
+        textView.text = ""
+        placeholderLabel.isHidden = false
         hideContextBanner()
+        updateSendButtonState()
+        invalidateIntrinsicContentSize()
+    }
+
+    func setImagePreview(_ image: UIImage?) {
+        if let image {
+            imagePreviewView.image = image
+            imagePreviewContainer.isHidden = false
+            controller.setImage(image)
+        } else {
+            imagePreviewView.image = nil
+            imagePreviewContainer.isHidden = true
+            controller.clearAttachment()
+        }
+        updateSendButtonState()
+        invalidateIntrinsicContentSize()
     }
 
     // MARK: Private State
@@ -277,7 +299,6 @@ final class MessageInputAccessoryView: UIView {
         autoresizingMask = .flexibleHeight
         setupViews()
         computeMaxTextHeight()
-        observeController()
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -563,6 +584,15 @@ final class MessageInputAccessoryView: UIView {
         }
 
         controller.send()
+
+        // Sync UIKit state after controller reset
+        textView.text = ""
+        placeholderLabel.isHidden = false
+        imagePreviewView.image = nil
+        imagePreviewContainer.isHidden = true
+        hideContextBanner()
+        updateSendButtonState()
+        invalidateIntrinsicContentSize()
     }
 
     // MARK: Context Banners
@@ -620,7 +650,7 @@ final class MessageInputAccessoryView: UIView {
     // MARK: Image Preview
 
     @objc private func clearImagePreview() {
-        controller.clearAttachment()
+        setImagePreview(nil)
     }
 
     // MARK: Audio Recording
@@ -677,78 +707,14 @@ final class MessageInputAccessoryView: UIView {
         return String(format: "%d:%02d.%d", mins, secs, tenths)
     }
 
-    // MARK: Controller Observation
+    // MARK: - Send Button State
 
-    private func observeController() {
-        withObservationTracking {
-            let _ = self.controller.isSendable
-            let _ = self.controller.currentText
-            let _ = self.controller.mode
-            let _ = self.controller.attachmentState
-            let _ = self.controller.isRecording
-            let _ = self.controller.recordingDuration
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.updateFromController()
-                self?.observeController()
-            }
-        }
-    }
-
-    private func updateFromController() {
-        // Send button
-        let enabled = controller.isSendable
+    private func updateSendButtonState() {
+        let hasText = !(textView.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasImage = !imagePreviewContainer.isHidden
+        let enabled = hasText || hasImage
         sendButton.isEnabled = enabled
         sendButton.tintColor = enabled ? .naarsPrimary : .systemGray
-
-        // Text sync (controller may have changed text, e.g. after send/cancel edit)
-        if textView.text != controller.currentText {
-            textView.text = controller.currentText
-            placeholderLabel.isHidden = !controller.currentText.isEmpty
-            let newHeight = clampedTextHeight()
-            if textViewHeightConstraint.constant != newHeight {
-                textViewHeightConstraint.constant = newHeight
-                textView.isScrollEnabled = newHeight >= maxTextHeight
-            }
-        }
-
-        // Context banner sync
-        switch controller.mode {
-        case .normal:
-            if !contextBanner.isHidden {
-                hideContextBanner()
-            }
-        case .replying(let ctx):
-            if contextBanner.isHidden {
-                showReplyBanner(name: ctx.senderName, preview: ctx.text)
-            }
-        case .editing(_, let originalText):
-            if contextBanner.isHidden {
-                showEditBanner(text: originalText)
-            }
-        }
-
-        // Attachment preview
-        switch controller.attachmentState {
-        case .none:
-            imagePreviewContainer.isHidden = true
-        case .processing(let image):
-            imagePreviewView.image = image
-            imagePreviewContainer.isHidden = false
-        case .ready(let attachment):
-            imagePreviewView.image = attachment.image
-            imagePreviewContainer.isHidden = false
-        }
-
-        // Recording banner
-        if controller.isRecording {
-            showRecordingBanner()
-            recordingDurationLabel.text = formatDuration(controller.recordingDuration)
-        } else {
-            hideRecordingBanner()
-        }
-
-        invalidateIntrinsicContentSize()
     }
 
     // MARK: Cleanup
@@ -766,6 +732,7 @@ extension MessageInputAccessoryView: UITextViewDelegate {
 
     func textViewDidChange(_ textView: UITextView) {
         placeholderLabel.isHidden = !textView.text.isEmpty
+        updateSendButtonState()
 
         // Recalculate height
         let newHeight = clampedTextHeight()
