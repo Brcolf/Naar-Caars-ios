@@ -93,7 +93,7 @@ struct AddressText: View {
         }
         
         // Try Apple Maps URL scheme first (opens Maps app directly)
-        if let mapsURL = URL(string: "maps://?q=\(encodedAddress)") {
+        if let mapsURL = URL(string: "https://maps.apple.com/?address=\(encodedAddress)") {
             openURL(mapsURL)
         }
     }

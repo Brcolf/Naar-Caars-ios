@@ -149,7 +149,7 @@ final class LocationBubbleView: UIView {
     // MARK: - Actions
 
     @objc private func openInMaps() {
-        guard let url = URL(string: "maps://?ll=\(latitude),\(longitude)") else { return }
+        guard let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") else { return }
         if UIApplication.shared.canOpenURL(url) {
             Task { @MainActor in
                 await UIApplication.shared.open(url)

@@ -813,7 +813,7 @@ struct MessageBubble: View {
     private func locationMessageView(latitude: Double, longitude: Double, name: String?) -> some View {
         Button(action: {
             // Open in Maps
-            guard let url = URL(string: "maps://?ll=\(latitude),\(longitude)") else { return }
+            guard let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") else { return }
             if UIApplication.shared.canOpenURL(url) {
                 Task { @MainActor in
                     await UIApplication.shared.open(url)
