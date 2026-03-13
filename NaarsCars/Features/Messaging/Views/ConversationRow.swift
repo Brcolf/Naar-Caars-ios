@@ -124,7 +124,7 @@ struct ConversationRow: View {
         } else if message.isLocationMessage {
             return message.locationName ?? "messaging_shared_location".localized
         } else if message.imageUrl != nil && message.text.isEmpty {
-            return "Photo"
+            return "messaging_photo".localized
         } else {
             return message.text
         }
