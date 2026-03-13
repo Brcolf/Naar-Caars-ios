@@ -35,8 +35,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Register MetricKit subscriber for app hangs/crash diagnostics payloads
         setupMetricKitIfNeeded()
 
-        prewarmTextInput()
-
         #if DEBUG
         FirstTapPerfLogger.startKeyboardObserver()
         #endif
@@ -84,25 +82,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    /// Force-initialize UIKit's text interaction subsystem at launch.
-    /// This eliminates the multi-hundred-millisecond hitch on first text field focus
-    /// caused by lazy initialization of UITextInteraction infrastructure.
-    /// Runs once, synchronously, on the main thread.
-    private func prewarmTextInput() {
-        let offscreenWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
-        offscreenWindow.windowLevel = UIWindow.Level(rawValue: -1)
-        let vc = UIViewController()
-        offscreenWindow.rootViewController = vc
-        offscreenWindow.isHidden = false
 
-        let field = UITextField(frame: .zero)
-        vc.view.addSubview(field)
-        field.becomeFirstResponder()
-        field.resignFirstResponder()
-        field.removeFromSuperview()
-
-        offscreenWindow.isHidden = true
-    }
     
     private func handleAppRefresh(task: BGAppRefreshTask) {
         // Schedule next refresh
