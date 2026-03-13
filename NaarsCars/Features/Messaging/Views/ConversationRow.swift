@@ -111,6 +111,9 @@ struct ConversationRow: View {
     
     /// Generate preview text for the message
     private func messagePreviewText(_ message: Message) -> String {
+        if MessageService.shared.isBlocked(message.fromId) {
+            return "messaging_blocked_user_message".localized
+        }
         if message.isAudioMessage {
             return "messaging_voice_message".localized
         } else if message.isLocationMessage {
