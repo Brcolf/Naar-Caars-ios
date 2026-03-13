@@ -25,14 +25,22 @@ private let kLoadingKey = "loading"
 /// Non-flipped cell that hosts a MessageCellView (thread view is normal top-to-bottom).
 private final class ThreadMessageCell: UICollectionViewCell {
     let messageCellView = MessageCellView()
+    private var layoutInvalidationWork: DispatchWorkItem?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         contentView.addSubview(messageCellView)
 
         messageCellView.onIntrinsicSizeChanged = { [weak self] in
-            guard let self, let collectionView = self.superview as? UICollectionView else { return }
-            collectionView.collectionViewLayout.invalidateLayout()
+            guard let self else { return }
+            // Debounce rapid-fire size changes into a single layout pass
+            self.layoutInvalidationWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, let collectionView = self.superview as? UICollectionView else { return }
+                collectionView.collectionViewLayout.invalidateLayout()
+            }
+            self.layoutInvalidationWork = work
+            DispatchQueue.main.async(execute: work)
         }
     }
 
@@ -151,6 +159,11 @@ final class MessageThreadViewController: UIViewController {
     private var mergeRepliesTask: Task<Void, Never>?
     private var messageText = ""
     private var imageToSend: UIImage?
+    private var lastInputDisabled: Bool?
+
+    deinit {
+        mergeRepliesTask?.cancel()
+    }
 
     // MARK: - Init
 
@@ -388,6 +401,14 @@ final class MessageThreadViewController: UIViewController {
     }
 
     private func updateInputBarDisabledState() {
+        let hasParent = threadViewModel.parentMessage != nil
+        let hasContent = !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageToSend != nil
+        let isDisabled = !hasParent || !hasContent
+
+        // Only replace rootView when the disabled state actually changes;
+        // the text/image bindings already keep the hosting controller in sync.
+        guard isDisabled != lastInputDisabled else { return }
+        lastInputDisabled = isDisabled
         inputHostingController?.rootView = makeInputBar()
     }
 
@@ -411,25 +432,31 @@ final class MessageThreadViewController: UIViewController {
 
     private func setupKeyboardObservers() {
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
-            .compactMap { $0.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect }
-            .sink { [weak self] frame in
-                guard let self else { return }
+            .sink { [weak self] notification in
+                guard let self,
+                      let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
                 let bottomInset = frame.height - self.view.safeAreaInsets.bottom
                 self.additionalSafeAreaInsets.bottom = max(bottomInset, 0)
-                UIView.animate(withDuration: 0.25) {
-                    self.view.layoutIfNeeded()
-                }
+                self.animateAlongsideKeyboard(notification: notification)
             }
             .store(in: &cancellables)
 
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-            .sink { [weak self] _ in
+            .sink { [weak self] notification in
                 self?.additionalSafeAreaInsets.bottom = 0
-                UIView.animate(withDuration: 0.25) {
-                    self?.view.layoutIfNeeded()
-                }
+                self?.animateAlongsideKeyboard(notification: notification)
             }
             .store(in: &cancellables)
+    }
+
+    /// Animate layout changes using the keyboard's own animation parameters
+    /// so the collection view and input bar move in sync with the keyboard.
+    private func animateAlongsideKeyboard(notification: Notification) {
+        let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        let curveRaw = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt ?? UIView.AnimationOptions.curveEaseInOut.rawValue
+        UIView.animate(withDuration: duration, delay: 0, options: UIView.AnimationOptions(rawValue: curveRaw << 16), animations: {
+            self.view.layoutIfNeeded()
+        })
     }
 
     // MARK: - Bindings
@@ -546,8 +573,9 @@ extension MessageThreadViewController: MessageCellDelegate {
             iv.trailingAnchor.constraint(equalTo: imageVC.view.trailingAnchor),
         ])
 
-        Task {
-            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+        Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url), let img = UIImage(data: data) else { return }
+            await MainActor.run {
                 iv.image = img
             }
         }
