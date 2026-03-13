@@ -1069,7 +1069,11 @@ final class MessageService {
                 )
                 .execute()
             let rows = try createDateDecoder().decode([TypingUsersRPCRow].self, from: response.data)
-            return rows.map { TypingUser(id: $0.userId, name: $0.userName, avatarUrl: $0.avatarUrl) }
+            let users = rows.map { TypingUser(id: $0.userId, name: $0.userName, avatarUrl: $0.avatarUrl) }
+            if !cachedBlockedUserIds.isEmpty {
+                return users.filter { !cachedBlockedUserIds.contains($0.id) }
+            }
+            return users
         } catch {
             return await fetchTypingUsersFallback(conversationId: conversationId)
         }
@@ -1120,7 +1124,11 @@ final class MessageService {
             }
             
             let profiles = try JSONDecoder().decode([ProfileData].self, from: profilesResponse.data)
-            return profiles.map { TypingUser(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl) }
+            var users = profiles.map { TypingUser(id: $0.id, name: $0.name, avatarUrl: $0.avatarUrl) }
+            if !cachedBlockedUserIds.isEmpty {
+                users = users.filter { !cachedBlockedUserIds.contains($0.id) }
+            }
+            return users
         } catch {
             return []
         }
