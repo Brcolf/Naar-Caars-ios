@@ -50,6 +50,9 @@ final class ConversationDetailViewModel: ObservableObject {
     var canLoadOlderSearchResults: Bool { searchManager.canLoadOlderSearchResults }
     @Published var editingMessage: Message? = nil
     @Published private(set) var unreadCount: Int = 0
+    /// Set when the current user has left this conversation. The group messaging plan
+    /// (Docs/plans/2026-03-07-group-messaging-enhancement-plan.md) specifies a frozen
+    /// UI state, but the view layer does not yet read this property. See plan Task 18.
     @Published private(set) var hasLeftConversation: Bool = false
 
     /// Tracks whether the unread divider has been shown for this session.
