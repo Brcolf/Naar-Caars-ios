@@ -13,6 +13,7 @@ final class MessageCellView: UIView {
     // MARK: - Subviews (lazily created)
 
     private var textBubble: TextBubbleView?
+    private var emojiBubble: EmojiBubbleView?
     private var imageBubble: ImageBubbleView?
     private var audioBubble: AudioBubbleView?
     private var locationBubble: LocationBubbleView?
@@ -244,14 +245,26 @@ final class MessageCellView: UIView {
 
         // Text bubble (show if text is non-empty and not audio/location)
         if !msg.text.isEmpty && !msg.isAudioMessage && !msg.isLocationMessage {
-            let view = textBubble ?? {
-                let v = TextBubbleView()
-                addSubview(v)
-                textBubble = v
-                return v
-            }()
-            view.isHidden = false
-            view.configure(text: msg.text, isFromCurrentUser: config.isFromCurrentUser, showTail: config.isLastInSeries)
+            let emojiResult = isEmojiOnlyMessage(msg.text)
+            if emojiResult.isEmojiOnly {
+                let view = emojiBubble ?? {
+                    let v = EmojiBubbleView()
+                    addSubview(v)
+                    emojiBubble = v
+                    return v
+                }()
+                view.isHidden = false
+                view.configure(text: msg.text, emojiCount: emojiResult.count)
+            } else {
+                let view = textBubble ?? {
+                    let v = TextBubbleView()
+                    addSubview(v)
+                    textBubble = v
+                    return v
+                }()
+                view.isHidden = false
+                view.configure(text: msg.text, isFromCurrentUser: config.isFromCurrentUser, showTail: config.isLastInSeries)
+            }
         }
 
         // Link preview
@@ -389,6 +402,7 @@ final class MessageCellView: UIView {
 
     private func hideAllContent() {
         textBubble?.isHidden = true
+        emojiBubble?.isHidden = true
         imageBubble?.isHidden = true
         audioBubble?.isHidden = true
         locationBubble?.isHidden = true
@@ -458,7 +472,9 @@ final class MessageCellView: UIView {
         let contentViews = visibleContentViews()
         var primaryContentView: UIView?
         for cv in contentViews {
-            let cvSize = cv.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude))
+            // Emoji bubbles have no background, so they don't need width limiting
+            let fitWidth = (cv is EmojiBubbleView) ? bounds.width : maxBubbleWidth
+            let cvSize = cv.sizeThatFits(CGSize(width: fitWidth, height: .greatestFiniteMagnitude))
             let x = config.isFromCurrentUser
                 ? bounds.width - cvSize.width
                 : avatarSize + avatarSpacing
@@ -536,7 +552,7 @@ final class MessageCellView: UIView {
     }
 
     private func visibleContentViews() -> [UIView] {
-        [textBubble, imageBubble, audioBubble, locationBubble, linkPreviewBubble]
+        [textBubble, emojiBubble, imageBubble, audioBubble, locationBubble, linkPreviewBubble]
             .compactMap { $0 }
             .filter { !$0.isHidden }
     }
@@ -563,7 +579,8 @@ final class MessageCellView: UIView {
         // Content — sum all visible content views
         let cvs = visibleContentViews()
         for cv in cvs {
-            height += cv.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude)).height + 2
+            let fitWidth = (cv is EmojiBubbleView) ? size.width : maxBubbleWidth
+            height += cv.sizeThatFits(CGSize(width: fitWidth, height: .greatestFiniteMagnitude)).height + 2
         }
         if !cvs.isEmpty { height += 2 }
         // Timestamp
@@ -696,6 +713,7 @@ final class MessageCellView: UIView {
         swipeOffset = 0
         timestampHideWorkItem?.cancel()
         textBubble?.prepareForReuse()
+        emojiBubble?.prepareForReuse()
         imageBubble?.prepareForReuse()
         audioBubble?.prepareForReuse()
         locationBubble?.prepareForReuse()
