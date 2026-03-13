@@ -81,13 +81,13 @@ struct DirectMessageContainerView: View {
             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
         }
         .background(Color(.systemBackground))
-        .navigationTitle(otherUserName.isEmpty ? "New Message" : otherUserName)
+        .navigationTitle(otherUserName.isEmpty ? "messaging_new_message".localized : otherUserName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 8) {
                     AvatarView(imageUrl: otherUserAvatarUrl, name: otherUserName.isEmpty ? "?" : otherUserName, size: 32)
-                    Text(otherUserName.isEmpty ? "New Message" : otherUserName)
+                    Text(otherUserName.isEmpty ? "messaging_new_message".localized : otherUserName)
                         .font(.naarsSubheadline)
                         .fontWeight(.semibold)
                         .lineLimit(1)
@@ -136,7 +136,7 @@ struct DirectMessageContainerView: View {
         let text = pendingMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         guard text.count <= 5000 else {
-            errorMessage = "Message is too long (max 5,000 characters)"
+            errorMessage = "messaging_too_long".localized
             return
         }
 
@@ -161,7 +161,7 @@ struct DirectMessageContainerView: View {
             resolvedConversationId = conversation.id
         } catch {
             isSending = false
-            errorMessage = "Failed to send message. Please try again."
+            errorMessage = "messaging_send_failed".localized
             AppLogger.error("messaging", "DirectMessageContainerView: failed to create/send: \(error.localizedDescription)")
         }
     }
