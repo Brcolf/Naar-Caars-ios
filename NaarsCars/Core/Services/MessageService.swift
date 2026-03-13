@@ -444,13 +444,23 @@ final class MessageService {
         let replyRows: [ReplyRow] = try DateDecoderFactory.makeSupabaseDecoder().decode([ReplyRow].self, from: response.data)
         var contexts: [UUID: ReplyContext] = [:]
         for row in replyRows {
-            contexts[row.id] = ReplyContext(
-                id: row.id,
-                text: row.text,
-                senderName: row.sender?.name ?? "Unknown",
-                senderId: row.fromId,
-                imageUrl: row.imageUrl
-            )
+            if cachedBlockedUserIds.contains(row.fromId) {
+                contexts[row.id] = ReplyContext(
+                    id: row.id,
+                    text: "messaging_blocked_user_message".localized,
+                    senderName: "messaging_blocked_user".localized,
+                    senderId: row.fromId,
+                    imageUrl: nil
+                )
+            } else {
+                contexts[row.id] = ReplyContext(
+                    id: row.id,
+                    text: row.text,
+                    senderName: row.sender?.name ?? "Unknown",
+                    senderId: row.fromId,
+                    imageUrl: row.imageUrl
+                )
+            }
         }
         
         return contexts
