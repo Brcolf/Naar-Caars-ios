@@ -8,6 +8,7 @@
 
 import UIKit
 import SwiftUI
+import PhotosUI
 internal import Combine
 
 // Section indices for the thread collection view
@@ -374,7 +375,7 @@ final class MessageThreadViewController: UIViewController {
                 }
             ),
             onSend: { [weak self] in self?.sendReply() },
-            onImagePickerTapped: { },
+            onImagePickerTapped: { [weak self] in self?.presentImagePicker() },
             isDisabled: !hasParent || !hasContent
         )
     }
@@ -600,5 +601,32 @@ extension MessageThreadViewController: MessageCellDelegate {
 
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
         Task { await conversationViewModel.retryMessage(id: message.id) }
+    }
+}
+
+// MARK: - PHPickerViewControllerDelegate
+
+extension MessageThreadViewController: PHPickerViewControllerDelegate {
+
+    func presentImagePicker() {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        dismiss(animated: true)
+        guard let provider = results.first?.itemProvider,
+              provider.canLoadObject(ofClass: UIImage.self) else { return }
+        provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+            guard let image = object as? UIImage else { return }
+            DispatchQueue.main.async {
+                self?.imageToSend = image
+                self?.updateInputBarDisabledState()
+            }
+        }
     }
 }
