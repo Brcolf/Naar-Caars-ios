@@ -25,9 +25,7 @@ struct ConversationDetailView: View {
     @State private var showImagePicker = false
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageToSend: UIImage?
-    @State private var showReactionPicker = false
-    @State private var reactionPickerMessageId: UUID?
-    @State private var reactionPickerPosition: CGPoint = .zero
+    // Overlay state removed — UIKit MessageOverlayController handles overlay presentation directly
     @State private var showReactionDetails = false
     @State private var reactionDetailsMessage: Message?
     @State private var reactionProfiles: [String: [Profile]] = [:]
@@ -359,9 +357,8 @@ struct ConversationDetailView: View {
                         participantProfiles: participantsViewModel.participants,
                         isGroupConversation: isGroup,
                         totalParticipants: totalParticipantsCount,
-                        onLongPress: { message, frame, snapshot in
-                            reactionPickerMessageId = message.id
-                            showReactionPicker = true
+                        onOverlayAction: { action, message in
+                            handleOverlayAction(action, for: message)
                         },
                         onSwipeReply: { message in
                             withAnimation(.easeOut(duration: 0.2)) {
@@ -513,7 +510,7 @@ struct ConversationDetailView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .overlay { messageInteractionOverlayView }
+            // Overlay handled by UIKit MessageOverlayController (presented from MessagesViewController)
 
             if !viewModel.typingUsers.isEmpty {
                 TypingIndicatorView(typingUsers: viewModel.typingUsers)
@@ -607,108 +604,35 @@ struct ConversationDetailView: View {
 
     // MARK: - Message Interaction Overlay
 
-    @ViewBuilder
-    private var messageInteractionOverlayView: some View {
-        if showReactionPicker,
-           let messageId = reactionPickerMessageId,
-           let message = viewModel.messages.first(where: { $0.id == messageId }) {
-            let isFromMe = message.fromId == AuthService.shared.currentUserId
-            let currentReaction = message.reactions?.currentUserReaction(
-                userId: AuthService.shared.currentUserId ?? UUID()
-            )
-            let canEdit = isFromMe && !message.text.isEmpty && !message.isAudioMessage && !message.isLocationMessage
+    // MARK: - Overlay Action Handler (routed from UIKit MessageOverlayController)
 
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-                .onTapGesture { dismissOverlay() }
-
-            MessageInteractionOverlay(
-                message: message,
-                messageContent: AnyView(
-                    MessageBubble(
-                        message: message,
-                        isFromCurrentUser: isFromMe,
-                        showAvatar: false,
-                        isFirstInSeries: true,
-                        isLastInSeries: true,
-                        totalParticipants: totalParticipantsCount
-                    )
-                ),
-                isFromCurrentUser: isFromMe,
-                currentUserReaction: currentReaction,
-                onReact: { reaction in
-                    HapticManager.selectionChanged()
-                    handleOverlayAction(.react(reaction))
-                },
-                onReply: { handleOverlayAction(.reply) },
-                onCopy: { handleOverlayAction(.copy) },
-                onEdit: canEdit ? { handleOverlayAction(.edit) } : nil,
-                onUnsend: isFromMe && message.canUnsend ? { handleOverlayAction(.unsend) } : nil,
-                onDeleteForMe: { handleOverlayAction(.deleteForMe) },
-                onReport: !isFromMe ? { handleOverlayAction(.report) } : nil,
-                onViewThread: message.replyToId != nil ? { parentId in
-                    handleOverlayAction(.viewThread(parentId))
-                } : nil,
-                onDismiss: { dismissOverlay() }
-            )
-            .transition(.scale.combined(with: .opacity))
-        }
-    }
-
-    private func dismissOverlay() {
-        showReactionPicker = false
-        reactionPickerMessageId = nil
-    }
-
-    private func handleOverlayAction(_ action: OverlayAction) {
+    private func handleOverlayAction(_ action: OverlayAction, for message: Message) {
         switch action {
         case .react(let emoji):
-            if let messageId = reactionPickerMessageId {
-                Task { await viewModel.addReaction(messageId: messageId, reaction: emoji) }
-            }
+            Task { await viewModel.addReaction(messageId: message.id, reaction: emoji) }
         case .removeReaction:
-            if let messageId = reactionPickerMessageId {
-                Task { await viewModel.removeReaction(messageId: messageId) }
-            }
+            Task { await viewModel.removeReaction(messageId: message.id) }
         case .reply:
-            if let messageId = reactionPickerMessageId,
-               let message = viewModel.messages.first(where: { $0.id == messageId }) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    replyingToMessage = ReplyContext(from: message)
-                }
+            withAnimation(.easeOut(duration: 0.2)) {
+                replyingToMessage = ReplyContext(from: message)
             }
         case .viewThread(let parentId):
             activeThreadParent = ThreadParent(id: parentId)
         case .copy:
-            if let messageId = reactionPickerMessageId,
-               let message = viewModel.messages.first(where: { $0.id == messageId }) {
-                UIPasteboard.general.string = message.text
-            }
+            UIPasteboard.general.string = message.text
         case .edit:
-            if let messageId = reactionPickerMessageId,
-               let message = viewModel.messages.first(where: { $0.id == messageId }) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    replyingToMessage = nil
-                    viewModel.startEditing(message)
-                }
+            withAnimation(.easeOut(duration: 0.2)) {
+                replyingToMessage = nil
+                viewModel.startEditing(message)
             }
         case .unsend:
-            if let messageId = reactionPickerMessageId,
-               let message = viewModel.messages.first(where: { $0.id == messageId }) {
-                showUnsendConfirmation = true
-                messageToUnsend = message
-            }
+            showUnsendConfirmation = true
+            messageToUnsend = message
         case .deleteForMe:
-            if let messageId = reactionPickerMessageId,
-               let message = viewModel.messages.first(where: { $0.id == messageId }) {
-                Task { await viewModel.deleteMessageForMe(message) }
-            }
+            Task { await viewModel.deleteMessageForMe(message) }
         case .report:
-            if let messageId = reactionPickerMessageId,
-               let message = viewModel.messages.first(where: { $0.id == messageId }) {
-                messageToReport = message
-                showReportSheet = true
-            }
+            messageToReport = message
+            showReportSheet = true
         }
     }
 

@@ -29,7 +29,7 @@ final class MessagesViewController: UIViewController {
         var showUnreadDivider: Bool = false
 
         // Callbacks (kept as closures to avoid tight coupling to SwiftUI)
-        var onLongPress: ((Message, CGRect, UIView?) -> Void)?
+        var onOverlayAction: ((OverlayAction, Message) -> Void)?
         var onSwipeReply: ((Message) -> Void)?
         var onImageTap: ((URL) -> Void)?
         var onReplyPreviewTap: ((UUID) -> Void)?
@@ -406,8 +406,24 @@ extension MessagesViewController: MessageCellDelegate {
 
     func messageCellDidLongPress(_ cell: MessageCellView, message: Message) {
         let cellFrame = cell.convert(cell.bounds, to: nil)
-        let snapshot = cell.snapshotView(afterScreenUpdates: false)
-        configuration.onLongPress?(message, cellFrame, snapshot)
+        guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
+
+        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
+        let currentReaction = message.reactions?.currentUserReaction(
+            userId: AuthService.shared.currentUserId ?? UUID()
+        )
+
+        let overlay = MessageOverlayController(
+            snapshot: snapshot,
+            sourceFrame: cellFrame,
+            message: message,
+            isFromCurrentUser: isFromCurrentUser,
+            currentUserReaction: currentReaction,
+            onAction: { [weak self] action in
+                self?.configuration.onOverlayAction?(action, message)
+            }
+        )
+        present(overlay, animated: false)
     }
 
     func messageCellDidTapReaction(_ cell: MessageCellView, message: Message, reaction: String?) {

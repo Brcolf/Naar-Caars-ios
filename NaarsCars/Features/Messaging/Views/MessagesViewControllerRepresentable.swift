@@ -19,7 +19,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     let participantProfiles: [Profile]
     let isGroupConversation: Bool
     let totalParticipants: Int
-    let onLongPress: (Message, CGRect, UIView?) -> Void
+    let onOverlayAction: (OverlayAction, Message) -> Void
     let onSwipeReply: (Message) -> Void
     let onImageTap: (URL) -> Void
     let onReplyPreviewTap: (UUID) -> Void
@@ -84,7 +84,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         config.unreadCount = unreadCount
         config.showUnreadDivider = showUnreadDivider
 
-        config.onLongPress = onLongPress
+        config.onOverlayAction = onOverlayAction
         config.onSwipeReply = onSwipeReply
         config.onImageTap = onImageTap
         config.onReplyPreviewTap = onReplyPreviewTap
