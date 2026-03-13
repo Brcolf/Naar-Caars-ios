@@ -116,6 +116,7 @@ final class MessagesViewController: UIViewController {
         setupDataSource()
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
+        becomeFirstResponder()
     }
 
     override func viewWillDisappear(_ animated: Bool) {

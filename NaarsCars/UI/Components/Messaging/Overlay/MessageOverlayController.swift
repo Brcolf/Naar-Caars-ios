@@ -95,8 +95,9 @@ final class MessageOverlayController: UIViewController {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(backdropTapped))
         backdropBlur.addGestureRecognizer(tapGesture)
         backdropBlur.isAccessibilityElement = true
-        backdropBlur.accessibilityLabel = NSLocalizedString("accessibility_close", comment: "")
+        backdropBlur.accessibilityLabel = NSLocalizedString("accessibility_close", comment: "Close overlay")
         backdropBlur.accessibilityTraits = .button
+        backdropBlur.accessibilityIdentifier = "overlay.backdrop.dismiss"
     }
 
     private func setupSnapshot() {
@@ -106,7 +107,6 @@ final class MessageOverlayController: UIViewController {
     }
 
     private func setupReactionBar() {
-        reactionBar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(reactionBar)
 
         // Measure the action list to determine available space
@@ -133,7 +133,6 @@ final class MessageOverlayController: UIViewController {
     }
 
     private func setupActionList() {
-        actionList.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(actionList)
 
         let spacing: CGFloat = 8
