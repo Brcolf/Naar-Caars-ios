@@ -20,6 +20,7 @@ import UIKit
 final class MessageContentCell: UICollectionViewCell {
 
     let messageCellView = MessageCellView()
+    private var layoutInvalidationWork: DispatchWorkItem?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -28,8 +29,15 @@ final class MessageContentCell: UICollectionViewCell {
         contentView.transform = CGAffineTransform(scaleX: 1, y: -1)
 
         messageCellView.onIntrinsicSizeChanged = { [weak self] in
-            guard let self, let collectionView = self.superview as? UICollectionView else { return }
-            collectionView.collectionViewLayout.invalidateLayout()
+            guard let self else { return }
+            // Debounce rapid-fire size changes into a single layout pass
+            self.layoutInvalidationWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, let collectionView = self.superview as? UICollectionView else { return }
+                collectionView.collectionViewLayout.invalidateLayout()
+            }
+            self.layoutInvalidationWork = work
+            DispatchQueue.main.async(execute: work)
         }
     }
 
@@ -124,59 +132,80 @@ struct MessagesCollectionView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.parent = self
 
-        // Store messages for the data source
+        // Always update the backing data so visible cells see fresh content
+        // (reactions, read receipts, etc.) even when the message list structure
+        // hasn't changed.
         coordinator.messagesById = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
         coordinator.cellConfigurations = cellConfigurations
 
-        // Build interleaved snapshot with date separators.
-        // Items are String-typed: UUID strings for messages, "date:<timeInterval>" for separators.
-        var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
-        snapshot.appendSections([0])
+        // Fast path: skip expensive snapshot rebuild if structure is unchanged.
+        let currentFingerprint = Coordinator.UpdateFingerprint(
+            messageIds: messages.map(\.id),
+            configKeys: Set(cellConfigurations.keys),
+            scrollToMessageId: scrollToMessageId,
+            scrollToBottom: scrollToBottom
+        )
+        let messageIdsChanged = currentFingerprint.messageIds != (coordinator.lastAppliedFingerprint?.messageIds ?? [])
+        let fingerprintChanged = currentFingerprint != coordinator.lastAppliedFingerprint
+        coordinator.lastAppliedFingerprint = currentFingerprint
 
-        // Messages are in chronological order; reverse for the flipped collection view
-        let reversed = Array(messages.reversed())
-        var items: [String] = []
-        let calendar = Calendar.current
+        // Only rebuild the snapshot when the message list structure changed
+        // (messages added/removed). Content-only changes (reactions, read receipts)
+        // are handled by the reconfigure path below.
+        if fingerprintChanged && messageIdsChanged {
+            // Build interleaved snapshot with date separators.
+            // Items are String-typed: UUID strings for messages, "date:<timeInterval>" for separators.
+            var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
+            snapshot.appendSections([0])
 
-        for (index, message) in reversed.enumerated() {
-            items.append(message.id.uuidString)
+            // Messages are in chronological order; reverse for the flipped collection view
+            let reversed = Array(messages.reversed())
+            var items: [String] = []
+            let calendar = Calendar.current
 
-            // Insert date separator between messages that span different calendar days.
-            // In the reversed array, the next element is the chronologically earlier message.
-            if index < reversed.count - 1 {
-                let nextMessage = reversed[index + 1]
-                if !calendar.isDate(message.createdAt, inSameDayAs: nextMessage.createdAt) {
+            for (index, message) in reversed.enumerated() {
+                items.append(message.id.uuidString)
+
+                // Insert date separator between messages that span different calendar days.
+                // In the reversed array, the next element is the chronologically earlier message.
+                if index < reversed.count - 1 {
+                    let nextMessage = reversed[index + 1]
+                    if !calendar.isDate(message.createdAt, inSameDayAs: nextMessage.createdAt) {
+                        let dayKey = calendar.startOfDay(for: message.createdAt).timeIntervalSinceReferenceDate
+                        let separatorId = "date:\(dayKey)"
+                        items.append(separatorId)
+                        coordinator.dateSeparatorDates[separatorId] = message.createdAt
+                    }
+                } else {
+                    // Always show a date separator above the oldest message
                     let dayKey = calendar.startOfDay(for: message.createdAt).timeIntervalSinceReferenceDate
                     let separatorId = "date:\(dayKey)"
                     items.append(separatorId)
                     coordinator.dateSeparatorDates[separatorId] = message.createdAt
                 }
-            } else {
-                // Always show a date separator above the oldest message
-                let dayKey = calendar.startOfDay(for: message.createdAt).timeIntervalSinceReferenceDate
-                let separatorId = "date:\(dayKey)"
-                items.append(separatorId)
-                coordinator.dateSeparatorDates[separatorId] = message.createdAt
             }
-        }
 
-        snapshot.appendItems(items, toSection: 0)
+            // Prune stale date separator entries not in current snapshot
+            let currentSeparatorIds = Set(items.filter { $0.hasPrefix("date:") })
+            coordinator.dateSeparatorDates = coordinator.dateSeparatorDates.filter { currentSeparatorIds.contains($0.key) }
 
-        let isInitialLoad = coordinator.lastSnapshotCount == 0 && !messages.isEmpty
-        let isPagination = messages.count > coordinator.lastSnapshotCount && coordinator.lastSnapshotCount > 0
-        let isSingleNewMessage = messages.count == coordinator.lastSnapshotCount + 1 && coordinator.lastSnapshotCount > 0
-        coordinator.lastSnapshotCount = messages.count
+            snapshot.appendItems(items, toSection: 0)
 
-        if isInitialLoad {
-            coordinator.dataSource?.apply(snapshot, animatingDifferences: false)
-        } else if isPagination || !isSingleNewMessage {
-            coordinator.dataSource?.apply(snapshot, animatingDifferences: false)
-        } else {
-            coordinator.dataSource?.apply(snapshot, animatingDifferences: true)
+            let isInitialLoad = coordinator.lastSnapshotCount == 0 && !messages.isEmpty
+            let isPagination = messages.count > coordinator.lastSnapshotCount && coordinator.lastSnapshotCount > 0
+            let isSingleNewMessage = messages.count == coordinator.lastSnapshotCount + 1 && coordinator.lastSnapshotCount > 0
+            coordinator.lastSnapshotCount = messages.count
+
+            if isInitialLoad || isPagination || !isSingleNewMessage {
+                coordinator.dataSource?.apply(snapshot, animatingDifferences: false)
+            } else {
+                coordinator.dataSource?.apply(snapshot, animatingDifferences: true)
+            }
         }
 
         // Reconfigure visible message cells to pick up content changes
         // (reactions, read receipts) that don't alter the snapshot structure.
+        let isInitialLoad = coordinator.lastSnapshotCount == 0
         if !isInitialLoad, let dataSource = coordinator.dataSource {
             let visibleIds = collectionView.indexPathsForVisibleItems.compactMap {
                 dataSource.itemIdentifier(for: $0)
@@ -230,6 +259,16 @@ struct MessagesCollectionView: UIViewRepresentable {
         var dateSeparatorDates: [String: Date] = [:]
         var lastSnapshotCount = 0
         private var isAtBottom = true
+
+        /// Fingerprint of the last applied update, used to skip no-op updateUIView calls.
+        var lastAppliedFingerprint: UpdateFingerprint?
+
+        struct UpdateFingerprint: Equatable {
+            let messageIds: [UUID]
+            let configKeys: Set<UUID>
+            let scrollToMessageId: UUID?
+            let scrollToBottom: Bool
+        }
 
         init(parent: MessagesCollectionView) {
             self.parent = parent
