@@ -22,6 +22,31 @@ final class MessageService {
     
     private let supabase = SupabaseService.shared.client
     private let rateLimiter = RateLimiter.shared
+
+    /// Cached set of blocked user IDs, refreshed on fetch
+    private(set) var cachedBlockedUserIds: Set<UUID> = []
+
+    /// Refresh the blocked user IDs cache
+    func refreshBlockedUsers() async {
+        guard let userId = AuthService.shared.currentUserId else { return }
+        do {
+            let blocked = try await getBlockedUsers(userId: userId)
+            cachedBlockedUserIds = Set(blocked.map { $0.blockedId })
+        } catch {
+            AppLogger.error("messaging", "Failed to refresh blocked users: \(error)")
+        }
+    }
+
+    /// Check if a user ID is in the blocked set
+    func isBlocked(_ userId: UUID) -> Bool {
+        cachedBlockedUserIds.contains(userId)
+    }
+
+    /// Filter an array of messages, removing any from blocked users
+    private func filterBlocked(_ messages: [Message]) -> [Message] {
+        guard !cachedBlockedUserIds.isEmpty else { return messages }
+        return messages.filter { !cachedBlockedUserIds.contains($0.fromId) }
+    }
     
     // MARK: - Initialization
     
@@ -184,7 +209,8 @@ final class MessageService {
         
         await enrichMessages(&messages)
         
-        // Cache results (only cache if this is the initial load, not pagination)
+        messages = filterBlocked(messages)
+
         AppLogger.network.info("Fetched \(messages.count) messages from network.")
         return messages
     }
@@ -243,7 +269,7 @@ final class MessageService {
         let decoder = createDateDecoder()
         var messages = try decoder.decode([Message].self, from: response.data)
         await enrichMessages(&messages)
-        return messages
+        return filterBlocked(messages)
     }
 
     /// Fetch media messages for a conversation filtered by message type
@@ -272,9 +298,9 @@ final class MessageService {
 
         let decoder = createDateDecoder()
         let messages = try decoder.decode([Message].self, from: response.data)
-        return messages
+        return filterBlocked(messages)
     }
-    
+
     /// Fetch messages containing URLs for a conversation
     /// - Parameter conversationId: The conversation ID
     /// - Returns: Array of text messages containing links, ordered newest first
@@ -295,11 +321,11 @@ final class MessageService {
         
         // Filter for messages that contain URLs
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        return messages.filter { message in
+        return filterBlocked(messages.filter { message in
             guard !message.text.isEmpty else { return false }
             let range = NSRange(message.text.startIndex..., in: message.text)
             return (detector?.numberOfMatches(in: message.text, range: range) ?? 0) > 0
-        }
+        })
     }
     
     /// Fetch replies to a single message (ordered oldest first)
@@ -315,7 +341,7 @@ final class MessageService {
         let decoder = createDateDecoder()
         var messages = try decoder.decode([Message].self, from: response.data)
         await enrichMessages(&messages)
-        return messages
+        return filterBlocked(messages)
     }
 
     /// Fetch a single message by ID with sender join (for realtime enrichment)
@@ -821,8 +847,9 @@ final class MessageService {
         ).execute()
         
         AppLogger.database.info("Blocked user: \(blockedId)")
+        await refreshBlockedUsers()
     }
-    
+
     /// Unblock a user
     func unblockUser(blockerId: UUID, blockedId: UUID) async throws {
         try await supabase.rpc(
@@ -834,8 +861,9 @@ final class MessageService {
         ).execute()
         
         AppLogger.database.info("Unblocked user: \(blockedId)")
+        await refreshBlockedUsers()
     }
-    
+
     /// Check if a user is blocked
     func isUserBlocked(userId: UUID, otherUserId: UUID) async throws -> Bool {
         struct BlockedResult: Codable {
@@ -919,9 +947,9 @@ final class MessageService {
         
         let decoder = createDateDecoder()
         let messages = try decoder.decode([Message].self, from: response.data)
-        return messages
+        return filterBlocked(messages)
     }
-    
+
     /// Escape ILIKE special characters in a search query
     private func escapeILIKE(_ text: String) -> String {
         text.replacingOccurrences(of: "\\", with: "\\\\")
@@ -963,9 +991,9 @@ final class MessageService {
 
         let decoder = createDateDecoder()
         let messages = try decoder.decode([Message].self, from: response.data)
-        return messages
+        return filterBlocked(messages)
     }
-    
+
     // MARK: - Typing Indicators
     
     /// Set typing status for current user in a conversation
