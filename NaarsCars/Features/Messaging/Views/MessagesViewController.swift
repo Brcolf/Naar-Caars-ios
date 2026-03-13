@@ -28,6 +28,9 @@ final class MessagesViewController: UIViewController {
         var unreadCount: Int = 0
         var showUnreadDivider: Bool = false
 
+        // Frozen state
+        var isConversationFrozen: Bool = false
+
         // Callbacks (kept as closures to avoid tight coupling to SwiftUI)
         var onOverlayAction: ((OverlayAction, Message) -> Void)?
         var onSwipeReply: ((Message) -> Void)?
@@ -422,6 +425,7 @@ extension MessagesViewController: MessageCellDelegate {
             message: message,
             isFromCurrentUser: isFromCurrentUser,
             currentUserReaction: currentReaction,
+            isConversationFrozen: configuration.isConversationFrozen,
             onAction: { [weak self] action in
                 self?.configuration.onOverlayAction?(action, message)
             }

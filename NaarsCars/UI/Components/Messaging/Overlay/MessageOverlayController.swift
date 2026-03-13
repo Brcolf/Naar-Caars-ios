@@ -22,6 +22,7 @@ final class MessageOverlayController: UIViewController {
     private let message: Message
     private let isFromCurrentUser: Bool
     private let currentUserReaction: String?
+    private let isConversationFrozen: Bool
     private let onAction: (OverlayAction) -> Void
 
     private let reactionBar: ReactionBarView
@@ -41,6 +42,7 @@ final class MessageOverlayController: UIViewController {
         message: Message,
         isFromCurrentUser: Bool,
         currentUserReaction: String?,
+        isConversationFrozen: Bool = false,
         onAction: @escaping (OverlayAction) -> Void
     ) {
         self.snapshot = snapshot
@@ -48,10 +50,11 @@ final class MessageOverlayController: UIViewController {
         self.message = message
         self.isFromCurrentUser = isFromCurrentUser
         self.currentUserReaction = currentUserReaction
+        self.isConversationFrozen = isConversationFrozen
         self.onAction = onAction
 
         self.reactionBar = ReactionBarView(currentUserReaction: currentUserReaction)
-        self.actionList = OverlayActionListView(message: message, isFromCurrentUser: isFromCurrentUser)
+        self.actionList = OverlayActionListView(message: message, isFromCurrentUser: isFromCurrentUser, isConversationFrozen: isConversationFrozen)
 
         super.init(nibName: nil, bundle: nil)
 
@@ -108,6 +111,11 @@ final class MessageOverlayController: UIViewController {
 
     private func setupReactionBar() {
         view.addSubview(reactionBar)
+
+        if isConversationFrozen {
+            reactionBar.isHidden = true
+            reactionBar.alpha = 0
+        }
 
         // Measure the action list to determine available space
         let reactionBarHeight: CGFloat = 52

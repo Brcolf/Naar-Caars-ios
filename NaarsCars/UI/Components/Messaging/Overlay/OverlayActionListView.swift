@@ -43,9 +43,9 @@ final class OverlayActionListView: UIView {
 
     // MARK: - Init
 
-    init(message: Message, isFromCurrentUser: Bool) {
+    init(message: Message, isFromCurrentUser: Bool, isConversationFrozen: Bool = false) {
         super.init(frame: .zero)
-        let items = Self.buildActions(message: message, isFromCurrentUser: isFromCurrentUser)
+        let items = Self.buildActions(message: message, isFromCurrentUser: isFromCurrentUser, isConversationFrozen: isConversationFrozen)
         setupViews(items: items)
     }
 
@@ -56,13 +56,15 @@ final class OverlayActionListView: UIView {
 
     // MARK: - Action building
 
-    private static func buildActions(message: Message, isFromCurrentUser: Bool) -> [ActionItem] {
+    private static func buildActions(message: Message, isFromCurrentUser: Bool, isConversationFrozen: Bool) -> [ActionItem] {
         var items: [ActionItem] = []
 
-        // Reply — always
-        items.append(ActionItem(action: .reply, title: NSLocalizedString("Reply", comment: "Message action: reply to this message"), icon: "arrow.uturn.left", isDestructive: false))
+        if !isConversationFrozen {
+            // Reply — only when participating
+            items.append(ActionItem(action: .reply, title: NSLocalizedString("Reply", comment: "Message action: reply to this message"), icon: "arrow.uturn.left", isDestructive: false))
+        }
 
-        // View Thread — if this message is a reply (has a parent thread)
+        // View Thread — always available (read-only navigation)
         if let replyToId = message.replyToId {
             items.append(ActionItem(
                 action: .viewThread(replyToId),
@@ -72,28 +74,30 @@ final class OverlayActionListView: UIView {
             ))
         }
 
-        // Copy — if text is non-empty
+        // Copy — always available
         if !message.text.isEmpty {
             items.append(ActionItem(action: .copy, title: NSLocalizedString("Copy", comment: "Message action: copy message text to clipboard"), icon: "doc.on.doc", isDestructive: false))
         }
 
-        // Edit — sent messages, text-only (not audio, not location, not image-only)
-        if isFromCurrentUser,
-           message.messageType == .text || message.messageType == nil,
-           !message.isAudioMessage,
-           !message.isLocationMessage {
-            items.append(ActionItem(action: .edit, title: NSLocalizedString("Edit", comment: "Message action: edit own message text"), icon: "pencil", isDestructive: false))
+        if !isConversationFrozen {
+            // Edit — only when participating
+            if isFromCurrentUser,
+               message.messageType == .text || message.messageType == nil,
+               !message.isAudioMessage,
+               !message.isLocationMessage {
+                items.append(ActionItem(action: .edit, title: NSLocalizedString("Edit", comment: "Message action: edit own message text"), icon: "pencil", isDestructive: false))
+            }
+
+            // Undo Send — only when participating
+            if isFromCurrentUser, message.canUnsend {
+                items.append(ActionItem(action: .unsend, title: NSLocalizedString("messaging_undo_send", comment: "Message action: recall sent message within time limit"), icon: "arrow.uturn.backward", isDestructive: true))
+            }
         }
 
-        // Undo Send — sent messages within 15 min
-        if isFromCurrentUser, message.canUnsend {
-            items.append(ActionItem(action: .unsend, title: NSLocalizedString("messaging_undo_send", comment: "Message action: recall sent message within time limit"), icon: "arrow.uturn.backward", isDestructive: true))
-        }
-
-        // Delete for Me — always
+        // Delete for Me — always available (local-only action)
         items.append(ActionItem(action: .deleteForMe, title: NSLocalizedString("messaging_delete_for_me", comment: "Message action: delete message for current user only"), icon: "trash", isDestructive: true))
 
-        // Report — received messages only
+        // Report — always available (moderation action)
         if !isFromCurrentUser {
             items.append(ActionItem(action: .report, title: NSLocalizedString("messaging_report_message", comment: "Message action: report inappropriate message"), icon: "exclamationmark.triangle", isDestructive: true))
         }
