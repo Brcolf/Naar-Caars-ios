@@ -96,12 +96,17 @@ final class LinkPreviewBubbleView: UIView {
         let prefValue = UserDefaults.standard.object(forKey: "messaging_showLinkPreviews") as? Bool ?? true
         self.isCompact = !prefValue
 
+        isAccessibilityElement = true
+        accessibilityTraits = .link
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_open_link", comment: "")
+
         applyColors()
 
         if isCompact {
             cardBackground.isHidden = true
             pillContainer.isHidden = false
             pillLabel.text = url.host ?? url.absoluteString
+            accessibilityLabel = url.host ?? url.absoluteString
         } else {
             cardBackground.isHidden = false
             pillContainer.isHidden = true
@@ -109,6 +114,7 @@ final class LinkPreviewBubbleView: UIView {
             thumbnailView.image = nil
             titleLabel.text = nil
             domainLabel.text = url.host ?? url.absoluteString
+            accessibilityLabel = url.host ?? url.absoluteString
 
             loadGeneration &+= 1
             let gen = loadGeneration
@@ -121,6 +127,7 @@ final class LinkPreviewBubbleView: UIView {
                 }
                 self.titleLabel.text = preview?.title
                 self.domainLabel.text = preview?.siteName ?? url.host ?? url.absoluteString
+                self.accessibilityLabel = [preview?.title, preview?.siteName ?? url.host].compactMap { $0 }.joined(separator: ", ")
                 self.setNeedsLayout()
             }
         }
