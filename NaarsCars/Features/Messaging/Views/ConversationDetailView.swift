@@ -209,6 +209,8 @@ struct ConversationDetailView: View {
                 object: nil,
                 userInfo: ["conversationId": conversationId]
             )
+            // Ensure unread divider won't re-show if user re-opens this conversation
+            viewModel.hasShownUnreadDivider = true
             // Tear down all subscriptions: typing, search, reactions, observers
             viewModel.stop()
 #if DEBUG
