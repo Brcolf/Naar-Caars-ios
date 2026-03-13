@@ -27,7 +27,8 @@ enum AppError: LocalizedError {
     case permissionDenied(String)
     case processingError(String)
     case unknown(String)
-    
+    case conversationFrozen
+
     var errorDescription: String? {
         switch self {
         case .networkUnavailable:
@@ -64,9 +65,11 @@ enum AppError: LocalizedError {
             return "Processing error: \(message). Please try again."
         case .unknown(let message):
             return "An unexpected error occurred: \(message). Please try again."
+        case .conversationFrozen:
+            return "You can't send messages in a conversation you've left."
         }
     }
-    
+
     var failureReason: String? {
         switch self {
         case .networkUnavailable:
@@ -103,6 +106,8 @@ enum AppError: LocalizedError {
             return message
         case .unknown(let message):
             return message
+        case .conversationFrozen:
+            return "Conversation frozen — user has left"
         }
     }
 }
