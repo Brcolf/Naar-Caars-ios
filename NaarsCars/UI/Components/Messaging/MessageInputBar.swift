@@ -2,119 +2,84 @@
 //  MessageInputBar.swift
 //  NaarsCars
 //
-//  Chat input bar component
+//  Chat input bar component — thin rendering shell over InputBarController
 //
 
 import SwiftUI
-import PhotosUI
-import AVFoundation
 import CoreLocation
 import MapKit
 internal import Combine
 
-/// Chat input bar component with rich media support
+/// Chat input bar component with rich media support.
+/// Reads all state from `InputBarController`; delegates all mutations to it.
 struct MessageInputBar: View {
-    @Binding var text: String
-    @Binding var imageToSend: UIImage?
-    let onSend: () -> Void
-    let onImagePickerTapped: () -> Void
-    var onCameraTapped: (() -> Void)? = nil
+    let controller: InputBarController
     let isDisabled: Bool
-    
-    /// Focus state binding — allows parent to track/control keyboard focus
-    var focusState: FocusState<Bool>.Binding?
-    
-    /// Reply context (optional - when replying to a message)
-    var replyingTo: ReplyContext?
-    var onCancelReply: (() -> Void)?
-    
-    /// Editing context (optional — when editing a message)
-    var editingMessage: Message?
-    var onCancelEdit: (() -> Void)?
-    
-    /// Audio message callback
-    var onAudioRecorded: ((URL, Double) -> Void)?
-    
-    /// Location message callback
-    var onLocationShare: ((Double, Double, String?) -> Void)?
-    
-    /// Typing status callback (fired when user types)
-    var onTypingChanged: (() -> Void)?
-    
-    // Audio recording state
-    @State private var isRecording = false
-    @State private var recordingDuration: TimeInterval = 0
-    @State private var recordingStartDate: Date?
-    @State private var audioRecorder: AVAudioRecorder?
-    @State private var recordingTimer: Timer?
-    @State private var recordingURL: URL?
-    
-    // Location sharing state
-    @State private var showLocationPicker = false
-    
-    // Expanded attachment menu
-    @State private var showAttachmentMenu = false
-    @State private var showMicPermissionAlert = false
-    @State private var lastTypingSignalAt: Date = .distantPast
+
+    @FocusState private var isTextFieldFocused: Bool
     @State private var sendButtonScale: CGFloat = 1.0
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Editing banner (if editing a message)
-            if let editing = editingMessage {
-                editingBanner(message: editing)
+            if case .editing(_, let originalText) = controller.mode {
+                editingBanner(originalText: originalText)
             }
             // Reply context banner (if replying)
-            else if let replyContext = replyingTo {
+            else if case .replying(let replyContext) = controller.mode {
                 replyBanner(replyContext: replyContext)
             }
-            
+
             // Audio recording banner
-            if isRecording {
+            if controller.isRecording {
                 audioRecordingBanner
             }
-            
+
             // Image preview (if image is selected)
-            if let image = imageToSend {
+            if let image = controller.attachmentState.previewImage {
                 HStack {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
                         .frame(height: 100)
                         .cornerRadius(8)
-                    
-                    Button(action: { imageToSend = nil }) {
+
+                    Button(action: { controller.clearAttachment() }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
                             .background(Color(.systemBackground).clipShape(Circle()))
                     }
                     .offset(x: -20, y: -40)
-                    
+
                     Spacer()
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
             }
-            
+
             // Input row
             HStack(spacing: 10) {
                 // Attachment menu (iMessage-style + button)
                 Menu {
-                    if let onCameraTapped {
-                        Button(action: onCameraTapped) {
-                            Label("photo_source_camera".localized, systemImage: "camera.fill")
-                        }
+                    Button(action: { controller.onCameraRequested?() }) {
+                        Label("photo_source_camera".localized, systemImage: "camera.fill")
                     }
 
-                    Button(action: onImagePickerTapped) {
+                    Button(action: { controller.onImagePickerRequested?() }) {
                         Label("messaging_menu_photo".localized, systemImage: "photo.on.rectangle.angled")
                     }
 
-                    Button(action: toggleRecording) {
+                    Button(action: {
+                        if controller.isRecording {
+                            controller.stopRecording()
+                        } else {
+                            controller.startRecording()
+                        }
+                    }) {
                         Label("messaging_menu_voice_note".localized, systemImage: "mic.fill")
                     }
 
-                    Button(action: shareCurrentLocation) {
+                    Button(action: { controller.onLocationPickerRequested?() }) {
                         Label("messaging_menu_location".localized, systemImage: "location.fill")
                     }
                 } label: {
@@ -124,19 +89,23 @@ struct MessageInputBar: View {
                 }
                 .accessibilityLabel("messaging_menu_add".localized)
                 .accessibilityHint("messaging_menu_add_hint".localized)
-                
-                TextField(editingMessage != nil ? "messaging_edit_placeholder".localized : "messaging_placeholder".localized, text: $text, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...5)
-                    .submitLabel(.return)
-                    .applyFocusState(focusState)
-                    .onChange(of: text) { oldValue, newValue in
-                        signalTypingIfNeeded(oldValue: oldValue, newValue: newValue)
-                    }
-                    .accessibilityIdentifier("message.input")
-                    .accessibilityLabel("messaging_input_label".localized)
-                    .accessibilityHint("messaging_input_hint".localized)
-                
+
+                TextField(
+                    controller.isEditing ? "messaging_edit_placeholder".localized : "messaging_placeholder".localized,
+                    text: Binding(
+                        get: { controller.currentText },
+                        set: { controller.updateText($0) }
+                    ),
+                    axis: .vertical
+                )
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...5)
+                .submitLabel(.return)
+                .focused($isTextFieldFocused)
+                .accessibilityIdentifier("message.input")
+                .accessibilityLabel("messaging_input_label".localized)
+                .accessibilityHint("messaging_input_hint".localized)
+
                 Button(action: {
                     withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
                         sendButtonScale = 0.8
@@ -146,14 +115,14 @@ struct MessageInputBar: View {
                             sendButtonScale = 1.0
                         }
                     }
-                    onSend()
+                    controller.send()
                 }) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundColor(isDisabled ? .gray : .naarsPrimary)
+                        .foregroundColor(controller.isSendable && !isDisabled ? .naarsPrimary : .gray)
                 }
                 .scaleEffect(sendButtonScale)
-                .disabled(isDisabled)
+                .disabled(!controller.isSendable || isDisabled)
                 .accessibilityIdentifier("message.send")
                 .accessibilityLabel("messaging_send".localized)
                 .accessibilityHint("messaging_send_hint".localized)
@@ -162,59 +131,34 @@ struct MessageInputBar: View {
         }
         .background(Color.naarsBackgroundSecondary)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
-        .sheet(isPresented: $showLocationPicker) {
-            LocationPickerSheet { coordinate, name in
-                onLocationShare?(coordinate.latitude, coordinate.longitude, name)
-            }
-        }
-        .alert("messaging_microphone_access_title".localized, isPresented: $showMicPermissionAlert) {
-            Button("messaging_open_settings".localized) {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }
-            Button("common_cancel".localized, role: .cancel) {}
-        } message: {
-            Text("messaging_microphone_access_message".localized)
-        }
-        .onDisappear {
-            if isRecording {
-                cancelRecording()
-            }
-        }
     }
-    
+
     // MARK: - Audio Recording Banner
-    
+
     private var audioRecordingBanner: some View {
         HStack(spacing: 12) {
-            // Recording indicator — pulses via repeating animation
-            // rather than timer-driven opacity to avoid main-thread redraws
             Circle()
                 .fill(Color.red)
                 .frame(width: 10, height: 10)
                 .modifier(PulsingOpacity())
-            
+
             Text("messaging_recording".localized)
                 .font(.naarsSubheadline).fontWeight(.medium)
                 .foregroundColor(.primary)
-            
+
             Spacer()
-            
-            // Duration
-            Text(formatDuration(recordingDuration))
+
+            Text(formatDuration(controller.recordingDuration))
                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                 .foregroundColor(.red)
-            
-            // Cancel button
-            Button(action: cancelRecording) {
+
+            Button(action: { controller.cancelRecording() }) {
                 Text("common_cancel".localized)
                     .font(.naarsSubheadline).fontWeight(.medium)
                     .foregroundColor(.secondary)
             }
-            
-            // Send button
-            Button(action: stopAndSendRecording) {
+
+            Button(action: { controller.stopRecording() }) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.title2)
                     .foregroundColor(.naarsPrimary)
@@ -225,124 +169,7 @@ struct MessageInputBar: View {
         .background(Color.naarsCardBackground)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
-    
-    // MARK: - Audio Recording
-    
-    private func toggleRecording() {
-        if isRecording {
-            stopAndSendRecording()
-        } else {
-            startRecording()
-        }
-    }
-    
-    private func startRecording() {
-        Task { @MainActor in
-            let granted: Bool
-            if #available(iOS 17, *) {
-                granted = await AVAudioApplication.requestRecordPermission()
-            } else {
-                granted = await withCheckedContinuation { continuation in
-                    AVAudioSession.sharedInstance().requestRecordPermission { result in
-                        continuation.resume(returning: result)
-                    }
-                }
-            }
-            if granted {
-                beginRecording()
-            } else {
-                showMicPermissionAlert = true
-            }
-        }
-    }
-    
-    private func beginRecording() {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .default)
-            try audioSession.setActive(true)
-            
-            // Create temp URL for recording
-            let tempDir = FileManager.default.temporaryDirectory
-            let fileName = "audio_\(UUID().uuidString).m4a"
-            let url = tempDir.appendingPathComponent(fileName)
-            recordingURL = url
-            
-            let settings: [String: Any] = [
-                AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                AVSampleRateKey: 44100.0,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-            ]
-            
-            audioRecorder = try AVAudioRecorder(url: url, settings: settings)
-            audioRecorder?.record()
-            
-            withAnimation {
-                isRecording = true
-                recordingDuration = 0
-            }
 
-            // Start duration timer — update once per second to avoid
-            // flooding the main thread with SwiftUI redraws every 100ms.
-            recordingStartDate = Date()
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [recordingStartDate] _ in
-                if let start = recordingStartDate {
-                    recordingDuration = Date().timeIntervalSince(start)
-                }
-            }
-            
-            // Haptic feedback
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            
-        } catch {
-            AppLogger.error("messaging", "Failed to start recording: \(error.localizedDescription)")
-        }
-    }
-    
-    private func stopAndSendRecording() {
-        guard let recorder = audioRecorder, let url = recordingURL else { return }
-
-        recorder.stop()
-        recordingTimer?.invalidate()
-        recordingTimer = nil
-
-        // Compute exact duration from start date for accuracy
-        let duration = recordingStartDate.map { Date().timeIntervalSince($0) } ?? recordingDuration
-
-        withAnimation {
-            isRecording = false
-        }
-
-        // Only send if recording is at least 1 second
-        if duration >= 1.0 {
-            onAudioRecorded?(url, duration)
-        }
-
-        // Clean up
-        audioRecorder = nil
-        recordingURL = nil
-        recordingStartDate = nil
-        recordingDuration = 0
-    }
-
-    private func cancelRecording() {
-        audioRecorder?.stop()
-        audioRecorder?.deleteRecording()
-        recordingTimer?.invalidate()
-        recordingTimer = nil
-
-        withAnimation {
-            isRecording = false
-        }
-
-        audioRecorder = nil
-        recordingURL = nil
-        recordingStartDate = nil
-        recordingDuration = 0
-    }
-    
     private func formatDuration(_ seconds: TimeInterval) -> String {
         let mins = Int(seconds) / 60
         let secs = Int(seconds) % 60
@@ -350,29 +177,15 @@ struct MessageInputBar: View {
         return String(format: "%d:%02d.%d", mins, secs, tenths)
     }
 
-    private func signalTypingIfNeeded(oldValue: String, newValue: String) {
-        let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return }
-        guard newValue.count >= oldValue.count else { return }
-        guard newValue.count >= 2 else { return }
-
-        let now = Date()
-        guard now.timeIntervalSince(lastTypingSignalAt) >= Constants.Timing.typingSignalThreshold else { return }
-        lastTypingSignalAt = now
-        onTypingChanged?()
-    }
-    
     // MARK: - Editing Banner
-    
-    private func editingBanner(message: Message) -> some View {
+
+    private func editingBanner(originalText: String) -> some View {
         HStack(spacing: 10) {
-            // Vertical accent bar
             RoundedRectangle(cornerRadius: 2)
                 .fill(Color.naarsPrimary)
                 .frame(width: 3)
-            
+
             VStack(alignment: .leading, spacing: 2) {
-                // "Editing" header
                 HStack(spacing: Constants.Spacing.xs) {
                     Image(systemName: "pencil")
                         .font(.naarsCaption)
@@ -381,20 +194,18 @@ struct MessageInputBar: View {
                         .font(.naarsFootnote).fontWeight(.semibold)
                         .foregroundColor(.naarsPrimary)
                 }
-                
-                // Original message preview
-                Text(message.text)
+
+                Text(originalText)
                     .font(.naarsFootnote)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
             }
-            
+
             Spacer()
-            
-            // Cancel button
+
             Button(action: {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    onCancelEdit?()
+                    controller.cancelEditing()
                 }
             }) {
                 Image(systemName: "xmark.circle.fill")
@@ -407,24 +218,16 @@ struct MessageInputBar: View {
         .background(Color.naarsCardBackground)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
-    
-    // MARK: - Location Sharing
-    
-    private func shareCurrentLocation() {
-        showLocationPicker = true
-    }
-    
+
     // MARK: - Reply Banner
-    
+
     private func replyBanner(replyContext: ReplyContext) -> some View {
         HStack(spacing: 10) {
-            // Vertical accent bar
             RoundedRectangle(cornerRadius: 2)
                 .fill(Color.naarsPrimary)
                 .frame(width: 3)
-            
+
             VStack(alignment: .leading, spacing: 2) {
-                // "Replying to" header
                 HStack(spacing: Constants.Spacing.xs) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
                         .font(.naarsCaption)
@@ -433,8 +236,7 @@ struct MessageInputBar: View {
                         .font(.naarsFootnote).fontWeight(.semibold)
                         .foregroundColor(.naarsPrimary)
                 }
-                
-                // Message preview
+
                 HStack(spacing: Constants.Spacing.xs) {
                     if replyContext.imageUrl != nil {
                         Image(systemName: "photo")
@@ -447,13 +249,12 @@ struct MessageInputBar: View {
                         .lineLimit(2)
                 }
             }
-            
+
             Spacer()
-            
-            // Cancel button
+
             Button(action: {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    onCancelReply?()
+                    controller.cancelReply()
                 }
             }) {
                 Image(systemName: "xmark.circle.fill")
@@ -472,7 +273,7 @@ struct MessageInputBar: View {
 
 struct LocationPickerSheet: View {
     let onSelect: (CLLocationCoordinate2D, String?) -> Void
-    
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = LocationPickerViewModel()
     @State private var searchText = ""
@@ -482,7 +283,7 @@ struct LocationPickerSheet: View {
             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
         )
     )
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
@@ -492,7 +293,7 @@ struct LocationPickerSheet: View {
                     .onChange(of: searchText) { _, newValue in
                         Task { await viewModel.search(query: newValue) }
                     }
-                
+
                 if !viewModel.searchResults.isEmpty {
                     ScrollView {
                         VStack(spacing: 0) {
@@ -530,7 +331,7 @@ struct LocationPickerSheet: View {
                     }
                     .frame(maxHeight: 180)
                 }
-                
+
                 ZStack {
                     Map(position: $cameraPosition) {
                         if let coordinate = viewModel.selectedCoordinate {
@@ -542,7 +343,7 @@ struct LocationPickerSheet: View {
                     .onMapCameraChange { context in
                         viewModel.updateCoordinateFromMap(context.region.center)
                     }
-                    
+
                     Image(systemName: "mappin.circle.fill")
                         .font(.system(size: 32))
                         .foregroundColor(.red)
@@ -551,7 +352,7 @@ struct LocationPickerSheet: View {
                 .frame(height: 300)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
-                
+
                 VStack(spacing: Constants.Spacing.xs) {
                     if let name = viewModel.selectedName {
                         Text(name)
@@ -564,7 +365,7 @@ struct LocationPickerSheet: View {
                     }
                 }
                 .padding(.horizontal)
-                
+
                 Button(action: confirmSelection) {
                     Text("messaging_send_location".localized)
                         .font(.naarsCallout).fontWeight(.semibold)
@@ -602,7 +403,7 @@ struct LocationPickerSheet: View {
             }
         }
     }
-    
+
     private func confirmSelection() {
         guard let coordinate = viewModel.selectedCoordinate else { return }
         let name = viewModel.selectedName ?? viewModel.selectedAddress
@@ -618,17 +419,17 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
     @Published var selectedName: String?
     @Published var selectedAddress: String?
     @Published var userCoordinate: CLLocationCoordinate2D?
-    
+
     private let locationManager = CLLocationManager()
     private let locationService = LocationService.shared
     private let geocoder = CLGeocoder()
     private var reverseGeocodeTask: Task<Void, Never>?
-    
+
     override init() {
         super.init()
         locationManager.delegate = self
     }
-    
+
     func requestUserLocation() {
         let status = locationManager.authorizationStatus
         if status == .notDetermined {
@@ -637,20 +438,20 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
             locationManager.requestLocation()
         }
     }
-    
+
     func search(query: String) async {
         guard query.count >= 2 else {
             searchResults = []
             return
         }
-        
+
         do {
             searchResults = try await locationService.searchPlaces(query: query)
         } catch {
             searchResults = []
         }
     }
-    
+
     func selectPrediction(_ prediction: PlacePrediction) async {
         do {
             let details = try await locationService.getPlaceDetails(placeID: prediction.placeID)
@@ -662,7 +463,7 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
             searchResults = []
         }
     }
-    
+
     func updateCoordinateFromMap(_ coordinate: CLLocationCoordinate2D) {
         selectedCoordinate = coordinate
         reverseGeocodeTask?.cancel()
@@ -671,7 +472,7 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
             await reverseGeocode(coordinate: coordinate)
         }
     }
-    
+
     private func reverseGeocode(coordinate: CLLocationCoordinate2D) async {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         if let placemark = try? await geocoder.reverseGeocodeLocation(location).first {
@@ -684,11 +485,11 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
             selectedAddress = components.dropFirst().joined(separator: ", ")
         }
     }
-    
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         requestUserLocation()
     }
-    
+
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.first else { return }
         userCoordinate = location.coordinate
@@ -697,7 +498,7 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
             await reverseGeocode(coordinate: location.coordinate)
         }
     }
-    
+
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         // Non-fatal: location permission may be denied
     }
@@ -733,41 +534,4 @@ private extension View {
             self
         }
     }
-}
-
-#Preview("Empty Input") {
-    MessageInputBar(
-        text: .constant(""),
-        imageToSend: .constant(nil),
-        onSend: {},
-        onImagePickerTapped: {},
-        isDisabled: true
-    )
-}
-
-#Preview("With Reply Context") {
-    MessageInputBar(
-        text: .constant(""),
-        imageToSend: .constant(nil),
-        onSend: {},
-        onImagePickerTapped: {},
-        isDisabled: false,
-        replyingTo: ReplyContext(
-            id: UUID(),
-            text: "Hey, can you pick me up at 3pm?",
-            senderName: "John Doe",
-            senderId: UUID()
-        ),
-        onCancelReply: {}
-    )
-}
-
-#Preview("With Text") {
-    MessageInputBar(
-        text: .constant("Sure, I'll be there!"),
-        imageToSend: .constant(nil),
-        onSend: {},
-        onImagePickerTapped: {},
-        isDisabled: false
-    )
 }

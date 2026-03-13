@@ -152,15 +152,14 @@ final class MessageThreadViewController: UIViewController {
 
     private var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<Int, String>!
+    let inputBarController = InputBarController()
     private var inputHostingController: UIHostingController<MessageInputBar>?
 
     // MARK: - State
 
     private var cancellables = Set<AnyCancellable>()
+
     private var mergeRepliesTask: Task<Void, Never>?
-    private var messageText = ""
-    private var imageToSend: UIImage?
-    private var lastInputDisabled: Bool?
 
     deinit {
         mergeRepliesTask?.cancel()
@@ -355,34 +354,21 @@ final class MessageThreadViewController: UIViewController {
 
     // MARK: - Input Bar
 
-    private func makeInputBar() -> MessageInputBar {
-        let hasParent = threadViewModel.parentMessage != nil
-        let hasContent = !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageToSend != nil
-
-        return MessageInputBar(
-            text: Binding(
-                get: { [weak self] in self?.messageText ?? "" },
-                set: { [weak self] in
-                    self?.messageText = $0
-                    self?.updateInputBarDisabledState()
-                }
-            ),
-            imageToSend: Binding(
-                get: { [weak self] in self?.imageToSend },
-                set: { [weak self] in
-                    self?.imageToSend = $0
-                    self?.updateInputBarDisabledState()
-                }
-            ),
-            onSend: { [weak self] in self?.sendReply() },
-            onImagePickerTapped: { [weak self] in self?.presentImagePicker() },
-            isDisabled: !hasParent || !hasContent
-        )
-    }
-
     private func setupInputBar() {
-        let inputBar = makeInputBar()
+        inputBarController.onSend = { [weak self] payload in
+            self?.handleSend(payload)
+        }
+        inputBarController.onImagePickerRequested = { [weak self] in
+            self?.presentImagePicker()
+        }
+        inputBarController.onLocationPickerRequested = { [weak self] in
+            self?.presentLocationPicker()
+        }
+        inputBarController.onTypingChanged = { [weak self] in
+            self?.conversationViewModel.typingManager.userDidType()
+        }
 
+        let inputBar = MessageInputBar(controller: inputBarController, isDisabled: false)
         let hostingController = UIHostingController(rootView: inputBar)
         hostingController.view.backgroundColor = .clear
         hostingController.view.translatesAutoresizingMaskIntoConstraints = false
@@ -401,32 +387,41 @@ final class MessageThreadViewController: UIViewController {
         inputHostingController = hostingController
     }
 
-    private func updateInputBarDisabledState() {
-        let hasParent = threadViewModel.parentMessage != nil
-        let hasContent = !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageToSend != nil
-        let isDisabled = !hasParent || !hasContent
-
-        // Only replace rootView when the disabled state actually changes;
-        // the text/image bindings already keep the hosting controller in sync.
-        guard isDisabled != lastInputDisabled else { return }
-        lastInputDisabled = isDisabled
-        inputHostingController?.rootView = makeInputBar()
+    private func handleSend(_ payload: InputBarController.SendPayload) {
+        guard let parentId = threadViewModel.parentMessage?.id else { return }
+        Task {
+            if let editId = payload.editMessageId {
+                conversationViewModel.editingMessage = conversationViewModel.messages.first { $0.id == editId }
+                await conversationViewModel.editMessage(newContent: payload.text)
+            } else if let attachment = payload.attachment {
+                await conversationViewModel.sendMessage(
+                    textOverride: payload.text.isEmpty ? nil : payload.text,
+                    image: attachment.image,
+                    replyToId: parentId
+                )
+            } else {
+                await conversationViewModel.sendMessage(
+                    textOverride: payload.text,
+                    replyToId: parentId
+                )
+            }
+        }
     }
 
-    private func sendReply() {
-        let textToSend = messageText
-        let image = imageToSend
-        messageText = ""
-        imageToSend = nil
-        updateInputBarDisabledState()
-
-        Task {
-            await conversationViewModel.sendMessage(
-                textOverride: textToSend,
-                image: image,
-                replyToId: parentMessageId
-            )
+    private func presentLocationPicker() {
+        let picker = LocationPickerSheet { [weak self] coordinate, name in
+            guard let self else { return }
+            Task {
+                await self.conversationViewModel.sendLocationMessage(
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    locationName: name,
+                    replyToId: self.threadViewModel.parentMessage?.id
+                )
+            }
         }
+        let host = UIHostingController(rootView: picker)
+        present(host, animated: true)
     }
 
     // MARK: - Keyboard
@@ -469,7 +464,6 @@ final class MessageThreadViewController: UIViewController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _, _, _ in
                 self?.applySnapshot()
-                self?.updateInputBarDisabledState()
             }
             .store(in: &cancellables)
 
@@ -625,8 +619,7 @@ extension MessageThreadViewController: PHPickerViewControllerDelegate {
         provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
             guard let image = object as? UIImage else { return }
             DispatchQueue.main.async {
-                self?.imageToSend = image
-                self?.updateInputBarDisabledState()
+                self?.inputBarController.setImage(image)
             }
         }
     }
