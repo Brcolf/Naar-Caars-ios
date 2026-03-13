@@ -18844,6 +18844,17 @@
         }
       }
     },
+    "messaging_left_conversation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You left this conversation"
+          }
+        }
+      }
+    },
     "messaging_leave" : {
       "extractionState" : "stale",
       "localizations" : {
