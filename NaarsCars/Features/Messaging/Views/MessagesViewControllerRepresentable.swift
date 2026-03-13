@@ -52,6 +52,10 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     let onCancelEdit: () -> Void
     let onTypingChanged: () -> Void
 
+    /// When true the conversation is frozen (user has left) and the overlay
+    /// should suppress send-oriented actions.
+    var isConversationFrozen: Bool = false
+
     // MARK: UIViewControllerRepresentable
 
     func makeCoordinator() -> Coordinator {
@@ -114,6 +118,8 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         config.onLoadMore = onLoadMore
         config.onScrolledToBottom = onScrolledToBottom
         config.onUnreadDividerDismissed = onUnreadDividerDismissed
+
+        config.isConversationFrozen = isConversationFrozen
 
         vc.configuration = config
 

@@ -145,6 +145,7 @@ final class MessageThreadViewController: UIViewController {
     private let isGroup: Bool
     private let totalParticipants: Int
     private let participantProfiles: [Profile]
+    private let hasLeftConversation: Bool
 
     private let threadViewModel: MessageThreadViewModel
 
@@ -154,6 +155,7 @@ final class MessageThreadViewController: UIViewController {
     private var dataSource: UICollectionViewDiffableDataSource<Int, String>!
     let inputBarController = InputBarController()
     private var inputHostingController: UIHostingController<MessageInputBar>?
+    private var frozenBannerController: UIHostingController<FrozenConversationBanner>?
 
     // MARK: - State
 
@@ -173,7 +175,8 @@ final class MessageThreadViewController: UIViewController {
         conversationViewModel: ConversationDetailViewModel,
         isGroup: Bool,
         totalParticipants: Int,
-        participantProfiles: [Profile] = []
+        participantProfiles: [Profile] = [],
+        hasLeftConversation: Bool = false
     ) {
         self.conversationId = conversationId
         self.parentMessageId = parentMessageId
@@ -181,6 +184,7 @@ final class MessageThreadViewController: UIViewController {
         self.isGroup = isGroup
         self.totalParticipants = totalParticipants
         self.participantProfiles = participantProfiles
+        self.hasLeftConversation = hasLeftConversation
         self.threadViewModel = MessageThreadViewModel(
             conversationId: conversationId,
             parentMessageId: parentMessageId
@@ -200,7 +204,7 @@ final class MessageThreadViewController: UIViewController {
         setupNavigationBar()
         setupCollectionView()
         setupDataSource()
-        setupInputBar()
+        setupBottomView()
         setupKeyboardObservers()
         bindViewModel()
 
@@ -350,6 +354,40 @@ final class MessageThreadViewController: UIViewController {
 
         cell.messageCellView.delegate = self
         cell.messageCellView.configure(with: config)
+    }
+
+    // MARK: - Bottom View (Input Bar or Frozen Banner)
+
+    private func setupBottomView() {
+        if let existing = inputHostingController {
+            existing.willMove(toParent: nil)
+            existing.view.removeFromSuperview()
+            existing.removeFromParent()
+            inputHostingController = nil
+        }
+        if let existing = frozenBannerController {
+            existing.willMove(toParent: nil)
+            existing.view.removeFromSuperview()
+            existing.removeFromParent()
+            frozenBannerController = nil
+        }
+
+        if hasLeftConversation {
+            let banner = UIHostingController(rootView: FrozenConversationBanner())
+            addChild(banner)
+            banner.view.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(banner.view)
+            NSLayoutConstraint.activate([
+                banner.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                banner.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                banner.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+                collectionView.bottomAnchor.constraint(equalTo: banner.view.topAnchor),
+            ])
+            banner.didMove(toParent: self)
+            frozenBannerController = banner
+        } else {
+            setupInputBar()
+        }
     }
 
     // MARK: - Input Bar

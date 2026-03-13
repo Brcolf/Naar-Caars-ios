@@ -14,6 +14,7 @@ struct MessageThreadRepresentable: UIViewControllerRepresentable {
     let isGroup: Bool
     let totalParticipants: Int
     let participantProfiles: [Profile]
+    var hasLeftConversation: Bool = false
 
     func makeUIViewController(context: Context) -> MessageThreadViewController {
         MessageThreadViewController(
@@ -22,7 +23,8 @@ struct MessageThreadRepresentable: UIViewControllerRepresentable {
             conversationViewModel: conversationViewModel,
             isGroup: isGroup,
             totalParticipants: totalParticipants,
-            participantProfiles: participantProfiles
+            participantProfiles: participantProfiles,
+            hasLeftConversation: hasLeftConversation
         )
     }
 

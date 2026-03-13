@@ -449,7 +449,8 @@ struct ConversationDetailView: View {
                         onCancelEdit: {
                             viewModel.cancelEdit()
                         },
-                        onTypingChanged: { viewModel.userDidType() }
+                        onTypingChanged: { viewModel.userDidType() },
+                        isConversationFrozen: viewModel.hasLeftConversation
                     )
                     .accessibilityIdentifier("messages.thread.scroll")
                     .onAppear {
@@ -598,7 +599,8 @@ struct ConversationDetailView: View {
             conversationViewModel: viewModel,
             isGroup: isGroup,
             totalParticipants: totalParticipantsCount,
-            participantProfiles: participantsViewModel.participants
+            participantProfiles: participantsViewModel.participants,
+            hasLeftConversation: viewModel.hasLeftConversation
         )
     }
 
