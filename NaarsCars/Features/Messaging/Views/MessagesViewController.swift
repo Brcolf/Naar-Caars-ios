@@ -48,6 +48,8 @@ final class MessagesViewController: UIViewController {
     /// keep its own image state in sync (e.g. the SwiftUI `imageToSend` binding).
     var onCameraCapturedImage: ((UIImage) -> Void)?
 
+    let inputBarController = InputBarController()
+
     weak var inputDelegate: MessageInputDelegate? {
         didSet { inputBar.delegate = inputDelegate }
     }
@@ -55,7 +57,7 @@ final class MessagesViewController: UIViewController {
     /// The input accessory bar — lazily created, returned as the VC's
     /// inputAccessoryView for interactive keyboard support.
     private(set) lazy var inputBar: MessageInputAccessoryView = {
-        let bar = MessageInputAccessoryView()
+        let bar = MessageInputAccessoryView(controller: inputBarController)
         bar.delegate = inputDelegate
         return bar
     }()
@@ -467,7 +469,7 @@ extension MessagesViewController: UIImagePickerControllerDelegate, UINavigationC
     ) {
         picker.dismiss(animated: true)
         guard let image = info[.originalImage] as? UIImage else { return }
-        inputBar.setImagePreview(image)
+        inputBarController.setImage(image)
         onCameraCapturedImage?(image)
     }
 

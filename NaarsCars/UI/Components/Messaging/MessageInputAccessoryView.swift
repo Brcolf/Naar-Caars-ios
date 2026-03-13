@@ -8,7 +8,6 @@
 //
 
 import UIKit
-import AVFoundation
 
 // MARK: - Delegate Protocol
 
@@ -18,7 +17,6 @@ protocol MessageInputDelegate: AnyObject {
     func inputBarDidRequestImagePicker(_ bar: MessageInputAccessoryView)
     func inputBarDidRequestCamera(_ bar: MessageInputAccessoryView)
     func inputBar(_ bar: MessageInputAccessoryView, didRecordAudio url: URL, duration: Double)
-    func inputBar(_ bar: MessageInputAccessoryView, didShareLocation lat: Double, lon: Double, name: String?)
     func inputBarDidCancelReply(_ bar: MessageInputAccessoryView)
     func inputBarDidCancelEdit(_ bar: MessageInputAccessoryView)
     func inputBarDidChangeTypingState(_ bar: MessageInputAccessoryView)
@@ -31,81 +29,29 @@ final class MessageInputAccessoryView: UIView {
     // MARK: Public API
 
     weak var delegate: MessageInputDelegate?
+    let controller: InputBarController
 
-    var currentText: String {
-        get { textView.text ?? "" }
-        set {
-            textView.text = newValue
-            placeholderLabel.isHidden = !newValue.isEmpty
-            updateSendButtonState()
-            invalidateIntrinsicContentSize()
-        }
-    }
-
-    func setReplyContext(name: String, preview: String) {
-        guard replyName != name || replyPreview != preview else { return }
-        replyName = name
-        replyPreview = preview
-        editMessageId = nil
-        editOriginalText = nil
-        showReplyBanner()
+    func setReplyContext(_ context: ReplyContext) {
+        controller.setReplyContext(context)
+        showReplyBanner(name: context.senderName, preview: context.text)
     }
 
     func clearReplyContext() {
-        guard replyName != nil else { return }
-        replyName = nil
-        replyPreview = nil
+        controller.cancelReply()
         hideContextBanner()
     }
 
     func setEditContext(text: String, messageId: UUID) {
-        guard editMessageId != messageId else { return }
-        editMessageId = messageId
-        editOriginalText = text
-        replyName = nil
-        replyPreview = nil
-        showEditBanner()
-        currentText = text
+        controller.startEditing(messageId: messageId, text: text)
+        showEditBanner(text: text)
     }
 
     func clearEditContext() {
-        guard editMessageId != nil else { return }
-        editMessageId = nil
-        editOriginalText = nil
-        currentText = ""
+        controller.cancelEditing()
         hideContextBanner()
     }
 
-    func setImagePreview(_ image: UIImage?) {
-        guard imagePreviewView.image !== image else { return }
-        if let image {
-            imagePreviewView.image = image
-            imagePreviewContainer.isHidden = false
-        } else {
-            imagePreviewView.image = nil
-            imagePreviewContainer.isHidden = true
-        }
-        invalidateIntrinsicContentSize()
-    }
-
     // MARK: Private State
-
-    private var replyName: String?
-    private var replyPreview: String?
-    private var editMessageId: UUID?
-    private var editOriginalText: String?
-
-    // Audio recording
-    private var audioRecorder: AVAudioRecorder?
-    private var recordingURL: URL?
-    private var recordingStartDate: Date?
-    private var recordingTimer: Timer?
-    private var recordingDuration: TimeInterval = 0
-    private var isRecording = false
-
-    // Typing throttle
-    private var lastTypingSignalAt: Date = .distantPast
-    private var previousTextLength: Int = 0
 
     // Text view height tracking
     private let minTextHeight: CGFloat = 36
@@ -325,11 +271,13 @@ final class MessageInputAccessoryView: UIView {
 
     // MARK: Init
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    init(controller: InputBarController) {
+        self.controller = controller
+        super.init(frame: .zero)
         autoresizingMask = .flexibleHeight
         setupViews()
         computeMaxTextHeight()
+        observeController()
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -575,16 +523,14 @@ final class MessageInputAccessoryView: UIView {
             title: "photo_source_camera".localized,
             image: UIImage(systemName: "camera.fill")
         ) { [weak self] _ in
-            guard let self else { return }
-            self.delegate?.inputBarDidRequestCamera(self)
+            self?.controller.onCameraRequested?()
         }
 
         let photos = UIAction(
             title: "messaging_menu_photo".localized,
             image: UIImage(systemName: "photo.on.rectangle.angled")
         ) { [weak self] _ in
-            guard let self else { return }
-            self.delegate?.inputBarDidRequestImagePicker(self)
+            self?.controller.onImagePickerRequested?()
         }
 
         let voiceNote = UIAction(
@@ -598,12 +544,7 @@ final class MessageInputAccessoryView: UIView {
             title: "messaging_menu_location".localized,
             image: UIImage(systemName: "location.fill")
         ) { [weak self] _ in
-            guard let self else { return }
-            self.delegate?.inputBar(self, didShareLocation: 0, lon: 0, name: nil)
-            // Note: The actual location picker is presented by the delegate
-            // via UIHostingController from the view controller. The 0,0
-            // coordinates are a sentinel — the VC intercepts this and shows
-            // the picker instead of sending.
+            self?.controller.onLocationPickerRequested?()
         }
 
         return UIMenu(children: [camera, photos, voiceNote, location])
@@ -621,40 +562,20 @@ final class MessageInputAccessoryView: UIView {
             }
         }
 
-        let text = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let editId = editMessageId {
-            guard !text.isEmpty else { return }
-            delegate?.inputBar(self, didSendEditedText: text, messageId: editId)
-            clearEditContext()
-        } else {
-            guard !text.isEmpty || imagePreviewView.image != nil else { return }
-            let textToSend = currentText
-            currentText = ""
-            setImagePreview(nil)
-            delegate?.inputBar(self, didSendText: textToSend)
-        }
-    }
-
-    private func updateSendButtonState() {
-        let hasText = !(currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        let hasImage = imagePreviewView.image != nil
-        let enabled = hasText || hasImage
-        sendButton.isEnabled = enabled
-        sendButton.tintColor = enabled ? .naarsPrimary : .systemGray
+        controller.send()
     }
 
     // MARK: Context Banners
 
-    private func showReplyBanner() {
-        bannerTitleLabel.text = "\("messaging_replying_to".localized) \(replyName ?? "")"
-        bannerPreviewLabel.text = replyPreview
+    private func showReplyBanner(name: String, preview: String) {
+        bannerTitleLabel.text = "\("messaging_replying_to".localized) \(name)"
+        bannerPreviewLabel.text = preview
         showBannerAnimated(contextBanner, heightConstraint: contextBannerHeightConstraint, height: contextBannerHeight())
     }
 
-    private func showEditBanner() {
+    private func showEditBanner(text: String) {
         bannerTitleLabel.text = "messaging_editing_message".localized
-        bannerPreviewLabel.text = editOriginalText
+        bannerPreviewLabel.text = text
         showBannerAnimated(contextBanner, heightConstraint: contextBannerHeightConstraint, height: contextBannerHeight())
     }
 
@@ -663,10 +584,10 @@ final class MessageInputAccessoryView: UIView {
     }
 
     @objc private func bannerCancelTapped() {
-        if editMessageId != nil {
+        if case .editing = controller.mode {
             delegate?.inputBarDidCancelEdit(self)
             clearEditContext()
-        } else if replyName != nil {
+        } else if case .replying = controller.mode {
             delegate?.inputBarDidCancelReply(self)
             clearReplyContext()
         }
@@ -699,138 +620,43 @@ final class MessageInputAccessoryView: UIView {
     // MARK: Image Preview
 
     @objc private func clearImagePreview() {
-        setImagePreview(nil)
+        controller.clearAttachment()
     }
 
     // MARK: Audio Recording
 
     private func toggleRecording() {
-        if isRecording {
-            stopAndSendRecording()
+        if controller.isRecording {
+            controller.stopRecording()
         } else {
-            startRecording()
-        }
-    }
-
-    private func startRecording() {
-        Task { @MainActor in
-            let granted: Bool
-            if #available(iOS 17, *) {
-                granted = await AVAudioApplication.requestRecordPermission()
-            } else {
-                granted = await withCheckedContinuation { continuation in
-                    AVAudioSession.sharedInstance().requestRecordPermission { result in
-                        continuation.resume(returning: result)
-                    }
-                }
-            }
-            if granted {
-                beginRecording()
-            } else {
-                showMicPermissionAlert()
-            }
-        }
-    }
-
-    private func beginRecording() {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .default)
-            try audioSession.setActive(true)
-
-            let tempDir = FileManager.default.temporaryDirectory
-            let fileName = "audio_\(UUID().uuidString).m4a"
-            let url = tempDir.appendingPathComponent(fileName)
-            recordingURL = url
-
-            let settings: [String: Any] = [
-                AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                AVSampleRateKey: 44100.0,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-            ]
-
-            audioRecorder = try AVAudioRecorder(url: url, settings: settings)
-            audioRecorder?.record()
-
-            isRecording = true
-            recordingDuration = 0
-            recordingStartDate = Date()
-
-            // Show recording banner
-            showBannerAnimated(recordingBanner, heightConstraint: recordingBannerHeightConstraint, height: recordingBannerHeight())
-
-            // Hide input row during recording
-            inputRow.alpha = 0.3
-            inputRow.isUserInteractionEnabled = false
-
-            // Start duration timer
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                guard let self, let start = self.recordingStartDate else { return }
-                self.recordingDuration = Date().timeIntervalSince(start)
-                self.recordingDurationLabel.text = self.formatDuration(self.recordingDuration)
-            }
-
-            // Pulsing animation for recording dot
-            startDotPulsing()
-
-            // Haptic feedback
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-        } catch {
-            AppLogger.error("messaging", "Failed to start recording: \(error.localizedDescription)")
+            controller.startRecording()
         }
     }
 
     @objc private func stopAndSendRecording() {
-        guard let recorder = audioRecorder, let url = recordingURL else { return }
-
-        recorder.stop()
-        recordingTimer?.invalidate()
-        recordingTimer = nil
-
-        let duration = recordingStartDate.map { Date().timeIntervalSince($0) } ?? recordingDuration
-
-        isRecording = false
-        stopDotPulsing()
-        hideBannerAnimated(recordingBanner, heightConstraint: recordingBannerHeightConstraint)
-        inputRow.alpha = 1
-        inputRow.isUserInteractionEnabled = true
-
-        if duration >= 1.0 {
-            delegate?.inputBar(self, didRecordAudio: url, duration: duration)
-        }
-
-        audioRecorder = nil
-        recordingURL = nil
-        recordingStartDate = nil
-        recordingDuration = 0
-
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        controller.stopRecording()
     }
 
     @objc private func cancelRecordingTapped() {
-        cancelRecording()
+        controller.cancelRecording()
     }
 
-    private func cancelRecording() {
-        audioRecorder?.stop()
-        audioRecorder?.deleteRecording()
-        recordingTimer?.invalidate()
-        recordingTimer = nil
+    private func showRecordingBanner() {
+        guard recordingBanner.isHidden else { return }
+        showBannerAnimated(recordingBanner, heightConstraint: recordingBannerHeightConstraint, height: recordingBannerHeight())
+        inputRow.alpha = 0.3
+        inputRow.isUserInteractionEnabled = false
+        startDotPulsing()
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
 
-        isRecording = false
-        stopDotPulsing()
+    private func hideRecordingBanner() {
+        guard !recordingBanner.isHidden else { return }
         hideBannerAnimated(recordingBanner, heightConstraint: recordingBannerHeightConstraint)
         inputRow.alpha = 1
         inputRow.isUserInteractionEnabled = true
-
-        audioRecorder = nil
-        recordingURL = nil
-        recordingStartDate = nil
-        recordingDuration = 0
-
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        stopDotPulsing()
     }
 
     private func startDotPulsing() {
@@ -851,52 +677,85 @@ final class MessageInputAccessoryView: UIView {
         return String(format: "%d:%02d.%d", mins, secs, tenths)
     }
 
-    private func showMicPermissionAlert() {
-        guard let vc = findViewController() else { return }
-        let alert = UIAlertController(
-            title: "messaging_microphone_access_title".localized,
-            message: "messaging_microphone_access_message".localized,
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "messaging_open_settings".localized, style: .default) { _ in
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
+    // MARK: Controller Observation
+
+    private func observeController() {
+        withObservationTracking {
+            let _ = self.controller.isSendable
+            let _ = self.controller.currentText
+            let _ = self.controller.mode
+            let _ = self.controller.attachmentState
+            let _ = self.controller.isRecording
+            let _ = self.controller.recordingDuration
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.updateFromController()
+                self?.observeController()
             }
-        })
-        alert.addAction(UIAlertAction(title: "common_cancel".localized, style: .cancel))
-        vc.present(alert, animated: true)
-    }
-
-    // MARK: Typing Signal
-
-    private func signalTypingIfNeeded(oldLength: Int, newLength: Int, newText: String) {
-        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        guard newLength >= oldLength else { return }
-        guard newLength >= 2 else { return }
-
-        let now = Date()
-        guard now.timeIntervalSince(lastTypingSignalAt) >= Constants.Timing.typingSignalThreshold else { return }
-        lastTypingSignalAt = now
-        delegate?.inputBarDidChangeTypingState(self)
-    }
-
-    // MARK: Helpers
-
-    private func findViewController() -> UIViewController? {
-        var responder: UIResponder? = self
-        while let next = responder?.next {
-            if let vc = next as? UIViewController { return vc }
-            responder = next
         }
-        return nil
+    }
+
+    private func updateFromController() {
+        // Send button
+        let enabled = controller.isSendable
+        sendButton.isEnabled = enabled
+        sendButton.tintColor = enabled ? .naarsPrimary : .systemGray
+
+        // Text sync (controller may have changed text, e.g. after send/cancel edit)
+        if textView.text != controller.currentText {
+            textView.text = controller.currentText
+            placeholderLabel.isHidden = !controller.currentText.isEmpty
+            let newHeight = clampedTextHeight()
+            if textViewHeightConstraint.constant != newHeight {
+                textViewHeightConstraint.constant = newHeight
+                textView.isScrollEnabled = newHeight >= maxTextHeight
+            }
+        }
+
+        // Context banner sync
+        switch controller.mode {
+        case .normal:
+            if !contextBanner.isHidden {
+                hideContextBanner()
+            }
+        case .replying(let ctx):
+            if contextBanner.isHidden {
+                showReplyBanner(name: ctx.senderName, preview: ctx.text)
+            }
+        case .editing(_, let originalText):
+            if contextBanner.isHidden {
+                showEditBanner(text: originalText)
+            }
+        }
+
+        // Attachment preview
+        switch controller.attachmentState {
+        case .none:
+            imagePreviewContainer.isHidden = true
+        case .processing(let image):
+            imagePreviewView.image = image
+            imagePreviewContainer.isHidden = false
+        case .ready(let attachment):
+            imagePreviewView.image = attachment.image
+            imagePreviewContainer.isHidden = false
+        }
+
+        // Recording banner
+        if controller.isRecording {
+            showRecordingBanner()
+            recordingDurationLabel.text = formatDuration(controller.recordingDuration)
+        } else {
+            hideRecordingBanner()
+        }
+
+        invalidateIntrinsicContentSize()
     }
 
     // MARK: Cleanup
 
     func tearDown() {
-        if isRecording {
-            cancelRecording()
+        if controller.isRecording {
+            controller.cancelRecording()
         }
     }
 }
@@ -906,9 +765,7 @@ final class MessageInputAccessoryView: UIView {
 extension MessageInputAccessoryView: UITextViewDelegate {
 
     func textViewDidChange(_ textView: UITextView) {
-        let oldLength = previousTextLength
         placeholderLabel.isHidden = !textView.text.isEmpty
-        updateSendButtonState()
 
         // Recalculate height
         let newHeight = clampedTextHeight()
@@ -919,8 +776,7 @@ extension MessageInputAccessoryView: UITextViewDelegate {
             superview?.layoutIfNeeded()
         }
 
-        signalTypingIfNeeded(oldLength: oldLength, newLength: textView.text.count, newText: textView.text)
-        previousTextLength = textView.text.count
+        controller.updateText(textView.text)
     }
 }
 

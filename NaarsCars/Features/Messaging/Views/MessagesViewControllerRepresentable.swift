@@ -65,6 +65,27 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
             coordinator?.parent.imageToSend = image
         }
         context.coordinator.viewController = vc
+
+        // Wire controller callbacks
+        vc.inputBarController.onSend = { [weak coordinator = context.coordinator] payload in
+            coordinator?.handleSend(payload)
+        }
+        vc.inputBarController.onAudioRecorded = { [weak coordinator = context.coordinator] url, duration in
+            coordinator?.parent.onAudioRecorded(url, duration)
+        }
+        vc.inputBarController.onImagePickerRequested = { [weak coordinator = context.coordinator] in
+            coordinator?.parent.onImagePickerTapped()
+        }
+        vc.inputBarController.onCameraRequested = { [weak coordinator = context.coordinator] in
+            coordinator?.viewController?.presentCamera()
+        }
+        vc.inputBarController.onLocationPickerRequested = { [weak coordinator = context.coordinator] in
+            coordinator?.parent.onLocationRequested()
+        }
+        vc.inputBarController.onTypingChanged = { [weak coordinator = context.coordinator] in
+            coordinator?.parent.onTypingChanged()
+        }
+
         return vc
     }
 
@@ -96,22 +117,22 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
         vc.configuration = config
 
-        // Update input bar state
-        let bar = vc.inputBar
-
-        // Reply / edit context
+        // Update input bar state via controller
         if let edit = editingMessage {
-            bar.setEditContext(text: edit.text, messageId: edit.id)
+            vc.inputBarController.startEditing(messageId: edit.id, text: edit.text)
         } else if let reply = replyContext {
-            bar.setReplyContext(name: reply.senderName, preview: reply.text)
+            vc.inputBar.setReplyContext(reply)
         } else {
-            // Only clear if something was previously showing
-            bar.clearReplyContext()
-            bar.clearEditContext()
+            vc.inputBarController.cancelReply()
+            vc.inputBarController.cancelEditing()
         }
 
-        // Image preview
-        bar.setImagePreview(imageToSend)
+        // Image
+        if let image = imageToSend {
+            vc.inputBarController.setImage(image)
+        } else {
+            vc.inputBarController.clearAttachment()
+        }
     }
 
     // MARK: - Coordinator
@@ -122,6 +143,16 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
         init(parent: MessagesViewControllerRepresentable) {
             self.parent = parent
+        }
+
+        // MARK: Controller Send Handler
+
+        func handleSend(_ payload: InputBarController.SendPayload) {
+            if let editId = payload.editMessageId {
+                parent.onSendEditedMessage(payload.text, editId)
+            } else {
+                parent.onSendMessage(payload.text)
+            }
         }
 
         // MARK: MessageInputDelegate
@@ -144,11 +175,6 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
         func inputBar(_ bar: MessageInputAccessoryView, didRecordAudio url: URL, duration: Double) {
             parent.onAudioRecorded(url, duration)
-        }
-
-        func inputBar(_ bar: MessageInputAccessoryView, didShareLocation lat: Double, lon: Double, name: String?) {
-            // The sentinel (0,0) means "show location picker" — we route to the parent handler
-            parent.onLocationRequested()
         }
 
         func inputBarDidCancelReply(_ bar: MessageInputAccessoryView) {
