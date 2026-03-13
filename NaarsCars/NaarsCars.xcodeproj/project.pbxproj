@@ -20,6 +20,8 @@
 		CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000B /* DateSeparatorCell.swift */; };
 		CE110001AAAA00000000000C /* AvatarUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000C /* AvatarUIView.swift */; };
 		CE110001AAAA00000000000D /* UnreadDividerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000D /* UnreadDividerView.swift */; };
+		CE110001AAAA00000000000E /* EmojiBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000E /* EmojiBubbleView.swift */; };
+		CE110001AAAA00000000000F /* EmojiDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000F /* EmojiDetection.swift */; };
 		01E6A8138836046AD14DFDC3 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FD8E458AE888861E9F4FC0 /* ConversationService.swift */; };
 		0280A9FF8783E0B8C339C2C4 /* TypingIndicatorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CDDC8E455AA632FACFCB95 /* TypingIndicatorManager.swift */; };
 		06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6919D6DE589147EA882BA5C2 /* View+Extensions.swift */; };
@@ -473,6 +475,8 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		CE110002AAAA00000000000B /* DateSeparatorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateSeparatorCell.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000C /* AvatarUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarUIView.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000D /* UnreadDividerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadDividerView.swift; sourceTree = "<group>"; };
+		CE110002AAAA00000000000E /* EmojiBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiBubbleView.swift; sourceTree = "<group>"; };
+		CE110002AAAA00000000000F /* EmojiDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiDetection.swift; sourceTree = "<group>"; };
 		0203B70350D9463DBB993A31 /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		0356C00D127342B5A0288362 /* UI/Components/Cards/FavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/FavorCard.swift; sourceTree = "<group>"; };
 		052E6D74D4102679A004789F /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
@@ -1871,6 +1875,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				C55E7C97F2CAF7730FF7EC18 /* RetryableOperation.swift */,
 				68345925C3A049591611F5E6 /* RideCostModels.swift */,
 				172C379B679B4BE19C12E800 /* CalendarOfferTracker.swift */,
+				CE110002AAAA00000000000F /* EmojiDetection.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -1997,6 +2002,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110002AAAA00000000000A /* ReplyPreviewView.swift */,
 				CE110002AAAA00000000000B /* DateSeparatorCell.swift */,
 				CE110002AAAA00000000000D /* UnreadDividerView.swift */,
+				CE110002AAAA00000000000E /* EmojiBubbleView.swift */,
 			);
 			path = Cells;
 			sourceTree = "<group>";
@@ -2342,6 +2348,8 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */,
 				CE110001AAAA00000000000C /* AvatarUIView.swift in Sources */,
 				CE110001AAAA00000000000D /* UnreadDividerView.swift in Sources */,
+				CE110001AAAA00000000000E /* EmojiBubbleView.swift in Sources */,
+				CE110001AAAA00000000000F /* EmojiDetection.swift in Sources */,
 				5412C40716694F42A9B5BD40 /* Throttler.swift in Sources */,
 				799F2E0604D74163A88C8000 /* ReplyContextBuilder.swift in Sources */,
 				F6D9BEBA8B40714CBC8DC1B8 /* NotificationRepository.swift in Sources */,
