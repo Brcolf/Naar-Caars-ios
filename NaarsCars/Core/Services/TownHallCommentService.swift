@@ -55,6 +55,12 @@ final class TownHallCommentService {
             allComments = await enrichCommentsWithVotes(allComments, userId: nil)
         }
         
+        // Filter out comments from blocked users
+        let blockedIds = MessageService.shared.cachedBlockedUserIds
+        if !blockedIds.isEmpty {
+            allComments = allComments.filter { !blockedIds.contains($0.userId) }
+        }
+
         // Build nested structure
         let nestedComments = buildNestedStructure(allComments)
         

@@ -249,7 +249,10 @@ final class AppLaunchManager: ObservableObject {
         // This will be called after critical path completes
         // Load profile, rides, favors, etc. in background
         startDeferredSyncEnginesIfNeeded(for: userId)
-        
+
+        // Refresh blocked users cache for content filtering
+        await MessageService.shared.refreshBlockedUsers()
+
         // Update AuthService with full profile
         try? await authService.checkAuthStatus()
         

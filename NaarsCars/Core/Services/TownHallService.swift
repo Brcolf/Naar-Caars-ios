@@ -56,6 +56,12 @@ final class TownHallService {
             posts = await enrichPostsWithVotesAndComments(posts, userId: nil)
         }
         
+        // Filter out posts from blocked users
+        let blockedIds = MessageService.shared.cachedBlockedUserIds
+        if !blockedIds.isEmpty {
+            posts = posts.filter { !blockedIds.contains($0.userId) }
+        }
+
         AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
         return posts
     }
