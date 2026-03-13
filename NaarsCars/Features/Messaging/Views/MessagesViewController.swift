@@ -105,6 +105,7 @@ final class MessagesViewController: UIViewController {
 
         setupDataSource()
         collectionView.delegate = self
+        collectionView.prefetchDataSource = self
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -294,6 +295,19 @@ extension MessagesViewController: UICollectionViewDelegate {
         }
 
         if contentHeight > frameHeight && offsetY > contentHeight - frameHeight - 200 {
+            configuration.onLoadMore?()
+        }
+    }
+}
+
+// MARK: - UICollectionViewDataSourcePrefetching
+
+extension MessagesViewController: UICollectionViewDataSourcePrefetching {
+
+    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        let itemCount = collectionView.numberOfItems(inSection: 0)
+        let maxIndex = indexPaths.map { $0.item }.max() ?? 0
+        if itemCount > 0 && maxIndex >= itemCount - 2 {
             configuration.onLoadMore?()
         }
     }

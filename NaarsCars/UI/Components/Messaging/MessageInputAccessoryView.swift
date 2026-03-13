@@ -105,6 +105,7 @@ final class MessageInputAccessoryView: UIView {
 
     // Typing throttle
     private var lastTypingSignalAt: Date = .distantPast
+    private var previousTextLength: Int = 0
 
     // Text view height tracking
     private let minTextHeight: CGFloat = 36
@@ -630,6 +631,7 @@ final class MessageInputAccessoryView: UIView {
             guard !text.isEmpty || imagePreviewView.image != nil else { return }
             let textToSend = currentText
             currentText = ""
+            setImagePreview(nil)
             delegate?.inputBar(self, didSendText: textToSend)
         }
     }
@@ -803,6 +805,8 @@ final class MessageInputAccessoryView: UIView {
         recordingURL = nil
         recordingStartDate = nil
         recordingDuration = 0
+
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     @objc private func cancelRecordingTapped() {
@@ -825,6 +829,8 @@ final class MessageInputAccessoryView: UIView {
         recordingURL = nil
         recordingStartDate = nil
         recordingDuration = 0
+
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func startDotPulsing() {
@@ -900,7 +906,7 @@ final class MessageInputAccessoryView: UIView {
 extension MessageInputAccessoryView: UITextViewDelegate {
 
     func textViewDidChange(_ textView: UITextView) {
-        let oldLength = currentText.count
+        let oldLength = previousTextLength
         placeholderLabel.isHidden = !textView.text.isEmpty
         updateSendButtonState()
 
@@ -914,6 +920,7 @@ extension MessageInputAccessoryView: UITextViewDelegate {
         }
 
         signalTypingIfNeeded(oldLength: oldLength, newLength: textView.text.count, newText: textView.text)
+        previousTextLength = textView.text.count
     }
 }
 
