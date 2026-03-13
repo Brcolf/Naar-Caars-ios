@@ -57,15 +57,15 @@ final class EmojiBubbleView: UIView {
         super.layoutSubviews()
         let labelSize = emojiLabel.sizeThatFits(CGSize(
             width: bounds.width - margin * 2,
-            height: .greatestFiniteMagnitude
+            height: CGFloat.greatestFiniteMagnitude
         ))
         emojiLabel.frame = CGRect(x: margin, y: margin, width: labelSize.width, height: labelSize.height)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let labelSize = emojiLabel.sizeThatFits(CGSize(
-            width: .greatestFiniteMagnitude,
-            height: .greatestFiniteMagnitude
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
         ))
         return CGSize(
             width: labelSize.width + margin * 2,
