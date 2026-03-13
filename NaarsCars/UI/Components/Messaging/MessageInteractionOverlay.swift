@@ -64,7 +64,7 @@ struct MessageInteractionOverlay: View {
 
     private var actionButtons: some View {
         VStack(spacing: 0) {
-            actionButton("Reply", icon: "arrowshape.turn.up.left") {
+            actionButton("Reply".localized, icon: "arrowshape.turn.up.left") {
                 onReply()
                 dismiss()
             }
@@ -79,7 +79,7 @@ struct MessageInteractionOverlay: View {
 
             if !message.text.isEmpty {
                 Divider()
-                actionButton("Copy", icon: "doc.on.doc") {
+                actionButton("Copy".localized, icon: "doc.on.doc") {
                     UIPasteboard.general.string = message.text
                     HapticManager.selectionChanged()
                     onCopy()
@@ -89,7 +89,7 @@ struct MessageInteractionOverlay: View {
 
             if let onEdit, isFromCurrentUser, !message.text.isEmpty, !message.isAudioMessage, !message.isLocationMessage {
                 Divider()
-                actionButton("Edit", icon: "pencil") {
+                actionButton("Edit".localized, icon: "pencil") {
                     onEdit()
                     dismiss()
                 }
@@ -97,7 +97,7 @@ struct MessageInteractionOverlay: View {
 
             if let onUnsend, isFromCurrentUser, message.canUnsend {
                 Divider()
-                actionButton("Unsend", icon: "arrow.uturn.backward", isDestructive: true) {
+                actionButton("messaging_undo_send".localized, icon: "arrow.uturn.backward", isDestructive: true) {
                     onUnsend()
                     dismiss()
                 }
@@ -113,7 +113,7 @@ struct MessageInteractionOverlay: View {
 
             if let onReport, !isFromCurrentUser {
                 Divider()
-                actionButton("Report", icon: "exclamationmark.bubble", isDestructive: true) {
+                actionButton("messaging_report_message".localized, icon: "exclamationmark.bubble", isDestructive: true) {
                     onReport()
                     dismiss()
                 }
