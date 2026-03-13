@@ -48,6 +48,24 @@ enum MessageType: String, Codable, Sendable {
     case link
 }
 
+/// Structured system message action type. Decoded from server `system_action` field
+/// when available; falls back to text-based inference via `resolvedSystemAction`.
+enum SystemAction: String, Codable, Sendable {
+    case memberAdded = "member_added"
+    case memberRemoved = "member_removed"
+    case memberLeft = "member_left"
+    case groupCreated = "group_created"
+    case groupNameChanged = "group_name_changed"
+    case groupAvatarChanged = "group_avatar_changed"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        self = SystemAction(rawValue: raw) ?? .unknown
+    }
+}
+
 /// Send status for local-first message tracking
 enum MessageSendStatus: String, Codable, Sendable {
     /// Message is queued locally and awaiting network send
@@ -76,7 +94,10 @@ struct Message: Codable, Identifiable, Sendable {
     
     /// Type of message (text, image, audio, location, system)
     let messageType: MessageType?
-    
+
+    /// Server-provided system action type (nil for non-system messages or older messages)
+    let systemAction: SystemAction?
+
     // MARK: - Reply Support
     
     /// ID of the message this is replying to
@@ -167,7 +188,22 @@ struct Message: Codable, Identifiable, Sendable {
     var isLocationMessage: Bool {
         messageType == .location || (latitude != nil && longitude != nil)
     }
-    
+
+    /// Best-effort system action resolution. Prefers server-provided `systemAction`;
+    /// falls back to case-insensitive English text matching for older messages.
+    var resolvedSystemAction: SystemAction {
+        if let systemAction { return systemAction }
+        guard messageType == .system else { return .unknown }
+        let lower = text.lowercased()
+        if lower.contains("added") || lower.contains("joined") { return .memberAdded }
+        if lower.contains("left") { return .memberLeft }
+        if lower.contains("removed") { return .memberRemoved }
+        if lower.contains("name") { return .groupNameChanged }
+        if lower.contains("photo") || lower.contains("image") || lower.contains("avatar") { return .groupAvatarChanged }
+        if lower.contains("created") { return .groupCreated }
+        return .unknown
+    }
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
@@ -189,6 +225,7 @@ struct Message: Codable, Identifiable, Sendable {
         case latitude
         case longitude
         case locationName = "location_name"
+        case systemAction = "system_action"
         case sender
         // reactions and replyToMessage are not in CodingKeys - populated separately
     }
@@ -204,6 +241,7 @@ struct Message: Codable, Identifiable, Sendable {
         readBy: [UUID] = [],
         createdAt: Date = Date(),
         messageType: MessageType? = .text,
+        systemAction: SystemAction? = nil,
         replyToId: UUID? = nil,
         editedAt: Date? = nil,
         deletedAt: Date? = nil,
@@ -229,6 +267,7 @@ struct Message: Codable, Identifiable, Sendable {
         self.readBy = readBy
         self.createdAt = createdAt
         self.messageType = messageType
+        self.systemAction = systemAction
         self.replyToId = replyToId
         self.editedAt = editedAt
         self.deletedAt = deletedAt
@@ -287,6 +326,7 @@ extension Message: Equatable {
                lhs.readBy == rhs.readBy &&
                lhs.createdAt == rhs.createdAt &&
                lhs.messageType == rhs.messageType &&
+               lhs.systemAction == rhs.systemAction &&
                lhs.replyToId == rhs.replyToId &&
                lhs.editedAt == rhs.editedAt &&
                lhs.deletedAt == rhs.deletedAt &&
