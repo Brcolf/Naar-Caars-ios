@@ -414,12 +414,11 @@ final class AudioRecordingCoordinator {
 }
 ```
 
-- [ ] **Step 2: Build to verify**
+- [ ] **Step 2: Tell user to add file to Xcode project**
 
-Run: `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build 2>&1 | grep -E "error:|BUILD"`
-Expected: BUILD SUCCEEDED (new file not yet in project — tell user to add it)
+Tell the user: "Please add `NaarsCars/UI/Components/Messaging/AudioRecordingCoordinator.swift` to the Xcode project (File → Add Files to NaarsCars)."
 
-**Important:** Tell the user: "Please add `NaarsCars/UI/Components/Messaging/AudioRecordingCoordinator.swift` to the Xcode project (File → Add Files to NaarsCars)."
+Build verification happens after the file is added to the project. If the user has not added it yet, defer the build check to after Task 5 (which also requires adding a new file — both can be added at once).
 
 - [ ] **Step 3: Commit**
 
@@ -653,14 +652,18 @@ final class InputBarController {
 }
 ```
 
-- [ ] **Step 2: Build to verify**
+- [ ] **Step 2: Tell user to add file to Xcode project**
 
-Tell user to add `NaarsCars/UI/Components/Messaging/InputBarController.swift` to the Xcode project.
+Tell the user: "Please add `NaarsCars/UI/Components/Messaging/InputBarController.swift` to the Xcode project (File → Add Files to NaarsCars)."
+
+If the user has not yet added `AudioRecordingCoordinator.swift` from Task 4, both files can be added at once.
+
+- [ ] **Step 3: Build to verify**
 
 Run: `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build 2>&1 | grep -E "error:|BUILD"`
-Expected: BUILD SUCCEEDED
+Expected: BUILD SUCCEEDED (requires both new files added to project)
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add NaarsCars/UI/Components/Messaging/InputBarController.swift
@@ -904,7 +907,7 @@ git commit -m "refactor: wire UIKit input bar and MessagesViewController to Inpu
 
 ---
 
-### Task 8: Rewrite MessageInputBar + Rewire MessageThreadViewController
+### Task 7: Rewrite MessageInputBar + Rewire MessageThreadViewController
 
 **Files:**
 - Modify: `NaarsCars/UI/Components/Messaging/MessageInputBar.swift`
@@ -1044,7 +1047,7 @@ git commit -m "refactor: rewrite MessageInputBar as thin shell and wire MessageT
 
 ## Chunk 3: Frozen Conversation UI
 
-### Task 10: Add conversationFrozen Error Case
+### Task 8: Add conversationFrozen Error Case
 
 **Files:**
 - Modify: `NaarsCars/Core/Utilities/AppError.swift:12-107`
@@ -1085,7 +1088,7 @@ git commit -m "feat: add conversationFrozen AppError case for left-conversation 
 
 ---
 
-### Task 11: Add Frozen Guards to ConversationDetailViewModel
+### Task 9: Add Frozen Guards to ConversationDetailViewModel
 
 **Files:**
 - Modify: `NaarsCars/Features/Messaging/ViewModels/ConversationDetailViewModel.swift`
@@ -1125,7 +1128,7 @@ git commit -m "fix: add frozen conversation guards to all ViewModel mutation met
 
 ---
 
-### Task 12: Create FrozenConversationBanner
+### Task 10: Create FrozenConversationBanner
 
 **Files:**
 - Create: `NaarsCars/UI/Components/Messaging/FrozenConversationBanner.swift`
@@ -1167,7 +1170,7 @@ struct FrozenConversationBanner: View {
 Add to `Localizable.xcstrings`:
 - `"messaging_left_conversation"` → `"You left this conversation"`
 
-**Important:** Tell user to add `NaarsCars/UI/Components/Messaging/FrozenConversationBanner.swift` to the Xcode project.
+Tell the user: "Please add `NaarsCars/UI/Components/Messaging/FrozenConversationBanner.swift` to the Xcode project (File → Add Files to NaarsCars)." Build verification deferred to Task 12 when the banner is wired into the view hierarchy.
 
 - [ ] **Step 3: Commit**
 
@@ -1179,7 +1182,7 @@ git commit -m "feat: add FrozenConversationBanner for left-conversation UI state
 
 ---
 
-### Task 13: Wire Frozen State to Overlay
+### Task 11: Wire Frozen State to Overlay
 
 **Files:**
 - Modify: `NaarsCars/UI/Components/Messaging/Overlay/OverlayActionListView.swift:46-49,59-101`
@@ -1304,7 +1307,7 @@ git commit -m "feat: filter overlay actions when conversation is frozen — hide
 
 ---
 
-### Task 14: Wire Frozen State from ConversationDetailView Through to MessagesViewController
+### Task 12: Wire Frozen State from ConversationDetailView Through to MessagesViewController
 
 **Files:**
 - Modify: `NaarsCars/Features/Messaging/Views/ConversationDetailView.swift:354-453,166-168`
@@ -1400,8 +1403,6 @@ git commit -m "feat: wire hasLeftConversation through to all messaging surfaces 
 After all tasks are complete:
 
 - [ ] Build succeeds: `xcodebuild -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build`
-- [ ] No references to `MessageBubble`, `MessageInteractionOverlay`, `ReactionPicker`, `BubbleShape` in Swift files
-- [ ] No `UIHostingConfiguration` in messaging Swift files (except comments)
 - [ ] `grep -rn "didShareLocation.*0.*0" NaarsCars/` returns no results (sentinel removed)
 - [ ] `grep -rn "inputBar.*didShareLocation" NaarsCars/` returns no results in Swift files
 - [ ] `grep -rn "hasLeftConversation" NaarsCars/` shows reads in ConversationDetailView, MessagesViewControllerRepresentable, MessageThreadViewController, MessageThreadRepresentable, and writes/guards in ConversationDetailViewModel

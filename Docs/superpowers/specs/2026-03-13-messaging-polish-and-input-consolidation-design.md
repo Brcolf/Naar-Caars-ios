@@ -88,7 +88,7 @@ InputBarController (@Observable, @MainActor)
 │              onLocationPickerRequested, onTypingChanged
 │
 └── Delegates to:
-    ├── AudioRecordingCoordinator (AVAudioRecorder lifecycle, waveform, file)
+    ├── AudioRecordingCoordinator (AVAudioRecorder lifecycle, duration timer, file)
     └── Task.detached for image compression (generation-guarded)
 ```
 
@@ -141,7 +141,7 @@ struct SendPayload {
 
 ### AudioRecordingCoordinator
 
-Extracted from both existing implementations. Owns `AVAudioRecorder`, waveform sampling timer, and recorded file URL. Exposes `isRecording`, `duration`, `waveformSamples`, `hasRecordedFile`. Returns `(url: URL, duration: TimeInterval)` on `stop()`.
+Extracted from both existing implementations. Owns `AVAudioRecorder`, duration timer, and recorded file URL. Exposes `isRecording`, `duration`, `hasRecordedFile`. Returns `(url: URL, duration: TimeInterval)` on `stop()`. Note: waveform visualization is not implemented in either existing input bar, so waveform sampling is excluded from scope. Can be added to the coordinator later if needed.
 
 ### View Layer Changes
 
