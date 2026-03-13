@@ -561,6 +561,9 @@ final class ConversationDetailViewModel: ObservableObject {
         let deletedIds = repository.fetchLocallyDeletedMessageIds(for: conversationId)
         guard !deletedIds.contains(newMessage.id) else { return }
 
+        // Skip messages from blocked users
+        if MessageService.shared.isBlocked(newMessage.fromId) { return }
+
         messages = paginationManager.insertNewMessage(newMessage, into: messages)
         scheduleReplyContextHydration()
 
