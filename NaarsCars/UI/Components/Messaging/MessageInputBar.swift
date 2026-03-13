@@ -470,7 +470,7 @@ struct MessageInputBar: View {
 
 // MARK: - Location Picker Sheet
 
-private struct LocationPickerSheet: View {
+struct LocationPickerSheet: View {
     let onSelect: (CLLocationCoordinate2D, String?) -> Void
     
     @Environment(\.dismiss) private var dismiss
@@ -612,7 +612,7 @@ private struct LocationPickerSheet: View {
 }
 
 @MainActor
-private final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
+final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var searchResults: [PlacePrediction] = []
     @Published var selectedCoordinate: CLLocationCoordinate2D?
     @Published var selectedName: String?

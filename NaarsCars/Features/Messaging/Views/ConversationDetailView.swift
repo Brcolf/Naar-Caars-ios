@@ -10,6 +10,7 @@ import PhotosUI
 internal import Combine
 import Supabase
 import PostgREST
+import CoreLocation
 
 /// View for displaying conversation detail (chat screen)
 struct ConversationDetailView: View {
@@ -18,7 +19,6 @@ struct ConversationDetailView: View {
     @StateObject private var participantsViewModel: ConversationParticipantsViewModel
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var debugFrameDropMonitor: DebugFrameDropMonitor
-    @FocusState private var isInputFocused: Bool
     @State private var showMessageDetails = false
     @State private var selectedUserIds: Set<UUID> = []
     @State private var conversationDetail: ConversationWithDetails?
@@ -60,8 +60,11 @@ struct ConversationDetailView: View {
     
     // Toast state
     @State private var toastMessage: String? = nil
-    
-    
+
+    // Location picker state (presented when UIKit input bar requests location)
+    @State private var showLocationPicker = false
+
+
     init(conversationId: UUID) {
         self.conversationId = conversationId
         _viewModel = StateObject(wrappedValue: ConversationDetailViewModel(conversationId: conversationId))
@@ -348,14 +351,13 @@ struct ConversationDetailView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    MessagesCollectionView(
+                    MessagesViewControllerRepresentable(
                         messages: viewModel.messages,
                         cellConfigurations: messageCellConfigurations,
                         participantProfiles: participantsViewModel.participants,
                         isGroupConversation: isGroup,
                         totalParticipants: totalParticipantsCount,
                         onLongPress: { message, frame, snapshot in
-                            // Store for overlay presentation (Layer 4 will wire this)
                             reactionPickerMessageId = message.id
                             showReactionPicker = true
                         },
@@ -399,7 +401,53 @@ struct ConversationDetailView: View {
                             }
                         },
                         scrollToMessageId: viewModel.currentSearchResultId ?? highlightedMessageId,
-                        scrollToBottom: shouldScrollToBottom
+                        scrollToBottom: shouldScrollToBottom,
+                        replyContext: replyingToMessage,
+                        editingMessage: viewModel.editingMessage,
+                        imageToSend: $imageToSend,
+                        onSendMessage: { text in
+                            viewModel.clearOwnTypingStatus()
+                            Task {
+                                await viewModel.sendMessage(textOverride: text, image: imageToSend, replyToId: replyingToMessage?.id)
+                                imageToSend = nil
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    replyingToMessage = nil
+                                }
+                            }
+                        },
+                        onSendEditedMessage: { editedText, _ in
+                            Task {
+                                await viewModel.editMessage(newContent: editedText)
+                                if viewModel.error == nil {
+                                    toastMessage = "toast_message_edited".localized
+                                }
+                            }
+                        },
+                        onImagePickerTapped: { showImagePicker = true },
+                        onCameraTapped: {
+                            // Camera will be handled via UIImagePickerController from the VC
+                        },
+                        onAudioRecorded: { audioURL, duration in
+                            viewModel.clearOwnTypingStatus()
+                            Task {
+                                await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyingToMessage?.id)
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    replyingToMessage = nil
+                                }
+                            }
+                        },
+                        onLocationRequested: {
+                            showLocationPicker = true
+                        },
+                        onCancelReply: {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                replyingToMessage = nil
+                            }
+                        },
+                        onCancelEdit: {
+                            viewModel.cancelEdit()
+                        },
+                        onTypingChanged: { viewModel.userDidType() }
                     )
                     .accessibilityIdentifier("messages.thread.scroll")
                     .onAppear {
@@ -466,54 +514,22 @@ struct ConversationDetailView: View {
                 TypingIndicatorView(typingUsers: viewModel.typingUsers)
                     .padding(.horizontal)
             }
-            ConversationInputContainer(
-                imageToSend: $imageToSend,
-                editingMessage: viewModel.editingMessage,
-                replyingTo: replyingToMessage,
-                focusState: $isInputFocused,
-                onSendEdit: { editedText in
-                    await viewModel.editMessage(newContent: editedText)
-                    if viewModel.error == nil {
-                        toastMessage = "toast_message_edited".localized
-                        return true
-                    }
-                    return false
-                },
-                onSendMessage: { textToSend, image, replyToId in
-                    viewModel.clearOwnTypingStatus()
-                    await viewModel.sendMessage(textOverride: textToSend, image: image, replyToId: replyToId)
-                    imageToSend = nil
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        replyingToMessage = nil
-                    }
-                },
-                onImagePickerTapped: { showImagePicker = true },
-                onCancelReply: { replyingToMessage = nil },
-                onCancelEdit: {
-                    viewModel.cancelEdit()
-                },
-                onSendAudio: { audioURL, duration, replyToId in
-                    viewModel.clearOwnTypingStatus()
-                    await viewModel.sendAudioMessage(audioURL: audioURL, duration: duration, replyToId: replyToId)
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        replyingToMessage = nil
-                    }
-                },
-                onSendLocation: { latitude, longitude, name, replyToId in
-                    viewModel.clearOwnTypingStatus()
+        }
+        .sheet(isPresented: $showLocationPicker) {
+            LocationPickerSheet { coordinate, name in
+                viewModel.clearOwnTypingStatus()
+                Task {
                     await viewModel.sendLocationMessage(
-                        latitude: latitude,
-                        longitude: longitude,
+                        latitude: coordinate.latitude,
+                        longitude: coordinate.longitude,
                         locationName: name,
-                        replyToId: replyToId
+                        replyToId: replyingToMessage?.id
                     )
                     withAnimation(.easeOut(duration: 0.2)) {
                         replyingToMessage = nil
                     }
-                },
-                onTypingChanged: { viewModel.userDidType() }
-            )
-            .id("conversation.input.\(conversationId.uuidString)")
+                }
+            }
         }
     }
 
@@ -875,80 +891,6 @@ struct ConversationDetailView: View {
         }
     }
 }
-
-private struct ConversationInputContainer: View {
-    @Binding var imageToSend: UIImage?
-    let editingMessage: Message?
-    let replyingTo: ReplyContext?
-    let focusState: FocusState<Bool>.Binding
-    let onSendEdit: (String) async -> Bool
-    let onSendMessage: (String, UIImage?, UUID?) async -> Void
-    let onImagePickerTapped: () -> Void
-    let onCancelReply: () -> Void
-    let onCancelEdit: () -> Void
-    let onSendAudio: (URL, Double, UUID?) async -> Void
-    let onSendLocation: (Double, Double, String?, UUID?) async -> Void
-    let onTypingChanged: () -> Void
-
-    @State private var draftText: String = ""
-
-    var body: some View {
-        MessageInputBar(
-            text: $draftText,
-            imageToSend: $imageToSend,
-            onSend: handleSendTapped,
-            onImagePickerTapped: onImagePickerTapped,
-            isDisabled: draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageToSend == nil,
-            focusState: focusState,
-            replyingTo: replyingTo,
-            onCancelReply: onCancelReply,
-            editingMessage: editingMessage,
-            onCancelEdit: {
-                draftText = ""
-                onCancelEdit()
-            },
-            onAudioRecorded: { audioURL, duration in
-                Task {
-                    await onSendAudio(audioURL, duration, replyingTo?.id)
-                }
-            },
-            onLocationShare: { latitude, longitude, name in
-                Task {
-                    await onSendLocation(latitude, longitude, name, replyingTo?.id)
-                }
-            },
-            onTypingChanged: onTypingChanged
-        )
-        .onChange(of: editingMessage?.id) { _, _ in
-            draftText = editingMessage?.text ?? ""
-        }
-    }
-
-    private func handleSendTapped() {
-        if editingMessage != nil {
-            let editedText = draftText
-            guard !editedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            draftText = ""
-            Task {
-                let success = await onSendEdit(editedText)
-                if !success {
-                    draftText = editedText
-                }
-            }
-            return
-        }
-
-        let textToSend = draftText
-        let trimmed = textToSend.trimmingCharacters(in: .whitespacesAndNewlines)
-        let image = imageToSend
-        guard !trimmed.isEmpty || image != nil else { return }
-        draftText = ""
-        Task {
-            await onSendMessage(textToSend, image, replyingTo?.id)
-        }
-    }
-}
-
 
 /// ViewModel for managing conversation participants
 @MainActor
