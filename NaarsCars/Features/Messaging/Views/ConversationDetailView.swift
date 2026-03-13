@@ -87,10 +87,10 @@ struct ConversationDetailView: View {
         // For direct message (2 participants), show other person's name
         if participantsViewModel.participants.count == 2 {
             let otherParticipant = participantsViewModel.participants.first { $0.id != AuthService.shared.currentUserId }
-            return otherParticipant?.name ?? "Chat"
+            return otherParticipant?.name ?? "messaging_chat_fallback".localized
         }
-        
-        return "Chat"
+
+        return "messaging_chat_fallback".localized
     }
 
     private var threadAnchorId: String {
@@ -206,8 +206,8 @@ struct ConversationDetailView: View {
                 object: nil,
                 userInfo: ["conversationId": conversationId]
             )
-            // Stop observing typing indicators
-            viewModel.stopTypingObservation()
+            // Tear down all subscriptions: typing, search, reactions, observers
+            viewModel.stop()
 #if DEBUG
             debugFrameDropMonitor.stop()
 #endif
@@ -230,7 +230,7 @@ struct ConversationDetailView: View {
         .sheet(isPresented: $showReactionDetails) {
             reactionDetailsContent
         }
-        .alert("Unsend Message", isPresented: $showUnsendConfirmation) {
+        .alert("messaging_unsend_title".localized, isPresented: $showUnsendConfirmation) {
             unsendAlertActions
         } message: {
             Text("messaging_unsend_confirmation_message".localized)
@@ -270,10 +270,10 @@ struct ConversationDetailView: View {
 
     @ViewBuilder
     private var unsendAlertActions: some View {
-        Button("Cancel", role: .cancel) {
+        Button("common_cancel".localized, role: .cancel) {
             messageToUnsend = nil
         }
-        Button("Unsend", role: .destructive) {
+        Button("messaging_unsend_action".localized, role: .destructive) {
             if let message = messageToUnsend {
                 Task {
                     await viewModel.unsendMessage(id: message.id)
@@ -320,18 +320,10 @@ struct ConversationDetailView: View {
         )
     }
     
-    /// Cell configurations for MessagesCollectionView (hashable per-message display options).
+    /// Cell configurations — use the ViewModel's incrementally-updated cache
+    /// instead of recomputing O(3N) on every SwiftUI body evaluation.
     private var messageCellConfigurations: [UUID: MessageCellConfiguration] {
-        var configs: [UUID: MessageCellConfiguration] = [:]
-        for (index, message) in viewModel.messages.enumerated() {
-            configs[message.id] = MessageCellConfiguration(
-                messageId: message.id,
-                isFirstInSeries: isFirstInSeries(at: index),
-                isLastInSeries: isLastInSeries(at: index),
-                showDateSeparator: shouldShowDateSeparator(at: index)
-            )
-        }
-        return configs
+        viewModel.messageCellConfigurations
     }
 
     @State private var shouldScrollToBottom = false
