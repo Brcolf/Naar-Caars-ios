@@ -31,7 +31,7 @@ final class ConversationDetailViewModel: ObservableObject {
     let paginationManager: MessagePaginationManager
     let sendManager: MessageSendManager
     
-    var typingUsers: [TypingUser] { typingManager.typingUsers }
+    @Published private(set) var typingUsers: [TypingUser] = []
     var searchText: String {
         get { searchManager.searchText }
         set { searchManager.searchText = newValue }
@@ -88,6 +88,7 @@ final class ConversationDetailViewModel: ObservableObject {
         setupMetadataObservation()
         setupConversationUpdatedObserver()
         setupReactionChangedObserver()
+        observeTypingUsers()
     }
     
     // MARK: - Cell Configuration Cache
@@ -262,6 +263,21 @@ final class ConversationDetailViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    /// Bridge @Observable typing manager changes to @Published for ObservableObject consumers.
+    /// Uses withObservationTracking to re-register after each change.
+    private func observeTypingUsers() {
+        withObservationTracking {
+            let users = self.typingManager.typingUsers
+            if users != self.typingUsers {
+                self.typingUsers = users
+            }
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.observeTypingUsers()
+            }
+        }
     }
 
     private func refreshReactions(for messageId: UUID) async {

@@ -98,7 +98,8 @@ final class LinkPreviewBubbleView: UIView {
 
         isAccessibilityElement = true
         accessibilityTraits = .link
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_open_link", comment: "")
+        accessibilityHint = NSLocalizedString("accessibility_tap_to_open_link", comment: "Hint for tapping a link preview to open in browser")
+        accessibilityIdentifier = "message.linkPreview"
 
         applyColors()
 

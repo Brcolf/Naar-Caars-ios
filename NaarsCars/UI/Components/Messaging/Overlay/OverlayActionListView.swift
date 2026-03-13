@@ -60,13 +60,13 @@ final class OverlayActionListView: UIView {
         var items: [ActionItem] = []
 
         // Reply — always
-        items.append(ActionItem(action: .reply, title: NSLocalizedString("Reply", comment: ""), icon: "arrow.uturn.left", isDestructive: false))
+        items.append(ActionItem(action: .reply, title: NSLocalizedString("Reply", comment: "Message action: reply to this message"), icon: "arrow.uturn.left", isDestructive: false))
 
         // View Thread — if this message is a reply (has a parent thread)
         if let replyToId = message.replyToId {
             items.append(ActionItem(
                 action: .viewThread(replyToId),
-                title: NSLocalizedString("messaging_view_thread", comment: ""),
+                title: NSLocalizedString("messaging_view_thread", comment: "Message action: open the reply thread"),
                 icon: "bubble.left.and.bubble.right",
                 isDestructive: false
             ))
@@ -74,7 +74,7 @@ final class OverlayActionListView: UIView {
 
         // Copy — if text is non-empty
         if !message.text.isEmpty {
-            items.append(ActionItem(action: .copy, title: NSLocalizedString("Copy", comment: ""), icon: "doc.on.doc", isDestructive: false))
+            items.append(ActionItem(action: .copy, title: NSLocalizedString("Copy", comment: "Message action: copy message text to clipboard"), icon: "doc.on.doc", isDestructive: false))
         }
 
         // Edit — sent messages, text-only (not audio, not location, not image-only)
@@ -82,20 +82,20 @@ final class OverlayActionListView: UIView {
            message.messageType == .text || message.messageType == nil,
            !message.isAudioMessage,
            !message.isLocationMessage {
-            items.append(ActionItem(action: .edit, title: NSLocalizedString("Edit", comment: ""), icon: "pencil", isDestructive: false))
+            items.append(ActionItem(action: .edit, title: NSLocalizedString("Edit", comment: "Message action: edit own message text"), icon: "pencil", isDestructive: false))
         }
 
         // Undo Send — sent messages within 15 min
         if isFromCurrentUser, message.canUnsend {
-            items.append(ActionItem(action: .unsend, title: NSLocalizedString("messaging_undo_send", comment: ""), icon: "arrow.uturn.backward", isDestructive: true))
+            items.append(ActionItem(action: .unsend, title: NSLocalizedString("messaging_undo_send", comment: "Message action: recall sent message within time limit"), icon: "arrow.uturn.backward", isDestructive: true))
         }
 
         // Delete for Me — always
-        items.append(ActionItem(action: .deleteForMe, title: NSLocalizedString("Delete for Me", comment: ""), icon: "trash", isDestructive: true))
+        items.append(ActionItem(action: .deleteForMe, title: NSLocalizedString("messaging_delete_for_me", comment: "Message action: delete message for current user only"), icon: "trash", isDestructive: true))
 
         // Report — received messages only
         if !isFromCurrentUser {
-            items.append(ActionItem(action: .report, title: NSLocalizedString("messaging_report_message", comment: ""), icon: "exclamationmark.triangle", isDestructive: true))
+            items.append(ActionItem(action: .report, title: NSLocalizedString("messaging_report_message", comment: "Message action: report inappropriate message"), icon: "exclamationmark.triangle", isDestructive: true))
         }
 
         return items
@@ -144,6 +144,7 @@ final class OverlayActionListView: UIView {
         config.baseForegroundColor = item.isDestructive ? .systemRed : .label
         button.configuration = config
         button.contentHorizontalAlignment = .leading
+        button.accessibilityIdentifier = "overlay.action.\(item.action.accessibilityName)"
 
         NSLayoutConstraint.activate([
             button.heightAnchor.constraint(equalToConstant: 44),

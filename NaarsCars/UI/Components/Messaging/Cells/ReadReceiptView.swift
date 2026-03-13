@@ -102,17 +102,18 @@ final class ReadReceiptView: UIView {
 
         isAccessibilityElement = true
         accessibilityTraits = .staticText
+        accessibilityIdentifier = "message.readReceipt"
         switch status {
         case .failed:
-            accessibilityLabel = NSLocalizedString("accessibility_status_failed", comment: "")
+            accessibilityLabel = NSLocalizedString("accessibility_status_failed", comment: "Message delivery status: failed to send")
         case .sending:
-            accessibilityLabel = NSLocalizedString("accessibility_status_sending", comment: "")
+            accessibilityLabel = NSLocalizedString("accessibility_status_sending", comment: "Message delivery status: currently sending")
         case .sent:
-            accessibilityLabel = NSLocalizedString("accessibility_status_sent", comment: "")
+            accessibilityLabel = NSLocalizedString("accessibility_status_sent", comment: "Message delivery status: sent to server")
         case .delivered:
-            accessibilityLabel = NSLocalizedString("accessibility_status_delivered", comment: "")
+            accessibilityLabel = NSLocalizedString("accessibility_status_delivered", comment: "Message delivery status: delivered to recipient")
         case .read:
-            accessibilityLabel = NSLocalizedString("accessibility_status_read", comment: "")
+            accessibilityLabel = NSLocalizedString("accessibility_status_read", comment: "Message delivery status: read by recipient")
         }
 
         setNeedsLayout()
@@ -226,6 +227,10 @@ final class ReadReceiptView: UIView {
     func prepareForReuse() {
         hideAll()
         isGroupMode = false
+        // Reset excess avatar views to prevent stale state
+        for av in avatarViews {
+            av.prepareForReuse()
+        }
     }
 
     // MARK: - Helpers

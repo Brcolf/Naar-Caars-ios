@@ -107,6 +107,8 @@ final class ReactionBarView: UIView {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setTitle(emoji, for: .normal)
+        // Use a fixed size appropriate for emoji rendering; emoji glyphs do not
+        // benefit from Dynamic Type scaling as they are pictographic, not text.
         button.titleLabel?.font = .systemFont(ofSize: 22)
         button.layer.cornerRadius = buttonSize / 2
         button.clipsToBounds = true
@@ -121,8 +123,12 @@ final class ReactionBarView: UIView {
             button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.25)
             button.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
             button.accessibilityTraits = [.button, .selected]
+            button.accessibilityHint = NSLocalizedString("accessibility_reaction_remove_hint", comment: "Hint for removing an already-selected reaction")
+        } else {
+            button.accessibilityHint = NSLocalizedString("accessibility_reaction_add_hint", comment: "Hint for adding a reaction")
         }
         button.accessibilityLabel = emoji
+        button.accessibilityIdentifier = "overlay.reaction.\(emoji)"
 
         button.addAction(UIAction { [weak self] _ in
             guard let self else { return }

@@ -43,7 +43,7 @@ struct TypingIndicatorView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
                     .background(
-                        BubbleShape(isFromCurrentUser: false, showTail: true)
+                        RoundedRectangle(cornerRadius: 18)
                             .fill(Color(.systemGray5))
                     )
                     .scaleEffect(isPulsing ? 1.04 : 1.0)

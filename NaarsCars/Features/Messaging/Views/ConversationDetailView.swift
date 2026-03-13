@@ -905,80 +905,6 @@ final class ConversationParticipantsViewModel: ObservableObject {
     }
 }
 
-// MARK: - Date Separator View
-
-/// Shows a date separator between messages from different days
-struct DateSeparatorView: View {
-    let date: Date
-    
-    private var dateText: String {
-        let calendar = Calendar.current
-        
-        if calendar.isDateInToday(date) {
-            return "Today"
-        } else if calendar.isDateInYesterday(date) {
-            return "Yesterday"
-        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
-            // Same week - show day name
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEEE"
-            return formatter.string(from: date)
-        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
-            // Same year
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMMM d"
-            return formatter.string(from: date)
-        } else {
-            // Different year
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMMM d, yyyy"
-            return formatter.string(from: date)
-        }
-    }
-    
-    var body: some View {
-        HStack {
-            VStack { Divider() }
-            
-            Text(dateText)
-                .font(.naarsFootnote).fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(Color.naarsCardBackground)
-                )
-            
-            VStack { Divider() }
-        }
-        .padding(.horizontal)
-    }
-}
-
-// MARK: - Reply Thread Spine
-
-struct ReplyThreadSpineView: View {
-    let showTop: Bool
-    let showBottom: Bool
-
-    var body: some View {
-        GeometryReader { geometry in
-            let height = geometry.size.height
-            let topInset = showTop ? 0 : height * 0.35
-            let bottomInset = showBottom ? height : height * 0.65
-
-            Path { path in
-                let x = geometry.size.width / 2
-                path.move(to: CGPoint(x: x, y: topInset))
-                path.addLine(to: CGPoint(x: x, y: bottomInset))
-            }
-            .stroke(Color.secondary.opacity(0.35), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-        }
-    }
-}
-
-
 // MARK: - Thread View
 
 private struct ThreadParent: Identifiable {
@@ -1087,11 +1013,3 @@ private final class DebugFrameDropMonitor: NSObject, ObservableObject {
     }
 }
 
-#Preview("Date Separator") {
-    VStack(spacing: 20) {
-        DateSeparatorView(date: Date())
-        DateSeparatorView(date: Date().addingTimeInterval(-86400)) // Yesterday
-        DateSeparatorView(date: Date().addingTimeInterval(-86400 * 3)) // 3 days ago
-    }
-    .padding()
-}
