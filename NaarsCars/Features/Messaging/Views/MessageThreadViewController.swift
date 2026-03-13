@@ -584,6 +584,7 @@ extension MessageThreadViewController: MessageCellDelegate {
         let closeBtn = UIButton(type: .system)
         closeBtn.setImage(UIImage(systemName: "xmark"), for: .normal)
         closeBtn.tintColor = .white
+        closeBtn.accessibilityLabel = NSLocalizedString("accessibility_close", comment: "")
         closeBtn.translatesAutoresizingMaskIntoConstraints = false
         imageVC.view.addSubview(closeBtn)
         NSLayoutConstraint.activate([
