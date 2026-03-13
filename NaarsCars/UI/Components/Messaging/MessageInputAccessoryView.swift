@@ -420,14 +420,24 @@ final class MessageInputAccessoryView: UIView {
         contextBanner.addSubview(bannerPreviewLabel)
         contextBanner.addSubview(bannerCancelButton)
 
+        // Vertical padding constraints use .defaultHigh so they yield to
+        // the height=0 constraint when the banner is hidden, avoiding
+        // "Unable to simultaneously satisfy constraints" warnings.
+        let accentTop = bannerAccentBar.topAnchor.constraint(equalTo: contextBanner.topAnchor, constant: 10)
+        accentTop.priority = .defaultHigh
+        let accentBottom = bannerAccentBar.bottomAnchor.constraint(equalTo: contextBanner.bottomAnchor, constant: -10)
+        accentBottom.priority = .defaultHigh
+        let titleTop = bannerTitleLabel.topAnchor.constraint(equalTo: contextBanner.topAnchor, constant: 10)
+        titleTop.priority = .defaultHigh
+
         NSLayoutConstraint.activate([
             bannerAccentBar.leadingAnchor.constraint(equalTo: contextBanner.leadingAnchor, constant: 12),
-            bannerAccentBar.topAnchor.constraint(equalTo: contextBanner.topAnchor, constant: 10),
-            bannerAccentBar.bottomAnchor.constraint(equalTo: contextBanner.bottomAnchor, constant: -10),
+            accentTop,
+            accentBottom,
             bannerAccentBar.widthAnchor.constraint(equalToConstant: 3),
 
             bannerTitleLabel.leadingAnchor.constraint(equalTo: bannerAccentBar.trailingAnchor, constant: 10),
-            bannerTitleLabel.topAnchor.constraint(equalTo: contextBanner.topAnchor, constant: 10),
+            titleTop,
             bannerTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: bannerCancelButton.leadingAnchor, constant: -8),
 
             bannerPreviewLabel.leadingAnchor.constraint(equalTo: bannerTitleLabel.leadingAnchor),

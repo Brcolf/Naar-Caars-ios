@@ -323,11 +323,14 @@ final class ConversationDetailViewModel: ObservableObject {
         await loadReactionsForMessages()
     }
 
-    /// Fetch reactions for all currently loaded messages
+    /// Fetch reactions for all currently loaded messages.
+    /// Results are collected first, then applied in a single batch mutation
+    /// to avoid triggering N separate SwiftUI re-renders.
     private func loadReactionsForMessages() async {
         let messageIds = messages.map(\.id)
         guard !messageIds.isEmpty else { return }
 
+        var results: [(UUID, MessageReactions?)] = []
         await withTaskGroup(of: (UUID, MessageReactions?).self) { group in
             for id in messageIds {
                 group.addTask {
@@ -335,11 +338,16 @@ final class ConversationDetailViewModel: ObservableObject {
                     return (id, reactions)
                 }
             }
-            for await (id, reactions) in group {
-                if let index = messages.firstIndex(where: { $0.id == id }) {
-                    let hasReactions = reactions != nil && !(reactions!.reactions.isEmpty)
-                    messages[index].reactions = hasReactions ? reactions : nil
-                }
+            for await result in group {
+                results.append(result)
+            }
+        }
+
+        // Single batch mutation — one re-render instead of N
+        for (id, reactions) in results {
+            if let index = messages.firstIndex(where: { $0.id == id }) {
+                let hasReactions = reactions != nil && !(reactions!.reactions.isEmpty)
+                messages[index].reactions = hasReactions ? reactions : nil
             }
         }
     }
