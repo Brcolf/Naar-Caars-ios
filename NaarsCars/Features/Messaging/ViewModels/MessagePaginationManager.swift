@@ -18,6 +18,10 @@ final class MessagePaginationManager {
     private var isLoadingMessagesInFlight = false
     private var isMarkReadInFlight = false
 
+    /// The first message the current user hasn't read, computed on initial load only.
+    private(set) var firstUnreadMessageId: UUID?
+    private var hasComputedFirstUnread = false
+
     func loadMessages(
         conversationId: UUID,
         repository: MessagingRepository,
@@ -57,6 +61,16 @@ final class MessagePaginationManager {
             setMessages(localMessages)
             oldestMessageId = localMessages.first?.id
             setHasMoreMessages((localCountBeforeTrim > localMessages.count) || localMessages.count >= pageSize)
+
+            // Compute first unread message on initial load only
+            if !hasComputedFirstUnread, let userId = authService.currentUserId {
+                hasComputedFirstUnread = true
+                // Messages are sorted chronologically (oldest first).
+                // Find the first message not from the current user that hasn't been read.
+                firstUnreadMessageId = localMessages.first(where: { message in
+                    message.fromId != userId && !message.readBy.contains(userId)
+                })?.id
+            }
         }
 
         setIsLoading(false)

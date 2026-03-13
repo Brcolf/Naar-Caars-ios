@@ -88,6 +88,31 @@ final class FlippedDateSeparatorCell: UICollectionViewCell {
     }
 }
 
+/// Flipped wrapper for UnreadDividerView so it renders correctly in
+/// the bottom-up (scaleY: -1) collection view.
+final class FlippedUnreadDividerCell: UICollectionViewCell {
+
+    let dividerView = UnreadDividerView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.addSubview(dividerView)
+        contentView.transform = CGAffineTransform(scaleX: 1, y: -1)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        dividerView.frame = contentView.bounds
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        dividerView.prepareForReuse()
+    }
+}
+
 /// UIViewRepresentable wrapping UICollectionView for the messages list
 struct MessagesCollectionView: UIViewRepresentable {
     let messages: [Message]

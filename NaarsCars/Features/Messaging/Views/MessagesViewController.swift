@@ -23,6 +23,11 @@ final class MessagesViewController: UIViewController {
         var scrollToMessageId: UUID?
         var scrollToBottom: Bool = false
 
+        // Unread divider
+        var firstUnreadMessageId: UUID?
+        var unreadCount: Int = 0
+        var showUnreadDivider: Bool = false
+
         // Callbacks (kept as closures to avoid tight coupling to SwiftUI)
         var onLongPress: ((Message, CGRect, UIView?) -> Void)?
         var onSwipeReply: ((Message) -> Void)?
@@ -32,6 +37,7 @@ final class MessagesViewController: UIViewController {
         var onReactionTap: ((Message, String?) -> Void)?
         var onLoadMore: (() -> Void)?
         var onScrolledToBottom: ((Bool) -> Void)?
+        var onUnreadDividerDismissed: (() -> Void)?
     }
 
     var configuration = Configuration() {
@@ -80,6 +86,10 @@ final class MessagesViewController: UIViewController {
     private var dateSeparatorDates: [String: Date] = [:]
     private var lastSnapshotCount = 0
     private var isAtBottom = true
+    /// The item identifier for the currently-inserted unread divider, e.g. "unread:3".
+    private var unreadDividerItemId: String?
+    /// Whether we already performed the initial scroll-to-unread on first load.
+    private var didScrollToFirstUnread = false
 
     private var lastAppliedFingerprint: UpdateFingerprint?
 
@@ -167,11 +177,19 @@ final class MessagesViewController: UIViewController {
             cell.dateSeparator.configure(date: date)
         }
 
+        let unreadDividerRegistration = UICollectionView.CellRegistration<FlippedUnreadDividerCell, String> { cell, _, itemId in
+            // Extract count from "unread:<count>"
+            let count = Int(itemId.replacingOccurrences(of: "unread:", with: "")) ?? 0
+            cell.dividerView.configure(count: count)
+        }
+
         dataSource = UICollectionViewDiffableDataSource<Int, String>(
             collectionView: collectionView
         ) { (collectionView, indexPath, itemId) -> UICollectionViewCell? in
             if itemId.hasPrefix("date:") {
                 return collectionView.dequeueConfiguredReusableCell(using: dateSeparatorRegistration, for: indexPath, item: itemId)
+            } else if itemId.hasPrefix("unread:") {
+                return collectionView.dequeueConfiguredReusableCell(using: unreadDividerRegistration, for: indexPath, item: itemId)
             } else {
                 return collectionView.dequeueConfiguredReusableCell(using: messageCellRegistration, for: indexPath, item: itemId)
             }
@@ -225,6 +243,46 @@ final class MessagesViewController: UIViewController {
             let currentSeparatorIds = Set(items.filter { $0.hasPrefix("date:") })
             dateSeparatorDates = dateSeparatorDates.filter { currentSeparatorIds.contains($0.key) }
 
+            // Insert unread divider if applicable
+            let shouldInsertDivider = config.showUnreadDivider && config.unreadCount > 0 && config.firstUnreadMessageId != nil
+            var unreadItemId: String?
+            if shouldInsertDivider, let firstUnreadId = config.firstUnreadMessageId {
+                let targetItemId = firstUnreadId.uuidString
+                if items.contains(targetItemId) {
+                    let divId = "unread:\(config.unreadCount)"
+                    // In the reversed/flipped list, the unread divider goes *after* the
+                    // first-unread message item (which visually appears *above* it).
+                    if let idx = items.firstIndex(of: targetItemId) {
+                        items.insert(divId, at: idx + 1)
+                    }
+                    unreadItemId = divId
+                } else {
+                    // Fallback: find the next chronologically-later message (earlier in the reversed list)
+                    let chronological = config.messages
+                    if let fallbackIdx = chronological.firstIndex(where: { $0.id == firstUnreadId }) {
+                        // Try messages after it in chronological order (reversed = before in items)
+                        var fallbackItemId: String?
+                        for i in stride(from: fallbackIdx + 1, to: chronological.count, by: 1) {
+                            let candidateId = chronological[i].id.uuidString
+                            if items.contains(candidateId) {
+                                fallbackItemId = candidateId
+                                break
+                            }
+                        }
+                        if let fallback = fallbackItemId {
+                            let divId = "unread:\(config.unreadCount)"
+                            // In reversed list, chronologically-later messages come before,
+                            // so insert the divider after the fallback item.
+                            if let idx = items.firstIndex(of: fallback) {
+                                items.insert(divId, at: idx + 1)
+                            }
+                            unreadItemId = divId
+                        }
+                    }
+                }
+            }
+            self.unreadDividerItemId = unreadItemId
+
             snapshot.appendItems(items, toSection: 0)
 
             let isInitialLoad = lastSnapshotCount == 0 && !config.messages.isEmpty
@@ -237,6 +295,20 @@ final class MessagesViewController: UIViewController {
             } else {
                 dataSource?.apply(snapshot, animatingDifferences: true)
             }
+
+            // On initial load with unread messages, scroll to the first unread
+            if isInitialLoad && !didScrollToFirstUnread,
+               let firstUnreadId = config.firstUnreadMessageId,
+               config.showUnreadDivider {
+                didScrollToFirstUnread = true
+                let scrollTarget = firstUnreadId.uuidString
+                if let indexPath = dataSource?.indexPath(for: scrollTarget) {
+                    // Slight delay to let the layout settle after initial snapshot apply
+                    DispatchQueue.main.async { [weak self] in
+                        self?.collectionView.scrollToItem(at: indexPath, at: .bottom, animated: false)
+                    }
+                }
+            }
         }
 
         // Reconfigure visible cells for content-only changes
@@ -244,7 +316,7 @@ final class MessagesViewController: UIViewController {
         if !isInitialLoad, let dataSource {
             let visibleIds = collectionView.indexPathsForVisibleItems.compactMap {
                 dataSource.itemIdentifier(for: $0)
-            }.filter { !$0.hasPrefix("date:") }
+            }.filter { !$0.hasPrefix("date:") && !$0.hasPrefix("unread:") }
             if !visibleIds.isEmpty {
                 var reconfigureSnapshot = dataSource.snapshot()
                 reconfigureSnapshot.reconfigureItems(visibleIds)
@@ -297,6 +369,21 @@ extension MessagesViewController: UICollectionViewDelegate {
         if contentHeight > frameHeight && offsetY > contentHeight - frameHeight - 200 {
             configuration.onLoadMore?()
         }
+
+        // Dismiss unread divider when the user reaches the bottom (all unreads scrolled past)
+        if isAtBottom {
+            dismissUnreadDividerIfNeeded()
+        }
+    }
+
+    private func dismissUnreadDividerIfNeeded() {
+        guard let dividerId = unreadDividerItemId, let dataSource else { return }
+        var snapshot = dataSource.snapshot()
+        guard snapshot.itemIdentifiers.contains(dividerId) else { return }
+        snapshot.deleteItems([dividerId])
+        unreadDividerItemId = nil
+        dataSource.apply(snapshot, animatingDifferences: true)
+        configuration.onUnreadDividerDismissed?()
     }
 }
 

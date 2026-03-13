@@ -52,6 +52,15 @@ final class ConversationDetailViewModel: ObservableObject {
     @Published private(set) var unreadCount: Int = 0
     @Published private(set) var hasLeftConversation: Bool = false
 
+    /// Tracks whether the unread divider has been shown for this session.
+    /// Once the user scrolls past it, this becomes `true` and the divider is not re-shown.
+    @Published var hasShownUnreadDivider: Bool = false
+
+    /// The first unread message ID from the initial load, forwarded from the pagination manager.
+    var firstUnreadMessageId: UUID? {
+        paginationManager.firstUnreadMessageId
+    }
+
     let conversationId: UUID
     private let messageService: any MessageServiceProtocol
     private let authService: any AuthServiceProtocol

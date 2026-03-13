@@ -30,6 +30,12 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     let scrollToMessageId: UUID?
     let scrollToBottom: Bool
 
+    // Unread divider
+    let firstUnreadMessageId: UUID?
+    let unreadCount: Int
+    let showUnreadDivider: Bool
+    let onUnreadDividerDismissed: () -> Void
+
     // MARK: Input Bar Props
 
     let replyContext: ReplyContext?
@@ -74,6 +80,10 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         config.scrollToMessageId = scrollToMessageId
         config.scrollToBottom = scrollToBottom
 
+        config.firstUnreadMessageId = firstUnreadMessageId
+        config.unreadCount = unreadCount
+        config.showUnreadDivider = showUnreadDivider
+
         config.onLongPress = onLongPress
         config.onSwipeReply = onSwipeReply
         config.onImageTap = onImageTap
@@ -82,6 +92,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         config.onReactionTap = onReactionTap
         config.onLoadMore = onLoadMore
         config.onScrolledToBottom = onScrolledToBottom
+        config.onUnreadDividerDismissed = onUnreadDividerDismissed
 
         vc.configuration = config
 

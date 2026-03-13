@@ -19,6 +19,7 @@
 		CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000A /* ReplyPreviewView.swift */; };
 		CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000B /* DateSeparatorCell.swift */; };
 		CE110001AAAA00000000000C /* AvatarUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000C /* AvatarUIView.swift */; };
+		CE110001AAAA00000000000D /* UnreadDividerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000D /* UnreadDividerView.swift */; };
 		01E6A8138836046AD14DFDC3 /* ConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29FD8E458AE888861E9F4FC0 /* ConversationService.swift */; };
 		0280A9FF8783E0B8C339C2C4 /* TypingIndicatorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CDDC8E455AA632FACFCB95 /* TypingIndicatorManager.swift */; };
 		06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6919D6DE589147EA882BA5C2 /* View+Extensions.swift */; };
@@ -471,6 +472,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		CE110002AAAA00000000000A /* ReplyPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyPreviewView.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000B /* DateSeparatorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateSeparatorCell.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000C /* AvatarUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarUIView.swift; sourceTree = "<group>"; };
+		CE110002AAAA00000000000D /* UnreadDividerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadDividerView.swift; sourceTree = "<group>"; };
 		0203B70350D9463DBB993A31 /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		0356C00D127342B5A0288362 /* UI/Components/Cards/FavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/FavorCard.swift; sourceTree = "<group>"; };
 		052E6D74D4102679A004789F /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
@@ -1994,6 +1996,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110002AAAA000000000009 /* ReadReceiptView.swift */,
 				CE110002AAAA00000000000A /* ReplyPreviewView.swift */,
 				CE110002AAAA00000000000B /* DateSeparatorCell.swift */,
+				CE110002AAAA00000000000D /* UnreadDividerView.swift */,
 			);
 			path = Cells;
 			sourceTree = "<group>";
@@ -2338,6 +2341,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */,
 				CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */,
 				CE110001AAAA00000000000C /* AvatarUIView.swift in Sources */,
+				CE110001AAAA00000000000D /* UnreadDividerView.swift in Sources */,
 				5412C40716694F42A9B5BD40 /* Throttler.swift in Sources */,
 				799F2E0604D74163A88C8000 /* ReplyContextBuilder.swift in Sources */,
 				F6D9BEBA8B40714CBC8DC1B8 /* NotificationRepository.swift in Sources */,

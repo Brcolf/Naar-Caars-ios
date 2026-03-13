@@ -402,6 +402,12 @@ struct ConversationDetailView: View {
                         },
                         scrollToMessageId: viewModel.currentSearchResultId ?? highlightedMessageId,
                         scrollToBottom: shouldScrollToBottom,
+                        firstUnreadMessageId: viewModel.firstUnreadMessageId,
+                        unreadCount: viewModel.unreadCount,
+                        showUnreadDivider: !viewModel.hasShownUnreadDivider && viewModel.firstUnreadMessageId != nil,
+                        onUnreadDividerDismissed: {
+                            viewModel.hasShownUnreadDivider = true
+                        },
                         replyContext: replyingToMessage,
                         editingMessage: viewModel.editingMessage,
                         imageToSend: $imageToSend,
