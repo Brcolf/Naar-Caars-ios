@@ -159,6 +159,8 @@ final class InputBarController {
     }
 
     func setImage(_ image: UIImage) {
+        // Skip if already processing or ready with the same image instance
+        if let existing = attachmentState.previewImage, existing === image { return }
         attachmentGeneration &+= 1
         let gen = attachmentGeneration
         attachmentState = .processing(image)
