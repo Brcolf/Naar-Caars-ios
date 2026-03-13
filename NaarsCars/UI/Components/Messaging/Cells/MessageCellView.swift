@@ -231,12 +231,12 @@ final class MessageCellView: UIView {
             }()
             view.isHidden = false
             if let localPath = msg.localAttachmentPath {
-                view.configure(localPath: localPath) { [weak self] url in
+                view.configure(localPath: localPath, imageWidth: msg.imageWidth, imageHeight: msg.imageHeight) { [weak self] url in
                     guard let self else { return }
                     self.delegate?.messageCellDidTapImage(self, url: url)
                 }
             } else if let remoteUrl = msg.imageUrl {
-                view.configure(remoteUrl: remoteUrl) { [weak self] url in
+                view.configure(remoteUrl: remoteUrl, imageWidth: msg.imageWidth, imageHeight: msg.imageHeight) { [weak self] url in
                     guard let self else { return }
                     self.delegate?.messageCellDidTapImage(self, url: url)
                 }

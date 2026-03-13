@@ -32,6 +32,8 @@ struct MessagingMapper {
             replyToId: message.replyToId,
             audioUrl: message.audioUrl,
             audioDuration: message.audioDuration,
+            imageWidth: message.imageWidth,
+            imageHeight: message.imageHeight,
             latitude: message.latitude,
             longitude: message.longitude,
             locationName: message.locationName,
@@ -58,6 +60,8 @@ struct MessagingMapper {
             deletedAt: sdMessage.deletedAt,
             audioUrl: sdMessage.audioUrl,
             audioDuration: sdMessage.audioDuration,
+            imageWidth: sdMessage.imageWidth,
+            imageHeight: sdMessage.imageHeight,
             latitude: sdMessage.latitude,
             longitude: sdMessage.longitude,
             locationName: sdMessage.locationName,
@@ -99,6 +103,8 @@ struct MessagingMapper {
         let latitude = parseDouble(record["latitude"])
         let longitude = parseDouble(record["longitude"])
         let locationName = parseString(record["location_name"])
+        let imageWidth = parseInt(record["image_width"])
+        let imageHeight = parseInt(record["image_height"])
         let editedAt = parseDate(record["edited_at"])
         let deletedAt = parseDate(record["deleted_at"])
         
@@ -144,6 +150,8 @@ struct MessagingMapper {
             deletedAt: deletedAt,
             audioUrl: audioUrl,
             audioDuration: audioDuration,
+            imageWidth: imageWidth,
+            imageHeight: imageHeight,
             latitude: latitude,
             longitude: longitude,
             locationName: locationName
@@ -168,6 +176,15 @@ struct MessagingMapper {
                 return Date(timeIntervalSince1970: rawValue)
             }
         }
+        return nil
+    }
+
+    private static func parseInt(_ value: Any?) -> Int? {
+        let normalized = normalizeValue(value)
+        if let intValue = normalized as? Int { return intValue }
+        if let doubleValue = normalized as? Double { return Int(doubleValue) }
+        if let stringValue = normalized as? String { return Int(stringValue) }
+        if let numberValue = normalized as? NSNumber { return numberValue.intValue }
         return nil
     }
 

@@ -23,6 +23,8 @@ final class ImageBubbleView: UIView {
     private var imageURL: URL?
     private var lastLocalPath: String?
     private var lastRemoteUrl: String?
+    private var imageWidth: Int?
+    private var imageHeight: Int?
 
     // MARK: - Constants
 
@@ -65,6 +67,13 @@ final class ImageBubbleView: UIView {
 
     // MARK: - Configure
 
+    /// Configure with a remote URL string and optional image dimensions for aspect-ratio sizing.
+    func configure(remoteUrl: String, imageWidth: Int?, imageHeight: Int?, onTap: ((URL) -> Void)? = nil) {
+        self.imageWidth = imageWidth
+        self.imageHeight = imageHeight
+        configure(remoteUrl: remoteUrl, onTap: onTap)
+    }
+
     /// Configure with a remote URL string.
     func configure(remoteUrl: String, onTap: ((URL) -> Void)? = nil) {
         self.onTap = onTap
@@ -86,6 +95,13 @@ final class ImageBubbleView: UIView {
                 self.showError()
             }
         }
+    }
+
+    /// Configure with a local attachment path and optional image dimensions for aspect-ratio sizing.
+    func configure(localPath: String, imageWidth: Int?, imageHeight: Int?, onTap: ((URL) -> Void)? = nil) {
+        self.imageWidth = imageWidth
+        self.imageHeight = imageHeight
+        configure(localPath: localPath, onTap: onTap)
     }
 
     /// Configure with a local attachment path.
@@ -162,8 +178,20 @@ final class ImageBubbleView: UIView {
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let side = min(size.width, maxSize)
-        return CGSize(width: side, height: side)
+        guard let w = imageWidth, let h = imageHeight, w > 0, h > 0 else {
+            // Legacy fallback: square
+            let side = min(size.width, maxSize)
+            return CGSize(width: side, height: side)
+        }
+        let aspectRatio = CGFloat(h) / CGFloat(w)
+        var width = min(CGFloat(w), min(size.width, maxSize))
+        var height = width * aspectRatio
+        // Cap height at 300pt — but recalculate width to maintain aspect ratio
+        if height > 300 {
+            height = 300
+            width = height / aspectRatio
+        }
+        return CGSize(width: width, height: height)
     }
 
     // MARK: - Reuse
@@ -178,6 +206,8 @@ final class ImageBubbleView: UIView {
         imageURL = nil
         lastLocalPath = nil
         lastRemoteUrl = nil
+        imageWidth = nil
+        imageHeight = nil
     }
 
     // MARK: - Tap

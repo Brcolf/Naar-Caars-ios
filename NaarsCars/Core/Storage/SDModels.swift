@@ -60,6 +60,10 @@ final class SDMessage {
     var audioUrl: String?
     var audioDuration: Double?
     
+    // Image dimensions
+    var imageWidth: Int?
+    var imageHeight: Int?
+
     // Location
     var latitude: Double?
     var longitude: Double?
@@ -82,7 +86,7 @@ final class SDMessage {
     // Relationship
     var conversation: SDConversation?
     
-    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, isPending: Bool = false, status: String = "sent", localAttachmentPath: String? = nil) {
+    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, isPending: Bool = false, status: String = "sent", localAttachmentPath: String? = nil) {
         self.id = id
         self.conversationId = conversationId
         self.fromId = fromId
@@ -94,6 +98,8 @@ final class SDMessage {
         self.replyToId = replyToId
         self.audioUrl = audioUrl
         self.audioDuration = audioDuration
+        self.imageWidth = imageWidth
+        self.imageHeight = imageHeight
         self.latitude = latitude
         self.longitude = longitude
         self.locationName = locationName

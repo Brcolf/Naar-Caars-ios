@@ -477,7 +477,7 @@ final class MessageService {
     ///   - replyToId: Optional message ID being replied to
     /// - Returns: The created message
     /// - Throws: AppError if send fails
-    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, replyToId: UUID? = nil) async throws -> Message {
+    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, replyToId: UUID? = nil) async throws -> Message {
         // Security check: Verify user is an active participant (left_at IS NULL) or conversation creator
         let participantCheck = try? await supabase
             .from("conversation_participants")
@@ -538,7 +538,9 @@ final class MessageService {
             text: text,
             imageUrl: imageUrl,
             messageType: imageUrl != nil ? .image : .text,
-            replyToId: replyToId
+            replyToId: replyToId,
+            imageWidth: imageWidth,
+            imageHeight: imageHeight
         )
         
         let response = try await supabase

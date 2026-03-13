@@ -98,14 +98,22 @@ struct Message: Codable, Identifiable, Sendable {
     /// Duration of audio in seconds
     let audioDuration: Double?
     
+    // MARK: - Image Dimension Fields
+
+    /// Width of the image in points (for aspect-ratio rendering)
+    let imageWidth: Int?
+
+    /// Height of the image in points (for aspect-ratio rendering)
+    let imageHeight: Int?
+
     // MARK: - Location Message Fields
-    
+
     /// Latitude coordinate for location messages
     let latitude: Double?
-    
+
     /// Longitude coordinate for location messages
     let longitude: Double?
-    
+
     /// Human-readable location name/address
     let locationName: String?
     
@@ -176,6 +184,8 @@ struct Message: Codable, Identifiable, Sendable {
         case deletedAt = "deleted_at"
         case audioUrl = "audio_url"
         case audioDuration = "audio_duration"
+        case imageWidth = "image_width"
+        case imageHeight = "image_height"
         case latitude
         case longitude
         case locationName = "location_name"
@@ -199,6 +209,8 @@ struct Message: Codable, Identifiable, Sendable {
         deletedAt: Date? = nil,
         audioUrl: String? = nil,
         audioDuration: Double? = nil,
+        imageWidth: Int? = nil,
+        imageHeight: Int? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
         locationName: String? = nil,
@@ -222,6 +234,8 @@ struct Message: Codable, Identifiable, Sendable {
         self.deletedAt = deletedAt
         self.audioUrl = audioUrl
         self.audioDuration = audioDuration
+        self.imageWidth = imageWidth
+        self.imageHeight = imageHeight
         self.latitude = latitude
         self.longitude = longitude
         self.locationName = locationName
@@ -278,6 +292,8 @@ extension Message: Equatable {
                lhs.deletedAt == rhs.deletedAt &&
                lhs.audioUrl == rhs.audioUrl &&
                lhs.audioDuration == rhs.audioDuration &&
+               lhs.imageWidth == rhs.imageWidth &&
+               lhs.imageHeight == rhs.imageHeight &&
                lhs.latitude == rhs.latitude &&
                lhs.longitude == rhs.longitude &&
                lhs.locationName == rhs.locationName &&

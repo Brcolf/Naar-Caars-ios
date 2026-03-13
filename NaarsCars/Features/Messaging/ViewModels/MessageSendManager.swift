@@ -56,11 +56,18 @@ final class MessageSendManager {
         HapticManager.lightImpact()
 
         // Compress image off the main thread (once, reuse for both local storage and upload)
+        // Also capture the resized dimensions for aspect-ratio rendering
+        var imageWidth: Int?
+        var imageHeight: Int?
         let compressedImageData: Data? = await {
             guard let image else { return nil }
-            return await Task.detached(priority: .userInitiated) {
-                image.resizedForUpload(maxDimension: 1920).jpegData(compressionQuality: 0.7)
+            let result = await Task.detached(priority: .userInitiated) {
+                let resized = image.resizedForUpload(maxDimension: 1920)
+                return (resized.jpegData(compressionQuality: 0.7), Int(resized.size.width), Int(resized.size.height))
             }.value
+            imageWidth = result.1
+            imageHeight = result.2
+            return result.0
         }()
 
         var localPath: String? = nil
@@ -76,6 +83,8 @@ final class MessageSendManager {
             text: text,
             createdAt: Date(),
             replyToId: replyToId,
+            imageWidth: imageWidth,
+            imageHeight: imageHeight,
             sendStatus: .sending,
             localAttachmentPath: localPath
         )
@@ -119,6 +128,8 @@ final class MessageSendManager {
                 fromId: fromId,
                 text: text,
                 imageUrl: imageUrl,
+                imageWidth: imageWidth,
+                imageHeight: imageHeight,
                 replyToId: replyToId
             )
 
@@ -361,6 +372,8 @@ final class MessageSendManager {
                     fromId: fromId,
                     text: message.text,
                     imageUrl: imageUrl,
+                    imageWidth: message.imageWidth,
+                    imageHeight: message.imageHeight,
                     replyToId: message.replyToId
                 )
             }
