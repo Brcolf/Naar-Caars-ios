@@ -131,6 +131,8 @@ private final class ReactionCapsuleView: UIView {
         super.init(frame: frame)
 
         backgroundColor = .systemGray5
+        layer.borderWidth = 2
+        layer.borderColor = UIColor.systemBackground.cgColor
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.1
         layer.shadowOffset = CGSize(width: 0, height: 1)
@@ -176,5 +178,12 @@ private final class ReactionCapsuleView: UIView {
             w = hPad + emojiSize.width + spacing + countSize.width + hPad
         }
         return CGSize(width: w, height: emojiSize.height + vPad * 2)
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            layer.borderColor = UIColor.systemBackground.cgColor
+        }
     }
 }

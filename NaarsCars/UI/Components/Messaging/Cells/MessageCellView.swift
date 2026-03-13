@@ -148,6 +148,11 @@ final class MessageCellView: UIView {
     private func showRegular(config: MessageCellConfig) {
         let msg = config.message
 
+        // Resolve sender profile: prefer the joined sender, fall back to
+        // participantProfiles so group members show real names even when
+        // the Supabase join returns nil (RLS, deleted row, etc.).
+        let senderProfile = msg.sender ?? config.participantProfiles.first { $0.id == msg.fromId }
+
         // Avatar
         if config.showAvatar {
             let av = avatarView ?? {
@@ -159,8 +164,8 @@ final class MessageCellView: UIView {
             av.isHidden = false
             if config.isLastInSeries {
                 av.configure(
-                    imageUrl: msg.sender?.avatarUrl,
-                    name: msg.sender?.name ?? "messaging_deleted_user".localized,
+                    imageUrl: senderProfile?.avatarUrl,
+                    name: senderProfile?.name ?? "messaging_deleted_user".localized,
                     size: 28
                 )
             } else {
@@ -179,7 +184,7 @@ final class MessageCellView: UIView {
                 return l
             }()
             lbl.isHidden = false
-            lbl.text = msg.sender?.name ?? "messaging_deleted_user".localized
+            lbl.text = senderProfile?.name ?? "messaging_deleted_user".localized
         }
 
         // Reply preview
@@ -465,7 +470,7 @@ final class MessageCellView: UIView {
         // Reaction badge (anchored to first content view)
         if let primary = primaryContentView, let rb = reactionBadge, !rb.isHidden {
             let rbSize = rb.sizeThatFits(.zero)
-            let rbX = config.isFromCurrentUser ? primary.frame.minX : primary.frame.maxX - rbSize.width
+            let rbX = config.isFromCurrentUser ? primary.frame.minX + 8 : primary.frame.maxX - rbSize.width - 8
             rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height / 2, width: rbSize.width, height: rbSize.height)
         }
 
