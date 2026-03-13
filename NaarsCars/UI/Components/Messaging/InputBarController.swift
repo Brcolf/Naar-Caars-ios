@@ -179,6 +179,7 @@ final class InputBarController {
     }
 
     func clearAttachment() {
+        guard attachmentState != .none else { return }
         attachmentGeneration &+= 1
         attachmentState = .none
     }
