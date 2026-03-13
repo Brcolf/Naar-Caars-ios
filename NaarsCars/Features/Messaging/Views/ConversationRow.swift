@@ -107,6 +107,11 @@ struct ConversationRow: View {
         }
         .padding(.vertical, 11)
         .contentShape(Rectangle()) // Make entire row tappable
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(conversationRowAccessibilityLabel)
+        .accessibilityHint(conversationDetail.unreadCount > 0
+            ? "\(conversationDetail.unreadCount) " + "messaging_unread".localized
+            : "")
     }
     
     /// Generate preview text for the message
@@ -130,15 +135,25 @@ struct ConversationRow: View {
         if let title = conversationDetail.conversation.title, !title.isEmpty {
             return title
         }
-        
+
         // Priority 2: Participant names (comma-separated)
         if !conversationDetail.otherParticipants.isEmpty {
             let names = conversationDetail.otherParticipants.map { $0.name }
             return names.joined(separator: ", ")
         }
-        
+
         // Fallback
         return "Unknown"
+    }
+
+    private var conversationRowAccessibilityLabel: String {
+        var parts: [String] = [conversationTitle]
+        if isMuted { parts.append("messaging_muted".localized) }
+        if let lastMessage = conversationDetail.lastMessage {
+            parts.append(messagePreviewText(lastMessage))
+            parts.append(lastMessage.createdAt.timeAgoString)
+        }
+        return parts.joined(separator: ", ")
     }
 }
 

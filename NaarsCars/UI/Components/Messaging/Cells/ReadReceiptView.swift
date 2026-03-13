@@ -100,6 +100,21 @@ final class ReadReceiptView: UIView {
             doubleCheck2.tintColor = UIColor.naarsPrimary
         }
 
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
+        switch status {
+        case .failed:
+            accessibilityLabel = NSLocalizedString("accessibility_status_failed", comment: "")
+        case .sending:
+            accessibilityLabel = NSLocalizedString("accessibility_status_sending", comment: "")
+        case .sent:
+            accessibilityLabel = NSLocalizedString("accessibility_status_sent", comment: "")
+        case .delivered:
+            accessibilityLabel = NSLocalizedString("accessibility_status_delivered", comment: "")
+        case .read:
+            accessibilityLabel = NSLocalizedString("accessibility_status_read", comment: "")
+        }
+
         setNeedsLayout()
     }
 
@@ -140,6 +155,26 @@ final class ReadReceiptView: UIView {
                 doubleCheck2.isHidden = false
                 doubleCheck1.tintColor = UIColor.naarsPrimary
                 doubleCheck2.tintColor = UIColor.naarsPrimary
+            }
+        }
+
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
+        if isGroupMode && !readByProfiles.isEmpty {
+            let names = readByProfiles.prefix(3).map { $0.name }.joined(separator: ", ")
+            accessibilityLabel = String(format: NSLocalizedString("accessibility_read_by", comment: ""), names)
+        } else {
+            switch status {
+            case .failed:
+                accessibilityLabel = NSLocalizedString("accessibility_status_failed", comment: "")
+            case .sending:
+                accessibilityLabel = NSLocalizedString("accessibility_status_sending", comment: "")
+            case .sent:
+                accessibilityLabel = NSLocalizedString("accessibility_status_sent", comment: "")
+            case .delivered:
+                accessibilityLabel = NSLocalizedString("accessibility_status_delivered", comment: "")
+            case .read:
+                accessibilityLabel = NSLocalizedString("accessibility_status_read", comment: "")
             }
         }
 
