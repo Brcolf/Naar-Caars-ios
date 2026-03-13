@@ -21,7 +21,7 @@
 | File | Responsibility |
 |------|---------------|
 | `NaarsCars/UI/Components/Messaging/InputBarController.swift` | `@Observable` shared state for text, mode, attachments, recording coordination, callbacks |
-| `NaarsCars/UI/Components/Messaging/AudioRecordingCoordinator.swift` | `AVAudioRecorder` lifecycle, waveform sampling, recording file management |
+| `NaarsCars/UI/Components/Messaging/AudioRecordingCoordinator.swift` | `AVAudioRecorder` lifecycle, recording duration timer, file management |
 | `NaarsCars/UI/Components/Messaging/FrozenConversationBanner.swift` | SwiftUI banner shown when user has left conversation |
 
 ### Modified Files
@@ -603,7 +603,14 @@ final class InputBarController {
         let gen = attachmentGeneration
         attachmentState = .processing(image)
         Task.detached(priority: .userInitiated) {
-            let data = image.jpegData(compressionQuality: 0.8) ?? Data()
+            guard let data = image.jpegData(compressionQuality: 0.8) else {
+                await MainActor.run {
+                    guard self.attachmentGeneration == gen else { return }
+                    AppLogger.error("messaging", "Failed to compress image attachment")
+                    self.attachmentState = .none
+                }
+                return
+            }
             await MainActor.run {
                 guard self.attachmentGeneration == gen else { return }
                 self.attachmentState = .ready(InputAttachment(image: image, data: data))
@@ -628,12 +635,14 @@ final class InputBarController {
 
     // MARK: - Private
 
+    /// Resets text, attachment, and mode after a successful text/attachment send.
+    /// Does NOT reset audio state — audio recordings are sent separately via
+    /// stopRecording() -> onAudioRecorded and do not flow through send().
     private func reset() {
         currentText = ""
         attachmentState = .none
         attachmentGeneration &+= 1
         mode = .normal
-        audioCoordinator.clearRecordedFile()
     }
 
     private func signalTypingIfNeeded(oldLength: Int, newLength: Int, newText: String) {
@@ -660,14 +669,14 @@ git commit -m "feat: add InputBarController — shared @Observable state for mes
 
 ---
 
-### Task 6: Rewire MessageInputAccessoryView to Use InputBarController
+### Task 6: Rewire UIKit Input Bar + MessagesViewController + Representable
 
 **Files:**
 - Modify: `NaarsCars/UI/Components/Messaging/MessageInputAccessoryView.swift`
+- Modify: `NaarsCars/Features/Messaging/Views/MessagesViewController.swift:52-65`
+- Modify: `NaarsCars/Features/Messaging/Views/MessagesViewControllerRepresentable.swift:62-71,119-165`
 
-This is the largest single task. The UIKit input bar keeps its view layer (subviews, layout, keyboard behavior) but replaces inline state management with calls to the shared controller.
-
-**Build note:** Tasks 6 and 7 are an atomic pair. After Task 6 changes the `init` signature to require `InputBarController`, the project will not compile until Task 7 updates `MessagesViewController` to provide one. Implement both before building.
+This is the largest single task. The UIKit input bar keeps its view layer (subviews, layout, keyboard behavior) but replaces inline state management with calls to the shared controller. `MessagesViewController` and `MessagesViewControllerRepresentable` are updated in the same atomic unit because changing the `init` signature would break the call site. All three files must be committed together.
 
 - [ ] **Step 1: Add controller property and update delegate protocol**
 
@@ -811,29 +820,11 @@ private func updateFromController() {
 
 Call `observeController()` from init.
 
-- [ ] **Step 8: Build to verify**
+- [ ] **Step 8: Wire MessagesViewController to own InputBarController**
 
-Run: `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build 2>&1 | grep -E "error:|BUILD"`
-Expected: BUILD SUCCEEDED
+This step is part of the same atomic unit as Steps 1-7 — the project cannot build until both the view and its owner are updated together.
 
-- [ ] **Step 9: Commit**
-
-```bash
-git add NaarsCars/UI/Components/Messaging/MessageInputAccessoryView.swift
-git commit -m "refactor: wire MessageInputAccessoryView to InputBarController, remove location sentinel"
-```
-
----
-
-### Task 7: Rewire MessagesViewController to Own InputBarController
-
-**Files:**
-- Modify: `NaarsCars/Features/Messaging/Views/MessagesViewController.swift:52-65`
-- Modify: `NaarsCars/Features/Messaging/Views/MessagesViewControllerRepresentable.swift:62-71,119-165`
-
-- [ ] **Step 1: MessagesViewController owns InputBarController**
-
-Replace the lazy `inputBar` property (lines 57-61) to create both the controller and the input bar:
+Replace the lazy `inputBar` property in `MessagesViewController.swift` (lines 57-61) to create both the controller and the input bar:
 
 ```swift
 let inputBarController = InputBarController()
@@ -845,7 +836,7 @@ private lazy var inputBar: MessageInputAccessoryView = {
 }()
 ```
 
-- [ ] **Step 2: Update MessagesViewControllerRepresentable coordinator**
+- [ ] **Step 9: Update MessagesViewControllerRepresentable coordinator**
 
 In `makeUIViewController`, wire the controller callbacks instead of relying solely on delegate:
 
@@ -871,11 +862,11 @@ vc.inputBarController.onTypingChanged = { [weak coordinator] in
 }
 ```
 
-- [ ] **Step 3: Remove didShareLocation from coordinator conformance**
+- [ ] **Step 10: Remove didShareLocation from coordinator conformance**
 
 Remove `inputBar(_:didShareLocation:lon:name:)` from the `Coordinator` extension (line 149-151).
 
-- [ ] **Step 4: Update updateUIViewController to use controller**
+- [ ] **Step 11: Update updateUIViewController to use controller**
 
 In `updateUIViewController`, replace calls to `bar.setReplyContext()`, `bar.setEditContext()`, `bar.setImagePreview()` with controller calls:
 
@@ -897,29 +888,29 @@ if let image = parent.imageToSend {
 }
 ```
 
-- [ ] **Step 5: Build to verify**
+- [ ] **Step 12: Build to verify**
 
 Run: `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build 2>&1 | grep -E "error:|BUILD"`
 Expected: BUILD SUCCEEDED
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
-git add NaarsCars/Features/Messaging/Views/MessagesViewController.swift \
+git add NaarsCars/UI/Components/Messaging/MessageInputAccessoryView.swift \
+       NaarsCars/Features/Messaging/Views/MessagesViewController.swift \
        NaarsCars/Features/Messaging/Views/MessagesViewControllerRepresentable.swift
-git commit -m "refactor: wire MessagesViewController to InputBarController, remove location sentinel conformance"
+git commit -m "refactor: wire UIKit input bar and MessagesViewController to InputBarController, remove location sentinel"
 ```
 
 ---
 
-### Task 8: Rewrite MessageInputBar as Thin Shell
+### Task 8: Rewrite MessageInputBar + Rewire MessageThreadViewController
 
 **Files:**
 - Modify: `NaarsCars/UI/Components/Messaging/MessageInputBar.swift`
+- Modify: `NaarsCars/Features/Messaging/Views/MessageThreadViewController.swift:155,358-402`
 
-This is a major rewrite. The 774-line SwiftUI view becomes a ~200-line rendering shell.
-
-**Build note:** Tasks 8 and 9 are an atomic pair. After Task 8 changes `MessageInputBar`'s initializer from `(text:imageToSend:onSend:...)` to `(controller:isDisabled:)`, the project will not compile until Task 9 updates `MessageThreadViewController.makeInputBar()`. Implement both before building.
+This is a major rewrite. The 774-line SwiftUI view becomes a ~200-line rendering shell. The thread VC is updated in the same atomic unit because changing `MessageInputBar`'s initializer would break the call site in `MessageThreadViewController.makeInputBar()`. Both files must be committed together.
 
 - [ ] **Step 1: Replace state properties with controller reference**
 
@@ -955,28 +946,11 @@ Delete:
 - Location picker `@State showLocationPicker` and `.sheet` modifier — removed (controller callback handles presentation). **Keep `LocationPickerSheet` struct in `MessageInputBar.swift`** — it is also referenced by `ConversationDetailView.swift:521`. Do not extract it; just remove the sheet presentation logic that wired it.
 - Reply/edit context management — simplified to reading `controller.mode`
 
-- [ ] **Step 4: Build to verify**
+- [ ] **Step 4: Rewire MessageThreadViewController to use InputBarController**
 
-Run: `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build 2>&1 | grep -E "error:|BUILD"`
-Expected: BUILD SUCCEEDED
+This step is part of the same atomic unit as Steps 1-3 — the project cannot build until both the SwiftUI view and its UIKit host are updated together.
 
-- [ ] **Step 5: Commit**
-
-```bash
-git add NaarsCars/UI/Components/Messaging/MessageInputBar.swift
-git commit -m "refactor: rewrite MessageInputBar as thin rendering shell over InputBarController"
-```
-
----
-
-### Task 9: Rewire MessageThreadViewController to Use InputBarController
-
-**Files:**
-- Modify: `NaarsCars/Features/Messaging/Views/MessageThreadViewController.swift:155,358-402`
-
-- [ ] **Step 1: Replace input bar creation with InputBarController**
-
-Replace the `inputHostingController` and `makeInputBar()` pattern (lines 155, 358-402) with:
+Replace the `inputHostingController` and `makeInputBar()` pattern in `MessageThreadViewController.swift` (lines 155, 358-402) with:
 
 ```swift
 let inputBarController = InputBarController()
@@ -1005,7 +979,7 @@ private func setupInputBar() {
 }
 ```
 
-- [ ] **Step 2: Add presentLocationPicker method**
+- [ ] **Step 5: Add presentLocationPicker method to MessageThreadViewController**
 
 ```swift
 private func presentLocationPicker() {
@@ -1025,13 +999,17 @@ private func presentLocationPicker() {
 }
 ```
 
-- [ ] **Step 3: Update handleSend to use SendPayload**
+- [ ] **Step 6: Update handleSend to use SendPayload**
 
 ```swift
 private func handleSend(_ payload: InputBarController.SendPayload) {
     guard let parentId = threadViewModel.parentMessage?.id else { return }
     Task {
         if let editId = payload.editMessageId {
+            // Edit targets the specific message being edited (editId), not the thread parent.
+            // ConversationDetailViewModel.editMessage reads editingMessage for the target ID,
+            // so set it before calling editMessage.
+            conversationViewModel?.editingMessage = conversationViewModel?.messages.first { $0.id == editId }
             await conversationViewModel?.editMessage(newContent: payload.text)
         } else if let attachment = payload.attachment {
             await conversationViewModel?.sendMessage(
@@ -1049,16 +1027,17 @@ private func handleSend(_ payload: InputBarController.SendPayload) {
 }
 ```
 
-- [ ] **Step 4: Build to verify**
+- [ ] **Step 7: Build to verify**
 
 Run: `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -configuration Debug -destination 'generic/platform=iOS' build 2>&1 | grep -E "error:|BUILD"`
 Expected: BUILD SUCCEEDED
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add NaarsCars/Features/Messaging/Views/MessageThreadViewController.swift
-git commit -m "refactor: wire MessageThreadViewController to InputBarController"
+git add NaarsCars/UI/Components/Messaging/MessageInputBar.swift \
+       NaarsCars/Features/Messaging/Views/MessageThreadViewController.swift
+git commit -m "refactor: rewrite MessageInputBar as thin shell and wire MessageThreadViewController to InputBarController"
 ```
 
 ---
@@ -1360,18 +1339,45 @@ Add `hasLeftConversation: Bool` parameter to `MessageThreadRepresentable`. Pass 
 
 - [ ] **Step 4: MessageThreadViewController shows frozen banner when left**
 
-When `hasLeftConversation` is true, replace the input bar with a `FrozenConversationBanner` embedded via `UIHostingController`:
+When `hasLeftConversation` is true, replace the input bar with a `FrozenConversationBanner` embedded via `UIHostingController`. Explicitly remove whichever bottom view is being replaced to avoid stale views:
 
 ```swift
-if hasLeftConversation {
-    let banner = UIHostingController(rootView: FrozenConversationBanner())
-    addChild(banner)
-    view.addSubview(banner.view)
-    // ... constrain to bottom ...
-} else {
-    setupInputBar()
+private var frozenBannerController: UIHostingController<FrozenConversationBanner>?
+
+private func setupBottomView() {
+    // Remove existing bottom view (input bar or frozen banner)
+    if let existing = inputHostingController {
+        existing.willMove(toParent: nil)
+        existing.view.removeFromSuperview()
+        existing.removeFromParent()
+        inputHostingController = nil
+    }
+    if let existing = frozenBannerController {
+        existing.willMove(toParent: nil)
+        existing.view.removeFromSuperview()
+        existing.removeFromParent()
+        frozenBannerController = nil
+    }
+
+    if hasLeftConversation {
+        let banner = UIHostingController(rootView: FrozenConversationBanner())
+        addChild(banner)
+        banner.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(banner.view)
+        NSLayoutConstraint.activate([
+            banner.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            banner.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            banner.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+        ])
+        banner.didMove(toParent: self)
+        frozenBannerController = banner
+    } else {
+        setupInputBar()
+    }
 }
 ```
+
+Call `setupBottomView()` from `viewDidLoad()` instead of calling `setupInputBar()` directly.
 
 - [ ] **Step 5: Build to verify**
 
