@@ -646,6 +646,9 @@ struct ConversationDetailView: View {
                 onUnsend: isFromMe && message.canUnsend ? { handleOverlayAction(.unsend) } : nil,
                 onDeleteForMe: { handleOverlayAction(.deleteForMe) },
                 onReport: !isFromMe ? { handleOverlayAction(.report) } : nil,
+                onViewThread: message.replyToId != nil ? { parentId in
+                    handleOverlayAction(.viewThread(parentId))
+                } : nil,
                 onDismiss: { dismissOverlay() }
             )
             .transition(.scale.combined(with: .opacity))

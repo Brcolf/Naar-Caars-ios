@@ -22,6 +22,7 @@ struct MessageInteractionOverlay: View {
     let onUnsend: (() -> Void)?
     let onDeleteForMe: (() -> Void)?
     let onReport: (() -> Void)?
+    let onViewThread: ((UUID) -> Void)?
     let onDismiss: () -> Void
 
     @State private var appeared = false
@@ -66,6 +67,14 @@ struct MessageInteractionOverlay: View {
             actionButton("Reply", icon: "arrowshape.turn.up.left") {
                 onReply()
                 dismiss()
+            }
+
+            if let replyToId = message.replyToId, let onViewThread {
+                Divider()
+                actionButton("messaging_view_thread".localized, icon: "bubble.left.and.bubble.right") {
+                    onViewThread(replyToId)
+                    dismiss()
+                }
             }
 
             if !message.text.isEmpty {
