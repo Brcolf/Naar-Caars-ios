@@ -709,6 +709,8 @@ final class MessageCellView: UIView {
 
     func prepareForReuse() {
         config = nil
+        backgroundColor = .clear
+        layer.removeAllAnimations()
         hasAnimatedEntrance = false
         swipeOffset = 0
         timestampHideWorkItem?.cancel()
