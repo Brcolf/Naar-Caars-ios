@@ -10,7 +10,7 @@ import UIKit
 
 /// Full-screen interaction overlay presented when the user long-presses a message.
 ///
-/// Displays the message snapshot at its original position (scaled 1.02x), a horizontal
+/// Displays the message snapshot at its original position (scaled 1.05x), a horizontal
 /// reaction bar, and a contextual action list. Tapping the backdrop or selecting an
 /// action dismisses the overlay with a reverse animation.
 final class MessageOverlayController: UIViewController {
