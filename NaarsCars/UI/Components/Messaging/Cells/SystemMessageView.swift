@@ -47,9 +47,9 @@ final class SystemMessageView: UIView {
 
     // MARK: - Configure
 
-    func configure(text: String) {
+    func configure(text: String, action: SystemAction) {
         textLabel.text = text
-        iconView.image = UIImage(systemName: Self.iconName(for: text))
+        iconView.image = UIImage(systemName: Self.iconName(for: action))
 
         isAccessibilityElement = true
         accessibilityLabel = text
@@ -104,18 +104,14 @@ final class SystemMessageView: UIView {
 
     // MARK: - Icon selection
 
-    private static func iconName(for text: String) -> String {
-        if text.contains("added") || text.contains("joined") {
-            return "person.badge.plus"
-        } else if text.contains("left") || text.contains("removed") {
-            return "person.badge.minus"
-        } else if text.contains("photo") || text.contains("image") {
-            return "photo"
-        } else if text.contains("name") {
-            return "pencil"
-        } else if text.contains("created") {
-            return "sparkles"
+    private static func iconName(for action: SystemAction) -> String {
+        switch action {
+        case .memberAdded: return "person.badge.plus"
+        case .memberRemoved, .memberLeft: return "person.badge.minus"
+        case .groupNameChanged: return "pencil"
+        case .groupAvatarChanged: return "photo"
+        case .groupCreated: return "sparkles"
+        case .unknown: return "info.circle"
         }
-        return "info.circle"
     }
 }

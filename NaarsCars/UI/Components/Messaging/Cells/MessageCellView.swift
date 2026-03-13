@@ -143,7 +143,7 @@ final class MessageCellView: UIView {
             return v
         }()
         view.isHidden = false
-        view.configure(text: msg.text)
+        view.configure(text: msg.text, action: msg.resolvedSystemAction)
     }
 
     private func showRegular(config: MessageCellConfig) {
@@ -388,6 +388,10 @@ final class MessageCellView: UIView {
             l.text = "\u{26A0} " + "messaging_not_sent_tap_to_retry".localized
             l.isUserInteractionEnabled = true
             l.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(retryTapped)))
+            l.isAccessibilityElement = true
+            l.accessibilityLabel = "messaging_not_sent_tap_to_retry".localized
+            l.accessibilityTraits = .button
+            l.accessibilityIdentifier = "message.retryButton"
             addSubview(l)
             failedRetryLabel = l
             return l
@@ -421,11 +425,7 @@ final class MessageCellView: UIView {
     }
 
     private func isSystemMessage(_ msg: Message) -> Bool {
-        if msg.messageType == .system { return true }
-        let patterns = ["has been added to the conversation", "has joined the conversation",
-                        "left the conversation", "removed", "updated the group",
-                        "changed the group name", "created the group"]
-        return patterns.contains { msg.text.contains($0) }
+        msg.messageType == .system
     }
 
     // MARK: - Layout
@@ -713,7 +713,9 @@ final class MessageCellView: UIView {
         layer.removeAllAnimations()
         hasAnimatedEntrance = false
         swipeOffset = 0
+        isSwipingToReply = false
         timestampHideWorkItem?.cancel()
+        timestampHideWorkItem = nil
         textBubble?.prepareForReuse()
         emojiBubble?.prepareForReuse()
         imageBubble?.prepareForReuse()
