@@ -431,10 +431,11 @@ final class MessageCellView: UIView {
         }
 
         // Regular message layout
-        let maxBubbleWidth = bounds.width * 0.7
+        let maxBubbleWidth = bounds.width * 0.75
         let avatarSize: CGFloat = config.showAvatar ? 28 : 0
         let avatarSpacing: CGFloat = config.showAvatar ? 8 : 0
-        var y: CGFloat = 0
+        let topPadding: CGFloat = config.isFirstInSeries ? 8 : 2
+        var y: CGFloat = topPadding
 
         // Sender name
         if let lbl = senderNameLabel, !lbl.isHidden {
@@ -550,7 +551,7 @@ final class MessageCellView: UIView {
             return systemMessage?.sizeThatFits(size) ?? .zero
         }
 
-        let maxBubbleWidth = size.width * 0.7
+        let maxBubbleWidth = size.width * 0.75
         var height: CGFloat = 0
 
         // Sender name
@@ -570,8 +571,9 @@ final class MessageCellView: UIView {
         // Failed
         if failedRetryLabel?.isHidden == false { height += 18 }
         // Padding
-        let verticalPadding: CGFloat = config.isLastInSeries ? 8 : 2
-        height += verticalPadding
+        let topPadding: CGFloat = config.isFirstInSeries ? 8 : 2
+        let bottomPadding: CGFloat = 2
+        height += topPadding + bottomPadding
 
         // Reaction badge offset
         if reactionBadge?.isHidden == false { height += 10 }

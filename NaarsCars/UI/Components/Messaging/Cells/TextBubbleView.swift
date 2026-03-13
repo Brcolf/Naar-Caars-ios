@@ -22,8 +22,9 @@ final class TextBubbleView: UIView {
 
     // MARK: - Constants
 
-    private let hPad: CGFloat = 14
-    private let vPad: CGFloat = 10
+    private let interiorPad: CGFloat = 14
+    private let tailSidePad: CGFloat = 18
+    private let vPad: CGFloat = 7
 
     // MARK: - Init
 
@@ -71,12 +72,13 @@ final class TextBubbleView: UIView {
         super.layoutSubviews()
         let b = bounds
 
-        let tailWidth: CGFloat = showTail ? 6 : 0
-        let textOriginX: CGFloat = isFromCurrentUser ? hPad : hPad + tailWidth
-        let textWidth = b.width - hPad * 2 - tailWidth
+        let tailPad = showTail ? tailSidePad : interiorPad
+        let leftPad = isFromCurrentUser ? interiorPad : tailPad
+        let rightPad = isFromCurrentUser ? tailPad : interiorPad
+        let textWidth = b.width - leftPad - rightPad - (showTail ? 6 : 0)
         let textSize = textLabel.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude))
 
-        textLabel.frame = CGRect(x: textOriginX, y: vPad, width: textSize.width, height: textSize.height)
+        textLabel.frame = CGRect(x: leftPad + (showTail && !isFromCurrentUser ? 6 : 0), y: vPad, width: textSize.width, height: textSize.height)
 
         let bezier = BubblePath.path(
             in: b,
@@ -87,13 +89,14 @@ final class TextBubbleView: UIView {
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let tailWidth: CGFloat = showTail ? 6 : 0
-        let maxTextWidth = size.width - hPad * 2 - tailWidth
+        let tailPad = showTail ? tailSidePad : interiorPad
+        let leftPad = isFromCurrentUser ? interiorPad : tailPad
+        let rightPad = isFromCurrentUser ? tailPad : interiorPad
+        let maxTextWidth = size.width - leftPad - rightPad - (showTail ? 6 : 0)
         let textSize = textLabel.sizeThatFits(CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude))
-        return CGSize(
-            width: textSize.width + hPad * 2 + tailWidth,
-            height: textSize.height + vPad * 2
-        )
+        let totalWidth = textSize.width + leftPad + rightPad + (showTail ? 6 : 0)
+        let totalHeight = textSize.height + vPad * 2
+        return CGSize(width: totalWidth, height: totalHeight)
     }
 
     // MARK: - Reuse
