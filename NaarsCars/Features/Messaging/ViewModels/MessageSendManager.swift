@@ -49,7 +49,7 @@ final class MessageSendManager {
 
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count <= 5000 else {
-            await setError(.invalidInput("Message is too long (max 5,000 characters)"))
+            await setError(.invalidInput("messaging_too_long".localized))
             return
         }
         setMessageText("")
@@ -231,7 +231,7 @@ final class MessageSendManager {
             id: localId,
             conversationId: conversationId,
             fromId: fromId,
-            text: locationName ?? "Shared location",
+            text: locationName ?? "messaging_shared_location".localized,
             messageType: .location,
             replyToId: replyToId,
             latitude: latitude,
