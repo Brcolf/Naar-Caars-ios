@@ -161,7 +161,7 @@ final class OverlayActionListView: UIView {
         separator.translatesAutoresizingMaskIntoConstraints = false
         separator.backgroundColor = .separator
         NSLayoutConstraint.activate([
-            separator.heightAnchor.constraint(equalToConstant: 1.0 / UIScreen.main.scale),
+            separator.heightAnchor.constraint(equalToConstant: 1.0 / UITraitCollection.current.displayScale),
         ])
         return separator
     }

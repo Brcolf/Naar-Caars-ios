@@ -31,7 +31,7 @@ final class MapSnapshotCache {
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         )
         options.size = CGSize(width: 200, height: 120)
-        options.scale = UIScreen.main.scale
+        options.scale = UITraitCollection.current.displayScale
         options.mapType = .standard
         
         let snapshotter = MKMapSnapshotter(options: options)
