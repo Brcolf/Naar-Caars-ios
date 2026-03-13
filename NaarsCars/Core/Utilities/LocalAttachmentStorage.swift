@@ -13,7 +13,7 @@ enum LocalAttachmentStorage {
     
     /// Base directory for message attachments in the app's Caches folder
     private static var baseDirectory: URL {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
         return caches.appendingPathComponent("message-attachments", isDirectory: true)
     }
     

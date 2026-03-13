@@ -18,7 +18,7 @@ final class PersistentImageService {
     private let cacheDirectory: URL
     
     private init() {
-        let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
         cacheDirectory = caches.appendingPathComponent("PersistentImageCache", isDirectory: true)
         
         // Create directory if it doesn't exist
