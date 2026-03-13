@@ -9,7 +9,7 @@
 
 Five issues remain after the UIKit messaging migration:
 
-1. **First-focus text input hitch** — The first time any SwiftUI `TextField` becomes first responder in a fresh process, UIKit's text interaction infrastructure (`UITextInteraction`, `UITextInputController`, autocorrect, etc.) is lazily initialized. This blocks the main thread for several hundred milliseconds. Affects every text field in the app: sign-in, messaging, forms.
+1. **First-focus text input hitch** — The first time any SwiftUI `TextField` becomes first responder in a fresh process, UIKit's text interaction infrastructure (`UITextInteraction`, `UITextInputController`, autocorrect, etc.) is lazily initialized. This is a significant contributor to the multi-hundred-millisecond hitch observed on first text field focus. Other factors (view body compilation, heavy imports, broad observation) may also contribute — the InputBarController consolidation in Fix 2 addresses those separately. Prewarming eliminates the UIKit subsystem component of the hitch.
 
 2. **Dual input bar implementations** — `MessageInputBar` (SwiftUI, 774 lines, thread view) and `MessageInputAccessoryView` (UIKit, 800+ lines, main conversation) duplicate ~60% of their logic: text management, reply/edit context, audio recording, attachment processing, typing throttle. Changes to one are forgotten in the other.
 
@@ -25,7 +25,7 @@ Five issues remain after the UIKit messaging migration:
 
 ### Approach
 
-In `AppDelegate.application(_:didFinishLaunchingWithOptions:)`, force-initialize UIKit's text interaction subsystem by creating an offscreen `UITextField`, making it first responder, then immediately resigning and discarding it. This runs once at launch and eliminates the hitch for every text field in the app.
+In `AppDelegate.application(_:didFinishLaunchingWithOptions:)`, force-initialize UIKit's text interaction subsystem by creating an offscreen `UITextField`, making it first responder, then immediately resigning and discarding it. This runs once on the main thread at launch and eliminates the UIKit text-subsystem component of the first-focus hitch. It is not expected to address all sources of input hitching (view compilation, heavy imports, broad observation are addressed by Fix 2), but it removes the single largest fixed-cost contributor.
 
 ### Implementation
 
@@ -75,9 +75,9 @@ For the UIKit observation bridge, use the re-registration pattern established in
 InputBarController (@Observable, @MainActor)
 ├── Text: currentText (private(set), single mutation path via updateText(_:))
 ├── Mode: .normal / .replying(ReplyContext) / .editing(messageId, originalText)
-├── Attachment: pendingAttachment (InputAttachment?, generation-counted async compression)
+├── Attachment: attachmentState (.none / .processing(UIImage) / .ready(InputAttachment))
 ├── Recording: delegates to AudioRecordingCoordinator
-├── Computed: isSendable (accounts for text, attachment, recorded audio)
+├── Computed: isSendable (true when text non-empty OR attachmentState is .ready OR hasRecordedFile)
 │
 ├── Actions: send(), updateText(), setReplyContext(), cancelReply(),
 │            startEditing(), cancelEditing(), setImage(), clearAttachment(),
@@ -95,24 +95,47 @@ InputBarController (@Observable, @MainActor)
 ### Key Design Decisions
 
 - **Single text mutation path** — `updateText(_:)` is the only way to change `currentText`. Handles typing notification internally.
-- **Single attachment representation** — `InputAttachment` holds both `UIImage` (for preview) and `Data` (compressed, for send). No parallel state.
+- **Explicit attachment lifecycle** — `attachmentState` is an enum with three unambiguous states:
+  - `.none` — no attachment
+  - `.processing(UIImage)` — image selected, compression in flight (view shows preview from the UIImage, send button disabled)
+  - `.ready(InputAttachment)` — compression complete, ready to send (view shows preview, send button enabled)
+
+  `isSendable` only returns `true` when attachment is `.ready` (or `.none` with non-empty text). The generation counter on `setImage()` ensures stale compressions from a previous selection are discarded.
 - **`SendPayload`** — rich struct carries text, attachment, reply context, and edit message ID together. Consumers don't query controller mode to infer send type.
-- **Generation counter** on attachment processing — stale compressions are discarded on reuse/clear.
 - **Callbacks, not delegate** — simpler to wire from both SwiftUI closures and UIKit without protocol conformance mismatch.
 
-### SendPayload
+### Attachment State & SendPayload
 
 ```swift
-struct SendPayload {
-    let text: String
-    let attachment: InputAttachment?
-    let replyContext: ReplyContext?
-    let editMessageId: UUID?
+enum AttachmentState: Equatable {
+    case none
+    case processing(UIImage)        // preview available, compression in flight
+    case ready(InputAttachment)     // compressed, ready to send
+
+    var previewImage: UIImage? {
+        switch self {
+        case .none: return nil
+        case .processing(let image): return image
+        case .ready(let attachment): return attachment.image
+        }
+    }
+
+    var isReady: Bool {
+        if case .ready = self { return true }
+        return false
+    }
 }
 
 struct InputAttachment: Equatable {
     let image: UIImage
     let data: Data
+}
+
+struct SendPayload {
+    let text: String
+    let attachment: InputAttachment?
+    let replyContext: ReplyContext?
+    let editMessageId: UUID?
 }
 ```
 
@@ -132,7 +155,7 @@ Extracted from both existing implementations. Owns `AVAudioRecorder`, waveform s
 - Owns an `InputBarController` instance
 - `UITextViewDelegate` calls `controller.updateText()`
 - Button targets call `controller.send()`, `controller.startRecording()`, etc.
-- Uses `withObservationTracking` with re-registration (see `observeTypingUsers()` pattern) for 3 reactive properties: `isSendable`, `mode`, `pendingAttachment`
+- Uses `withObservationTracking` with re-registration (see `observeTypingUsers()` pattern) for 3 reactive properties: `isSendable`, `mode`, `attachmentState`
 - Keyboard/layout unchanged
 
 ### Location Picker in Thread View
@@ -187,7 +210,7 @@ if viewModel.hasLeftConversation {
 }
 ```
 
-**FrozenConversationBanner** — simple SwiftUI view: lock icon + localized text "You left this conversation". Non-interactive. ~30 lines. Must include `isAccessibilityElement = true` with `accessibilityLabel` set to the localized text so VoiceOver users understand the conversation state.
+**FrozenConversationBanner** — simple SwiftUI view: lock icon + localized text "You left this conversation". Non-interactive. ~30 lines. Uses SwiftUI accessibility modifiers: `.accessibilityElement(children: .combine)` on the container and `.accessibilityLabel("messaging_left_conversation".localized)` so VoiceOver announces the conversation state as a single element.
 
 **Xcode project note:** `FrozenConversationBanner.swift` must be added to the Xcode project manually.
 
@@ -224,8 +247,14 @@ Add guards in `ConversationDetailViewModel` that reject mutation operations when
 
 ```swift
 // At the top of each mutation method in ConversationDetailViewModel:
-guard !hasLeftConversation else { return }
+guard !hasLeftConversation else {
+    AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+    error = .conversationFrozen
+    return
+}
 ```
+
+The guard fails explicitly: it logs a warning for diagnostics and sets an `AppError` so the UI can surface feedback if needed (e.g., a toast). Silent `return` would hide bugs where stale UI paths attempt mutations.
 
 `MessageSendManager` is not modified — it has no knowledge of conversation membership and doesn't need it. The guard lives at the ViewModel layer where the state already exists.
 
@@ -399,5 +428,5 @@ Net code reduction from input bar consolidation (774-line SwiftUI view → ~200 
 ## Dependencies
 
 - Fix 4 (location sentinel) is absorbed into Fix 2 (InputBarController). They ship together.
-- Fix 3 (`hasLeftConversation`) depends on Fix 2 for the frozen banner placement in the thread view but can be implemented after Fix 2 with minimal coupling.
-- Fixes 1 and 5 are fully independent.
+- Fix 3 (`hasLeftConversation`) is **loosely coupled** to Fix 2. The main conversation frozen banner (`ConversationDetailView`) and overlay filtering have zero dependency on Fix 2. The only coupling is in the thread view: if Fix 2 has already been implemented, the thread VC uses `InputBarController` and the frozen banner replaces it; if Fix 2 has not landed yet, the thread VC conditionally hides the existing SwiftUI `MessageInputBar` and shows the frozen banner instead. Either way works — Fix 3 can be implemented before, after, or in parallel with Fix 2.
+- Fixes 1 and 5 are fully independent of all other fixes and of each other.
