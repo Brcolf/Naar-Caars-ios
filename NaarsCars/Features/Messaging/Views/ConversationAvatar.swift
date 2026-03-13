@@ -29,6 +29,9 @@ struct ConversationAvatar: View {
                 AvatarView(imageUrl: nil, name: "Unknown", size: 56)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(conversationDetail.otherParticipants.map { $0.name }.joined(separator: ", "))
+        .accessibilityAddTraits(.isImage)
     }
     
     @ViewBuilder

@@ -44,6 +44,8 @@ struct ScrollToBottomButton: View {
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("messages.scrollToBottom")
+        .accessibilityLabel("messaging_scroll_to_bottom".localized)
+        .accessibilityHint("messaging_scroll_to_bottom_hint".localized)
     }
 }
 
