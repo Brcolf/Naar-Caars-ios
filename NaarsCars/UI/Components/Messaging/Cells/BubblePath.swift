@@ -4,7 +4,7 @@ import UIKit
 
 /// UIBezierPath factory for message bubble shapes.
 ///
-/// This is a UIKit port of the SwiftUI `BubbleShape` defined in `MessageBubble.swift`.
+/// UIKit implementation of the iMessage-style bubble shape.
 /// It produces a single continuous path for a rounded-rectangle bubble with an optional
 /// iMessage-style tail on the last message in a series.
 ///

@@ -3,7 +3,7 @@
 //  NaarsCars
 //
 //  Top-level UIView for rendering a message cell. Composes content subviews,
-//  handles layout and gesture recognition. Replaces the SwiftUI MessageBubble.
+//  handles layout and gesture recognition.
 //
 
 import UIKit
