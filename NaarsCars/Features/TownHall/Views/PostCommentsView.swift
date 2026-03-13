@@ -248,7 +248,7 @@ struct CommentRow: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "flag.fill")
                                         .font(.naarsCaption)
-                                    Text("Reported")
+                                    Text("townhall_reported".localized)
                                         .font(.naarsCaption)
                                 }
                                 .foregroundColor(.secondary.opacity(0.5))

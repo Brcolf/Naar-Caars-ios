@@ -17936,6 +17936,7 @@
       }
     },
     "messaging_blocked_user" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17946,6 +17947,7 @@
       }
     },
     "messaging_blocked_user_message" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

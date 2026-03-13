@@ -68,14 +68,24 @@ struct NotificationSettingsSection: View {
                     }
 
                     Toggle(isOn: $viewModel.notifyAnnouncements) {
-                        Text("settings_announcements".localized)
-                            .font(.naarsBody)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("settings_announcements".localized)
+                                .font(.naarsBody)
+                            Text("settings_always_enabled".localized)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .disabled(true)
 
                     Toggle(isOn: $viewModel.notifyNewRequests) {
-                        Text("settings_new_requests".localized)
-                            .font(.naarsBody)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("settings_new_requests".localized)
+                                .font(.naarsBody)
+                            Text("settings_always_enabled".localized)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .disabled(true)
 
