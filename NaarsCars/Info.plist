@@ -56,12 +56,12 @@
 		<string>MKDirectionsModeRideShare</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Naar's Cars uses your camera to take photos for messages, reviews, and posts.</string>
+	<string>Naar's Cars uses your camera to take photos for reviews and posts.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
-<key>NSFaceIDUsageDescription</key>
+	<key>NSFaceIDUsageDescription</key>
 	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
