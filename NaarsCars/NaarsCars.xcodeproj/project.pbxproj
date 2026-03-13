@@ -122,6 +122,7 @@
 		80050E94680D403DB1A864A3 /* ReplyContextBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2AE36A604849C18C46067D /* ReplyContextBuilderTests.swift */; };
 		83102CEFD8C2697D8F4260D1 /* MessageAudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F4CC69205A0273F7C3C464 /* MessageAudioPlayer.swift */; };
 		AUDIOREC00000000000000B1 /* AudioRecordingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUDIOREC00000000000000A1 /* AudioRecordingCoordinator.swift */; };
+		INPUTBAR00000000000000B4 /* InputBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = INPUTBAR00000000000000A4 /* InputBarController.swift */; };
 		84D9FCFB10CF4588B6DBDE7B /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E213562F51C49A48F8FFF22 /* Profile.swift */; };
 		850ABDE68A3C493EA11B2742 /* CacheManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB3AB50B4EB4A738E2255DF /* CacheManagerTests.swift */; };
 
@@ -906,6 +907,7 @@ AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileRefe
 		D1F3EF202A7C4296B8F87F2E /* RealtimeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeManagerTests.swift; sourceTree = "<group>"; };
 		D4F4CC69205A0273F7C3C464 /* MessageAudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageAudioPlayer.swift; sourceTree = "<group>"; };
 		AUDIOREC00000000000000A1 /* AudioRecordingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingCoordinator.swift; sourceTree = "<group>"; };
+		INPUTBAR00000000000000A4 /* InputBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarController.swift; sourceTree = "<group>"; };
 		D55441C41BD446FF92B0D9AC /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
 		D6DE2B20301F44F4BBD59ACF /* LeaderboardBadgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardBadgeTests.swift; sourceTree = "<group>"; };
 		D7A3E91F4C8B47E2A1B0F563 /* SpotlightEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightEntry.swift; sourceTree = "<group>"; };
@@ -2031,6 +2033,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CB5B6126D1DEB66F5840190A /* MapSnapshotCache.swift */,
 				D4F4CC69205A0273F7C3C464 /* MessageAudioPlayer.swift */,
 				AUDIOREC00000000000000A1 /* AudioRecordingCoordinator.swift */,
+				INPUTBAR00000000000000A4 /* InputBarController.swift */,
 			);
 			path = Messaging;
 			sourceTree = "<group>";
@@ -2698,6 +2701,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				64BC8D2ADE0A0DB165CD7AC9 /* MapSnapshotCache.swift in Sources */,
 				83102CEFD8C2697D8F4260D1 /* MessageAudioPlayer.swift in Sources */,
 				AUDIOREC00000000000000B1 /* AudioRecordingCoordinator.swift in Sources */,
+				INPUTBAR00000000000000B4 /* InputBarController.swift in Sources */,
 				E8AF3EE4A3855F8B58F002AC /* ScaleButtonStyle.swift in Sources */,
 				A39871588FAF14B326BD4BF3 /* ShakeModifier.swift in Sources */,
 			);
