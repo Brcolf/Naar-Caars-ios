@@ -360,6 +360,11 @@ final class ConversationDetailViewModel: ObservableObject {
     }
     
     func sendMessage(textOverride: String? = nil, image: UIImage? = nil, replyToId: UUID? = nil) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         let effectiveText = textOverride ?? messageText
         await sendManager.sendMessage(
             conversationId: conversationId,
@@ -475,6 +480,11 @@ final class ConversationDetailViewModel: ObservableObject {
     
     /// Submit an edit for the currently-editing message
     func editMessage(newContent: String) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         await sendManager.editMessage(
             newContent: newContent,
             editingMessage: editingMessage,
@@ -489,6 +499,11 @@ final class ConversationDetailViewModel: ObservableObject {
     
     /// Unsend a message (soft delete — clears content and sets deleted_at)
     func unsendMessage(id: UUID) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         await sendManager.unsendMessage(
             id: id,
             getMessages: { [weak self] in self?.messages ?? [] },
@@ -510,6 +525,11 @@ final class ConversationDetailViewModel: ObservableObject {
     
     /// Send an audio message
     func sendAudioMessage(audioURL: URL, duration: Double, replyToId: UUID? = nil) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         await sendManager.sendAudioMessage(
             conversationId: conversationId,
             audioURL: audioURL,
@@ -524,6 +544,11 @@ final class ConversationDetailViewModel: ObservableObject {
     
     /// Send a location message
     func sendLocationMessage(latitude: Double, longitude: Double, locationName: String?, replyToId: UUID? = nil) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         await sendManager.sendLocationMessage(
             conversationId: conversationId,
             latitude: latitude,
@@ -556,6 +581,11 @@ final class ConversationDetailViewModel: ObservableObject {
     }
     
     func addReaction(messageId: UUID, reaction: String) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         await sendManager.addReaction(
             messageId: messageId,
             reaction: reaction,
@@ -568,6 +598,11 @@ final class ConversationDetailViewModel: ObservableObject {
     }
     
     func removeReaction(messageId: UUID) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
         await sendManager.removeReaction(
             messageId: messageId,
             messages: messages
