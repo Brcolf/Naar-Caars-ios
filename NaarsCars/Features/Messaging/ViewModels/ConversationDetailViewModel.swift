@@ -284,8 +284,8 @@ final class ConversationDetailViewModel: ObservableObject {
     private func refreshReactions(for messageId: UUID) async {
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
         do {
-            let reactions = try await MessageReactionService.shared.fetchReactions(messageId: messageId)
-            messages[index].reactions = reactions.reactions.isEmpty ? nil : reactions
+            let individual = try await MessageReactionService.shared.fetchIndividualReactions(messageId: messageId)
+            messages[index].setIndividualReactions(individual)
         } catch {
             AppLogger.error("messaging", "Failed to refresh reactions: \(error)")
         }
@@ -326,18 +326,18 @@ final class ConversationDetailViewModel: ObservableObject {
     }
 
     /// Fetch reactions for all currently loaded messages.
-    /// Results are collected first, then applied in a single batch mutation
-    /// to avoid triggering N separate SwiftUI re-renders.
+    /// Results are collected in a concurrent task group, then applied in a single
+    /// array assignment so `didSet` fires once instead of N times.
     private func loadReactionsForMessages() async {
         let messageIds = messages.map(\.id)
         guard !messageIds.isEmpty else { return }
 
-        var results: [(UUID, MessageReactions?)] = []
-        await withTaskGroup(of: (UUID, MessageReactions?).self) { group in
+        var results: [(UUID, [MessageReaction])] = []
+        await withTaskGroup(of: (UUID, [MessageReaction]).self) { group in
             for id in messageIds {
                 group.addTask {
-                    let reactions = try? await MessageReactionService.shared.fetchReactions(messageId: id)
-                    return (id, reactions)
+                    let records = (try? await MessageReactionService.shared.fetchIndividualReactions(messageId: id)) ?? []
+                    return (id, records)
                 }
             }
             for await result in group {
@@ -345,12 +345,16 @@ final class ConversationDetailViewModel: ObservableObject {
             }
         }
 
-        // Single batch mutation — one re-render instead of N
-        for (id, reactions) in results {
-            if let index = messages.firstIndex(where: { $0.id == id }) {
-                let hasReactions = reactions != nil && !(reactions!.reactions.isEmpty)
-                messages[index].reactions = hasReactions ? reactions : nil
+        var updated = messages
+        var didChange = false
+        for (id, records) in results {
+            if let index = updated.firstIndex(where: { $0.id == id }) {
+                updated[index].setIndividualReactions(records)
+                didChange = true
             }
+        }
+        if didChange {
+            messages = updated
         }
     }
     
