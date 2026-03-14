@@ -16,9 +16,37 @@
 
 ---
 
-## Chunk 1: Data Model & Service Layer
+## Execution Rules
 
-These tasks establish the new data foundation before any UI work begins.
+These constraints govern how the plan is executed. They override any conflicting step-level instructions.
+
+1. **No knowingly broken commits.** Tasks 1-4 are an atomic data-layer block — execute all four, build-verify once, commit once. If any later task introduces a temporary red build due to caller mismatch, complete the dependent caller updates before committing.
+
+2. **`individualReactions` is app-local state, not server payload.** `Message` uses explicit `CodingKeys` (line 209 of `Message.swift`) and already excludes `reactions` and `replyToMessage` from coding (line 230: `// reactions and replyToMessage are not in CodingKeys - populated separately`). `individualReactions` is safe to add — it will be automatically excluded from JSON encoding/decoding because it is not listed in `CodingKeys`.
+
+3. **Centralize the data invariant via a helper.** Add `mutating func setIndividualReactions(_ records: [MessageReaction]?)` to `Message` (see Task 3). Use it everywhere: initial load, refresh, optimistic add, optimistic remove, rollback.
+
+4. **Hidden emoji keyboard: stop-and-report if unstable.** The hidden `UITextField` approach is preferred. If it causes keyboard presentation instability, overlay dismissal bugs, responder conflicts, or inconsistent emoji capture, stop and report rather than forcing it through. A dedicated emoji picker surface is the documented fallback.
+
+5. **Remove `"__details__"` sentinel codebase-wide.** When cleaning up the old flow, search the entire codebase for `"__details__"` and remove all references. Two live code sites: `ConversationDetailView.swift:379` and `MessageCellView.swift:309`.
+
+6. **Optimistic updates use the latest UI state.** Confirmed: `messages` is passed by value from the `@Published` property at call time in `ConversationDetailViewModel.addReaction/removeReaction`. The existing pattern is safe — no redesign needed.
+
+7. **All UI constants are tunable.** Implement sticker size, overlap, X/Y offsets, corner radii, and details-row dimensions as named constants. Never hard-code geometry in layout logic.
+
+8. **Thread-context verification is required.** The final verification pass must include: sticker badge rendering in thread view, badge-tap opening overlay details in thread context, and remove-own-reaction from inline details in thread context.
+
+9. **Accessibility requirements:**
+   - HAHA artwork: `accessibilityLabel = "Ha ha"` in picker, badge, and details row
+   - Sticker badges: descriptive labels (e.g., "2 reactions: heart, thumbs up" rather than raw emoji list when practical)
+   - Selected picker reactions: expose `.selected` trait
+   - Emoji keyboard button: labeled for VoiceOver
+
+---
+
+## Chunk 1: Data Model & Service Layer (Atomic Block — Tasks 1-4)
+
+Tasks 1-4 are executed as a single atomic block. Build verification runs only after all four are complete. One commit for the entire block.
 
 ### Task 1: Simplify MessageReaction model
 
@@ -39,18 +67,7 @@ static let standardTapbacks = ["❤️", "👍", "👎", "😂", "‼️", "❓"
 
 This removes `quickReactions`, `extendedReactions`, `validReactions`, and the `isValid` computed property. Any emoji is now a valid reaction — validation is no longer the model's responsibility.
 
-- [ ] **Step 2: Verify the project still compiles**
-
-Run: `xcodebuild build -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -quiet 2>&1 | tail -5`
-
-Expected: Build will FAIL because `MessageReactionService.swift:45` still references `MessageReaction.validReactions`. This is expected — we fix it in the next task.
-
-- [ ] **Step 3: Commit the model change**
-
-```bash
-git add NaarsCars/Core/Models/MessageReaction.swift
-git commit -m "refactor: simplify MessageReaction to standardTapbacks, remove validation"
-```
+_(No build verification or commit — part of atomic block. Proceed to Task 2.)_
 
 ---
 
@@ -98,18 +115,7 @@ func fetchIndividualReactions(messageId: UUID) async throws -> [MessageReaction]
 
 Delete the entire `fetchReactions(messageId:) -> MessageReactions` method (lines 115-137). All callers will be migrated to `fetchIndividualReactions` in subsequent tasks. This prevents any code from bypassing the source-of-truth invariant.
 
-- [ ] **Step 4: Verify the project compiles (expect failures from callers)**
-
-Run: `xcodebuild build -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -quiet 2>&1 | tail -20`
-
-Expected: Build will FAIL because `ConversationDetailViewModel` still calls `fetchReactions`. This is expected — we fix it in Task 4.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add NaarsCars/Core/Services/MessageReactionService.swift
-git commit -m "refactor: remove reaction validation, add fetchIndividualReactions, remove old fetchReactions"
-```
+_(No build verification or commit — part of atomic block. Proceed to Task 3.)_
 
 ---
 
@@ -128,9 +134,25 @@ After line 158 (`var reactions: MessageReactions?`), add:
 var individualReactions: [MessageReaction]?
 ```
 
-- [ ] **Step 2: Add a static helper to derive MessageReactions from individual records**
+- [ ] **Step 2: Add the derivation helper and centralized setter**
 
-Add this extension at the bottom of `Message.swift` (after the struct closing brace) or as a method on `MessageReactions`:
+`individualReactions` is not in `CodingKeys` (line 230 confirms: `// reactions and replyToMessage are not in CodingKeys`), so adding it will not change JSON encode/decode behavior.
+
+Add these to `Message.swift`:
+
+```swift
+// Inside the Message struct, after the individualReactions property:
+
+/// Centralized setter that maintains the data invariant:
+/// sets `individualReactions`, then derives `reactions` from it.
+/// Use this everywhere instead of setting the two properties independently.
+mutating func setIndividualReactions(_ records: [MessageReaction]?) {
+    individualReactions = records?.isEmpty == true ? nil : records
+    reactions = MessageReactions.from(records ?? [])
+}
+```
+
+And add this extension at the bottom of `Message.swift` (after the struct closing brace):
 
 ```swift
 extension MessageReactions {
@@ -158,18 +180,7 @@ In `Message.swift`:
 lhs.individualReactions == rhs.individualReactions &&
 ```
 
-- [ ] **Step 4: Verify the project compiles (still expect fetchReactions caller failures)**
-
-Run: `xcodebuild build -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -quiet 2>&1 | tail -20`
-
-Expected: Same failures as Task 2 step 4. The new property doesn't break anything new.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add NaarsCars/Core/Models/Message.swift
-git commit -m "feat: add individualReactions to Message with derivation helper"
-```
+_(No build verification or commit — part of atomic block. Proceed to Task 4.)_
 
 ---
 
@@ -178,26 +189,25 @@ git commit -m "feat: add individualReactions to Message with derivation helper"
 **Files:**
 - Modify: `NaarsCars/Features/Messaging/ViewModels/ConversationDetailViewModel.swift`
 
-- [ ] **Step 1: Update refreshReactions to use fetchIndividualReactions**
+- [ ] **Step 1: Update refreshReactions to use fetchIndividualReactions and setIndividualReactions**
 
-Replace the `refreshReactions(for:)` method (lines 284-292) with:
+Replace the `refreshReactions(for:)` method (around line 284) with:
 
 ```swift
 private func refreshReactions(for messageId: UUID) async {
     guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
     do {
         let individual = try await MessageReactionService.shared.fetchIndividualReactions(messageId: messageId)
-        messages[index].individualReactions = individual.isEmpty ? nil : individual
-        messages[index].reactions = MessageReactions.from(individual)
+        messages[index].setIndividualReactions(individual)
     } catch {
         AppLogger.error("messaging", "Failed to refresh reactions: \(error)")
     }
 }
 ```
 
-- [ ] **Step 2: Update loadReactionsForMessages to use fetchIndividualReactions**
+- [ ] **Step 2: Update loadReactionsForMessages to use fetchIndividualReactions and setIndividualReactions**
 
-Replace the `loadReactionsForMessages()` method (lines 331-359) — change the task group to fetch individual records and store both representations:
+Replace the `loadReactionsForMessages()` method (around line 331) — change the task group to fetch individual records and use the centralized setter:
 
 ```swift
 private func loadReactionsForMessages() async {
@@ -221,8 +231,7 @@ private func loadReactionsForMessages() async {
     var didChange = false
     for (id, records) in results {
         if let index = updated.firstIndex(where: { $0.id == id }) {
-            updated[index].individualReactions = records.isEmpty ? nil : records
-            updated[index].reactions = MessageReactions.from(records)
+            updated[index].setIndividualReactions(records)
             didChange = true
         }
     }
@@ -232,17 +241,17 @@ private func loadReactionsForMessages() async {
 }
 ```
 
-- [ ] **Step 3: Verify the project compiles**
+- [ ] **Step 3: Build verify the entire atomic block (Tasks 1-4)**
 
 Run: `xcodebuild build -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -quiet 2>&1 | tail -5`
 
-Expected: Build should SUCCEED. All callers of the deleted `fetchReactions` have been migrated.
+Expected: PASS — all callers of the deleted `fetchReactions` and `validReactions` have been migrated.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Commit the entire atomic block**
 
 ```bash
-git add NaarsCars/Features/Messaging/ViewModels/ConversationDetailViewModel.swift
-git commit -m "refactor: migrate ViewModel to fetchIndividualReactions, derive aggregated reactions"
+git add NaarsCars/Core/Models/MessageReaction.swift NaarsCars/Core/Models/Message.swift NaarsCars/Core/Services/MessageReactionService.swift NaarsCars/Features/Messaging/ViewModels/ConversationDetailViewModel.swift
+git commit -m "refactor: unify reaction data layer — individualReactions as source of truth, remove validation, centralized setter"
 ```
 
 ---
@@ -268,25 +277,22 @@ func addReaction(
     guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
 
     let previousIndividual = messages[index].individualReactions
-    let previousReactions = messages[index].reactions
     var updated = messages
 
-    // Update individualReactions (source of truth)
+    // Update via centralized setter (maintains invariant)
     var records = updated[index].individualReactions ?? []
     records.removeAll { $0.userId == userId } // Remove user's old reaction
     records.append(MessageReaction(messageId: messageId, userId: userId, reaction: reaction))
-    updated[index].individualReactions = records
-    updated[index].reactions = MessageReactions.from(records)
+    updated[index].setIndividualReactions(records)
     setMessages(updated)
 
     do {
         try await reactionService.addReaction(messageId: messageId, userId: userId, reaction: reaction)
     } catch {
-        // Rollback both representations
+        // Rollback via centralized setter
         var rollback = messages
         if let revertIndex = rollback.firstIndex(where: { $0.id == messageId }) {
-            rollback[revertIndex].individualReactions = previousIndividual
-            rollback[revertIndex].reactions = previousReactions
+            rollback[revertIndex].setIndividualReactions(previousIndividual)
             setMessages(rollback)
         }
         setError(AppError.processingError(error.localizedDescription))
@@ -309,23 +315,21 @@ func removeReaction(
     guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
 
     let previousIndividual = messages[index].individualReactions
-    let previousReactions = messages[index].reactions
     var updated = messages
 
-    // Update individualReactions (source of truth)
+    // Update via centralized setter (maintains invariant)
     var records = updated[index].individualReactions ?? []
     records.removeAll { $0.userId == userId }
-    updated[index].individualReactions = records.isEmpty ? nil : records
-    updated[index].reactions = MessageReactions.from(records)
+    updated[index].setIndividualReactions(records)
     setMessages(updated)
 
     do {
         try await reactionService.removeReaction(messageId: messageId, userId: userId)
     } catch {
+        // Rollback via centralized setter
         var rollback = messages
         if let revertIndex = rollback.firstIndex(where: { $0.id == messageId }) {
-            rollback[revertIndex].individualReactions = previousIndividual
-            rollback[revertIndex].reactions = previousReactions
+            rollback[revertIndex].setIndividualReactions(previousIndividual)
             setMessages(rollback)
         }
         setError(AppError.processingError(error.localizedDescription))
@@ -1046,10 +1050,12 @@ final class ReactionStickerBadgeView: UIView {
     // MARK: - Accessibility
 
     private func updateAccessibilityLabel(reactions: [MessageReaction]) {
-        let descriptions = reactions.map { r in
+        let count = reactions.count
+        let uniqueTypes = Set(reactions.map { r in
             TapbackArtwork.isHaha(r.reaction) ? "Ha ha" : r.reaction
-        }
-        accessibilityLabel = descriptions.joined(separator: ", ")
+        })
+        let typeList = uniqueTypes.sorted().joined(separator: ", ")
+        accessibilityLabel = "\(count) \(count == 1 ? "reaction" : "reactions"): \(typeList)"
     }
 
 }
@@ -1186,15 +1192,34 @@ git commit -m "chore: delete ReactionBadgeView, replaced by ReactionStickerBadge
 
 Build the horizontal scrollable row that shows each reaction as a large sticker with user avatar below. Read spec Section 4 for ordering rules: groups by count descending, avatars by createdAt ascending.
 
-Key features:
-- Horizontal `UIScrollView` containing `UIStackView`
-- Each item: vertical stack with ~50pt speech-bubble sticker + ~24pt avatar circle
-- Grouped by reaction type, avatars overlap within each group
-- Dark blur background with 16pt corner radius
-- Tap on own reaction triggers removal
-- `accessibilityLabel = "Ha ha"` for HAHA stickers
+**Required public API:**
 
-The `configure` method should accept `[MessageReaction]`, `[UUID: Profile]` (profiles keyed by userId), and `currentUserId`.
+```swift
+final class ReactionDetailsRowView: UIView {
+    /// Called when the user taps their own reaction to remove it.
+    /// The String is the reaction emoji being removed.
+    var onRemoveReaction: ((String) -> Void)?
+
+    /// Configure the details row with reaction data.
+    /// - Parameters:
+    ///   - reactions: Individual `MessageReaction` records for this message
+    ///   - profiles: Profile data keyed by userId for avatar rendering
+    ///   - currentUserId: The logged-in user's ID (used to identify removable reactions)
+    func configure(reactions: [MessageReaction], profiles: [UUID: Profile], currentUserId: UUID)
+
+    func prepareForReuse()
+}
+```
+
+**Implementation requirements:**
+- Horizontal `UIScrollView` containing `UIStackView`
+- Each item: vertical stack with ~50pt speech-bubble sticker (using same `applySpeechBubbleMask` shape as `ReactionStickerBadgeView`) + ~24pt avatar circle
+- Grouped by reaction type (count descending, ties by earliest createdAt), avatars ordered by createdAt ascending within each group
+- If multiple users reacted with the same emoji, their avatar circles overlap below the single sticker
+- Dark blur background (`systemUltraThinMaterial`) with 16pt corner radius
+- Tap on own reaction triggers `onRemoveReaction` callback with the reaction emoji
+- HAHA stickers: `accessibilityLabel = "Ha ha"`
+- All geometry values (sticker size, avatar size, spacing) as named constants
 
 - [ ] **Step 2: Verify the project compiles**
 
@@ -1302,7 +1327,15 @@ In `ConversationDetailView.swift`:
 4. Delete the `.sheet(isPresented: $showReactionDetails)` modifier
 5. Delete the `reactionDetailsContent` computed property
 6. Delete the `refreshReactionProfiles(for:)` method
-7. Update the `onReactionTap` callback — remove the `"__details__"` sentinel handling (lines 378-382). Badge taps now go through the overlay flow directly.
+7. Remove the `"__details__"` sentinel handling in `onReactionTap` (line 379). Badge taps now go through the overlay flow directly.
+
+- [ ] **Step 1b: Remove `"__details__"` sentinel from MessageCellView**
+
+In `MessageCellView.swift` (line 309), the `onReactionLongPress` callback sends `"__details__"`. This entire callback is no longer needed — badge taps now go directly through `messageCellDidTapReactionBadge`. Remove the `onReactionLongPress` wiring.
+
+- [ ] **Step 1c: Search entire codebase for remaining `"__details__"` references**
+
+Search for `"__details__"` across all `.swift` files. Remove any remaining live code references. (Doc/plan files can be left as-is — they are historical.)
 
 - [ ] **Step 2: Update MessagesViewControllerRepresentable if needed**
 
@@ -1371,11 +1404,23 @@ Expected: All tests PASS.
 
 Open the spec at `Docs/superpowers/specs/2026-03-14-imessage-reaction-sticker-parity-design.md` and manually verify each item in the Verification Checklist section. For items requiring visual inspection (badge rendering across bubble types, dark/light mode, HAHA crispness), run the app in the simulator and test manually.
 
-- [ ] **Step 3: Test in thread view context**
+- [ ] **Step 3: Test in thread view context (required — not optional)**
 
-Navigate to a message thread in the app. Verify that reaction sticker badges render correctly and that tapping them opens the overlay with inline details.
+Navigate to a message thread (`MessageThreadViewController`) in the app. Verify:
+1. Reaction sticker badges render correctly on thread messages
+2. Badge tap opens the overlay with inline reaction details
+3. Remove-own-reaction from inline details works in thread context
+4. Realtime updates from other users update badges in thread view
 
-- [ ] **Step 4: Commit any final fixes**
+- [ ] **Step 4: Verify accessibility**
+
+Using Xcode Accessibility Inspector or VoiceOver:
+1. HAHA artwork reads "Ha ha" in picker, badge, and details row
+2. Sticker badge reads descriptive label (e.g., "2 reactions: heart, thumbs up")
+3. Selected picker reaction exposes `.selected` trait
+4. Emoji keyboard button is labeled for VoiceOver
+
+- [ ] **Step 5: Commit any final fixes**
 
 If any issues were found and fixed during verification:
 
