@@ -16,8 +16,8 @@ struct MessageThreadRepresentable: UIViewControllerRepresentable {
     let participantProfiles: [Profile]
     var hasLeftConversation: Bool = false
 
-    func makeUIViewController(context: Context) -> MessageThreadViewController {
-        MessageThreadViewController(
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let threadVC = MessageThreadViewController(
             conversationId: conversationId,
             parentMessageId: parentMessageId,
             conversationViewModel: conversationViewModel,
@@ -26,7 +26,9 @@ struct MessageThreadRepresentable: UIViewControllerRepresentable {
             participantProfiles: participantProfiles,
             hasLeftConversation: hasLeftConversation
         )
+        let nav = UINavigationController(rootViewController: threadVC)
+        return nav
     }
 
-    func updateUIViewController(_ vc: MessageThreadViewController, context: Context) {}
+    func updateUIViewController(_ vc: UINavigationController, context: Context) {}
 }

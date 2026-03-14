@@ -37,19 +37,9 @@ struct MessageReaction: Codable, Identifiable, Equatable, Sendable {
         self.createdAt = createdAt
     }
     
-    /// Quick-access reactions (iMessage set)
-    static let quickReactions = ["❤️", "👍", "👎", "😂", "‼️", "❓"]
-
-    /// Extended curated reactions
-    static let extendedReactions = ["🔥", "👏", "😢", "😮", "🙏", "💯", "🎉", "😍", "🤔", "💀", "😱", "👀", "✅", "❌", "🙌"]
-
-    /// All valid reactions
-    static let validReactions = quickReactions + extendedReactions
-    
-    /// Check if reaction is valid
-    var isValid: Bool {
-        return Self.validReactions.contains(reaction)
-    }
+    /// The 6 standard iMessage tapback reactions.
+    /// 😂 is stored as the emoji but rendered as custom "HA HA" artwork by the UI layer.
+    static let standardTapbacks = ["❤️", "👍", "👎", "😂", "‼️", "❓"]
 }
 
 // MessageReactions is now defined in Message.swift to ensure it's available when Message is compiled

@@ -156,7 +156,19 @@ struct Message: Codable, Identifiable, Sendable {
     
     /// Reactions on this message (not stored in database, populated separately)
     var reactions: MessageReactions?
-    
+
+    /// Individual per-user reaction records — single source of truth for reaction state.
+    /// `reactions` (aggregated) is derived from this array. Never mutate `reactions` independently.
+    var individualReactions: [MessageReaction]?
+
+    /// Centralized setter that maintains the data invariant:
+    /// sets `individualReactions`, then derives `reactions` from it.
+    /// Use this everywhere instead of setting the two properties independently.
+    mutating func setIndividualReactions(_ records: [MessageReaction]?) {
+        individualReactions = records?.isEmpty == true ? nil : records
+        reactions = MessageReactions.from(records ?? [])
+    }
+
     /// The message this is replying to (populated when fetched)
     var replyToMessage: ReplyContext?
     
@@ -257,7 +269,8 @@ struct Message: Codable, Identifiable, Sendable {
         syncError: String? = nil,
         sender: Profile? = nil,
         reactions: MessageReactions? = nil,
-        replyToMessage: ReplyContext? = nil
+        replyToMessage: ReplyContext? = nil,
+        individualReactions: [MessageReaction]? = nil
     ) {
         self.id = id
         self.conversationId = conversationId
@@ -284,6 +297,7 @@ struct Message: Codable, Identifiable, Sendable {
         self.sender = sender
         self.reactions = reactions
         self.replyToMessage = replyToMessage
+        self.individualReactions = individualReactions
     }
 }
 
@@ -342,6 +356,7 @@ extension Message: Equatable {
                lhs.syncError == rhs.syncError &&
                lhs.sender?.id == rhs.sender?.id &&
                lhs.reactions == rhs.reactions &&
+               lhs.individualReactions == rhs.individualReactions &&
                lhs.replyToMessage == rhs.replyToMessage
     }
 }
@@ -378,5 +393,20 @@ struct BlockedUser: Codable, Identifiable, Sendable {
         case blockedAvatarUrl = "blocked_avatar_url"
         case blockedAt = "blocked_at"
         case reason
+    }
+}
+
+// MARK: - MessageReactions Derivation
+
+extension MessageReactions {
+    /// Derive aggregated reactions from individual records.
+    /// This is the only sanctioned way to produce a `MessageReactions` value.
+    static func from(_ records: [MessageReaction]) -> MessageReactions? {
+        guard !records.isEmpty else { return nil }
+        var dict: [String: [UUID]] = [:]
+        for record in records {
+            dict[record.reaction, default: []].append(record.userId)
+        }
+        return MessageReactions(reactions: dict)
     }
 }

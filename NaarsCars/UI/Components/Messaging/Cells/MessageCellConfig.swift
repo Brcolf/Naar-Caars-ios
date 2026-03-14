@@ -30,4 +30,9 @@ protocol MessageCellDelegate: AnyObject {
     func messageCellDidTapReplyPreview(_ cell: MessageCellView, replyToId: UUID)
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message)
     func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message)
+    func messageCellDidTapReactionBadge(_ cell: MessageCellView, message: Message)
+}
+
+extension MessageCellDelegate {
+    func messageCellDidTapReactionBadge(_ cell: MessageCellView, message: Message) {}
 }

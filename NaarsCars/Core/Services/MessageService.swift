@@ -409,21 +409,12 @@ final class MessageService {
         let reactions: [MessageReaction] = (try? decoder.decode([MessageReaction].self, from: reactionsData)) ?? []
         
         // Group reactions by message ID
-        var reactionsDict: [UUID: [String: [UUID]]] = [:]
-        for reaction in reactions {
-            if reactionsDict[reaction.messageId] == nil {
-                reactionsDict[reaction.messageId] = [:]
-            }
-            if reactionsDict[reaction.messageId]?[reaction.reaction] == nil {
-                reactionsDict[reaction.messageId]?[reaction.reaction] = []
-            }
-            reactionsDict[reaction.messageId]?[reaction.reaction]?.append(reaction.userId)
-        }
-        
-        // Attach reactions to messages
+        let reactionsByMessage = Dictionary(grouping: reactions, by: \.messageId)
+
+        // Attach reactions to messages via centralized setter (maintains invariant)
         for index in messages.indices {
-            if let reactionDict = reactionsDict[messages[index].id] {
-                messages[index].reactions = MessageReactions(reactions: reactionDict)
+            if let recordsForMessage = reactionsByMessage[messages[index].id] {
+                messages[index].setIndividualReactions(recordsForMessage)
             }
         }
     }

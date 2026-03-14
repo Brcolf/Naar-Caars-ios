@@ -411,29 +411,23 @@ final class MessageSendManager {
         guard let userId = authService.currentUserId else { return }
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
 
-        let previousReactions = messages[index].reactions
+        let previousIndividual = messages[index].individualReactions
         var updated = messages
-        var updatedReactions = updated[index].reactions ?? MessageReactions()
-        var userIds = updatedReactions.reactions[reaction] ?? []
-        if !userIds.contains(userId) {
-            userIds.append(userId)
-        }
-        for key in updatedReactions.reactions.keys where key != reaction {
-            updatedReactions.reactions[key]?.removeAll { $0 == userId }
-            if updatedReactions.reactions[key]?.isEmpty == true {
-                updatedReactions.reactions.removeValue(forKey: key)
-            }
-        }
-        updatedReactions.reactions[reaction] = userIds
-        updated[index].reactions = updatedReactions
+
+        // Update via centralized setter (maintains invariant)
+        var records = updated[index].individualReactions ?? []
+        records.removeAll { $0.userId == userId } // Remove user's old reaction
+        records.append(MessageReaction(messageId: messageId, userId: userId, reaction: reaction))
+        updated[index].setIndividualReactions(records)
         setMessages(updated)
 
         do {
             try await reactionService.addReaction(messageId: messageId, userId: userId, reaction: reaction)
         } catch {
+            // Rollback via centralized setter
             var rollback = messages
             if let revertIndex = rollback.firstIndex(where: { $0.id == messageId }) {
-                rollback[revertIndex].reactions = previousReactions
+                rollback[revertIndex].setIndividualReactions(previousIndividual)
                 setMessages(rollback)
             }
             setError(AppError.processingError(error.localizedDescription))
@@ -449,25 +443,22 @@ final class MessageSendManager {
         guard let userId = authService.currentUserId else { return }
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
 
-        let previousReactions = messages[index].reactions
+        let previousIndividual = messages[index].individualReactions
         var updated = messages
-        if var updatedReactions = updated[index].reactions {
-            for key in updatedReactions.reactions.keys {
-                updatedReactions.reactions[key]?.removeAll { $0 == userId }
-                if updatedReactions.reactions[key]?.isEmpty == true {
-                    updatedReactions.reactions.removeValue(forKey: key)
-                }
-            }
-            updated[index].reactions = updatedReactions.reactions.isEmpty ? nil : updatedReactions
-            setMessages(updated)
-        }
+
+        // Update via centralized setter (maintains invariant)
+        var records = updated[index].individualReactions ?? []
+        records.removeAll { $0.userId == userId }
+        updated[index].setIndividualReactions(records)
+        setMessages(updated)
 
         do {
             try await reactionService.removeReaction(messageId: messageId, userId: userId)
         } catch {
+            // Rollback via centralized setter
             var rollback = messages
             if let revertIndex = rollback.firstIndex(where: { $0.id == messageId }) {
-                rollback[revertIndex].reactions = previousReactions
+                rollback[revertIndex].setIndividualReactions(previousIndividual)
                 setMessages(rollback)
             }
             setError(AppError.processingError(error.localizedDescription))

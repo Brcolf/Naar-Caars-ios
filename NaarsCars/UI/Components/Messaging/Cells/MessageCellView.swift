@@ -24,7 +24,7 @@ final class MessageCellView: UIView {
     private var avatarView: AvatarUIView?
     private var senderNameLabel: UILabel?
     private var replyPreview: ReplyPreviewUIView?
-    private var reactionBadge: ReactionBadgeView?
+    private var reactionStickerBadge: ReactionStickerBadgeView?
     private var readReceipt: ReadReceiptView?
     private var timestampLabel: UILabel?
     private var editedLabel: UILabel?
@@ -117,7 +117,7 @@ final class MessageCellView: UIView {
         // Accessibility — container exposes child elements
         isAccessibilityElement = false
         accessibilityElements = visibleContentViews()
-            + [reactionBadge, timestampLabel, readReceipt, failedRetryLabel, replyPreview]
+            + [reactionStickerBadge, timestampLabel, readReceipt, failedRetryLabel, replyPreview]
                 .compactMap { $0 }
                 .filter { !$0.isHidden }
 
@@ -285,29 +285,22 @@ final class MessageCellView: UIView {
         }
 
         // Reactions
-        if let reactions = msg.reactions, !reactions.reactions.isEmpty {
-            let rb = reactionBadge ?? {
-                let v = ReactionBadgeView()
+        if let individualReactions = msg.individualReactions, !individualReactions.isEmpty {
+            let badge = reactionStickerBadge ?? {
+                let v = ReactionStickerBadgeView()
                 addSubview(v)
-                reactionBadge = v
+                reactionStickerBadge = v
                 return v
             }()
-            rb.isHidden = false
-            rb.configure(reactions: reactions)
-            rb.onReactionTap = { [weak self] reaction in
+            badge.isHidden = false
+            let currentUserId = AuthService.shared.currentUserId ?? UUID()
+            badge.configure(reactions: individualReactions, currentUserId: currentUserId)
+            badge.onTap = { [weak self] in
                 guard let self, let config = self.config else { return }
-                let currentUserId = AuthService.shared.currentUserId
-                let hasReacted = reactions.reactions.values.contains { $0.contains(where: { $0 == currentUserId }) }
-                if hasReacted {
-                    self.delegate?.messageCellDidTapReaction(self, message: config.message, reaction: nil)
-                } else {
-                    self.delegate?.messageCellDidLongPress(self, message: config.message)
-                }
+                self.delegate?.messageCellDidTapReactionBadge(self, message: config.message)
             }
-            rb.onReactionLongPress = { [weak self] reaction in
-                guard let self, let config = self.config else { return }
-                self.delegate?.messageCellDidTapReaction(self, message: config.message, reaction: "__details__")
-            }
+        } else {
+            reactionStickerBadge?.isHidden = true
         }
 
         // Timestamp + read receipt (last in series)
@@ -444,7 +437,7 @@ final class MessageCellView: UIView {
         avatarView?.isHidden = true
         senderNameLabel?.isHidden = true
         replyPreview?.isHidden = true
-        reactionBadge?.isHidden = true
+        reactionStickerBadge?.isHidden = true
         readReceipt?.isHidden = true
         timestampLabel?.isHidden = true
         editedLabel?.isHidden = true
@@ -513,7 +506,7 @@ final class MessageCellView: UIView {
         if !contentViews.isEmpty { y += 2 }
 
         // Reaction badge (anchored to first content view)
-        if let primary = primaryContentView, let rb = reactionBadge, !rb.isHidden {
+        if let primary = primaryContentView, let rb = reactionStickerBadge, !rb.isHidden {
             let rbSize = rb.sizeThatFits(.zero)
             let rbX = config.isFromCurrentUser ? primary.frame.minX + 4 : primary.frame.maxX - rbSize.width - 4
             rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height * 0.6, width: rbSize.width, height: rbSize.height)
@@ -650,7 +643,7 @@ final class MessageCellView: UIView {
         height += topPadding + bottomPadding
 
         // Reaction badge offset
-        if reactionBadge?.isHidden == false { height += 10 }
+        if reactionStickerBadge?.isHidden == false { height += 10 }
 
         return CGSize(width: size.width, height: height)
     }
@@ -743,6 +736,12 @@ final class MessageCellView: UIView {
             return
         }
 
+        // If this message is part of a thread, open the thread view
+        if config.message.replyToId != nil || config.replyCount > 0 {
+            delegate?.messageCellDidTapViewThread(self, message: config.message)
+            return
+        }
+
         // Toggle timestamp for 2 seconds
         timestampHideWorkItem?.cancel()
         if timestampLabel?.isHidden == true {
@@ -782,7 +781,7 @@ final class MessageCellView: UIView {
         systemMessage?.prepareForReuse()
         unsentMessage?.prepareForReuse()
         avatarView?.prepareForReuse()
-        reactionBadge?.prepareForReuse()
+        reactionStickerBadge?.prepareForReuse()
         readReceipt?.prepareForReuse()
         replyPreview?.prepareForReuse()
         replyCountLabel?.isHidden = true

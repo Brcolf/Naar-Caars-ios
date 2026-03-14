@@ -580,7 +580,31 @@ final class MessageThreadViewController: UIViewController {
 
 extension MessageThreadViewController: MessageCellDelegate {
     func messageCellDidLongPress(_ cell: MessageCellView, message: Message) {
-        // Thread view doesn't present the overlay
+        let cellFrame = cell.convert(cell.bounds, to: nil)
+        guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
+
+        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
+        let currentReaction = message.reactions?.currentUserReaction(
+            userId: AuthService.shared.currentUserId ?? UUID()
+        )
+        let profilesById = Dictionary(uniqueKeysWithValues: participantProfiles.map { ($0.id, $0) })
+
+        let overlay = MessageOverlayController(
+            snapshot: snapshot,
+            sourceFrame: cellFrame,
+            message: message,
+            isFromCurrentUser: isFromCurrentUser,
+            currentUserReaction: currentReaction,
+            isConversationFrozen: hasLeftConversation,
+            onAction: { [weak self] action in
+                self?.handleOverlayAction(action, for: message)
+            },
+            showDetails: !(message.individualReactions ?? []).isEmpty,
+            individualReactions: message.individualReactions ?? [],
+            reactionProfiles: profilesById,
+            currentUserId: AuthService.shared.currentUserId ?? UUID()
+        )
+        present(overlay, animated: false)
     }
 
     func messageCellDidTapReaction(_ cell: MessageCellView, message: Message, reaction: String?) {
@@ -639,6 +663,60 @@ extension MessageThreadViewController: MessageCellDelegate {
 
     func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message) {
         // Thread view doesn't support nested thread navigation
+    }
+
+    func messageCellDidTapReactionBadge(_ cell: MessageCellView, message: Message) {
+        let cellFrame = cell.convert(cell.bounds, to: nil)
+        guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
+
+        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
+        let currentReaction = message.reactions?.currentUserReaction(
+            userId: AuthService.shared.currentUserId ?? UUID()
+        )
+        let currentUserId = AuthService.shared.currentUserId ?? UUID()
+        let profilesById = Dictionary(uniqueKeysWithValues: participantProfiles.map { ($0.id, $0) })
+
+        let overlay = MessageOverlayController(
+            snapshot: snapshot,
+            sourceFrame: cellFrame,
+            message: message,
+            isFromCurrentUser: isFromCurrentUser,
+            currentUserReaction: currentReaction,
+            isConversationFrozen: hasLeftConversation,
+            onAction: { [weak self] action in
+                self?.handleOverlayAction(action, for: message)
+            },
+            showDetails: true,
+            individualReactions: message.individualReactions ?? [],
+            reactionProfiles: profilesById,
+            currentUserId: currentUserId
+        )
+        present(overlay, animated: false)
+    }
+
+    private func handleOverlayAction(_ action: OverlayAction, for message: Message) {
+        switch action {
+        case .react(let emoji):
+            Task { await conversationViewModel.addReaction(messageId: message.id, reaction: emoji) }
+        case .removeReaction:
+            Task { await conversationViewModel.removeReaction(messageId: message.id) }
+        case .copy:
+            UIPasteboard.general.string = message.text
+        case .reply:
+            // Thread replies go to the parent; no separate reply-to handling needed
+            break
+        case .viewThread:
+            // Already in thread view
+            break
+        case .edit:
+            conversationViewModel.startEditing(message)
+        case .unsend:
+            Task { await conversationViewModel.unsendMessage(id: message.id) }
+        case .deleteForMe:
+            Task { await conversationViewModel.deleteMessageForMe(message) }
+        case .report:
+            break
+        }
     }
 }
 

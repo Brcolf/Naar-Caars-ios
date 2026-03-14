@@ -25,8 +25,14 @@ final class MessageOverlayController: UIViewController {
     private let isConversationFrozen: Bool
     private let onAction: (OverlayAction) -> Void
 
+    private let showDetails: Bool
+    private let individualReactions: [MessageReaction]
+    private let reactionProfiles: [UUID: Profile]
+    private let currentUserId: UUID
+
     private let reactionBar: ReactionBarView
     private let actionList: OverlayActionListView
+    private let detailsRow: ReactionDetailsRowView
 
     private let backdropBlur: UIVisualEffectView = {
         let blur = UIVisualEffectView(effect: nil)
@@ -43,7 +49,11 @@ final class MessageOverlayController: UIViewController {
         isFromCurrentUser: Bool,
         currentUserReaction: String?,
         isConversationFrozen: Bool = false,
-        onAction: @escaping (OverlayAction) -> Void
+        onAction: @escaping (OverlayAction) -> Void,
+        showDetails: Bool = false,
+        individualReactions: [MessageReaction] = [],
+        reactionProfiles: [UUID: Profile] = [:],
+        currentUserId: UUID = UUID()
     ) {
         self.snapshot = snapshot
         self.sourceFrame = sourceFrame
@@ -52,9 +62,14 @@ final class MessageOverlayController: UIViewController {
         self.currentUserReaction = currentUserReaction
         self.isConversationFrozen = isConversationFrozen
         self.onAction = onAction
+        self.showDetails = showDetails
+        self.individualReactions = individualReactions
+        self.reactionProfiles = reactionProfiles
+        self.currentUserId = currentUserId
 
         self.reactionBar = ReactionBarView(currentUserReaction: currentUserReaction)
         self.actionList = OverlayActionListView(message: message, isFromCurrentUser: isFromCurrentUser, isConversationFrozen: isConversationFrozen)
+        self.detailsRow = ReactionDetailsRowView()
 
         super.init(nibName: nil, bundle: nil)
 
@@ -75,6 +90,7 @@ final class MessageOverlayController: UIViewController {
         setupBackdrop()
         setupSnapshot()
         setupReactionBar()
+        setupDetailsRow()
         setupActionList()
         wireCallbacks()
     }
@@ -140,6 +156,54 @@ final class MessageOverlayController: UIViewController {
         reactionBar.alpha = 0
     }
 
+    private func setupDetailsRow() {
+        let shouldShow = showDetails || !individualReactions.isEmpty
+        guard shouldShow else {
+            detailsRow.isHidden = true
+            return
+        }
+
+        view.addSubview(detailsRow)
+        detailsRow.configure(
+            reactions: individualReactions,
+            profiles: reactionProfiles,
+            currentUserId: currentUserId
+        )
+
+        let detailsRowHeight: CGFloat = 100 // sticker (50) + spacing (4) + avatar (24) + padding (22)
+        let spacing: CGFloat = 8
+
+        // Position between reaction bar and snapshot
+        let reactionBarIsAbove = reactionBar.frame.midY < sourceFrame.midY
+
+        if reactionBarIsAbove {
+            // Details row goes below reaction bar, above snapshot
+            let detailsTopY = reactionBar.frame.maxY + spacing
+            detailsRow.frame = CGRect(
+                x: 16,
+                y: detailsTopY,
+                width: view.bounds.width - 32,
+                height: detailsRowHeight
+            )
+
+            // Push snapshot down if it overlaps the details row
+            if snapshot.frame.minY < detailsRow.frame.maxY + spacing {
+                snapshot.frame.origin.y = detailsRow.frame.maxY + spacing
+            }
+        } else {
+            // Reaction bar is below snapshot — details row goes above snapshot
+            let detailsBottomY = sourceFrame.minY - spacing
+            detailsRow.frame = CGRect(
+                x: 16,
+                y: detailsBottomY - detailsRowHeight,
+                width: view.bounds.width - 32,
+                height: detailsRowHeight
+            )
+        }
+
+        detailsRow.alpha = 0
+    }
+
     private func setupActionList() {
         view.addSubview(actionList)
 
@@ -199,6 +263,9 @@ final class MessageOverlayController: UIViewController {
         actionList.onAction = { [weak self] action in
             self?.dismissOverlay { self?.onAction(action) }
         }
+        detailsRow.onRemoveReaction = { [weak self] _ in
+            self?.dismissOverlay { self?.onAction(.removeReaction) }
+        }
     }
 
     // MARK: - Animation
@@ -208,10 +275,13 @@ final class MessageOverlayController: UIViewController {
         snapshot.transform = .identity
         let reactionBarTargetY = reactionBar.frame.origin.y
         let actionListTargetY = actionList.frame.origin.y
+        let detailsRowTargetY = detailsRow.frame.origin.y
         let reactionBarIsAbove = reactionBar.frame.midY < sourceFrame.midY
+        let snapshotTargetY = snapshot.frame.origin.y
 
         reactionBar.frame.origin.y += reactionBarIsAbove ? -10 : 10
         actionList.frame.origin.y += reactionBarIsAbove ? 10 : -10
+        detailsRow.frame.origin.y += reactionBarIsAbove ? -10 : 10
 
         let animator = UIViewPropertyAnimator(
             duration: 0.3,
@@ -221,8 +291,11 @@ final class MessageOverlayController: UIViewController {
         animator.addAnimations {
             self.backdropBlur.effect = UIBlurEffect(style: .systemUltraThinMaterial)
             self.snapshot.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
+            self.snapshot.frame.origin.y = snapshotTargetY
             self.reactionBar.alpha = 1
             self.reactionBar.frame.origin.y = reactionBarTargetY
+            self.detailsRow.alpha = 1
+            self.detailsRow.frame.origin.y = detailsRowTargetY
             self.actionList.alpha = 1
             self.actionList.frame.origin.y = actionListTargetY
         }
@@ -231,6 +304,7 @@ final class MessageOverlayController: UIViewController {
     }
 
     private func dismissOverlay(completion: (() -> Void)? = nil) {
+        view.endEditing(true)
         let reactionBarIsAbove = reactionBar.frame.midY < sourceFrame.midY
 
         let animator = UIViewPropertyAnimator(duration: 0.25, dampingRatio: 1.0)
@@ -240,6 +314,8 @@ final class MessageOverlayController: UIViewController {
             self.snapshot.transform = .identity
             self.reactionBar.alpha = 0
             self.reactionBar.frame.origin.y += reactionBarIsAbove ? -10 : 10
+            self.detailsRow.alpha = 0
+            self.detailsRow.frame.origin.y += reactionBarIsAbove ? -10 : 10
             self.actionList.alpha = 0
             self.actionList.frame.origin.y += reactionBarIsAbove ? 10 : -10
         }

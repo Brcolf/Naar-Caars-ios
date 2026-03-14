@@ -17,19 +17,13 @@ final class ReactionBarView: UIView {
 
     // MARK: - Configuration
 
-    private static let allReactions: [String] = [
-        "\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F44E}", "\u{1F602}", "\u{203C}\u{FE0F}",
-        "\u{2753}", "\u{1F525}", "\u{1F44F}", "\u{1F622}", "\u{1F62E}",
-        "\u{1F64F}", "\u{1F4AF}", "\u{1F389}", "\u{1F60D}", "\u{1F914}",
-        "\u{1F480}", "\u{1F631}", "\u{1F440}", "\u{2705}", "\u{274C}", "\u{1F64C}"
-    ]
-
     private let buttonSize: CGFloat = 40
     private let buttonSpacing: CGFloat = 6
 
     // MARK: - State
 
     private var currentUserReaction: String?
+    private let emojiTextField = EmojiTextField()
 
     // MARK: - Subviews
 
@@ -79,6 +73,14 @@ final class ReactionBarView: UIView {
         blurView.contentView.addSubview(scrollView)
         scrollView.addSubview(stackView)
 
+        // Hidden text field for emoji keyboard
+        emojiTextField.onEmojiInput = { [weak self] emoji in
+            RecentReactionsStore.record(emoji)
+            self?.onReact?(emoji)
+        }
+        emojiTextField.isHidden = true
+        addSubview(emojiTextField)
+
         NSLayoutConstraint.activate([
             blurView.topAnchor.constraint(equalTo: topAnchor),
             blurView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -97,25 +99,47 @@ final class ReactionBarView: UIView {
             stackView.heightAnchor.constraint(equalToConstant: buttonSize),
         ])
 
-        for emoji in Self.allReactions {
-            let button = makeReactionButton(emoji: emoji)
-            stackView.addArrangedSubview(button)
+        // Standard tapbacks
+        for emoji in MessageReaction.standardTapbacks {
+            stackView.addArrangedSubview(makeReactionButton(emoji: emoji))
         }
+
+        // Recent emoji (non-standard only, filtered by RecentReactionsStore)
+        for emoji in RecentReactionsStore.recents {
+            stackView.addArrangedSubview(makeReactionButton(emoji: emoji))
+        }
+
+        // Divider
+        let divider = UIView()
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        divider.backgroundColor = UIColor.white.withAlphaComponent(0.2)
+        NSLayoutConstraint.activate([
+            divider.widthAnchor.constraint(equalToConstant: 1),
+            divider.heightAnchor.constraint(equalToConstant: buttonSize - 16),
+        ])
+        stackView.addArrangedSubview(divider)
+
+        // Emoji keyboard button
+        stackView.addArrangedSubview(makeEmojiKeyboardButton())
     }
+
+    // MARK: - Button Factories
 
     private func makeReactionButton(emoji: String) -> UIButton {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
 
-        if let glyph = TapbackGlyph.image(for: emoji, pointSize: 22) {
-            button.setImage(glyph, for: .normal)
+        if TapbackArtwork.isHaha(emoji) {
+            let img = TapbackArtwork.hahaImage(pointSize: 22)
+            button.setImage(img, for: .normal)
             button.setTitle(nil, for: .normal)
+            button.accessibilityLabel = "Ha ha"
         } else {
             button.setTitle(emoji, for: .normal)
-            // Use a fixed size appropriate for emoji rendering; emoji glyphs do not
-            // benefit from Dynamic Type scaling as they are pictographic, not text.
             button.titleLabel?.font = .systemFont(ofSize: 22)
+            button.accessibilityLabel = emoji
         }
+
         button.layer.cornerRadius = buttonSize / 2
         button.clipsToBounds = true
 
@@ -126,14 +150,12 @@ final class ReactionBarView: UIView {
 
         let isSelected = emoji == currentUserReaction
         if isSelected {
-            button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.25)
-            button.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
+            button.backgroundColor = .systemBlue
             button.accessibilityTraits = [.button, .selected]
-            button.accessibilityHint = NSLocalizedString("accessibility_reaction_remove_hint", comment: "Hint for removing an already-selected reaction")
+            button.accessibilityHint = NSLocalizedString("accessibility_reaction_remove_hint", comment: "")
         } else {
-            button.accessibilityHint = NSLocalizedString("accessibility_reaction_add_hint", comment: "Hint for adding a reaction")
+            button.accessibilityHint = NSLocalizedString("accessibility_reaction_add_hint", comment: "")
         }
-        button.accessibilityLabel = emoji
         button.accessibilityIdentifier = "overlay.reaction.\(emoji)"
 
         button.addAction(UIAction { [weak self] _ in
@@ -141,10 +163,72 @@ final class ReactionBarView: UIView {
             if emoji == self.currentUserReaction {
                 self.onRemoveReaction?()
             } else {
+                if !MessageReaction.standardTapbacks.contains(emoji) {
+                    RecentReactionsStore.record(emoji)
+                }
                 self.onReact?(emoji)
             }
         }, for: .touchUpInside)
 
         return button
+    }
+
+    private func makeEmojiKeyboardButton() -> UIButton {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        button.setImage(UIImage(systemName: "face.smiling", withConfiguration: config), for: .normal)
+        button.tintColor = UIColor.white.withAlphaComponent(0.6)
+        button.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        button.layer.cornerRadius = buttonSize / 2
+        button.clipsToBounds = true
+        button.accessibilityLabel = NSLocalizedString("accessibility_emoji_picker", comment: "Open emoji picker")
+
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(equalToConstant: buttonSize),
+            button.heightAnchor.constraint(equalToConstant: buttonSize),
+        ])
+
+        button.addAction(UIAction { [weak self] _ in
+            self?.emojiTextField.becomeFirstResponder()
+        }, for: .touchUpInside)
+
+        return button
+    }
+}
+
+// MARK: - Hidden emoji text field
+
+/// A zero-frame UITextField that opens the emoji keyboard.
+/// Validates input to accept only emoji characters.
+private final class EmojiTextField: UITextField, UITextFieldDelegate {
+
+    var onEmojiInput: ((String) -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: .zero)
+        delegate = self
+        textContentType = .none
+        autocorrectionType = .no
+        spellCheckingType = .no
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override var textInputMode: UITextInputMode? {
+        // Prefer emoji keyboard if available
+        UITextInputMode.activeInputModes.first { $0.primaryLanguage == "emoji" } ?? super.textInputMode
+    }
+
+    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+        guard !string.isEmpty else { return false }
+        for character in string {
+            if character.isActualEmoji {
+                onEmojiInput?(String(character))
+                DispatchQueue.main.async { textField.resignFirstResponder() }
+                return false
+            }
+        }
+        return false
     }
 }

@@ -41,11 +41,6 @@ final class MessageReactionService {
     ///   - reaction: The reaction emoji/text
     /// - Throws: AppError if operation fails
     func addReaction(messageId: UUID, userId: UUID, reaction: String) async throws {
-        // Validate reaction
-        guard MessageReaction.validReactions.contains(reaction) else {
-            throw AppError.invalidInput("Invalid reaction")
-        }
-        
         // Check if user is a participant in the conversation
         let messageResponse = try await supabase
             .from("messages")
@@ -107,32 +102,19 @@ final class MessageReactionService {
         
         AppLogger.database.debug("Removed reaction from message \(messageId)")
     }
-    
-    /// Fetch reactions for a message
+
+    /// Fetch individual reaction records for a message.
     /// - Parameter messageId: The message ID
-    /// - Returns: MessageReactions object with all reactions
+    /// - Returns: Array of individual `MessageReaction` records
     /// - Throws: AppError if fetch fails
-    func fetchReactions(messageId: UUID) async throws -> MessageReactions {
+    func fetchIndividualReactions(messageId: UUID) async throws -> [MessageReaction] {
         let response = try await supabase
             .from("message_reactions")
             .select()
             .eq("message_id", value: messageId.uuidString)
             .execute()
-        
+
         let decoder = createDateDecoder()
-        let reactions: [MessageReaction] = try decoder.decode([MessageReaction].self, from: response.data)
-        
-        // Group reactions by reaction type
-        var reactionsDict: [String: [UUID]] = [:]
-        for reaction in reactions {
-            if reactionsDict[reaction.reaction] == nil {
-                reactionsDict[reaction.reaction] = []
-            }
-            reactionsDict[reaction.reaction]?.append(reaction.userId)
-        }
-        
-        let groupedReactions = MessageReactions(reactions: reactionsDict)
-        
-        return groupedReactions
+        return try decoder.decode([MessageReaction].self, from: response.data)
     }
 }
