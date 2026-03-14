@@ -50,6 +50,7 @@ final class ConversationDetailViewModel: ObservableObject {
     var canLoadOlderSearchResults: Bool { searchManager.canLoadOlderSearchResults }
     @Published var editingMessage: Message? = nil
     @Published private(set) var unreadCount: Int = 0
+    @Published var replyCountMap: [UUID: Int] = [:]
     /// Set when the current user has left this conversation. The group messaging plan
     /// (Docs/plans/2026-03-07-group-messaging-enhancement-plan.md) specifies a frozen
     /// UI state, but the view layer does not yet read this property. See plan Task 18.
@@ -319,8 +320,9 @@ final class ConversationDetailViewModel: ObservableObject {
         }
         MessagingSyncEngine.shared.setupReactionsSubscription(conversationId: conversationId)
 
-        // Hydrate reactions for loaded messages (reactions aren't included in the messages query)
+        // Hydrate reactions and reply counts for loaded messages
         await loadReactionsForMessages()
+        await loadReplyCountsForMessages()
     }
 
     /// Fetch reactions for all currently loaded messages.
@@ -352,6 +354,22 @@ final class ConversationDetailViewModel: ObservableObject {
         }
     }
     
+    /// Fetch reply counts for all currently loaded messages.
+    private func loadReplyCountsForMessages() async {
+        let messageIds = messages.map(\.id)
+        guard !messageIds.isEmpty else { return }
+        do {
+            let counts = try await MessageService.shared.fetchReplyCounts(
+                conversationId: conversationId,
+                messageIds: messageIds
+            )
+            guard !counts.isEmpty else { return }
+            replyCountMap.merge(counts) { _, new in new }
+        } catch {
+            print("[ConversationDetailVM] Failed to load reply counts: \(error)")
+        }
+    }
+
     func loadMoreMessages() async {
         await paginationManager.loadMoreMessages(
             conversationId: conversationId,
@@ -637,6 +655,11 @@ final class ConversationDetailViewModel: ObservableObject {
 
         messages = paginationManager.insertNewMessage(newMessage, into: messages)
         scheduleReplyContextHydration()
+
+        // Increment reply count for the parent message when a reply arrives
+        if let replyToId = newMessage.replyToId {
+            replyCountMap[replyToId, default: 0] += 1
+        }
 
         // Haptic feedback for incoming messages
         if newMessage.fromId != authService.currentUserId {

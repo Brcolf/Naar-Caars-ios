@@ -323,7 +323,8 @@ struct MessagesCollectionView: UIViewRepresentable {
                     showReplyPreview: message.replyToMessage != nil,
                     replySpine: self.replyChainContext(for: message),
                     isHighlighted: self.parent.scrollToMessageId == messageId,
-                    shouldAnimate: false
+                    shouldAnimate: false,
+                    replyCount: 0
                 )
 
                 cell.messageCellView.delegate = self
@@ -388,6 +389,10 @@ struct MessagesCollectionView: UIViewRepresentable {
 
         func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
             parent.onRetry(message)
+        }
+
+        func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message) {
+            // Not used -- MessagesViewController is the production path
         }
 
         // MARK: - UICollectionViewDelegate

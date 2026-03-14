@@ -450,6 +450,10 @@ struct ConversationDetailView: View {
                             viewModel.cancelEdit()
                         },
                         onTypingChanged: { viewModel.userDidType() },
+                        replyCountMap: viewModel.replyCountMap,
+                        onViewThread: { message in
+                            activeThreadParent = ThreadParent(id: message.id)
+                        },
                         isConversationFrozen: viewModel.hasLeftConversation
                     )
                     .accessibilityIdentifier("messages.thread.scroll")

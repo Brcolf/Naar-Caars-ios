@@ -349,7 +349,8 @@ final class MessageThreadViewController: UIViewController {
             showReplyPreview: false,
             replySpine: nil,
             isHighlighted: false,
-            shouldAnimate: false
+            shouldAnimate: false,
+            replyCount: 0
         )
 
         cell.messageCellView.delegate = self
@@ -634,6 +635,10 @@ extension MessageThreadViewController: MessageCellDelegate {
 
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
         Task { await conversationViewModel.retryMessage(id: message.id) }
+    }
+
+    func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message) {
+        // Thread view doesn't support nested thread navigation
     }
 }
 

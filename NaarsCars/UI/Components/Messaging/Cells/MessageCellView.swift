@@ -29,6 +29,7 @@ final class MessageCellView: UIView {
     private var timestampLabel: UILabel?
     private var editedLabel: UILabel?
     private var failedRetryLabel: UILabel?
+    private var replyCountLabel: UILabel?
     private let replyArrowIcon = UIImageView(image: UIImage(systemName: "arrowshape.turn.up.left.fill"))
 
     // Reply spine
@@ -326,6 +327,27 @@ final class MessageCellView: UIView {
         } else {
             spineLayer.isHidden = true
         }
+
+        // Reply count label
+        if config.replyCount > 0 {
+            let label = replyCountLabel ?? {
+                let l = UILabel()
+                l.font = .preferredFont(forTextStyle: .caption1)
+                l.textColor = .naarsPrimary
+                let tap = UITapGestureRecognizer(target: self, action: #selector(handleReplyCountTap))
+                l.addGestureRecognizer(tap)
+                l.isUserInteractionEnabled = true
+                addSubview(l)
+                replyCountLabel = l
+                return l
+            }()
+            label.isHidden = false
+            label.text = config.replyCount == 1
+                ? NSLocalizedString("messaging_1_reply", comment: "")
+                : String(format: NSLocalizedString("messaging_n_replies", comment: ""), config.replyCount)
+        } else {
+            replyCountLabel?.isHidden = true
+        }
     }
 
     private func showTimestamp(config: MessageCellConfig) {
@@ -403,6 +425,11 @@ final class MessageCellView: UIView {
     @objc private func retryTapped() {
         guard let config else { return }
         delegate?.messageCellDidTapRetry(self, message: config.message)
+    }
+
+    @objc private func handleReplyCountTap() {
+        guard let config else { return }
+        delegate?.messageCellDidTapViewThread(self, message: config.message)
     }
 
     private func hideAllContent() {
@@ -521,6 +548,7 @@ final class MessageCellView: UIView {
                 let lastX = (editedLabel?.isHidden == false ? editedLabel!.frame.maxX : ts.frame.maxX) + 4
                 rr.frame = CGRect(x: lastX, y: y, width: rrSize.width, height: rrSize.height)
             }
+            y += ts.frame.height
         }
 
         // Failed retry
@@ -528,6 +556,17 @@ final class MessageCellView: UIView {
             fr.sizeToFit()
             let x = config.isFromCurrentUser ? bounds.width - fr.frame.width - 4 : avatarSize + avatarSpacing + 4
             fr.frame.origin = CGPoint(x: x, y: y)
+            y += fr.frame.height
+        }
+
+        // Reply count label
+        if let rcl = replyCountLabel, !rcl.isHidden {
+            rcl.sizeToFit()
+            let rclX = config.isFromCurrentUser
+                ? bounds.width - rcl.frame.width - 4
+                : avatarSize + avatarSpacing + 4
+            rcl.frame.origin = CGPoint(x: rclX, y: y)
+            y += rcl.frame.height + 4
         }
 
         // Avatar (bottom-aligned with last content view)
@@ -603,6 +642,8 @@ final class MessageCellView: UIView {
         if timestampLabel?.isHidden == false { height += 18 }
         // Failed
         if failedRetryLabel?.isHidden == false { height += 18 }
+        // Reply count
+        if replyCountLabel?.isHidden == false { height += 18 }
         // Padding
         let topPadding: CGFloat = config.isFirstInSeries ? 8 : 2
         let bottomPadding: CGFloat = 2
@@ -744,6 +785,7 @@ final class MessageCellView: UIView {
         reactionBadge?.prepareForReuse()
         readReceipt?.prepareForReuse()
         replyPreview?.prepareForReuse()
+        replyCountLabel?.isHidden = true
         hideAllContent()
         alpha = 1
         transform = .identity

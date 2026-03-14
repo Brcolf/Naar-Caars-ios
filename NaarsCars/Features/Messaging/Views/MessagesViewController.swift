@@ -38,9 +38,12 @@ final class MessagesViewController: UIViewController {
         var onReplyPreviewTap: ((UUID) -> Void)?
         var onRetry: ((Message) -> Void)?
         var onReactionTap: ((Message, String?) -> Void)?
+        var onViewThread: ((Message) -> Void)?
         var onLoadMore: (() -> Void)?
         var onScrolledToBottom: ((Bool) -> Void)?
         var onUnreadDividerDismissed: (() -> Void)?
+
+        var replyCountMap: [UUID: Int] = [:]
     }
 
     var configuration = Configuration() {
@@ -175,7 +178,8 @@ final class MessagesViewController: UIViewController {
                 showReplyPreview: message.replyToMessage != nil,
                 replySpine: self.replyChainContext(for: message),
                 isHighlighted: self.configuration.scrollToMessageId == messageId,
-                shouldAnimate: false
+                shouldAnimate: false,
+                replyCount: self.configuration.replyCountMap[messageId] ?? 0
             )
 
             cell.messageCellView.delegate = self
@@ -455,6 +459,10 @@ extension MessagesViewController: MessageCellDelegate {
 
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
         configuration.onRetry?(message)
+    }
+
+    func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message) {
+        configuration.onViewThread?(message)
     }
 }
 

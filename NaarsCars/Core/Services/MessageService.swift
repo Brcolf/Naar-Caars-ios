@@ -344,6 +344,33 @@ final class MessageService {
         return filterBlocked(messages)
     }
 
+    /// Batch-fetch reply counts for a set of message IDs in a conversation.
+    func fetchReplyCounts(conversationId: UUID, messageIds: [UUID]) async throws -> [UUID: Int] {
+        guard !messageIds.isEmpty else { return [:] }
+
+        struct RPCRow: Decodable {
+            let parent_id: UUID
+            let reply_count: Int
+        }
+
+        let params: [String: AnyCodable] = [
+            "p_conversation_id": AnyCodable(conversationId.uuidString),
+            "p_message_ids": AnyCodable(messageIds.map { $0.uuidString })
+        ]
+
+        let response = try await supabase
+            .rpc("get_reply_counts", params: params)
+            .execute()
+
+        let rows = try JSONDecoder().decode([RPCRow].self, from: response.data)
+
+        var result: [UUID: Int] = [:]
+        for row in rows {
+            result[row.parent_id] = row.reply_count
+        }
+        return result
+    }
+
     /// Fetch a single message by ID with sender join (for realtime enrichment)
     func fetchMessageById(_ messageId: UUID) async throws -> Message {
         let response = try await supabase

@@ -15,6 +15,7 @@ struct MessageCellConfig {
     let replySpine: (showTop: Bool, showBottom: Bool)?
     let isHighlighted: Bool
     let shouldAnimate: Bool
+    let replyCount: Int
 
     /// Derived: whether this message failed to send
     var isFailed: Bool { message.sendStatus == .failed }
@@ -28,4 +29,5 @@ protocol MessageCellDelegate: AnyObject {
     func messageCellDidTapImage(_ cell: MessageCellView, url: URL)
     func messageCellDidTapReplyPreview(_ cell: MessageCellView, replyToId: UUID)
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message)
+    func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message)
 }
