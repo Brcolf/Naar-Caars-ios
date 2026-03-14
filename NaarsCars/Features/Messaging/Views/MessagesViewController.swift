@@ -445,6 +445,34 @@ extension MessagesViewController: MessageCellDelegate {
         configuration.onReactionTap?(message, reaction)
     }
 
+    func messageCellDidTapReactionBadge(_ cell: MessageCellView, message: Message) {
+        let cellFrame = cell.convert(cell.bounds, to: nil)
+        guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
+
+        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
+        let currentReaction = message.reactions?.currentUserReaction(
+            userId: AuthService.shared.currentUserId ?? UUID()
+        )
+        let currentUserId = AuthService.shared.currentUserId ?? UUID()
+
+        let overlay = MessageOverlayController(
+            snapshot: snapshot,
+            sourceFrame: cellFrame,
+            message: message,
+            isFromCurrentUser: isFromCurrentUser,
+            currentUserReaction: currentReaction,
+            isConversationFrozen: configuration.isConversationFrozen,
+            onAction: { [weak self] action in
+                self?.configuration.onOverlayAction?(action, message)
+            },
+            showDetails: true,
+            individualReactions: message.individualReactions ?? [],
+            reactionProfiles: [:],
+            currentUserId: currentUserId
+        )
+        present(overlay, animated: false)
+    }
+
     func messageCellDidSwipeToReply(_ cell: MessageCellView, message: Message) {
         configuration.onSwipeReply?(message)
     }

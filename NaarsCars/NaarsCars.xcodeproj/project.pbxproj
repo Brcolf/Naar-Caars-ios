@@ -170,6 +170,7 @@
 		OVERLAY00000000000000B2 /* ReactionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = OVERLAY00000000000000A2 /* ReactionBarView.swift */; };
 		OVERLAY00000000000000B3 /* OverlayActionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = OVERLAY00000000000000A3 /* OverlayActionListView.swift */; };
 		OVERLAY00000000000000B4 /* MessageOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = OVERLAY00000000000000A4 /* MessageOverlayController.swift */; };
+		OVERLAY00000000000000B5 /* ReactionDetailsRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = OVERLAY00000000000000A5 /* ReactionDetailsRowView.swift */; };
 AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */; };
 		BPCELL012F3B00000000001A /* BubblePath.swift in Sources */ = {isa = PBXBuildFile; fileRef = BPCELL002F3B00000000001A /* BubblePath.swift */; };
 		AC12006E2F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1200682F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift */; };
@@ -389,7 +390,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		B4A1D20E9F3B4E2CA1B2C3D5 /* InAppToastManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D4 /* InAppToastManager.swift */; };
 		B4A1D20E9F3B4E2CA1B2C3D7 /* Features/Messaging/InAppToastManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D6 /* Features/Messaging/InAppToastManagerTests.swift */; };
 		B4A1D20E9F3B4E2CA1B2C3D9 /* Features/Favors/FavorDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D8 /* Features/Favors/FavorDetailViewModelTests.swift */; };
-		B4C432DDC4F442F7CDE15C6B /* ReactionDetailsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 388068A490B931B05CFB40B3 /* ReactionDetailsSheet.swift */; };
+
 		B5EC968E233947D3AC523AAC /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55441C41BD446FF92B0D9AC /* Date+Extensions.swift */; };
 		B7F4E2A2C3D5489E00AABB11 /* BackgroundSyncActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */; };
 		B8A3E1E96A7B4435BF3A7BDD /* PublicProfileViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A09E880A74ED5B394100A /* PublicProfileViewModelTests.swift */; };
@@ -527,7 +528,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		34D155FC7169DCF5D2057F67 /* ConversationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRow.swift; sourceTree = "<group>"; };
 		3715109DCDE84BC59DBAD1FE /* Features/Rides/Views/RideDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/Views/RideDetailView.swift; sourceTree = "<group>"; };
 		38092A64DA1E4019975DEE4A /* Core/Services/FavorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/FavorService.swift; sourceTree = "<group>"; };
-		388068A490B931B05CFB40B3 /* ReactionDetailsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionDetailsSheet.swift; sourceTree = "<group>"; };
+
 		3AA1B6566B98CE829519567B /* ConversationAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAvatar.swift; sourceTree = "<group>"; };
 		3BC18919E2F1481A9600FBDE /* Core/Models/RequestQA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models/RequestQA.swift; sourceTree = "<group>"; };
 		3CB28BF35B093B7E503EC0B1 /* GeocodingCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeocodingCacheService.swift; sourceTree = "<group>"; };
@@ -622,6 +623,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		OVERLAY00000000000000A2 /* ReactionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/ReactionBarView.swift; sourceTree = "<group>"; };
 		OVERLAY00000000000000A3 /* OverlayActionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/OverlayActionListView.swift; sourceTree = "<group>"; };
 		OVERLAY00000000000000A4 /* MessageOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/MessageOverlayController.swift; sourceTree = "<group>"; };
+		OVERLAY00000000000000A5 /* ReactionDetailsRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Overlay/ReactionDetailsRowView.swift; sourceTree = "<group>"; };
 AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesCollectionView.swift; sourceTree = "<group>"; };
 		BPCELL002F3B00000000001A /* BubblePath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BubblePath.swift; sourceTree = "<group>"; };
 		AC1200662F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTypeDecodingTests.swift; sourceTree = "<group>"; };
@@ -1554,7 +1556,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				34D155FC7169DCF5D2057F67 /* ConversationRow.swift */,
 				DC7376A9C08B0F1B1E337948 /* ConversationSearchBar.swift */,
 				AE83D24DC1B4D446C44E0395 /* MessageSearchResultRow.swift */,
-				388068A490B931B05CFB40B3 /* ReactionDetailsSheet.swift */,
+
 				C197E50D604B91F7E343DD90 /* ReportMessageSheet.swift */,
 				6C507B2DFCC714E5290993C8 /* ScrollToBottomButton.swift */,
 			);
@@ -2030,6 +2032,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				OVERLAY00000000000000A2 /* ReactionBarView.swift */,
 				OVERLAY00000000000000A3 /* OverlayActionListView.swift */,
 				OVERLAY00000000000000A4 /* MessageOverlayController.swift */,
+				OVERLAY00000000000000A5 /* ReactionDetailsRowView.swift */,
 				AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */,
 				AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */,
 
@@ -2566,6 +2569,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				OVERLAY00000000000000B2 /* ReactionBarView.swift in Sources */,
 				OVERLAY00000000000000B3 /* OverlayActionListView.swift in Sources */,
 				OVERLAY00000000000000B4 /* MessageOverlayController.swift in Sources */,
+				OVERLAY00000000000000B5 /* ReactionDetailsRowView.swift in Sources */,
 				AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */,
 				AC27A0102F1EFB6800E3B58F /* CommunityGuidelinesView.swift in Sources */,
 				AC02E54E2F44358900355A45 /* MapsLaunchCoordinator.swift in Sources */,
@@ -2697,7 +2701,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				AC02E5552F4436D300355A45 /* FlightCodeParser.swift in Sources */,
 				D3F01BA00A876E67805116BB /* ConversationSearchBar.swift in Sources */,
 				FE2C92F79C0AD11E2776D6D1 /* MessageSearchResultRow.swift in Sources */,
-				B4C432DDC4F442F7CDE15C6B /* ReactionDetailsSheet.swift in Sources */,
+
 				BB02F82EF439230EA9DA35FD /* ReportMessageSheet.swift in Sources */,
 				CB4898E7D326A088A4E084EC /* ScrollToBottomButton.swift in Sources */,
 				AC02E53C2F442F8600355A45 /* FlightInfo.swift in Sources */,

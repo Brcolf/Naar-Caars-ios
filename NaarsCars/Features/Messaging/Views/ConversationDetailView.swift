@@ -26,9 +26,6 @@ struct ConversationDetailView: View {
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageToSend: UIImage?
     // Overlay state removed — UIKit MessageOverlayController handles overlay presentation directly
-    @State private var showReactionDetails = false
-    @State private var reactionDetailsMessage: Message?
-    @State private var reactionProfiles: [String: [Profile]] = [:]
     @State private var highlightedMessageId: UUID?
     
     // Scroll-to-bottom state
@@ -230,9 +227,6 @@ struct ConversationDetailView: View {
         .sheet(isPresented: $showReportSheet) {
             reportSheetContent
         }
-        .sheet(isPresented: $showReactionDetails) {
-            reactionDetailsContent
-        }
         .alert("messaging_unsend_title".localized, isPresented: $showUnsendConfirmation) {
             unsendAlertActions
         } message: {
@@ -248,23 +242,6 @@ struct ConversationDetailView: View {
                 onSubmit: { reportType, description in
                     Task {
                         await submitReport(message: message, type: reportType, description: description)
-                    }
-                }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private var reactionDetailsContent: some View {
-        if let message = reactionDetailsMessage, let reactions = message.reactions {
-            ReactionDetailsSheet(
-                message: message,
-                reactions: reactions,
-                profilesByReaction: reactionProfiles,
-                onRemoveReaction: { reaction in
-                    Task {
-                        await viewModel.removeReaction(messageId: message.id)
-                        await refreshReactionProfiles(for: message)
                     }
                 }
             )
@@ -376,11 +353,7 @@ struct ConversationDetailView: View {
                             Task { await viewModel.retryMessage(id: message.id) }
                         },
                         onReactionTap: { message, reaction in
-                            if reaction == "__details__" {
-                                reactionDetailsMessage = message
-                                showReactionDetails = true
-                                Task { await refreshReactionProfiles(for: message) }
-                            } else if let reaction {
+                            if let reaction {
                                 Task { await viewModel.addReaction(messageId: message.id, reaction: reaction) }
                             } else {
                                 Task { await viewModel.removeReaction(messageId: message.id) }
@@ -642,44 +615,6 @@ struct ConversationDetailView: View {
         }
     }
 
-    private func showReactionDetails(for message: Message) {
-        reactionDetailsMessage = message
-        showReactionDetails = true
-        Task {
-            await refreshReactionProfiles(for: message)
-        }
-    }
-
-    private func refreshReactionProfiles(for message: Message) async {
-        guard let reactions = message.reactions else {
-            reactionProfiles = [:]
-            return
-        }
-        
-        let userIds = Array(reactions.allUserIds)
-        let profiles = await withTaskGroup(of: Profile?.self) { group in
-            for userId in userIds {
-                group.addTask {
-                    try? await ProfileService.shared.fetchProfile(userId: userId)
-                }
-            }
-            var results: [Profile] = []
-            for await profile in group {
-                if let profile = profile {
-                    results.append(profile)
-                }
-            }
-            return results
-        }
-        
-        let profilesById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
-        var mapped: [String: [Profile]] = [:]
-        for (reaction, userIds) in reactions.reactions {
-            mapped[reaction] = userIds.compactMap { profilesById[$0] }
-        }
-        reactionProfiles = mapped
-    }
-    
     private func scrollToMessage(_ messageId: UUID) {
         guard viewModel.messages.contains(where: { $0.id == messageId }) else { return }
         
