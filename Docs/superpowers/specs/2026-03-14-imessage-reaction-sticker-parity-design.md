@@ -51,7 +51,18 @@ The service layer, realtime sync, database schema, and optimistic update flow re
 **Message.swift:**
 - Add a new optional property: `var individualReactions: [MessageReaction]?` alongside the existing `reactions: MessageReactions?`
 - This stores the raw per-user reaction records needed by the sticker badge view
-- The existing `MessageReactions` aggregated struct remains for ViewModel-level logic (counts, sorting)
+
+**Data source of truth invariant:**
+
+`individualReactions` is the single UI source of truth for reaction state. The aggregated `MessageReactions` is derived from it — never independently fetched or stored. The invariant:
+
+1. All reaction mutations (load, realtime update, optimistic update, removal) write to `individualReactions` first.
+2. `reactions: MessageReactions?` is a computed or lazily-derived aggregation of `individualReactions`. It may be cached for performance, but it is never mutated independently.
+3. If `individualReactions` is nil, `reactions` must also be nil. If `individualReactions` is empty, `reactions` must be nil or empty.
+4. `MessageSendManager` optimistic updates must update `individualReactions` (inserting/removing a `MessageReaction` record), then re-derive `reactions` from the updated array.
+5. `ConversationDetailViewModel.refreshReactions(for:)` fetches via `fetchIndividualReactions`, stores the result on `message.individualReactions`, and derives `message.reactions` from it.
+
+This eliminates the synchronization risk of two independently-stored representations drifting apart.
 
 **MessageReactionService.swift:**
 - Remove the validation check against `validReactions` in `addReaction()` — accept any emoji string
@@ -95,6 +106,8 @@ The service layer, realtime sync, database schema, and optimistic update flow re
 - On emoji input, fire `onReact` callback and dismiss the keyboard
 - Restrict input to emoji-only (validate via `Character.isActualEmoji` from `EmojiDetection.swift`)
 
+> **Implementation risk:** The hidden `UITextField` approach is the preferred initial implementation for accessing the system emoji keyboard. However, it has known risks: responder chain conflicts with the overlay's backdrop tap-to-dismiss gesture, keyboard dismissal edge cases when the overlay animates out, and potential focus issues if the text field competes with other responders. If keyboard behavior proves unstable during development, fall back to a dedicated emoji picker surface (e.g., a grid-based `UICollectionView` of emoji organized by category) instead of the system keyboard.
+
 ---
 
 ## Section 3: Sticker Badge (New ReactionStickerBadgeView)
@@ -112,6 +125,8 @@ The service layer, realtime sync, database schema, and optimistic update flow re
 - Size: ~28-30pt diameter
 - Content: emoji rendered as text, except HAHA which uses `TapbackArtwork`
 
+> **Tuning note:** The geometry constants above (corner radii, sticker size, overlap spacing, X/Y offsets) are initial values derived from visual analysis of iMessage screenshots. They should be treated as tunable starting points and adjusted after visual testing across text bubbles, image bubbles, short messages, long messages, and sent vs. received layouts. Extract them as named constants at the top of `ReactionStickerBadgeView` for easy adjustment.
+
 **Color coding:**
 - Current user's reaction: `UIColor.systemBlue` background
 - Other users' reactions: `UIColor.systemGray` at ~0.6 alpha (dark mode) / `UIColor.systemGray5` (light mode)
@@ -123,11 +138,22 @@ The service layer, realtime sync, database schema, and optimistic update flow re
 - X: `primary.frame.maxX - badgeWidth - 4` for received, `primary.frame.minX + 4` for sent
 - Y: `primary.frame.minY - badgeHeight * 0.6` (60% above top edge)
 
-**Truncation (4+ unique reaction types):**
-- Show max 3 unique reaction-type stickers in compact mode
-- All rendered in gray (no blue distinction in truncated mode)
-- Each shows the emoji only (no avatar context)
-- Tapping truncated badges opens the overlay with full reaction details
+**Ordering rules:**
+- Stickers are ordered by `createdAt` ascending (oldest left, newest right)
+- Z-order follows the same direction: `layer.zPosition` increases left to right, so the newest sticker renders on top of the stack
+- This produces deterministic, stable ordering — new reactions always append to the right and sit on top visually
+- If two reactions share the same `createdAt` timestamp, break ties by `userId` (lexicographic UUID sort) for stability
+
+**Compact overflow mode (4+ unique reaction types):**
+
+When the number of unique reaction types exceeds 3, the badge switches to a compact fallback that prioritizes layout stability over per-person fidelity. This is an intentional tradeoff — rendering every per-person sticker at scale would overflow the bubble's top edge and create visual clutter, especially on short messages or narrow image bubbles.
+
+- Show max 3 unique reaction-type stickers, selected by count descending (most popular reactions shown)
+- Ties broken by earliest `createdAt` among each type's records
+- All rendered in gray (no blue/gray user distinction in compact mode)
+- Each shows the emoji only (no avatar context, no per-person attribution)
+- Tapping compact badges opens the overlay with full per-person reaction details
+- This is not full iMessage parity for dense cases — iMessage has more layout space and proprietary logic for dense stacking. Compact mode is a pragmatic approximation.
 
 **Data hydration:**
 - Badge receives `[MessageReaction]` (individual records with userId) instead of `MessageReactions` (aggregated dictionary)
@@ -157,6 +183,11 @@ The service layer, realtime sync, database schema, and optimistic update flow re
   - User avatar/initials circle (~24pt) below the sticker
 - If multiple users reacted with the same emoji, their avatars overlap below that single sticker
 - Styled with dark blur background (`systemUltraThinMaterial`), rounded corners (16pt)
+
+**Ordering rules:**
+- Reaction groups are ordered by count descending (most popular reaction type first)
+- Ties broken by earliest `createdAt` among each group's records
+- Within each group, avatars are ordered by `createdAt` ascending (earliest reactor first, newest last in the overlap stack)
 
 **Integration with MessageOverlayController:**
 - Details row is positioned above the message snapshot, below the picker bar
@@ -244,12 +275,14 @@ The service layer, realtime sync, database schema, and optimistic update flow re
 These components require **no changes**:
 - Database schema (`message_reactions` table)
 - `MessagingSyncEngine` (realtime subscription)
-- `MessageSendManager` (optimistic update flow)
-- `MessageReactions` struct (aggregated model still used by ViewModel)
+- `MessageReactions` struct (aggregated model still used by ViewModel, now derived from `individualReactions`)
 - All message bubble views (TextBubbleView, ImageBubbleView, etc.)
 - Audio, location, link preview components
 - Reply/threading system
 - Read receipts
+
+**Minimal changes (data invariant only):**
+- `MessageSendManager` — optimistic update methods (`addReaction`, `removeReaction`) must be updated to mutate `individualReactions` and re-derive `reactions` per the data source of truth invariant (Section 1). The overall optimistic-update-with-rollback pattern is unchanged.
 
 **Implicitly affected (no direct changes needed):**
 - `MessageThreadViewController.swift` — reuses `MessageCellView` via `ThreadMessageCell`, so the badge swap propagates automatically. The badge-tap-to-overlay flow should be verified in thread context.
@@ -276,6 +309,7 @@ These components require **no changes**:
 | **Modify** | `NaarsCars/Features/Messaging/Views/MessagesViewControllerRepresentable.swift` |
 | **Modify** | `NaarsCars/Features/Messaging/Views/ConversationDetailView.swift` |
 | **Modify** | `NaarsCars/Features/Messaging/ViewModels/ConversationDetailViewModel.swift` |
+| **Modify** | `NaarsCars/Features/Messaging/ViewModels/MessageSendManager.swift` |
 
 ### Deprecation note
 - The new `ReactionStickerBadgeView` should use the modern `UITraitChangeObservable` registration API instead of `traitCollectionDidChange(_:)`, which is deprecated in iOS 17+.
@@ -296,9 +330,20 @@ These components require **no changes**:
 - [ ] Reaction details show large sticker + user avatar per reaction
 - [ ] User can remove their own reaction from the details row
 - [ ] Details row animates in with the overlay entrance
+- [ ] Extended emoji reactions (from picker) render at visually consistent sizes with standard tapbacks in the picker bar
+- [ ] `individualReactions` and derived `reactions` remain synchronized after:
+  - [ ] Initial message load
+  - [ ] Realtime update from another user
+  - [ ] Optimistic update (local react)
+  - [ ] Reaction removal
 - [ ] Realtime reaction updates still work (other user reacts → badge updates)
 - [ ] Optimistic UI updates still work (instant local feedback on react)
 - [ ] Dark mode and light mode both render correctly
 - [ ] Cell reuse / `prepareForReuse` works correctly with new badge view
 - [ ] Accessibility: sticker badges have meaningful labels
+- [ ] Sticker badge rendering is correct across:
+  - [ ] Text bubbles (short and long messages)
+  - [ ] Image bubbles
+  - [ ] Sent messages
+  - [ ] Received messages
 - [ ] No regressions in message cell layout for all bubble types
