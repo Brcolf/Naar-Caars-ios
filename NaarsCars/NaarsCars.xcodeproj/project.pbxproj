@@ -320,6 +320,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		ACBF4AC42F12CAE4006A7C8A /* TownHallVoteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ABF2F12CAE4006A7C8A /* TownHallVoteService.swift */; };
 		ACBF4AC52F12CAE4006A7C8A /* AdminService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB62F12CAE4006A7C8A /* AdminService.swift */; };
 		ACBF4AC62F12CAE4006A7C8A /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB82F12CAE4006A7C8A /* BiometricService.swift */; };
+		9A0CEEE41B4B4941AAA037CA /* AppLockManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3737D988F9D4F9F9E822464 /* AppLockManager.swift */; };
 		ACBF4AC72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift */; };
 		ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */; };
 		ACBF4AC92F12CAE4006A7C8A /* LeaderboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */; };
@@ -795,6 +796,7 @@ AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileRefe
 		ACBF4AB62F12CAE4006A7C8A /* AdminService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminService.swift; sourceTree = "<group>"; };
 		ACBF4AB72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AuthService+AppleSignIn.swift"; sourceTree = "<group>"; };
 		ACBF4AB82F12CAE4006A7C8A /* BiometricService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricService.swift; sourceTree = "<group>"; };
+		D3737D988F9D4F9F9E822464 /* AppLockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockManager.swift; sourceTree = "<group>"; };
 		ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
 		ACBF4ABA2F12CAE4006A7C8A /* InviteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteService.swift; sourceTree = "<group>"; };
 		ACBF4ABB2F12CAE4006A7C8A /* LeaderboardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardService.swift; sourceTree = "<group>"; };
@@ -1767,6 +1769,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				ACBF4AB62F12CAE4006A7C8A /* AdminService.swift */,
 				ACBF4AB72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift */,
 				ACBF4AB82F12CAE4006A7C8A /* BiometricService.swift */,
+				D3737D988F9D4F9F9E822464 /* AppLockManager.swift */,
 				ACBF4AB92F12CAE4006A7C8A /* EmailService.swift */,
 				ACBF4ABA2F12CAE4006A7C8A /* InviteService.swift */,
 				131ECBAAE6DF21EBAEFF20DF /* BadgeCache.swift */,
@@ -2430,6 +2433,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				ACBF4AC52F12CAE4006A7C8A /* AdminService.swift in Sources */,
 				AC12004F2F37B2330043BFAE /* MessageSendWorker.swift in Sources */,
 				ACBF4AC62F12CAE4006A7C8A /* BiometricService.swift in Sources */,
+				9A0CEEE41B4B4941AAA037CA /* AppLockManager.swift in Sources */,
 				ACBF4AC72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift in Sources */,
 				ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */,
 				AC27A0122F1F20F700E3B58F /* DateFormatters.swift in Sources */,

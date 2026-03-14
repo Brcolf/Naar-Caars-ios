@@ -14,37 +14,40 @@ struct ContentView: View {
     @StateObject private var launchManager = AppLaunchManager.shared
     @EnvironmentObject var appState: AppState
     @Environment(\.scenePhase) var scenePhase
-    
-    @State private var isLocked = false
-    @State private var lastBackgroundDate: Date?
-    
-    private let lockTimeout: TimeInterval = 300  // 5 minutes
-    private let biometricPreferences = BiometricPreferences.shared
-    
+
+    private var lockManager = AppLockManager.shared
+
+    private var isAuthenticated: Bool {
+        if case .ready(let authState) = launchManager.state {
+            return authState == .authenticated || authState == .pendingApproval
+        }
+        return false
+    }
+
     var body: some View {
         ZStack {
             Group {
                 switch launchManager.state {
             case .initializing, .checkingAuth:
                 LoadingView(message: "common_loading".localized)
-                    
+
                 case .ready(let authState):
                     switch authState {
                     case .loading:
                         LoadingView(message: "app_loading".localized)
-                        
+
                     case .unauthenticated:
                         NavigationStack {
                             LoginView()
                         }
-                        
+
                     case .pendingApproval:
                         PendingApprovalView()
-                        
+
                     case .authenticated:
                         MainTabView()
                     }
-                    
+
                 case .failed(let error):
                     VStack(spacing: 16) {
                         Text(String(format: "app_error_format".localized, error.localizedDescription))
@@ -56,35 +59,29 @@ struct ContentView: View {
                     }
                 }
             }
-            .blur(radius: isLocked ? 20 : 0)
-            .disabled(isLocked)
-            
+            .blur(radius: lockManager.state != .unlocked ? 20 : 0)
+            .disabled(lockManager.state != .unlocked)
+
             // Lock screen overlay
-            if isLocked {
-                AppLockView(
-                    onUnlock: {
-                        withAnimation {
-                            isLocked = false
-                        }
-                    },
-                    onCancel: nil
-                )
-                .transition(.opacity)
-                .zIndex(1000)
+            if lockManager.state != .unlocked {
+                AppLockView(lockManager: lockManager)
+                    .transition(.opacity)
+                    .zIndex(1000)
             }
         }
         // Note: Removed .id() modifier that was causing view recreation loops
         // The view will update naturally when launchManager.state changes
         .animation(.easeInOut(duration: 0.3), value: launchManager.state.id)
+        .animation(.easeInOut(duration: 0.3), value: lockManager.state)
         .task(id: "initial_launch") {
             let launchTaskStart = Date()
             // Only perform critical launch once on initial appear
             // Subsequent state changes are handled by specific actions (login, signup, etc.)
             guard case .initializing = launchManager.state else { return }
             await launchManager.performCriticalLaunch()
-            
+
             // Check if biometric unlock is needed on launch
-            await checkBiometricUnlockOnLaunch()
+            lockManager.checkOnLaunch(isAuthenticated: isAuthenticated)
             await PerformanceMonitor.shared.record(
                 operation: "launch.initialContentTask",
                 duration: Date().timeIntervalSince(launchTaskStart),
@@ -96,92 +93,21 @@ struct ContentView: View {
             AppLogger.info("app", "Launch state ID changed from '\(oldId)' to '\(newId)'")
             if newId.contains("unauthenticated") {
                 AppLogger.info("app", "Switching to login view")
-                // Clear lock state on sign out
-                isLocked = false
-                lastBackgroundDate = nil
+                lockManager.forceUnlock()
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
-            if newPhase == .active,
-               case .ready(let authState) = launchManager.state,
-               authState == .authenticated || authState == .pendingApproval {
+            AppLogger.info("lock", "scenePhase: \(oldPhase) → \(newPhase), lockState=\(lockManager.state)")
+            if newPhase == .active, isAuthenticated {
                 AuthService.shared.restartRealtimeSyncEngines()
             }
-            handleScenePhaseChange(from: oldPhase, to: newPhase)
+            lockManager.handleScenePhase(newPhase, isAuthenticated: isAuthenticated)
         }
         .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
             // AppLaunchManager already handles state change on sign out notification
             // Just log for debugging - don't call performCriticalLaunch again
             AppLogger.info("app", "Received userDidSignOut notification - AppLaunchManager will update state")
-            // Clear lock state on sign out
-            isLocked = false
-            lastBackgroundDate = nil
-        }
-    }
-    
-    // MARK: - Private Methods
-    
-    /// Check if biometric unlock is needed on app launch
-    private func checkBiometricUnlockOnLaunch() async {
-        // Only check if user is authenticated or pending approval
-        guard case .ready(let authState) = launchManager.state,
-              authState == .authenticated || authState == .pendingApproval else {
-            return
-        }
-        
-        // Only check if biometrics are enabled and required on launch
-        guard biometricPreferences.isBiometricsEnabled,
-              biometricPreferences.requireBiometricsOnLaunch else {
-            return
-        }
-        
-        // Check if re-authentication is needed
-        if biometricPreferences.needsReauthentication(timeout: lockTimeout) {
-            await MainActor.run {
-                withAnimation {
-                    isLocked = true
-                }
-            }
-        }
-    }
-    
-    /// Handle scene phase changes (background/foreground)
-    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
-        // Only handle if user is authenticated or pending approval
-        guard case .ready(let authState) = launchManager.state,
-              authState == .authenticated || authState == .pendingApproval else {
-            return
-        }
-        
-        // Only handle if biometrics are enabled and required on launch
-        guard biometricPreferences.isBiometricsEnabled,
-              biometricPreferences.requireBiometricsOnLaunch else {
-            return
-        }
-        
-        switch newPhase {
-        case .background:
-            // App went to background - record timestamp
-            lastBackgroundDate = Date()
-            
-        case .active:
-            // App became active - check if lock is needed
-            if let lastBackground = lastBackgroundDate {
-                let timeInBackground = Date().timeIntervalSince(lastBackground)
-                if timeInBackground > lockTimeout {
-                    // More than 5 minutes in background - require unlock
-                    withAnimation {
-                        isLocked = true
-                    }
-                }
-            }
-            
-        case .inactive:
-            // App is inactive (e.g., during transition) - do nothing
-            break
-            
-        @unknown default:
-            break
+            lockManager.forceUnlock()
         }
     }
 }
