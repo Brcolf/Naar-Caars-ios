@@ -43,11 +43,3 @@ enum TapbackArtwork {
         return image.withRenderingMode(.alwaysOriginal)
     }
 }
-
-// MARK: - Temporary compatibility (remove after Tasks 8, 9, 12)
-enum TapbackGlyph {
-    static func image(for reaction: String, pointSize: CGFloat) -> UIImage? {
-        guard TapbackArtwork.isHaha(reaction) else { return nil }
-        return TapbackArtwork.hahaImage(pointSize: pointSize)
-    }
-}
