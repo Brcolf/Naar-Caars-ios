@@ -736,6 +736,12 @@ final class MessageCellView: UIView {
             return
         }
 
+        // If this message is part of a thread, open the thread view
+        if config.message.replyToId != nil || config.replyCount > 0 {
+            delegate?.messageCellDidTapViewThread(self, message: config.message)
+            return
+        }
+
         // Toggle timestamp for 2 seconds
         timestampHideWorkItem?.cancel()
         if timestampLabel?.isHidden == true {

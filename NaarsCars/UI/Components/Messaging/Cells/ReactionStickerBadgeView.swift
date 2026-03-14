@@ -127,9 +127,6 @@ final class ReactionStickerBadgeView: UIView {
         let size = Self.stickerSize
         let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
         container.backgroundColor = tintColor
-        container.layer.borderWidth = Self.borderWidth
-        container.layer.borderColor = UIColor.systemBackground.cgColor
-
         // Speech-bubble mask with asymmetric corners
         applySpeechBubbleMask(to: container, size: CGSize(width: size, height: size))
 
@@ -184,6 +181,15 @@ final class ReactionStickerBadgeView: UIView {
         let mask = CAShapeLayer()
         mask.path = path.cgPath
         view.layer.mask = mask
+
+        // Add a separate border sublayer that won't be clipped by the mask
+        let borderLayer = CAShapeLayer()
+        borderLayer.path = path.cgPath
+        borderLayer.strokeColor = UIColor.systemBackground.cgColor
+        borderLayer.lineWidth = Self.borderWidth
+        borderLayer.fillColor = nil
+        borderLayer.name = "stickerBorder"
+        view.layer.addSublayer(borderLayer)
     }
 
     // MARK: - Layout
@@ -244,7 +250,11 @@ final class ReactionStickerBadgeView: UIView {
 
     private func updateBorderColors() {
         for sticker in stickerViews {
-            sticker.layer.borderColor = UIColor.systemBackground.cgColor
+            if let sublayers = sticker.layer.sublayers {
+                for sublayer in sublayers where sublayer.name == "stickerBorder" {
+                    (sublayer as? CAShapeLayer)?.strokeColor = UIColor.systemBackground.cgColor
+                }
+            }
         }
     }
 

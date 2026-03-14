@@ -436,7 +436,11 @@ extension MessagesViewController: MessageCellDelegate {
             isConversationFrozen: configuration.isConversationFrozen,
             onAction: { [weak self] action in
                 self?.configuration.onOverlayAction?(action, message)
-            }
+            },
+            showDetails: !(message.individualReactions ?? []).isEmpty,
+            individualReactions: message.individualReactions ?? [],
+            reactionProfiles: Dictionary(uniqueKeysWithValues: configuration.participantProfiles.map { ($0.id, $0) }),
+            currentUserId: AuthService.shared.currentUserId ?? UUID()
         )
         present(overlay, animated: false)
     }
@@ -467,7 +471,7 @@ extension MessagesViewController: MessageCellDelegate {
             },
             showDetails: true,
             individualReactions: message.individualReactions ?? [],
-            reactionProfiles: [:],
+            reactionProfiles: Dictionary(uniqueKeysWithValues: configuration.participantProfiles.map { ($0.id, $0) }),
             currentUserId: currentUserId
         )
         present(overlay, animated: false)

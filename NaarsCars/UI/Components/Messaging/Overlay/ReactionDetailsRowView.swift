@@ -192,7 +192,6 @@ final class ReactionDetailsRowView: UIView {
         if containsOwnReaction {
             let tap = UITapGestureRecognizer(target: self, action: #selector(handleGroupTap(_:)))
             container.addGestureRecognizer(tap)
-            container.tag = reaction.hashValue
             container.accessibilityTraits = .button
             container.accessibilityHint = NSLocalizedString("accessibility_reaction_remove_hint", comment: "")
 

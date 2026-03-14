@@ -304,6 +304,7 @@ final class MessageOverlayController: UIViewController {
     }
 
     private func dismissOverlay(completion: (() -> Void)? = nil) {
+        view.endEditing(true)
         let reactionBarIsAbove = reactionBar.frame.midY < sourceFrame.midY
 
         let animator = UIViewPropertyAnimator(duration: 0.25, dampingRatio: 1.0)
