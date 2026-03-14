@@ -15,7 +15,7 @@
 		CE110001AAAA000000000006 /* SystemMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000006 /* SystemMessageView.swift */; };
 		CE110001AAAA000000000007 /* UnsentMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000007 /* UnsentMessageView.swift */; };
 		CE110001AAAA000000000008 /* ReactionBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000008 /* ReactionBadgeView.swift */; };
-		TAPBACK0000000000000001 /* TapbackGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAPBACK0000000000000002 /* TapbackGlyph.swift */; };
+		TAPBACK0000000000000001 /* TapbackArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAPBACK0000000000000002 /* TapbackArtwork.swift */; };
 		CE110001AAAA000000000009 /* ReadReceiptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000009 /* ReadReceiptView.swift */; };
 		CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000A /* ReplyPreviewView.swift */; };
 		CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000B /* DateSeparatorCell.swift */; };
@@ -292,7 +292,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		AC9DDD362F2B139C003465D3 /* TownHallFeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9DDD2B2F2B139C003465D3 /* TownHallFeedViewModelTests.swift */; };
 		AC9DDD372F2B139C003465D3 /* CreatePostViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9DDD2A2F2B139C003465D3 /* CreatePostViewModelTests.swift */; };
 		AC9DDD382F2B139C003465D3 /* InAppToastManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9DDD222F2B139C003465D3 /* InAppToastManagerTests.swift */; };
-		TAPBACK0000000000000003 /* TapbackGlyphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAPBACK0000000000000004 /* TapbackGlyphTests.swift */; };
+		TAPBACK0000000000000003 /* TapbackArtworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAPBACK0000000000000004 /* TapbackArtworkTests.swift */; };
 		AC9DDD392F2B139C003465D3 /* ConversationsListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9DDD212F2B139C003465D3 /* ConversationsListViewModelTests.swift */; };
 		AC9DDD3C2F2B13BC003465D3 /* NavigationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9DDD3A2F2B13BC003465D3 /* NavigationCoordinatorTests.swift */; };
 		ACA2DAA62F5C841800EFF183 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ACA2DAA52F5C841800EFF183 /* PrivacyInfo.xcprivacy */; };
@@ -475,7 +475,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		CE110002AAAA000000000006 /* SystemMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageView.swift; sourceTree = "<group>"; };
 		CE110002AAAA000000000007 /* UnsentMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentMessageView.swift; sourceTree = "<group>"; };
 		CE110002AAAA000000000008 /* ReactionBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionBadgeView.swift; sourceTree = "<group>"; };
-		TAPBACK0000000000000002 /* TapbackGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapbackGlyph.swift; sourceTree = "<group>"; };
+		TAPBACK0000000000000002 /* TapbackArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapbackArtwork.swift; sourceTree = "<group>"; };
 		CE110002AAAA000000000009 /* ReadReceiptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadReceiptView.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000A /* ReplyPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyPreviewView.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000B /* DateSeparatorCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateSeparatorCell.swift; sourceTree = "<group>"; };
@@ -761,7 +761,7 @@ AC1200502F37B2570043BFAE /* MessagesCollectionView.swift */ = {isa = PBXFileRefe
 		AC9DDD1F2F2B139C003465D3 /* LeaderboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardViewModelTests.swift; sourceTree = "<group>"; };
 		AC9DDD212F2B139C003465D3 /* ConversationsListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsListViewModelTests.swift; sourceTree = "<group>"; };
 		AC9DDD222F2B139C003465D3 /* InAppToastManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppToastManagerTests.swift; sourceTree = "<group>"; };
-		TAPBACK0000000000000004 /* TapbackGlyphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapbackGlyphTests.swift; sourceTree = "<group>"; };
+		TAPBACK0000000000000004 /* TapbackArtworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapbackArtworkTests.swift; sourceTree = "<group>"; };
 		AC9DDD242F2B139C003465D3 /* NotificationsListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListViewModelTests.swift; sourceTree = "<group>"; };
 		AC9DDD262F2B139C003465D3 /* CreateRideViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRideViewModelTests.swift; sourceTree = "<group>"; };
 		AC9DDD272F2B139C003465D3 /* RideDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideDetailViewModelTests.swift; sourceTree = "<group>"; };
@@ -1381,7 +1381,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				AC9DDD212F2B139C003465D3 /* ConversationsListViewModelTests.swift */,
 				AC1200842F3AE63E0043BFAE /* ConversationParticipantsViewModelTests.swift */,
 				AC9DDD222F2B139C003465D3 /* InAppToastManagerTests.swift */,
-				TAPBACK0000000000000004 /* TapbackGlyphTests.swift */,
+				TAPBACK0000000000000004 /* TapbackArtworkTests.swift */,
 			);
 			path = Messaging;
 			sourceTree = "<group>";
@@ -2042,7 +2042,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				AUDIOREC00000000000000A1 /* AudioRecordingCoordinator.swift */,
 				FROZENBR00000000000000A1 /* FrozenConversationBanner.swift */,
 				INPUTBAR00000000000000A4 /* InputBarController.swift */,
-				TAPBACK0000000000000002 /* TapbackGlyph.swift */,
+				TAPBACK0000000000000002 /* TapbackArtwork.swift */,
 			);
 			path = Messaging;
 			sourceTree = "<group>";
@@ -2358,7 +2358,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110001AAAA000000000006 /* SystemMessageView.swift in Sources */,
 				CE110001AAAA000000000007 /* UnsentMessageView.swift in Sources */,
 				CE110001AAAA000000000008 /* ReactionBadgeView.swift in Sources */,
-				TAPBACK0000000000000001 /* TapbackGlyph.swift in Sources */,
+				TAPBACK0000000000000001 /* TapbackArtwork.swift in Sources */,
 				CE110001AAAA000000000009 /* ReadReceiptView.swift in Sources */,
 				CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */,
 				CE110001AAAA00000000000B /* DateSeparatorCell.swift in Sources */,
@@ -2766,7 +2766,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				AC9DDD3C2F2B13BC003465D3 /* NavigationCoordinatorTests.swift in Sources */,
 				AC9DDD372F2B139C003465D3 /* CreatePostViewModelTests.swift in Sources */,
 				AC9DDD382F2B139C003465D3 /* InAppToastManagerTests.swift in Sources */,
-				TAPBACK0000000000000003 /* TapbackGlyphTests.swift in Sources */,
+				TAPBACK0000000000000003 /* TapbackArtworkTests.swift in Sources */,
 				9EA284B4C7D741C6BAB08C47 /* LeaderboardBadgeTests.swift in Sources */,
 				AC1200812F3AE6270043BFAE /* LeaderboardEntryTests.swift in Sources */,
 				AC1200822F3AE6270043BFAE /* TownHallPostTests.swift in Sources */,
