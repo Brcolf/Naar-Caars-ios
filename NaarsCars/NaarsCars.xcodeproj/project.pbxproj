@@ -14,7 +14,7 @@
 		CE110001AAAA000000000005 /* LinkPreviewBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000005 /* LinkPreviewBubbleView.swift */; };
 		CE110001AAAA000000000006 /* SystemMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000006 /* SystemMessageView.swift */; };
 		CE110001AAAA000000000007 /* UnsentMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000007 /* UnsentMessageView.swift */; };
-		CE110001AAAA000000000008 /* ReactionBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000008 /* ReactionBadgeView.swift */; };
+		CE110001AAAA000000000008 /* ReactionStickerBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000008 /* ReactionStickerBadgeView.swift */; };
 		TAPBACK0000000000000001 /* TapbackArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = TAPBACK0000000000000002 /* TapbackArtwork.swift */; };
 		CE110001AAAA000000000009 /* ReadReceiptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA000000000009 /* ReadReceiptView.swift */; };
 		CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE110002AAAA00000000000A /* ReplyPreviewView.swift */; };
@@ -475,7 +475,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		CE110002AAAA000000000005 /* LinkPreviewBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewBubbleView.swift; sourceTree = "<group>"; };
 		CE110002AAAA000000000006 /* SystemMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageView.swift; sourceTree = "<group>"; };
 		CE110002AAAA000000000007 /* UnsentMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentMessageView.swift; sourceTree = "<group>"; };
-		CE110002AAAA000000000008 /* ReactionBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionBadgeView.swift; sourceTree = "<group>"; };
+		CE110002AAAA000000000008 /* ReactionStickerBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactionStickerBadgeView.swift; sourceTree = "<group>"; };
 		TAPBACK0000000000000002 /* TapbackArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapbackArtwork.swift; sourceTree = "<group>"; };
 		CE110002AAAA000000000009 /* ReadReceiptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadReceiptView.swift; sourceTree = "<group>"; };
 		CE110002AAAA00000000000A /* ReplyPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyPreviewView.swift; sourceTree = "<group>"; };
@@ -2011,7 +2011,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110002AAAA000000000005 /* LinkPreviewBubbleView.swift */,
 				CE110002AAAA000000000006 /* SystemMessageView.swift */,
 				CE110002AAAA000000000007 /* UnsentMessageView.swift */,
-				CE110002AAAA000000000008 /* ReactionBadgeView.swift */,
+				CE110002AAAA000000000008 /* ReactionStickerBadgeView.swift */,
 				CE110002AAAA000000000009 /* ReadReceiptView.swift */,
 				CE110002AAAA00000000000A /* ReplyPreviewView.swift */,
 				CE110002AAAA00000000000B /* DateSeparatorCell.swift */,
@@ -2360,7 +2360,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				CE110001AAAA000000000005 /* LinkPreviewBubbleView.swift in Sources */,
 				CE110001AAAA000000000006 /* SystemMessageView.swift in Sources */,
 				CE110001AAAA000000000007 /* UnsentMessageView.swift in Sources */,
-				CE110001AAAA000000000008 /* ReactionBadgeView.swift in Sources */,
+				CE110001AAAA000000000008 /* ReactionStickerBadgeView.swift in Sources */,
 				TAPBACK0000000000000001 /* TapbackArtwork.swift in Sources */,
 				CE110001AAAA000000000009 /* ReadReceiptView.swift in Sources */,
 				CE110001AAAA00000000000A /* ReplyPreviewView.swift in Sources */,
