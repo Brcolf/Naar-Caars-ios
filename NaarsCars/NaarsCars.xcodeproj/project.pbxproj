@@ -447,6 +447,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		FB3400ECF3C94500BFA999EC /* PromptModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A7626088EB4EEA92769463 /* PromptModels.swift */; };
 		FE2C92F79C0AD11E2776D6D1 /* MessageSearchResultRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE83D24DC1B4D446C44E0395 /* MessageSearchResultRow.swift */; };
 		FE8BE874EE8F4C9F8C610393 /* (null) in Sources */ = {isa = PBXBuildFile; };
+		RECENT00000000000000001 /* RecentReactionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECENT00000000000000002 /* RecentReactionsStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -613,6 +614,7 @@ AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */ = {isa = 
 		AC02E5542F4436D300355A45 /* FlightCodeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightCodeParser.swift; sourceTree = "<group>"; };
 		AC0E0A002F26D00000CAFE01 /* ReportContentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportContentSheet.swift; sourceTree = "<group>"; };
 		AC12004A2F37B2090043BFAE /* LocalAttachmentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAttachmentStorage.swift; sourceTree = "<group>"; };
+		RECENT00000000000000002 /* RecentReactionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentReactionsStore.swift; sourceTree = "<group>"; };
 		AC12004C2F37B21E0043BFAE /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		AC12004E2F37B2330043BFAE /* MessageSendWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSendWorker.swift; sourceTree = "<group>"; };
 		MSGLIST0000000000000001 /* MessageListItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageListItem.swift; sourceTree = "<group>"; };
@@ -1307,6 +1309,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */,
 				E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */,
 				AC4F1E172F23340500CC5DBA /* SDModels.swift */,
+				RECENT00000000000000002 /* RecentReactionsStore.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -2715,6 +2718,7 @@ DBF2C4044A094C49872EE6A0 /* Features/Messaging/Views/ConversationDetailView.swif
 				INPUTBAR00000000000000B4 /* InputBarController.swift in Sources */,
 				E8AF3EE4A3855F8B58F002AC /* ScaleButtonStyle.swift in Sources */,
 				A39871588FAF14B326BD4BF3 /* ShakeModifier.swift in Sources */,
+				RECENT00000000000000001 /* RecentReactionsStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
