@@ -19,7 +19,7 @@ struct ReactionDetailsSheet: View {
         NavigationStack {
             List {
                 ForEach(sortedReactions, id: \.reaction) { reactionData in
-                    Section(header: Text("\(reactionData.reaction) \(reactionData.count)")) {
+                    Section(header: reactionHeader(emoji: reactionData.reaction, count: reactionData.count)) {
                         ForEach(profilesByReaction[reactionData.reaction] ?? [], id: \.id) { profile in
                             HStack(spacing: 12) {
                                 AvatarView(
@@ -63,6 +63,18 @@ struct ReactionDetailsSheet: View {
         .presentationDetents([.medium, .large])
     }
     
+    @ViewBuilder
+    private func reactionHeader(emoji: String, count: Int) -> some View {
+        HStack(spacing: 4) {
+            if let uiImage = TapbackGlyph.image(for: emoji, pointSize: 18) {
+                Image(uiImage: uiImage)
+            } else {
+                Text(emoji)
+            }
+            Text("\(count)")
+        }
+    }
+
     private var sortedReactions: [(reaction: String, count: Int, userIds: [UUID])] {
         reactions.sortedReactions.sorted {
             if $0.count == $1.count {

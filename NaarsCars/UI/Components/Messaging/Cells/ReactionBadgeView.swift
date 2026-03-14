@@ -21,7 +21,7 @@ final class ReactionBadgeView: UIView {
 
     // MARK: - Constants
 
-    private let capsuleSpacing: CGFloat = 4
+    private let capsuleSpacing: CGFloat = -6
     private let capsuleHPad: CGFloat = 8
     private let capsuleVPad: CGFloat = 4
 
@@ -56,9 +56,10 @@ final class ReactionBadgeView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         var x: CGFloat = 0
-        for item in capsules {
+        for (index, item) in capsules.enumerated() {
             item.view.sizeToFit()
             item.view.frame.origin = CGPoint(x: x, y: 0)
+            item.view.layer.zPosition = CGFloat(capsules.count - index)
             x += item.view.frame.width + capsuleSpacing
         }
     }
@@ -125,7 +126,9 @@ final class ReactionBadgeView: UIView {
 private final class ReactionCapsuleView: UIView {
 
     private let emojiLabel = UILabel()
+    private let glyphImageView = UIImageView()
     private let countLabel = UILabel()
+    private let glyphSize: CGFloat = 13
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -141,6 +144,9 @@ private final class ReactionCapsuleView: UIView {
         emojiLabel.font = .preferredFont(forTextStyle: .subheadline)
         addSubview(emojiLabel)
 
+        glyphImageView.contentMode = .scaleAspectFit
+        addSubview(glyphImageView)
+
         countLabel.font = .preferredFont(forTextStyle: .caption1)
         countLabel.textColor = .secondaryLabel
         addSubview(countLabel)
@@ -149,7 +155,15 @@ private final class ReactionCapsuleView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) not implemented") }
 
     func configure(emoji: String, count: Int) {
-        emojiLabel.text = emoji
+        if let glyphImage = TapbackGlyph.image(for: emoji, pointSize: glyphSize) {
+            glyphImageView.image = glyphImage
+            glyphImageView.isHidden = false
+            emojiLabel.isHidden = true
+        } else {
+            glyphImageView.isHidden = true
+            emojiLabel.isHidden = false
+            emojiLabel.text = emoji
+        }
         countLabel.text = count > 1 ? "\(count)" : nil
         countLabel.isHidden = count <= 1
     }
@@ -159,11 +173,21 @@ private final class ReactionCapsuleView: UIView {
         layer.cornerRadius = bounds.height / 2
         let hPad: CGFloat = 8
         let spacing: CGFloat = 2
-        let emojiSize = emojiLabel.sizeThatFits(bounds.size)
-        emojiLabel.frame = CGRect(x: hPad, y: (bounds.height - emojiSize.height) / 2, width: emojiSize.width, height: emojiSize.height)
-        if !countLabel.isHidden {
-            let countSize = countLabel.sizeThatFits(bounds.size)
-            countLabel.frame = CGRect(x: emojiLabel.frame.maxX + spacing, y: (bounds.height - countSize.height) / 2, width: countSize.width, height: countSize.height)
+
+        if !glyphImageView.isHidden {
+            let glyphY = (bounds.height - glyphSize) / 2
+            glyphImageView.frame = CGRect(x: hPad, y: glyphY, width: glyphSize, height: glyphSize)
+            if !countLabel.isHidden {
+                let countSize = countLabel.sizeThatFits(bounds.size)
+                countLabel.frame = CGRect(x: glyphImageView.frame.maxX + spacing, y: (bounds.height - countSize.height) / 2, width: countSize.width, height: countSize.height)
+            }
+        } else {
+            let emojiSize = emojiLabel.sizeThatFits(bounds.size)
+            emojiLabel.frame = CGRect(x: hPad, y: (bounds.height - emojiSize.height) / 2, width: emojiSize.width, height: emojiSize.height)
+            if !countLabel.isHidden {
+                let countSize = countLabel.sizeThatFits(bounds.size)
+                countLabel.frame = CGRect(x: emojiLabel.frame.maxX + spacing, y: (bounds.height - countSize.height) / 2, width: countSize.width, height: countSize.height)
+            }
         }
     }
 
@@ -171,13 +195,23 @@ private final class ReactionCapsuleView: UIView {
         let hPad: CGFloat = 8
         let vPad: CGFloat = 4
         let spacing: CGFloat = 2
-        let emojiSize = emojiLabel.sizeThatFits(size)
-        var w = hPad + emojiSize.width + hPad
-        if !countLabel.isHidden {
-            let countSize = countLabel.sizeThatFits(size)
-            w = hPad + emojiSize.width + spacing + countSize.width + hPad
+
+        if !glyphImageView.isHidden {
+            var w = hPad + glyphSize + hPad
+            if !countLabel.isHidden {
+                let countSize = countLabel.sizeThatFits(size)
+                w = hPad + glyphSize + spacing + countSize.width + hPad
+            }
+            return CGSize(width: w, height: glyphSize + vPad * 2)
+        } else {
+            let emojiSize = emojiLabel.sizeThatFits(size)
+            var w = hPad + emojiSize.width + hPad
+            if !countLabel.isHidden {
+                let countSize = countLabel.sizeThatFits(size)
+                w = hPad + emojiSize.width + spacing + countSize.width + hPad
+            }
+            return CGSize(width: w, height: emojiSize.height + vPad * 2)
         }
-        return CGSize(width: w, height: emojiSize.height + vPad * 2)
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

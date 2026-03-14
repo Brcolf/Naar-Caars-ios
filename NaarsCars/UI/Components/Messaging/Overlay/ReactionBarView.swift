@@ -106,10 +106,16 @@ final class ReactionBarView: UIView {
     private func makeReactionButton(emoji: String) -> UIButton {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.setTitle(emoji, for: .normal)
-        // Use a fixed size appropriate for emoji rendering; emoji glyphs do not
-        // benefit from Dynamic Type scaling as they are pictographic, not text.
-        button.titleLabel?.font = .systemFont(ofSize: 22)
+
+        if let glyph = TapbackGlyph.image(for: emoji, pointSize: 22) {
+            button.setImage(glyph, for: .normal)
+            button.setTitle(nil, for: .normal)
+        } else {
+            button.setTitle(emoji, for: .normal)
+            // Use a fixed size appropriate for emoji rendering; emoji glyphs do not
+            // benefit from Dynamic Type scaling as they are pictographic, not text.
+            button.titleLabel?.font = .systemFont(ofSize: 22)
+        }
         button.layer.cornerRadius = buttonSize / 2
         button.clipsToBounds = true
 

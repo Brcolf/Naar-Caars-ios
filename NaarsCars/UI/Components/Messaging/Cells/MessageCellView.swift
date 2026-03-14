@@ -65,6 +65,7 @@ final class MessageCellView: UIView {
         spineLayer.strokeColor = UIColor.secondaryLabel.withAlphaComponent(0.35).cgColor
         spineLayer.lineWidth = 2
         spineLayer.fillColor = nil
+        spineLayer.lineCap = .round
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -488,7 +489,7 @@ final class MessageCellView: UIView {
         if let primary = primaryContentView, let rb = reactionBadge, !rb.isHidden {
             let rbSize = rb.sizeThatFits(.zero)
             let rbX = config.isFromCurrentUser ? primary.frame.minX + 4 : primary.frame.maxX - rbSize.width - 4
-            rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height / 2, width: rbSize.width, height: rbSize.height)
+            rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height * 0.6, width: rbSize.width, height: rbSize.height)
         }
 
         // Reply arrow icon position (to the side of the first content bubble)
@@ -545,7 +546,22 @@ final class MessageCellView: UIView {
 
             let path = UIBezierPath()
             path.move(to: CGPoint(x: spineX, y: topY))
-            path.addLine(to: CGPoint(x: spineX, y: bottomY))
+
+            if !spine.showTop && spine.showBottom {
+                // First in chain: curve from reply preview down to cell bottom
+                let controlY = topY + (bottomY - topY) * 0.3
+                path.addQuadCurve(to: CGPoint(x: spineX, y: bottomY),
+                                  controlPoint: CGPoint(x: spineX + (config.isFromCurrentUser ? 6 : -6), y: controlY))
+            } else if spine.showTop && !spine.showBottom {
+                // Last in chain: curve from cell top down to content
+                let controlY = topY + (bottomY - topY) * 0.7
+                path.addQuadCurve(to: CGPoint(x: spineX, y: bottomY),
+                                  controlPoint: CGPoint(x: spineX + (config.isFromCurrentUser ? 6 : -6), y: controlY))
+            } else {
+                // Middle of chain or single: straight vertical line
+                path.addLine(to: CGPoint(x: spineX, y: bottomY))
+            }
+
             spineLayer.path = path.cgPath
             spineLayer.frame = bounds
         }
@@ -606,10 +622,10 @@ final class MessageCellView: UIView {
         addGestureRecognizer(panGesture)
 
         longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
-        longPressGesture.minimumPressDuration = 0.5
+        longPressGesture.minimumPressDuration = 0.3
         // No require(toFail:) — pan and long-press coexist. Pan activates via
         // horizontal direction lock in gestureRecognizerShouldBegin; long-press
-        // has its own 0.5s duration gate. Per spec: "Pan and long-press coexist."
+        // has its own 0.3s duration gate. Per spec: "Pan and long-press coexist."
         addGestureRecognizer(longPressGesture)
 
         tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
