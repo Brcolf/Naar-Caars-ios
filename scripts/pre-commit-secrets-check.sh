@@ -15,4 +15,10 @@ for pattern in "${BLOCKED_PATTERNS[@]}"; do
     fi
 done
 
+# Check for accidentally deleted localization keys
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$SCRIPT_DIR/pre-commit-localization-check.sh" ]; then
+    "$SCRIPT_DIR/pre-commit-localization-check.sh" || exit 1
+fi
+
 exit 0

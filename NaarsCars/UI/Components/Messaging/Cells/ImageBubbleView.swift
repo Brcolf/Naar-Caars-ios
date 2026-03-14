@@ -77,6 +77,12 @@ final class ImageBubbleView: UIView {
     /// Configure with a remote URL string.
     func configure(remoteUrl: String, onTap: ((URL) -> Void)? = nil) {
         self.onTap = onTap
+
+        // Skip redundant load — same URL already displayed
+        if remoteUrl == lastRemoteUrl && imageView.image != nil && !imageView.isHidden {
+            return
+        }
+
         self.imageURL = URL(string: remoteUrl)
         self.lastRemoteUrl = remoteUrl
         self.lastLocalPath = nil
@@ -107,6 +113,12 @@ final class ImageBubbleView: UIView {
     /// Configure with a local attachment path.
     func configure(localPath: String, onTap: ((URL) -> Void)? = nil) {
         self.onTap = onTap
+
+        // Skip redundant load — same path already displayed
+        if localPath == lastLocalPath && imageView.image != nil && !imageView.isHidden {
+            return
+        }
+
         let fileURL = LocalAttachmentStorage.fileURL(for: localPath)
         self.imageURL = fileURL
         self.lastLocalPath = localPath
