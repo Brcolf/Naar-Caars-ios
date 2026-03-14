@@ -67,6 +67,7 @@ This eliminates the synchronization risk of two independently-stored representat
 **MessageReactionService.swift:**
 - Remove the validation check against `validReactions` in `addReaction()` — accept any emoji string
 - Add a new method `fetchIndividualReactions(messageId:) -> [MessageReaction]` that returns the raw decoded records (the existing `fetchReactions` already decodes them internally before aggregating — extract and expose this step)
+- Remove or deprecate the existing `fetchReactions(messageId:) -> MessageReactions` method. All callers should migrate to `fetchIndividualReactions` and derive aggregated data via the invariant. Leaving the old method available risks bypassing the source-of-truth contract.
 - All other service logic (upsert, delete, fetch, participant check) remains unchanged
 
 **Database:**
@@ -234,7 +235,9 @@ When the number of unique reaction types exceeds 3, the badge switches to a comp
 - API: `static func hahaImage(pointSize: CGFloat) -> UIImage`
   - Renders "HA HA" text in a stacked layout with bold weight and blue color (`UIColor.systemBlue`)
   - Uses `UIGraphicsImageRenderer` to produce a rasterized image at the requested point size
+  - The image must render crisply at all three usage sizes: picker (~22pt), badge (~13pt), and details row (~28pt). Use `UIGraphicsImageRenderer` with the current screen's `scale` trait to avoid blurry rendering on retina displays. Verify visual quality at each size during implementation.
 - Also provide: `static func isHaha(_ reaction: String) -> Bool` — checks if a reaction string matches the 😂 emoji (which should be rendered as HAHA)
+- Accessibility: all views rendering HAHA artwork must set `accessibilityLabel = "Ha ha"` (not "😂" or "HA HA") to match iMessage's VoiceOver behavior. This applies in the picker button, sticker badge, and details row sticker.
 - Update `NaarsCars/NaarsCarsTests/Features/Messaging/TapbackGlyphTests.swift` to match the new API (rename to `TapbackArtworkTests.swift`)
 
 ---
@@ -346,4 +349,7 @@ These components require **no changes**:
   - [ ] Image bubbles
   - [ ] Sent messages
   - [ ] Received messages
+- [ ] Badge-tap opens overlay with details correctly in thread view context (`MessageThreadViewController`)
+- [ ] HAHA custom artwork renders crisply at all three sizes (picker ~22pt, badge ~13pt, details ~28pt)
+- [ ] HAHA artwork has `accessibilityLabel = "Ha ha"` in picker, badge, and details row
 - [ ] No regressions in message cell layout for all bubble types
