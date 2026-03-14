@@ -130,7 +130,8 @@ final class ReactionBarView: UIView {
         button.translatesAutoresizingMaskIntoConstraints = false
 
         if TapbackArtwork.isHaha(emoji) {
-            let img = TapbackArtwork.hahaImage(pointSize: 22)
+            let isSelected = emoji == currentUserReaction
+            let img = TapbackArtwork.hahaImage(pointSize: 22, color: isSelected ? .white : .systemBlue)
             button.setImage(img, for: .normal)
             button.setTitle(nil, for: .normal)
             button.accessibilityLabel = "Ha ha"

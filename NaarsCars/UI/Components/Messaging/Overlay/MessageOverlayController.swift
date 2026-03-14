@@ -219,12 +219,12 @@ final class MessageOverlayController: UIViewController {
         )
 
         // Default position: below the snapshot
-        var actionListTopY = sourceFrame.maxY + spacing
+        var actionListTopY = snapshot.frame.maxY + spacing
 
         // If the reaction bar was placed below the snapshot (adaptive), put the action list above instead
-        let reactionBarIsBelow = reactionBar.frame.minY > sourceFrame.midY
+        let reactionBarIsBelow = reactionBar.frame.minY > snapshot.frame.midY
         if reactionBarIsBelow {
-            actionListTopY = sourceFrame.minY - spacing - fittingSize.height
+            actionListTopY = snapshot.frame.minY - spacing - fittingSize.height
         }
 
         // Ensure it doesn't go off screen bottom
@@ -235,8 +235,8 @@ final class MessageOverlayController: UIViewController {
 
         // Align horizontally with the message bubble
         let actionListX: CGFloat = isFromCurrentUser
-            ? sourceFrame.maxX - actionListWidth
-            : sourceFrame.minX
+            ? snapshot.frame.maxX - actionListWidth
+            : snapshot.frame.minX
 
         // Clamp to screen bounds
         let clampedX = max(16, min(actionListX, view.bounds.width - actionListWidth - 16))

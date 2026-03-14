@@ -8,7 +8,7 @@ enum TapbackArtwork {
 
     /// Renders the custom "HA HA" artwork at the specified point size.
     /// Uses `UIGraphicsImageRenderer` with screen scale for crisp rendering on retina displays.
-    static func hahaImage(pointSize: CGFloat) -> UIImage {
+    static func hahaImage(pointSize: CGFloat, color: UIColor = .systemBlue) -> UIImage {
         let font = UIFont.systemFont(ofSize: pointSize * 0.45, weight: .black)
         let text = "HA\nHA"
         let paragraphStyle = NSMutableParagraphStyle()
@@ -16,7 +16,7 @@ enum TapbackArtwork {
         paragraphStyle.lineSpacing = -pointSize * 0.08
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: UIColor.systemBlue,
+            .foregroundColor: color,
             .paragraphStyle: paragraphStyle
         ]
         let attrString = NSAttributedString(string: text, attributes: attributes)

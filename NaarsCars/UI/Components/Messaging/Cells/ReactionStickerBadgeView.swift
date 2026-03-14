@@ -87,9 +87,11 @@ final class ReactionStickerBadgeView: UIView {
         }
 
         for (index, reaction) in sorted.enumerated() {
+            let isCurrentUser = reaction.userId == currentUserId
             let sticker = makeStickerView(
                 reaction: reaction.reaction,
-                tintColor: reaction.userId == currentUserId ? .systemBlue : UIColor.systemGray.withAlphaComponent(0.6)
+                tintColor: isCurrentUser ? .systemBlue : UIColor.systemGray.withAlphaComponent(0.6),
+                isCurrentUser: isCurrentUser
             )
             sticker.layer.zPosition = CGFloat(index)
             addSubview(sticker)
@@ -113,7 +115,8 @@ final class ReactionStickerBadgeView: UIView {
         for (index, typeInfo) in topTypes.enumerated() {
             let sticker = makeStickerView(
                 reaction: typeInfo.reaction,
-                tintColor: UIColor.systemGray.withAlphaComponent(0.6)
+                tintColor: UIColor.systemGray.withAlphaComponent(0.6),
+                isCurrentUser: false
             )
             sticker.layer.zPosition = CGFloat(index)
             addSubview(sticker)
@@ -123,7 +126,7 @@ final class ReactionStickerBadgeView: UIView {
 
     // MARK: - Sticker Factory
 
-    private func makeStickerView(reaction: String, tintColor: UIColor) -> UIView {
+    private func makeStickerView(reaction: String, tintColor: UIColor, isCurrentUser: Bool) -> UIView {
         let size = Self.stickerSize
         let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
         container.backgroundColor = tintColor
@@ -132,7 +135,8 @@ final class ReactionStickerBadgeView: UIView {
 
         // Content: emoji or HAHA artwork
         if TapbackArtwork.isHaha(reaction) {
-            let imageView = UIImageView(image: TapbackArtwork.hahaImage(pointSize: size))
+            let hahaColor: UIColor = isCurrentUser ? .white : .systemBlue
+            let imageView = UIImageView(image: TapbackArtwork.hahaImage(pointSize: size, color: hahaColor))
             imageView.contentMode = .scaleAspectFit
             let inset: CGFloat = 4
             imageView.frame = CGRect(x: inset, y: inset, width: size - inset * 2, height: size - inset * 2)

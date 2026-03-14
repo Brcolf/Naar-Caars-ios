@@ -799,6 +799,9 @@
         }
       }
     },
+    "accessibility_emoji_picker" : {
+      "comment" : "Open emoji picker"
+    },
     "accessibility_reaction_add_hint" : {
       "comment" : "Hint for adding a reaction",
       "localizations" : {
@@ -22672,7 +22675,15 @@
       }
     },
     "messaging_view_thread" : {
-      "comment" : "Message action: open the reply thread"
+      "comment" : "Message action: open the reply thread",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Thread"
+          }
+        }
+      }
     },
     "messaging_voice_message" : {
       "extractionState" : "stale",

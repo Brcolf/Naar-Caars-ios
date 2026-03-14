@@ -425,7 +425,7 @@ struct ConversationDetailView: View {
                         onTypingChanged: { viewModel.userDidType() },
                         replyCountMap: viewModel.replyCountMap,
                         onViewThread: { message in
-                            activeThreadParent = ThreadParent(id: message.id)
+                            activeThreadParent = ThreadParent(id: message.replyToId ?? message.id)
                         },
                         isConversationFrozen: viewModel.hasLeftConversation
                     )
