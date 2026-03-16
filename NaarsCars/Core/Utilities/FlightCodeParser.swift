@@ -47,14 +47,7 @@ enum FlightCodeParser {
     ]
 
     /// Direct: 2–3 letters (not after # or word char) then optional space/dash then 1–4 digits. No \b so "AS587" matches (digits are \w).
-    private static let directPattern = #"""
-    (?<![#\w])                    # not after # or word char
-    ([A-Za-z]{2,3})                # airline code (capture 1)
-    (?=[\s\-]*\d)                  # next is optional space/dash then digit (avoids "Order" -> Or)
-    [\s\-]*                        # optional space or dash
-    (\d{1,4})                      # flight number (capture 2)
-    (?![0-9])                      # not more digits
-    """#
+    private static let directPattern = #"(?<![#\w])([A-Za-z]{2,3})(?=[\s\-]*\d)[\s\-]*(\d{1,4})(?![0-9])"#
 
     /// Parse the first flight code from notes. Tries cue-based patterns first, then direct. Returns normalized code (e.g. AS587) or nil.
     static func parseFirstFlightCode(from notes: String?) -> FlightParseResult? {
@@ -84,7 +77,7 @@ enum FlightCodeParser {
         }
 
         // 2) Direct pattern (e.g. "AS587", "DL 1234") — require known airline to avoid SR 99, NE 45th, WA 520
-        if let result = matchPattern(directPattern, in: text, sourceLabel: "direct", options: .allowCommentsAndWhitespace),
+        if let result = matchPattern(directPattern, in: text, sourceLabel: "direct"),
            isKnownAirline(result.airlineCode) {
             return result
         }

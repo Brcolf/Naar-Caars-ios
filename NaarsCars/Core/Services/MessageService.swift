@@ -354,9 +354,11 @@ final class MessageService {
             let reply_count: Int
         }
 
+        // Postgres uuid[] parameters must be formatted as a literal: {uuid1,uuid2,...}
+        let arrayLiteral = "{\(messageIds.map { $0.uuidString }.joined(separator: ","))}"
         let params: [String: AnyCodable] = [
             "p_conversation_id": AnyCodable(conversationId.uuidString),
-            "p_message_ids": AnyCodable(messageIds.map { $0.uuidString })
+            "p_message_ids": AnyCodable(arrayLiteral)
         ]
 
         let response = try await supabase
