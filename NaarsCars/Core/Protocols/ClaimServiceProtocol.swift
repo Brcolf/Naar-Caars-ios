@@ -5,7 +5,6 @@
 
 import Foundation
 
-@MainActor
 protocol ClaimServiceProtocol: AnyObject {
     func claimRequest(requestType: String, requestId: UUID, claimerId: UUID) async throws
     func unclaimRequest(requestType: String, requestId: UUID, claimerId: UUID) async throws

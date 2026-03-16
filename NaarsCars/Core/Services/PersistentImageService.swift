@@ -32,29 +32,37 @@ final class PersistentImageService {
     /// - Returns: The UIImage if found or downloaded, nil otherwise
     func getImage(for urlString: String) async -> UIImage? {
         guard let url = URL(string: urlString) else { return nil }
-        
-        // 1. Check disk cache
+
+        // 1. Check disk cache (off-main via detached task)
         let fileName = url.lastPathComponent
         let fileURL = cacheDirectory.appendingPathComponent(fileName)
-        
-        if fileManager.fileExists(atPath: fileURL.path) {
-            if let data = try? Data(contentsOf: fileURL), let image = UIImage(data: data) {
-                return image
+
+        let cachedImage = await Task.detached(priority: .userInitiated) {
+            guard FileManager.default.fileExists(atPath: fileURL.path),
+                  let data = try? Data(contentsOf: fileURL),
+                  let image = UIImage(data: data) else {
+                return nil as UIImage?
             }
-        }
-        
+            return image
+        }.value
+
+        if let cachedImage { return cachedImage }
+
         // 2. Download if not in cache
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             if let image = UIImage(data: data) {
-                // Save to disk cache
-                try? data.write(to: fileURL)
+                // Save to disk cache (off-main)
+                let saveURL = fileURL
+                Task.detached(priority: .utility) {
+                    try? data.write(to: saveURL)
+                }
                 return image
             }
         } catch {
             AppLogger.error("images", "Failed to download image: \(error)")
         }
-        
+
         return nil
     }
     

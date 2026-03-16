@@ -56,10 +56,8 @@ actor MessageSendWorker {
         retryTask = Task { [weak self] in
             await self?.processPendingMessages()
         }
-        
-        Task { @MainActor in
-            AppLogger.info("messaging", "[MessageSendWorker] Started")
-        }
+
+        AppLogger.info("messaging", "[MessageSendWorker] Started")
     }
     
     /// Stop the send worker
@@ -68,9 +66,7 @@ actor MessageSendWorker {
         retryTask?.cancel()
         retryTask = nil
         networkMonitor.cancel()
-        Task { @MainActor in
-            AppLogger.info("messaging", "[MessageSendWorker] Stopped")
-        }
+        AppLogger.info("messaging", "[MessageSendWorker] Stopped")
     }
     
     /// Notify the worker that new pending messages are available (e.g. after a send)
@@ -90,9 +86,7 @@ actor MessageSendWorker {
         
         // When network comes back, retry all pending messages
         if isAvailable && wasUnavailable {
-            Task { @MainActor in
-                AppLogger.info("messaging", "[MessageSendWorker] Network restored, retrying pending messages")
-            }
+            AppLogger.info("messaging", "[MessageSendWorker] Network restored, retrying pending messages")
             retryTask?.cancel()
             retryTask = Task { [weak self] in
                 await self?.processPendingMessages()
@@ -108,16 +102,12 @@ actor MessageSendWorker {
         guard !pendingMessages.isEmpty else { return }
         
         let count = pendingMessages.count
-        Task { @MainActor in
-            AppLogger.info("messaging", "[MessageSendWorker] Processing \(count) pending message(s)")
-        }
+        AppLogger.info("messaging", "[MessageSendWorker] Processing \(count) pending message(s)")
         
         for messageInfo in pendingMessages {
             guard isRunning, !Task.isCancelled else { return }
             guard isNetworkAvailable else {
-                Task { @MainActor in
-                    AppLogger.info("messaging", "[MessageSendWorker] Network unavailable, pausing")
-                }
+                AppLogger.info("messaging", "[MessageSendWorker] Network unavailable, pausing")
                 return
             }
             
@@ -135,32 +125,17 @@ actor MessageSendWorker {
             
             do {
                 try await sendMessage(messageInfo: messageInfo)
-                let msgId = messageInfo.id
-                let attemptNum = attempt
-                Task { @MainActor in
-                    AppLogger.info("messaging", "[MessageSendWorker] Sent message \(msgId) on attempt \(attemptNum)")
-                }
+                AppLogger.info("messaging", "[MessageSendWorker] Sent message \(messageInfo.id) on attempt \(attempt)")
                 return // Success
             } catch {
                 if attempt >= maxRetryAttempts {
                     // Mark as failed after all retries exhausted
                     await markMessageFailed(id: messageInfo.id, error: error.localizedDescription)
-                    let msgId = messageInfo.id
-                    let maxAttempts = maxRetryAttempts
-                    let errorDesc = error.localizedDescription
-                    Task { @MainActor in
-                        AppLogger.error("messaging", "[MessageSendWorker] Message \(msgId) failed after \(maxAttempts) attempts: \(errorDesc)")
-                    }
+                    AppLogger.error("messaging", "[MessageSendWorker] Message \(messageInfo.id) failed after \(maxRetryAttempts) attempts: \(error.localizedDescription)")
                     return
                 }
                 
-                let attemptNum = attempt
-                let msgId = messageInfo.id
-                let errorDesc = error.localizedDescription
-                let retryDelay = delay
-                Task { @MainActor in
-                    AppLogger.warning("messaging", "[MessageSendWorker] Attempt \(attemptNum) failed for message \(msgId): \(errorDesc). Retrying in \(retryDelay)s")
-                }
+                AppLogger.warning("messaging", "[MessageSendWorker] Attempt \(attempt) failed for message \(messageInfo.id): \(error.localizedDescription). Retrying in \(delay)s")
                 
                 // Wait with exponential backoff
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -174,9 +149,8 @@ actor MessageSendWorker {
         let fromId = messageInfo.fromId
         let conversationId = messageInfo.conversationId
         
-        // Access services on the main actor
-        let messageService = await MainActor.run { MessageService.shared }
-        let mediaService = await MainActor.run { MessageMediaService.shared }
+        let messageService = MessageService.shared
+        let mediaService = MessageMediaService.shared
         
         let sentMessage: Message
         

@@ -5,7 +5,6 @@
 
 import Foundation
 
-@MainActor
 protocol NotificationServiceProtocol: AnyObject {
     func fetchNotifications(userId: UUID, forceRefresh: Bool) async throws -> [AppNotification]
     func markAsRead(notificationId: UUID) async throws

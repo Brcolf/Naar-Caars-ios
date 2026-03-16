@@ -216,7 +216,7 @@ final class ConversationService {
         do {
             let response = try await supabase
                 .from("messages")
-                .select("*, sender:profiles!messages_from_id_fkey(*)")
+                .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .neq("message_type", value: "system")
                 .is("deleted_at", value: nil)
@@ -375,46 +375,44 @@ final class ConversationService {
             return try await createConversationWithUsers(userIds: [userId, otherUserId], createdBy: userId, title: nil)
         }
         
-        // Check each conversation to see if it has both users as participants and exactly 2 participants
-        for userConv in userConversations {
-            let otherParticipantsResponse = try? await supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: userConv.conversationId.uuidString)
-                .execute()
-            
-            struct OtherParticipantRow: Codable {
-                let userId: UUID
-                enum CodingKeys: String, CodingKey {
-                    case userId = "user_id"
-                }
+        // Batch-fetch all participants for all candidate conversations in a single query
+        let candidateIds = userConversations.map { $0.conversationId.uuidString }
+        guard !candidateIds.isEmpty else {
+            return try await createConversationWithUsers(userIds: [userId, otherUserId], createdBy: userId, title: nil)
+        }
+
+        struct AllParticipantRow: Codable {
+            let conversationId: UUID
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case conversationId = "conversation_id"
+                case userId = "user_id"
             }
-            
-            if let otherData = otherParticipantsResponse?.data,
-               let otherParticipants = try? JSONDecoder().decode([OtherParticipantRow].self, from: otherData),
-               otherParticipants.count == 2 {
-                // Check if both users are in this conversation
-                let participantIds = Set(otherParticipants.map { $0.userId })
-                if participantIds.contains(userId) && participantIds.contains(otherUserId) {
-                    // Found existing DM conversation
-                    let conversationResponse = try? await supabase
-                        .from("conversations")
-                        .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
-                        .eq("id", value: userConv.conversationId.uuidString)
-                        .single()
-                        .execute()
-                    
-                    if let convData = conversationResponse?.data {
-                        let decoder = createDateDecoder()
-                        if let existing = try? decoder.decode(Conversation.self, from: convData) {
-                            AppLogger.database.debug("Found existing DM conversation: \(existing.id)")
-                            return existing
+        }
+
+        let allParticipantsResponse = try? await supabase
+            .from("conversation_participants")
+            .select("conversation_id, user_id")
+            .in("conversation_id", values: candidateIds)
+            .execute()
+
+        if let allData = allParticipantsResponse?.data,
+           let allParticipants = try? JSONDecoder().decode([AllParticipantRow].self, from: allData) {
+            // Group by conversation_id and find the matching DM
+            let grouped = Dictionary(grouping: allParticipants, by: \.conversationId)
+            for (conversationId, participants) in grouped {
+                if participants.count == 2 {
+                    let participantIds = Set(participants.map { $0.userId })
+                    if participantIds.contains(userId) && participantIds.contains(otherUserId) {
+                        if let conversation = try? await fetchConversationById(conversationId) {
+                            AppLogger.database.debug("Found existing DM conversation: \(conversation.id)")
+                            return conversation
                         }
                     }
                 }
             }
         }
-        
+
         // No existing DM found, create new one
         return try await createConversationWithUsers(userIds: [userId, otherUserId], createdBy: userId, title: nil)
     }

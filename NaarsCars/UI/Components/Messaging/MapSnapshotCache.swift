@@ -8,7 +8,6 @@
 import SwiftUI
 import MapKit
 
-@MainActor
 final class MapSnapshotCache {
     static let shared = MapSnapshotCache()
     private let cache: NSCache<NSString, UIImage>

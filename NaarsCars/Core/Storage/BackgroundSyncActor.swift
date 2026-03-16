@@ -33,6 +33,190 @@ actor BackgroundSyncActor {
         try modelContext.save()
     }
 
+    /// Upsert a single ride from a realtime payload (incremental update).
+    /// Preserves existing joined fields (poster, claimer, participants, qaCount) that
+    /// are not present in realtime payloads.
+    func upsertRide(_ ride: Ride) throws {
+        let rideId = ride.id
+        let predicate = #Predicate<SDRide> { $0.id == rideId }
+        let descriptor = FetchDescriptor<SDRide>(predicate: predicate)
+        if let existing = try? modelContext.fetch(descriptor).first {
+            // Update core fields from realtime payload
+            existing.status = ride.status.rawValue
+            existing.claimedBy = ride.claimedBy
+            existing.updatedAt = ride.updatedAt
+            existing.date = ride.date
+            existing.time = ride.time
+            existing.timezone = ride.timezone
+            existing.pickup = ride.pickup
+            existing.destination = ride.destination
+            existing.seats = ride.seats
+            existing.notes = ride.notes
+            existing.gift = ride.gift
+            existing.reviewed = ride.reviewed
+            existing.reviewSkipped = ride.reviewSkipped
+            existing.reviewSkippedAt = ride.reviewSkippedAt
+            existing.estimatedCost = ride.estimatedCost
+            existing.flightNormalized = ride.flightNormalized
+            // Preserve poster/claimer/participants/qaCount — not in realtime payloads
+        } else {
+            let sdRide = SDRide(
+                id: ride.id,
+                userId: ride.userId,
+                type: ride.type,
+                date: ride.date,
+                time: ride.time,
+                timezone: ride.timezone,
+                pickup: ride.pickup,
+                destination: ride.destination,
+                seats: ride.seats,
+                notes: ride.notes,
+                gift: ride.gift,
+                status: ride.status.rawValue,
+                claimedBy: ride.claimedBy,
+                reviewed: ride.reviewed,
+                reviewSkipped: ride.reviewSkipped,
+                reviewSkippedAt: ride.reviewSkippedAt,
+                estimatedCost: ride.estimatedCost,
+                flightNormalized: ride.flightNormalized,
+                createdAt: ride.createdAt,
+                updatedAt: ride.updatedAt,
+                posterName: ride.poster?.name,
+                posterAvatarUrl: ride.poster?.avatarUrl,
+                claimerName: ride.claimer?.name,
+                claimerAvatarUrl: ride.claimer?.avatarUrl,
+                participantIds: ride.participants?.map { $0.id } ?? [],
+                qaCount: ride.qaCount ?? 0
+            )
+            modelContext.insert(sdRide)
+        }
+        try modelContext.save()
+    }
+
+    /// Upsert a single favor from a realtime payload (incremental update).
+    /// Preserves existing joined fields that are not present in realtime payloads.
+    func upsertFavor(_ favor: Favor) throws {
+        let favorId = favor.id
+        let predicate = #Predicate<SDFavor> { $0.id == favorId }
+        let descriptor = FetchDescriptor<SDFavor>(predicate: predicate)
+        if let existing = try? modelContext.fetch(descriptor).first {
+            // Update core fields from realtime payload
+            existing.status = favor.status.rawValue
+            existing.claimedBy = favor.claimedBy
+            existing.updatedAt = favor.updatedAt
+            existing.title = favor.title
+            existing.favorDescription = favor.description
+            existing.location = favor.location
+            existing.duration = favor.duration.rawValue
+            existing.requirements = favor.requirements
+            existing.date = favor.date
+            existing.time = favor.time
+            existing.timezone = favor.timezone
+            existing.gift = favor.gift
+            existing.reviewed = favor.reviewed
+            existing.reviewSkipped = favor.reviewSkipped
+            existing.reviewSkippedAt = favor.reviewSkippedAt
+            // Preserve poster/claimer/participants/qaCount — not in realtime payloads
+        } else {
+            let sdFavor = SDFavor(
+                id: favor.id,
+                userId: favor.userId,
+                title: favor.title,
+                favorDescription: favor.description,
+                location: favor.location,
+                duration: favor.duration.rawValue,
+                requirements: favor.requirements,
+                date: favor.date,
+                time: favor.time,
+                timezone: favor.timezone,
+                gift: favor.gift,
+                status: favor.status.rawValue,
+                claimedBy: favor.claimedBy,
+                reviewed: favor.reviewed,
+                reviewSkipped: favor.reviewSkipped,
+                reviewSkippedAt: favor.reviewSkippedAt,
+                createdAt: favor.createdAt,
+                updatedAt: favor.updatedAt,
+                posterName: favor.poster?.name,
+                posterAvatarUrl: favor.poster?.avatarUrl,
+                claimerName: favor.claimer?.name,
+                claimerAvatarUrl: favor.claimer?.avatarUrl,
+                participantIds: favor.participants?.map { $0.id } ?? [],
+                qaCount: favor.qaCount ?? 0
+            )
+            modelContext.insert(sdFavor)
+        }
+        try modelContext.save()
+    }
+
+    /// Delete a single ride by ID (for realtime delete events)
+    func deleteRide(id: UUID) throws {
+        let predicate = #Predicate<SDRide> { $0.id == id }
+        let descriptor = FetchDescriptor<SDRide>(predicate: predicate)
+        if let existing = try? modelContext.fetch(descriptor).first {
+            modelContext.delete(existing)
+            try modelContext.save()
+        }
+    }
+
+    /// Delete a single favor by ID (for realtime delete events)
+    func deleteFavor(id: UUID) throws {
+        let predicate = #Predicate<SDFavor> { $0.id == id }
+        let descriptor = FetchDescriptor<SDFavor>(predicate: predicate)
+        if let existing = try? modelContext.fetch(descriptor).first {
+            modelContext.delete(existing)
+            try modelContext.save()
+        }
+    }
+
+    /// Upsert a single notification from a realtime payload (incremental update).
+    func upsertNotification(_ notification: AppNotification) throws {
+        let notifId = notification.id
+        let predicate = #Predicate<SDNotification> { $0.id == notifId }
+        let descriptor = FetchDescriptor<SDNotification>(predicate: predicate)
+        if let existing = try? modelContext.fetch(descriptor).first {
+            existing.read = notification.read
+            existing.pinned = notification.pinned
+            existing.title = notification.title
+            existing.body = notification.body
+            existing.rideId = notification.rideId
+            existing.favorId = notification.favorId
+            existing.conversationId = notification.conversationId
+            existing.reviewId = notification.reviewId
+            existing.townHallPostId = notification.townHallPostId
+            existing.sourceUserId = notification.sourceUserId
+        } else {
+            let sd = SDNotification(
+                id: notification.id,
+                userId: notification.userId,
+                type: notification.type.rawValue,
+                title: notification.title,
+                body: notification.body,
+                read: notification.read,
+                pinned: notification.pinned,
+                createdAt: notification.createdAt,
+                rideId: notification.rideId,
+                favorId: notification.favorId,
+                conversationId: notification.conversationId,
+                reviewId: notification.reviewId,
+                townHallPostId: notification.townHallPostId,
+                sourceUserId: notification.sourceUserId
+            )
+            modelContext.insert(sd)
+        }
+        try modelContext.save()
+    }
+
+    /// Delete a single notification by ID (for realtime delete events)
+    func deleteNotification(id: UUID) throws {
+        let predicate = #Predicate<SDNotification> { $0.id == id }
+        let descriptor = FetchDescriptor<SDNotification>(predicate: predicate)
+        if let existing = try? modelContext.fetch(descriptor).first {
+            modelContext.delete(existing)
+            try modelContext.save()
+        }
+    }
+
     /// Sync all three entity types in one save round-trip
     func syncAll(rides: [Ride], favors: [Favor], notifications: [AppNotification]) throws {
         syncRidesInternal(rides)

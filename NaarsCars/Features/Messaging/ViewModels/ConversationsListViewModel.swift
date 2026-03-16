@@ -119,29 +119,33 @@ final class ConversationsListViewModel: ObservableObject {
     }
     
     private func recomputeFilteredConversations() {
+        let newFiltered: [ConversationWithDetails]
         if searchText.isEmpty {
-            filteredConversations = conversations
-            return
+            newFiltered = conversations
+        } else {
+            let query = searchText.lowercased()
+            newFiltered = conversations.filter { convo in
+                // Search in conversation title
+                if let title = convo.conversation.title?.lowercased(),
+                   title.contains(query) {
+                    return true
+                }
+                // Search in participant names
+                let participantNames = convo.otherParticipants.map { $0.name.lowercased() }
+                if participantNames.contains(where: { $0.contains(query) }) {
+                    return true
+                }
+                // Search in last message
+                if let lastMessage = convo.lastMessage?.text.lowercased(),
+                   lastMessage.contains(query) {
+                    return true
+                }
+                return false
+            }
         }
-        let query = searchText.lowercased()
-        filteredConversations = conversations.filter { convo in
-            // Search in conversation title
-            if let title = convo.conversation.title?.lowercased(),
-               title.contains(query) {
-                return true
-            }
-            // Search in participant names
-            let participantNames = convo.otherParticipants.map { $0.name.lowercased() }
-            if participantNames.contains(where: { $0.contains(query) }) {
-                return true
-            }
-            // Search in last message
-            if let lastMessage = convo.lastMessage?.text.lowercased(),
-               lastMessage.contains(query) {
-                return true
-            }
-            return false
-        }
+        // Skip re-assignment if unchanged to avoid redundant objectWillChange emission
+        guard newFiltered != filteredConversations else { return }
+        filteredConversations = newFiltered
     }
 
     private func setupUnreadCountObservers() {

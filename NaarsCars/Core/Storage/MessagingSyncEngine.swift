@@ -194,15 +194,49 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         }
     }
 
-    /// Handle an incoming reaction change event
+    /// Handle an incoming reaction change event.
+    /// Parses the realtime payload into a `MessageReaction` when possible so
+    /// consumers can apply the change locally without an additional API call.
     private func handleReactionChange(_ event: RealtimeRecord, conversationId: UUID) {
-        guard let messageIdString = event.record["message_id"] as? String,
+        let dict = event.record
+        guard let messageIdString = dict["message_id"] as? String,
               let messageId = UUID(uuidString: messageIdString) else { return }
+
+        var userInfo: [String: Any] = [
+            "messageId": messageId,
+            "conversationId": conversationId,
+            "eventType": String(describing: event.eventType)
+        ]
+
+        // For insert events, include the full parsed reaction so consumers
+        // can update locally without a network round-trip.
+        if event.eventType == .insert,
+           let idStr = dict["id"] as? String, let reactionId = UUID(uuidString: idStr),
+           let userIdStr = dict["user_id"] as? String, let userId = UUID(uuidString: userIdStr),
+           let reaction = dict["reaction"] as? String {
+            let parsed = MessageReaction(
+                id: reactionId,
+                messageId: messageId,
+                userId: userId,
+                reaction: reaction
+            )
+            userInfo["reaction"] = parsed
+        }
+
+        // For delete events, include the user ID so the consumer can remove
+        // the correct reaction locally.
+        if event.eventType == .delete {
+            let oldDict = event.oldRecord ?? dict
+            if let userIdStr = oldDict["user_id"] as? String,
+               let userId = UUID(uuidString: userIdStr) {
+                userInfo["removedUserId"] = userId
+            }
+        }
 
         NotificationCenter.default.post(
             name: .messageReactionChanged,
             object: nil,
-            userInfo: ["messageId": messageId, "conversationId": conversationId]
+            userInfo: userInfo
         )
     }
 

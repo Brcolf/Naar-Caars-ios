@@ -149,11 +149,12 @@ struct ConversationsListView: View {
 
     @ViewBuilder
     private var conversationsList: some View {
+        let sorted = sortedConversations
         List {
             // Pinned section (if any)
             if !pinnedConversations.isEmpty {
                 Section {
-                    ForEach(sortedConversations.filter { pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
+                    ForEach(sorted.filter { pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
                         conversationRow(for: conversationDetail)
                     }
                 } header: {
@@ -162,10 +163,10 @@ struct ConversationsListView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             // Main conversations section
             Section {
-                ForEach(sortedConversations.filter { !pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
+                ForEach(sorted.filter { !pinnedConversations.contains($0.conversation.id) }) { conversationDetail in
                     conversationRow(for: conversationDetail)
                 }
                 

@@ -5,7 +5,6 @@
 
 import Foundation
 
-@MainActor
 protocol BadgeCountManaging: AnyObject {
     func refreshAllBadges(reason: String) async
     func clearMessagesBadge(for conversationId: UUID?) async

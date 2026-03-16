@@ -245,12 +245,15 @@ final class ConversationDetailViewModel: ObservableObject {
                 // Update the specific message's readBy in-place without replacing the entire array
                 if let index = self.messages.firstIndex(where: { $0.id == update.messageId }) {
                     self.messages[index].readBy = update.readBy
+                    // Recompute unread count since readBy changed (bypasses didSet)
+                    self.recomputeUnreadCount()
                 }
             }
             .store(in: &cancellables)
     }
 
-    /// Subscribe to real-time reaction changes and refresh the affected message's reactions
+    /// Subscribe to real-time reaction changes and apply the payload locally
+    /// when possible, falling back to an API fetch only if the payload is incomplete.
     private func setupReactionChangedObserver() {
         NotificationCenter.default.publisher(for: .messageReactionChanged)
             .receive(on: RunLoop.main)
@@ -259,11 +262,39 @@ final class ConversationDetailViewModel: ObservableObject {
                       let messageId = notification.userInfo?["messageId"] as? UUID,
                       let convId = notification.userInfo?["conversationId"] as? UUID,
                       convId == self.conversationId else { return }
-                Task {
-                    await self.refreshReactions(for: messageId)
+
+                let eventType = notification.userInfo?["eventType"] as? String
+
+                if eventType == "insert",
+                   let reaction = notification.userInfo?["reaction"] as? MessageReaction {
+                    self.applyReactionInsert(reaction, for: messageId)
+                } else if eventType == "delete",
+                          let removedUserId = notification.userInfo?["removedUserId"] as? UUID {
+                    self.applyReactionDelete(userId: removedUserId, for: messageId)
+                } else {
+                    // Payload incomplete — fall back to API fetch
+                    Task { await self.refreshReactions(for: messageId) }
                 }
             }
             .store(in: &cancellables)
+    }
+
+    /// Apply a reaction insert locally without an API call.
+    private func applyReactionInsert(_ reaction: MessageReaction, for messageId: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        var existing = messages[index].individualReactions ?? []
+        // Deduplicate: one reaction per user (upsert semantics)
+        existing.removeAll { $0.userId == reaction.userId }
+        existing.append(reaction)
+        messages[index].setIndividualReactions(existing)
+    }
+
+    /// Apply a reaction delete locally without an API call.
+    private func applyReactionDelete(userId: UUID, for messageId: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        var existing = messages[index].individualReactions ?? []
+        existing.removeAll { $0.userId == userId }
+        messages[index].setIndividualReactions(existing.isEmpty ? nil : existing)
     }
 
     /// Bridge @Observable typing manager changes to @Published for ObservableObject consumers.
@@ -325,29 +356,25 @@ final class ConversationDetailViewModel: ObservableObject {
         await loadReplyCountsForMessages()
     }
 
-    /// Fetch reactions for all currently loaded messages.
-    /// Results are collected in a concurrent task group, then applied in a single
-    /// array assignment so `didSet` fires once instead of N times.
+    /// Fetch reactions for all currently loaded messages in a single batch query.
+    /// Applied in a single array assignment so `didSet` fires once.
     private func loadReactionsForMessages() async {
         let messageIds = messages.map(\.id)
         guard !messageIds.isEmpty else { return }
 
-        var results: [(UUID, [MessageReaction])] = []
-        await withTaskGroup(of: (UUID, [MessageReaction]).self) { group in
-            for id in messageIds {
-                group.addTask {
-                    let records = (try? await MessageReactionService.shared.fetchIndividualReactions(messageId: id)) ?? []
-                    return (id, records)
-                }
-            }
-            for await result in group {
-                results.append(result)
-            }
+        let reactionsByMessage: [UUID: [MessageReaction]]
+        do {
+            reactionsByMessage = try await MessageReactionService.shared.fetchIndividualReactionsBatch(messageIds: messageIds)
+        } catch {
+            AppLogger.error("messaging", "Failed to batch-fetch reactions: \(error)")
+            return
         }
+
+        guard !reactionsByMessage.isEmpty else { return }
 
         var updated = messages
         var didChange = false
-        for (id, records) in results {
+        for (id, records) in reactionsByMessage {
             if let index = updated.firstIndex(where: { $0.id == id }) {
                 updated[index].setIndividualReactions(records)
                 didChange = true
@@ -658,7 +685,11 @@ final class ConversationDetailViewModel: ObservableObject {
         if MessageService.shared.isBlocked(newMessage.fromId) { return }
 
         messages = paginationManager.insertNewMessage(newMessage, into: messages)
-        scheduleReplyContextHydration()
+
+        // Only schedule hydration if this message is a reply — non-replies don't need it
+        if newMessage.replyToId != nil {
+            scheduleReplyContextHydration()
+        }
 
         // Increment reply count for the parent message when a reply arrives
         if let replyToId = newMessage.replyToId {
@@ -681,9 +712,12 @@ final class ConversationDetailViewModel: ObservableObject {
     
     private func handleMessageUpdate(_ updatedMessage: Message) {
         guard updatedMessage.conversationId == conversationId else { return }
-        
+
         messages = paginationManager.applyMessageUpdate(updatedMessage, in: messages)
-        scheduleReplyContextHydration()
+        // Only schedule hydration if the updated message is a reply that needs context
+        if updatedMessage.replyToId != nil {
+            scheduleReplyContextHydration()
+        }
     }
     
     private func handleMessageDelete(_ deletedMessage: Message) {

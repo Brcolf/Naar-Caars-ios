@@ -93,7 +93,6 @@ enum LocationError: LocalizedError {
 
 /// Service for location autocomplete and place search
 /// Uses Apple's MapKit (MKLocalSearchCompleter) for autocomplete suggestions
-@MainActor
 final class LocationService: NSObject, ObservableObject {
     static let shared = LocationService()
     

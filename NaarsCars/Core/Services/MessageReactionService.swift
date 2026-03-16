@@ -110,11 +110,28 @@ final class MessageReactionService {
     func fetchIndividualReactions(messageId: UUID) async throws -> [MessageReaction] {
         let response = try await supabase
             .from("message_reactions")
-            .select()
+            .select("id, message_id, user_id, reaction, created_at")
             .eq("message_id", value: messageId.uuidString)
             .execute()
 
         let decoder = createDateDecoder()
         return try decoder.decode([MessageReaction].self, from: response.data)
+    }
+
+    /// Batch-fetch individual reaction records for multiple messages in a single query.
+    /// - Parameter messageIds: Array of message IDs
+    /// - Returns: Dictionary mapping message ID → its reaction records
+    func fetchIndividualReactionsBatch(messageIds: [UUID]) async throws -> [UUID: [MessageReaction]] {
+        guard !messageIds.isEmpty else { return [:] }
+
+        let response = try await supabase
+            .from("message_reactions")
+            .select("id, message_id, user_id, reaction, created_at")
+            .in("message_id", values: messageIds.map { $0.uuidString })
+            .execute()
+
+        let decoder = createDateDecoder()
+        let allReactions = try decoder.decode([MessageReaction].self, from: response.data)
+        return Dictionary(grouping: allReactions, by: \.messageId)
     }
 }

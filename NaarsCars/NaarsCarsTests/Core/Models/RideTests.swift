@@ -131,7 +131,7 @@ final class RideTests: XCTestCase {
         let ride = try decoder.decode(Ride.self, from: json)
         
         // Then: All snake_case fields should be correctly mapped to camelCase
-        XCTAssertEqual(ride.userId.uuidString, "223e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(ride.userId.uuidString.lowercased(), "223e4567-e89b-12d3-a456-426614174000")
         XCTAssertEqual(ride.pickup, "123 Main Street")
         XCTAssertEqual(ride.destination, "456 Oak Avenue")
         XCTAssertEqual(ride.seats, 3)

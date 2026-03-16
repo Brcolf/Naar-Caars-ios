@@ -57,6 +57,7 @@ final class ReviewPromptProvider: ReviewPromptProviding {
         self.dependencies = dependencies
     }
 
+    @MainActor
     convenience init() {
         self.init(dependencies: .live())
     }

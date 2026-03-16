@@ -12,7 +12,6 @@ internal import Combine
 
 /// Service for managing user authentication and session state
 /// Handles sign in, sign up, sign out, password reset, and session lifecycle
-@MainActor
 final class AuthService: ObservableObject {
     
     // MARK: - Singleton
@@ -653,8 +652,8 @@ final class AuthService: ObservableObject {
         AppLogger.auth.info("Sign out cleanup completed")
     }
 
-    func restartRealtimeSyncEngines() {
-        SyncEngineOrchestrator.shared.startAll()
+    func restartRealtimeSyncEngines() async {
+        await SyncEngineOrchestrator.shared.startAll()
     }
     
     /// Poll for profile creation after signup with exponential backoff

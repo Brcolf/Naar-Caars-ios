@@ -41,7 +41,6 @@ struct AdminReport: Codable, Identifiable, Equatable {
     }
 }
 
-@MainActor
 final class AdminModerationService {
     static let shared = AdminModerationService()
     private let supabase = SupabaseService.shared.client

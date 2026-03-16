@@ -72,14 +72,7 @@ struct LeaveReviewDependencies {
                 }
             },
             navigateToTownHall: { postId in
-                NotificationCenter.default.post(
-                    name: .navigateToTownHall,
-                    object: nil,
-                    userInfo: [
-                        "postId": postId,
-                        "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.openComments.rawValue
-                    ]
-                )
+                NavigationCoordinator.shared.pendingIntent = .townHallPost(postId, mode: .openComments)
             }
         )
     }

@@ -128,7 +128,7 @@ final class FavorTests: XCTestCase {
         let favor = try decoder.decode(Favor.self, from: json)
         
         // Then: All snake_case fields should be correctly mapped to camelCase
-        XCTAssertEqual(favor.userId.uuidString, "223e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(favor.userId.uuidString.lowercased(), "223e4567-e89b-12d3-a456-426614174000")
         XCTAssertEqual(favor.title, "Help with groceries")
         XCTAssertEqual(favor.description, "Need help carrying groceries to apartment")
         XCTAssertEqual(favor.location, "456 Oak Avenue")

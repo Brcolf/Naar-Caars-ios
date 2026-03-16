@@ -213,7 +213,6 @@ private struct SubscriptionConfig {
 
 /// Centralized manager for Supabase realtime subscriptions
 /// Limits concurrent subscriptions and handles background/foreground transitions
-@MainActor
 final class RealtimeManager {
     /// Shared singleton instance
     static let shared = RealtimeManager()

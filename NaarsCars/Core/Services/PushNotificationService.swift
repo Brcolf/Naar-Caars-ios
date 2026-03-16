@@ -88,7 +88,6 @@ enum NotificationCategory: String {
 
 /// Service for push notification operations
 /// Handles permission requests, token registration, and notification handling
-@MainActor
 final class PushNotificationService: NSObject, ObservableObject {
     
     // MARK: - Singleton
@@ -669,21 +668,17 @@ final class PushNotificationService: NSObject, ObservableObject {
                 // Refresh badge counts and post notification for review prompt
                 await BadgeCountManager.shared.refreshAllBadges()
                 
-                // Post notification to show review prompt if applicable
+                // Show review prompt if applicable
                 if let rideIdString = userInfo["ride_id"] as? String,
                    let rideId = UUID(uuidString: rideIdString) {
-                    NotificationCenter.default.post(
-                        name: .showReviewPrompt,
-                        object: nil,
-                        userInfo: ["rideId": rideId]
-                    )
+                    await MainActor.run {
+                        NavigationCoordinator.shared.showReviewPromptFor(rideId: rideId)
+                    }
                 } else if let favorIdString = userInfo["favor_id"] as? String,
                           let favorId = UUID(uuidString: favorIdString) {
-                    NotificationCenter.default.post(
-                        name: .showReviewPrompt,
-                        object: nil,
-                        userInfo: ["favorId": favorId]
-                    )
+                    await MainActor.run {
+                        NavigationCoordinator.shared.showReviewPromptFor(favorId: favorId)
+                    }
                 }
             } else {
                 // User tapped "No" - schedule another reminder for 1 hour later

@@ -120,7 +120,7 @@ final class NotificationsListViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isLoading, "Loading should be false after marking all as read")
     }
 
-    /// Test that tapping a review request notification posts the review prompt
+    /// Test that tapping a review request notification defers a showReview intent
     func testHandleNotificationTap_ReviewRequestShowsPrompt() async {
         let rideId = UUID()
         let notification = AppNotification(
@@ -130,16 +130,18 @@ final class NotificationsListViewModelTests: XCTestCase {
             rideId: rideId
         )
 
-        let expectation = expectation(forNotification: .showReviewPrompt, object: nil) { notification in
-            guard let postedRideId = notification.userInfo?["rideId"] as? UUID else {
-                return false
-            }
-            return postedRideId == rideId
-        }
-
         viewModel.handleNotificationTap(notification)
 
-        await fulfillment(of: [expectation], timeout: 1.0)
+        // Notification tap defers the intent; applying it simulates sheet dismissal
+        let coordinator = NavigationCoordinator.shared
+        coordinator.applyDeferredNotificationIntentIfNeeded()
+
+        XCTAssertTrue(coordinator.showReviewPrompt, "Review prompt should be shown after applying deferred intent")
+        XCTAssertEqual(coordinator.reviewPromptRideId, rideId, "Review ride ID should match")
+
+        // Cleanup
+        coordinator.showReviewPrompt = false
+        coordinator.reviewPromptRideId = nil
     }
 }
 

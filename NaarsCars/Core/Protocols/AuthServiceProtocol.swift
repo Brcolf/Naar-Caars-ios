@@ -6,7 +6,6 @@
 import Foundation
 import AuthenticationServices
 
-@MainActor
 protocol AuthServiceProtocol: AnyObject {
     var currentUserId: UUID? { get }
     var currentProfile: Profile? { get }

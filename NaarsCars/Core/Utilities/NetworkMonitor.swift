@@ -10,7 +10,6 @@ import Network
 internal import Combine
 
 /// Monitors network connectivity status
-@MainActor
 final class NetworkMonitor: ObservableObject {
     static let shared = NetworkMonitor()
     

@@ -85,7 +85,6 @@ enum CrashErrorCode {
 /// - Breadcrumb logging for crash context
 /// - Non-fatal error recording
 /// - Custom key-value context
-@MainActor
 final class CrashReportingService {
     
     // MARK: - Singleton

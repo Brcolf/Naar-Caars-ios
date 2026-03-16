@@ -27,7 +27,6 @@ struct LinkPreviewData: Equatable, Sendable {
 }
 
 /// Service for fetching link preview metadata
-@MainActor
 class LinkPreviewService {
     static let shared = LinkPreviewService()
     
@@ -87,20 +86,20 @@ class LinkPreviewService {
     }
     
     private func loadImageData(from provider: NSItemProvider) async -> Data? {
-        await withCheckedContinuation { continuation in
+        let image: UIImage? = await withCheckedContinuation { continuation in
             if provider.canLoadObject(ofClass: UIImage.self) {
                 provider.loadObject(ofClass: UIImage.self) { object, _ in
-                    if let image = object as? UIImage,
-                       let data = image.jpegData(compressionQuality: 0.8) {
-                        continuation.resume(returning: data)
-                    } else {
-                        continuation.resume(returning: nil)
-                    }
+                    continuation.resume(returning: object as? UIImage)
                 }
             } else {
                 continuation.resume(returning: nil)
             }
         }
+        guard let image else { return nil }
+        // Compress off the calling thread to avoid blocking main/UI
+        return await Task.detached(priority: .utility) {
+            image.jpegData(compressionQuality: 0.8)
+        }.value
     }
 }
 

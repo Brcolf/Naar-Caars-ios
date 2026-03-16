@@ -65,6 +65,7 @@ final class MessageService {
         return formatter
     }
 
+    @MainActor
     private func hasLocalConversationMembership(conversationId: UUID, userId: UUID) -> Bool? {
         do {
             guard let localConversation = try MessagingRepository.shared.fetchSDConversation(id: conversationId) else {
@@ -113,7 +114,7 @@ final class MessageService {
     }
 
     private func ensureConversationMembership(conversationId: UUID, userId: UUID) async -> Bool {
-        if hasLocalConversationMembership(conversationId: conversationId, userId: userId) == true {
+        if await hasLocalConversationMembership(conversationId: conversationId, userId: userId) == true {
             return true
         }
         return await hasRemoteConversationMembership(conversationId: conversationId, userId: userId)
@@ -159,7 +160,7 @@ final class MessageService {
 
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
 
         // History visibility: only show messages from after participant joined
@@ -259,7 +260,7 @@ final class MessageService {
         let formatter = createISO8601Formatter()
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .gt("created_at", value: formatter.string(from: effectiveAfter))
             .order("created_at", ascending: true)
@@ -280,7 +281,7 @@ final class MessageService {
     func fetchMediaMessages(conversationId: UUID, type: String) async throws -> [Message] {
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .is("deleted_at", value: nil)
 
@@ -308,7 +309,7 @@ final class MessageService {
         // Fetch text messages and filter client-side for URLs
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("message_type", value: "text")
             .is("deleted_at", value: nil)
@@ -332,7 +333,7 @@ final class MessageService {
     func fetchReplies(conversationId: UUID, replyToId: UUID) async throws -> [Message] {
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("reply_to_id", value: replyToId.uuidString)
             .order("created_at", ascending: true)
@@ -375,7 +376,7 @@ final class MessageService {
     func fetchMessageById(_ messageId: UUID) async throws -> Message {
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("id", value: messageId.uuidString)
             .single()
             .execute()
@@ -400,7 +401,7 @@ final class MessageService {
         
         let reactionsResponse = try? await supabase
             .from("message_reactions")
-            .select()
+            .select("id, message_id, user_id, reaction, created_at")
             .in("message_id", values: messageIds)
             .execute()
         
@@ -439,7 +440,7 @@ final class MessageService {
         
         let response = try await supabase
             .from("messages")
-            .select("id, text, from_id, image_url, sender:profiles!messages_from_id_fkey(*)")
+            .select("id, text, from_id, image_url, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .in("id", values: messageIds.map { $0.uuidString })
             .execute()
 
@@ -564,7 +565,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(*), reply_to_id")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
             .single()
             .execute()
         
@@ -615,7 +616,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .single()
             .execute()
         
@@ -657,7 +658,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .single()
             .execute()
         
@@ -967,7 +968,7 @@ final class MessageService {
         // 2. Search messages in those conversations using ilike for case-insensitive match
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .in("conversation_id", values: conversationIds)
             .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
@@ -1005,7 +1006,7 @@ final class MessageService {
 
         var queryBuilder = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(*)")
+            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)

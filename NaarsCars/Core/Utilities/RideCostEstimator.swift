@@ -318,7 +318,6 @@ enum RideCostEstimator {
         return (maxMultiplier, matchedZones)
     }
 
-    @MainActor
     static func locationMultiplier(
         pickup: CLLocationCoordinate2D,
         destination: CLLocationCoordinate2D,
@@ -329,7 +328,6 @@ enum RideCostEstimator {
         return result.multiplier
     }
 
-    @MainActor
     static func locationMultiplier(
         pickup: CLLocationCoordinate2D,
         destination: CLLocationCoordinate2D,

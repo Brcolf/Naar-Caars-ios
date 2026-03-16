@@ -20,8 +20,8 @@ enum RealtimeFixtures {
 
     static let createdAtFractional = "2026-02-09T12:34:56.123Z"
     static let createdAtNoFractional = "2026-02-09T12:34:56Z"
-    static let createdAtEpochSeconds: Double = 1_707_483_296
-    static let createdAtEpochMilliseconds: Double = 1_707_483_296_123
+    static let createdAtEpochSeconds: Double = 1_770_640_496
+    static let createdAtEpochMilliseconds: Double = 1_770_640_496_123
 
     static let messageRecord: [String: Any] = [
         "id": messageId.uuidString,
@@ -55,10 +55,21 @@ enum RealtimeFixtures {
         "id": rideId.uuidString,
         "user_id": userId.uuidString,
         "type": "offering",
+        "date": "2026-02-15",
+        "time": "14:00:00",
+        "timezone": "America/Los_Angeles",
         "pickup": "North Lot",
         "destination": "Campus Center",
+        "seats": 2,
+        "notes": NSNull(),
+        "gift": NSNull(),
         "status": "open",
         "claimed_by": NSNull(),
+        "reviewed": false,
+        "review_skipped": NSNull(),
+        "review_skipped_at": NSNull(),
+        "estimated_cost": NSNull(),
+        "flight_normalized": NSNull(),
         "created_at": createdAtNoFractional,
         "updated_at": createdAtNoFractional
     ]
@@ -69,8 +80,17 @@ enum RealtimeFixtures {
         "title": "Need groceries",
         "description": "Pick up items from market",
         "location": "Main Street",
+        "duration": "under_hour",
+        "requirements": NSNull(),
+        "date": "2026-02-15",
+        "time": NSNull(),
+        "timezone": "America/Los_Angeles",
+        "gift": NSNull(),
         "status": "open",
         "claimed_by": NSNull(),
+        "reviewed": false,
+        "review_skipped": NSNull(),
+        "review_skipped_at": NSNull(),
         "created_at": createdAtNoFractional,
         "updated_at": createdAtNoFractional
     ]
@@ -86,7 +106,9 @@ enum RealtimeFixtures {
         "ride_id": rideId.uuidString,
         "favor_id": NSNull(),
         "conversation_id": NSNull(),
+        "review_id": NSNull(),
         "town_hall_post_id": NSNull(),
+        "source_user_id": senderId.uuidString,
         "created_at": createdAtNoFractional
     ]
 

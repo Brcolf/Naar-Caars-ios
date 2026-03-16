@@ -53,8 +53,8 @@ final class TownHallPostTests: XCTestCase {
         let post = try decoder.decode(TownHallPost.self, from: json)
         
         // Then: All fields should be correctly mapped
-        XCTAssertEqual(post.id.uuidString, "123e4567-e89b-12d3-a456-426614174000")
-        XCTAssertEqual(post.userId.uuidString, "223e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(post.id.uuidString.lowercased(), "123e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(post.userId.uuidString.lowercased(), "223e4567-e89b-12d3-a456-426614174000")
         XCTAssertEqual(post.title, "Test Post")
         XCTAssertEqual(post.content, "This is a test post content")
         XCTAssertEqual(post.imageUrl, "https://example.com/image.jpg")

@@ -116,9 +116,9 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             await realtimeManager.subscribe(
                 channelName: "rides:sync",
                 table: "rides",
-                onInsert: { [weak self] _ in self?.triggerRidesSync() },
-                onUpdate: { [weak self] _ in self?.triggerRidesSync() },
-                onDelete: { [weak self] _ in self?.triggerRidesSync() }
+                onInsert: { [weak self] event in self?.handleRideUpsert(event) },
+                onUpdate: { [weak self] event in self?.handleRideUpsert(event) },
+                onDelete: { [weak self] event in self?.handleRideDelete(event) }
             )
         }
     }
@@ -128,9 +128,9 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             await realtimeManager.subscribe(
                 channelName: "favors:sync",
                 table: "favors",
-                onInsert: { [weak self] _ in self?.triggerFavorsSync() },
-                onUpdate: { [weak self] _ in self?.triggerFavorsSync() },
-                onDelete: { [weak self] _ in self?.triggerFavorsSync() }
+                onInsert: { [weak self] event in self?.handleFavorUpsert(event) },
+                onUpdate: { [weak self] event in self?.handleFavorUpsert(event) },
+                onDelete: { [weak self] event in self?.handleFavorDelete(event) }
             )
         }
     }
@@ -143,19 +143,22 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                 channelName: "notifications:sync",
                 table: "notifications",
                 filter: userFilter,
-                onInsert: { [weak self] _ in self?.triggerNotificationsSync() },
-                onUpdate: { [weak self] _ in self?.triggerNotificationsSync() },
-                onDelete: { [weak self] _ in self?.triggerNotificationsSync() }
+                onInsert: { [weak self] event in self?.handleNotificationUpsert(event) },
+                onUpdate: { [weak self] event in self?.handleNotificationUpsert(event) },
+                onDelete: { [weak self] event in self?.handleNotificationDelete(event) }
             )
         }
     }
 
     // MARK: - Sync Triggers
 
+    // Debounce interval: 2 seconds allows multiple rapid events to coalesce into a single fetch
+    private let syncDebounceNanos: UInt64 = 2_000_000_000
+
     private func triggerRidesSync() {
         ridesSyncTask?.cancel()
         ridesSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: syncDebounceNanos)
             guard !Task.isCancelled else { return }
             if let rides = try? await rideService.fetchRides() {
                 do {
@@ -172,7 +175,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
     private func triggerFavorsSync() {
         favorsSyncTask?.cancel()
         favorsSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: syncDebounceNanos)
             guard !Task.isCancelled else { return }
             if let favors = try? await favorService.fetchFavors() {
                 do {
@@ -189,7 +192,7 @@ final class DashboardSyncEngine: SyncEngineProtocol {
     private func triggerNotificationsSync() {
         notificationsSyncTask?.cancel()
         notificationsSyncTask = Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: syncDebounceNanos)
             guard !Task.isCancelled, let userId = authService.currentUserId else { return }
             if let notifications = try? await notificationService.fetchNotifications(userId: userId, forceRefresh: true) {
                 do {
@@ -199,6 +202,113 @@ final class DashboardSyncEngine: SyncEngineProtocol {
                     CrashReportingService.shared.recordServiceError(error, operation: "save", service: "DashboardSyncEngine")
                 }
                 NotificationCenter.default.post(name: .notificationsDidSync, object: nil)
+            }
+        }
+    }
+
+    // MARK: - Incremental Notification Handlers
+
+    /// Handle notification insert/update from realtime — upsert locally without full refetch.
+    /// Falls back to debounced full sync if payload parsing fails.
+    private func handleNotificationUpsert(_ event: RealtimeRecord) {
+        guard let notification = NotificationPayloadMapper.notification(from: event) else {
+            triggerNotificationsSync()
+            return
+        }
+        Task {
+            do {
+                try await backgroundActor?.upsertNotification(notification)
+                NotificationCenter.default.post(name: .notificationsDidSync, object: nil)
+            } catch {
+                triggerNotificationsSync()
+            }
+        }
+    }
+
+    /// Handle notification deletion from realtime — delete locally without full refetch.
+    private func handleNotificationDelete(_ event: RealtimeRecord) {
+        guard let id = NotificationPayloadMapper.notificationId(fromDeleteEvent: event) else {
+            triggerNotificationsSync()
+            return
+        }
+        Task {
+            do {
+                try await backgroundActor?.deleteNotification(id: id)
+                NotificationCenter.default.post(name: .notificationsDidSync, object: nil)
+            } catch {
+                triggerNotificationsSync()
+            }
+        }
+    }
+
+    // MARK: - Incremental Upsert Handlers
+
+    /// Handle ride insert/update from realtime — upsert locally without full refetch.
+    /// Falls back to debounced full sync if payload parsing fails.
+    private func handleRideUpsert(_ event: RealtimeRecord) {
+        guard let ride = DashboardPayloadMapper.ride(from: event) else {
+            triggerRidesSync()
+            return
+        }
+        Task {
+            do {
+                try await backgroundActor?.upsertRide(ride)
+                NotificationCenter.default.post(name: .ridesDidSync, object: nil)
+            } catch {
+                triggerRidesSync()
+            }
+        }
+    }
+
+    /// Handle favor insert/update from realtime — upsert locally without full refetch.
+    /// Falls back to debounced full sync if payload parsing fails.
+    private func handleFavorUpsert(_ event: RealtimeRecord) {
+        guard let favor = DashboardPayloadMapper.favor(from: event) else {
+            triggerFavorsSync()
+            return
+        }
+        Task {
+            do {
+                try await backgroundActor?.upsertFavor(favor)
+                NotificationCenter.default.post(name: .favorsDidSync, object: nil)
+            } catch {
+                triggerFavorsSync()
+            }
+        }
+    }
+
+    // MARK: - Local Delete Handlers
+
+    /// Handle ride deletion from realtime — delete locally without full refetch
+    private func handleRideDelete(_ event: RealtimeRecord) {
+        guard let idString = event.oldRecord?["id"] as? String ?? event.record["id"] as? String,
+              let id = UUID(uuidString: idString) else {
+            triggerRidesSync()
+            return
+        }
+        Task {
+            do {
+                try await backgroundActor?.deleteRide(id: id)
+                NotificationCenter.default.post(name: .ridesDidSync, object: nil)
+            } catch {
+                triggerRidesSync()
+            }
+        }
+    }
+
+    /// Handle favor deletion from realtime — delete locally without full refetch
+    private func handleFavorDelete(_ event: RealtimeRecord) {
+        guard let idString = event.oldRecord?["id"] as? String ?? event.record["id"] as? String,
+              let id = UUID(uuidString: idString) else {
+            triggerFavorsSync()
+            return
+        }
+        Task {
+            do {
+                try await backgroundActor?.deleteFavor(id: id)
+                NotificationCenter.default.post(name: .favorsDidSync, object: nil)
+            } catch {
+                triggerFavorsSync()
             }
         }
     }

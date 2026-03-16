@@ -5,7 +5,6 @@
 
 import Foundation
 
-@MainActor
 protocol ProfileServiceProtocol: AnyObject {
     func fetchProfile(userId: UUID) async throws -> Profile
     func fetchProfiles(userIds: [UUID]) async throws -> [Profile]

@@ -277,146 +277,88 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     // MARK: - Deep Link Handling
     
     private func handleDeepLink(_ deepLink: DeepLink, userInfo: [AnyHashable: Any]? = nil) {
-        // Post notifications that views can listen to for navigation
-        // Views use @State variables and navigationDestination modifiers to handle navigation
+        // Navigate directly via the coordinator — no NSNotification indirection.
+        let coordinator = NavigationCoordinator.shared
+
         switch deepLink {
         case .ride(let id):
             AppLogger.info("app", "Navigate to ride: \(id)")
-            var payload: [AnyHashable: Any] = ["rideId": id]
-            if let userInfo, let requestPayload = requestNavigationPayload(
-                from: userInfo,
-                requestId: id,
-                requestType: .ride
-            ) {
-                payload.merge(requestPayload) { _, new in new }
-            }
-            NotificationCenter.default.post(
-                name: .navigateToRide,
-                object: nil,
-                userInfo: payload
-            )
-            
+            let anchor = requestNotificationTarget(from: userInfo, requestId: id, requestType: .ride)
+            coordinator.pendingIntent = .ride(id, anchor: anchor)
+
         case .favor(let id):
             AppLogger.info("app", "Navigate to favor: \(id)")
-            var payload: [AnyHashable: Any] = ["favorId": id]
-            if let userInfo, let requestPayload = requestNavigationPayload(
-                from: userInfo,
-                requestId: id,
-                requestType: .favor
-            ) {
-                payload.merge(requestPayload) { _, new in new }
-            }
-            NotificationCenter.default.post(
-                name: .navigateToFavor,
-                object: nil,
-                userInfo: payload
-            )
-            
+            let anchor = requestNotificationTarget(from: userInfo, requestId: id, requestType: .favor)
+            coordinator.pendingIntent = .favor(id, anchor: anchor)
+
         case .conversation(let id):
             AppLogger.info("app", "Navigate to conversation: \(id)")
-            var payload: [AnyHashable: Any] = ["conversationId": id]
+            var scrollTarget: NavigationCoordinator.ConversationScrollTarget?
             if let userInfo,
                let messageIdString = userInfo["message_id"] as? String,
                let messageId = UUID(uuidString: messageIdString) {
-                payload["messageId"] = messageId
+                scrollTarget = .init(conversationId: id, messageId: messageId)
             }
-            NotificationCenter.default.post(
-                name: .navigateToConversation,
-                object: nil,
-                userInfo: payload
-            )
-            
+            coordinator.pendingIntent = .conversation(id, scrollTarget: scrollTarget)
+
         case .profile(let id):
             AppLogger.info("app", "Navigate to profile: \(id)")
-            NotificationCenter.default.post(
-                name: .navigateToProfile,
-                object: nil,
-                userInfo: ["userId": id]
-            )
-            
+            coordinator.pendingIntent = .profile(id)
+
         case .notifications:
             AppLogger.info("app", "Navigate to notifications")
-            NotificationCenter.default.post(
-                name: .navigateToNotifications,
-                object: nil
-            )
+            coordinator.pendingIntent = .notifications
 
         case .announcements(let notificationId):
             AppLogger.info("app", "Navigate to announcements")
-            NotificationCenter.default.post(
-                name: .navigateToAnnouncements,
-                object: nil,
-                userInfo: ["notificationId": notificationId as Any]
-            )
-            
+            coordinator.pendingIntent = .announcements(scrollToNotificationId: notificationId)
+
         case .townHall:
             AppLogger.info("app", "Navigate to town hall")
-            NotificationCenter.default.post(
-                name: .navigateToTownHall,
-                object: nil
-            )
-            
+            coordinator.navigate(to: .townHall)
+
         case .townHallPostComments(let id):
             AppLogger.info("app", "Navigate to town hall post comments: \(id)")
-            NotificationCenter.default.post(
-                name: .navigateToTownHall,
-                object: nil,
-                userInfo: ["postId": id, "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.openComments.rawValue]
-            )
-            
+            coordinator.pendingIntent = .townHallPost(id, mode: .openComments)
+
         case .townHallPostHighlight(let id):
             AppLogger.info("app", "Navigate to town hall post highlight: \(id)")
-            NotificationCenter.default.post(
-                name: .navigateToTownHall,
-                object: nil,
-                userInfo: ["postId": id, "mode": NavigationCoordinator.TownHallNavigationTarget.Mode.highlightPost.rawValue]
-            )
+            coordinator.pendingIntent = .townHallPost(id, mode: .highlightPost)
 
         case .adminPanel:
             AppLogger.info("app", "Navigate to admin panel")
-            NotificationCenter.default.post(
-                name: .navigateToAdminPanel,
-                object: nil
-            )
-            
+            coordinator.pendingIntent = .adminPanel
+
         case .pendingUsers:
             AppLogger.info("app", "Navigate to pending users list")
-            NotificationCenter.default.post(
-                name: .navigateToPendingUsers,
-                object: nil
-            )
+            coordinator.pendingIntent = .pendingUsers
 
         case .adminReports:
             AppLogger.info("app", "Navigate to admin reports")
-            NotificationCenter.default.post(
-                name: .navigateToAdminPanel,
-                object: nil
-            )
+            coordinator.pendingIntent = .adminReports
 
         case .dashboard:
             AppLogger.info("app", "Navigate to dashboard")
-            NotificationCenter.default.post(
-                name: .navigateToDashboard,
-                object: nil
-            )
-            
+            coordinator.pendingIntent = .dashboard
+
         case .enterApp:
             AppLogger.info("app", "Enter app")
             Task { @MainActor in
                 await AppLaunchManager.shared.performCriticalLaunch()
             }
-            
+
         case .unknown:
             AppLogger.warning("app", "Unknown deep link")
         }
     }
 
-    private func requestNavigationPayload(
-        from userInfo: [AnyHashable: Any],
+    private func requestNotificationTarget(
+        from userInfo: [AnyHashable: Any]?,
         requestId: UUID,
         requestType: RequestType
-    ) -> [AnyHashable: Any]? {
-        guard let typeRaw = userInfo["type"] as? String,
+    ) -> RequestNotificationTarget? {
+        guard let userInfo,
+              let typeRaw = userInfo["type"] as? String,
               let type = NotificationType(rawValue: typeRaw) else {
             return nil
         }
@@ -424,45 +366,21 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let rideId = (requestType == .ride) ? requestId : nil
         let favorId = (requestType == .favor) ? requestId : nil
 
-        guard let target = RequestNotificationMapping.target(
+        return RequestNotificationMapping.target(
             for: type,
             rideId: rideId,
             favorId: favorId
-        ) else {
-            return nil
-        }
-
-        var payload: [AnyHashable: Any] = [
-            "requestAnchor": target.anchor.rawValue,
-            "requestAutoClear": target.shouldAutoClear
-        ]
-
-        if let scrollAnchor = target.scrollAnchor {
-            payload["requestScrollAnchor"] = scrollAnchor.rawValue
-        }
-
-        if let highlightAnchor = target.highlightAnchor {
-            payload["requestHighlightAnchor"] = highlightAnchor.rawValue
-        }
-
-        return payload
+        )
     }
 
     private func postReviewPrompt(from userInfo: [AnyHashable: Any]) {
+        let coordinator = NavigationCoordinator.shared
         if let rideIdString = userInfo["ride_id"] as? String,
            let rideId = UUID(uuidString: rideIdString) {
-            NotificationCenter.default.post(
-                name: .showReviewPrompt,
-                object: nil,
-                userInfo: ["rideId": rideId]
-            )
+            coordinator.showReviewPromptFor(rideId: rideId)
         } else if let favorIdString = userInfo["favor_id"] as? String,
                   let favorId = UUID(uuidString: favorIdString) {
-            NotificationCenter.default.post(
-                name: .showReviewPrompt,
-                object: nil,
-                userInfo: ["favorId": favorId]
-            )
+            coordinator.showReviewPromptFor(favorId: favorId)
         }
     }
 

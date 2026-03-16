@@ -294,7 +294,7 @@ struct MainTabView: View {
                 guard case .announcements(let scrollId) = navigationCoordinator.pendingIntent else {
                     return nil
                 }
-                return .init(id: UUID(), scrollToNotificationId: scrollId)
+                return .init(id: scrollId ?? UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, scrollToNotificationId: scrollId)
             },
             set: { value in
                 if value == nil, case .announcements = navigationCoordinator.pendingIntent {

@@ -5,7 +5,6 @@
 
 import Foundation
 
-@MainActor
 protocol ReviewServiceProtocol: AnyObject {
     func createReview(
         requestType: String,

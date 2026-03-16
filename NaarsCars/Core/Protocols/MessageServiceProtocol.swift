@@ -5,7 +5,6 @@
 
 import Foundation
 
-@MainActor
 protocol MessageServiceProtocol: AnyObject {
     func fetchMessages(conversationId: UUID, limit: Int, beforeMessageId: UUID?) async throws -> [Message]
     func searchMessages(query: String, userId: UUID, limit: Int) async throws -> [Message]

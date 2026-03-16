@@ -127,6 +127,31 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        email = try container.decodeIfPresent(String.self, forKey: .email) ?? ""
+        car = try container.decodeIfPresent(String.self, forKey: .car)
+        phoneNumber = try container.decodeIfPresent(String.self, forKey: .phoneNumber)
+        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
+        isAdmin = try container.decodeIfPresent(Bool.self, forKey: .isAdmin) ?? false
+        approved = try container.decodeIfPresent(Bool.self, forKey: .approved) ?? false
+        invitedBy = try container.decodeIfPresent(UUID.self, forKey: .invitedBy)
+        notifyRideUpdates = try container.decodeIfPresent(Bool.self, forKey: .notifyRideUpdates) ?? true
+        notifyMessages = try container.decodeIfPresent(Bool.self, forKey: .notifyMessages) ?? true
+        notifyAnnouncements = try container.decodeIfPresent(Bool.self, forKey: .notifyAnnouncements) ?? true
+        notifyNewRequests = try container.decodeIfPresent(Bool.self, forKey: .notifyNewRequests) ?? true
+        notifyQaActivity = try container.decodeIfPresent(Bool.self, forKey: .notifyQaActivity) ?? true
+        notifyReviewReminders = try container.decodeIfPresent(Bool.self, forKey: .notifyReviewReminders) ?? true
+        notifyTownHall = try container.decodeIfPresent(Bool.self, forKey: .notifyTownHall) ?? true
+        showReadReceipts = try container.decodeIfPresent(Bool.self, forKey: .showReadReceipts)
+        guidelinesAccepted = try container.decodeIfPresent(Bool.self, forKey: .guidelinesAccepted) ?? false
+        guidelinesAcceptedAt = try container.decodeIfPresent(Date.self, forKey: .guidelinesAcceptedAt)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
 }
 
 

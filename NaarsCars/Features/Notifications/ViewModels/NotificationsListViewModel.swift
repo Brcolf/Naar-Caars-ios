@@ -272,8 +272,12 @@ final class NotificationsListViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self, !Task.isCancelled else { return }
             self.markNotificationsReadLocally(notificationsToMark.map { $0.id })
-            for notification in notificationsToMark {
-                try? await self.notificationService.markAsRead(notificationId: notification.id)
+            await withTaskGroup(of: Void.self) { group in
+                for notification in notificationsToMark {
+                    group.addTask {
+                        try? await self.notificationService.markAsRead(notificationId: notification.id)
+                    }
+                }
             }
             if self.modelContext == nil {
                 await self.loadNotifications()
@@ -293,17 +297,9 @@ final class NotificationsListViewModel: ObservableObject {
 
     private func handleReviewPromptNotification(_ notification: AppNotification) {
         if let rideId = notification.rideId {
-            NotificationCenter.default.post(
-                name: .showReviewPrompt,
-                object: nil,
-                userInfo: ["rideId": rideId]
-            )
+            NavigationCoordinator.shared.showReviewPromptFor(rideId: rideId)
         } else if let favorId = notification.favorId {
-            NotificationCenter.default.post(
-                name: .showReviewPrompt,
-                object: nil,
-                userInfo: ["favorId": favorId]
-            )
+            NavigationCoordinator.shared.showReviewPromptFor(favorId: favorId)
         }
     }
 

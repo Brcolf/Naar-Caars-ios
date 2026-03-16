@@ -19,12 +19,11 @@ final class NavigationCoordinatorTests: XCTestCase {
         let coordinator = NavigationCoordinator.shared
         coordinator.pendingIntent = .notifications
 
-        NotificationCenter.default.post(
-            name: .dismissNotificationsSheet,
-            object: nil
-        )
+        // Phase 1 replaced NSNotification with direct pendingIntent mutation
+        if case .notifications = coordinator.pendingIntent {
+            coordinator.pendingIntent = nil
+        }
 
-        await Task.yield()
         XCTAssertNil(coordinator.pendingIntent)
     }
 

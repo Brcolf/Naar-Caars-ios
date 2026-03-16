@@ -11,7 +11,6 @@ import OSLog
 internal import Combine
 
 /// Singleton service for managing Supabase client connection
-@MainActor
 final class SupabaseService: ObservableObject {
     
     // MARK: - Singleton

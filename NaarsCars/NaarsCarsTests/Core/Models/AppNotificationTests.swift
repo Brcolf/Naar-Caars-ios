@@ -57,8 +57,8 @@ final class AppNotificationTests: XCTestCase {
         let notification = try decoder.decode(AppNotification.self, from: json)
         
         // Then: All fields should be correctly mapped
-        XCTAssertEqual(notification.id.uuidString, "123e4567-e89b-12d3-a456-426614174000")
-        XCTAssertEqual(notification.userId.uuidString, "223e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(notification.id.uuidString.lowercased(), "123e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(notification.userId.uuidString.lowercased(), "223e4567-e89b-12d3-a456-426614174000")
         XCTAssertEqual(notification.type, .message)
         XCTAssertEqual(notification.title, "New Message")
         XCTAssertEqual(notification.body, "You have a new message from John")
@@ -67,7 +67,7 @@ final class AppNotificationTests: XCTestCase {
         XCTAssertNotNil(notification.createdAt)
         XCTAssertNil(notification.rideId)
         XCTAssertNil(notification.favorId)
-        XCTAssertEqual(notification.conversationId?.uuidString, "323e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(notification.conversationId?.uuidString.lowercased(), "323e4567-e89b-12d3-a456-426614174000")
         XCTAssertNil(notification.reviewId)
     }
     
@@ -131,7 +131,7 @@ final class AppNotificationTests: XCTestCase {
         let notification = try decoder.decode(AppNotification.self, from: json)
         
         // Then: ride_id should be set
-        XCTAssertEqual(notification.rideId?.uuidString, "423e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(notification.rideId?.uuidString.lowercased(), "423e4567-e89b-12d3-a456-426614174000")
         XCTAssertNil(notification.favorId)
     }
     
@@ -160,7 +160,7 @@ final class AppNotificationTests: XCTestCase {
         let notification = try decoder.decode(AppNotification.self, from: json)
         
         // Then: favor_id should be set
-        XCTAssertEqual(notification.favorId?.uuidString, "523e4567-e89b-12d3-a456-426614174000")
+        XCTAssertEqual(notification.favorId?.uuidString.lowercased(), "523e4567-e89b-12d3-a456-426614174000")
         XCTAssertNil(notification.rideId)
     }
     

@@ -7,19 +7,6 @@
 import Foundation
 
 extension Notification.Name {
-    // MARK: - Navigation (AppDelegate -> NavigationCoordinator)
-    static let navigateToRide = Notification.Name("navigateToRide")
-    static let navigateToFavor = Notification.Name("navigateToFavor")
-    static let navigateToConversation = Notification.Name("navigateToConversation")
-    static let navigateToProfile = Notification.Name("navigateToProfile")
-    static let navigateToTownHall = Notification.Name("navigateToTownHall")
-    static let navigateToAdminPanel = Notification.Name("navigateToAdminPanel")
-    static let navigateToPendingUsers = Notification.Name("navigateToPendingUsers")
-    static let navigateToNotifications = Notification.Name("navigateToNotifications")
-    static let navigateToAnnouncements = Notification.Name("navigateToAnnouncements")
-    static let navigateToDashboard = Notification.Name("navigateToDashboard")
-    static let dismissNotificationsSheet = Notification.Name("dismissNotificationsSheet")
-
     // MARK: - Lifecycle
     static let userDidSignOut = Notification.Name("userDidSignOut")
     static let handleInviteCodeDeepLink = Notification.Name("handleInviteCodeDeepLink")
@@ -28,8 +15,7 @@ extension Notification.Name {
     static let conversationUpdated = Notification.Name("conversationUpdated")
     static let messageReactionChanged = Notification.Name("messageReactionChanged")
 
-    // MARK: - Prompts (moved from PushNotificationService.swift)
-    static let showReviewPrompt = Notification.Name("showReviewPrompt")
+    // MARK: - Prompts
     static let showCompletionPrompt = Notification.Name("showCompletionPrompt")
     static let dismissNotificationsSurface = Notification.Name("dismissNotificationsSurface")
     static let conversationUnreadCountsUpdated = Notification.Name("conversationUnreadCountsUpdated")

@@ -289,23 +289,34 @@ final class BadgeCountManager: ObservableObject {
     /// Clear Community badge (called when viewing Community tab or a post)
     func clearCommunityBadge() async {
         guard let userId = authService.currentUserId else { return }
-        
+
         do {
-            let notifications = try await NotificationService.shared.fetchNotifications(userId: userId, forceRefresh: true)
-            
+            // Use cached notifications (no forceRefresh) to avoid a full 30-day network fetch
+            let notifications = try await NotificationService.shared.fetchNotifications(userId: userId, forceRefresh: false)
+
             // Community notification types to clear
             let communityTypes: Set<NotificationType> = [
                 .townHallPost, .townHallComment, .townHallReaction
             ]
-            
+
             let communityNotificationIds = notifications
                 .filter { !$0.read && communityTypes.contains($0.type) }
                 .map { $0.id }
-            
-            for notificationId in communityNotificationIds {
-                try? await NotificationService.shared.markAsRead(notificationId: notificationId)
+
+            guard !communityNotificationIds.isEmpty else {
+                await refreshAllBadges(reason: "clearCommunityBadge.noop")
+                return
             }
-            
+
+            // Mark all community notifications as read in parallel
+            await withTaskGroup(of: Void.self) { group in
+                for notificationId in communityNotificationIds {
+                    group.addTask {
+                        try? await NotificationService.shared.markAsRead(notificationId: notificationId)
+                    }
+                }
+            }
+
             await refreshAllBadges(reason: "clearCommunityBadge")
         } catch {
             AppLogger.warning("badges", "Error clearing community badge: \(error)")

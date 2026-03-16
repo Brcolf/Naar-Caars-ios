@@ -50,7 +50,9 @@ struct NotificationsListView: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .dismissNotificationsSurface)) { _ in
                     AppLogger.info("notifications", "[NotificationsListView] Dismissing notifications surface")
-                    NotificationCenter.default.post(name: .dismissNotificationsSheet, object: nil)
+                    if case .notifications = NavigationCoordinator.shared.pendingIntent {
+                        NavigationCoordinator.shared.pendingIntent = nil
+                    }
                 }
                 .onDisappear { viewModel.stop() }
                 .toast(message: $toastMessage)

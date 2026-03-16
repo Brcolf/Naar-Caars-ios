@@ -10,7 +10,6 @@ import Observation
 
 /// In-memory cache for user badge data, populated by existing fetches
 @Observable
-@MainActor
 final class BadgeCache {
     static let shared = BadgeCache()
 
