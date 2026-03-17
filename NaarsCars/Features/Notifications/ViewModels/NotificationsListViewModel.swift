@@ -38,10 +38,9 @@ internal import Combine
         groupingManager = NotificationGroupingManager()
         navigationRouter = NotificationNavigationRouter()
         realtimeHandler = NotificationRealtimeHandler()
-
-        realtimeHandler.setupRealtimeSubscription { [weak self] reason, fallback in
-            await self?.handleRealtimeReload(reason: reason, fallback: fallback)
-        }
+        // Realtime subscription setup is deferred to setup(modelContext:) so that
+        // throwaway instances (created by @State default evaluation during parent
+        // body re-evaluation) stay lightweight and don't register observers.
         #if DEBUG
         print("[NotificationsListVM] init")
         #endif
@@ -62,9 +61,13 @@ internal import Combine
         realtimeHandler.cancelAndRemoveObserver()
     }
 
-    /// Set up the model context for SwiftData operations
+    /// Set up the model context and realtime subscription.
+    /// Called from .task — only runs for the VM that actually renders (not throwaway @State instances).
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
+        realtimeHandler.setupRealtimeSubscription { [weak self] reason, fallback in
+            await self?.handleRealtimeReload(reason: reason, fallback: fallback)
+        }
     }
 
     /// Get filtered notifications from SwiftData models
