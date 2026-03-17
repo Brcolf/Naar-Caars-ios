@@ -14,7 +14,6 @@ struct MainTabView: View {
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @State private var promptCoordinator = PromptCoordinator.shared
     @State private var toastManager = InAppToastManager.shared
-    @Environment(AppState.self) var appState
     @State private var selectedTab = 0
     @State private var showGuidelinesAcceptance = false
     @State private var showNotificationsSheet = false
@@ -140,12 +139,8 @@ struct MainTabView: View {
                 await promptCoordinator.checkForPendingPrompts(userId: userId)
             }
         }
-        .onChange(of: appState.currentUser?.id) { _, newUserId in
-            if newUserId == nil {
-                showGuidelinesAcceptance = false
-                return
-            }
-            checkGuidelinesAcceptance()
+        .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
+            showGuidelinesAcceptance = false
         }
         .overlay(alignment: .top) {
             toastOverlay
@@ -243,29 +238,27 @@ struct MainTabView: View {
     
     /// Check if user needs to accept community guidelines
     private func checkGuidelinesAcceptance() {
-        guard let profile = appState.currentUser else { return }
-        
+        guard let profile = AuthService.shared.currentProfile else { return }
+
         // Show guidelines if not yet accepted
         if !profile.guidelinesAccepted {
             showGuidelinesAcceptance = true
         }
     }
-    
+
     /// Handle guidelines acceptance
     private func acceptGuidelines() async {
-        guard let userId = appState.currentUser?.id else { return }
-        
+        guard let userId = AuthService.shared.currentUserId else { return }
+
         do {
             // Update profile with guidelines acceptance
             try await ProfileService.shared.acceptCommunityGuidelines(userId: userId)
-            
-            // Refresh the user's profile in app state
+
+            // Refresh the cached profile so subsequent checks see the update
             if let updatedProfile = try? await ProfileService.shared.fetchProfile(userId: userId) {
-                await MainActor.run {
-                    appState.currentUser = updatedProfile
-                }
+                AuthService.shared.currentProfile = updatedProfile
             }
-            
+
             // Dismiss the sheet
             await MainActor.run {
                 showGuidelinesAcceptance = false
@@ -295,5 +288,4 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView()
-        .environment(AppState())
 }
