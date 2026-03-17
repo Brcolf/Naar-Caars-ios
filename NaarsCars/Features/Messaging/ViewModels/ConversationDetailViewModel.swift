@@ -413,7 +413,9 @@ final class ConversationDetailViewModel {
             guard !counts.isEmpty else { return }
             replyCountMap.merge(counts) { _, new in new }
         } catch {
+            #if DEBUG
             print("[ConversationDetailVM] Failed to load reply counts: \(error)")
+            #endif
         }
     }
 
