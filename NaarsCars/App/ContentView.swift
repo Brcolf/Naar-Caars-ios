@@ -25,6 +25,7 @@ struct ContentView: View {
     }
 
     var body: some View {
+        let _ = print("[ContentView] body evaluated — state=\(launchManager.state.id)")
         ZStack {
             Group {
                 switch launchManager.state {

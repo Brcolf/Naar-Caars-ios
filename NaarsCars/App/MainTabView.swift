@@ -45,6 +45,7 @@ struct MainTabView: View {
     }
     
     var body: some View {
+        let _ = print("[MainTabView] body START — selectedTab=\(selectedTab) showNotificationsSheet=\(showNotificationsSheet)")
         @Bindable var promptCoordinator = promptCoordinator
         TabView(selection: $selectedTab) {
             // Combined dashboard with rides and favors
@@ -84,6 +85,7 @@ struct MainTabView: View {
             selectedTab = newTab.rawValue
         }
         .onChange(of: selectedTab) { oldValue, newTab in
+            print("[MainTabView] onChange selectedTab: \(oldValue) → \(newTab)")
             // Update coordinator when user manually changes tab
             if let tab = NavigationCoordinator.Tab(rawValue: newTab) {
                 navigationCoordinator.selectedTab = tab
@@ -106,8 +108,10 @@ struct MainTabView: View {
             }
         }
         .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+            print("[MainTabView] onChange pendingIntent: \(String(describing: intent))")
             guard let intent else { return }
             if case .notifications = intent {
+                print("[MainTabView] Setting showNotificationsSheet = true")
                 showNotificationsSheet = true
                 return
             }

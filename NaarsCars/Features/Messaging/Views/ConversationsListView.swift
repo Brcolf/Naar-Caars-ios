@@ -232,6 +232,7 @@ struct ConversationsListView: View {
     }
     
     var body: some View {
+        let _ = print("[ConversationsListView] body evaluated")
         NavigationStack {
             mainContent
                 .id("messages.conversationsList")
