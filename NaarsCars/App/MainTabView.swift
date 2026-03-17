@@ -171,14 +171,12 @@ struct MainTabView: View {
             }
         }) {
             NotificationsListView()
-                .environment(appState)
                 .onAppear { isNotificationsSheetVisible = true }
         }
         .sheet(item: announcementsTargetBinding, onDismiss: {
             navigationCoordinator.pendingIntent = nil
         }) { target in
             AnnouncementsView(scrollToNotificationId: target.scrollToNotificationId)
-                .environment(appState)
         }
         .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
             GuidelinesAcceptanceSheet {
