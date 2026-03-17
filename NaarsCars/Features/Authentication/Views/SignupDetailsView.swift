@@ -16,7 +16,7 @@ struct SignupDetailsView: View {
     @ObservedObject var viewModel: SignupViewModel
     let validatedInviteCode: InviteCode
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @FocusState private var focusedField: SignupField?
 
     var body: some View {
@@ -228,6 +228,6 @@ struct SignupDetailsView: View {
                 createdBy: UUID()
             )
         )
-        .environmentObject(AppState())
+        .environment(AppState())
     }
 }

@@ -11,7 +11,7 @@ import SwiftUI
 struct PublicProfileView: View {
     let userId: UUID
     @StateObject private var viewModel = PublicProfileViewModel()
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var isPhoneRevealed = false
     @State private var badges: [LeaderboardBadge] = []
     
@@ -238,7 +238,7 @@ private typealias ReviewRow = ReviewRowView
 #Preview {
     NavigationStack {
         PublicProfileView(userId: UUID())
-            .environmentObject(AppState())
+            .environment(AppState())
     }
 }
 

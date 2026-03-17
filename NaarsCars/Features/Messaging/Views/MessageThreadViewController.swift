@@ -160,11 +160,18 @@ final class MessageThreadViewController: UIViewController {
     // MARK: - State
 
     private var cancellables = Set<AnyCancellable>()
+    private var messageObserverId: UUID?
 
     private var mergeRepliesTask: Task<Void, Never>?
 
     deinit {
         mergeRepliesTask?.cancel()
+        // Schedule observer cleanup on MainActor since deinit is nonisolated.
+        // The callback uses [weak self] so it is inert after deallocation regardless.
+        if let id = messageObserverId {
+            let vm = conversationViewModel
+            Task { @MainActor in vm.removeMessageObserver(id: id) }
+        }
     }
 
     // MARK: - Init
@@ -497,30 +504,37 @@ final class MessageThreadViewController: UIViewController {
     // MARK: - Bindings
 
     private func bindViewModel() {
-        // Rebuild snapshot when parent or replies change
-        threadViewModel.$parentMessage
-            .combineLatest(threadViewModel.$replies, threadViewModel.$isLoading)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _, _, _ in
-                self?.applySnapshot()
-            }
-            .store(in: &cancellables)
+        // Observe @Observable threadViewModel for snapshot rebuilds
+        observeThreadViewModel()
 
-        // Merge real-time replies from the conversation view model
-        conversationViewModel.$messages
-            .sink { [weak self] messages in
-                guard let self else { return }
-                self.mergeRepliesTask?.cancel()
-                let current = messages
-                self.mergeRepliesTask = Task {
-                    try? await Task.sleep(nanoseconds: 150_000_000)
-                    guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        self.threadViewModel.mergeReplies(from: current)
-                    }
+        // Observe conversation messages for realtime reply merging via callback
+        messageObserverId = conversationViewModel.addMessageObserver { [weak self] messages in
+            guard let self else { return }
+            self.mergeRepliesTask?.cancel()
+            let current = messages
+            self.mergeRepliesTask = Task {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self.threadViewModel.mergeReplies(from: current)
                 }
             }
-            .store(in: &cancellables)
+        }
+    }
+
+    /// Tracks @Observable threadViewModel properties and rebuilds snapshot on change.
+    /// Re-registers after each change since withObservationTracking fires once per session.
+    private func observeThreadViewModel() {
+        withObservationTracking {
+            let _ = self.threadViewModel.parentMessage
+            let _ = self.threadViewModel.replies
+            let _ = self.threadViewModel.isLoading
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.applySnapshot()
+                self?.observeThreadViewModel()
+            }
+        }
     }
 
     // MARK: - Snapshot

@@ -11,27 +11,33 @@ import SwiftUI
 internal import Combine
 
 /// ViewModel for conversation detail
+@Observable
 @MainActor
-final class ConversationDetailViewModel: ObservableObject {
-    @Published var messages: [Message] = [] {
+final class ConversationDetailViewModel {
+    var messages: [Message] = [] {
         didSet {
             recomputeCellConfigurationsIncrementally(oldMessages: oldValue)
             recomputeUnreadCount()
+            notifyMessageObservers()
         }
     }
-    @Published private(set) var messageCellConfigurations: [UUID: MessageCellConfiguration] = [:]
-    @Published var isLoading: Bool = false
-    @Published var isLoadingMore: Bool = false
-    @Published var hasMoreMessages: Bool = true
-    @Published var error: AppError?
-    @Published var messageText: String = ""
-    
+    private(set) var messageCellConfigurations: [UUID: MessageCellConfiguration] = [:]
+    var isLoading: Bool = false
+    var isLoadingMore: Bool = false
+    var hasMoreMessages: Bool = true
+    var error: AppError?
+    var messageText: String = ""
+
     let searchManager: ConversationSearchManager
     let typingManager: TypingIndicatorManager
     let paginationManager: MessagePaginationManager
     let sendManager: MessageSendManager
-    
-    @Published private(set) var typingUsers: [TypingUser] = []
+
+    /// Typing users — computed directly from the @Observable typing manager.
+    /// SwiftUI tracks through to typingManager.typingUsers automatically.
+    var typingUsers: [TypingUser] {
+        typingManager.typingUsers
+    }
     var searchText: String {
         get { searchManager.searchText }
         set { searchManager.searchText = newValue }
@@ -48,30 +54,33 @@ final class ConversationDetailViewModel: ObservableObject {
     var isSearchingMessages: Bool { searchManager.isSearchingMessages }
     var isLoadingOlderSearchResults: Bool { searchManager.isLoadingOlderSearchResults }
     var canLoadOlderSearchResults: Bool { searchManager.canLoadOlderSearchResults }
-    @Published var editingMessage: Message? = nil
-    @Published private(set) var unreadCount: Int = 0
-    @Published var replyCountMap: [UUID: Int] = [:]
+    var editingMessage: Message? = nil
+    private(set) var unreadCount: Int = 0
+    var replyCountMap: [UUID: Int] = [:]
     /// Set when the current user has left this conversation. The group messaging plan
     /// (Docs/plans/2026-03-07-group-messaging-enhancement-plan.md) specifies a frozen
     /// UI state, but the view layer does not yet read this property. See plan Task 18.
-    @Published private(set) var hasLeftConversation: Bool = false
+    private(set) var hasLeftConversation: Bool = false
 
     /// Tracks whether the unread divider has been shown for this session.
     /// Once the user scrolls past it, this becomes `true` and the divider is not re-shown.
-    @Published var hasShownUnreadDivider: Bool = false
+    var hasShownUnreadDivider: Bool = false
 
     /// The first unread message ID from the initial load, forwarded from the pagination manager.
     var firstUnreadMessageId: UUID? {
         paginationManager.firstUnreadMessageId
     }
 
+    /// External observers for message list changes (e.g. thread VC).
+    @ObservationIgnored private var messageObservers: [UUID: ([Message]) -> Void] = [:]
+
     let conversationId: UUID
     private let messageService: any MessageServiceProtocol
     private let authService: any AuthServiceProtocol
-    private let repository = MessagingRepository.shared
-    private let throttler = Throttler.shared
-    private var cancellables = Set<AnyCancellable>()
-    private var conversationUpdatedObserver: NSObjectProtocol?
+    @ObservationIgnored private let repository = MessagingRepository.shared
+    @ObservationIgnored private let throttler = Throttler.shared
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var conversationUpdatedObserver: NSObjectProtocol?
     
     init(
         conversationId: UUID,
@@ -89,9 +98,31 @@ final class ConversationDetailViewModel: ObservableObject {
         setupMetadataObservation()
         setupConversationUpdatedObserver()
         setupReactionChangedObserver()
-        observeTypingUsers()
     }
     
+    // MARK: - Message Observers
+
+    /// Register a callback that fires whenever the messages array changes.
+    /// Returns a token; pass it to `removeMessageObserver` to unregister.
+    /// The callback fires immediately with the current value upon registration.
+    func addMessageObserver(_ handler: @escaping ([Message]) -> Void) -> UUID {
+        let id = UUID()
+        messageObservers[id] = handler
+        handler(messages)
+        return id
+    }
+
+    func removeMessageObserver(id: UUID) {
+        messageObservers.removeValue(forKey: id)
+    }
+
+    private func notifyMessageObservers() {
+        let current = messages
+        for handler in messageObservers.values {
+            handler(current)
+        }
+    }
+
     // MARK: - Cell Configuration Cache
 
     /// Recompute unread count from the current messages array.
@@ -295,21 +326,6 @@ final class ConversationDetailViewModel: ObservableObject {
         var existing = messages[index].individualReactions ?? []
         existing.removeAll { $0.userId == userId }
         messages[index].setIndividualReactions(existing.isEmpty ? nil : existing)
-    }
-
-    /// Bridge @Observable typing manager changes to @Published for ObservableObject consumers.
-    /// Uses withObservationTracking to re-register after each change.
-    private func observeTypingUsers() {
-        withObservationTracking {
-            let users = self.typingManager.typingUsers
-            if users != self.typingUsers {
-                self.typingUsers = users
-            }
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.observeTypingUsers()
-            }
-        }
     }
 
     private func refreshReactions(for messageId: UUID) async {

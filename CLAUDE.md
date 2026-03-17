@@ -1,4 +1,8 @@
-# CLAUDE.md — Naar's Cars iOS
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# Naar's Cars iOS
 
 ## ⚠️ Read This First — Before Any Code Change
 
@@ -36,7 +40,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 ## What This App Is
 
-**Naar's Cars** is an iOS 17+ Swift app with:
+**Naar's Cars** is an invite-only community platform for neighbors to help each other with rides and favors. It's an iOS 17+ Swift app with:
 
 | Layer | Technology |
 |---|---|
@@ -46,7 +50,83 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 | Local storage | SwiftData (cache + durable pending-send queue) |
 | Crash / push | Firebase |
 
+**SPM dependencies (Xcode-managed):** supabase-swift v2.5.1+, firebase-ios-sdk v12.8.0+, PhoneNumberKit v4.0.0+.
+
 **Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, invite-based auth and approval flows, moderation/blocking/reporting.
+
+---
+
+## Build and Test Commands
+
+The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars`. Simulator target: iPhone, iOS 17+.
+
+```bash
+# Build (debug, simulator)
+xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -configuration Debug build
+
+# Run all unit tests
+xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' test
+
+# Run a single test class
+xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:NaarsCarsTests/ProfileTests
+
+# Run a single test method
+xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:NaarsCarsTests/ProfileTests/testSomething
+
+# Clean build artifacts
+scripts/CLEAR-XCODE-CACHE.sh
+```
+
+Test targets: `NaarsCarsTests` (unit, ~66 files), `NaarsCarsUITests` (UI automation). Tests are parallelizable.
+
+**Do not launch multiple simulators.** If one is running when launching a new simulator, ensure others are shut down first.
+
+**Do not add tests unless explicitly asked.** When tests are requested, follow existing patterns in `NaarsCarsTests/`.
+
+**No SwiftLint or SwiftFormat** — no linter config exists. No `Package.swift` or `Podfile` — dependencies are managed via Xcode (SPM integrated in the project).
+
+### Secrets Setup (Required for Build)
+
+1. Copy `NaarsCars/Core/Utilities/Secrets.swift.template` to `NaarsCars/Core/Utilities/Secrets.swift`
+2. Run `NaarsCars/Scripts/obfuscate.swift` to generate obfuscated byte arrays for the Supabase URL and anon key
+3. Paste the generated arrays into `Secrets.swift`
+
+`Secrets.swift` is gitignored and must be created locally. Never log or expose `Secrets.supabaseURL` or `Secrets.supabaseAnonKey`.
+
+### Pre-Commit Hook
+
+The `.git/hooks/pre-commit` hook blocks commits containing:
+- Secrets files (`Secrets.swift`, `GoogleService-Info.plist`, `.env`)
+- Apple signing files (`*.p8`, `*.p12`, `*.key`)
+- It also validates that localization keys are not accidentally removed
+
+### MCP Servers
+
+Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MCP for database queries, migrations, and edge function management. Use the GitHub MCP for PR and issue operations.
+
+---
+
+## File and Naming Conventions
+
+- **ViewModels**: `*ViewModel.swift`, `final class … : ObservableObject`
+- **Views**: `*View.swift`, `*Sheet.swift`, `*Card.swift`, `*Row.swift`
+- **Services**: `*Service.swift` or `*Manager.swift` in `Core/Services/`
+- **Models**: `Core/Models/`, struct/enum name matches filename
+- **Protocols**: `Core/Protocols/` — every service has a protocol (`AuthServiceProtocol`, `RideServiceProtocol`, etc.)
+- **Feature layout**: `Features/<Name>/Views/` and `Features/<Name>/ViewModels/`
+- **Shared UI**: Reusable components in `UI/Components/` (subdirs: Buttons, Cards, Common, Feedback, Inputs, Map, Messaging). Check existing components (e.g., `PrimaryButton`, `EmptyStateView`, `SkeletonView`, `LocationAutocompleteField`) before creating new ones.
+- **Swift file header**: `//` / `//  FileName.swift` / `//  NaarsCars` / `//`
+- **Constants**: Use the `Constants` enum in `Core/Utilities/Constants.swift` for animation durations, spacing, timeouts, cache TTLs, rate limits, page sizes, and URLs. Do not introduce new magic numbers.
+
+**Xcode uses filesystem-synced groups** (`PBXFileSystemSynchronizedRootGroup`). New `.swift` files placed under `NaarsCars/NaarsCars/`, `NaarsCars/NaarsCarsTests/`, or `NaarsCars/NaarsCarsUITests/` are auto-discovered by Xcode — no `project.pbxproj` edits needed. A PostToolUse hook (`scripts/verify-xcode-file-sync.sh`) warns if a `.swift` file is written outside these synced roots.
+
+**Secrets**: `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `NaarsCars/Scripts/obfuscate.swift` for credential obfuscation.
+
+**Localization**: All user-facing strings use `"key".localized` with keys in `Resources/Localizable.xcstrings` (Xcode string catalog format). A pre-commit hook validates localization changes.
+
+**Database migrations**: SQL files in `database/` with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Do not modify existing migration files.
+
+**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`.
 
 ---
 
@@ -99,6 +179,13 @@ realtime payload
 
 ### 2. Optimistic Message Sending
 
+**The only valid send path is:**
+```
+MessageSendManager → MessageSendWorker → MessageService → Supabase
+```
+
+Never send messages from `MessagingRepository`, Views, or ViewModels directly. The repository must never contain fire-and-forget send logic.
+
 **Required invariants:**
 - Pending local messages appear in the UI immediately
 - Failed sends remain recoverable — the user can retry
@@ -111,6 +198,7 @@ realtime payload
 - Remove or collapse `status` state transitions
 - Clear `isPending` or `localAttachmentPath` before server acknowledgment
 - Replace the durable queue with fire-and-forget async tasks
+- Use untracked `Task {}` blocks to send messages
 
 ### 3. Reaction State
 
@@ -139,9 +227,12 @@ push payload
   → correct tab / destination
 ```
 
+All navigation from push handlers must go through **`pendingIntent` / `deferNotificationIntent()`**. Do not call navigation methods directly from `AppDelegate`, `PushNotificationService`, or completion handlers.
+
 **Do not:**
 - Bypass deferred navigation handling
-- Add ad hoc direct navigation from push handlers
+- Add ad hoc direct navigation from push handlers (e.g., `coordinator.showReviewPromptFor()` or `coordinator.navigate(to:)` directly)
+- Add new `@Published` navigation flags (e.g., `navigateToX`) — prefer the `NavigationIntent` enum pattern
 - Change notification type mapping without verifying every route
 
 ### 5. Auth and Launch State
@@ -173,6 +264,8 @@ setup → startSync → pauseSync → resumeSync → teardown
 
 Push badges, tab badges, in-app toast counts, and unread counts are one connected system. Changes to any one affect all others.
 
+**If `get_badge_counts` RPC fails:** prefer cached/stale values with a staleness indicator rather than introducing a second client-side aggregation logic path.
+
 **Do not:**
 - Remove debounce or backoff logic
 - Introduce badge refresh calls that could spam the system
@@ -196,10 +289,11 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 3. ViewModels are the UI mutation boundary.
 4. Services must remain behind protocols in `Core/Protocols/`.
 5. New services require a protocol and must be injected into consumers. `.shared` defaults are acceptable in constructors, but logic must depend on protocols, not concrete types.
-6. Repositories are the preferred local data access layer. ViewModels should not perform raw SwiftData fetches when an established repository exists.
-7. Do not import one feature module directly into another to share internals. Use services, repositories, or established notifications for cross-feature communication.
-8. Do not introduce a second architectural style into the same feature unless explicitly asked.
-9. Do not combine architectural changes with behavioral changes in the same diff.
+6. No new cross-domain service dependencies without an explicit reason. If Messaging needs Claiming, route through a narrow interface — not direct service fan-in.
+7. Repositories are the preferred local data access layer. ViewModels should not perform raw SwiftData fetches when an established repository exists.
+8. Do not import one feature module directly into another to share internals. Use services, repositories, or established notifications for cross-feature communication.
+9. Do not introduce a second architectural style into the same feature unless explicitly asked.
+10. Do not combine architectural changes with behavioral changes in the same diff.
 
 ---
 
@@ -226,6 +320,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 6. Prefer explicit cancellation over orphaned tasks.
 7. Do not perform SwiftData batch sync writes on the main actor.
 8. Be careful with mixed Combine + async/await flows — preserve existing delivery guarantees when refactoring.
+9. **Realtime callbacks must be marshalled to `@MainActor` before touching SwiftData, NotificationCenter, UIKit, ViewModels, or repositories.** See "Realtime Callback Threading" in the audit notes below for required patterns.
 
 ---
 
@@ -253,6 +348,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 6. Preserve message ordering guarantees.
 7. Treat metadata-only changes carefully — they should not trigger unnecessary full UI recomputation.
 8. Any realtime refactor must be validated end-to-end, not just at compile time. Compilation is not correctness.
+9. All realtime subscription callbacks must be dispatched on `@MainActor`. Plain `(RealtimeRecord) -> Void` closures invoked from background `Task` contexts are not actor-isolated — the compiler does not hop automatically. See "Realtime Callback Threading" in the audit notes.
 
 ---
 
@@ -281,6 +377,25 @@ Push notifications, in-app toasts, and badge counts are one connected system. A 
 4. Keep action categories working: quick reply, mark read, yes/no, add to calendar, etc.
 5. Do not silently change notification grouping or archival rules.
 6. Do not remove background refresh or silent push behavior without explicit approval.
+7. **Cross-layer sync required:** Adding, removing, or changing a notification type requires updating ALL of: the Swift enum/model, SQL triggers/RPCs/functions, Edge Function handlers, preferences mapping, badge logic, and routing logic. Do not introduce new notification type strings inline — use the single registry.
+
+---
+
+## Cross-Layer Synchronization Rules
+
+Several systems span Swift client code, SQL (database RPCs/triggers), and Supabase Edge Functions. Changes to any layer must be reflected in all others.
+
+**High-blast-radius seams** — before changing any of these, list upstream/downstream dependencies and update ALL consumers in the same change set:
+- `BadgeCountManager` — if a `get_badge_counts` RPC exists, treat it as authoritative; do not expand client-side fallback aggregation
+- `RealtimeManager` — subscription scope, channel count, cleanup
+- `NavigationCoordinator` — routing table mapping notification types to intents
+- `NotificationType` — registry must match across Swift enum, SQL, and Edge Functions
+- Sync engines — `MessagingSyncEngine`, `DashboardSyncEngine`, `TownHallSyncEngine`
+- SwiftData ↔ Domain mappers — if you change a domain model (`Message`, `Ride`, `Favor`, `Conversation`, `Notification`, `TownHall`), update the SwiftData model, mapper(s), and sync engine insert/update logic
+- Supabase RPC call sites — signature changes must propagate to all callers
+- `NSNotification.Name` constants and `Constants.swift` values
+
+**Payload parsing must be centralized.** ViewModels and sync engines must NOT hand-parse raw `Any`/JSON. All payloads go through a single adapter/decoder layer that normalizes known shapes (`record`/`new`, `data.record`/`data.new`, `oldRecord`/`old`, insert/update/delete variants).
 
 ---
 
@@ -288,8 +403,8 @@ Push notifications, in-app toasts, and badge counts are one connected system. A 
 
 1. Supabase is server-authoritative. SwiftData is the local cache and durable pending-send layer.
 2. Local state may be authoritative only before server acknowledgment (optimistic flows). After ack, server wins.
-3. Background sync writes must use the existing background actor / model actor pattern.
-4. Do not move large sync writes onto the main thread.
+3. Background sync writes must use the existing `BackgroundSyncActor` (`@ModelActor`) pattern: `BackgroundSyncActor → batch upsert → modelContext.save()`. This applies to all sync engines and bulk data operations.
+4. Do not move large sync writes onto the main thread. Do not call `context.save()` from ViewModels for sync operations — delegate to repository methods that use `BackgroundSyncActor`.
 5. Do not write directly to persistence from view code.
 6. Avoid unbounded caches. Any new cache must have documented TTL, max size, and invalidation behavior.
 
@@ -318,7 +433,7 @@ Push notifications, in-app toasts, and badge counts are one connected system. A 
 4. Any new permission usage requires: a valid product reason, a correct Info.plist usage description string, and UI that matches the disclosed purpose.
 5. Do not add tracking SDKs or ATT-relevant behavior without explicit approval.
 6. Keep privacy disclosures aligned with actual SDK usage.
-7. Firebase privacy manifest coverage is required, not optional.
+7. Firebase privacy manifest coverage is required, not optional. Firebase SDKs require **required-reason API declarations** in the final privacy manifest — Apple will reject the build if these entries are missing. When updating dependencies, ensure Firebase privacy manifest entries are merged and the compiled IPA contains all required-reason declarations.
 8. Do not introduce misleading claims about data handling or security.
 9. If touching community or messaging features, preserve abuse-reporting pathways.
 
@@ -349,6 +464,7 @@ If any box is checked, flag it explicitly in your response.
 6. Avoid unnecessary UI churn during technical refactors.
 7. Compress images with existing presets. Do not upload raw originals.
 8. Keep UI changes production-polished, not placeholder quality.
+9. **Accessibility**: Every interactive element must have an `accessibilityLabel` (concise, what the element is). Add `accessibilityHint` where it helps (what happens on action). Add `accessibilityIdentifier` for important controls (e.g., `"createFavor.title"`, `"claim.confirm"`). Support Dynamic Type — avoid fixed font sizes where text should scale.
 
 ---
 
@@ -372,6 +488,7 @@ If any box is checked, flag it explicitly in your response.
 5. Preserve public APIs where practical when touching shared services.
 6. When replacing duplicate logic, verify edge-case parity before deleting old paths.
 7. Prefer extraction and consolidation over wholesale rewrites.
+8. Do not perform large decomposition of giant ViewModels unless the current task explicitly calls for it.
 
 ---
 
@@ -406,6 +523,8 @@ For any non-trivial change, structure your response as:
 7. **Known risks / follow-ups** — anything that remains uncertain or needs future attention
 
 If the risk level is medium or high, state the risks **before** writing code, not after.
+
+**When touching high-blast-radius seams** (BadgeCountManager, RealtimeManager, NavigationCoordinator, NotificationType, sync engines, mappers, RPCs, Constants), end your response with an **Impact Summary**: what changed, what files were updated, and what would have broken if a consumer was missed.
 
 ---
 
@@ -443,6 +562,34 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 
 ---
 
+## Audit Notes — Known Deviations (2026-03-16)
+
+These document where the code currently deviates from the rules above. Check these before touching the affected areas.
+
+### Known Violations
+
+- **`TownHallSyncEngine`** currently writes on the MainActor — this violates the SwiftData background-write rule. Do not extend this pattern; when touching this file, prefer migrating writes to `BackgroundSyncActor`.
+
+### Realtime Callback Threading — Required Patterns
+
+Realtime callbacks that touch SwiftData, NotificationCenter, UIKit, ViewModels, or repositories must be marshalled to `@MainActor`:
+
+```swift
+await MainActor.run { handler(record) }
+// or
+@MainActor @Sendable typealias RealtimeInsertCallback = (RealtimeRecord) -> Void
+```
+
+Files where this invariant is critical: `RealtimeManager.swift`, `MessagingSyncEngine.swift`, `DashboardSyncEngine.swift`, `TownHallSyncEngine.swift`. Any future realtime subscription must follow this pattern.
+
+### High-Risk Files
+
+Extra care required when editing — verify concurrency safety, messaging invariants, notification routing, and SwiftData schema stability:
+
+`RealtimeManager.swift`, `MessagingSyncEngine.swift`, `MessageSendManager.swift`, `MessagingRepository.swift`, `NavigationCoordinator.swift`, `AuthService.swift`, `BadgeCountManager.swift`, `BackgroundSyncActor.swift`, `SDModels.swift`
+
+---
+
 ## If Unsure
 
 If a change risks breaking realtime, notifications, auth, moderation, or App Store compliance:
@@ -453,3 +600,5 @@ If a change risks breaking realtime, notifications, auth, moderation, or App Sto
 - Propose a safer patch
 
 **Never guess when a fragile system invariant is at stake.**
+
+> If a requested change conflicts with the invariants in this file, Claude must warn the user before implementing the change.

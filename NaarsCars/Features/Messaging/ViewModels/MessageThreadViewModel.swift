@@ -8,14 +8,14 @@
 //
 
 import Foundation
-internal import Combine
 
+@Observable
 @MainActor
-final class MessageThreadViewModel: ObservableObject {
-    @Published var parentMessage: Message?
-    @Published var replies: [Message] = []
-    @Published var isLoading = false
-    @Published var error: AppError?
+final class MessageThreadViewModel {
+    var parentMessage: Message?
+    var replies: [Message] = []
+    var isLoading = false
+    var error: AppError?
 
     private let conversationId: UUID
     private let parentMessageId: UUID

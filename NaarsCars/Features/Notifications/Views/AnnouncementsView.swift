@@ -10,8 +10,8 @@ import SwiftData
 
 struct AnnouncementsView: View {
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var viewModel = NotificationsListViewModel()
-    @EnvironmentObject var appState: AppState
+    @State private var viewModel = NotificationsListViewModel()
+    @Environment(AppState.self) var appState
     let scrollToNotificationId: UUID?
     
     // SwiftData Query for local-first announcements
@@ -91,6 +91,6 @@ struct AnnouncementsView: View {
 
 #Preview {
     AnnouncementsView(scrollToNotificationId: nil)
-        .environmentObject(AppState())
+        .environment(AppState())
 }
 

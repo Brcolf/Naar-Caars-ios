@@ -12,10 +12,10 @@ import FirebaseCore
 @main
 struct NaarsCarsApp: App {
     /// Global app state manager
-    @StateObject private var appState = AppState()
+    @State private var appState = AppState()
     
     /// Theme manager for dark mode support
-    @StateObject private var themeManager = ThemeManager.shared
+    @State private var themeManager = ThemeManager.shared
     
     /// App delegate for push notification handling
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -81,8 +81,8 @@ struct NaarsCarsApp: App {
             Group {
                 if let container {
                     ContentView()
-                        .environmentObject(appState)
-                        .environmentObject(themeManager)
+                        .environment(appState)
+                        .environment(themeManager)
                         .modelContainer(container)
                         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                             // Re-apply theme when app becomes active (handles system theme changes)

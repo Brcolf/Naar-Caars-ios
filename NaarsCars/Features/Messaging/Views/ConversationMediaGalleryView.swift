@@ -11,15 +11,15 @@ internal import Combine
 // MARK: - ViewModel
 
 @MainActor
-final class ConversationMediaGalleryViewModel: ObservableObject {
-    @Published var images: [Message] = []
-    @Published var audioMessages: [Message] = []
-    @Published var linkMessages: [Message] = []
-    
-    @Published var isLoadingImages = false
-    @Published var isLoadingAudio = false
-    @Published var isLoadingLinks = false
-    @Published var error: AppError?
+@Observable final class ConversationMediaGalleryViewModel {
+    var images: [Message] = []
+    var audioMessages: [Message] = []
+    var linkMessages: [Message] = []
+
+    var isLoadingImages = false
+    var isLoadingAudio = false
+    var isLoadingLinks = false
+    var error: AppError?
     
     let conversationId: UUID
     private let messageService = MessageService.shared
@@ -82,14 +82,14 @@ enum MediaTab: String, CaseIterable {
 
 struct ConversationMediaGalleryView: View {
     let conversationId: UUID
-    @StateObject private var viewModel: ConversationMediaGalleryViewModel
+    @State private var viewModel: ConversationMediaGalleryViewModel
     @State private var selectedTab: MediaTab = .photos
     @State private var selectedImageUrl: URL?
     @State private var showImageViewer = false
     
     init(conversationId: UUID) {
         self.conversationId = conversationId
-        _viewModel = StateObject(wrappedValue: ConversationMediaGalleryViewModel(conversationId: conversationId))
+        _viewModel = State(initialValue: ConversationMediaGalleryViewModel(conversationId: conversationId))
     }
     
     var body: some View {
@@ -206,8 +206,7 @@ struct ConversationMediaGalleryView: View {
                                                 )
                                         }
                                     )
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(minHeight: 120)
+                                    .aspectRatio(1, contentMode: .fill)
                                     .clipped()
                                 }
                                 .buttonStyle(PlainButtonStyle())

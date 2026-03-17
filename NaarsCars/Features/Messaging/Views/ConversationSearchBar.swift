@@ -9,7 +9,7 @@ import SwiftUI
 
 /// Search bar for searching within a conversation with up/down navigation
 struct ConversationSearchBar: View {
-    @ObservedObject var viewModel: ConversationDetailViewModel
+    @Bindable var viewModel: ConversationDetailViewModel
     @FocusState private var isFocused: Bool
     
     var body: some View {

@@ -10,11 +10,11 @@ import SwiftUI
 /// Main tab view with 4 tabs for authenticated users
 /// Notifications are shown as badges on relevant tabs
 struct MainTabView: View {
-    @StateObject private var badgeManager = BadgeCountManager.shared
+    @State private var badgeManager = BadgeCountManager.shared
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
-    @StateObject private var promptCoordinator = PromptCoordinator.shared
-    @StateObject private var toastManager = InAppToastManager.shared
-    @EnvironmentObject var appState: AppState
+    @State private var promptCoordinator = PromptCoordinator.shared
+    @State private var toastManager = InAppToastManager.shared
+    @Environment(AppState.self) var appState
     @State private var selectedTab = 0
     @State private var showGuidelinesAcceptance = false
     @State private var isNotificationsSheetVisible = false
@@ -45,6 +45,7 @@ struct MainTabView: View {
     }
     
     var body: some View {
+        @Bindable var promptCoordinator = promptCoordinator
         TabView(selection: $selectedTab) {
             // Combined dashboard with rides and favors
             RequestsDashboardView()
@@ -164,14 +165,14 @@ struct MainTabView: View {
             }
         }) {
             NotificationsListView()
-                .environmentObject(appState)
+                .environment(appState)
                 .onAppear { isNotificationsSheetVisible = true }
         }
         .sheet(item: announcementsTargetBinding, onDismiss: {
             navigationCoordinator.pendingIntent = nil
         }) { target in
             AnnouncementsView(scrollToNotificationId: target.scrollToNotificationId)
-                .environmentObject(appState)
+                .environment(appState)
         }
         .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
             GuidelinesAcceptanceSheet {
@@ -307,5 +308,5 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

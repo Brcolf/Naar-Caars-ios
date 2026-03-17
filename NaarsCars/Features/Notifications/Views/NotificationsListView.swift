@@ -11,8 +11,8 @@ import SwiftData
 /// Notifications list view for displaying in-app notifications
 struct NotificationsListView: View {
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var viewModel = NotificationsListViewModel()
-    @EnvironmentObject var appState: AppState
+    @State private var viewModel = NotificationsListViewModel()
+    @Environment(AppState.self) var appState
     @State private var announcementNavigationTarget: AnnouncementNavigationTarget?
     @State private var toastMessage: String? = nil
     
@@ -201,7 +201,7 @@ struct SkeletonNotificationRow: View {
 
 #Preview {
     NotificationsListView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }
 
 

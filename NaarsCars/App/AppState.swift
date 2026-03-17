@@ -12,19 +12,20 @@ internal import Combine
 /// Global app state manager that tracks authentication status and current user
 /// Observes AuthService for authentication changes and provides computed properties
 /// for common state checks (isAdmin, isApproved, authState)
+@Observable
 @MainActor
-final class AppState: ObservableObject {
-    
-    // MARK: - Published Properties
-    
+final class AppState {
+
+    // MARK: - Properties
+
     /// Current authenticated user's profile, nil if not authenticated
-    @Published var currentUser: Profile?
-    
+    var currentUser: Profile?
+
     /// Loading state for app initialization and authentication checks
-    @Published var isLoading: Bool = true
-    
+    var isLoading: Bool = true
+
     /// Whether the notifications surface is currently shown
-    @Published var showNotifications: Bool = false
+    var showNotifications: Bool = false
     
     // MARK: - Private Properties
     
@@ -65,7 +66,7 @@ final class AppState: ObservableObject {
     
     // MARK: - Initialization
     
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     init() {
         // Mirror the latest auth state immediately and keep AppState in sync.

@@ -12,7 +12,7 @@ struct SignupMethodChoiceView: View {
     let inviteCode: InviteCode
     @StateObject private var appleSignInViewModel = AppleSignInViewModel()
     @StateObject private var signupViewModel = SignupViewModel()
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     @State private var showError = false
     @State private var navigateToEmailSignup = false

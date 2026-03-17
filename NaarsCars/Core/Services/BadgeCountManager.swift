@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Observation
 import UIKit
 internal import Combine
 import Supabase
@@ -24,7 +25,7 @@ extension BadgeCountManager: BadgeCountManaging {}
 /// Manager for badge counts on tab bar icons
 /// Tracks unread notifications and new content for each tab
 @MainActor
-final class BadgeCountManager: ObservableObject {
+@Observable final class BadgeCountManager {
     
     // MARK: - Singleton
     
@@ -44,10 +45,10 @@ final class BadgeCountManager: ObservableObject {
         var totalUnread: Int = 0
     }
 
-    @Published private(set) var counts = BadgeCounts()
+    private(set) var counts = BadgeCounts()
 
     /// True when badge values are being served from cached/zero data due to RPC failure.
-    @Published private(set) var isBadgeStale: Bool = false
+    private(set) var isBadgeStale: Bool = false
     
     // MARK: - Private Properties
     

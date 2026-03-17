@@ -12,7 +12,7 @@ import SwiftUI
 /// Matches FR-039 from prd-foundation-architecture.md
 struct ContentView: View {
     @StateObject private var launchManager = AppLaunchManager.shared
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @Environment(\.scenePhase) var scenePhase
 
     private var lockManager = AppLockManager.shared
@@ -114,5 +114,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

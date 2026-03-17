@@ -15,7 +15,7 @@ import CoreLocation
 /// View for displaying conversation detail (chat screen)
 struct ConversationDetailView: View {
     let conversationId: UUID
-    @StateObject private var viewModel: ConversationDetailViewModel
+    @State private var viewModel: ConversationDetailViewModel
     @StateObject private var participantsViewModel: ConversationParticipantsViewModel
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var debugFrameDropMonitor: DebugFrameDropMonitor
@@ -62,7 +62,7 @@ struct ConversationDetailView: View {
 
     init(conversationId: UUID) {
         self.conversationId = conversationId
-        _viewModel = StateObject(wrappedValue: ConversationDetailViewModel(conversationId: conversationId))
+        _viewModel = State(initialValue: ConversationDetailViewModel(conversationId: conversationId))
         _participantsViewModel = StateObject(wrappedValue: ConversationParticipantsViewModel(conversationId: conversationId))
         _debugFrameDropMonitor = StateObject(wrappedValue: DebugFrameDropMonitor(conversationId: conversationId))
     }

@@ -18,6 +18,6 @@ struct MessagesListView: View {
 
 #Preview {
     MessagesListView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }
 

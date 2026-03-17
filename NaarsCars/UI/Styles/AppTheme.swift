@@ -7,7 +7,6 @@
 
 import SwiftUI
 import UIKit
-internal import Combine
 
 // MARK: - Theme Mode
 
@@ -50,17 +49,18 @@ enum ThemeMode: String, CaseIterable, Identifiable {
 // MARK: - Theme Manager
 
 /// Manages app-wide theme settings and persistence
+@Observable
 @MainActor
-final class ThemeManager: ObservableObject {
-    
+final class ThemeManager {
+
     // MARK: - Singleton
-    
+
     static let shared = ThemeManager()
-    
-    // MARK: - Published Properties
-    
+
+    // MARK: - Properties
+
     /// Current theme mode
-    @Published var currentTheme: ThemeMode {
+    var currentTheme: ThemeMode {
         didSet {
             saveTheme()
             applyTheme()
@@ -136,7 +136,7 @@ extension EnvironmentValues {
 extension View {
     /// Apply theme manager to view hierarchy
     func withThemeManager() -> some View {
-        self.environmentObject(ThemeManager.shared)
+        self.environment(ThemeManager.shared)
     }
 }
 

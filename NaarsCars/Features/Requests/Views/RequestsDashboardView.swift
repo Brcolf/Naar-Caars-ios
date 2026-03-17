@@ -404,5 +404,5 @@ struct SkeletonRequestCard: View {
 
 #Preview {
     RequestsDashboardView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

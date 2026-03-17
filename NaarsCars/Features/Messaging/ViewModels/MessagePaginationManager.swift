@@ -234,7 +234,19 @@ final class MessagePaginationManager {
     func applyMessageUpdate(_ message: Message, in messages: [Message]) -> [Message] {
         var updated = messages
         if let index = updated.firstIndex(where: { $0.id == message.id }), index < updated.count {
-            updated[index] = message
+            // Preserve separately-populated fields that realtime payloads don't include
+            var merged = message
+            let existing = updated[index]
+            if merged.individualReactions == nil && existing.individualReactions != nil {
+                merged.setIndividualReactions(existing.individualReactions)
+            }
+            if merged.sender == nil {
+                merged.sender = existing.sender
+            }
+            if merged.replyToMessage == nil {
+                merged.replyToMessage = existing.replyToMessage
+            }
+            updated[index] = merged
         }
         return updated
     }

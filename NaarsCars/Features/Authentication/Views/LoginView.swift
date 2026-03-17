@@ -14,7 +14,7 @@ import os
 struct LoginView: View {
     @StateObject private var viewModel = LoginViewModel()
     @StateObject private var appleSignInViewModel = AppleSignInViewModel()
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var showPasswordReset = false
     @State private var showError = false
     @State private var showSuccess = false

@@ -6,12 +6,13 @@
 //
 
 import Foundation
+import Observation
 internal import Combine
 
 /// Manager for review prompts
 /// Checks for pending reviews immediately after event time
 @MainActor
-final class ReviewPromptManager: ObservableObject {
+@Observable final class ReviewPromptManager {
     
     // MARK: - Singleton
     
@@ -19,7 +20,7 @@ final class ReviewPromptManager: ObservableObject {
     
     // MARK: - Published Properties
     
-    @Published var pendingPrompt: PendingReviewPrompt?
+    var pendingPrompt: PendingReviewPrompt?
     
     // MARK: - Private Properties
     

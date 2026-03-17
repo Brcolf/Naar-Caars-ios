@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 
 struct BellButton: View {
-    @StateObject private var badgeManager = BadgeCountManager.shared
+    @State private var badgeManager = BadgeCountManager.shared
     let action: () -> Void
 
     var body: some View {

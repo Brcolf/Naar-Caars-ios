@@ -6,15 +6,16 @@
 //
 
 import Foundation
+import Observation
 import SwiftData
 internal import Combine
 
 /// ViewModel for notifications list
 @MainActor
-final class NotificationsListViewModel: ObservableObject {
-    @Published var isLoading: Bool = false
-    @Published var error: AppError?
-    @Published var unreadCount: Int = 0
+@Observable final class NotificationsListViewModel {
+    var isLoading: Bool = false
+    var error: AppError?
+    var unreadCount: Int = 0
 
     private var modelContext: ModelContext?
     private let notificationService: any NotificationServiceProtocol

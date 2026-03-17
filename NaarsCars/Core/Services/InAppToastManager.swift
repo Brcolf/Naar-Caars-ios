@@ -6,14 +6,15 @@
 //
 
 import Foundation
+import Observation
 import UIKit
 internal import Combine
 
 @MainActor
-final class InAppToastManager: ObservableObject {
+@Observable final class InAppToastManager {
     static let shared = InAppToastManager()
 
-    @Published var latestToast: InAppMessageToast?
+    var latestToast: InAppMessageToast?
 
     private let notificationCenter: NotificationCenter
     private let appStateProvider: () -> UIApplication.State

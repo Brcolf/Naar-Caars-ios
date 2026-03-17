@@ -1,5 +1,6 @@
 // NaarsCars/Features/Prompts/PromptCoordinator.swift
 import Foundation
+import Observation
 internal import Combine
 
 protocol CompletionPromptProviding {
@@ -21,14 +22,14 @@ protocol PromptSideEffects {
 }
 
 @MainActor
-final class PromptCoordinator: ObservableObject {
+@Observable final class PromptCoordinator {
     static let shared = PromptCoordinator(
         completionProvider: CompletionPromptProvider(),
         reviewProvider: ReviewPromptProvider(),
         sideEffects: DefaultPromptSideEffects()
     )
 
-    @Published var activePrompt: PromptItem?
+    var activePrompt: PromptItem?
 
     private var queue = PromptQueue()
     private let completionProvider: CompletionPromptProviding

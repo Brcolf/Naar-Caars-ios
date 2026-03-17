@@ -12,7 +12,7 @@ import SwiftUI
 struct SignupInviteCodeView: View {
     @StateObject private var viewModel = SignupViewModel()
     @StateObject private var appleSignInViewModel = AppleSignInViewModel()
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var inviteCode: String = ""
     @State private var isValidating = false
     @State private var validationError: AppError?
@@ -91,7 +91,7 @@ struct SignupInviteCodeView: View {
         .navigationDestination(isPresented: $showMethodChoice) {
             if let code = validatedCode {
                 SignupMethodChoiceView(inviteCode: code)
-                    .environmentObject(appState)
+                    .environment(appState)
             }
         }
         .alert("common_error".localized, isPresented: $showError) {

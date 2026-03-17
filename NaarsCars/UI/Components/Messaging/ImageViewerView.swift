@@ -75,27 +75,27 @@ struct ImageViewerView: View {
                         .scaleEffect(1.5)
                 }
                 
-                // Controls overlay
-                if showControls {
-                    VStack {
-                        // Top bar
-                        HStack {
-                            Spacer()
-                            
-                            // Close button
-                            Button(action: onDismiss) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(12)
-                                    .background(Circle().fill(Color.black.opacity(0.5)))
-                            }
-                        }
-                        .padding()
-                        
+                // Close button — always visible so the user can dismiss
+                VStack {
+                    HStack {
                         Spacer()
-                        
-                        // Bottom bar with actions
+                        Button(action: onDismiss) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(12)
+                                .background(Circle().fill(Color.black.opacity(0.5)))
+                        }
+                        .accessibilityLabel("Close image viewer")
+                    }
+                    .padding()
+                    Spacer()
+                }
+
+                // Bottom action bar — toggles with controls
+                if showControls && loadedImage != nil {
+                    VStack {
+                        Spacer()
                         HStack(spacing: 40) {
                             // Share button
                             Button(action: shareImage) {
@@ -107,8 +107,6 @@ struct ImageViewerView: View {
                                 }
                                 .foregroundColor(.white)
                             }
-                            .disabled(loadedImage == nil)
-                            .opacity(loadedImage != nil ? 1.0 : 0.4)
 
                             // Save button
                             Button(action: saveImage) {
@@ -120,8 +118,6 @@ struct ImageViewerView: View {
                                 }
                                 .foregroundColor(.white)
                             }
-                            .disabled(loadedImage == nil)
-                            .opacity(loadedImage != nil ? 1.0 : 0.4)
                         }
                         .padding(.bottom, 40)
                     }

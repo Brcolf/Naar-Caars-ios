@@ -26,22 +26,25 @@ struct MessageSearchResult: Identifiable {
 
 /// ViewModel for conversations list
 @MainActor
-final class ConversationsListViewModel: ObservableObject {
-    @Published var conversations: [ConversationWithDetails] = [] {
+@Observable final class ConversationsListViewModel {
+    var conversations: [ConversationWithDetails] = [] {
         didSet { recomputeFilteredConversations() }
     }
-    @Published private(set) var filteredConversations: [ConversationWithDetails] = []
-    @Published var isLoading: Bool = false
-    @Published var isLoadingMore: Bool = false
-    @Published var hasMoreConversations: Bool = true
-    @Published var error: AppError?
-    
+    private(set) var filteredConversations: [ConversationWithDetails] = []
+    var isLoading: Bool = false
+    var isLoadingMore: Bool = false
+    var hasMoreConversations: Bool = true
+    var error: AppError?
+
     // MARK: - Search State
-    @Published var searchText: String = "" {
-        didSet { recomputeFilteredConversations() }
+    var searchText: String = "" {
+        didSet {
+            recomputeFilteredConversations()
+            scheduleSearchDebounce()
+        }
     }
-    @Published var searchResults: [MessageSearchResult] = []
-    @Published var isSearching: Bool = false
+    var searchResults: [MessageSearchResult] = []
+    var isSearching: Bool = false
     
     private let conversationService: any ConversationServiceProtocol
     private let profileService: any ProfileServiceProtocol
@@ -67,7 +70,6 @@ final class ConversationsListViewModel: ObservableObject {
         self.authService = authService
         setupUnreadCountObservers()
         setupLocalObservation()
-        setupSearchDebounce()
     }
 
     private func setupLocalObservation() {
@@ -208,8 +210,6 @@ final class ConversationsListViewModel: ObservableObject {
         if hasChanges {
             AppLogger.info("messaging", "[ConversationsListVM] Applied server-side unread counts to list and local storage")
             try? repository.save(changedConversationIds: changedConversationIds)
-            // Force a UI refresh
-            objectWillChange.send()
         }
     }
     
@@ -222,6 +222,8 @@ final class ConversationsListViewModel: ObservableObject {
         loadTask = nil
         searchTask?.cancel()
         searchTask = nil
+        searchDebounceTask?.cancel()
+        searchDebounceTask = nil
     }
 
     func loadConversations() async {
@@ -395,20 +397,21 @@ final class ConversationsListViewModel: ObservableObject {
     
     // MARK: - Search
     
-    private func setupSearchDebounce() {
-        $searchText
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .removeDuplicates()
-            .sink { [weak self] query in
-                guard let self = self else { return }
-                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.searchResults = []
-                    self.isSearching = false
-                } else {
-                    self.performSearch(query: query)
-                }
-            }
-            .store(in: &cancellables)
+    private var searchDebounceTask: Task<Void, Never>?
+
+    private func scheduleSearchDebounce() {
+        searchDebounceTask?.cancel()
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if query.isEmpty {
+            searchResults = []
+            isSearching = false
+            return
+        }
+        searchDebounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            self?.performSearch(query: query)
+        }
     }
     
     private func performSearch(query: String) {

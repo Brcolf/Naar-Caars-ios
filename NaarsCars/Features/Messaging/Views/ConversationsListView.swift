@@ -11,9 +11,9 @@ import PostgREST
 
 /// View for displaying list of conversations
 struct ConversationsListView: View {
-    @StateObject private var viewModel = ConversationsListViewModel()
+    @State private var viewModel = ConversationsListViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var showNewMessage = false
     @State private var selectedUserIds: Set<UUID> = []
     @State private var selectedConversationId: UUID?
@@ -73,6 +73,7 @@ struct ConversationsListView: View {
     
     @ViewBuilder
     private var searchResultsList: some View {
+        @Bindable var viewModel = viewModel
         List {
             // Show matching conversations first (by name)
             if !viewModel.filteredConversations.isEmpty {
@@ -149,6 +150,7 @@ struct ConversationsListView: View {
 
     @ViewBuilder
     private var conversationsList: some View {
+        @Bindable var viewModel = viewModel
         let sorted = sortedConversations
         List {
             // Pinned section (if any)
@@ -546,5 +548,5 @@ struct InAppMessageToastView: View {
 
 #Preview {
     ConversationsListView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

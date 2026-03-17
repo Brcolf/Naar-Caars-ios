@@ -12,7 +12,7 @@ import PhotosUI
 struct MyProfileView: View {
     @StateObject private var viewModel = MyProfileViewModel()
     @StateObject private var navigationCoordinator = NavigationCoordinator.shared
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false
     @State private var showImagePicker = false
@@ -186,7 +186,7 @@ struct MyProfileView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
-                    .environmentObject(appState)
+                    .environment(appState)
             }
             .navigationDestination(isPresented: $showPendingUsersList) {
                 PendingUsersView()
@@ -799,6 +799,6 @@ private typealias ReviewRow = ReviewRowView
 
 #Preview {
     MyProfileView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }
 

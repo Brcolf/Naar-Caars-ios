@@ -12,7 +12,7 @@ internal import Combine
 
 /// Settings view for biometric authentication and notification preferences
 struct SettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @StateObject private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
     
@@ -833,7 +833,7 @@ struct BlockedUsersView: View {
 
 #Preview {
     SettingsView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }
 
 #Preview("Blocked Users") {
