@@ -17,6 +17,7 @@ struct MainTabView: View {
     @Environment(AppState.self) var appState
     @State private var selectedTab = 0
     @State private var showGuidelinesAcceptance = false
+    @State private var showNotificationsSheet = false
     @State private var isNotificationsSheetVisible = false
 
     @ViewBuilder
@@ -108,6 +109,7 @@ struct MainTabView: View {
         .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
             guard let intent else { return }
             if case .notifications = intent {
+                showNotificationsSheet = true
                 return
             }
             if isNotificationsSheetVisible {
@@ -149,8 +151,12 @@ struct MainTabView: View {
             toastOverlay
         }
         .offlineBanner()
-        .sheet(isPresented: notificationsSheetBinding, onDismiss: {
+        .sheet(isPresented: $showNotificationsSheet, onDismiss: {
             isNotificationsSheetVisible = false
+            // Clear the pending intent now that the sheet has been dismissed
+            if case .notifications = navigationCoordinator.pendingIntent {
+                navigationCoordinator.pendingIntent = nil
+            }
             AppLogger.info("app", "[MainTabView] Notifications sheet onDismiss — applying deferred intent")
             Task { @MainActor in
                 await Task.yield()
@@ -270,23 +276,6 @@ struct MainTabView: View {
             AppLogger.error("app", "Failed to accept guidelines: \(error)")
             // Keep the sheet open if acceptance fails
         }
-    }
-
-    private var notificationsSheetBinding: Binding<Bool> {
-        Binding(
-            get: {
-                if case .notifications = navigationCoordinator.pendingIntent {
-                    return true
-                }
-                return false
-            },
-            set: { isPresented in
-                guard !isPresented else { return }
-                if case .notifications = navigationCoordinator.pendingIntent {
-                    navigationCoordinator.pendingIntent = nil
-                }
-            }
-        )
     }
 
     private var announcementsTargetBinding: Binding<NavigationCoordinator.AnnouncementsNavigationTarget?> {
