@@ -11,58 +11,78 @@ import SwiftData
 /// Notifications list view for displaying in-app notifications
 struct NotificationsListView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var viewModel = NotificationsListViewModel()
-    @Environment(AppState.self) var appState
+    // Optional to prevent throwaway VM creation: @State evaluates its default
+    // on every parent body re-evaluation (unlike @StateObject's @autoclosure).
+    // Since this view lives in a .sheet closure, the parent (MainTabView)
+    // re-evaluates frequently. Lazy init in .task avoids the init/deinit storm.
+    @State private var viewModel: NotificationsListViewModel?
     @State private var announcementNavigationTarget: AnnouncementNavigationTarget?
     @State private var toastMessage: String? = nil
-    
+
     // SwiftData Query for "Zero-Spinner" experience
     @Query(sort: \SDNotification.createdAt, order: .reverse) private var sdNotifications: [SDNotification]
-    
-    var body: some View {
-        let data = viewModel.computeGroupedNotifications(sdNotifications: sdNotifications)
 
+    var body: some View {
         NavigationStack {
-            content(data: data)
-                .navigationTitle("notifications_title".localized)
-                .id("bell.notificationsList")
-                .toolbar {
-                    if !data.isEmpty && viewModel.unreadCount > 0 {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("notifications_mark_all_read".localized) {
-                                HapticManager.success()
-                                Task {
-                                    await viewModel.markAllAsRead()
-                                    toastMessage = "notifications_all_caught_up".localized
+            if let viewModel {
+                let data = viewModel.computeGroupedNotifications(sdNotifications: sdNotifications)
+                content(viewModel: viewModel, data: data)
+                    .navigationTitle("notifications_title".localized)
+                    .id("bell.notificationsList")
+                    .toolbar {
+                        if !data.isEmpty && viewModel.unreadCount > 0 {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("notifications_mark_all_read".localized) {
+                                    HapticManager.success()
+                                    Task {
+                                        await viewModel.markAllAsRead()
+                                        toastMessage = "notifications_all_caught_up".localized
+                                    }
                                 }
+                                .font(.naarsBody)
+                                .id("bell.notificationsList.markAllRead")
                             }
-                            .font(.naarsBody)
-                            .id("bell.notificationsList.markAllRead")
                         }
                     }
-                }
-                .task {
-                    viewModel.setup(modelContext: modelContext)
-                    await viewModel.loadNotifications()
-                }
-                .navigationDestination(item: $announcementNavigationTarget) { target in
-                    AnnouncementsView(scrollToNotificationId: target.id)
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .dismissNotificationsSurface)) { _ in
-                    AppLogger.info("notifications", "[NotificationsListView] Dismissing notifications surface")
-                    if case .notifications = NavigationCoordinator.shared.pendingIntent {
-                        NavigationCoordinator.shared.pendingIntent = nil
+                    .navigationDestination(item: $announcementNavigationTarget) { target in
+                        AnnouncementsView(scrollToNotificationId: target.id)
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: .dismissNotificationsSurface)) { _ in
+                        AppLogger.info("notifications", "[NotificationsListView] Dismissing notifications surface")
+                        if case .notifications = NavigationCoordinator.shared.pendingIntent {
+                            NavigationCoordinator.shared.pendingIntent = nil
+                        }
+                    }
+                    .onDisappear { viewModel.stop() }
+                    .toast(message: $toastMessage)
+            } else {
+                List {
+                    ForEach(0..<5) { _ in
+                        SkeletonNotificationRow()
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
-                .onDisappear { viewModel.stop() }
-                .toast(message: $toastMessage)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(Color.naarsBackground)
+                .navigationTitle("notifications_title".localized)
+            }
+        }
+        .task {
+            if viewModel == nil {
+                let vm = NotificationsListViewModel()
+                vm.setup(modelContext: modelContext)
+                viewModel = vm
+                await vm.loadNotifications()
+            }
         }
     }
     
     // MARK: - Subviews
     
     @ViewBuilder
-    private func content(data: GroupedNotifications) -> some View {
+    private func content(viewModel: NotificationsListViewModel, data: GroupedNotifications) -> some View {
         if viewModel.isLoading && data.isEmpty {
             List {
                 ForEach(0..<5) { _ in
@@ -89,17 +109,17 @@ struct NotificationsListView: View {
                 action: nil
             )
         } else {
-            notificationsList(data: data)
+            notificationsList(viewModel: viewModel, data: data)
         }
     }
     
     @ViewBuilder
-    private func notificationsList(data: GroupedNotifications) -> some View {
+    private func notificationsList(viewModel: NotificationsListViewModel, data: GroupedNotifications) -> some View {
         List {
             if !data.pinned.isEmpty {
                 Section {
                     ForEach(data.pinned) { group in
-                        notificationRow(for: group)
+                        notificationRow(viewModel: viewModel, for: group)
                     }
                 }
             }
@@ -107,7 +127,7 @@ struct NotificationsListView: View {
             ForEach(data.sections, id: \.date) { section in
                 Section(header: Text(dayString(section.date))) {
                     ForEach(section.groups) { group in
-                        notificationRow(for: group)
+                        notificationRow(viewModel: viewModel, for: group)
                     }
                 }
             }
@@ -127,9 +147,9 @@ struct NotificationsListView: View {
         .background(Color.naarsBackground)
         .refreshable { await viewModel.refreshNotifications() }
     }
-    
+
     @ViewBuilder
-    private func notificationRow(for group: NotificationGroup) -> some View {
+    private func notificationRow(viewModel: NotificationsListViewModel, for group: NotificationGroup) -> some View {
         NotificationRow(
             notification: group.primaryNotification,
             isReadOverride: !group.hasUnread,

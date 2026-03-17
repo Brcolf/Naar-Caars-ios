@@ -75,12 +75,14 @@ final class AppState {
 
         authService.$currentProfile
             .sink { [weak self] profile in
+                guard self?.currentUser?.id != profile?.id else { return }
                 self?.currentUser = profile
             }
             .store(in: &cancellables)
 
         authService.$isLoading
             .sink { [weak self] isLoading in
+                guard self?.isLoading != isLoading else { return }
                 self?.isLoading = isLoading
             }
             .store(in: &cancellables)
