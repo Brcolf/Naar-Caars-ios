@@ -18,6 +18,8 @@ struct LoginView: View {
     @State private var showPasswordReset = false
     @State private var showError = false
     @State private var showSuccess = false
+    @State private var didRequestCreateAccount = false
+    @State private var navigateToSignup = false
 
     enum LoginField: Hashable { case email, password }
     @FocusState private var focusedField: LoginField?
@@ -156,8 +158,9 @@ struct LoginView: View {
                                     isNewUser: false
                                 )
 
-                                // If successful, trigger AppLaunchManager to re-check auth state
-                                if appleSignInViewModel.error == nil {
+                                if appleSignInViewModel.showNoAccountSheet {
+                                    // Sheet presentation handled by binding — no action needed
+                                } else if appleSignInViewModel.error == nil {
                                     await AppLaunchManager.shared.performCriticalLaunch()
                                 } else {
                                     showError = true
@@ -184,6 +187,20 @@ struct LoginView: View {
         }
         .sheet(isPresented: $showPasswordReset) {
             PasswordResetView()
+        }
+        .sheet(isPresented: $appleSignInViewModel.showNoAccountSheet, onDismiss: {
+            // Set navigateToSignup ONLY after the sheet animation completes.
+            // This avoids the known SwiftUI race where setting navigation state
+            // during a sheet dismiss causes the push to silently fail.
+            if didRequestCreateAccount {
+                didRequestCreateAccount = false
+                navigateToSignup = true
+            }
+        }) {
+            NoAccountFoundSheet(didRequestCreateAccount: $didRequestCreateAccount)
+        }
+        .navigationDestination(isPresented: $navigateToSignup) {
+            SignupInviteCodeView()
         }
         .alert("common_error".localized, isPresented: $showError) {
             Button("common_ok".localized, role: .cancel) {}
