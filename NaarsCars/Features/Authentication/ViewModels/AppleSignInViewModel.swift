@@ -15,6 +15,7 @@ internal import Combine
 final class AppleSignInViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: AppError?
+    @Published var showNoAccountSheet = false
     
     private(set) var currentNonce: String?
     private let authService: any AuthServiceProtocol
@@ -49,6 +50,7 @@ final class AppleSignInViewModel: ObservableObject {
     ) async {
         isLoading = true
         error = nil
+        showNoAccountSheet = false
         
         switch result {
         case .success(let authorization):
@@ -68,10 +70,15 @@ final class AppleSignInViewModel: ObservableObject {
                     )
                 } else {
                     // Existing user login with Apple
-                    try await authService.logInWithApple(
+                    let result = try await authService.logInWithApple(
                         credential: credential,
                         rawNonce: currentNonce
                     )
+                    if result == .noAccountFound {
+                        showNoAccountSheet = true
+                        isLoading = false
+                        return
+                    }
                 }
             } catch let authError {
                 self.error = authError as? AppError ?? .unknown(authError.localizedDescription)
