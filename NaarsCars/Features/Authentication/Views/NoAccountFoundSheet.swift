@@ -22,7 +22,7 @@ struct NoAccountFoundSheet: View {
 
             Image(systemName: "person.crop.circle.badge.plus")
                 .font(.system(size: 56))
-                .foregroundStyle(.naarsPrimary)
+                .foregroundColor(.naarsPrimary)
                 .accessibilityHidden(true)
 
             Text("auth_create_account_needed_title".localized)
