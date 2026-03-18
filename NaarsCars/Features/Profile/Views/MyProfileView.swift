@@ -12,7 +12,6 @@ import PhotosUI
 struct MyProfileView: View {
     @StateObject private var viewModel = MyProfileViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
-    @Environment(AppState.self) var appState
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false
     @State private var showImagePicker = false
@@ -94,30 +93,12 @@ struct MyProfileView: View {
                             LoadingView(message: "profile_loading".localized)
                         } else {
                             // Check if we have a user ID to retry with
-                            let hasUserId = appState.currentUser?.id != nil || AuthService.shared.currentUserId != nil
-                            
-                            if hasUserId {
+                            if let userId = AuthService.shared.currentUserId {
                                 ErrorView(
                                     error: (viewModel.error ?? AppError.unknown("Failed to load profile")).localizedDescription,
                                     retryAction: {
-                                        // Try to get user ID from appState first, fallback to AuthService
-                                        let userId: UUID?
-                                        if let appStateUserId = appState.currentUser?.id {
-                                            userId = appStateUserId
-                                        } else if let authUserId = AuthService.shared.currentUserId {
-                                            userId = authUserId
-                                            // Update appState if we found a user via AuthService
-                                            Task {
-                                                await appState.checkAuthStatus()
-                                            }
-                                        } else {
-                                            userId = nil
-                                        }
-                                        
-                                        if let userId = userId {
-                                            Task {
-                                                await viewModel.loadProfile(userId: userId)
-                                            }
+                                        Task {
+                                            await viewModel.loadProfile(userId: userId)
                                         }
                                     }
                                 )
@@ -140,8 +121,7 @@ struct MyProfileView: View {
                                         title: "profile_retry".localized,
                                         action: {
                                             Task {
-                                                await appState.checkAuthStatus()
-                                                if let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId {
+                                                if let userId = AuthService.shared.currentUserId {
                                                     await viewModel.loadProfile(userId: userId)
                                                 }
                                             }
@@ -186,7 +166,6 @@ struct MyProfileView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
-                    .environment(appState)
             }
             .navigationDestination(isPresented: $showPendingUsersList) {
                 PendingUsersView()
@@ -196,36 +175,12 @@ struct MyProfileView: View {
                     .onDisappear { autoOpenAdminReports = false }
             }
             .refreshable {
-                // Try to get user ID from appState first, fallback to AuthService
-                let userId: UUID?
-                if let appStateUserId = appState.currentUser?.id {
-                    userId = appStateUserId
-                } else if let authUserId = AuthService.shared.currentUserId {
-                    userId = authUserId
-                } else {
-                    userId = nil
-                }
-                
-                if let userId = userId {
+                if let userId = AuthService.shared.currentUserId {
                     await viewModel.refreshProfile(userId: userId)
                 }
             }
             .task {
-                // Try to get user ID from appState first, fallback to AuthService
-                let userId: UUID?
-                if let appStateUserId = appState.currentUser?.id {
-                    userId = appStateUserId
-                } else if let authUserId = AuthService.shared.currentUserId {
-                    userId = authUserId
-                    // Update appState if we found a user via AuthService
-                    Task {
-                        await appState.checkAuthStatus()
-                    }
-                } else {
-                    userId = nil
-                }
-                
-                if let userId = userId {
+                if let userId = AuthService.shared.currentUserId {
                     async let profileTask: Void = viewModel.loadProfile(userId: userId)
                     async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
                     await profileTask
@@ -302,7 +257,7 @@ struct MyProfileView: View {
                 Text("profile_account_deleted_message".localized)
             }
             .sheet(isPresented: $showInvitationWorkflow) {
-                if let userId = appState.currentUser?.id {
+                if let userId = AuthService.shared.currentUserId {
                     InvitationWorkflowView(userId: userId) { code in
                         // Code generated - refresh profile to show new code
                         Task {
@@ -326,7 +281,7 @@ struct MyProfileView: View {
             .onChange(of: selectedPhoto) { _, newPhoto in
                 guard let newPhoto else { return }
                 Task {
-                    guard let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId else { return }
+                    guard let userId = AuthService.shared.currentUserId else { return }
                     if let data = try? await newPhoto.loadTransferable(type: Data.self) {
                         do {
                             let _ = try await ProfileService.shared.uploadAvatar(imageData: data, userId: userId)
@@ -421,7 +376,7 @@ struct MyProfileView: View {
             
             // Only show Generate button - no status messages
             Button(action: {
-                if appState.currentUser?.id != nil {
+                if AuthService.shared.currentUserId != nil {
                     showInvitationWorkflow = true
                 }
             }) {
@@ -454,7 +409,7 @@ struct MyProfileView: View {
     private func reviewsSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             NavigationLink {
-                if let userId = appState.currentUser?.id ?? AuthService.shared.currentUserId {
+                if let userId = AuthService.shared.currentUserId {
                     AllReviewsView(userId: userId)
                 }
             } label: {
@@ -549,7 +504,7 @@ struct MyProfileView: View {
     }
     
     private func deleteAccount() async {
-        guard let userId = appState.currentUser?.id else {
+        guard let userId = AuthService.shared.currentUserId else {
             return
         }
 
@@ -626,7 +581,7 @@ struct MyProfileView: View {
             showAdminPanel = true
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):
-            if userId == (appState.currentUser?.id ?? AuthService.shared.currentUserId) {
+            if userId == AuthService.shared.currentUserId {
                 withAnimation(.easeInOut) {
                     proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
                 }
@@ -799,6 +754,5 @@ private typealias ReviewRow = ReviewRowView
 
 #Preview {
     MyProfileView()
-        .environment(AppState())
 }
 
