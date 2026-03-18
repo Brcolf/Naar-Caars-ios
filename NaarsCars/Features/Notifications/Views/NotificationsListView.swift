@@ -11,6 +11,7 @@ import SwiftData
 /// Notifications list view for displaying in-app notifications
 struct NotificationsListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     // Optional to prevent throwaway VM creation: @State evaluates its default
     // on every parent body re-evaluation (unlike @StateObject's @autoclosure).
     // Since this view lives in a .sheet closure, the parent (MainTabView)
@@ -52,6 +53,7 @@ struct NotificationsListView: View {
                         if case .notifications = NavigationCoordinator.shared.pendingIntent {
                             NavigationCoordinator.shared.pendingIntent = nil
                         }
+                        dismiss()
                     }
                     .onDisappear { viewModel.stop() }
                     .toast(message: $toastMessage)

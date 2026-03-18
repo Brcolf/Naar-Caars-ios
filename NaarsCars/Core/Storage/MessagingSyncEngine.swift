@@ -208,9 +208,11 @@ final class MessagingSyncEngine: SyncEngineProtocol {
             "eventType": String(describing: event.eventType)
         ]
 
-        // For insert events, include the full parsed reaction so consumers
-        // can update locally without a network round-trip.
-        if event.eventType == .insert,
+        // For insert AND update events, include the full parsed reaction so
+        // consumers can apply the change locally without an API round-trip.
+        // Upsert (reaction change) fires .update, not .insert — both carry
+        // the same record shape and must be handled identically.
+        if (event.eventType == .insert || event.eventType == .update),
            let idStr = dict["id"] as? String, let reactionId = UUID(uuidString: idStr),
            let userIdStr = dict["user_id"] as? String, let userId = UUID(uuidString: userIdStr),
            let reaction = dict["reaction"] as? String {

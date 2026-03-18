@@ -10,7 +10,7 @@ import SwiftUI
 /// Town hall feed view showing community posts
 struct TownHallFeedView: View {
     @StateObject private var viewModel = TownHallFeedViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreatePost = false
     @State private var highlightedPostId: UUID?
     @State private var highlightTask: Task<Void, Never>?

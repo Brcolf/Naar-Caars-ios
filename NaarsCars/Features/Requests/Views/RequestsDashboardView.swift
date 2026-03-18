@@ -13,7 +13,7 @@ import UIKit
 struct RequestsDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = RequestsDashboardViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
     @State private var showCreateFavor = false
     @State private var selectedRideId: UUID?
@@ -264,26 +264,42 @@ struct RequestsDashboardView: View {
     }
 }
 
+// MARK: - Filter Tile Height Preference
+
+/// Preference key that collects the maximum intrinsic tile-content height
+/// across all tiles so every tile can render at the same height.
+private struct TileHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 // MARK: - Filter Tiles View
 
 struct FilterTilesView: View {
     @Binding var selectedFilter: RequestFilter
     let badgeCounts: [RequestFilter: Int]
     let onFilterChanged: (RequestFilter) -> Void
-    
+    @State private var uniformHeight: CGFloat?
+
     var body: some View {
         HStack(spacing: Constants.Spacing.sm) {
             ForEach(RequestFilter.allCases, id: \.self) { filter in
                 FilterTile(
                     title: filter.rawValue,
                     isSelected: selectedFilter == filter,
-                    badgeCount: badgeCounts[filter] ?? 0
+                    badgeCount: badgeCounts[filter] ?? 0,
+                    uniformHeight: uniformHeight
                 ) {
                     selectedFilter = filter
                     onFilterChanged(filter)
                 }
                 .frame(maxWidth: .infinity)
             }
+        }
+        .onPreferenceChange(TileHeightKey.self) { maxHeight in
+            if maxHeight > 0 { uniformHeight = maxHeight }
         }
     }
 }
@@ -294,8 +310,9 @@ struct FilterTile: View {
     let title: String
     let isSelected: Bool
     let badgeCount: Int
+    let uniformHeight: CGFloat?
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             ZStack {
@@ -306,7 +323,14 @@ struct FilterTile: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity)
-                
+                    // Measure natural text height and report to parent
+                    .background(GeometryReader { geo in
+                        Color.clear.preference(key: TileHeightKey.self, value: geo.size.height)
+                    })
+                    // Apply uniform height once measured — forces all
+                    // text blocks to the same height so wrapping is consistent
+                    .frame(height: uniformHeight)
+
                 HStack {
                     Spacer()
                     if let badgeText {

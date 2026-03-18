@@ -11,7 +11,7 @@ import PhotosUI
 /// View for displaying and managing current user's profile
 struct MyProfileView: View {
     @StateObject private var viewModel = MyProfileViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(AppState.self) var appState
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false

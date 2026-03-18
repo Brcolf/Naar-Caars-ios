@@ -13,7 +13,7 @@ struct FavorDetailView: View {
     let favorId: UUID
     @StateObject private var viewModel = FavorDetailViewModel()
     @StateObject private var claimViewModel = ClaimViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false

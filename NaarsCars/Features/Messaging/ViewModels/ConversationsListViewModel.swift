@@ -340,17 +340,20 @@ struct MessageSearchResult: Identifiable {
             // Filter out duplicates to prevent UI glitches
             let existingIds = Set(self.conversations.map { $0.conversation.id })
             let newConversations = fetched.filter { !existingIds.contains($0.conversation.id) }
-            
+
             if !newConversations.isEmpty {
                 self.conversations.append(contentsOf: newConversations)
-                currentOffset += fetched.count 
-                AppLogger.info("messaging", "[ConversationsListVM] Loaded \(newConversations.count) more conversations. New offset: \(currentOffset)")
-            } 
-            
-            // IMPORTANT: Only mark as reached end if the server actually returned fewer than requested
-            if fetched.count < pageSize {
+                AppLogger.info("messaging", "[ConversationsListVM] Loaded \(newConversations.count) more conversations")
+            }
+
+            // Always advance the offset to avoid re-fetching the same page
+            currentOffset += fetched.count
+
+            // End of list: server returned fewer than requested, OR a full
+            // page of duplicates (no forward progress — prevents stuck spinner)
+            if fetched.count < pageSize || newConversations.isEmpty {
                 hasMoreConversations = false
-                AppLogger.info("messaging", "[ConversationsListVM] Reached the end of the conversation list (fetched \(fetched.count) < \(pageSize))")
+                AppLogger.info("messaging", "[ConversationsListVM] Reached the end of the conversation list (fetched=\(fetched.count), new=\(newConversations.count), pageSize=\(pageSize))")
             }
         } catch {
             // Don't show error if task was cancelled

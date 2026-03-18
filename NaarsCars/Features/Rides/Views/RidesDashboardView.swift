@@ -12,7 +12,7 @@ import SwiftData
 struct RidesDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = RidesDashboardViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
     @State private var selectedRideId: UUID?
     @AppStorage("rides_view_mode") private var viewMode: ViewMode = .list

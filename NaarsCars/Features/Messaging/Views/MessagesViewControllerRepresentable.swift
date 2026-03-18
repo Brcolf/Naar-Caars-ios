@@ -130,16 +130,22 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
         vc.configuration = config
 
-        // Update input bar state — use explicit UIKit methods (not controller
-        // directly) to avoid @Observable mutations inside SwiftUI render pass
+        // Update input bar state — only mutate when the mode actually changes.
+        // Without this guard, every parent body re-evaluation would call
+        // clearEditContext() which resets textView.text to "", wiping user input.
         let bar = vc.inputBar
+        let prevMode = context.coordinator.lastInputMode
         if let edit = editingMessage {
             bar.setEditContext(text: edit.text, messageId: edit.id)
+            context.coordinator.lastInputMode = .editing
         } else if let reply = replyContext {
             bar.setReplyContext(reply)
+            context.coordinator.lastInputMode = .replying
         } else {
-            bar.clearReplyContext()
-            bar.clearEditContext()
+            // Only clear when transitioning OUT of reply/edit mode
+            if prevMode == .replying { bar.clearReplyContext() }
+            if prevMode == .editing  { bar.clearEditContext() }
+            context.coordinator.lastInputMode = .normal
         }
 
         bar.setImagePreview(imageToSend)
@@ -147,9 +153,14 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
     // MARK: - Coordinator
 
+    enum InputMode { case normal, replying, editing }
+
     class Coordinator: NSObject, MessageInputDelegate {
         var parent: MessagesViewControllerRepresentable
         weak var viewController: MessagesViewController?
+        /// Tracks the last input-bar mode so updateUIViewController only
+        /// clears reply/edit state on actual mode transitions, not every call.
+        var lastInputMode: InputMode = .normal
 
         init(parent: MessagesViewControllerRepresentable) {
             self.parent = parent

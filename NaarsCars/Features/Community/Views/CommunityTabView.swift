@@ -10,7 +10,7 @@ import SwiftUI
 /// Unified Community tab that combines Town Hall and Leaderboard
 struct CommunityTabView: View {
     @State private var selectedView: CommunityView = .townHall
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     
     enum CommunityView: String, CaseIterable {
         case townHall = "community_town_hall"

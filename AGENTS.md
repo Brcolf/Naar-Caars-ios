@@ -44,8 +44,8 @@ These instructions apply to all work in this repository. Follow them unless the 
 
 ## Xcode and new files
 
-- **Do not edit `project.pbxproj`** to add new Swift (or other) files.
-- When you create a **new file** that must be part of the app target, **tell the user** clearly: state the file path (e.g. `NaarsCars/Features/Favors/Views/MyNewView.swift`) and ask them to add it to the Xcode project manually (File → Add Files to "NaarsCars"… or drag into the correct group).
+- **Do not edit `project.pbxproj`** to add new Swift files. Xcode uses filesystem-synced groups (`PBXFileSystemSynchronizedRootGroup`), so new `.swift` files placed under `NaarsCars/NaarsCars/`, `NaarsCars/NaarsCarsTests/`, or `NaarsCars/NaarsCarsUITests/` are auto-discovered by Xcode — no manual add step needed.
+- When you create a **new file**, state the file path clearly (e.g. `NaarsCars/Features/Favors/Views/MyNewView.swift`).
 
 ## Secrets and build
 

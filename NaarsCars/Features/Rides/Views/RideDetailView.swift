@@ -13,7 +13,7 @@ struct RideDetailView: View {
     let rideId: UUID
     @StateObject private var viewModel = RideDetailViewModel()
     @StateObject private var claimViewModel = ClaimViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showEditRide = false
     @State private var showDeleteAlert = false

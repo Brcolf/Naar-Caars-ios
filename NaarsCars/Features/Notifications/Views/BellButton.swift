@@ -13,7 +13,6 @@ struct BellButton: View {
     let action: () -> Void
 
     var body: some View {
-        let _ = print("[BellButton] body evaluated — bell=\(badgeManager.counts.bell)")
         Button(action: {
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.prepare()

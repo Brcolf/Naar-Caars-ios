@@ -12,7 +12,7 @@ import PostgREST
 /// View for displaying list of conversations
 struct ConversationsListView: View {
     @State private var viewModel = ConversationsListViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(AppState.self) var appState
     @State private var showNewMessage = false
     @State private var selectedUserIds: Set<UUID> = []
@@ -232,7 +232,6 @@ struct ConversationsListView: View {
     }
     
     var body: some View {
-        let _ = print("[ConversationsListView] body evaluated")
         NavigationStack {
             mainContent
                 .id("messages.conversationsList")

@@ -29,12 +29,14 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **The messaging view layer is mid-UIKit refactor.** The original SwiftUI messaging components are not the reference implementation. The UIKit `MessagesCollectionView`-based implementation is the current canonical path. Do not treat SwiftUI messaging components as authoritative when they conflict with UIKit ones.
 
-**MessageInputBar.swift** has had multiple prior fixes and may have been partially or fully replaced by the UIKit refactor. Verify its current state before touching it.
+**MessageInputBar.swift** has been refactored into a thin rendering shell that reads state from `InputBarController` and delegates all mutations to it. The refactor is settled — treat `InputBarController` as the authoritative input state owner.
+
+**Swift Observation migration is partially complete.** Several ViewModels have been migrated from `ObservableObject` to `@Observable`, but this has surfaced init/deinit storms and navigation hangs (see recent commits). When touching ViewModels, check whether they use `ObservableObject` or `@Observable` and follow the existing pattern for that file. Do not opportunistically migrate additional ViewModels without explicit approval.
 
 **Critical active risks:**
 - Supabase Realtime callbacks arrive on background threads and must be marshalled to the main actor before reaching UIKit views
-- The `MessageInputBar.swift` component's state post-refactor is uncertain — inspect before editing
-- Any regression of previously-fixed App Store issues (account deletion, moderation, SIWА) is a blocker
+- `@Observable` ViewModels passed through `.environment()` can cause init/deinit storms — recent fixes removed these patterns from sheets and tab views
+- Any regression of previously-fixed App Store issues (account deletion, moderation, SIWA) is a blocker
 
 ---
 
@@ -103,6 +105,10 @@ The `.git/hooks/pre-commit` hook blocks commits containing:
 ### MCP Servers
 
 Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MCP for database queries, migrations, and edge function management. Use the GitHub MCP for PR and issue operations.
+
+### Cursor Rules
+
+`.cursor/rules/` contains 9 rule files that reinforce the patterns in this document with file-glob scoping. Key rules: impact seam analysis (`01`), notification type registry consistency (`02`), centralized realtime payload parsing (`03`), badge count server contract (`04`), navigation intent pattern (`05`), SwiftData mapper mirroring (`06`), service DI via protocols (`07`), and fixture test requirements for seam changes (`08`).
 
 ---
 

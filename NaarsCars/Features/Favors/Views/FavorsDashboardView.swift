@@ -12,7 +12,7 @@ import SwiftData
 struct FavorsDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel = FavorsDashboardViewModel()
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateFavor = false
     @State private var selectedFavorId: UUID?
     @AppStorage("favors_view_mode") private var viewMode: ViewMode = .list

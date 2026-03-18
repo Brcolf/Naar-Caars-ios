@@ -296,7 +296,7 @@ final class ConversationDetailViewModel {
 
                 let eventType = notification.userInfo?["eventType"] as? String
 
-                if eventType == "insert",
+                if (eventType == "insert" || eventType == "update"),
                    let reaction = notification.userInfo?["reaction"] as? MessageReaction {
                     self.applyReactionInsert(reaction, for: messageId)
                 } else if eventType == "delete",

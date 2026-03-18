@@ -17,7 +17,7 @@ struct ConversationDetailView: View {
     let conversationId: UUID
     @State private var viewModel: ConversationDetailViewModel
     @StateObject private var participantsViewModel: ConversationParticipantsViewModel
-    @StateObject private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var debugFrameDropMonitor: DebugFrameDropMonitor
     @State private var showMessageDetails = false
     @State private var selectedUserIds: Set<UUID> = []

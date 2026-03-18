@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-internal import Combine
+import Observation
 
 /// Unified intent for notification taps; applied after the notifications sheet has dismissed.
 enum NotificationIntent: Equatable {
@@ -26,24 +26,56 @@ enum NotificationIntent: Equatable {
 }
 
 /// Global navigation coordinator for handling deep links from push notifications
+@Observable
 @MainActor
-final class NavigationCoordinator: ObservableObject {
-    
+final class NavigationCoordinator {
+
     // MARK: - Singleton
-    
+
     static let shared = NavigationCoordinator()
-    
-    // MARK: - Published Properties
-    
-    @Published var selectedTab: Tab = .requests
-    @Published var pendingIntent: NavigationIntent?
-    @Published var showReviewPrompt: Bool = false
-    @Published var reviewPromptRideId: UUID?
-    @Published var reviewPromptFavorId: UUID?
+
+    // MARK: - Observed Properties
+    //
+    // selectedTab and pendingIntent use equality-guarded setters to prevent
+    // @Observable from firing redundant change notifications on same-value
+    // assignments. Without this, the bidirectional tab-sync in MainTabView
+    // creates an infinite re-evaluation cascade.
+
+    @ObservationIgnored private var _selectedTab: Tab = .requests
+    var selectedTab: Tab {
+        get {
+            access(keyPath: \.selectedTab)
+            return _selectedTab
+        }
+        set {
+            guard _selectedTab != newValue else { return }
+            withMutation(keyPath: \.selectedTab) {
+                _selectedTab = newValue
+            }
+        }
+    }
+
+    @ObservationIgnored private var _pendingIntent: NavigationIntent?
+    var pendingIntent: NavigationIntent? {
+        get {
+            access(keyPath: \.pendingIntent)
+            return _pendingIntent
+        }
+        set {
+            guard _pendingIntent != newValue else { return }
+            withMutation(keyPath: \.pendingIntent) {
+                _pendingIntent = newValue
+            }
+        }
+    }
+
+    var showReviewPrompt: Bool = false
+    var reviewPromptRideId: UUID?
+    var reviewPromptFavorId: UUID?
     /// Set when applying deferred .showRequestCompletion; MainTabView enqueues completion prompt then clears.
-    @Published var pendingCompletionPromptFromDeferred: (RequestType, UUID)?
-    @Published var pendingDeepLink: DeepLink?
-    @Published var showDeepLinkConfirmation: Bool = false
+    var pendingCompletionPromptFromDeferred: (RequestType, UUID)?
+    var pendingDeepLink: DeepLink?
+    var showDeepLinkConfirmation: Bool = false
     
     // MARK: - Tab Enum
     
