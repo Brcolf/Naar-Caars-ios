@@ -8,6 +8,7 @@
 import Foundation
 import Security
 import Supabase
+import PostgREST
 import AuthenticationServices
 import OSLog
 
@@ -155,8 +156,9 @@ extension AuthService {
     
     /// Handle Apple Sign-In for existing users (login flow)
     /// - Parameter credential: Apple ID credential from ASAuthorization
-    /// - Throws: AppError if login fails
-    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String? = nil) async throws {
+    /// - Returns: `.success` if profile found, `.noAccountFound` if no profile exists
+    /// - Throws: AppError for real failures (network, token, server errors)
+    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String? = nil) async throws -> AppleLoginResult {
         isLoading = true
         defer { isLoading = false }
 
@@ -165,8 +167,9 @@ extension AuthService {
             throw AppError.unknown("Failed to get Apple identity token")
         }
 
-        // Sign in with Supabase using Apple token
-        // The rawNonce must match the SHA256 hash embedded in the id_token
+        // signInWithIdToken creates a Supabase session (and possibly a new auth
+        // user). If no profile exists, we must clean up BOTH the server-side
+        // auth user AND the local session before returning .noAccountFound.
         let session = try await SupabaseService.shared.client.auth.signInWithIdToken(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
@@ -194,15 +197,28 @@ extension AuthService {
             AppleUserKeychain.save(credential.user)
 
             AppLogger.auth.info("User logged in with Apple: \(userId), approved: \(profile.approved)")
+            return .success
         } catch {
-            // No profile exists for this Apple auth user.
-            // Clean up the orphaned auth user to avoid blocking future signups.
-            AppLogger.auth.warning("Apple login succeeded but no profile found for user \(userId). Cleaning up.")
+            // Distinguish "no profile exists" from transient failures.
+            // Only PostgREST "no rows" errors are treated as .noAccountFound.
+            // All other errors (network, decode, server 500) are re-thrown
+            // so the existing error alert fires in the UI.
+            guard isProfileNotFoundError(error) else {
+                throw error
+            }
+
+            AppLogger.auth.warning("Apple login: no profile for user \(userId). Cleaning up.")
+
+            // 1. Delete the orphaned server-side auth user (idempotent, never throws)
             await cleanupOrphanedAuthUser(userIdString: userIdString)
 
-            throw AppError.processingError(
-                "No account found for this Apple ID. If you chose \"Hide My Email\", Apple uses a private address that can't be matched to your account. Please sign in with email and password, then link your Apple ID in Settings. If you re-try and choose to share your real email, it will link automatically."
-            )
+            // 2. Clear the local Supabase session that signInWithIdToken created.
+            //    Use the raw Supabase client — NOT AuthService.signOut() — to avoid
+            //    firing .userDidSignOut notifications or tearing down sync engines
+            //    for a login that never completed.
+            try? await SupabaseService.shared.client.auth.signOut()
+
+            return .noAccountFound
         }
     }
     
@@ -406,6 +422,25 @@ extension AuthService {
         }
     }
     
+    /// Check if an error indicates "no rows returned" from a `.single()` query.
+    /// Uses typed `PostgrestError` check, matching the pattern in `ConversationService`
+    /// and `BadgeCountManager`. Only `PostgrestError` passes — `URLError`, `DecodingError`,
+    /// and other failure types return `false` and get re-thrown as real errors.
+    private func isProfileNotFoundError(_ error: Error) -> Bool {
+        guard let pgError = error as? PostgrestError else {
+            return false
+        }
+        // Primary: PostgREST error code for ".single() returned 0 rows"
+        if pgError.code == "PGRST116" {
+            return true
+        }
+        // Fallback: message matching for SDK/PostgREST version variance.
+        // The .single() modifier produces "JSON object requested, multiple (or no)
+        // rows returned" — check the structured message field, not localizedDescription.
+        let msg = pgError.message.lowercased()
+        return msg.contains("json object requested") || msg.contains("0 rows")
+    }
+
     // MARK: - Account Deletion with Apple Token Revocation
 
     /// Revoke Apple Sign-In authorization before account deletion.

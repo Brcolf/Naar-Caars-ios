@@ -6,6 +6,13 @@
 import Foundation
 import AuthenticationServices
 
+/// Result of an Apple login attempt. `.noAccountFound` is not an error —
+/// it means Apple auth succeeded but no Naar's Cars profile exists.
+enum AppleLoginResult: Sendable {
+    case success
+    case noAccountFound
+}
+
 protocol AuthServiceProtocol: AnyObject {
     var currentUserId: UUID? { get }
     var currentProfile: Profile? { get }
@@ -16,5 +23,5 @@ protocol AuthServiceProtocol: AnyObject {
     func sendPasswordReset(email: String) async throws
     func validateInviteCode(_ code: String) async throws -> InviteCode
     func signUpWithApple(credential: ASAuthorizationAppleIDCredential, inviteCodeId: UUID, rawNonce: String?) async throws
-    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws
+    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws -> AppleLoginResult
 }
