@@ -5375,6 +5375,50 @@
         }
       }
     },
+    "auth_create_account_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Account"
+          }
+        }
+      }
+    },
+    "auth_create_account_needed_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks like you're new here! To get started, you'll need an invite code from a current member."
+          }
+        }
+      }
+    },
+    "auth_create_account_needed_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you already have an account, try signing in with your email and password."
+          }
+        }
+      }
+    },
+    "auth_create_account_needed_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welcome to Naar's Cars"
+          }
+        }
+      }
+    },
     "auth_error_email_required" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6027,6 +6071,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "註冊"
+          }
+        }
+      }
+    },
+    "auth_use_email_instead_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Email Instead"
           }
         }
       }
