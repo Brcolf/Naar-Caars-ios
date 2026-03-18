@@ -134,8 +134,36 @@ extension AuthService {
         )
         
         // 6. Mark invite code as used (or create tracking record for bulk codes)
-        // Use InviteService to handle bulk vs non-bulk codes correctly
-        try await InviteService.shared.markInviteCodeAsUsed(inviteCode: inviteCode, userId: userId)
+        // Uses RPC function with SECURITY DEFINER to bypass RLS
+        // (direct UPDATE on invite_codes hits RLS WITH CHECK failures
+        //  because auth.uid() may not match during signup)
+        var inviteParams: [String: String?] = [
+            "p_invite_code_id": inviteCode.id.uuidString,
+            "p_user_id": userIdString,
+            "p_is_bulk": inviteCode.isBulk ? "true" : "false"
+        ]
+        if let bulkCodeId = inviteCode.bulkCodeId {
+            inviteParams["p_bulk_code_id"] = bulkCodeId.uuidString
+        }
+
+        struct MarkInviteResponse: Decodable {
+            let success: Bool
+            let error: String?
+            let message: String?
+        }
+
+        let inviteResponse: MarkInviteResponse = try await SupabaseService.shared.client
+            .rpc("mark_invite_code_used", params: inviteParams)
+            .execute()
+            .value
+
+        if !inviteResponse.success {
+            let errorMsg = inviteResponse.error ?? "Unknown error"
+            AppLogger.auth.warning("Failed to mark invite code as used: \(errorMsg)")
+            // Don't throw - profile was created successfully, this is non-critical
+        } else {
+            AppLogger.auth.info("Invite code marked as used: \(inviteResponse.message ?? "")")
+        }
         
         // 7. Fetch profile and update local state
         // Use ProfileService to fetch profile since fetchCurrentProfile is private
