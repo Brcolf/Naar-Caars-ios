@@ -358,7 +358,7 @@ extension AuthService {
         let hasNonAppleIdentity = identities.contains { $0.provider != "apple" }
         guard hasNonAppleIdentity else {
             AppLogger.auth.warning("Unlink blocked: Apple is the only identity for user \(userId)")
-            throw AppError.processingError("Cannot unlink Apple ID — it is your only sign-in method. Please add a password first.")
+            throw AppError.processingError("auth_apple_unlink_only_method".localized)
         }
 
         // Revoke Apple authorization with Apple's servers (shared helper)
@@ -378,7 +378,7 @@ extension AuthService {
         guard response.success else {
             let errorMsg = response.error ?? "Unknown error"
             AppLogger.auth.error("Server unlink failed: \(errorMsg)")
-            throw AppError.processingError("Failed to unlink Apple ID: \(errorMsg)")
+            throw AppError.processingError(String(format: "auth_apple_unlink_failed".localized, errorMsg))
         }
 
         // Refresh session so the cached identities array reflects the removal
@@ -531,7 +531,7 @@ extension AuthService {
             AppLogger.auth.info("Apple token revoked via Edge Function")
         } catch {
             AppLogger.auth.error("Apple revocation edge function failed: \(error.localizedDescription)")
-            throw AppError.processingError("Failed to revoke Apple Sign-In: \(error.localizedDescription)")
+            throw AppError.processingError(String(format: "auth_apple_revoke_failed".localized, error.localizedDescription))
         }
 
         // Clean up local Keychain
@@ -586,7 +586,7 @@ private final class AppleRevocationDelegate: NSObject, ASAuthorizationController
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let codeData = credential.authorizationCode,
               let code = String(data: codeData, encoding: .utf8) else {
-            cont.resume(throwing: AppError.processingError("Failed to obtain authorization code from Apple"))
+            cont.resume(throwing: AppError.processingError("auth_apple_auth_code_failed".localized))
             return
         }
         cont.resume(returning: code)
@@ -597,9 +597,9 @@ private final class AppleRevocationDelegate: NSObject, ASAuthorizationController
         continuation = nil
 
         if let authError = error as? ASAuthorizationError, authError.code == .canceled {
-            cont.resume(throwing: AppError.processingError("Account deletion requires Apple Sign-In confirmation. Please try again."))
+            cont.resume(throwing: AppError.processingError("auth_apple_deletion_requires_signin".localized))
         } else {
-            cont.resume(throwing: AppError.processingError("Apple Sign-In failed: \(error.localizedDescription)"))
+            cont.resume(throwing: AppError.processingError(String(format: "auth_apple_signin_failed".localized, error.localizedDescription)))
         }
     }
 }
