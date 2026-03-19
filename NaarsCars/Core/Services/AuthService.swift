@@ -601,11 +601,21 @@ final class AuthService: ObservableObject {
         return decoder
     }
     
-    /// Handle sign out with complete cleanup
-    /// Tears down subscriptions and caches FIRST, then clears state and notifies.
-    /// This ordering prevents races where listeners react to the notification
-    /// while cleanup is still in progress.
+    /// Handle sign out with complete cleanup.
+    /// Clears state and posts notification FIRST so the UI transitions immediately,
+    /// then tears down subscriptions, caches, and sync engines in the background.
+    /// A reentrancy guard prevents concurrent calls from overlapping cleanup.
+    private var isSigningOut = false
+
     private func handleSignOut() async {
+        // Reentrancy guard — prevent multiple concurrent teardowns
+        guard !isSigningOut else {
+            AppLogger.auth.debug("handleSignOut() skipped — already in progress")
+            return
+        }
+        isSigningOut = true
+        defer { isSigningOut = false }
+
         AppLogger.auth.debug("handleSignOut() started")
         let userIdToRemove = currentUserId
 
@@ -620,7 +630,16 @@ final class AuthService: ObservableObject {
             isAdmin: false
         )
 
-        // --- Teardown phase: clean up all resources before state changes ---
+        // --- State change phase: clear state and notify FIRST for immediate UI transition ---
+
+        currentUserId = nil
+        currentProfile = nil
+        AppLogger.auth.debug("Local state cleared")
+
+        AppLogger.auth.debug("Posting userDidSignOut notification")
+        NotificationCenter.default.post(name: .userDidSignOut, object: nil, userInfo: nil)
+
+        // --- Teardown phase: clean up resources after UI has transitioned ---
 
         if let userId = userIdToRemove {
             try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
@@ -637,17 +656,6 @@ final class AuthService: ObservableObject {
 
         // Ensure sync engines release subscriptions and reset lifecycle state.
         await SyncEngineOrchestrator.shared.teardownAll()
-
-        // --- State change phase: clear state and notify after cleanup is done ---
-
-        await MainActor.run {
-            currentUserId = nil
-            currentProfile = nil
-            AppLogger.auth.debug("Local state cleared")
-
-            AppLogger.auth.debug("Posting userDidSignOut notification")
-            NotificationCenter.default.post(name: .userDidSignOut, object: nil, userInfo: nil)
-        }
 
         AppLogger.auth.info("Sign out cleanup completed")
     }
