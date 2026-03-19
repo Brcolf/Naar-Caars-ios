@@ -1357,6 +1357,17 @@
         }
       }
     },
+    "admin_actions_header" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Admin Actions"
+          }
+        }
+      }
+    },
     "admin_active_requests_title" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1938,6 +1949,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標題"
+          }
+        }
+      }
+    },
+    "admin_cannot_restrict_self" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You cannot restrict your own account"
           }
         }
       }
@@ -3738,6 +3760,83 @@
         }
       }
     },
+    "admin_remove_restriction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Restriction"
+          }
+        }
+      }
+    },
+    "admin_remove_restriction_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to remove the restriction on this user?"
+          }
+        }
+      }
+    },
+    "admin_restrict_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restrict"
+          }
+        }
+      }
+    },
+    "admin_restrict_confirm_message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will immediately restrict this user's access to the app. They will be notified."
+          }
+        }
+      }
+    },
+    "admin_restrict_reason_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Describe why this user is being restricted"
+          }
+        }
+      }
+    },
+    "admin_restrict_reason_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reason for restriction"
+          }
+        }
+      }
+    },
+    "admin_restrict_user" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restrict User"
+          }
+        }
+      }
+    },
     "admin_requests_fulfilled_label" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4386,6 +4485,17 @@
         }
       }
     },
+    "admin_user_restricted_badge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restricted"
+          }
+        }
+      }
+    },
     "admin_verifying_access" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4423,6 +4533,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在驗證存取權限..."
+          }
+        }
+      }
+    },
+    "admin_view_profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Profile"
           }
         }
       }
@@ -7166,6 +7287,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連續冠軍"
+          }
+        }
+      }
+    },
+    "banned_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account has been restricted due to a violation of our community guidelines. If you believe this is an error, please contact support."
+          }
+        }
+      }
+    },
+    "banned_contact_support" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact Support"
+          }
+        }
+      }
+    },
+    "banned_delete_account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account"
+          }
+        }
+      }
+    },
+    "banned_push_notification" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Naar's Cars account has been restricted. Open the app for details."
+          }
+        }
+      }
+    },
+    "banned_reason_fallback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No reason provided. Contact support for details."
+          }
+        }
+      }
+    },
+    "banned_reason_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reason"
+          }
+        }
+      }
+    },
+    "banned_sign_out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        }
+      }
+    },
+    "banned_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account has been restricted"
           }
         }
       }
