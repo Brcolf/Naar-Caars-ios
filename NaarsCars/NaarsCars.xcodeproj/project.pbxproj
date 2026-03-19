@@ -295,6 +295,7 @@
 		ACBF4AE32F12CB30006A7C8A /* PendingUserDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADD2F12CB30006A7C8A /* PendingUserDetailView.swift */; };
 		ACBF4AE42F12CB30006A7C8A /* UserManagementViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4AD82F12CB30006A7C8A /* UserManagementViewModel.swift */; };
 		ACBF4AE52F12CB30006A7C8A /* UserManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADF2F12CB30006A7C8A /* UserManagementView.swift */; };
+		C9E5DEACEB49342E093CC1B6 /* MemberDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 288960E15E6F358B6D3F77A7 /* MemberDetailView.swift */; };
 		ACBF4AE62F12CB30006A7C8A /* AdminPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADB2F12CB30006A7C8A /* AdminPanelView.swift */; };
 		ACBF4AE72F12CB30006A7C8A /* BroadcastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADC2F12CB30006A7C8A /* BroadcastView.swift */; };
 		ACBF4AE82F12CB30006A7C8A /* PendingUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4ADE2F12CB30006A7C8A /* PendingUsersView.swift */; };
@@ -791,6 +792,7 @@
 		ACBF4ADD2F12CB30006A7C8A /* PendingUserDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUserDetailView.swift; sourceTree = "<group>"; };
 		ACBF4ADE2F12CB30006A7C8A /* PendingUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUsersView.swift; sourceTree = "<group>"; };
 		ACBF4ADF2F12CB30006A7C8A /* UserManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManagementView.swift; sourceTree = "<group>"; };
+		288960E15E6F358B6D3F77A7 /* MemberDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDetailView.swift; sourceTree = "<group>"; };
 		ACBF4AEB2F12CB3D006A7C8A /* LeaderboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardViewModel.swift; sourceTree = "<group>"; };
 		ACBF4AED2F12CB3D006A7C8A /* LeaderboardRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardRow.swift; sourceTree = "<group>"; };
 		ACBF4AEE2F12CB3D006A7C8A /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
@@ -1518,6 +1520,7 @@
 				ACBF4ADD2F12CB30006A7C8A /* PendingUserDetailView.swift */,
 				ACBF4ADE2F12CB30006A7C8A /* PendingUsersView.swift */,
 				ACBF4ADF2F12CB30006A7C8A /* UserManagementView.swift */,
+				288960E15E6F358B6D3F77A7 /* MemberDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2553,6 +2556,7 @@
 				ACBF4AE32F12CB30006A7C8A /* PendingUserDetailView.swift in Sources */,
 				ACBF4AE42F12CB30006A7C8A /* UserManagementViewModel.swift in Sources */,
 				ACBF4AE52F12CB30006A7C8A /* UserManagementView.swift in Sources */,
+				C9E5DEACEB49342E093CC1B6 /* MemberDetailView.swift in Sources */,
 				AC4F1E0C2F21C0C900CC5DBA /* RequestNotificationMapping.swift in Sources */,
 				AC4F1E0D2F21C0C900CC5DBA /* NotificationGrouping.swift in Sources */,
 				ACD19A4F2F14D269009C1DE5 /* JSONDecoderFactory.swift in Sources */,
