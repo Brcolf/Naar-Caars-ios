@@ -122,22 +122,35 @@ struct MessageSearchResult: Identifiable {
 
     /// Hide conversations where every other participant is blocked.
     /// Group conversations with at least one non-blocked participant remain visible.
+    /// Checks both otherParticipants (Profile) and conversation.participants (ConversationParticipant)
+    /// because otherParticipants may not yet be hydrated when loading from SwiftData.
     private func filterBlockedConversations(_ conversations: [ConversationWithDetails]) -> [ConversationWithDetails] {
-        conversations.filter { convo in
-            let others = convo.otherParticipants
-            guard !others.isEmpty else { return true }
-            // Keep the conversation if at least one participant is NOT blocked
-            return others.contains { !MessageService.shared.isBlocked($0.id) }
+        guard let currentUserId = authService.currentUserId else { return conversations }
+        return conversations.filter { convo in
+            // Use otherParticipants (Profile objects) if available
+            if !convo.otherParticipants.isEmpty {
+                return convo.otherParticipants.contains { !MessageService.shared.isBlocked($0.id) }
+            }
+            // Fall back to conversation.participants (ConversationParticipant with userId)
+            if let participants = convo.conversation.participants {
+                let otherIds = participants.compactMap { $0.userId != currentUserId ? $0.userId : nil }
+                guard !otherIds.isEmpty else { return true }
+                return otherIds.contains { !MessageService.shared.isBlocked($0) }
+            }
+            // No participant data yet — keep for now, will be re-filtered after hydration
+            return true
         }
     }
     
     private func recomputeFilteredConversations() {
+        // Always apply blocked filter on the output the view reads
+        let blockedFiltered = filterBlockedConversations(conversations)
         let newFiltered: [ConversationWithDetails]
         if searchText.isEmpty {
-            newFiltered = conversations
+            newFiltered = blockedFiltered
         } else {
             let query = searchText.lowercased()
-            newFiltered = conversations.filter { convo in
+            newFiltered = blockedFiltered.filter { convo in
                 // Search in conversation title
                 if let title = convo.conversation.title?.lowercased(),
                    title.contains(query) {
