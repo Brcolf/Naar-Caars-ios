@@ -449,6 +449,9 @@
 		THREAD000000000000000B1 /* Features/Messaging/Views/MessageThreadViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = THREAD000000000000000A1 /* Features/Messaging/Views/MessageThreadViewController.swift */; };
 		THREAD000000000000000B2 /* Features/Messaging/Views/MessageThreadRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = THREAD000000000000000A2 /* Features/Messaging/Views/MessageThreadRepresentable.swift */; };
 		THREAD000000000000000B3 /* MessageThreadViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = THREAD000000000000000A3 /* MessageThreadViewModel.swift */; };
+		F1038ADCF9B8304BBB6755C1 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C355237CBEC66D52CDB81B38 /* WelcomeView.swift */; };
+		BDEC40AA79CACB7F0B3FFF58 /* ApplicationFieldsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9C853D4E5C8E6CD58D5A7D /* ApplicationFieldsView.swift */; };
+		BAN0ACC7V1EW00000000BLD1 /* BannedAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAN0ACC7V1EW00000000F1L3 /* BannedAccountView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -961,6 +964,9 @@
 		THREAD000000000000000A1 /* Features/Messaging/Views/MessageThreadViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/Views/MessageThreadViewController.swift; sourceTree = "<group>"; };
 		THREAD000000000000000A2 /* Features/Messaging/Views/MessageThreadRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/Views/MessageThreadRepresentable.swift; sourceTree = "<group>"; };
 		THREAD000000000000000A3 /* MessageThreadViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageThreadViewModel.swift; sourceTree = "<group>"; };
+		C355237CBEC66D52CDB81B38 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		3A9C853D4E5C8E6CD58D5A7D /* ApplicationFieldsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationFieldsView.swift; sourceTree = "<group>"; };
+		BAN0ACC7V1EW00000000F1L3 /* BannedAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BannedAccountView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1240,6 +1246,9 @@
 				ACBF4B132F12CC04006A7C8A /* SignupMethodChoiceView.swift */,
 				03990DC39B9C496E874B5FC9 /* NoAccountFoundSheet.swift */,
 				AC305EEC2F0DB7BD0063AFDF /* LoginView.swift */,
+				C355237CBEC66D52CDB81B38 /* WelcomeView.swift */,
+				3A9C853D4E5C8E6CD58D5A7D /* ApplicationFieldsView.swift */,
+				BAN0ACC7V1EW00000000F1L3 /* BannedAccountView.swift */,
 				AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */,
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
 				AC305EEF2F0DB7BD0063AFDF /* SignupInviteCodeView.swift */,
@@ -2458,6 +2467,9 @@
 				AC305EF12F0DB7BD0063AFDF /* SignupViewModel.swift in Sources */,
 				E01A23F3B5354449AED53D3E /* NoAccountFoundSheet.swift in Sources */,
 				AC305EF22F0DB7BD0063AFDF /* LoginView.swift in Sources */,
+				F1038ADCF9B8304BBB6755C1 /* WelcomeView.swift in Sources */,
+				BDEC40AA79CACB7F0B3FFF58 /* ApplicationFieldsView.swift in Sources */,
+				BAN0ACC7V1EW00000000BLD1 /* BannedAccountView.swift in Sources */,
 				AC305EF32F0DB7BD0063AFDF /* LoginViewModel.swift in Sources */,
 				AC8197AD2F14C271003BB08B /* ReviewService.swift in Sources */,
 				AC8197AE2F14C271003BB08B /* BadgeCountManager.swift in Sources */,

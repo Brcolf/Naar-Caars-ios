@@ -50,8 +50,7 @@ struct ContentView: View {
                         PendingApprovalView()
 
                     case .banned:
-                        // Placeholder — replaced by BannedAccountView in Task 6
-                        Text("account_banned".localized)
+                        BannedAccountView()
 
                     case .authenticated:
                         MainTabView()
