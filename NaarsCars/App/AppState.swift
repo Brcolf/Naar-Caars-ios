@@ -56,12 +56,16 @@ final class AppState {
         guard let user = currentUser else {
             return .unauthenticated
         }
-        
-        if !user.approved {
+
+        if user.isBanned {
+            return .banned
+        } else if user.approved {
+            return .authenticated
+        } else if !user.applicationComplete {
+            return .needsApplication
+        } else {
             return .pendingApproval
         }
-        
-        return .authenticated
     }
     
     // MARK: - Initialization

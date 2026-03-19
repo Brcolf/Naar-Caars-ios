@@ -19,7 +19,7 @@ struct ContentView: View {
 
     private var isAuthenticated: Bool {
         if case .ready(let authState) = launchManager.state {
-            return authState == .authenticated || authState == .pendingApproval
+            return authState == .authenticated || authState == .pendingApproval || authState == .needsApplication
         }
         return false
     }
@@ -38,11 +38,20 @@ struct ContentView: View {
 
                     case .unauthenticated:
                         NavigationStack {
-                            LoginView()
+                            WelcomeView()
+                        }
+
+                    case .needsApplication:
+                        NavigationStack {
+                            ApplicationFieldsView()
                         }
 
                     case .pendingApproval:
                         PendingApprovalView()
+
+                    case .banned:
+                        // Placeholder — replaced by BannedAccountView in Task 6
+                        Text("account_banned".localized)
 
                     case .authenticated:
                         MainTabView()

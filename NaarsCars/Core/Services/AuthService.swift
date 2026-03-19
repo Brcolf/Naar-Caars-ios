@@ -67,13 +67,17 @@ final class AuthService: ObservableObject {
                 currentUserId = userId
                 currentProfile = profile
                 
-                // Check approval status
-                if !profile.approved {
-                    await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
-                    return .pendingApproval
-                } else {
-                    await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
+                await PushNotificationService.shared.registerStoredDeviceTokenIfNeeded(userId: userId)
+
+                // Check account lifecycle: ban → approval → authenticated
+                if profile.isBanned {
+                    return .banned
+                } else if profile.approved {
                     return .authenticated
+                } else if !profile.applicationComplete {
+                    return .needsApplication
+                } else {
+                    return .pendingApproval
                 }
             } else {
                 // Session exists but profile doesn't (data inconsistency)
@@ -215,15 +219,14 @@ final class AuthService: ObservableObject {
         }
     }
     
-    /// Sign up with email, password, name, car, and invite code ID
+    /// Sign up with email and password (public signup — no invite code required)
     /// - Parameters:
     ///   - email: User's email address
     ///   - password: User's password
     ///   - name: User's full name
     ///   - car: User's car (optional)
-    ///   - inviteCodeId: ID of validated invite code
     /// - Throws: AppError if sign up fails
-    func signUp(email: String, password: String, name: String, car: String?, inviteCodeId: UUID) async throws {
+    func signUp(email: String, password: String, name: String, car: String?) async throws {
         isLoading = true
         defer { isLoading = false }
 
@@ -231,19 +234,7 @@ final class AuthService: ObservableObject {
         var createdAuthUserId: String?
 
         do {
-            // 1. Fetch invite code to get createdBy for profile
-            let inviteCodeResponse = try await supabase.client
-                .from("invite_codes")
-                .select()
-                .eq("id", value: inviteCodeId.uuidString)
-                .single()
-                .execute()
-
-            // Decode with proper date handling for Supabase ISO8601 format
-            let decoder = createInviteCodeDecoder()
-            let inviteCode = try decoder.decode(InviteCode.self, from: inviteCodeResponse.data)
-
-            // 2. Create auth user with Supabase
+            // 1. Create auth user with Supabase
             let authResponse = try await supabase.client.auth.signUp(
                 email: email,
                 password: password
@@ -257,15 +248,12 @@ final class AuthService: ObservableObject {
                 throw AppError.unknown("Invalid user ID format")
             }
 
-            // 3. Create or update profile using RPC function
-            // This handles both new signups AND re-signups after rejection
+            // 2. Create profile using RPC function
             // Uses SECURITY DEFINER to bypass RLS permission issues
-            // Note: Using [String: String?] dictionary to avoid MainActor isolation issues with Sendable
             let params: [String: String?] = [
                 "p_user_id": userIdString,
                 "p_email": email,
                 "p_name": name,
-                "p_invited_by": inviteCode.createdBy.uuidString,
                 "p_car": car?.isEmpty == false ? car : nil
             ]
 
@@ -289,50 +277,18 @@ final class AuthService: ObservableObject {
                 .value
 
             if response.success {
-                AppLogger.auth.info("Created/updated profile for user: \(userId)")
+                AppLogger.auth.info("Created profile for user: \(userId)")
             } else {
                 let errorMsg = response.error ?? "Unknown error"
                 AppLogger.auth.error("Failed to create profile: \(errorMsg)")
                 throw AppError.unknown("Profile creation failed: \(errorMsg)")
             }
 
-            // 4. Mark invite code as used (or create tracking record for bulk codes)
-            // Uses RPC function with SECURITY DEFINER to bypass RLS
-            // (auth.uid() may not be set immediately after signup)
-            var inviteParams: [String: String?] = [
-                "p_invite_code_id": inviteCode.id.uuidString,
-                "p_user_id": userIdString,
-                "p_is_bulk": inviteCode.isBulk ? "true" : "false"
-            ]
-            if let bulkCodeId = inviteCode.bulkCodeId {
-                inviteParams["p_bulk_code_id"] = bulkCodeId.uuidString
-            }
-
-            struct MarkInviteResponse: Decodable {
-                let success: Bool
-                let error: String?
-                let message: String?
-            }
-
-            let inviteResponse: MarkInviteResponse = try await supabase.client
-                .rpc("mark_invite_code_used", params: inviteParams)
-                .execute()
-                .value
-
-            if !inviteResponse.success {
-                let errorMsg = inviteResponse.error ?? "Unknown error"
-                AppLogger.auth.warning("Failed to mark invite code as used: \(errorMsg)")
-                // Don't throw - profile was created successfully, this is non-critical
-            } else {
-                AppLogger.auth.info("Invite code marked as used: \(inviteResponse.message ?? "")")
-            }
-
-            // 5. Fetch the created profile and update local state
+            // 3. Fetch the created profile and update local state
             if let profile = try? await fetchCurrentProfile() {
                 currentProfile = profile
                 currentUserId = userId
             } else {
-                // Profile should exist, but set userId for state
                 currentUserId = userId
             }
 
@@ -344,37 +300,28 @@ final class AuthService: ObservableObject {
             AppLogger.auth.info("User signed up successfully: \(email)")
 
         } catch {
-            // Log detailed error for debugging
             AppLogger.auth.error("Signup failed for \(email): \(error.localizedDescription)")
-            if let nsError = error as NSError? {
-                AppLogger.auth.debug("Error domain: \(nsError.domain), code: \(nsError.code)")
-                AppLogger.auth.debug("Error userInfo: \(nsError.userInfo)")
-            }
 
             // Clean up orphaned auth user if one was created before the failure
             if let orphanedId = createdAuthUserId {
                 await cleanupOrphanedAuthUser(userIdString: orphanedId)
             }
 
-            // Handle specific Supabase errors
             let errorMessage = error.localizedDescription.lowercased()
 
             if errorMessage.contains("already registered") || errorMessage.contains("already exists") || errorMessage.contains("user already") {
                 throw AppError.emailAlreadyExists
             }
 
-            // Check for RLS policy errors
             if errorMessage.contains("row-level security") || errorMessage.contains("policy") {
                 AppLogger.auth.error("RLS policy error detected - check database policies")
                 throw AppError.unknown("Account creation failed - please contact support")
             }
 
-            // Re-throw AppError as-is
             if error is AppError {
                 throw error
             }
 
-            // Wrap unknown errors
             throw AppError.unknown(error.localizedDescription)
         }
     }
@@ -722,7 +669,9 @@ final class AuthService: ObservableObject {
 enum AuthState {
     case loading
     case unauthenticated
+    case needsApplication
     case pendingApproval
+    case banned
     case authenticated
 }
 
