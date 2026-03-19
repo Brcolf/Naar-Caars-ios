@@ -436,9 +436,9 @@ final class AdminService {
 
         let updates: [String: AnyCodable] = [
             "is_banned": AnyCodable(false),
-            "ban_reason": AnyCodable(NSNull()),
-            "banned_at": AnyCodable(NSNull()),
-            "banned_by": AnyCodable(NSNull()),
+            "ban_reason": AnyCodable(Optional<String>.none),
+            "banned_at": AnyCodable(Optional<String>.none),
+            "banned_by": AnyCodable(Optional<String>.none),
             "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
         ]
 
