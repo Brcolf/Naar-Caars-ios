@@ -341,9 +341,11 @@ extension AuthService {
         return json
     }
     
-    /// Unlink Apple ID from the current account
-    /// Removes the Apple identity from auth.identities and clears local state
-    /// - Throws: AppError if unlinking fails
+    /// Unlink Apple ID from the current account.
+    /// Revokes Apple authorization first (Apple compliance), then removes the
+    /// identity row from Supabase. Refuses to proceed if Apple is the only
+    /// sign-in method — the user must add a password first.
+    /// - Throws: AppError if unlinking fails or if Apple is the only auth method
     func unlinkAppleAccount() async throws {
         isLoading = true
         defer { isLoading = false }
@@ -351,7 +353,18 @@ extension AuthService {
         let session = try await SupabaseService.shared.client.auth.session
         let userId = session.user.id
 
-        // Remove the Apple identity directly from auth.identities
+        // Guard: verify another auth method exists before allowing unlink
+        let identities = session.user.identities ?? []
+        let hasNonAppleIdentity = identities.contains { $0.provider != "apple" }
+        guard hasNonAppleIdentity else {
+            AppLogger.auth.warning("Unlink blocked: Apple is the only identity for user \(userId)")
+            throw AppError.processingError("Cannot unlink Apple ID — it is your only sign-in method. Please add a password first.")
+        }
+
+        // Revoke Apple authorization with Apple's servers (shared helper)
+        try await revokeAppleAuthorization()
+
+        // Remove the Apple identity from auth.identities
         struct UnlinkResponse: Decodable {
             let success: Bool
             let error: String?
@@ -370,9 +383,6 @@ extension AuthService {
 
         // Refresh session so the cached identities array reflects the removal
         _ = try? await SupabaseService.shared.client.auth.refreshSession()
-
-        // Clear local Apple user identifier
-        AppleUserKeychain.delete()
 
         AppLogger.auth.info("Apple account unlinked successfully")
     }
@@ -469,22 +479,28 @@ extension AuthService {
         return msg.contains("json object requested") || msg.contains("0 rows")
     }
 
-    // MARK: - Account Deletion with Apple Token Revocation
+    // MARK: - Apple Token Revocation
 
-    /// Revoke Apple Sign-In authorization before account deletion.
-    /// Apple requires that apps revoke tokens when users delete their accounts.
-    /// This method obtains a fresh authorization code from the user (presenting
-    /// the Apple Sign-In sheet), then calls the `revoke-apple-token` Edge Function
-    /// to perform server-side token revocation with Apple's /auth/revoke endpoint.
-    /// - Throws: AppError if revocation fails
-    func revokeAppleSignIn() async throws {
+    /// Shared Apple revocation helper used by both Delete Account and Unlink Apple flows.
+    /// Obtains a fresh authorization code (presenting the Apple Sign-In sheet),
+    /// then calls the `revoke-apple-token` Edge Function to revoke the token with Apple.
+    /// Clears the local Keychain entry on success.
+    ///
+    /// This method does NOT modify Supabase identities or auth.users —
+    /// callers are responsible for their own backend cleanup after revocation.
+    ///
+    /// Returns silently if no Apple credential is linked or if Apple has already
+    /// revoked/transferred the credential.
+    ///
+    /// - Throws: AppError if the user cancels the Apple sheet or if the Edge Function fails.
+    func revokeAppleAuthorization() async throws {
         // Check if user has Apple ID linked
         guard let appleUserIdentifier = AppleUserKeychain.read() else {
             // No Apple account linked, nothing to revoke
             return
         }
 
-        // Check credential state
+        // Check credential state with Apple
         let state = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ASAuthorizationAppleIDProvider.CredentialState, Error>) in
             let appleIDProvider = ASAuthorizationAppleIDProvider()
             appleIDProvider.getCredentialState(forUserID: appleUserIdentifier) { state, error in
@@ -497,9 +513,9 @@ extension AuthService {
         }
 
         guard state == .authorized else {
-            // Credential already revoked or transferred
+            // Credential already revoked or transferred — clean up keychain
             AppleUserKeychain.delete()
-            AppLogger.auth.info("Apple credential already revoked or not found")
+            AppLogger.auth.info("Apple credential already revoked or not found, keychain cleared")
             return
         }
 
@@ -514,21 +530,22 @@ extension AuthService {
             )
             AppLogger.auth.info("Apple token revoked via Edge Function")
         } catch {
-            AppLogger.auth.error("Edge function call failed: \(error.localizedDescription)")
-            throw AppError.processingError("Failed to revoke Apple Sign-In token: \(error.localizedDescription)")
+            AppLogger.auth.error("Apple revocation edge function failed: \(error.localizedDescription)")
+            throw AppError.processingError("Failed to revoke Apple Sign-In: \(error.localizedDescription)")
         }
 
-        // Clean up local state
+        // Clean up local Keychain
         AppleUserKeychain.delete()
+    }
 
-        // Unlink identity from Supabase
-        if let session = try? await SupabaseService.shared.client.auth.session,
-           let appleIdentity = session.user.identities?.first(where: { $0.provider == "apple" }) {
-            try? await SupabaseService.shared.client.auth.unlinkIdentity(appleIdentity)
-            AppLogger.auth.info("Apple identity unlinked from Supabase")
-        }
-
-        AppLogger.auth.info("Apple Sign-In revoked successfully")
+    /// Revoke Apple Sign-In authorization before account deletion.
+    /// Calls the shared revocation helper. The caller (ProfileService.deleteAccount)
+    /// handles the actual account deletion via the delete_user_account RPC,
+    /// which deletes auth.users and all associated data.
+    /// - Throws: AppError if revocation fails
+    func revokeAppleSignIn() async throws {
+        try await revokeAppleAuthorization()
+        AppLogger.auth.info("Apple Sign-In revoked for account deletion")
     }
 
     /// Presents the Apple Sign-In sheet to obtain a fresh authorization code

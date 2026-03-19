@@ -106,9 +106,21 @@ The `.git/hooks/pre-commit` hook blocks commits containing:
 
 Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MCP for database queries, migrations, and edge function management. Use the GitHub MCP for PR and issue operations.
 
+### Validation Scripts
+
+`scripts/` contains validation helpers beyond the pre-commit hook:
+- `VERIFY-ALL-FILES.sh` — full-project file integrity check
+- `verify-apple-signin-config.sh` — validates SIWA entitlements and Info.plist
+- `validate-notification-types.sh` — checks notification type registry consistency across layers
+- `verify-xcode-file-sync.sh` — PostToolUse hook that warns if `.swift` files are outside synced roots
+
 ### Cursor Rules
 
 `.cursor/rules/` contains 9 rule files that reinforce the patterns in this document with file-glob scoping. Key rules: impact seam analysis (`01`), notification type registry consistency (`02`), centralized realtime payload parsing (`03`), badge count server contract (`04`), navigation intent pattern (`05`), SwiftData mapper mirroring (`06`), service DI via protocols (`07`), and fixture test requirements for seam changes (`08`).
+
+### Agent Instructions
+
+`AGENTS.md` contains condensed project conventions for Codex and other AI agents. It mirrors the naming, architecture, and Xcode filesystem-sync rules from this file in a shorter format.
 
 ---
 
@@ -130,7 +142,7 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 
 **Localization**: All user-facing strings use `"key".localized` with keys in `Resources/Localizable.xcstrings` (Xcode string catalog format). A pre-commit hook validates localization changes.
 
-**Database migrations**: SQL files in `database/` with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Do not modify existing migration files.
+**Database migrations**: SQL files in `database/` with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `130`. Do not modify existing migration files.
 
 **Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`.
 
