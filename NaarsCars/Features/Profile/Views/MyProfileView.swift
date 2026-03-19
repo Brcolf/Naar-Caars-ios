@@ -180,7 +180,15 @@ struct MyProfileView: View {
                 }
             }
             .task {
-                if let userId = AuthService.shared.currentUserId {
+                // If auth state hasn't propagated yet (user tapped profile tab
+                // immediately after sign-in), wait briefly for it to settle.
+                var userId = AuthService.shared.currentUserId
+                if userId == nil {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    userId = AuthService.shared.currentUserId
+                }
+
+                if let userId {
                     async let profileTask: Void = viewModel.loadProfile(userId: userId)
                     async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
                     await profileTask
