@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -1343,6 +1346,17 @@
         }
       }
     },
+    "admin_account_created_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account created"
+          }
+        }
+      }
+    },
     "admin_active_requests_title" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1585,6 +1599,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此公告將發送給所有已批准的用戶。"
+          }
+        }
+      }
+    },
+    "admin_application_info" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application Information"
           }
         }
       }
@@ -1995,6 +2020,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "生成邀請碼"
+          }
+        }
+      }
+    },
+    "admin_heard_about_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How they heard about us"
           }
         }
       }
@@ -2737,6 +2773,17 @@
         }
       }
     },
+    "admin_join_reason_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why they want to join"
+          }
+        }
+      }
+    },
     "admin_loading_invite_details" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3225,6 +3272,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "您沒有存取管理面板的權限。"
+          }
+        }
+      }
+    },
+    "admin_not_provided" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not provided"
           }
         }
       }
@@ -3926,6 +3984,28 @@
         }
       }
     },
+    "admin_share_app_link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy App Link"
+          }
+        }
+      }
+    },
+    "admin_share_message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Naar's Cars with prospective members. Anyone can sign up and new accounts are reviewed before activation."
+          }
+        }
+      }
+    },
     "admin_stat_active" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4209,6 +4289,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待處理"
+          }
+        }
+      }
+    },
+    "admin_submitted_at_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Application submitted"
           }
         }
       }
@@ -5166,6 +5257,149 @@
         }
       }
     },
+    "application_error_fields_required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please fill in both fields."
+          }
+        }
+      }
+    },
+    "application_error_not_signed_in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You must be signed in to submit an application."
+          }
+        }
+      }
+    },
+    "application_error_submit_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to submit application. Please try again."
+          }
+        }
+      }
+    },
+    "application_heard_about_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How did you hear about Naar's Cars?"
+          }
+        }
+      }
+    },
+    "application_heard_about_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Friend, social media, neighborhood group, search, etc."
+          }
+        }
+      }
+    },
+    "application_helper_text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These responses help us review new accounts for safety and community quality."
+          }
+        }
+      }
+    },
+    "application_join_reason_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why would you like to join?"
+          }
+        }
+      }
+    },
+    "application_join_reason_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A short note about how you'd like to use the app"
+          }
+        }
+      }
+    },
+    "application_nav_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Application"
+          }
+        }
+      }
+    },
+    "application_sign_out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        }
+      }
+    },
+    "application_submit_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Submit Application"
+          }
+        }
+      }
+    },
+    "application_subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tell us a little about yourself so we can review your account."
+          }
+        }
+      }
+    },
+    "application_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Almost There"
+          }
+        }
+      }
+    },
     "Approve" : {
       "comment" : "A button label that approves a user.",
       "extractionState" : "stale",
@@ -5556,7 +5790,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Looks like you're new here! To get started, you'll need an invite code from a current member."
+            "value" : "Looks like you're new here! To get started, create an account from the welcome screen."
           }
         }
       }
@@ -11324,10 +11558,6 @@
       "comment" : "An accessibility hint for the button that allows users to create a new favor request.",
       "isCommentAutoGenerated" : true
     },
-    "Double-tap to create a new invite code" : {
-      "comment" : "An accessibility hint for generating a new invite code.",
-      "isCommentAutoGenerated" : true
-    },
     "Double-tap to create a new ride or favor request" : {
       "comment" : "A hint that appears when hovering over the \"Create\" button in the requests dashboard.",
       "isCommentAutoGenerated" : true
@@ -11380,6 +11610,10 @@
     },
     "Double-tap to select participants for this ride" : {
 
+    },
+    "Double-tap to share the app with prospective members" : {
+      "comment" : "An accessibility hint for the \"Share app link\" button in the admin panel.",
+      "isCommentAutoGenerated" : true
     },
     "Double-tap to show %@ requests" : {
       "comment" : "A hint that appears when a user taps on a filter tile. The argument is the name of the filter.",
@@ -15205,10 +15439,6 @@
           }
         }
       }
-    },
-    "Generate invite code" : {
-      "comment" : "A button that generates a new invite code for the app.",
-      "isCommentAutoGenerated" : true
     },
     "Generated Code" : {
       "extractionState" : "stale",
@@ -23173,7 +23403,6 @@
 
     },
     "Naar's Cars" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25383,6 +25612,61 @@
         }
       }
     },
+    "pending_review_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your sign-up was successful and your account is now being reviewed. We review new members to help keep Naar's Cars safe and high-quality for everyone."
+          }
+        }
+      }
+    },
+    "pending_review_contact_support" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contact Support"
+          }
+        }
+      }
+    },
+    "pending_review_refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Status"
+          }
+        }
+      }
+    },
+    "pending_review_sign_out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        }
+      }
+    },
+    "pending_review_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account is under review"
+          }
+        }
+      }
+    },
     "Performance Flags" : {
 
     },
@@ -26851,6 +27135,17 @@
         }
       }
     },
+    "profile_invite_friends" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invite Friends to Naar's Cars"
+          }
+        }
+      }
+    },
     "profile_invite_limit_message" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -27626,6 +27921,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享"
+          }
+        }
+      }
+    },
+    "profile_share_app_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        }
+      }
+    },
+    "profile_share_message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check out Naar's Cars — share rides, ask for help with favors, and connect with people nearby."
           }
         }
       }
@@ -37648,6 +37965,10 @@
         }
       }
     },
+    "Share app link" : {
+      "comment" : "A button that allows users to share the app with others.",
+      "isCommentAutoGenerated" : true
+    },
     "Share with the Community" : {
       "comment" : "A section header in the town hall feed view, encouraging users to share their thoughts and experiences.",
       "extractionState" : "stale",
@@ -42920,6 +43241,50 @@
     },
     "View your conversations" : {
 
+    },
+    "welcome_already_have_account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already have an account?"
+          }
+        }
+      }
+    },
+    "welcome_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share rides, ask for help with favors, and connect with people nearby in a trusted local community."
+          }
+        }
+      }
+    },
+    "welcome_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone can request an account. New accounts are reviewed to help keep the community safe."
+          }
+        }
+      }
+    },
+    "welcome_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welcome to Naar's Cars"
+          }
+        }
+      }
     },
     "What's on your mind?" : {
       "extractionState" : "stale",

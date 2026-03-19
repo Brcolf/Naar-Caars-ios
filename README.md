@@ -6,7 +6,7 @@ Native iOS application for the Naar's Cars community ride-sharing platform.
 
 ## 🚗 About
 
-Naar's Cars is an invite-only community platform for neighbors to help each other with rides and favors. This repository contains the native iOS application built with SwiftUI and Supabase.
+Naar's Cars is a community platform for neighbors to help each other with rides and favors. This repository contains the native iOS application built with SwiftUI and Supabase.
 
 ---
 
@@ -126,7 +126,7 @@ naars-cars-ios/
 **Estimated Time:** 1.5 weeks
 
 **Features:**
-- Email/password signup with invite codes
+- Email/password signup with admin approval
 - Login and logout
 - Session persistence
 - Biometric authentication (Face ID/Touch ID)

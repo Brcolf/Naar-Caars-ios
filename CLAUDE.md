@@ -42,7 +42,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 ## What This App Is
 
-**Naar's Cars** is an invite-only community platform for neighbors to help each other with rides and favors. It's an iOS 17+ Swift app with:
+**Naar's Cars** is a community platform for neighbors to help each other with rides and favors. It's an iOS 17+ Swift 5.9+ app with:
 
 | Layer | Technology |
 |---|---|
@@ -54,7 +54,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **SPM dependencies (Xcode-managed):** supabase-swift v2.5.1+, firebase-ios-sdk v12.8.0+, PhoneNumberKit v4.0.0+.
 
-**Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, invite-based auth and approval flows, moderation/blocking/reporting.
+**Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, open signup with admin approval flows, moderation/blocking/reporting.
 
 ---
 
@@ -113,6 +113,8 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `verify-apple-signin-config.sh` — validates SIWA entitlements and Info.plist
 - `validate-notification-types.sh` — checks notification type registry consistency across Swift and TypeScript layers
 - `verify-xcode-file-sync.sh` — runs automatically after every Write/Edit via Claude Code PostToolUse hook (configured in `.claude/settings.json`); warns if `.swift` files are placed outside filesystem-synced roots
+- `pre-commit-localization-check.sh` — validates localization key consistency (called by the pre-commit hook)
+- `pre-commit-secrets-check.sh` — blocks commits containing secrets or signing files (called by the pre-commit hook)
 
 **No CI/CD pipeline exists.** All automated checks are pre-commit hooks and local validation scripts. Build and test verification is manual.
 
@@ -420,7 +422,7 @@ Several systems span Swift client code, SQL (database RPCs/triggers), and Supaba
 - `NavigationCoordinator` — routing table mapping notification types to intents
 - `NotificationType` — registry must match across Swift enum, SQL, and Edge Functions
 - Sync engines — `MessagingSyncEngine`, `DashboardSyncEngine`, `TownHallSyncEngine`
-- SwiftData ↔ Domain mappers — if you change a domain model (`Message`, `Ride`, `Favor`, `Conversation`, `Notification`, `TownHall`), update the SwiftData model, mapper(s), and sync engine insert/update logic
+- SwiftData ↔ Domain mappers — if you change a domain model (`Message`, `Ride`, `Favor`, `Conversation`, `Notification`, `TownHall`), you MUST atomically update all three: the SwiftData model, mapper(s), and sync engine insert/update logic. These are a mandatory trio — updating one without the others will cause silent data loss or crashes.
 - Supabase RPC call sites — signature changes must propagate to all callers
 - `NSNotification.Name` constants and `Constants.swift` values
 
