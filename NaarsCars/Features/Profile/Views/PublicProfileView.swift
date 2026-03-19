@@ -106,6 +106,7 @@ struct PublicProfileView: View {
             Text(blockError ?? "")
         }
         .task {
+            didBlock = MessageService.shared.isBlocked(userId)
             async let profileTask: Void = viewModel.loadProfile(userId: userId)
             async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
             await profileTask
