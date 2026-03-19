@@ -109,6 +109,7 @@ struct ContentView: View {
             AppLogger.info("lock", "scenePhase: \(oldPhase) → \(newPhase), lockState=\(lockManager.state)")
             if newPhase == .active, isAuthenticated {
                 Task { await AuthService.shared.restartRealtimeSyncEngines() }
+                Task { await launchManager.recheckBanStatus() }
             }
             lockManager.handleScenePhase(newPhase, isAuthenticated: isAuthenticated)
         }
