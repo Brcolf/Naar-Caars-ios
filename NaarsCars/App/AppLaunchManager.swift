@@ -246,8 +246,16 @@ final class AppLaunchManager: ObservableObject {
     /// - Parameter userId: Authenticated user ID
     private func performDeferredLoading(userId: UUID) async {
         let start = Date()
-        // This will be called after critical path completes
-        // Load profile, rides, favors, etc. in background
+
+        // Ensure AuthService has the userId before sync engines start.
+        // performCriticalLaunch() reads the userId from the JWT session but
+        // doesn't set it on AuthService — sync engines check
+        // authService.currentUserId for user-specific subscriptions and data
+        // fetches, so it must be populated first.
+        if authService.currentUserId == nil {
+            authService.currentUserId = userId
+        }
+
         startDeferredSyncEnginesIfNeeded(for: userId)
 
         // Refresh blocked users cache for content filtering

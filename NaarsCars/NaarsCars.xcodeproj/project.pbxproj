@@ -183,7 +183,6 @@
 		AC305ED22F0DB79E0063AFDF /* CreateFavorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305ECC2F0DB79E0063AFDF /* CreateFavorView.swift */; };
 		AC305ED32F0DB79E0063AFDF /* EditFavorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305ECD2F0DB79E0063AFDF /* EditFavorView.swift */; };
 		AC305EF12F0DB7BD0063AFDF /* SignupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */; };
-		E01A23F3B5354449AED53D3E /* NoAccountFoundSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03990DC39B9C496E874B5FC9 /* NoAccountFoundSheet.swift */; };
 		AC305EF22F0DB7BD0063AFDF /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EEC2F0DB7BD0063AFDF /* LoginView.swift */; };
 		AC305EF32F0DB7BD0063AFDF /* LoginViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EE82F0DB7BD0063AFDF /* LoginViewModel.swift */; };
 		AC305EF42F0DB7BD0063AFDF /* PasswordResetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */; };
@@ -407,6 +406,7 @@
 		DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8F6F3E319E4B4FB1541AE0 /* RideTests.swift */; };
 		DC9782CC2CD6280079573D86 /* DateDecoderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C61DD37D8FD5E3294B30FDA /* DateDecoderFactory.swift */; };
 		DFF2E7BE31B84AC8AF0BBF5B /* MyProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 948807370C9A43E3A55D4641 /* MyProfileViewModel.swift */; };
+		E01A23F3B5354449AED53D3E /* NoAccountFoundSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03990DC39B9C496E874B5FC9 /* NoAccountFoundSheet.swift */; };
 		E1A2B3C4D5E6F708A9B0C1D2 /* GroupAvatarComposite.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A2B3C4D5E6F708A9B0C1D3 /* GroupAvatarComposite.swift */; };
 		E1A3B5C92F7A9A1E00A1B2C3 /* TownHallRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A3B5C72F7A9A1E00A1B2C3 /* TownHallRepository.swift */; };
 		E1A3B5CA2F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A3B5C82F7A9A1E00A1B2C3 /* TownHallSyncEngine.swift */; };
@@ -471,6 +471,7 @@
 /* Begin PBXFileReference section */
 		0203B70350D9463DBB993A31 /* RidesDashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RidesDashboardViewModelTests.swift; sourceTree = "<group>"; };
 		0356C00D127342B5A0288362 /* UI/Components/Cards/FavorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/Cards/FavorCard.swift; sourceTree = "<group>"; };
+		03990DC39B9C496E874B5FC9 /* NoAccountFoundSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoAccountFoundSheet.swift; sourceTree = "<group>"; };
 		052E6D74D4102679A004789F /* ScaleButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleButtonStyle.swift; sourceTree = "<group>"; };
 		070CF66F5C655239E617CF48 /* URLDetectionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLDetectionCache.swift; sourceTree = "<group>"; };
 		08CCF5C2E2A45AFC18844A81 /* ShakeModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShakeModifier.swift; sourceTree = "<group>"; };
@@ -656,7 +657,6 @@
 		AC305EE82F0DB7BD0063AFDF /* LoginViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModel.swift; sourceTree = "<group>"; };
 		AC305EE92F0DB7BD0063AFDF /* PasswordResetViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordResetViewModel.swift; sourceTree = "<group>"; };
 		AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupViewModel.swift; sourceTree = "<group>"; };
-		03990DC39B9C496E874B5FC9 /* NoAccountFoundSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoAccountFoundSheet.swift; sourceTree = "<group>"; };
 		AC305EEC2F0DB7BD0063AFDF /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordResetView.swift; sourceTree = "<group>"; };
 		AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupDetailsView.swift; sourceTree = "<group>"; };
@@ -2937,7 +2937,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = NaarsCars/NaarsCarsDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = WT4DGUYKL4;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
@@ -2984,7 +2984,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = NaarsCars/NaarsCars.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = WT4DGUYKL4;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;

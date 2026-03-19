@@ -602,15 +602,16 @@ final class AuthService: ObservableObject {
     }
     
     /// Handle sign out with complete cleanup
-    /// Clears all local state, caches, and realtime subscriptions
-    /// Posts notification to trigger app state change
+    /// Tears down subscriptions and caches FIRST, then clears state and notifies.
+    /// This ordering prevents races where listeners react to the notification
+    /// while cleanup is still in progress.
     private func handleSignOut() async {
         AppLogger.auth.debug("handleSignOut() started")
         let userIdToRemove = currentUserId
-        
+
         // Log action for crash context
         CrashReportingService.shared.logAction("sign_out")
-        
+
         // Clear crash reporting user ID
         CrashReportingService.shared.setUserId(nil)
         CrashReportingService.shared.updateAppStateContext(
@@ -618,37 +619,36 @@ final class AuthService: ObservableObject {
             isApproved: false,
             isAdmin: false
         )
-        
-        // Clear local state on main actor
-        await MainActor.run {
-            currentUserId = nil
-            currentProfile = nil
-        }
-        AppLogger.auth.debug("Local state cleared")
 
-        // Post notification early so UI can redirect immediately
-        await MainActor.run {
-            AppLogger.auth.debug("Posting userDidSignOut notification (early)")
-            let notificationName: Notification.Name = .userDidSignOut
-            NotificationCenter.default.post(name: notificationName, object: nil, userInfo: nil)
-        }
+        // --- Teardown phase: clean up all resources before state changes ---
 
         if let userId = userIdToRemove {
             try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
         }
         PushNotificationService.shared.clearRegisteredTokenState()
-        
+
         // Clear caches
         await CacheManager.shared.clearAll()
         AppLogger.cache.debug("Cache cleared on sign out")
-        
+
         // Unsubscribe from all realtime channels (best-effort)
         await RealtimeManager.shared.unsubscribeAll()
         AppLogger.realtime.debug("Realtime unsubscribed on sign out")
 
         // Ensure sync engines release subscriptions and reset lifecycle state.
         await SyncEngineOrchestrator.shared.teardownAll()
-        
+
+        // --- State change phase: clear state and notify after cleanup is done ---
+
+        await MainActor.run {
+            currentUserId = nil
+            currentProfile = nil
+            AppLogger.auth.debug("Local state cleared")
+
+            AppLogger.auth.debug("Posting userDidSignOut notification")
+            NotificationCenter.default.post(name: .userDidSignOut, object: nil, userInfo: nil)
+        }
+
         AppLogger.auth.info("Sign out cleanup completed")
     }
 

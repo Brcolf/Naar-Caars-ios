@@ -10,19 +10,6 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Naar's Cars</string>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>MKDirectionsRequest</string>
-			<key>LSHandlerRank</key>
-			<string>Alternate</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>com.apple.maps.directionsrequest</string>
-			</array>
-		</dict>
-	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,24 +34,16 @@
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
-	<key>MKDirectionsApplicationSupportedModes</key>
-	<array>
-		<string>MKDirectionsModeBike</string>
-		<string>MKDirectionsModeBus</string>
-		<string>MKDirectionsModeCar</string>
-		<string>MKDirectionsModePedestrian</string>
-		<string>MKDirectionsModeRideShare</string>
-	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>Naar's Cars uses your camera to take photos for reviews and posts.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Naar's Cars uses your camera to take photos for reviews and posts.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
+	<string>Naar's Cars allows you to share your location at a point in time with others via messages </string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Naar's Cars uses your microphone to record audio messages in conversations.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

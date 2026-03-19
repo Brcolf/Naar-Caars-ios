@@ -88,13 +88,12 @@ final class AppState {
             .store(in: &cancellables)
         
         // Listen for signout events
+        // Teardown is already completed by AuthService.handleSignOut() before
+        // this notification fires — just clear local UI state here.
         NotificationCenter.default.publisher(for: .userDidSignOut)
             .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    await SyncEngineOrchestrator.shared.teardownAll()
-                    self?.currentUser = nil
-                    self?.isLoading = false
-                }
+                self?.currentUser = nil
+                self?.isLoading = false
             }
             .store(in: &cancellables)
     }

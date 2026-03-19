@@ -111,16 +111,23 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 `scripts/` contains validation helpers beyond the pre-commit hook:
 - `VERIFY-ALL-FILES.sh` — full-project file integrity check
 - `verify-apple-signin-config.sh` — validates SIWA entitlements and Info.plist
-- `validate-notification-types.sh` — checks notification type registry consistency across layers
-- `verify-xcode-file-sync.sh` — PostToolUse hook that warns if `.swift` files are outside synced roots
+- `validate-notification-types.sh` — checks notification type registry consistency across Swift and TypeScript layers
+- `verify-xcode-file-sync.sh` — runs automatically after every Write/Edit via Claude Code PostToolUse hook (configured in `.claude/settings.json`); warns if `.swift` files are placed outside filesystem-synced roots
+
+**No CI/CD pipeline exists.** All automated checks are pre-commit hooks and local validation scripts. Build and test verification is manual.
 
 ### Cursor Rules
 
-`.cursor/rules/` contains 9 rule files that reinforce the patterns in this document with file-glob scoping. Key rules: impact seam analysis (`01`), notification type registry consistency (`02`), centralized realtime payload parsing (`03`), badge count server contract (`04`), navigation intent pattern (`05`), SwiftData mapper mirroring (`06`), service DI via protocols (`07`), and fixture test requirements for seam changes (`08`).
+`.cursor/rules/` contains 9 rule files that reinforce the patterns in this document with file-glob scoping. Key rules: impact seam analysis (`01`), notification type registry consistency (`02`), centralized realtime payload parsing (`03`), badge count server contract (`04`), navigation intent pattern (`05`), SwiftData mapper mirroring (`06`), service DI via protocols (`07`), fixture test requirements for seam changes (`08`), and a master project rule (`naars-cars-project.mdc`, `alwaysApply: true`). These rules use glob-based `Applies to:` patterns to scope enforcement to relevant files.
 
 ### Agent Instructions
 
 `AGENTS.md` contains condensed project conventions for Codex and other AI agents. It mirrors the naming, architecture, and Xcode filesystem-sync rules from this file in a shorter format.
+
+### Key Reference Documents
+
+- `SECURITY.md` — RLS policies, security requirements, compliance details (720 lines)
+- `MESSAGING-REVIEW-AND-PLAN.md` — deep architectural review of the messaging/realtime system; read before touching messaging internals
 
 ---
 
@@ -142,9 +149,13 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 
 **Localization**: All user-facing strings use `"key".localized` with keys in `Resources/Localizable.xcstrings` (Xcode string catalog format). A pre-commit hook validates localization changes.
 
-**Database migrations**: SQL files in `database/` with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `132`. Do not modify existing migration files.
+**Database migrations**: Two locations with different conventions:
+- `database/` — legacy SQL files with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `132`. Do not modify existing files.
+- `supabase/migrations/` — Supabase-managed migrations with `YYYYMMDD_XXXX_description.sql` naming. Use this location for new migrations via the Supabase MCP `apply_migration` tool.
 
-**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`.
+**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify.
+
+**Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, and `NotificationFixtures.swift`. When adding payload handling, add corresponding fixtures and decoding tests here.
 
 ---
 
