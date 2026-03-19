@@ -37,13 +37,13 @@ final class SupabaseService: ObservableObject {
     private init() {
         // Initialize Supabase client with credentials from Secrets
         let urlString = Secrets.supabaseURL
-        let anonKey = Secrets.supabaseAnonKey
+        let publishableKey = Secrets.supabaseAnonKey // Note: This is actually the publishable/perishable key (sb_publishable_...)
         
         #if DEBUG
         AppLogger.auth.debug("[SupabaseService] Initializing...")
         AppLogger.auth.debug("[SupabaseService] URL: \(urlString.isEmpty ? "(empty)" : urlString)")
         AppLogger.auth.debug("[SupabaseService] URL length: \(urlString.count)")
-        AppLogger.auth.debug("[SupabaseService] Anon key length: \(anonKey.count)")
+        AppLogger.auth.debug("[SupabaseService] Anon key length: \(publishableKey.count)")
         #endif
         
         // Validate URL before creating client
@@ -82,7 +82,7 @@ final class SupabaseService: ObservableObject {
             return
         }
         
-        guard !anonKey.isEmpty else {
+        guard !publishableKey.isEmpty else {
             AppLogger.auth.error("[SupabaseService] Supabase anon key is empty!")
             AppLogger.auth.error("[SupabaseService] Please configure Secrets.swift with valid credentials")
             // Create a dummy client with placeholder key to prevent crash
@@ -112,10 +112,10 @@ final class SupabaseService: ObservableObject {
         
         self.client = SupabaseClient(
             supabaseURL: url,
-            supabaseKey: anonKey,
+            supabaseKey: publishableKey,
             options: options
         )
-        
+
         AppLogger.auth.info("[SupabaseService] Client initialized successfully")
         // Credentials are now configured via obfuscated arrays
 

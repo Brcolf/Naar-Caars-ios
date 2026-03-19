@@ -87,5 +87,28 @@ final class RateLimiterTests: XCTestCase {
         let result1Again = await rateLimiter.checkAndRecord(action: action1, minimumInterval: interval)
         XCTAssertFalse(result1Again, "Same action should still be rate limited")
     }
+    
+    // MARK: - Performance Tests (PERF-CLI-003)
+    
+    /// PERF-CLI-003: Rate limiter blocks rapid taps
+    func testRateLimiterBlocksRapidTaps() async {
+        let action = "test_button"
+        let interval: TimeInterval = 1.0 // 1 second minimum
+        
+        // First tap should be allowed
+        let firstResult = await rateLimiter.checkAndRecord(action: action, minimumInterval: interval)
+        XCTAssertTrue(firstResult, "First tap should be allowed")
+        
+        // Immediate second tap should be blocked
+        let secondResult = await rateLimiter.checkAndRecord(action: action, minimumInterval: interval)
+        XCTAssertFalse(secondResult, "Second tap should be blocked (rate limited)")
+        
+        // Wait for interval to pass
+        try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000) + 100_000_000) // 1.1 seconds
+        
+        // Third tap should be allowed again
+        let thirdResult = await rateLimiter.checkAndRecord(action: action, minimumInterval: interval)
+        XCTAssertTrue(thirdResult, "Third tap should be allowed after interval")
+    }
 }
 
