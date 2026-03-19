@@ -246,8 +246,8 @@ struct UserSearchView: View {
             
             let profiles: [Profile] = try decoder.decode([Profile].self, from: response.data)
             
-            // Filter out excluded users
-            searchResults = profiles.filter { !excludeUserIds.contains($0.id) }
+            // Filter out excluded and blocked users
+            searchResults = profiles.filter { !excludeUserIds.contains($0.id) && !MessageService.shared.isBlocked($0.id) }
             
             AppLogger.info("messaging", "UserSearchView found \(searchResults.count) users matching '\(trimmedQuery)'")
         } catch {

@@ -85,8 +85,8 @@ struct MessageSearchResult: Identifiable {
     }
 
     func applyLocalConversations(_ updatedConversations: [ConversationWithDetails], animated: Bool = false) {
-        // Filter out conversations the user has soft-deleted
-        let visible = filterHiddenConversations(updatedConversations)
+        // Filter out conversations the user has soft-deleted, then filter blocked
+        let visible = filterBlockedConversations(filterHiddenConversations(updatedConversations))
 
         let mergedConversations = visible.map { updated in
             guard updated.otherParticipants.isEmpty,
@@ -118,6 +118,17 @@ struct MessageSearchResult: Identifiable {
         let hiddenIds = conversationService.getHiddenConversationIds(for: userId)
         guard !hiddenIds.isEmpty else { return conversations }
         return conversations.filter { !hiddenIds.contains($0.conversation.id) }
+    }
+
+    /// Hide conversations where every other participant is blocked.
+    /// Group conversations with at least one non-blocked participant remain visible.
+    private func filterBlockedConversations(_ conversations: [ConversationWithDetails]) -> [ConversationWithDetails] {
+        conversations.filter { convo in
+            let others = convo.otherParticipants
+            guard !others.isEmpty else { return true }
+            // Keep the conversation if at least one participant is NOT blocked
+            return others.contains { !MessageService.shared.isBlocked($0.id) }
+        }
     }
     
     private func recomputeFilteredConversations() {

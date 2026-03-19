@@ -14,7 +14,11 @@ struct PublicProfileView: View {
     @Environment(AppState.self) var appState
     @State private var isPhoneRevealed = false
     @State private var badges: [LeaderboardBadge] = []
-    
+    @State private var showBlockConfirmation = false
+    @State private var isBlocking = false
+    @State private var blockError: String?
+    @State private var didBlock = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -61,6 +65,46 @@ struct PublicProfileView: View {
         }
         .navigationTitle(viewModel.profile?.name ?? "nav_tab_profile".localized)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let profile = viewModel.profile, profile.id != appState.currentUser?.id {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        if didBlock {
+                            Label("profile_user_blocked".localized, systemImage: "hand.raised.fill")
+                        } else {
+                            Button(role: .destructive) {
+                                showBlockConfirmation = true
+                            } label: {
+                                Label("profile_block_user".localized, systemImage: "hand.raised")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "profile_block_user".localized,
+            isPresented: $showBlockConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("profile_block_confirm".localized, role: .destructive) {
+                Task { await blockUser() }
+            }
+            Button("common_cancel".localized, role: .cancel) {}
+        } message: {
+            Text("profile_block_confirmation_message".localized)
+        }
+        .alert("messaging_block_failed".localized, isPresented: Binding(
+            get: { blockError != nil },
+            set: { if !$0 { blockError = nil } }
+        )) {
+            Button("common_ok".localized, role: .cancel) {}
+        } message: {
+            Text(blockError ?? "")
+        }
         .task {
             async let profileTask: Void = viewModel.loadProfile(userId: userId)
             async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
@@ -211,8 +255,26 @@ struct PublicProfileView: View {
         .cornerRadius(12)
     }
     
+    // MARK: - Block User
+
+    private func blockUser() async {
+        guard let currentUserId = appState.currentUser?.id else { return }
+        isBlocking = true
+        do {
+            try await MessageService.shared.blockUser(
+                blockerId: currentUserId,
+                blockedId: userId,
+                reason: "Blocked from profile"
+            )
+            didBlock = true
+        } catch {
+            blockError = error.localizedDescription
+        }
+        isBlocking = false
+    }
+
     // MARK: - Helper Methods
-    
+
     /// Determine if phone should be auto-revealed
     /// Auto-reveals if:
     /// - Viewing own profile

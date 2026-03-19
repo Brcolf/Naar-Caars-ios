@@ -30,7 +30,9 @@ struct FavorDetailView: View {
     @State private var clearedAnchors: Set<RequestDetailAnchor> = []
     @State private var toastMessage: String? = nil
     @State private var showSuccess = false
-    
+    @State private var showReportSheet = false
+    @State private var hasReported = false
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -59,6 +61,37 @@ struct FavorDetailView: View {
         }
         .navigationTitle("favor_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if !viewModel.isPoster, viewModel.favor != nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if hasReported {
+                        Image(systemName: "flag.fill")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary.opacity(0.5))
+                    } else {
+                        Button {
+                            showReportSheet = true
+                        } label: {
+                            Image(systemName: "flag")
+                                .foregroundColor(.secondary)
+                        }
+                        .accessibilityLabel("report_favor_accessibility".localized)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showReportSheet) {
+            if let favor = viewModel.favor {
+                ReportContentSheet(
+                    context: .favor(
+                        id: favor.id,
+                        authorId: favor.userId,
+                        preview: favor.title
+                    ),
+                    onReported: { hasReported = true }
+                )
+            }
+        }
         .refreshable { await viewModel.loadFavor(id: favorId) }
         .task {
             await viewModel.loadFavor(id: favorId)

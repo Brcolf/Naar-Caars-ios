@@ -866,6 +866,38 @@ final class MessageService {
         AppLogger.database.info("Reported comment: \(commentId)")
     }
 
+    /// Submit a report for a ride request
+    func reportRide(reporterId: UUID, rideId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await supabase.rpc(
+            "submit_report",
+            params: [
+                "p_reporter_id": reporterId.uuidString,
+                "p_reported_user_id": authorId.uuidString,
+                "p_reported_ride_id": rideId.uuidString,
+                "p_report_type": type.rawValue,
+                "p_description": description ?? ""
+            ]
+        ).execute()
+
+        AppLogger.database.info("Reported ride: \(rideId)")
+    }
+
+    /// Submit a report for a favor request
+    func reportFavor(reporterId: UUID, favorId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await supabase.rpc(
+            "submit_report",
+            params: [
+                "p_reporter_id": reporterId.uuidString,
+                "p_reported_user_id": authorId.uuidString,
+                "p_reported_favor_id": favorId.uuidString,
+                "p_report_type": type.rawValue,
+                "p_description": description ?? ""
+            ]
+        ).execute()
+
+        AppLogger.database.info("Reported favor: \(favorId)")
+    }
+
     // MARK: - Blocking
     
     /// Block a user
@@ -928,11 +960,10 @@ final class MessageService {
             "get_blocked_users",
             params: ["p_user_id": userId.uuidString]
         ).execute()
-        
+
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
-        
+
         return try decoder.decode([BlockedUser].self, from: response.data)
     }
     

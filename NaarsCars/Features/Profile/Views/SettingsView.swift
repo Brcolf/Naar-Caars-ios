@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MessageUI
 import UserNotifications
 import AuthenticationServices
 internal import Combine
@@ -301,6 +302,26 @@ struct SettingsView: View {
                                 .foregroundColor(.accentColor)
                         }
                     }
+
+                    // Contact Support
+                    Button {
+                        openContactSupport()
+                    } label: {
+                        Label {
+                            HStack {
+                                Text("settings_contact_support".localized)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "envelope")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
                 } header: {
                     Text("settings_about".localized)
                 }
@@ -351,6 +372,24 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func openContactSupport() {
+        let subject = "settings_contact_support_subject".localized
+        let appVersion = Bundle.main.appVersion
+        let buildNumber = Bundle.main.buildNumber
+        let systemVersion = UIDevice.current.systemVersion
+        let deviceModel = UIDevice.current.model
+        let body = "\n\n---\n\("settings_contact_support_device_info".localized)\n\("app_name".localized) \(appVersion) (\(buildNumber))\niOS \(systemVersion) — \(deviceModel)"
+
+        let email = "naarscars@gmail.com"
+        let subjectEncoded = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let bodyEncoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+
+        if let url = URL(string: "mailto:\(email)?subject=\(subjectEncoded)&body=\(bodyEncoded)"),
+           UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
         }
     }
 }

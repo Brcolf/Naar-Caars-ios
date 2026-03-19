@@ -35,6 +35,8 @@ struct RideDetailView: View {
     @State private var openMapsLocationProvider: CurrentLocationProvider?
     @AppStorage("preferredMapsApp") private var preferredMapsApp: String = ""
     @State private var showMapsChoiceDialog = false
+    @State private var showReportSheet = false
+    @State private var hasReported = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -64,6 +66,37 @@ struct RideDetailView: View {
         }
         .navigationTitle("ride_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if !viewModel.isPoster, viewModel.ride != nil {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if hasReported {
+                        Image(systemName: "flag.fill")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary.opacity(0.5))
+                    } else {
+                        Button {
+                            showReportSheet = true
+                        } label: {
+                            Image(systemName: "flag")
+                                .foregroundColor(.secondary)
+                        }
+                        .accessibilityLabel("report_ride_accessibility".localized)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showReportSheet) {
+            if let ride = viewModel.ride {
+                ReportContentSheet(
+                    context: .ride(
+                        id: ride.id,
+                        authorId: ride.userId,
+                        preview: "\(ride.pickup) → \(ride.destination)"
+                    ),
+                    onReported: { hasReported = true }
+                )
+            }
+        }
         .refreshable { await viewModel.loadRide(id: rideId) }
         .task {
             await viewModel.loadRide(id: rideId)

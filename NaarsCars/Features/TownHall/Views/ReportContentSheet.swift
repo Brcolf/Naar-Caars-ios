@@ -2,7 +2,7 @@
 //  ReportContentSheet.swift
 //  NaarsCars
 //
-//  Sheet for reporting Town Hall posts and comments
+//  Sheet for reporting user-generated content (posts, comments, rides, favors)
 //
 
 import SwiftUI
@@ -11,9 +11,11 @@ import SwiftUI
 enum ReportContext {
     case post(id: UUID, authorId: UUID, preview: String)
     case comment(id: UUID, authorId: UUID, preview: String)
+    case ride(id: UUID, authorId: UUID, preview: String)
+    case favor(id: UUID, authorId: UUID, preview: String)
 }
 
-/// Sheet for reporting Town Hall content
+/// Sheet for reporting user-generated content
 struct ReportContentSheet: View {
     let context: ReportContext
     var onReported: (() -> Void)?
@@ -36,6 +38,8 @@ struct ReportContentSheet: View {
         switch context {
         case .post(_, _, let preview): return preview
         case .comment(_, _, let preview): return preview
+        case .ride(_, _, let preview): return preview
+        case .favor(_, _, let preview): return preview
         }
     }
 
@@ -43,6 +47,8 @@ struct ReportContentSheet: View {
         switch context {
         case .post: return "town_hall_post".localized
         case .comment: return "town_hall_comment".localized
+        case .ride: return "report_content_type_ride".localized
+        case .favor: return "report_content_type_favor".localized
         }
     }
 
@@ -153,6 +159,22 @@ struct ReportContentSheet: View {
                 try await MessageService.shared.reportComment(
                     reporterId: currentUserId,
                     commentId: id,
+                    authorId: authorId,
+                    type: selectedReportType,
+                    description: description.isEmpty ? nil : description
+                )
+            case .ride(let id, let authorId, _):
+                try await MessageService.shared.reportRide(
+                    reporterId: currentUserId,
+                    rideId: id,
+                    authorId: authorId,
+                    type: selectedReportType,
+                    description: description.isEmpty ? nil : description
+                )
+            case .favor(let id, let authorId, _):
+                try await MessageService.shared.reportFavor(
+                    reporterId: currentUserId,
+                    favorId: id,
                     authorId: authorId,
                     type: selectedReportType,
                     description: description.isEmpty ? nil : description

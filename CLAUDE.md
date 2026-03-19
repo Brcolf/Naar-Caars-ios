@@ -142,7 +142,7 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 
 **Localization**: All user-facing strings use `"key".localized` with keys in `Resources/Localizable.xcstrings` (Xcode string catalog format). A pre-commit hook validates localization changes.
 
-**Database migrations**: SQL files in `database/` with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `130`. Do not modify existing migration files.
+**Database migrations**: SQL files in `database/` with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `132`. Do not modify existing migration files.
 
 **Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`.
 
