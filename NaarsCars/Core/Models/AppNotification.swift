@@ -61,7 +61,10 @@ enum NotificationType: String, Codable, CaseIterable {
     case pendingApproval = "pending_approval"
     case userApproved = "user_approved"
     case userRejected = "user_rejected"
-    
+
+    // Account restriction
+    case accountRestricted = "account_restricted"
+
     case other = "other"
     
     /// Icon name for notification type
@@ -94,6 +97,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return "checkmark.circle.fill"
         case .userRejected:
             return "xmark.circle.fill"
+        case .accountRestricted:
+            return "exclamationmark.triangle.fill"
         case .other:
             return "bell.fill"
         }
@@ -107,7 +112,7 @@ enum NotificationType: String, Codable, CaseIterable {
             return false
         case .announcement, .adminAnnouncement, .broadcast:  // Board announcements
             return false
-        case .userApproved, .userRejected:  // Account status
+        case .userApproved, .userRejected, .accountRestricted:  // Account status
             return false
         case .pendingApproval:  // Admin must see pending users
             return false
@@ -172,6 +177,7 @@ enum NotificationType: String, Codable, CaseIterable {
             "pending_approval",
             "user_approved",
             "user_rejected",
+            "account_restricted",
             "other"
         ]
         assert(
