@@ -260,9 +260,11 @@ struct MainTabView: View {
                 reason: .deepLinkSignIn,
                 onSignUp: {
                     appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
                 },
                 onLogIn: {
                     appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
                 }
             )
         }

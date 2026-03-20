@@ -65,7 +65,7 @@ struct FavorDetailView: View {
         .navigationTitle("favor_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if !viewModel.isPoster, viewModel.favor != nil {
+            if !viewModel.isPoster, viewModel.favor != nil, !appState.isGuest {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if hasReported {
                         Image(systemName: "flag.fill")

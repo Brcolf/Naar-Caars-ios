@@ -70,7 +70,7 @@ struct RideDetailView: View {
         .navigationTitle("ride_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if !viewModel.isPoster, viewModel.ride != nil {
+            if !viewModel.isPoster, viewModel.ride != nil, !appState.isGuest {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if hasReported {
                         Image(systemName: "flag.fill")
