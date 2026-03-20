@@ -16292,6 +16292,28 @@
         }
       }
     },
+    "guest_prompt_title_deep_link_sign_in" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In Required"
+          }
+        }
+      }
+    },
+    "guest_prompt_message_deep_link_sign_in" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create an account or sign in to access this content."
+          }
+        }
+      }
+    },
     "guest_prompt_message_claim_ride" : {
       "extractionState" : "stale",
       "localizations" : {

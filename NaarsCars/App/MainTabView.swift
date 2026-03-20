@@ -19,6 +19,7 @@ struct MainTabView: View {
     @State private var showGuidelinesAcceptance = false
     @State private var showNotificationsSheet = false
     @State private var isNotificationsSheetVisible = false
+    @State private var showGuestDeepLinkPrompt = false
 
     @ViewBuilder
     private var toastOverlay: some View {
@@ -121,6 +122,21 @@ struct MainTabView: View {
         }
         .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
             guard let intent else { return }
+
+            // Guest guard: admin-only intents are silently dropped; auth-required intents
+            // show the sign-in prompt and clear the pending intent.
+            if appState.isGuest {
+                if navigationCoordinator.intentIsAdminOnly(intent) {
+                    navigationCoordinator.pendingIntent = nil
+                    return
+                }
+                if navigationCoordinator.intentRequiresAuth(intent) {
+                    navigationCoordinator.pendingIntent = nil
+                    showGuestDeepLinkPrompt = true
+                    return
+                }
+            }
+
             if case .notifications = intent {
                 showNotificationsSheet = true
                 return
@@ -238,6 +254,17 @@ struct MainTabView: View {
                     }
                 )
             }
+        }
+        .sheet(isPresented: $showGuestDeepLinkPrompt) {
+            GuestSignInPromptView(
+                reason: .deepLinkSignIn,
+                onSignUp: {
+                    appState.isGuestMode = false
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                }
+            )
         }
         .alert("nav_open_link".localized, isPresented: $navigationCoordinator.showDeepLinkConfirmation) {
             Button("nav_open".localized, role: .destructive) {
