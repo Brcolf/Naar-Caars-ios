@@ -14,6 +14,16 @@
 
 **Important pattern note:** Most views modified in this plan do NOT currently have `appState` in their properties. `AppState` is `@Observable` and is injected at the root (`NaarsCarsApp.swift`), so adding `@Environment(AppState.self) private var appState` to any view will work. Every task that references `appState.isGuest` requires this injection. `AppLaunchManager` is `ObservableObject` and is accessed via `AppLaunchManager.shared` — do NOT use `@Environment` for it.
 
+**Source-of-truth rule:**
+- `appState.isGuest` is the **sole source of truth for feature gating** in views. Use it for all UI conditionals (blur, hide, show prompt).
+- `AuthState.guest` exists for **routing and state-machine completeness** only — used in `ContentView`'s switch and `LaunchState`.
+- `AuthService.shared.currentUserId == nil` is an **auth/network fact**. Use it ONLY for belt-and-suspenders write guards in ViewModels — never as the primary mechanism for guest UX decisions. The distinction matters: `currentUserId` is also nil during loading and other transient states, so it is not a reliable UX-state indicator.
+
+**State hygiene rules:**
+- `isGuestMode` must be set to `false` on successful sign-up/login (handled by the normal auth flow setting `LaunchState` to `.ready(.authenticated)`, which exits the `.guest` routing path — but `exitGuestMode()` must also explicitly clear the flag).
+- `isGuestMode` must not persist after sign-out. The `handleSignOut()` flow resets state to `.ready(.unauthenticated)` — verify it also clears `isGuestMode`.
+- App relaunch returns to `WelcomeView` (no persisted session for guests). Guest mode is opt-in each launch.
+
 ---
 
 ## File Map
@@ -35,15 +45,15 @@
 | `NaarsCars/App/ContentView.swift` | Route `.guest` to `MainTabView`; verify `isAuthenticated` excludes `.guest` |
 | `NaarsCars/Features/Authentication/Views/WelcomeView.swift` | "Continue as Guest" button |
 | `NaarsCars/App/MainTabView.swift` | Conditional tabs for messages/profile; guard badge refresh, toasts, prompts |
-| `NaarsCars/UI/Components/AddressText.swift` | Add `isBlurred` parameter with blur overlay |
-| `NaarsCars/UI/Components/Cards/RideCard.swift` | Pass `isBlurred` to AddressText |
-| `NaarsCars/UI/Components/Cards/FavorCard.swift` | Pass `isBlurred` to AddressText |
+| `NaarsCars/UI/Components/AddressText.swift` | Add `isRedacted` parameter with placeholder rendering |
+| `NaarsCars/UI/Components/Cards/RideCard.swift` | Pass `isRedacted` to AddressText |
+| `NaarsCars/UI/Components/Cards/FavorCard.swift` | Pass `isRedacted` to AddressText |
 | `NaarsCars/Features/Requests/ViewModels/RequestFilterManager.swift` | Relax `.open` guard for nil userId |
 | `NaarsCars/Features/Requests/Views/RequestsDashboardView.swift` | Guard realtime subscription for guests |
-| `NaarsCars/Features/Rides/Views/RideDetailView.swift` | Blur addresses, hide map, gate actions |
+| `NaarsCars/Features/Rides/Views/RideDetailView.swift` | Redact addresses, hide map, gate actions |
 | `NaarsCars/Features/Rides/ViewModels/RideDetailViewModel.swift` | Guard Q&A methods |
 | `NaarsCars/Features/Claiming/ViewModels/ClaimViewModel.swift` | Guard `claim()` + `unclaim()` for guests |
-| `NaarsCars/Features/Favors/Views/FavorDetailView.swift` | Blur addresses, gate actions |
+| `NaarsCars/Features/Favors/Views/FavorDetailView.swift` | Redact addresses, gate actions |
 | `NaarsCars/Features/Favors/ViewModels/FavorDetailViewModel.swift` | Guard Q&A methods |
 | `NaarsCars/Features/Rides/Views/CreateRideView.swift` | Guest banner + gate submit |
 | `NaarsCars/Features/Rides/ViewModels/CreateRideViewModel.swift` | Guard `createRide()` |
@@ -105,7 +115,7 @@ var isGuest: Bool { isGuestMode }
 
 - [ ] **Step 3: Add `enterGuestMode()` and `exitGuestMode()` to `AppLaunchManager`**
 
-In `AppLaunchManager.swift`, add two new methods. `enterGuestMode()` sets the launch state to `.ready(.guest)` and sets `appState.isGuestMode = true` without creating a Supabase session or starting any deferred loading. `exitGuestMode()` sets `appState.isGuestMode = false` and transitions state to `.ready(.unauthenticated)`.
+In `AppLaunchManager.swift`, add two new methods. `enterGuestMode()` sets the launch state to `.ready(.guest)` and sets `appState.isGuestMode = true` without creating a Supabase session or starting any deferred loading. `exitGuestMode()` clears `isGuestMode` and transitions state to `.ready(.unauthenticated)`.
 
 ```swift
 @MainActor
@@ -121,6 +131,8 @@ func exitGuestMode() {
 }
 ```
 
+**Design decision — exit routing:** Both "Sign Up" and "Log In" in the prompt return to `WelcomeView` via `.ready(.unauthenticated)`. `WelcomeView` already has distinct buttons for sign-up (Apple/email) and login, so the user can immediately take the action they intended. Routing directly to `SignupDetailsView` or `LoginView` from the prompt would require injecting navigation state across the `ContentView` boundary (which owns the `NavigationStack` for the unauthenticated flow) — this adds complexity for minimal UX gain since `WelcomeView` is one tap away from either path. If we want to improve this later, we could add an optional `pendingAuthAction: AuthAction?` flag on `AppLaunchManager` that `WelcomeView` reads to auto-navigate, but this is not necessary for the initial implementation.
+
 - [ ] **Step 4: Route `.guest` in ContentView switch**
 
 In `ContentView.swift`, add the `.guest` case in the `authState` switch (after `.unauthenticated`, before `.needsApplication`):
@@ -132,7 +144,30 @@ case .guest:
 
 Verify that `isAuthenticated` (line 20-25) does NOT include `.guest` — it should already be excluded since it only checks `.authenticated`, `.pendingApproval`, `.needsApplication`. Confirm no change needed.
 
-- [ ] **Step 5: Build and verify**
+- [ ] **Step 5: Auth-state sweep**
+
+Search the entire codebase for every place `AuthState` is switched on, pattern-matched, or compared. Ensure `.guest` is handled correctly at each site:
+
+```bash
+grep -rn 'AuthState\|\.authenticated\|\.unauthenticated\|\.banned\|\.pendingApproval\|\.needsApplication' NaarsCars/ --include='*.swift' | grep -v '\.localized'
+```
+
+Key sites to verify:
+- `ContentView.swift` — `isAuthenticated` computed property must NOT include `.guest`
+- `ContentView.swift` — scenePhase `.active` handler must not restart sync engines for guests
+- `AppLaunchManager.swift` — `performCriticalLaunch()`, `performDeferredLoading()` must not run for guests
+- `AppState.swift` — `authState` computed property returns `.unauthenticated` when `currentUser` is nil (this is correct; guest routing uses `LaunchState`, not this computed property)
+- `AppDelegate.swift` — any foreground/background auth lifecycle checks
+- `AppLockManager` — must not engage for guests
+- Any `NotificationCenter` observers for `.userDidSignOut` — verify they don't fire during guest exit
+- Any other switches with `default:` cases — confirm `.guest` falls through safely
+
+Also verify state hygiene:
+- `AuthService.handleSignOut()` must clear `appState.isGuestMode = false`
+- `exitGuestMode()` must clear `isGuestMode` before transitioning state
+- Successful auth flow (sign-up/login completing) must clear `isGuestMode`
+
+- [ ] **Step 6: Build and verify**
 
 ```bash
 xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -configuration Debug build 2>&1 | tail -5
@@ -140,7 +175,7 @@ xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphones
 
 Expected: BUILD SUCCEEDED. The new `.guest` case may cause switch exhaustiveness warnings in other files — note them for later tasks.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(guest): add .guest to AuthState, isGuestMode to AppState, enter/exit methods to AppLaunchManager, route in ContentView"
@@ -233,11 +268,16 @@ This is a reusable sheet. It accepts a `GuestRestrictionReason` and an `onSignUp
 import SwiftUI
 
 /// Reusable half-sheet prompting guests to sign up or log in.
+/// Uses onDisappear to fire the callback after the sheet has fully dismissed,
+/// avoiding the timing issue where dismiss() + immediate state change tears
+/// down the sheet mid-animation. This is safer than Task.sleep(300ms).
 struct GuestSignInPromptView: View {
     let reason: GuestRestrictionReason
     let onSignUp: () -> Void
     let onLogIn: () -> Void
 
+    private enum PendingAction { case signUp, logIn }
+    @State private var pendingAction: PendingAction?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -260,14 +300,11 @@ struct GuestSignInPromptView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
+            // State tracking for deferred callback after sheet dismissal
             VStack(spacing: 12) {
                 Button {
+                    pendingAction = .signUp
                     dismiss()
-                    // Delay state transition to avoid tearing down sheet mid-dismissal
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(300))
-                        onSignUp()
-                    }
                 } label: {
                     Text("guest_prompt_sign_up".localized)
                         .font(.headline)
@@ -278,11 +315,8 @@ struct GuestSignInPromptView: View {
                 .accessibilityIdentifier("guestPrompt.signUp")
 
                 Button {
+                    pendingAction = .logIn
                     dismiss()
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(300))
-                        onLogIn()
-                    }
                 } label: {
                     Text("guest_prompt_log_in".localized)
                         .font(.headline)
@@ -299,6 +333,13 @@ struct GuestSignInPromptView: View {
         .padding()
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
+        .onDisappear {
+            switch pendingAction {
+            case .signUp: onSignUp()
+            case .logIn: onLogIn()
+            case nil: break // dismissed without choosing
+            }
+        }
     }
 }
 ```
@@ -607,6 +648,12 @@ a) In the `.task` modifier (line ~132-141), guard badge refresh, prompt coordina
 }
 ```
 
+**Lifecycle safety verification:** Confirm that early-returning from `.task` does not break any downstream layout or lifecycle assumptions. Specifically:
+- `checkGuidelinesAcceptance()` presents a `fullScreenCover` — skipping it for guests is safe (the guard inside already returns early when `currentProfile` is nil, but the explicit guest guard is cleaner).
+- `refreshAllBadges()` updates badge state that drives tab badge counts — skipping means tab badges stay at zero for guests, which is correct.
+- `promptCoordinator` drives review/completion prompts — not applicable to guests.
+- No downstream view depends on these methods completing before rendering.
+
 b) In the toast overlay (line ~22-45), wrap in a guest check so toasts don't render for guests:
 
 ```swift
@@ -614,6 +661,8 @@ if !appState.isGuest {
     // existing toast overlay code
 }
 ```
+
+This is safe because toasts are driven by push notifications / realtime events that are never set up for guests, so the overlay would never trigger anyway. The explicit guard prevents any edge case where stale state shows a toast.
 
 c) In the TabView body, conditionally swap Messages and Profile tabs:
 
@@ -647,7 +696,7 @@ git add -A && git commit -m "feat(guest): add GuestMessagesView, GuestProfileVie
 
 ---
 
-## Task 5: AddressText Blur + Card Updates
+## Task 5: AddressText Redaction + Card Updates
 
 **Files:**
 - Modify: `NaarsCars/UI/Components/AddressText.swift` (lines 21-65)
@@ -657,64 +706,67 @@ git add -A && git commit -m "feat(guest): add GuestMessagesView, GuestProfileVie
 
 ### Steps
 
-- [ ] **Step 1: Add `isBlurred` parameter to AddressText**
+- [ ] **Step 1: Add `isRedacted` parameter to AddressText**
 
-Read `AddressText.swift`. The existing init is `init(_ address: String, font: Font = .naarsBody, foregroundColor: Color = .primary)`. Add `isBlurred: Bool = false` as a new parameter alongside the existing ones. When `isBlurred` is true:
-- Apply `.blur(radius: 6)` to the address text
-- Disable the context menu (no copy, no open in Maps)
-- Overlay a "Sign in to view" label
+Read `AddressText.swift`. The existing init is `init(_ address: String, font: Font = .naarsBody, foregroundColor: Color = .primary)`. Add `isRedacted: Bool = false` as a new parameter alongside the existing ones. When `isRedacted` is true:
+- Do NOT render the real address string at all — use a placeholder instead
+- No context menu (no copy, no open in Maps)
+- No accessibility leak of the real address
+
+**Privacy rationale:** A visual `.blur()` over real text is a weak boundary — the underlying string could leak via accessibility labels, parent view modifiers, text selection, or VoiceOver. Instead, when `isRedacted` is true, the component renders only placeholder text. The real address string is never passed to any `Text` view in the redacted path.
 
 ```swift
 // Add parameter alongside existing ones
-let isBlurred: Bool
+let isRedacted: Bool
 
 // Update init — preserve existing font and foregroundColor params
-init(_ address: String, font: Font = .naarsBody, foregroundColor: Color = .primary, isBlurred: Bool = false) {
+init(_ address: String, font: Font = .naarsBody, foregroundColor: Color = .primary, isRedacted: Bool = false) {
     self.address = address
     self.font = font
     self.foregroundColor = foregroundColor
-    self.isBlurred = isBlurred
+    self.isRedacted = isRedacted
 }
 
 // In body, wrap the existing content:
-if isBlurred {
-    Text(address)
-        .blur(radius: 6)
-        .overlay {
-            Text("guest_address_hidden".localized)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.ultraThinMaterial, in: Capsule())
-        }
-        .accessibilityLabel("guest_address_hidden_accessibility".localized)
+if isRedacted {
+    Label {
+        Text("guest_address_hidden".localized)
+            .font(font)
+            .foregroundStyle(.tertiary)
+    } icon: {
+        Image(systemName: "lock.fill")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+    }
+    .accessibilityLabel("guest_address_hidden_accessibility".localized)
 } else {
-    // existing address text with context menu
+    // existing address text with context menu — unchanged
 }
 ```
+
+This ensures no real address data is rendered, copied, spoken by VoiceOver, or exposed through any modifier chain when the user is a guest.
 
 Localization keys:
 - `guest_address_hidden` = "Sign in to view address"
 - `guest_address_hidden_accessibility` = "Address hidden. Sign in to view."
 
-- [ ] **Step 2: Update RideCard to pass `isBlurred`**
+- [ ] **Step 2: Update RideCard to pass `isRedacted`**
 
 Read `RideCard.swift`. The card does NOT currently have `appState` — add `@Environment(AppState.self) private var appState` to the view's properties. (`AppState` is already injected at the root in `NaarsCarsApp.swift`.) Then at lines 75 and 90, change:
 
 ```swift
-AddressText(ride.pickup, isBlurred: appState.isGuest)
-AddressText(ride.destination, isBlurred: appState.isGuest)
+AddressText(ride.pickup, isRedacted: appState.isGuest)
+AddressText(ride.destination, isRedacted: appState.isGuest)
 ```
 
 Check how `appState` is currently accessed in card components — it may be via `@EnvironmentObject` or `@Environment`. Follow the existing pattern.
 
-- [ ] **Step 3: Update FavorCard to pass `isBlurred`**
+- [ ] **Step 3: Update FavorCard to pass `isRedacted`**
 
 Read `FavorCard.swift`. Add `@Environment(AppState.self) private var appState` to the view's properties. At line 80, change:
 
 ```swift
-AddressText(favor.location, isBlurred: appState.isGuest)
+AddressText(favor.location, isRedacted: appState.isGuest)
 ```
 
 - [ ] **Step 4: Build and verify**
@@ -722,7 +774,7 @@ AddressText(favor.location, isBlurred: appState.isGuest)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add -A && git commit -m "feat(guest): add blur overlay to AddressText, pass isBlurred from RideCard and FavorCard"
+git add -A && git commit -m "feat(guest): add redacted mode to AddressText, pass isRedacted from RideCard and FavorCard"
 ```
 
 ---
@@ -795,9 +847,19 @@ Read `RequestsDashboardView.swift`. Add `@Environment(AppState.self) private var
 
 Note: `loadRequests()` does a network fetch and writes to SwiftData — this works for guests via Supabase anon reads. Only the realtime subscription is skipped.
 
-- [ ] **Step 7: Build and verify**
+- [ ] **Step 7: Manual verification of guest dashboard behavior**
 
-- [ ] **Step 8: Commit**
+After build succeeds, mentally trace or test these scenarios:
+- **Cold launch as guest:** No local SwiftData cache exists. `loadRequests()` fetches from Supabase, writes to SwiftData, then `getFilteredRequests()` reads back from SwiftData and returns `.open` results. Confirm the `.open` predicate path in `fetchFilteredRides`/`fetchFilteredFavors` does not reference `userId`.
+- **Pull-to-refresh as guest:** Should re-fetch and update the list. Verify `refreshRequests()` code path does not guard on `currentUserId` for the network fetch.
+- **Tab switching (leave and return):** SwiftData cache should still contain previous fetch results. No data loss.
+- **Background/foreground as guest:** No realtime subscription to reconnect, no badge refresh to fire. `ContentView.isAuthenticated` is `false` for guests, so scenePhase handler is a no-op. Should be safe.
+- **Guest → sign-in transition:** After `exitGuestMode()`, the user completes auth, and `performDeferredLoading()` starts sync engines normally. SwiftData cache from guest browsing may contain stale data — confirm sync engines overwrite it correctly.
+- **`.open` filter must not include stale local-only data:** The `.open` predicate filters on `status == "open" && claimedBy == nil`. Local-only pending sends (if any existed) would have a `userId` that doesn't match — but guests can't create sends. Confirm no stale data path.
+
+- [ ] **Step 8: Build and verify**
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A && git commit -m "feat(guest): relax RequestFilterManager .open guard for guests, skip realtime subscription"
@@ -834,9 +896,9 @@ Add the sheet at the view level:
 }
 ```
 
-- [ ] **Step 2: Blur addresses and hide map for guests**
+- [ ] **Step 2: Redact addresses and hide map for guests**
 
-Find all `AddressText` usages for pickup/destination and pass `isBlurred: appState.isGuest`.
+Find all `AddressText` usages for pickup/destination and pass `isRedacted: appState.isGuest`.
 
 Find the `RouteMapView` usage and wrap it:
 
@@ -896,14 +958,14 @@ Read `RideDetailViewModel.swift`. Add early return in `postQuestion()` (~line 73
 guard AuthService.shared.currentUserId != nil else { return }
 ```
 
-This uses `AuthService.shared.currentUserId == nil` as a proxy for guest mode in ViewModels, avoiding the need to inject `AppState`.
+This uses `AuthService.shared.currentUserId == nil` as a proxy for guest mode in ViewModels, avoiding the need to inject `AppState`. **This is belt-and-suspenders only** — the UI prompt gating in Steps 2-3 is the primary guest UX mechanism. The ViewModel guard is a safety net that prevents accidental writes if the UI gate is somehow bypassed. It should never be the user-facing behavior; the guest should always see the prompt first.
 
 - [ ] **Step 5: Build and verify**
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add -A && git commit -m "feat(guest): blur addresses, hide map, gate actions in RideDetailView"
+git add -A && git commit -m "feat(guest): redact addresses, hide map, gate actions in RideDetailView"
 ```
 
 ---
@@ -920,7 +982,7 @@ git add -A && git commit -m "feat(guest): blur addresses, hide map, gate actions
 
 Apply the exact same patterns from Task 7:
 - Add guest state + prompt sheet
-- Blur `AddressText` for location
+- Redact `AddressText` for location
 - Gate claim button, message button, Q&A
 - Verify edit/delete hidden via `isPoster`
 
@@ -935,12 +997,14 @@ Same pattern as RideDetailViewModel: guard `postQuestion()` with `AuthService.sh
 - [ ] **Step 4: Commit**
 
 ```bash
-git add -A && git commit -m "feat(guest): blur addresses, gate actions in FavorDetailView"
+git add -A && git commit -m "feat(guest): redact addresses, gate actions in FavorDetailView"
 ```
 
 ---
 
 ## Task 9: Create Ride / Create Favor — Guest Banner + Gate Submit
+
+**UX intention:** Guests may explore the full create form (all fields interactable) to understand what posting a ride/favor involves. The guest banner at the top makes it immediately clear that submission requires an account — the guest should never feel surprised by a gating prompt at submit time. The Post button triggers the sign-in prompt sheet, not an error. This should feel like an intentional design choice, not a broken form.
 
 **Files:**
 - Modify: `NaarsCars/Features/Rides/Views/CreateRideView.swift` (lines ~148-171)
@@ -1028,9 +1092,19 @@ git add -A && git commit -m "feat(guest): add guest banners and gate submit on C
 
 ### Steps
 
-- [ ] **Step 1: Hide phone number section for guests**
+- [ ] **Step 1: Audit PublicProfileView for contact-adjacent data**
 
-Read `PublicProfileView.swift`. Find the phone section (~lines 150-195). Wrap the entire section in a guest check:
+Read `PublicProfileView.swift` end-to-end. In addition to the phone number, scan for:
+- Email address (should not be shown on public profiles — verify)
+- Car license plate or identifying vehicle details (should only show car description, not plate)
+- Any direct contact links or deep links to external services
+- Any fields that could identify someone's home location
+
+If any additional sensitive fields are found, hide them for guests following the same pattern as phone.
+
+- [ ] **Step 2: Hide phone number section for guests**
+
+Find the phone section (~lines 150-195). Wrap the entire section in a guest check:
 
 ```swift
 if !appState.isGuest {
@@ -1038,7 +1112,7 @@ if !appState.isGuest {
 }
 ```
 
-- [ ] **Step 2: Gate "Send Message" button for guests**
+- [ ] **Step 3: Gate "Send Message" button for guests**
 
 Find the send message button (~lines 201-233). For guests, replace with a guest prompt trigger:
 
@@ -1058,17 +1132,17 @@ if appState.isGuest {
 
 Or simpler: intercept the existing button action for guests.
 
-- [ ] **Step 3: Gate Block/Report menu for guests**
+- [ ] **Step 4: Gate Block/Report menu for guests**
 
 Find the block/report menu (~lines 69-87). Wrap in guest check or redirect to `.reportContent` prompt.
 
-- [ ] **Step 4: Add guest state and prompt sheet**
+- [ ] **Step 5: Add guest state and prompt sheet**
 
 Same pattern as previous tasks.
 
-- [ ] **Step 5: Build and verify**
+- [ ] **Step 6: Build and verify**
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add -A && git commit -m "feat(guest): hide phone, gate message/block on PublicProfileView"
@@ -1118,11 +1192,17 @@ onVote: { postId, voteType in
 }
 ```
 
-- [ ] **Step 3: Gate vote buttons in TownHallPostCard**
+- [ ] **Step 3: Gate vote buttons in TownHallPostCard + verify usage**
 
-Read `TownHallPostCard.swift`. The vote buttons (~lines 283-333) call `onVote?()`. The card itself is presentational and uses callbacks, so the gating in TownHallFeedView (Step 2) should be sufficient. However, verify that `TownHallPostCard` is not used elsewhere without the guard.
+Read `TownHallPostCard.swift`. The vote buttons (~lines 283-333) call `onVote?()`. The card itself is presentational and uses callbacks, so the gating in TownHallFeedView (Step 2) should be sufficient. **However, you must verify `TownHallPostCard` is not used elsewhere without the guest guard:**
 
-If the card is also used standalone, add an `isGuest: Bool` parameter and conditionally disable vote buttons within the card.
+```bash
+grep -rn 'TownHallPostCard' NaarsCars/ --include='*.swift'
+```
+
+If the card is used in other views (e.g., a detail view, search results), those call sites must also gate `onVote` for guests. If it's only used in `TownHallFeedView`, the callback-level gating is sufficient.
+
+**Consistency check:** All gated interactions in Town Hall (create, vote, comment, report) must use the same `GuestSignInPromptView` sheet pattern. Do not mix approaches (e.g., disabling a button in one place while showing a prompt in another). Every gated tap should present the prompt with a contextual reason.
 
 - [ ] **Step 4: Gate interactions in PostCommentsView**
 
@@ -1210,7 +1290,10 @@ private func isGuestSafeIntent(_ intent: NavigationIntent) -> Bool {
 
 **Note:** Verify these case names against the actual enum in `NavigationIntent.swift` before implementing — the enum uses patterns like `.ride(UUID, anchor:)` not `.openRide`. Adapt the switch to match the actual case names. Guest-safe intents: ride, favor, townHallPost, profile, dashboard, requestListScroll. Auth-required: conversation, adminPanel, pendingUsers, adminReports, announcements, showReview, showRequestCompletion.
 
-When applying the intent, if `appState.isGuest && !isGuestSafeIntent(intent)`, either ignore the intent or show the guest prompt. The exact mechanism depends on how intent is consumed — read the code to determine the right hook point.
+When applying the intent, if `appState.isGuest && !isGuestSafeIntent(intent)`:
+- **Preferred behavior: show the guest prompt** with `.sendMessage` (for conversation intents) or a generic reason. This is better than silently ignoring the deep link — the user tapped something and deserves feedback.
+- **Silent no-op is only acceptable** for admin-only intents (`.adminPanel`, `.pendingUsers`, `.adminReports`) where showing a prompt would be confusing since guests should never encounter these paths.
+- The exact mechanism depends on how intent is consumed — read the code to determine the right hook point. The coordinator may need a `@Published var showGuestDeepLinkPrompt: Bool` that `MainTabView` observes to present the sheet.
 
 - [ ] **Step 2: Build and verify**
 
@@ -1257,7 +1340,64 @@ grep -rn 'case .authenticated' NaarsCars/ --include='*.swift' | head -20
 
 Ensure every switch on `AuthState` handles `.guest` appropriately — typically alongside `.unauthenticated` or as a separate case.
 
-- [ ] **Step 4: Final commit**
+- [ ] **Step 4: Sweep for `currentUserId == nil` guards that may produce awkward guest UX**
+
+```bash
+grep -rn 'currentUserId' NaarsCars/ --include='*.swift' | grep -i 'nil\|guard\|else'
+```
+
+For each hit, verify:
+- If it's a write guard (preventing mutation): OK as belt-and-suspenders
+- If it's controlling UX (showing/hiding elements, error messages): should use `appState.isGuest` instead
+- If it shows an error like "Not authenticated" to the user: should be unreachable for guests due to UI-level gating, but verify
+
+- [ ] **Step 5: Manual QA checklist**
+
+Run through these flows manually in Simulator:
+
+**Guest entry:**
+- [ ] Launch app → WelcomeView appears → "Continue as Guest" visible
+- [ ] Tap "Continue as Guest" → lands in MainTabView with 4 tabs
+
+**Dashboard browsing:**
+- [ ] Open Requests tab shows ride/favor cards with redacted addresses
+- [ ] Addresses show lock icon + "Sign in to view address", NOT real text
+- [ ] "My Requests" and "Claimed Requests" filters show empty state
+- [ ] Pull-to-refresh works on "Open Requests"
+- [ ] Tap a ride card → RideDetailView opens with redacted addresses, hidden map
+
+**Gated actions (each should show the sign-in prompt sheet):**
+- [ ] Tap claim button on ride detail
+- [ ] Tap claim button on favor detail
+- [ ] Tap "Ask a question" on detail view
+- [ ] Tap "Message participants" on detail view
+- [ ] Tap "+" to create ride → form opens with guest banner → tap Post
+- [ ] Tap "+" to create favor → form opens with guest banner → tap Post
+- [ ] Tap "+" to create Town Hall post
+- [ ] Tap upvote/downvote on a Town Hall post
+- [ ] Tap reply on a Town Hall comment
+- [ ] Tap "Send Message" on a public profile
+
+**Messages and Profile:**
+- [ ] Messages tab shows GuestMessagesView with privacy rationale
+- [ ] Profile tab shows GuestProfileView with About section links
+- [ ] About section links (privacy policy, ToS, etc.) work
+
+**Town Hall:**
+- [ ] Town Hall feed loads and shows posts
+- [ ] Comments sheet opens read-only with "Sign in to comment" banner
+- [ ] Leaderboard view loads and shows rankings
+
+**Guest → Auth transition:**
+- [ ] Tap "Sign Up" in any prompt → returns to WelcomeView
+- [ ] Complete sign-up/login → lands in authenticated MainTabView
+- [ ] No guest state remnants (badges work, messages load, profile shows data)
+
+**App lifecycle:**
+- [ ] Kill and relaunch app → returns to WelcomeView (not guest mode)
+- [ ] Background and foreground as guest → no crashes, no sync engine errors
+
+- [ ] **Step 6: Final commit**
 
 ```bash
 git add -A && git commit -m "feat(guest): final localization pass and build verification"
