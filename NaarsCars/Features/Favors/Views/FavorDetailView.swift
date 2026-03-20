@@ -15,6 +15,9 @@ struct FavorDetailView: View {
     @StateObject private var claimViewModel = ClaimViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .claimFavor
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
@@ -79,6 +82,19 @@ struct FavorDetailView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showGuestPrompt) {
+            GuestSignInPromptView(
+                reason: guestRestrictionReason,
+                onSignUp: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                }
+            )
         }
         .sheet(isPresented: $showReportSheet) {
             if let favor = viewModel.favor {
@@ -286,7 +302,7 @@ struct FavorDetailView: View {
                         Image(systemName: "mappin.circle.fill")
                             .foregroundColor(.favorAccent)
                             .font(.naarsTitle3)
-                        AddressText(favor.location)
+                        AddressText(favor.location, isRedacted: appState.isGuest)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -446,6 +462,11 @@ struct FavorDetailView: View {
                 requestId: favor.id,
                 requestType: "favor",
                 onPostQuestion: { question in
+                    if appState.isGuest {
+                        guestRestrictionReason = .askQuestion
+                        showGuestPrompt = true
+                        return
+                    }
                     let countBefore = viewModel.qaItems.count
                     await viewModel.postQuestion(question)
                     if viewModel.qaItems.count > countBefore {
@@ -454,6 +475,11 @@ struct FavorDetailView: View {
                 },
                 isClaimed: favor.claimedBy != nil,
                 onMessageParticipants: favor.claimedBy == nil ? nil : {
+                    if appState.isGuest {
+                        guestRestrictionReason = .sendMessage
+                        showGuestPrompt = true
+                        return
+                    }
                     Task { await openOrCreateConversation(favor: favor) }
                 }
             )
@@ -672,42 +698,56 @@ struct FavorDetailView: View {
     
     @ViewBuilder
     private func claimButtonSection(favor: Favor) -> some View {
-        let authService = AuthService.shared
-        let currentUserId = authService.currentUserId
-        
-        let buttonState: ClaimButtonState = {
-            if viewModel.isPoster {
-                return .isPoster
-            } else if favor.status == .completed {
-                return .completed
-            } else if let claimedBy = favor.claimedBy {
-                return claimedBy == currentUserId ? .claimedByMe : .claimedByOther
-            } else {
-                return .canClaim
+        if appState.isGuest {
+            Button {
+                guestRestrictionReason = .claimFavor
+                showGuestPrompt = true
+            } label: {
+                Text("guest_prompt_title_claim_favor".localized)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
             }
-        }()
-        
-        ClaimButton(
-            state: buttonState,
-            action: {
-                switch buttonState {
-                case .canClaim:
-                    Task {
-                        let canClaim = await claimViewModel.checkCanClaim()
-                        if canClaim {
-                            showClaimSheet = true
-                        } else {
-                            showPhoneRequired = true
-                        }
-                    }
-                case .claimedByMe:
-                    showUnclaimSheet = true
-                default:
-                    break
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("favor.guestClaimPrompt")
+        } else {
+            let authService = AuthService.shared
+            let currentUserId = authService.currentUserId
+
+            let buttonState: ClaimButtonState = {
+                if viewModel.isPoster {
+                    return .isPoster
+                } else if favor.status == .completed {
+                    return .completed
+                } else if let claimedBy = favor.claimedBy {
+                    return claimedBy == currentUserId ? .claimedByMe : .claimedByOther
+                } else {
+                    return .canClaim
                 }
-            },
-            isLoading: claimViewModel.isLoading
-        )
+            }()
+
+            ClaimButton(
+                state: buttonState,
+                action: {
+                    switch buttonState {
+                    case .canClaim:
+                        Task {
+                            let canClaim = await claimViewModel.checkCanClaim()
+                            if canClaim {
+                                showClaimSheet = true
+                            } else {
+                                showPhoneRequired = true
+                            }
+                        }
+                    case .claimedByMe:
+                        showUnclaimSheet = true
+                    default:
+                        break
+                    }
+                },
+                isLoading: claimViewModel.isLoading
+            )
+        }
     }
 }
 
