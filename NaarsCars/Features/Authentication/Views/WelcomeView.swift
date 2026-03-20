@@ -46,9 +46,9 @@ struct WelcomeView: View {
                 Spacer()
                     .frame(height: 8)
 
-                // Sign up buttons
+                // Primary sign-in options
                 VStack(spacing: 16) {
-                    // Apple Sign-In (primary — no gate, no invite code)
+                    // Apple Sign-In (primary — handles both sign-in and sign-up)
                     AppleSignInButton(
                         onRequest: { request in
                             appleSignInViewModel.handleSignInRequest(request)
@@ -67,41 +67,27 @@ struct WelcomeView: View {
                     )
                     .disabled(appleSignInViewModel.isLoading)
 
-                    // Divider
-                    HStack {
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(.secondary.opacity(0.3))
-                        Text("auth_or_continue_with".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(.secondary.opacity(0.3))
-                    }
-                    .padding(.vertical, 4)
-
-                    // Continue with Email
+                    // Log in with Email (primary)
                     Button(action: {
-                        navigateToEmailSignup = true
+                        navigateToLogin = true
                     }) {
                         HStack {
                             Image(systemName: "envelope.fill")
-                            Text("signup_continue_with_email".localized)
+                            Text("welcome_login_with_email".localized)
                             Spacer()
                         }
+                        .font(.naarsBody)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.naarsBackgroundSecondary)
-                        .cornerRadius(12)
+                        .cornerRadius(10)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(.separator), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.naarsBorder, lineWidth: 1)
                         )
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .accessibilityIdentifier("welcome.emailSignup")
+                    .accessibilityIdentifier("welcome.emailLogin")
 
                     if appleSignInViewModel.isLoading {
                         ProgressView()
@@ -110,42 +96,49 @@ struct WelcomeView: View {
                 }
                 .padding(.horizontal)
 
-                Spacer()
-                    .frame(height: 8)
+                // Divider
+                HStack {
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(.naarsDivider)
+                    Text("auth_or_continue_with".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsTextSecondary)
+                        .padding(.horizontal, 8)
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(.naarsDivider)
+                }
+                .padding(.horizontal)
+
+                // Secondary options — sign up with email + guest
+                VStack(spacing: 12) {
+                    SecondaryButton(title: "welcome_signup_with_email".localized) {
+                        navigateToEmailSignup = true
+                    }
+                    .accessibilityIdentifier("welcome.emailSignup")
+
+                    Button {
+                        appState.isGuestMode = true
+                        AppLaunchManager.shared.enterGuestMode()
+                    } label: {
+                        Text("welcome_continue_as_guest".localized)
+                            .font(.naarsSubheadline)
+                            .foregroundColor(.naarsTextSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .accessibilityIdentifier("welcome.continueAsGuest")
+                }
+                .padding(.horizontal)
 
                 // Footer — public positioning copy
                 Text("welcome_footer".localized)
                     .font(.naarsCaption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.naarsTextTertiary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
-
-                // Continue as Guest
-                Button {
-                    appState.isGuestMode = true
-                    AppLaunchManager.shared.enterGuestMode()
-                } label: {
-                    Text("welcome_continue_as_guest".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                }
-                .accessibilityIdentifier("welcome.continueAsGuest")
-                .padding(.top, 4)
-
-                // Already have an account? Sign In
-                HStack {
-                    Text("welcome_already_have_account".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-
-                    Button("auth_sign_in_button".localized) {
-                        navigateToLogin = true
-                    }
-                    .font(.naarsCaption)
-                    .foregroundColor(.naarsPrimary)
-                    .accessibilityIdentifier("welcome.signIn")
-                }
-                .padding(.bottom, 32)
+                    .padding(.bottom, 32)
             }
             .padding()
         }

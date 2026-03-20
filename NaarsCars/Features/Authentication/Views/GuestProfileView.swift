@@ -18,37 +18,25 @@ struct GuestProfileView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "person.crop.circle")
                             .font(.system(size: 72))
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.naarsPrimary.opacity(0.5))
                             .accessibilityHidden(true)
 
                         Text("guest_profile_name".localized)
-                            .font(.title2.bold())
+                            .font(.naarsTitle2)
 
                         Text("guest_profile_cta_message".localized)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.naarsSubheadline)
+                            .foregroundColor(.naarsTextSecondary)
                             .multilineTextAlignment(.center)
 
-                        Button {
+                        PrimaryButton(title: "guest_prompt_sign_up".localized) {
                             showSignInPrompt = true
-                        } label: {
-                            Text("guest_prompt_sign_up".localized)
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
                         }
-                        .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("guestProfile.signUp")
 
-                        Button {
+                        SecondaryButton(title: "guest_prompt_log_in".localized) {
                             showSignInPrompt = true
-                        } label: {
-                            Text("guest_prompt_log_in".localized)
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
                         }
-                        .buttonStyle(.bordered)
                         .accessibilityIdentifier("guestProfile.logIn")
                     }
                     .frame(maxWidth: .infinity)
@@ -115,7 +103,7 @@ struct GuestProfileView: View {
             .navigationTitle("nav_tab_profile".localized)
             .sheet(isPresented: $showSignInPrompt) {
                 GuestSignInPromptView(
-                    reason: .sendMessage,
+                    reason: .joinCommunity,
                     onSignUp: {
                         appState.isGuestMode = false
                         AppLaunchManager.shared.exitGuestMode()

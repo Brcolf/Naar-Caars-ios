@@ -17,34 +17,29 @@ struct GuestMessagesView: View {
 
                 Image(systemName: "bubble.left.and.bubble.right")
                     .font(.system(size: 56))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.naarsPrimary.opacity(0.5))
                     .accessibilityHidden(true)
 
                 Text("guest_messages_title".localized)
-                    .font(.title2.bold())
+                    .font(.naarsTitle2)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("guest_messages_privacy_rationale".localized)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(.naarsBody)
+                    .foregroundColor(.naarsTextSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
 
-                Button {
+                PrimaryButton(title: "guest_prompt_sign_up".localized) {
                     showSignInPrompt = true
-                } label: {
-                    Text("guest_prompt_sign_up".localized)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
                 }
-                .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 32)
                 .accessibilityIdentifier("guestMessages.signUp")
 
                 Spacer()
             }
+            .background(Color.naarsBackground)
             .navigationTitle("nav_tab_messages".localized)
             .sheet(isPresented: $showSignInPrompt) {
                 GuestSignInPromptView(

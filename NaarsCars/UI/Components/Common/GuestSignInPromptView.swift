@@ -24,43 +24,31 @@ struct GuestSignInPromptView: View {
 
             Image(systemName: "lock.shield")
                 .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .foregroundColor(.naarsPrimary.opacity(0.6))
                 .accessibilityHidden(true)
 
             Text(reason.title)
-                .font(.title2.bold())
+                .font(.naarsTitle2)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
 
             Text(reason.message)
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.naarsBody)
+                .foregroundColor(.naarsTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
             VStack(spacing: 12) {
-                Button {
+                PrimaryButton(title: "guest_prompt_sign_up".localized) {
                     pendingAction = .signUp
                     dismiss()
-                } label: {
-                    Text("guest_prompt_sign_up".localized)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
                 }
-                .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("guestPrompt.signUp")
 
-                Button {
+                SecondaryButton(title: "guest_prompt_log_in".localized) {
                     pendingAction = .logIn
                     dismiss()
-                } label: {
-                    Text("guest_prompt_log_in".localized)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
                 }
-                .buttonStyle(.bordered)
                 .accessibilityIdentifier("guestPrompt.logIn")
             }
             .padding(.horizontal, 32)
