@@ -43764,6 +43764,17 @@
         }
       }
     },
+    "welcome_continue_as_guest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue as Guest"
+          }
+        }
+      }
+    },
     "welcome_footer" : {
       "extractionState" : "manual",
       "localizations" : {
