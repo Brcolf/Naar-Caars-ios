@@ -69,14 +69,14 @@ private enum AppleUserKeychain {
 
 extension AuthService {
     
-    /// Handle Apple Sign-In for new users (signup flow)
+    /// Handle Apple Sign-In for new users (public signup — no invite code required)
+    /// Captures Apple-provided name and email immediately on first authorization.
     /// - Parameters:
     ///   - credential: Apple ID credential from ASAuthorization
-    ///   - inviteCodeId: Validated invite code ID
+    ///   - rawNonce: The raw nonce used for the request
     /// - Throws: AppError if signup fails
     func signUpWithApple(
         credential: ASAuthorizationAppleIDCredential,
-        inviteCodeId: UUID,
         rawNonce: String? = nil
     ) async throws {
         isLoading = true
@@ -88,7 +88,8 @@ extension AuthService {
             throw AppError.unknown("Failed to get Apple identity token")
         }
 
-        // 2. Get user info (may be nil on subsequent logins)
+        // 2. Get user info from Apple credential (only available on first authorization)
+        // Apple SIWA compliance: persist these immediately — Apple will not return them again
         let email = credential.email
         let fullName = [
             credential.fullName?.givenName,
@@ -96,9 +97,7 @@ extension AuthService {
         ].compactMap { $0 }.joined(separator: " ")
 
         // 3. Sign in with Supabase using Apple token
-        // Note: Supabase will create the user if they don't exist
-        // Use signInWithIdToken for native iOS Apple Sign-In
-        // The rawNonce must match the SHA256 hash embedded in the id_token
+        // Supabase will create the auth user if they don't exist
         let session = try await SupabaseService.shared.client.auth.signInWithIdToken(
             credentials: OpenIDConnectCredentials(
                 provider: .apple,
@@ -106,79 +105,33 @@ extension AuthService {
                 nonce: rawNonce
             )
         )
-        
+
         let userIdString = session.user.id.uuidString
         guard let userId = UUID(uuidString: userIdString) else {
             throw AppError.unknown("Failed to create user account")
         }
-        
-        // 4. Fetch invite code to get createdBy for profile
-        let inviteCodeResponse = try await SupabaseService.shared.client
-            .from("invite_codes")
-            .select()
-            .eq("id", value: inviteCodeId.uuidString)
-            .single()
-            .execute()
-        
-        // Decode with proper date handling for Supabase ISO8601 format
-        let decoder = createInviteCodeDecoder()
-        let inviteCode = try decoder.decode(InviteCode.self, from: inviteCodeResponse.data)
-        
-        // 5. Create or update profile
+
+        // 4. Create or update profile (no invite code required)
         try await createOrUpdateAppleProfile(
             userId: userId,
             userIdString: userIdString,
             email: email,
-            name: fullName,
-            invitedBy: inviteCode.createdBy
+            name: fullName
         )
-        
-        // 6. Mark invite code as used (or create tracking record for bulk codes)
-        // Uses RPC function with SECURITY DEFINER to bypass RLS
-        // (direct UPDATE on invite_codes hits RLS WITH CHECK failures
-        //  because auth.uid() may not match during signup)
-        var inviteParams: [String: String?] = [
-            "p_invite_code_id": inviteCode.id.uuidString,
-            "p_user_id": userIdString,
-            "p_is_bulk": inviteCode.isBulk ? "true" : "false"
-        ]
-        if let bulkCodeId = inviteCode.bulkCodeId {
-            inviteParams["p_bulk_code_id"] = bulkCodeId.uuidString
-        }
 
-        struct MarkInviteResponse: Decodable {
-            let success: Bool
-            let error: String?
-            let message: String?
-        }
-
-        let inviteResponse: MarkInviteResponse = try await SupabaseService.shared.client
-            .rpc("mark_invite_code_used", params: inviteParams)
-            .execute()
-            .value
-
-        if !inviteResponse.success {
-            let errorMsg = inviteResponse.error ?? "Unknown error"
-            AppLogger.auth.warning("Failed to mark invite code as used: \(errorMsg)")
-            // Don't throw - profile was created successfully, this is non-critical
-        } else {
-            AppLogger.auth.info("Invite code marked as used: \(inviteResponse.message ?? "")")
-        }
-        
-        // 7. Fetch profile and update local state
-        // Use ProfileService to fetch profile since fetchCurrentProfile is private
+        // 5. Fetch profile and update local state
         if let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
             currentProfile = profile
             currentUserId = userId
         } else {
             currentUserId = userId
         }
-        
+
         // Sync engines started by AppLaunchManager.performDeferredLoading()
 
-        // 8. Store Apple user identifier for credential checking
+        // 6. Store Apple user identifier for credential checking
         AppleUserKeychain.save(credential.user)
-        
+
         AppLogger.auth.info("User signed up with Apple: \(userId)")
     }
     
@@ -389,19 +342,19 @@ extension AuthService {
 
     // MARK: - Private Helper Methods
 
-    /// Create or update profile for Apple user
+    /// Create or update profile for Apple user (public signup — no invite code required)
+    /// Apple SIWA compliance: name and email from Apple are persisted immediately.
+    /// On subsequent sign-ins where Apple doesn't return these values, stored values are used.
     /// - Parameters:
     ///   - userId: The user ID
     ///   - userIdString: The user ID as string
     ///   - email: User's email (may be nil for private relay)
-    ///   - name: User's full name (may be empty)
-    ///   - invitedBy: ID of user who created the invite code
+    ///   - name: User's full name (may be empty on subsequent sign-ins)
     private func createOrUpdateAppleProfile(
         userId: UUID,
         userIdString: String,
         email: String?,
-        name: String,
-        invitedBy: UUID
+        name: String
     ) async throws {
         // Check if profile exists
         let existing = try? await SupabaseService.shared.client
@@ -410,9 +363,9 @@ extension AuthService {
             .eq("id", value: userIdString)
             .single()
             .execute()
-        
+
         if existing != nil {
-            // Profile exists - update if name was provided
+            // Profile exists - update name only if Apple provided one this time
             if !name.isEmpty {
                 try await SupabaseService.shared.client
                     .from("profiles")
@@ -421,38 +374,37 @@ extension AuthService {
                     .execute()
             }
         } else {
-            // Create new profile
+            // Create new profile — persist Apple-provided name/email immediately
             let profileName = name.isEmpty ? "Apple User" : name
-            // Use private relay email if email is nil (user chose "Hide My Email")
             let profileEmail = email ?? "\(userIdString)@privaterelay.appleid.com"
-            
+
             struct ProfileInsert: Codable {
                 let id: String
                 let name: String
                 let email: String
-                let invitedBy: String
                 let isAdmin: Bool
                 let approved: Bool
-                
+                let applicationComplete: Bool
+
                 enum CodingKeys: String, CodingKey {
                     case id
                     case name
                     case email
-                    case invitedBy = "invited_by"
                     case isAdmin = "is_admin"
                     case approved
+                    case applicationComplete = "application_complete"
                 }
             }
-            
+
             let profileInsert = ProfileInsert(
                 id: userIdString,
                 name: profileName,
                 email: profileEmail,
-                invitedBy: invitedBy.uuidString,
                 isAdmin: false,
-                approved: false
+                approved: false,
+                applicationComplete: false
             )
-            
+
             try await SupabaseService.shared.client
                 .from("profiles")
                 .insert(profileInsert)

@@ -125,19 +125,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func handleURL(_ url: URL) {
-        // Handle invite code deep links: https://naarscars.com/signup?code=CODE
-        // This will be handled by SignupInviteCodeView's onOpenURL modifier
         AppLogger.info("app", "Received URL: \(url.absoluteString)")
-        
-        // Post notification for signup view to handle
-        if url.host == "naarscars.com" || url.host == "www.naarscars.com",
-           url.path == "/signup" {
-            NotificationCenter.default.post(
-                name: .handleInviteCodeDeepLink,
-                object: nil,
-                userInfo: ["url": url]
-            )
-        }
+        // Legacy /signup?code=CODE deep links are no longer handled (invite codes removed).
+        // New signup flow is through the public WelcomeView.
     }
     
     // MARK: - Remote Notification Registration

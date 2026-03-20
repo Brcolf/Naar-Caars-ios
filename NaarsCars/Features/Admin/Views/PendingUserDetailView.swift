@@ -49,78 +49,70 @@ struct PendingUserDetailView: View {
                 .background(Color.naarsCardBackground)
                 .cornerRadius(12)
                 
-                // Invite Information Section
-                if viewModel.isLoading {
-                    ProgressView("admin_loading_invite_details".localized)
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                } else if let inviteInfo = viewModel.inviteInfo {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("admin_invite_information".localized)
-                            .font(.naarsHeadline)
-                        
-                        // Inviter
-                        if let inviter = inviteInfo.inviter {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("admin_invited_by_label".localized)
-                                    .font(.naarsSubheadline)
-                                    .foregroundColor(.secondary)
-                                
-                                HStack(spacing: 12) {
-                                    AvatarView(
-                                        imageUrl: inviter.avatarUrl,
-                                        name: inviter.name,
-                                        size: 40,
-                                        userId: inviter.id
-                                    )
-                                    
-                                    Text(inviter.name)
-                                        .font(.naarsBody)
-                                        .fontWeight(.medium)
-                                }
-                            }
+                // Application Information Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("admin_application_info".localized)
+                        .font(.naarsHeadline)
+
+                    // How they heard about the app
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("admin_heard_about_label".localized)
+                            .font(.naarsSubheadline)
+                            .foregroundColor(.secondary)
+
+                        Text(user.heardAbout ?? "admin_not_provided".localized)
+                            .font(.naarsBody)
                             .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.naarsCardBackground)
                             .cornerRadius(8)
-                        }
-                        
-                        // Invitation Statement
-                        if let statement = inviteInfo.statement, !statement.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("admin_invitation_statement".localized)
-                                    .font(.naarsSubheadline)
-                                    .foregroundColor(.secondary)
-                                
-                                Text(statement)
-                                    .font(.naarsBody)
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.naarsCardBackground)
-                                    .cornerRadius(8)
-                            }
-                        } else {
-                            Text("admin_no_invitation_statement".localized)
-                                .font(.naarsSubheadline)
+                    }
+
+                    // Why they want to join
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("admin_join_reason_label".localized)
+                            .font(.naarsSubheadline)
+                            .foregroundColor(.secondary)
+
+                        Text(user.joinReason ?? "admin_not_provided".localized)
+                            .font(.naarsBody)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.naarsCardBackground)
+                            .cornerRadius(8)
+                    }
+
+                    // Submitted at
+                    if let submittedAt = user.applicationSubmittedAt {
+                        HStack {
+                            Text("admin_submitted_at_label".localized)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
-                                .italic()
+                            Spacer()
+                            Text(submittedAt.dateString)
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
                         }
                     }
-                    .padding()
-                    .background(Color.naarsBackgroundSecondary)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.separator), lineWidth: 1)
-                    )
-                } else if viewModel.error != nil {
-                    ErrorView(
-                        error: viewModel.error?.localizedDescription ?? "Failed to load invite details",
-                        retryAction: {
-                            Task {
-                                await viewModel.loadInviteInfo(for: user.id)
-                            }
-                        }
-                    )
+
+                    // Account created at
+                    HStack {
+                        Text("admin_account_created_label".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(user.createdAt.dateString)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .padding()
+                .background(Color.naarsBackgroundSecondary)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.separator), lineWidth: 1)
+                )
                 
                 // Action Buttons
                 VStack(spacing: 12) {
@@ -157,7 +149,7 @@ struct PendingUserDetailView: View {
         .navigationTitle("admin_user_details".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await viewModel.loadInviteInfo(for: user.id)
+            // Application fields are on the Profile object — no async load needed
         }
         .alert("admin_approve_user".localized, isPresented: $showingApproveConfirmation) {
             Button("common_cancel".localized, role: .cancel) {

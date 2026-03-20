@@ -33,7 +33,6 @@ struct PendingUsersView: View {
                             NavigationLink(destination: PendingUserDetailView(user: user)) {
                                 PendingUserRow(
                                     user: user,
-                                    inviter: user.invitedBy.flatMap { viewModel.inviterProfiles[$0] },
                                     onApprove: {
                                         userToApprove = user.id
                                         showingApproveConfirmation = true
@@ -103,10 +102,9 @@ struct PendingUsersView: View {
 /// Row component for pending user
 private struct PendingUserRow: View {
     let user: Profile
-    let inviter: Profile?
     let onApprove: () -> Void
     let onReject: () -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
@@ -117,28 +115,25 @@ private struct PendingUserRow: View {
                     size: 50,
                     userId: user.id
                 )
-                
+
                 // User info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(user.name)
                         .font(.naarsHeadline)
-                    
+
                     Text(user.email)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
-                    
-                    // Show invited by info if available
-                    if let inviter = inviter {
-                        Text("admin_invited_by".localized(with: inviter.name))
+
+                    // Show application reason if available
+                    if let reason = user.joinReason, !reason.isEmpty {
+                        Text(reason)
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
-                    } else if user.invitedBy != nil {
-                        Text("admin_invited_by".localized(with: "townhall_unknown".localized))
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
+                            .lineLimit(2)
                     }
                 }
-                
+
                 Spacer()
             }
             

@@ -38,20 +38,12 @@ final class AppleSignInViewModel: ObservableObject {
         request.nonce = AppleSignInHelper.sha256(nonce)
     }
     
-    /// Handle Apple Sign-In completion
-    /// - Parameters:
-    ///   - result: Result from ASAuthorization
-    ///   - inviteCodeId: Optional invite code ID (for new users)
-    ///   - isNewUser: Whether this is a new user signup
-    func handleSignInCompletion(
-        result: Result<ASAuthorization, Error>,
-        inviteCodeId: UUID?,
-        isNewUser: Bool
-    ) async {
+    /// Handle Apple Sign-In completion for new user signup
+    /// Creates account without invite code (public signup)
+    func handleSignUpCompletion(result: Result<ASAuthorization, Error>) async {
         isLoading = true
         error = nil
-        showNoAccountSheet = false
-        
+
         switch result {
         case .success(let authorization):
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
@@ -59,40 +51,67 @@ final class AppleSignInViewModel: ObservableObject {
                 isLoading = false
                 return
             }
-            
+
             do {
-                if isNewUser, let codeId = inviteCodeId {
-                    // New user signup with Apple
-                    try await authService.signUpWithApple(
-                        credential: credential,
-                        inviteCodeId: codeId,
-                        rawNonce: currentNonce
-                    )
-                } else {
-                    // Existing user login with Apple
-                    let result = try await authService.logInWithApple(
-                        credential: credential,
-                        rawNonce: currentNonce
-                    )
-                    if result == .noAccountFound {
-                        showNoAccountSheet = true
-                        isLoading = false
-                        return
-                    }
+                try await authService.signUpWithApple(
+                    credential: credential,
+                    rawNonce: currentNonce
+                )
+            } catch let authError {
+                self.error = authError as? AppError ?? .unknown(authError.localizedDescription)
+                isLoading = false
+                return
+            }
+
+            isLoading = false
+
+        case .failure(let error):
+            if let authError = error as? ASAuthorizationError,
+               authError.code == .canceled {
+                isLoading = false
+                return
+            } else {
+                self.error = .unknown(error.localizedDescription)
+            }
+            isLoading = false
+        }
+    }
+
+    /// Handle Apple Sign-In completion for existing user login
+    func handleSignInCompletion(result: Result<ASAuthorization, Error>) async {
+        isLoading = true
+        error = nil
+        showNoAccountSheet = false
+
+        switch result {
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                error = .unknown("Invalid credential type")
+                isLoading = false
+                return
+            }
+
+            do {
+                let loginResult = try await authService.logInWithApple(
+                    credential: credential,
+                    rawNonce: currentNonce
+                )
+                if loginResult == .noAccountFound {
+                    showNoAccountSheet = true
+                    isLoading = false
+                    return
                 }
             } catch let authError {
                 self.error = authError as? AppError ?? .unknown(authError.localizedDescription)
                 isLoading = false
                 return
             }
-            
+
             isLoading = false
-            
+
         case .failure(let error):
-            // Handle user cancellation separately
             if let authError = error as? ASAuthorizationError,
                authError.code == .canceled {
-                // User canceled - not an error, just reset loading state
                 isLoading = false
                 return
             } else {

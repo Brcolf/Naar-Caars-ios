@@ -19,63 +19,94 @@ struct PendingApprovalView: View {
     var body: some View {
         VStack(spacing: 32) {
             Spacer()
-            
+
             // Icon
             Image(systemName: "hourglass")
                 .font(.system(size: 80))
                 .foregroundColor(.naarsPrimary)
-            
-            // Title
-            Text("pending_approval_title".localized)
+
+            // Title — reviewer-safe copy
+            Text("pending_review_title".localized)
                 .font(.naarsTitle)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
-            
-            // Description
-            VStack(spacing: 16) {
-                Text("pending_approval_thank_you".localized)
-                    .font(.naarsBody)
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.center)
-                
-                Text("pending_approval_description".localized)
-                    .font(.naarsBody)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 32)
-            
+
+            // Description — reviewer-safe copy
+            Text("pending_review_body".localized)
+                .font(.naarsBody)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
             // Notification permission prompt
             if notificationStatus == .notDetermined && !hasRequestedNotifications {
                 notificationPromptCard
             } else if notificationStatus == .authorized {
                 notificationEnabledBadge
             }
-            
+
             Spacer()
-            
-            // Return to Login button
-            Button(action: {
-                signOutAndReturnToLogin()
-            }) {
-                HStack {
-                    if isSigningOut {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.8)
+
+            // Action buttons
+            VStack(spacing: 12) {
+                // Refresh Status
+                Button(action: {
+                    Task {
+                        let isApproved = await checkApprovalDirectly()
+                        if isApproved {
+                            launchManager.state = .ready(.authenticated)
+                        }
                     }
-                    Text(isSigningOut ? "pending_approval_signing_out".localized : "pending_approval_return_to_login".localized)
+                }) {
+                    Text("pending_review_refresh".localized)
                         .font(.naarsHeadline)
                         .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.naarsPrimary)
+                        .cornerRadius(12)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Color.naarsPrimary)
-                .cornerRadius(12)
+                .accessibilityIdentifier("pendingApproval.refresh")
+
+                // Contact Support
+                Button(action: {
+                    if let url = URL(string: "mailto:naarscars@gmail.com") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    Text("pending_review_contact_support".localized)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.naarsPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.naarsBackgroundSecondary)
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(.separator), lineWidth: 1)
+                        )
+                }
+                .accessibilityIdentifier("pendingApproval.contactSupport")
+
+                // Sign Out
+                Button(action: {
+                    signOutAndReturnToLogin()
+                }) {
+                    HStack {
+                        if isSigningOut {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(0.8)
+                        }
+                        Text("pending_review_sign_out".localized)
+                            .font(.naarsSubheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .disabled(isSigningOut)
+                .accessibilityIdentifier("pendingApproval.signOut")
             }
-            .disabled(isSigningOut)
-            .accessibilityIdentifier("pendingApproval.returnLogin")
             .padding(.horizontal, 32)
             .padding(.bottom, 40)
         }

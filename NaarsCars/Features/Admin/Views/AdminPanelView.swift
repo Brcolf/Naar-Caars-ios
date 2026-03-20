@@ -164,11 +164,21 @@ struct AdminPanelView: View {
             .accessibilityLabel("Send announcement")
             .accessibilityHint("Double-tap to compose a broadcast announcement")
             
-            NavigationLink(destination: AdminInviteView()) {
+            Button(action: {
+                let items: [Any] = [
+                    "admin_share_message".localized,
+                    URL(string: Constants.URLs.appStore)!
+                ]
+                let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let root = windowScene.windows.first?.rootViewController {
+                    root.present(controller, animated: true)
+                }
+            }) {
                 HStack {
-                    Image(systemName: "person.2.badge.plus")
+                    Image(systemName: "square.and.arrow.up")
                         .foregroundColor(.naarsPrimary)
-                    Text("admin_generate_invite_code".localized)
+                    Text("admin_share_app_link".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -182,9 +192,10 @@ struct AdminPanelView: View {
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
-            .accessibilityIdentifier("admin.inviteCodes")
-            .accessibilityLabel("Generate invite code")
-            .accessibilityHint("Double-tap to create a new invite code")
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityIdentifier("admin.shareApp")
+            .accessibilityLabel("Share app link")
+            .accessibilityHint("Double-tap to share the app with prospective members")
         }
     }
     

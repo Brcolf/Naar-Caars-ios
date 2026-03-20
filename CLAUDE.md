@@ -409,6 +409,7 @@ Push notifications, in-app toasts, and badge counts are one connected system. A 
 5. Do not silently change notification grouping or archival rules.
 6. Do not remove background refresh or silent push behavior without explicit approval.
 7. **Cross-layer sync required:** Adding, removing, or changing a notification type requires updating ALL of: the Swift enum/model, SQL triggers/RPCs/functions, Edge Function handlers, preferences mapping, badge logic, and routing logic. Do not introduce new notification type strings inline — use the single registry.
+8. When adding or changing deep link routing, validate the mapping between notification types and navigation intents with a test or debug harness. The full routing table must be documented and verifiable.
 
 ---
 
@@ -427,6 +428,8 @@ Several systems span Swift client code, SQL (database RPCs/triggers), and Supaba
 - `NSNotification.Name` constants and `Constants.swift` values
 
 **Payload parsing must be centralized.** ViewModels and sync engines must NOT hand-parse raw `Any`/JSON. All payloads go through a single adapter/decoder layer that normalizes known shapes (`record`/`new`, `data.record`/`data.new`, `oldRecord`/`old`, insert/update/delete variants).
+
+**Fixture test gate for seam changes.** When modifying high-blast-radius seams (badge, notifications, realtime, mappers, RPCs, edge functions), at minimum one fixture test covering the changed payload or contract is required. See `NaarsCarsTests/Core/Fixtures/` for existing patterns.
 
 ---
 
