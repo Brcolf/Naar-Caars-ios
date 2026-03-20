@@ -18,10 +18,13 @@ struct PostCommentsView: View {
         self.postId = postId
         _viewModel = StateObject(wrappedValue: PostCommentsViewModel(postId: postId))
     }
+    @Environment(AppState.self) private var appState
     @State private var newCommentText = ""
     @State private var replyingTo: UUID? // Comment ID we're replying to
     @FocusState private var isCommentFieldFocused: Bool
     @State private var toastMessage: String? = nil
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .commentOnPost
     
     var body: some View {
         NavigationStack {
@@ -46,12 +49,22 @@ struct PostCommentsView: View {
                                     comment: comment,
                                     currentUserId: AuthService.shared.currentUserId,
                                     onReply: { parentId in
-                                        replyingTo = parentId
-                                        isCommentFieldFocused = true
+                                        if appState.isGuest {
+                                            guestRestrictionReason = .commentOnPost
+                                            showGuestPrompt = true
+                                        } else {
+                                            replyingTo = parentId
+                                            isCommentFieldFocused = true
+                                        }
                                     },
                                     onVote: { commentId, voteType in
-                                        Task {
-                                            await viewModel.voteComment(commentId: commentId, voteType: voteType)
+                                        if appState.isGuest {
+                                            guestRestrictionReason = .voteOnPost
+                                            showGuestPrompt = true
+                                        } else {
+                                            Task {
+                                                await viewModel.voteComment(commentId: commentId, voteType: voteType)
+                                            }
                                         }
                                     },
                                     onDelete: { commentId in
@@ -72,62 +85,80 @@ struct PostCommentsView: View {
                 }
                 
                 Divider()
-                
+
                 // Comment input section
-                VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-                    if let replyingToId = replyingTo,
-                       let parentComment = viewModel.findComment(id: replyingToId) {
-                        HStack {
-                            Text("townhall_replying_to".localized(with: parentComment.author?.name ?? "townhall_unknown".localized))
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Button("common_cancel".localized) {
-                                replyingTo = nil
-                                newCommentText = ""
-                            }
-                            .font(.naarsCaption)
-                            .foregroundColor(.naarsPrimary)
+                if appState.isGuest {
+                    HStack {
+                        Image(systemName: "lock.fill")
+                            .foregroundStyle(.secondary)
+                        Text("guest_comment_banner".localized)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("guest_prompt_log_in".localized) {
+                            guestRestrictionReason = .commentOnPost
+                            showGuestPrompt = true
                         }
-                        .padding(.horizontal)
-                        .padding(.top, Constants.Spacing.sm)
-                    }
-                    
-                    HStack(alignment: .bottom, spacing: 12) {
-                        TextField(
-                            replyingTo != nil ? "townhall_write_reply".localized : "townhall_write_comment".localized,
-                            text: $newCommentText,
-                            axis: .vertical
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...5)
-                        .focused($isCommentFieldFocused)
-                        
-                        Button(action: {
-                            Task {
-                                let isReply = replyingTo != nil
-                                if let parentId = replyingTo {
-                                    await viewModel.addReply(to: parentId, content: newCommentText)
-                                } else {
-                                    await viewModel.addComment(content: newCommentText)
-                                }
-                                if viewModel.error == nil {
-                                    toastMessage = isReply ? "toast_reply_posted".localized : "toast_comment_posted".localized
-                                }
-                                newCommentText = ""
-                                replyingTo = nil
-                            }
-                        }) {
-                            Image(systemName: "paperplane.fill")
-                                .font(.naarsTitle3)
-                                .foregroundColor(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .naarsTextSecondary : .blue)
-                        }
-                        .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .font(.subheadline)
                     }
                     .padding()
-                    .id("community.townHall.postCommentsSheet.commentInput")
+                    .background(Color.naarsBackgroundSecondary)
+                } else {
+                    VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                        if let replyingToId = replyingTo,
+                           let parentComment = viewModel.findComment(id: replyingToId) {
+                            HStack {
+                                Text("townhall_replying_to".localized(with: parentComment.author?.name ?? "townhall_unknown".localized))
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Button("common_cancel".localized) {
+                                    replyingTo = nil
+                                    newCommentText = ""
+                                }
+                                .font(.naarsCaption)
+                                .foregroundColor(.naarsPrimary)
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, Constants.Spacing.sm)
+                        }
+
+                        HStack(alignment: .bottom, spacing: 12) {
+                            TextField(
+                                replyingTo != nil ? "townhall_write_reply".localized : "townhall_write_comment".localized,
+                                text: $newCommentText,
+                                axis: .vertical
+                            )
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...5)
+                            .focused($isCommentFieldFocused)
+
+                            Button(action: {
+                                Task {
+                                    let isReply = replyingTo != nil
+                                    if let parentId = replyingTo {
+                                        await viewModel.addReply(to: parentId, content: newCommentText)
+                                    } else {
+                                        await viewModel.addComment(content: newCommentText)
+                                    }
+                                    if viewModel.error == nil {
+                                        toastMessage = isReply ? "toast_reply_posted".localized : "toast_comment_posted".localized
+                                    }
+                                    newCommentText = ""
+                                    replyingTo = nil
+                                }
+                            }) {
+                                Image(systemName: "paperplane.fill")
+                                    .font(.naarsTitle3)
+                                    .foregroundColor(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .naarsTextSecondary : .blue)
+                            }
+                            .disabled(newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        .padding()
+                        .id("community.townHall.postCommentsSheet.commentInput")
+                    }
+                    .background(Color.naarsBackgroundSecondary)
                 }
-                .background(Color.naarsBackgroundSecondary)
             }
             .navigationTitle("townhall_comments".localized)
             .navigationBarTitleDisplayMode(.inline)
@@ -142,6 +173,19 @@ struct PostCommentsView: View {
                 await viewModel.loadComments()
             }
             .toast(message: $toastMessage)
+            .sheet(isPresented: $showGuestPrompt) {
+                GuestSignInPromptView(
+                    reason: guestRestrictionReason,
+                    onSignUp: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
+                    },
+                    onLogIn: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
+                    }
+                )
+            }
         }
     }
 }
@@ -154,10 +198,12 @@ struct CommentRow: View {
     let onVote: (UUID, VoteType?) -> Void
     let onDelete: (UUID) -> Void
     let depth: Int // Nesting depth (0 = top-level, 1+ = replies)
-    
+
+    @Environment(AppState.self) private var appState
     @State private var showReplies = true
     @State private var showDeleteAlert = false
     @State private var showReportSheet = false
+    @State private var showGuestPrompt = false
     @State private var hasReported = false
     
     private let maxDepth = 5 // Maximum nesting depth to prevent infinite recursion
@@ -254,7 +300,11 @@ struct CommentRow: View {
                                 .foregroundColor(.secondary.opacity(0.5))
                             } else {
                                 Button(action: {
-                                    showReportSheet = true
+                                    if appState.isGuest {
+                                        showGuestPrompt = true
+                                    } else {
+                                        showReportSheet = true
+                                    }
                                 }) {
                                     Image(systemName: "flag")
                                         .font(.naarsCaption)
@@ -366,6 +416,19 @@ struct CommentRow: View {
                     preview: comment.content.prefix(100) + (comment.content.count > 100 ? "..." : "")
                 ),
                 onReported: { hasReported = true }
+            )
+        }
+        .sheet(isPresented: $showGuestPrompt) {
+            GuestSignInPromptView(
+                reason: .reportContent,
+                onSignUp: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                }
             )
         }
         .alert("townhall_delete_comment".localized, isPresented: $showDeleteAlert) {

@@ -16138,6 +16138,17 @@
         }
       }
     },
+    "guest_comment_banner" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to join the conversation"
+          }
+        }
+      }
+    },
     "guest_prompt_log_in" : {
       "extractionState" : "stale",
       "localizations" : {
