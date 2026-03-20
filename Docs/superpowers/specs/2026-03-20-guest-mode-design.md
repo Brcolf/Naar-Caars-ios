@@ -102,7 +102,17 @@ The dashboard uses `RequestsDashboardView` with `RequestFilterManager` (not the 
 
 ### RequestFilterManager changes
 
-`RequestFilterManager.getFilteredRequests()` currently has `guard let userId = authService.currentUserId else { return [] }` — this returns empty for ALL filters including `.open` when there is no `currentUserId`. The `.open` path must be adjusted to return all open requests even when `currentUserId` is nil. `.mine` and `.claimed` paths continue to return empty naturally.
+Multiple methods in `RequestFilterManager` have `guard let userId = authService.currentUserId else { return [] }` guards that return empty for ALL filters including `.open` when there is no `currentUserId`. All of the following must have their `.open` path adjusted to work when `currentUserId` is nil:
+
+- `fetchFilteredRides(in:filter:)` — fetches rides from SwiftData
+- `fetchFilteredFavors(in:filter:)` — fetches favors from SwiftData
+- `getFilteredRequests(rides:favors:filter:)` — combines and filters results
+- `filterRidesInMemory(_:filter:)` — used by badge count computation
+- `filterFavorsInMemory(_:filter:)` — used by badge count computation
+
+Pattern: for the `.open` filter case, skip the `userId` guard and return all matching results. For `.mine` and `.claimed`, continue to return empty when `currentUserId` is nil.
+
+Note: network-fetched data still syncs to SwiftData as a cache layer for guests. The `RequestFilterManager` guards are what prevent cached data from being returned — those guards must be relaxed for the `.open` path.
 
 ### Realtime subscriptions
 
@@ -276,6 +286,8 @@ When a guest encounters a deep link (e.g., universal link shared externally), `N
 | `.pendingUsers` | Ignore / no-op (requires auth + admin role) |
 | `.adminReports` | Ignore / no-op (requires auth + admin role) |
 | `.notifications` | Show GuestSignInPromptView (requires auth) |
+| `.requestListScroll(key)` | Scroll dashboard list (guest-safe) |
+| `.announcements` | Show GuestSignInPromptView (notification-adjacent, requires auth) |
 | `.dashboard` | Navigate to dashboard (guest-safe) |
 
 Guard implementation: `NavigationCoordinator` checks `appState.isGuest` before applying intents that require auth; shows sign-in prompt for those cases.
@@ -335,8 +347,9 @@ Not a middleware — lightweight ViewModel-level pattern. ViewModels that perfor
 | RideDetailViewModel | `claimRide()`, `unclaimRide()` |
 | FavorDetailViewModel | `claimFavor()`, `unclaimFavor()` |
 | ConversationsListViewModel | `createConversation()` |
-| PostCommentsViewModel | `addComment()`, `addReply()`, `vote()`, `deleteComment()` |
-| TownHallFeedViewModel | `createPost()`, `votePost()`, `deletePost()` |
+| PostCommentsViewModel | `addComment()`, `addReply()`, `voteComment()`, `deleteComment()` |
+| CreatePostViewModel | `validateAndPost()` |
+| TownHallFeedViewModel | `votePost()`, `deletePost()` |
 | PublicProfileViewModel | `blockUser()`, `reportUser()` |
 
 These are belt-and-suspenders. The UI already gates, but VM guards prevent writes if UI gating is bypassed.
