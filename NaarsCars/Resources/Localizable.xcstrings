@@ -1244,6 +1244,17 @@
         }
       }
     },
+    "guest_map_hidden" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to view map"
+          }
+        }
+      }
+    },
     "Adjust the number of available seats" : {
 
     },
