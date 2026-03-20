@@ -14,54 +14,70 @@ struct AddressText: View {
     let address: String
     let font: Font
     let foregroundColor: Color
-    
+    let isRedacted: Bool
+
     @State private var showCopiedToast = false
     @Environment(\.openURL) private var openURL
-    
+
     init(
         _ address: String,
         font: Font = .naarsBody,
-        foregroundColor: Color = .primary
+        foregroundColor: Color = .primary,
+        isRedacted: Bool = false
     ) {
         self.address = address
         self.font = font
         self.foregroundColor = foregroundColor
+        self.isRedacted = isRedacted
     }
-    
+
     var body: some View {
-        Text(address)
-            .font(font)
-            .foregroundColor(foregroundColor)
-            .contextMenu {
-                // Copy Address
-                Button {
-                    copyAddress()
-                } label: {
-                    Label("address_copy_action".localized, systemImage: "doc.on.doc")
-                }
-                
-                Divider()
-                
-                // Open in Apple Maps
-                Button {
-                    openInAppleMaps()
-                } label: {
-                    Label("address_open_apple_maps".localized, systemImage: "map")
-                }
-                
-                // Open in Google Maps
-                Button {
-                    openInGoogleMaps()
-                } label: {
-                    Label("address_open_google_maps".localized, systemImage: "mappin.and.ellipse")
-                }
+        if isRedacted {
+            Label {
+                Text("guest_address_hidden".localized)
+                    .font(font)
+                    .foregroundStyle(.tertiary)
+            } icon: {
+                Image(systemName: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
-            .overlay(alignment: .top) {
-                if showCopiedToast {
-                    CopiedToast()
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            .accessibilityLabel("guest_address_hidden_accessibility".localized)
+        } else {
+            Text(address)
+                .font(font)
+                .foregroundColor(foregroundColor)
+                .contextMenu {
+                    // Copy Address
+                    Button {
+                        copyAddress()
+                    } label: {
+                        Label("address_copy_action".localized, systemImage: "doc.on.doc")
+                    }
+
+                    Divider()
+
+                    // Open in Apple Maps
+                    Button {
+                        openInAppleMaps()
+                    } label: {
+                        Label("address_open_apple_maps".localized, systemImage: "map")
+                    }
+
+                    // Open in Google Maps
+                    Button {
+                        openInGoogleMaps()
+                    } label: {
+                        Label("address_open_google_maps".localized, systemImage: "mappin.and.ellipse")
+                    }
                 }
-            }
+                .overlay(alignment: .top) {
+                    if showCopiedToast {
+                        CopiedToast()
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+        }
     }
     
     // MARK: - Actions

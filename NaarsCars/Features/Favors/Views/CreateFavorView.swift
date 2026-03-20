@@ -11,16 +11,39 @@ import SwiftUI
 struct CreateFavorView: View {
     @StateObject private var viewModel = CreateFavorViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
     var onFavorCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .postFavor
     /// Deferred so LocationService init runs off the first frame while user fills title/description.
     @State private var locationServiceReady = false
     
     var body: some View {
         NavigationStack {
             Form {
+                if appState.isGuest {
+                    HStack(spacing: 12) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("guest_create_favor_banner_title".localized)
+                                .font(.subheadline.bold())
+                            Button("guest_prompt_log_in".localized) {
+                                guestRestrictionReason = .postFavor
+                                showGuestPrompt = true
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal)
+                }
+
                 Section("favor_create_section_title_description".localized) {
                     TextField("favor_create_title_placeholder".localized, text: $viewModel.title)
                         .accessibilityIdentifier("createFavor.title")
@@ -106,7 +129,12 @@ struct CreateFavorView: View {
                 
                 Section("favor_create_section_participants".localized) {
                     Button {
-                        showAddParticipants = true
+                        if appState.isGuest {
+                            guestRestrictionReason = .addParticipants
+                            showGuestPrompt = true
+                        } else {
+                            showAddParticipants = true
+                        }
                     } label: {
                         HStack {
                             Text(viewModel.selectedParticipantIds.isEmpty ? "favor_create_add_participants".localized : "favor_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
@@ -155,17 +183,22 @@ struct CreateFavorView: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("favor_create_post".localized) {
-                        Task {
-                            do {
-                                let favor = try await viewModel.createFavor()
-                                // Call callback with created favor ID before dismissing
-                                onFavorCreated?(favor.id)
-                                showSuccess = true
-                                HapticManager.success()
-                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
-                                dismiss()
-                            } catch {
-                                showErrorAlert = true
+                        if appState.isGuest {
+                            guestRestrictionReason = .postFavor
+                            showGuestPrompt = true
+                        } else {
+                            Task {
+                                do {
+                                    let favor = try await viewModel.createFavor()
+                                    // Call callback with created favor ID before dismissing
+                                    onFavorCreated?(favor.id)
+                                    showSuccess = true
+                                    HapticManager.success()
+                                    try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                    dismiss()
+                                } catch {
+                                    showErrorAlert = true
+                                }
                             }
                         }
                     }
@@ -181,6 +214,19 @@ struct CreateFavorView: View {
                     excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
                     onDismiss: {
                         showAddParticipants = false
+                    }
+                )
+            }
+            .sheet(isPresented: $showGuestPrompt) {
+                GuestSignInPromptView(
+                    reason: guestRestrictionReason,
+                    onSignUp: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
+                    },
+                    onLogIn: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
                     }
                 )
             }

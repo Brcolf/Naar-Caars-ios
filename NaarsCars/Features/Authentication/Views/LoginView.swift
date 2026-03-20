@@ -115,7 +115,7 @@ struct LoginView: View {
                             .foregroundColor(.secondary)
 
                         NavigationLink("auth_sign_up".localized) {
-                            SignupInviteCodeView()
+                            WelcomeView()
                         }
                         .font(.naarsCaption)
                         .foregroundColor(.naarsPrimary)
@@ -145,18 +145,14 @@ struct LoginView: View {
                     }
                     .padding(.vertical, 8)
 
-                    // Apple Sign-In button
+                    // Apple Sign-In button (existing user login)
                     AppleSignInButton(
                         onRequest: { request in
                             appleSignInViewModel.handleSignInRequest(request)
                         },
                         onCompletion: { result in
                             Task {
-                                await appleSignInViewModel.handleSignInCompletion(
-                                    result: result,
-                                    inviteCodeId: nil,
-                                    isNewUser: false
-                                )
+                                await appleSignInViewModel.handleSignInCompletion(result: result)
 
                                 if appleSignInViewModel.showNoAccountSheet {
                                     // Sheet presentation handled by binding — no action needed
@@ -200,7 +196,7 @@ struct LoginView: View {
             NoAccountFoundSheet(didRequestCreateAccount: $didRequestCreateAccount)
         }
         .navigationDestination(isPresented: $navigateToSignup) {
-            SignupInviteCodeView()
+            WelcomeView()
         }
         .alert("common_error".localized, isPresented: $showError) {
             Button("common_ok".localized, role: .cancel) {}

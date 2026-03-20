@@ -41,6 +41,9 @@ struct ContentView: View {
                             WelcomeView()
                         }
 
+                    case .guest:
+                        MainTabView()
+
                     case .needsApplication:
                         NavigationStack {
                             ApplicationFieldsView()

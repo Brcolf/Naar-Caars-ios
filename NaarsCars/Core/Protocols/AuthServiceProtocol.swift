@@ -18,10 +18,9 @@ protocol AuthServiceProtocol: AnyObject {
     var currentProfile: Profile? { get }
 
     func signIn(email: String, password: String) async throws
-    func signUp(email: String, password: String, name: String, car: String?, inviteCodeId: UUID) async throws
+    func signUp(email: String, password: String, name: String, car: String?) async throws
     func signOut() async throws
     func sendPasswordReset(email: String) async throws
-    func validateInviteCode(_ code: String) async throws -> InviteCode
-    func signUpWithApple(credential: ASAuthorizationAppleIDCredential, inviteCodeId: UUID, rawNonce: String?) async throws
+    func signUpWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws
     func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws -> AppleLoginResult
 }
