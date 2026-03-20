@@ -1222,6 +1222,28 @@
         }
       }
     },
+    "guest_address_hidden" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to view address"
+          }
+        }
+      }
+    },
+    "guest_address_hidden_accessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Address hidden. Sign in to view."
+          }
+        }
+      }
+    },
     "Adjust the number of available seats" : {
 
     },
