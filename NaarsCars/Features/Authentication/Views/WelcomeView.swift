@@ -132,13 +132,29 @@ struct WelcomeView: View {
                 }
                 .padding(.horizontal)
 
-                // Footer — public positioning copy
-                Text("welcome_footer".localized)
-                    .font(.naarsCaption)
-                    .foregroundColor(.naarsTextTertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 32)
+                // Legal links — visible before any account creation (Guideline 5.1.1)
+                VStack(spacing: 4) {
+                    Text("signup_terms_agreement".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsTextTertiary)
+
+                    HStack(spacing: 4) {
+                        if let tosURL = URL(string: Constants.URLs.termsOfService) {
+                            Link("signup_terms_of_service".localized, destination: tosURL)
+                                .font(.naarsCaption)
+                        }
+                        Text("signup_terms_and".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.naarsTextTertiary)
+                        if let privacyURL = URL(string: Constants.URLs.privacyPolicy) {
+                            Link("signup_privacy_policy".localized, destination: privacyURL)
+                                .font(.naarsCaption)
+                        }
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 32)
             }
             .padding()
         }

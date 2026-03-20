@@ -35,10 +35,15 @@ final class MessagingRepository {
     
     private init() {}
     
-    /// Set up the model context for SwiftData operations
+    /// Set up the model context for SwiftData operations.
+    /// The conversations publisher is populated asynchronously to avoid blocking
+    /// the main thread during app init (was taking 1.3s+ for O(n) SwiftData fetches).
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
-        refreshConversationsPublisher()
+        Task { @MainActor in
+            await Task.yield()
+            refreshConversationsPublisher()
+        }
     }
     
     // MARK: - Conversations

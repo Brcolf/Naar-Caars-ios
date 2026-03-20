@@ -56,6 +56,7 @@ enum Constants {
         static let throttleSend: TimeInterval = 1.0
         static let throttleMarkRead: TimeInterval = 0.5
         static let throttleLastSeen: TimeInterval = 5.0
+        static let reportSubmission: TimeInterval = 10.0
     }
     
     /// Pagination page sizes

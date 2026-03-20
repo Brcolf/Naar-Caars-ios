@@ -20,6 +20,7 @@ struct PublicProfileView: View {
     @State private var didBlock = false
     @State private var showGuestPrompt = false
     @State private var guestRestrictionReason: GuestRestrictionReason = .sendMessage
+    @State private var showReportSheet = false
 
     var body: some View {
         ScrollView {
@@ -71,6 +72,12 @@ struct PublicProfileView: View {
             if let profile = viewModel.profile, profile.id != appState.currentUser?.id, !appState.isGuest {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        Button {
+                            showReportSheet = true
+                        } label: {
+                            Label("profile_report_user".localized, systemImage: "exclamationmark.triangle")
+                        }
+
                         if didBlock {
                             Label("profile_user_blocked".localized, systemImage: "hand.raised.fill")
                         } else {
@@ -119,6 +126,13 @@ struct PublicProfileView: View {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
             Text(blockError ?? "")
+        }
+        .sheet(isPresented: $showReportSheet) {
+            if let profile = viewModel.profile {
+                ReportContentSheet(
+                    context: .user(id: profile.id, name: profile.name)
+                )
+            }
         }
         .task {
             didBlock = MessageService.shared.isBlocked(userId)

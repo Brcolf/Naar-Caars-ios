@@ -15837,6 +15837,17 @@
         }
       }
     },
+    "guest_mode_indicator" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browsing as Guest"
+          }
+        }
+      }
+    },
     "guest_profile_cta_message" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15947,6 +15958,17 @@
         }
       }
     },
+    "guest_prompt_message_join_community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create an account to post rides and favors, message your neighbors, and join the community."
+          }
+        }
+      }
+    },
     "guest_prompt_message_post_favor" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -16046,28 +16068,6 @@
         }
       }
     },
-    "guest_prompt_message_join_community" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Create an account to post rides and favors, message your neighbors, and join the community."
-          }
-        }
-      }
-    },
-    "guest_prompt_title_join_community" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Join the Community"
-          }
-        }
-      }
-    },
     "guest_prompt_title_claim_favor" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -16119,6 +16119,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sign In Required"
+          }
+        }
+      }
+    },
+    "guest_prompt_title_join_community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join the Community"
           }
         }
       }
@@ -28384,6 +28395,17 @@
         }
       }
     },
+    "profile_report_user" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report User"
+          }
+        }
+      }
+    },
     "profile_retry" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -29559,6 +29581,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ride Request"
+          }
+        }
+      }
+    },
+    "report_content_type_user" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "User"
           }
         }
       }
@@ -43951,6 +43984,17 @@
         }
       }
     },
+    "welcome_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone can request an account. New accounts are reviewed to help keep the community safe."
+          }
+        }
+      }
+    },
     "welcome_login_with_email" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -43969,17 +44013,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sign Up with Email"
-          }
-        }
-      }
-    },
-    "welcome_footer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Anyone can request an account. New accounts are reviewed to help keep the community safe."
           }
         }
       }

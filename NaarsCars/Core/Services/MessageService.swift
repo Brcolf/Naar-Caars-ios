@@ -803,9 +803,18 @@ final class MessageService {
     }
     
     // MARK: - Reporting
-    
+
+    private func checkReportRateLimit(reporterId: UUID) async throws {
+        let rateLimitKey = "report_\(reporterId.uuidString)"
+        let canProceed = await rateLimiter.checkAndRecord(action: rateLimitKey, minimumInterval: Constants.RateLimits.reportSubmission)
+        guard canProceed else {
+            throw AppError.rateLimitExceeded("Please wait before submitting another report")
+        }
+    }
+
     /// Submit a report for a user
     func reportUser(reporterId: UUID, reportedUserId: UUID, type: ReportType, description: String?) async throws {
+        try await checkReportRateLimit(reporterId: reporterId)
         try await supabase.rpc(
             "submit_report",
             params: [
@@ -821,6 +830,7 @@ final class MessageService {
     
     /// Submit a report for a message
     func reportMessage(reporterId: UUID, messageId: UUID, type: ReportType, description: String?) async throws {
+        try await checkReportRateLimit(reporterId: reporterId)
         try await supabase.rpc(
             "submit_report",
             params: [
@@ -836,6 +846,7 @@ final class MessageService {
 
     /// Submit a report for a Town Hall post
     func reportPost(reporterId: UUID, postId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await checkReportRateLimit(reporterId: reporterId)
         try await supabase.rpc(
             "submit_report",
             params: [
@@ -852,6 +863,7 @@ final class MessageService {
 
     /// Submit a report for a Town Hall comment
     func reportComment(reporterId: UUID, commentId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await checkReportRateLimit(reporterId: reporterId)
         try await supabase.rpc(
             "submit_report",
             params: [
@@ -868,6 +880,7 @@ final class MessageService {
 
     /// Submit a report for a ride request
     func reportRide(reporterId: UUID, rideId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await checkReportRateLimit(reporterId: reporterId)
         try await supabase.rpc(
             "submit_report",
             params: [
@@ -884,6 +897,7 @@ final class MessageService {
 
     /// Submit a report for a favor request
     func reportFavor(reporterId: UUID, favorId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
+        try await checkReportRateLimit(reporterId: reporterId)
         try await supabase.rpc(
             "submit_report",
             params: [

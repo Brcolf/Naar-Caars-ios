@@ -4,6 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Naar's Cars iOS
 
+## Table of Contents
+
+- [Read This First](#-read-this-first--before-any-code-change)
+- [Current State of the Codebase](#current-state-of-the-codebase-active-context)
+- [What This App Is](#what-this-app-is)
+- [Build and Test Commands](#build-and-test-commands)
+- [File and Naming Conventions](#file-and-naming-conventions)
+- [Priority Order for Tradeoffs](#priority-order-for-tradeoffs)
+- [Fragile Systems](#fragile-systems--mandatory-conservative-handling) — realtime pipeline, optimistic send, reactions, notifications, auth, sync engines, badges, SwiftData
+- [Architecture Rules](#architecture-rules)
+- [State Management Rules](#state-management-rules)
+- [Concurrency Rules](#concurrency-rules)
+- [Networking Rules](#networking-rules)
+- [Realtime Rules](#realtime-rules)
+- [Messaging-Specific Rules](#messaging-specific-rules)
+- [Notification Rules](#notification-rules)
+- [Cross-Layer Synchronization Rules](#cross-layer-synchronization-rules)
+- [SwiftData and Local Storage Rules](#swiftdata-and-local-storage-rules)
+- [Security and Privacy Rules](#security-and-privacy-rules)
+- [App Store Compliance Rules](#app-store-compliance-rules)
+- [UI and UX Rules](#ui-and-ux-rules)
+- [Performance Rules](#performance-rules)
+- [Refactor Rules](#refactor-rules)
+- [Testing Expectations](#testing-expectations)
+- [How to Respond to Code Tasks](#how-to-respond-to-code-tasks)
+- [When to Slow Down](#when-to-slow-down)
+- [Quick Reference — Critical Invariants](#quick-reference--critical-invariants)
+- [Audit Notes — Known Deviations](#audit-notes--known-deviations-2026-03-16)
+
+---
+
 ## ⚠️ Read This First — Before Any Code Change
 
 You are working in a production iOS app actively preparing for App Store submission.
@@ -33,10 +64,13 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **Swift Observation migration is partially complete.** Several ViewModels have been migrated from `ObservableObject` to `@Observable`, but this has surfaced init/deinit storms and navigation hangs (see recent commits). When touching ViewModels, check whether they use `ObservableObject` or `@Observable` and follow the existing pattern for that file. Do not opportunistically migrate additional ViewModels without explicit approval.
 
+**Guest mode is implemented.** Anonymous users can browse rides, favors, and town hall without an account. Auth-required actions (create, claim, vote, comment, report, message) are gated in the UI and guarded by RLS policies (`20260320_0001_guest_mode_anon_read_policies.sql`). Deep link intents that require auth prompt the guest to sign up. `exitGuestMode()` must be called before any auth flow begins.
+
 **Critical active risks:**
 - Supabase Realtime callbacks arrive on background threads and must be marshalled to the main actor before reaching UIKit views
 - `@Observable` ViewModels passed through `.environment()` can cause init/deinit storms — recent fixes removed these patterns from sheets and tab views
 - Any regression of previously-fixed App Store issues (account deletion, moderation, SIWA) is a blocker
+- Guest mode gating must remain consistent — if a new auth-required action is added, it must be gated in both the UI and RLS
 
 ---
 
@@ -55,6 +89,8 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 **SPM dependencies (Xcode-managed):** supabase-swift v2.5.1+, firebase-ios-sdk v12.8.0+, PhoneNumberKit v4.0.0+.
 
 **Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, open signup with admin approval flows, moderation/blocking/reporting.
+
+**Feature modules** (`Features/<Name>/`): Admin, Authentication, Claiming, Community, Favors, Leaderboards, Messaging (UIKit collection view), Notifications, Profile, Prompts (completion/review reminders), Requests, Reviews, Rides, TownHall. Each has `Views/` and `ViewModels/` subdirectories.
 
 ---
 
@@ -155,7 +191,7 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `database/` — legacy SQL files with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `132`. Do not modify existing files.
 - `supabase/migrations/` — Supabase-managed migrations with `YYYYMMDD_XXXX_description.sql` naming. Use this location for new migrations via the Supabase MCP `apply_migration` tool.
 
-**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify.
+**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify. Deploy edge functions using the Supabase MCP `deploy_edge_function` tool.
 
 **Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, and `NotificationFixtures.swift`. When adding payload handling, add corresponding fixtures and decoding tests here.
 
@@ -351,7 +387,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 6. Prefer explicit cancellation over orphaned tasks.
 7. Do not perform SwiftData batch sync writes on the main actor.
 8. Be careful with mixed Combine + async/await flows — preserve existing delivery guarantees when refactoring.
-9. **Realtime callbacks must be marshalled to `@MainActor` before touching SwiftData, NotificationCenter, UIKit, ViewModels, or repositories.** See "Realtime Callback Threading" in the audit notes below for required patterns.
+9. **Realtime callbacks must be marshalled to `@MainActor`.** See "Realtime Callback Threading" in the Audit Notes section for required patterns and affected files.
 
 ---
 
@@ -379,7 +415,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 6. Preserve message ordering guarantees.
 7. Treat metadata-only changes carefully — they should not trigger unnecessary full UI recomputation.
 8. Any realtime refactor must be validated end-to-end, not just at compile time. Compilation is not correctness.
-9. All realtime subscription callbacks must be dispatched on `@MainActor`. Plain `(RealtimeRecord) -> Void` closures invoked from background `Task` contexts are not actor-isolated — the compiler does not hop automatically. See "Realtime Callback Threading" in the audit notes.
+9. All realtime subscription callbacks must be dispatched on `@MainActor`. See "Realtime Callback Threading" in the Audit Notes section for required patterns.
 
 ---
 
@@ -620,7 +656,7 @@ Files where this invariant is critical: `RealtimeManager.swift`, `MessagingSyncE
 
 Extra care required when editing — verify concurrency safety, messaging invariants, notification routing, and SwiftData schema stability:
 
-`RealtimeManager.swift`, `MessagingSyncEngine.swift`, `MessageSendManager.swift`, `MessagingRepository.swift`, `NavigationCoordinator.swift`, `AuthService.swift`, `BadgeCountManager.swift`, `BackgroundSyncActor.swift`, `SDModels.swift`
+`RealtimeManager.swift`, `MessagingSyncEngine.swift`, `MessageSendManager.swift`, `MessageSendWorker.swift`, `MessagingRepository.swift`, `NavigationCoordinator.swift`, `AuthService.swift`, `BadgeCountManager.swift`, `BackgroundSyncActor.swift`, `SDModels.swift`
 
 ---
 

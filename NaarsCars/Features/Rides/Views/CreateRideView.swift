@@ -25,24 +25,43 @@ struct CreateRideView: View {
         NavigationStack {
             Form {
                 if appState.isGuest {
-                    HStack(spacing: 12) {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundStyle(.orange)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("guest_create_ride_banner_title".localized)
-                                .font(.subheadline.bold())
-                            Button("guest_prompt_log_in".localized) {
-                                guestRestrictionReason = .postRide
-                                showGuestPrompt = true
+                    Section {
+                        VStack(spacing: 20) {
+                            Spacer().frame(height: 24)
+
+                            Image(systemName: "lock.shield")
+                                .font(.system(size: 48))
+                                .foregroundColor(.naarsPrimary.opacity(0.6))
+
+                            Text(GuestRestrictionReason.postRide.title)
+                                .font(.naarsTitle2)
+                                .multilineTextAlignment(.center)
+
+                            Text(GuestRestrictionReason.postRide.message)
+                                .font(.naarsBody)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 16)
+
+                            VStack(spacing: 12) {
+                                PrimaryButton(title: "guest_prompt_sign_up".localized) {
+                                    appState.isGuestMode = false
+                                    AppLaunchManager.shared.exitGuestMode()
+                                }
+                                SecondaryButton(title: "guest_prompt_log_in".localized) {
+                                    appState.isGuestMode = false
+                                    AppLaunchManager.shared.exitGuestMode()
+                                }
                             }
-                            .font(.subheadline)
+                            .padding(.horizontal, 32)
+
+                            Spacer().frame(height: 24)
                         }
+                        .frame(maxWidth: .infinity)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
-                    .padding()
-                    .background(Color.orange.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal)
-                }
+                } else {
 
                 Section("ride_create_section_date_time".localized) {
                     DatePicker("ride_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
@@ -151,6 +170,7 @@ struct CreateRideView: View {
                             .font(.naarsCaption)
                     }
                 }
+                } // end else (authenticated form sections)
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
@@ -172,12 +192,9 @@ struct CreateRideView: View {
                     .accessibilityHint("Dismiss without creating a ride")
                 }
                 
+                if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("ride_create_post".localized) {
-                        if appState.isGuest {
-                            guestRestrictionReason = .postRide
-                            showGuestPrompt = true
-                        } else {
                             Task {
                                 do {
                                     AppLogger.info("rides", "[CreateRideView] Starting ride creation...")
@@ -195,12 +212,12 @@ struct CreateRideView: View {
                                     showErrorAlert = true
                                 }
                             }
-                        }
                     }
                     .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createRide.post")
                     .accessibilityLabel("Post ride")
                     .accessibilityHint("Double-tap to submit this ride request")
+                }
                 }
             }
             .sheet(isPresented: $showAddParticipants) {
@@ -209,19 +226,6 @@ struct CreateRideView: View {
                     excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
                     onDismiss: {
                         showAddParticipants = false
-                    }
-                )
-            }
-            .sheet(isPresented: $showGuestPrompt) {
-                GuestSignInPromptView(
-                    reason: guestRestrictionReason,
-                    onSignUp: {
-                        appState.isGuestMode = false
-                        AppLaunchManager.shared.exitGuestMode()
-                    },
-                    onLogIn: {
-                        appState.isGuestMode = false
-                        AppLaunchManager.shared.exitGuestMode()
                     }
                 )
             }

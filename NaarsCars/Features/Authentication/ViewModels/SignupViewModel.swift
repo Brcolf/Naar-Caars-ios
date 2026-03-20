@@ -64,19 +64,29 @@ final class SignupViewModel: ObservableObject {
     /// Validate name field
     func validateName() -> Bool {
         nameError = nil
-        
+
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !trimmed.isEmpty else {
             nameError = "signup_error_name_required".localized
             return false
         }
-        
+
         guard trimmed.count >= 2 else {
             nameError = "signup_error_name_too_short".localized
             return false
         }
-        
+
+        guard trimmed.count <= 100 else {
+            nameError = "signup_error_name_too_long".localized
+            return false
+        }
+
+        guard Validators.isSafeUserInput(trimmed) else {
+            nameError = "signup_error_name_invalid_characters".localized
+            return false
+        }
+
         return true
     }
     
@@ -165,8 +175,8 @@ final class SignupViewModel: ObservableObject {
             try await authService.signUp(
                 email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                 password: password,
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                car: car.isEmpty ? nil : car.trimmingCharacters(in: .whitespacesAndNewlines)
+                name: Validators.sanitizeUserInput(name, maxLength: 100),
+                car: car.isEmpty ? nil : Validators.sanitizeUserInput(car, maxLength: 100)
             )
             HapticManager.success()
         } catch {

@@ -47,8 +47,14 @@ struct ApplicationFieldsView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // How did you hear about Naar's Cars?
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("application_heard_about_label".localized)
-                            .font(.naarsHeadline)
+                        HStack {
+                            Text("application_heard_about_label".localized)
+                                .font(.naarsHeadline)
+                            Spacer()
+                            Text("\(heardAbout.count)/500")
+                                .font(.naarsCaption)
+                                .foregroundColor(heardAbout.count > 500 ? .naarsError : .secondary)
+                        }
 
                         TextField(
                             "application_heard_about_placeholder".localized,
@@ -59,12 +65,23 @@ struct ApplicationFieldsView: View {
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .heardAbout)
                         .accessibilityIdentifier("application.heardAbout")
+                        .onChange(of: heardAbout) { _, newValue in
+                            if newValue.count > 500 {
+                                heardAbout = String(newValue.prefix(500))
+                            }
+                        }
                     }
 
                     // Why would you like to join?
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("application_join_reason_label".localized)
-                            .font(.naarsHeadline)
+                        HStack {
+                            Text("application_join_reason_label".localized)
+                                .font(.naarsHeadline)
+                            Spacer()
+                            Text("\(joinReason.count)/500")
+                                .font(.naarsCaption)
+                                .foregroundColor(joinReason.count > 500 ? .naarsError : .secondary)
+                        }
 
                         TextField(
                             "application_join_reason_placeholder".localized,
@@ -75,6 +92,11 @@ struct ApplicationFieldsView: View {
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .joinReason)
                         .accessibilityIdentifier("application.joinReason")
+                        .onChange(of: joinReason) { _, newValue in
+                            if newValue.count > 500 {
+                                joinReason = String(newValue.prefix(500))
+                            }
+                        }
                     }
 
                     // Helper text
@@ -144,8 +166,8 @@ struct ApplicationFieldsView: View {
             return
         }
 
-        let trimmedHeardAbout = heardAbout.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedJoinReason = joinReason.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedHeardAbout = Validators.sanitizeUserInput(heardAbout, maxLength: 500)
+        let trimmedJoinReason = Validators.sanitizeUserInput(joinReason, maxLength: 500)
 
         guard !trimmedHeardAbout.isEmpty, !trimmedJoinReason.isEmpty else {
             errorMessage = "application_error_fields_required".localized

@@ -179,15 +179,18 @@ struct MyProfileView: View {
             .task(id: appState.currentUser?.id) {
                 // Reactive: fires immediately if currentUser is set, or re-fires
                 // the moment currentUser arrives after deferred loading completes.
-                // Replaces the previous 500ms sleep hack that caused hangs when
-                // the profile tab was tapped during cold launch.
                 guard let userId = appState.currentUser?.id else { return }
 
-                async let profileTask: Void = viewModel.loadProfile(userId: userId)
-                async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
-                await profileTask
-                badges = (try? await badgesTask) ?? []
-                BadgeCache.shared.store(badges: badges, for: userId)
+                // loadProfile has an internal cache guard — returns immediately
+                // if data for this user is already loaded, preventing the
+                // thundering herd of 6+ RPCs on every tab switch.
+                await viewModel.loadProfile(userId: userId)
+
+                // Only fetch badges if we don't already have them for this user
+                if badges.isEmpty {
+                    badges = (try? await LeaderboardService.shared.fetchUserBadges(userId: userId)) ?? []
+                    BadgeCache.shared.store(badges: badges, for: userId)
+                }
             }
             .sheet(isPresented: $showEditProfile) {
                 if let profile = viewModel.profile {

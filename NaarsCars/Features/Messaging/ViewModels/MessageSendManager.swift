@@ -18,6 +18,7 @@ final class MessageSendManager {
     private let reactionService: MessageReactionService
     private let authService: AuthService
     private let repository: MessagingRepository
+    private let rateLimiter = RateLimiter.shared
 
     init(
         messageService: MessageService = .shared,
@@ -44,6 +45,13 @@ final class MessageSendManager {
         let sendStart = Date()
         guard (!messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || image != nil),
               let fromId = authService.currentUserId else {
+            return
+        }
+
+        let rateLimitKey = "send_message_\(conversationId.uuidString)"
+        let canSend = await rateLimiter.checkAndRecord(action: rateLimitKey, minimumInterval: Constants.RateLimits.messageSend)
+        guard canSend else {
+            setError(.rateLimitExceeded("Please wait before sending another message"))
             return
         }
 

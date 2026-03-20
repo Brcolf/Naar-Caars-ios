@@ -61,11 +61,8 @@ struct NaarsCarsApp: App {
             }
         }
         
-        // Test connection on app launch
-        Task {
-            let connected = await SupabaseService.shared.testConnection()
-            AppLogger.info("app", connected ? "Supabase connected" : "Supabase connection failed")
-        }
+        // Connection test removed — unnecessary network round-trip during init.
+        // Auth session check in performCriticalLaunch() validates connectivity.
 
         Task {
             await PerformanceMonitor.shared.record(

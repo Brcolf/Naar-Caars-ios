@@ -36,12 +36,20 @@ final class MyProfileViewModel: ObservableObject {
     
     /// Load profile data for current user
     /// Fetches profile, reviews, invite codes, rating, and count concurrently
+    /// On subsequent calls for the same user, returns cached data immediately.
+    /// Use `refreshProfile(userId:)` for pull-to-refresh.
     /// - Parameter userId: The current user's ID
     func loadProfile(userId: UUID) async {
+        // If we already have data for this user, skip the network fetch.
+        // This prevents 6 concurrent RPCs on every tab switch.
+        if profile?.id == userId && !reviews.isEmpty {
+            return
+        }
+
         isLoading = true
         error = nil
         defer { isLoading = false }
-        
+
         do {
             // Fetch all data concurrently using async let
             async let profileTask = profileService.fetchProfile(userId: userId)
