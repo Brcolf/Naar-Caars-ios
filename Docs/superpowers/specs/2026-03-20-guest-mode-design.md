@@ -210,7 +210,7 @@ Guests tap cards and enter the real `RideDetailView` / `FavorDetailView`. No nav
 
 - Messages tab visible in tab bar
 - For guests: renders `GuestMessagesView` instead of `ConversationsListView`
-- `GuestMessagesView`: styled empty state with messaging icon, "Sign in to message your neighbors", sign-in prompt button
+- `GuestMessagesView`: styled empty state with messaging icon, "Sign in to message your neighbors", a short privacy rationale in plain English explaining why messages require an account (e.g., "Messages are private conversations between verified community members. Sign in to start messaging."), and a sign-in prompt button
 - No conversations loaded, no message previews, no participant data, no service calls
 
 ### Other messaging entry points
@@ -318,6 +318,10 @@ enum GuestRestrictionReason {
 
 Each case provides a `message: String` and `title: String` for the prompt.
 
+### Localization requirement
+
+All new user-facing strings introduced by guest mode must use localized keys via `"key".localized` and be added to `Resources/Localizable.xcstrings`. This includes: GuestSignInPromptView titles and messages, GuestRestrictionReason copy, GuestMessagesView text (including privacy rationale), GuestProfileView labels and CTA copy, create form guest banners, and any other visible text. No hardcoded English strings in Swift files.
+
 ### AddressText blurred variant
 
 - New `isBlurred: Bool` parameter (default `false`)
@@ -326,7 +330,7 @@ Each case provides a `message: String` and `title: String` for the prompt.
 
 ### GuestMessagesView (new)
 
-Small self-contained view: empty state icon + "Sign in to message your neighbors" + sign-in button.
+Small self-contained view: empty state icon + "Sign in to message your neighbors" + short privacy rationale ("Messages are private conversations between verified community members. Sign in to start messaging.") + sign-in button.
 
 ### GuestProfileView (new)
 
