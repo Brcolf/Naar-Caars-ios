@@ -16105,6 +16105,28 @@
         }
       }
     },
+    "guest_create_favor_banner_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to post this favor"
+          }
+        }
+      }
+    },
+    "guest_create_ride_banner_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to post this ride"
+          }
+        }
+      }
+    },
     "guest_prompt_sign_up" : {
       "extractionState" : "stale",
       "localizations" : {

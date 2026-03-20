@@ -11,16 +11,39 @@ import SwiftUI
 struct CreateRideView: View {
     @StateObject private var viewModel = CreateRideViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
     var onRideCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .postRide
     /// Deferred so LocationService init runs off the first frame while user sets date/time.
     @State private var locationServiceReady = false
     
     var body: some View {
         NavigationStack {
             Form {
+                if appState.isGuest {
+                    HStack(spacing: 12) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("guest_create_ride_banner_title".localized)
+                                .font(.subheadline.bold())
+                            Button("guest_prompt_log_in".localized) {
+                                guestRestrictionReason = .postRide
+                                showGuestPrompt = true
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal)
+                }
+
                 Section("ride_create_section_date_time".localized) {
                     DatePicker("ride_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
@@ -97,7 +120,12 @@ struct CreateRideView: View {
                 
                 Section("ride_create_section_participants".localized) {
                     Button {
-                        showAddParticipants = true
+                        if appState.isGuest {
+                            guestRestrictionReason = .addParticipants
+                            showGuestPrompt = true
+                        } else {
+                            showAddParticipants = true
+                        }
                     } label: {
                         HStack {
                             Text(viewModel.selectedParticipantIds.isEmpty ? "ride_create_add_participants".localized : "ride_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
@@ -146,21 +174,26 @@ struct CreateRideView: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("ride_create_post".localized) {
-                        Task {
-                            do {
-                                AppLogger.info("rides", "[CreateRideView] Starting ride creation...")
-                                let ride = try await viewModel.createRide()
-                                AppLogger.info("rides", "[CreateRideView] Ride created successfully: \(ride.id)")
-                                // Call callback with created ride ID before dismissing
-                                onRideCreated?(ride.id)
-                                showSuccess = true
-                                HapticManager.success()
-                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
-                                dismiss()
-                            } catch {
-                                AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
-                                AppLogger.error("rides", "[CreateRideView] Error details: \(error)")
-                                showErrorAlert = true
+                        if appState.isGuest {
+                            guestRestrictionReason = .postRide
+                            showGuestPrompt = true
+                        } else {
+                            Task {
+                                do {
+                                    AppLogger.info("rides", "[CreateRideView] Starting ride creation...")
+                                    let ride = try await viewModel.createRide()
+                                    AppLogger.info("rides", "[CreateRideView] Ride created successfully: \(ride.id)")
+                                    // Call callback with created ride ID before dismissing
+                                    onRideCreated?(ride.id)
+                                    showSuccess = true
+                                    HapticManager.success()
+                                    try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                    dismiss()
+                                } catch {
+                                    AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
+                                    AppLogger.error("rides", "[CreateRideView] Error details: \(error)")
+                                    showErrorAlert = true
+                                }
                             }
                         }
                     }
@@ -176,6 +209,19 @@ struct CreateRideView: View {
                     excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
                     onDismiss: {
                         showAddParticipants = false
+                    }
+                )
+            }
+            .sheet(isPresented: $showGuestPrompt) {
+                GuestSignInPromptView(
+                    reason: guestRestrictionReason,
+                    onSignUp: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
+                    },
+                    onLogIn: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
                     }
                 )
             }

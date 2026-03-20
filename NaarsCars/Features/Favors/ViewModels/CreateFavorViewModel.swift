@@ -73,6 +73,11 @@ final class CreateFavorViewModel: ObservableObject {
     /// - Returns: Created favor if successful
     /// - Throws: AppError if creation fails
     func createFavor() async throws -> Favor {
+        guard AuthService.shared.currentUserId != nil else {
+            self.error = "Authentication required. Please sign in again."
+            throw AppError.authenticationRequired
+        }
+
         // Validate form
         if let validationError = validateForm() {
             self.error = validationError

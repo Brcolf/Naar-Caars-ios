@@ -75,6 +75,11 @@ final class CreateRideViewModel: ObservableObject {
     /// - Returns: Created ride if successful
     /// - Throws: AppError if creation fails
     func createRide() async throws -> Ride {
+        guard AuthService.shared.currentUserId != nil else {
+            self.error = "Authentication required. Please sign in again."
+            throw AppError.authenticationRequired
+        }
+
         // Validate form
         if let validationError = validateForm() {
             self.error = validationError
