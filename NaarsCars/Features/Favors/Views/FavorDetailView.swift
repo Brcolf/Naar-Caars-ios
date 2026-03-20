@@ -699,16 +699,10 @@ struct FavorDetailView: View {
     @ViewBuilder
     private func claimButtonSection(favor: Favor) -> some View {
         if appState.isGuest {
-            Button {
+            PrimaryButton(title: "guest_prompt_title_claim_favor".localized) {
                 guestRestrictionReason = .claimFavor
                 showGuestPrompt = true
-            } label: {
-                Text("guest_prompt_title_claim_favor".localized)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
             }
-            .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("favor.guestClaimPrompt")
         } else {
             let authService = AuthService.shared

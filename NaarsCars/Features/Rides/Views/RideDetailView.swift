@@ -829,16 +829,10 @@ struct RideDetailView: View {
     @ViewBuilder
     private func claimButtonSection(ride: Ride) -> some View {
         if appState.isGuest {
-            Button {
+            PrimaryButton(title: "guest_prompt_title_claim_ride".localized) {
                 guestRestrictionReason = .claimRide
                 showGuestPrompt = true
-            } label: {
-                Text("guest_prompt_title_claim_ride".localized)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
             }
-            .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("ride.guestClaimPrompt")
         } else {
             let authService = AuthService.shared
