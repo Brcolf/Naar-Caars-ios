@@ -804,112 +804,141 @@ final class MessageService {
     
     // MARK: - Reporting
 
-    private func checkReportRateLimit(reporterId: UUID) async throws {
-        let rateLimitKey = "report_\(reporterId.uuidString)"
-        let canProceed = await rateLimiter.checkAndRecord(action: rateLimitKey, minimumInterval: Constants.RateLimits.reportSubmission)
+    private var reportRateLimitKey: String { "report_\(AuthService.shared.currentUserId?.uuidString ?? "unknown")" }
+
+    private func checkReportRateLimit() async throws {
+        let canProceed = await rateLimiter.checkAndRecord(action: reportRateLimitKey, minimumInterval: Constants.RateLimits.reportSubmission)
         guard canProceed else {
             throw AppError.rateLimitExceeded("Please wait before submitting another report")
         }
     }
 
+    private func resetReportRateLimit() async {
+        await rateLimiter.reset(action: reportRateLimitKey)
+    }
+
     /// Submit a report for a user
     func reportUser(reporterId: UUID, reportedUserId: UUID, type: ReportType, description: String?) async throws {
-        try await checkReportRateLimit(reporterId: reporterId)
-        try await supabase.rpc(
-            "submit_report",
-            params: [
-                "p_reporter_id": reporterId.uuidString,
-                "p_reported_user_id": reportedUserId.uuidString,
-                "p_report_type": type.rawValue,
-                "p_description": description ?? ""
-            ]
-        ).execute()
-        
-        AppLogger.database.info("Reported user: \(reportedUserId)")
+        try await checkReportRateLimit()
+        do {
+            try await supabase.rpc(
+                "submit_report",
+                params: [
+                    "p_reporter_id": reporterId.uuidString,
+                    "p_reported_user_id": reportedUserId.uuidString,
+                    "p_report_type": type.rawValue,
+                    "p_description": description ?? ""
+                ]
+            ).execute()
+            AppLogger.database.info("Reported user: \(reportedUserId)")
+        } catch {
+            await resetReportRateLimit()
+            throw error
+        }
     }
-    
+
     /// Submit a report for a message
     func reportMessage(reporterId: UUID, messageId: UUID, type: ReportType, description: String?) async throws {
-        try await checkReportRateLimit(reporterId: reporterId)
-        try await supabase.rpc(
-            "submit_report",
-            params: [
-                "p_reporter_id": reporterId.uuidString,
-                "p_reported_message_id": messageId.uuidString,
-                "p_report_type": type.rawValue,
-                "p_description": description ?? ""
-            ]
-        ).execute()
-        
-        AppLogger.database.info("Reported message: \(messageId)")
+        try await checkReportRateLimit()
+        do {
+            try await supabase.rpc(
+                "submit_report",
+                params: [
+                    "p_reporter_id": reporterId.uuidString,
+                    "p_reported_message_id": messageId.uuidString,
+                    "p_report_type": type.rawValue,
+                    "p_description": description ?? ""
+                ]
+            ).execute()
+            AppLogger.database.info("Reported message: \(messageId)")
+        } catch {
+            await resetReportRateLimit()
+            throw error
+        }
     }
 
     /// Submit a report for a Town Hall post
     func reportPost(reporterId: UUID, postId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
-        try await checkReportRateLimit(reporterId: reporterId)
-        try await supabase.rpc(
-            "submit_report",
-            params: [
-                "p_reporter_id": reporterId.uuidString,
-                "p_reported_user_id": authorId.uuidString,
-                "p_reported_post_id": postId.uuidString,
-                "p_report_type": type.rawValue,
-                "p_description": description ?? ""
-            ]
-        ).execute()
-
-        AppLogger.database.info("Reported post: \(postId)")
+        try await checkReportRateLimit()
+        do {
+            try await supabase.rpc(
+                "submit_report",
+                params: [
+                    "p_reporter_id": reporterId.uuidString,
+                    "p_reported_user_id": authorId.uuidString,
+                    "p_reported_post_id": postId.uuidString,
+                    "p_report_type": type.rawValue,
+                    "p_description": description ?? ""
+                ]
+            ).execute()
+            AppLogger.database.info("Reported post: \(postId)")
+        } catch {
+            await resetReportRateLimit()
+            throw error
+        }
     }
 
     /// Submit a report for a Town Hall comment
     func reportComment(reporterId: UUID, commentId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
-        try await checkReportRateLimit(reporterId: reporterId)
-        try await supabase.rpc(
-            "submit_report",
-            params: [
-                "p_reporter_id": reporterId.uuidString,
-                "p_reported_user_id": authorId.uuidString,
-                "p_reported_comment_id": commentId.uuidString,
-                "p_report_type": type.rawValue,
-                "p_description": description ?? ""
-            ]
-        ).execute()
-
-        AppLogger.database.info("Reported comment: \(commentId)")
+        try await checkReportRateLimit()
+        do {
+            try await supabase.rpc(
+                "submit_report",
+                params: [
+                    "p_reporter_id": reporterId.uuidString,
+                    "p_reported_user_id": authorId.uuidString,
+                    "p_reported_comment_id": commentId.uuidString,
+                    "p_report_type": type.rawValue,
+                    "p_description": description ?? ""
+                ]
+            ).execute()
+            AppLogger.database.info("Reported comment: \(commentId)")
+        } catch {
+            await resetReportRateLimit()
+            throw error
+        }
     }
 
     /// Submit a report for a ride request
     func reportRide(reporterId: UUID, rideId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
-        try await checkReportRateLimit(reporterId: reporterId)
-        try await supabase.rpc(
-            "submit_report",
-            params: [
-                "p_reporter_id": reporterId.uuidString,
-                "p_reported_user_id": authorId.uuidString,
-                "p_reported_ride_id": rideId.uuidString,
-                "p_report_type": type.rawValue,
-                "p_description": description ?? ""
-            ]
-        ).execute()
-
-        AppLogger.database.info("Reported ride: \(rideId)")
+        try await checkReportRateLimit()
+        do {
+            try await supabase.rpc(
+                "submit_report",
+                params: [
+                    "p_reporter_id": reporterId.uuidString,
+                    "p_reported_user_id": authorId.uuidString,
+                    "p_reported_ride_id": rideId.uuidString,
+                    "p_report_type": type.rawValue,
+                    "p_description": description ?? ""
+                ]
+            ).execute()
+            AppLogger.database.info("Reported ride: \(rideId)")
+        } catch {
+            await resetReportRateLimit()
+            throw error
+        }
     }
 
     /// Submit a report for a favor request
     func reportFavor(reporterId: UUID, favorId: UUID, authorId: UUID, type: ReportType, description: String?) async throws {
-        try await checkReportRateLimit(reporterId: reporterId)
-        try await supabase.rpc(
-            "submit_report",
-            params: [
-                "p_reporter_id": reporterId.uuidString,
-                "p_reported_user_id": authorId.uuidString,
-                "p_reported_favor_id": favorId.uuidString,
-                "p_report_type": type.rawValue,
-                "p_description": description ?? ""
-            ]
-        ).execute()
-
-        AppLogger.database.info("Reported favor: \(favorId)")
+        try await checkReportRateLimit()
+        do {
+            try await supabase.rpc(
+                "submit_report",
+                params: [
+                    "p_reporter_id": reporterId.uuidString,
+                    "p_reported_user_id": authorId.uuidString,
+                    "p_reported_favor_id": favorId.uuidString,
+                    "p_report_type": type.rawValue,
+                    "p_description": description ?? ""
+                ]
+            ).execute()
+            AppLogger.database.info("Reported favor: \(favorId)")
+        } catch {
+            await resetReportRateLimit()
+            throw error
+        }
     }
 
     // MARK: - Blocking
