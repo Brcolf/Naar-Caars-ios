@@ -8,7 +8,6 @@ import SwiftUI
 /// Profile tab view shown to guest users.
 struct GuestProfileView: View {
     @Environment(AppState.self) private var appState
-    @State private var showSignInPrompt = false
 
     var body: some View {
         NavigationStack {
@@ -30,12 +29,14 @@ struct GuestProfileView: View {
                             .multilineTextAlignment(.center)
 
                         PrimaryButton(title: "guest_prompt_sign_up".localized) {
-                            showSignInPrompt = true
+                            appState.isGuestMode = false
+                            AppLaunchManager.shared.exitGuestMode()
                         }
                         .accessibilityIdentifier("guestProfile.signUp")
 
                         SecondaryButton(title: "guest_prompt_log_in".localized) {
-                            showSignInPrompt = true
+                            appState.isGuestMode = false
+                            AppLaunchManager.shared.exitGuestMode()
                         }
                         .accessibilityIdentifier("guestProfile.logIn")
                     }
@@ -101,19 +102,6 @@ struct GuestProfileView: View {
                 }
             }
             .navigationTitle("nav_tab_profile".localized)
-            .sheet(isPresented: $showSignInPrompt) {
-                GuestSignInPromptView(
-                    reason: .joinCommunity,
-                    onSignUp: {
-                        appState.isGuestMode = false
-                        AppLaunchManager.shared.exitGuestMode()
-                    },
-                    onLogIn: {
-                        appState.isGuestMode = false
-                        AppLaunchManager.shared.exitGuestMode()
-                    }
-                )
-            }
         }
     }
 }

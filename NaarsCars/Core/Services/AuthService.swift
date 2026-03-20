@@ -561,7 +561,6 @@ final class AuthService: ObservableObject {
             return
         }
         isSigningOut = true
-        defer { isSigningOut = false }
 
         AppLogger.auth.debug("handleSignOut() started")
         let userIdToRemove = currentUserId
@@ -585,6 +584,13 @@ final class AuthService: ObservableObject {
 
         AppLogger.auth.debug("Posting userDidSignOut notification")
         NotificationCenter.default.post(name: .userDidSignOut, object: nil, userInfo: nil)
+
+        // Reset the reentrancy guard BEFORE the teardown awaits.
+        // RealtimeManager.unsubscribeAll() and SyncEngineOrchestrator.teardownAll()
+        // can hang indefinitely (observed in production logs). If the guard stays true,
+        // every subsequent sign-out is permanently skipped. The teardown calls below
+        // are idempotent, so overlapping calls from a future sign-out are safe.
+        isSigningOut = false
 
         // --- Teardown phase: clean up resources after UI has transitioned ---
 
