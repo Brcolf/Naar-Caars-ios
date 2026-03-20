@@ -10,6 +10,7 @@ import SwiftUI
 /// Main tab view with 4 tabs for authenticated users
 /// Notifications are shown as badges on relevant tabs
 struct MainTabView: View {
+    @Environment(AppState.self) private var appState
     @State private var badgeManager = BadgeCountManager.shared
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var promptCoordinator = PromptCoordinator.shared
@@ -56,7 +57,13 @@ struct MainTabView: View {
                 }
                 .accessibilityHint("View ride and favor requests")
             
-            ConversationsListView()
+            Group {
+                if appState.isGuest {
+                    GuestMessagesView()
+                } else {
+                    ConversationsListView()
+                }
+            }
                 .tag(1)
                 .badge(badgeManager.counts.messages > 0 ? String(badgeManager.counts.messages) : nil)
                 .tabItem {
@@ -72,7 +79,13 @@ struct MainTabView: View {
                 }
                 .accessibilityHint("View community features")
             
-            MyProfileView()
+            Group {
+                if appState.isGuest {
+                    GuestProfileView()
+                } else {
+                    MyProfileView()
+                }
+            }
                 .tag(3)
                 .badge(badgeManager.counts.profile > 0 ? String(badgeManager.counts.profile) : nil)
                 .tabItem {
@@ -88,7 +101,8 @@ struct MainTabView: View {
             if let tab = NavigationCoordinator.Tab(rawValue: newTab) {
                 navigationCoordinator.selectedTab = tab
             }
-            
+
+            guard !appState.isGuest else { return }
             // Clear badges when navigating to their respective tabs
             Task {
                 switch newTab {
@@ -130,6 +144,7 @@ struct MainTabView: View {
             }
         }
         .task {
+            guard !appState.isGuest else { return }
             // Check if user needs to accept community guidelines
             checkGuidelinesAcceptance()
             // Refresh badges on appear
@@ -143,7 +158,9 @@ struct MainTabView: View {
             showGuidelinesAcceptance = false
         }
         .overlay(alignment: .top) {
-            toastOverlay
+            if !appState.isGuest {
+                toastOverlay
+            }
         }
         .offlineBanner()
         .sheet(isPresented: $showNotificationsSheet, onDismiss: {

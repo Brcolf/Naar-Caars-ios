@@ -16028,6 +16028,50 @@
         }
       }
     },
+    "guest_messages_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messages"
+          }
+        }
+      }
+    },
+    "guest_messages_privacy_rationale" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messages are private conversations between verified community members. Create an account to start messaging your neighbors."
+          }
+        }
+      }
+    },
+    "guest_profile_name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guest User"
+          }
+        }
+      }
+    },
+    "guest_profile_cta_message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create an account to post rides and favors, message your neighbors, and join the community."
+          }
+        }
+      }
+    },
     "guest_prompt_sign_up" : {
       "extractionState" : "stale",
       "localizations" : {
