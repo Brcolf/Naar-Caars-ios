@@ -12,7 +12,7 @@ The app currently hard-gates all content behind authentication. Apple Guideline 
 
 ## 2. Solution Overview
 
-Add a `.guest` state to the existing `AuthState` enum. Guests enter via a "Continue as Guest" button on `WelcomeView`, land in the same `MainTabView` as authenticated users, and browse a read-only version of the app with sensitive data blurred and account-based actions gated behind reusable sign-in prompt sheets.
+Add a `.guest` case to the existing `AuthState` enum and a stored `isGuestMode` flag on `AppState` (since the existing `authState` computed property derives from `currentUser` and cannot produce `.guest` on its own). Guests enter via a "Continue as Guest" button on `WelcomeView`, land in the same `MainTabView` as authenticated users, and browse a read-only version of the app with sensitive data blurred and account-based actions gated behind reusable sign-in prompt sheets.
 
 ### Design Principles
 
@@ -33,13 +33,18 @@ existing: loading | unauthenticated | needsApplication | pendingApproval | banne
 new:      loading | unauthenticated | guest | needsApplication | pendingApproval | banned | authenticated
 ```
 
-### AppState
+### AppState — guest state tracking
 
-Add computed property:
+`AppState.authState` is a computed property that derives state from `currentUser`. Since `currentUser` is `nil` for guests, `authState` would return `.unauthenticated`, never `.guest`. Therefore, guest state is tracked via a stored flag:
 
 ```swift
-var isGuest: Bool { authState == .guest }
+// AppState.swift
+@Published var isGuestMode: Bool = false
+
+var isGuest: Bool { isGuestMode }
 ```
+
+`AppLaunchManager` sets `appState.isGuestMode = true` when entering guest mode and `false` when transitioning to auth flow. The `LaunchState.ready(.guest)` variant is the source of truth for `ContentView` routing; `appState.isGuestMode` is the source of truth for view/VM guest checks.
 
 `currentUser` remains `nil` for guests. `currentUserId` remains `nil`.
 
@@ -60,9 +65,15 @@ Add a "Continue as Guest" button. On tap, `AppLaunchManager` transitions to `.re
 - No Supabase realtime subscriptions
 - No sync engines (messaging, dashboard, town hall)
 - No push notification registration
-- No badge count fetching
+- No badge count fetching (guard `BadgeCountManager.refreshAllBadges()`)
 - No profile loading
+- No prompt coordinator checks
+- No toast overlay / in-app notification rendering
 - `AppLaunchManager.performCriticalLaunch()` deferred loading is skipped
+
+### ContentView.isAuthenticated
+
+`ContentView` has a computed `isAuthenticated` property that controls whether `restartRealtimeSyncEngines()`, `recheckBanStatus()`, and `AppLockManager` engage on foreground. `.guest` must NOT be included in this check. Guests must not trigger sync engines, ban checks, or app lock.
 
 ### Guest -> Authenticated transition
 
@@ -79,18 +90,23 @@ Any unsaved form data (e.g., partially filled create ride) is lost. This is acce
 
 ## 4. Dashboard / Home Feed
 
-### RidesDashboardView & FavorsDashboardView
+### RequestsDashboardView (unified dashboard)
 
-- All three filter tabs visible: All / Mine / Claimed
-- "All" fetches rides/favors from Supabase (public read, no auth required)
-- "Mine" and "Claimed" naturally return empty results (no `currentUserId`) — existing empty state UI renders
+The dashboard uses `RequestsDashboardView` with `RequestFilterManager` (not the old separate `RidesDashboardViewModel`/`FavorsDashboardViewModel`).
+
+- All three filter tabs visible: Open Requests / My Requests / Claimed Requests (per `RequestFilter` enum: `.open`, `.mine`, `.claimed`)
+- "Open Requests" fetches rides/favors from Supabase (public read, no auth required)
+- "My Requests" and "Claimed Requests" naturally return empty results (no `currentUserId`) — existing empty state UI renders
 - `+` create button remains visible and tappable (guests can open create screens)
-- Pull-to-refresh works for "All" tab
+- Pull-to-refresh works for "Open Requests" tab
 
-### Dashboard ViewModel changes
+### RequestFilterManager changes
 
-- `RidesDashboardViewModel.getFilteredRides()` currently returns `[]` when `currentUserId` is nil for all filters. The "All" path must be adjusted to return all rides even when `currentUserId` is nil.
-- Same for `FavorsDashboardViewModel`
+`RequestFilterManager.getFilteredRequests()` currently has `guard let userId = authService.currentUserId else { return [] }` — this returns empty for ALL filters including `.open` when there is no `currentUserId`. The `.open` path must be adjusted to return all open requests even when `currentUserId` is nil. `.mine` and `.claimed` paths continue to return empty naturally.
+
+### Realtime subscriptions
+
+`RequestsDashboardView` calls `viewModel.setupRealtimeSubscription()` in `.task`. For guests, this must be guarded — no realtime channels for unauthenticated users. Guard in the view's `.task` modifier or in the ViewModel method itself.
 
 ### Address blurring on cards
 
@@ -225,7 +241,48 @@ Comments display author name and avatar only. No phone, email, or contact info i
 
 ---
 
-## 10. Shared Components
+## 10. Leaderboard
+
+The Community tab (`CommunityTabView`) contains both Town Hall and Leaderboard views.
+
+### Feed view
+
+- `LeaderboardView` renders for guests — rankings, names, avatars, badges, XP visible (all public data)
+- Pull-to-refresh works
+
+### Interactions for guests
+
+- Tap a leaderboard entry to view public profile: works (PublicProfileView guest handling per Section 7)
+- No leaderboard-specific mutations exist (leaderboard is read-only for all users)
+
+### RLS
+
+`leaderboard_entries` / leaderboard RPCs must allow anon reads (see Section 16 prerequisite).
+
+---
+
+## 11. Deep Link Behavior for Guests
+
+When a guest encounters a deep link (e.g., universal link shared externally), `NavigationCoordinator` processes the `NavigationIntent`. Guest-safe and guest-unsafe intents:
+
+| NavigationIntent | Guest behavior |
+|-----------------|----------------|
+| `.ride(UUID)` | Navigate to RideDetailView (guest-safe, read-only with blurring) |
+| `.favor(UUID)` | Navigate to FavorDetailView (guest-safe, read-only with blurring) |
+| `.townHallPost(UUID)` | Navigate to post (guest-safe, read-only) |
+| `.profile(UUID)` | Navigate to PublicProfileView (guest-safe, read-only) |
+| `.conversation(UUID)` | Show GuestSignInPromptView (requires auth) |
+| `.adminPanel` | Ignore / no-op (requires auth + admin role) |
+| `.pendingUsers` | Ignore / no-op (requires auth + admin role) |
+| `.adminReports` | Ignore / no-op (requires auth + admin role) |
+| `.notifications` | Show GuestSignInPromptView (requires auth) |
+| `.dashboard` | Navigate to dashboard (guest-safe) |
+
+Guard implementation: `NavigationCoordinator` checks `appState.isGuest` before applying intents that require auth; shows sign-in prompt for those cases.
+
+---
+
+## 12. Shared Components
 
 ### GuestSignInPromptView (new reusable sheet)
 
@@ -265,7 +322,7 @@ Guest identity header + sign-up CTA + About section (community guidelines, priva
 
 ---
 
-## 11. Service-Layer Guards
+## 13. Service-Layer Guards
 
 Not a middleware — lightweight ViewModel-level pattern. ViewModels that perform mutations check `appState.isGuest` before calling service methods.
 
@@ -291,7 +348,7 @@ These are belt-and-suspenders. The UI already gates, but VM guards prevent write
 
 ---
 
-## 12. Guest Privacy Audit
+## 14. Guest Privacy Audit
 
 | Surface | Sensitive Data | Mitigation |
 |---------|---------------|------------|
@@ -307,7 +364,7 @@ These are belt-and-suspenders. The UI already gates, but VM guards prevent write
 
 ---
 
-## 13. New Files
+## 15. New Files
 
 | File | Purpose |
 |------|---------|
@@ -316,25 +373,26 @@ These are belt-and-suspenders. The UI already gates, but VM guards prevent write
 | `Core/Models/GuestRestrictionReason.swift` | Enum for contextual sign-in prompt messages |
 | `UI/Components/Common/GuestSignInPromptView.swift` | Reusable sign-in prompt sheet |
 
-## 14. Modified Files
+## 16. Modified Files
 
 | File | Change |
 |------|--------|
 | `Core/Services/AuthService.swift` | Add `.guest` case to `AuthState` |
-| `App/AppState.swift` | Add `isGuest` computed property |
-| `App/ContentView.swift` | Route `.guest` to `MainTabView()` |
+| `App/AppState.swift` | Add `isGuestMode` stored flag and `isGuest` computed property |
+| `App/ContentView.swift` | Route `.guest` to `MainTabView()`; ensure `isAuthenticated` excludes `.guest` |
 | `App/AppLaunchManager.swift` | `enterGuestMode()` method, skip deferred loading for guests |
-| `App/MainTabView.swift` | Conditional tab content for messages and profile |
+| `App/MainTabView.swift` | Conditional tab content for messages/profile; guard `refreshAllBadges()`, toast overlay, prompt coordinator for guests |
+| `App/NavigationCoordinator.swift` | Guard auth-required intents for guests (conversation, admin, notifications) |
 | `Features/Authentication/Views/WelcomeView.swift` | "Continue as Guest" button |
 | `UI/Components/AddressText.swift` | `isBlurred` parameter |
 | `UI/Components/Cards/RideCard.swift` | Pass `isBlurred: appState.isGuest` to AddressText |
 | `UI/Components/Cards/FavorCard.swift` | Pass `isBlurred: appState.isGuest` to AddressText |
+| `Features/Requests/ViewModels/RequestFilterManager.swift` | Allow `.open` filter to return results when `currentUserId` is nil |
+| `Features/Requests/Views/RequestsDashboardView.swift` | Guard realtime subscription setup for guests |
 | `Features/Rides/Views/RideDetailView.swift` | Blur addresses, hide map, gate actions |
 | `Features/Favors/Views/FavorDetailView.swift` | Blur addresses, gate actions |
 | `Features/Rides/Views/CreateRideView.swift` | Guest banner, gate submit |
 | `Features/Favors/Views/CreateFavorView.swift` | Guest banner, gate submit |
-| `Features/Rides/ViewModels/RidesDashboardViewModel.swift` | Guest filter handling for "All" |
-| `Features/Favors/ViewModels/FavorsDashboardViewModel.swift` | Guest filter handling for "All" |
 | `Features/Rides/ViewModels/RideDetailViewModel.swift` | Guard claim methods |
 | `Features/Favors/ViewModels/FavorDetailViewModel.swift` | Guard claim methods |
 | `Features/Rides/ViewModels/CreateRideViewModel.swift` | Guard create method |
@@ -347,13 +405,14 @@ These are belt-and-suspenders. The UI already gates, but VM guards prevent write
 
 ---
 
-## 15. App Store Review Notes (Draft)
+## 17. App Store Review Notes (Draft)
 
 > Naar's Cars supports guest browsing for users who have not created an account. On launch, users can tap "Continue as Guest" to browse the app without signing in.
 >
 > Guest users can:
 > - Browse the ride and favor request feeds
 > - View Town Hall community posts and comments
+> - View the community leaderboard
 > - View public user profiles
 > - Explore the create ride and create favor forms
 >
@@ -368,14 +427,30 @@ These are belt-and-suspenders. The UI already gates, but VM guards prevent write
 
 ---
 
-## 16. Architectural Risks & Edge Cases
+## 18. Prerequisite: RLS Policy Verification
 
-1. **Supabase anonymous reads**: Ride/favor/town-hall fetches must work without an auth session. Supabase RLS policies must allow `anon` key reads on public tables (rides, favors, town_hall_posts, profiles). If current RLS restricts reads to authenticated users, policies will need updating.
+Before any client-side implementation, verify that Supabase RLS SELECT policies on the following tables allow `anon` key reads (no `auth.uid() IS NOT NULL` restriction on SELECT):
 
-2. **SwiftData cache for guests**: If sync engines are skipped, SwiftData queries (`@Query`) will return empty results. Dashboard ViewModels may need to bypass SwiftData and fetch directly from Supabase for guests, or we populate SwiftData from the direct fetch response.
+- `rides`
+- `favors`
+- `profiles`
+- `town_hall_posts`
+- `town_hall_comments`
+- `reviews`
+- Leaderboard RPCs / underlying tables
 
-3. **Deep link handling for guests**: If someone shares a ride link and a guest taps it, `NavigationCoordinator` would try to navigate to a detail view. This should work since guests can view detail views, but needs verification.
+If any of these restrict reads to authenticated users, add a migration to update policies before client work begins. This is a hard prerequisite — without it, every guest fetch returns empty arrays or 403 errors.
 
-4. **Guest state persistence**: If the app is killed and relaunched, guest state is not persisted (no session). The app returns to `WelcomeView`. This is acceptable — guests re-tap "Continue as Guest" to re-enter.
+---
 
-5. **Tab badge counts**: Badge counts for messages tab rely on `BadgeCountManager` which requires auth. For guests, badge counts should be zero/hidden. Needs verification that nil `currentUserId` doesn't cause badge fetch errors.
+## 19. Architectural Risks & Edge Cases
+
+1. **SwiftData cache for guests**: If sync engines are skipped, SwiftData queries (`@Query`) will return empty results. Dashboard and Town Hall views will rely on direct Supabase fetches via their respective services/repositories. The local SwiftData cache will be empty for guests and this is correct — do not attempt to "fix" the empty local cache.
+
+2. **Deep link handling for guests**: Covered in Section 11. Guest-safe intents navigate normally; auth-required intents show sign-in prompt.
+
+3. **Guest state persistence**: If the app is killed and relaunched, guest state is not persisted (no session). The app returns to `WelcomeView`. This is acceptable — guests re-tap "Continue as Guest" to re-enter.
+
+4. **Tab badge counts**: `BadgeCountManager.refreshAllBadges()` is guarded for guests (Section 3). Badge counts are zero. No badge fetch errors since the call is skipped entirely.
+
+5. **Analytics / screen tracking**: Several views use `.trackScreen()`. Guest screen views will fire but without a userId. This is acceptable for aggregate analytics but should be noted if per-user tracking is relied upon.
