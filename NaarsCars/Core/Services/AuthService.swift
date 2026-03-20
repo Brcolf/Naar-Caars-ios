@@ -666,9 +666,10 @@ final class AuthService: ObservableObject {
 }
 
 /// Authentication state enum
-enum AuthState {
+enum AuthState: Equatable {
     case loading
     case unauthenticated
+    case guest
     case needsApplication
     case pendingApproval
     case banned

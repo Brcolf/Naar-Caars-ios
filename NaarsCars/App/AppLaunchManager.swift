@@ -205,6 +205,19 @@ final class AppLaunchManager: ObservableObject {
         }
     }
 
+    /// Enter guest browsing mode without creating a Supabase session.
+    /// Callers must also set `appState.isGuestMode = true` before calling this.
+    /// No session, no profile, no deferred loading, no sync engines.
+    func enterGuestMode() {
+        state = .ready(.guest)
+    }
+
+    /// Exit guest mode and return to the unauthenticated welcome screen.
+    /// Callers must also set `appState.isGuestMode = false` before calling this.
+    func exitGuestMode() {
+        state = .ready(.unauthenticated)
+    }
+
     // MARK: - Private Methods
     
     /// Check account status with minimal query (approved + application_complete)
