@@ -579,6 +579,35 @@ actor BackgroundSyncActor {
         return changed
     }
 
+    private func updateSDPostIfChanged(_ sd: SDTownHallPost, with post: TownHallPost) -> Bool {
+        var changed = false
+        if sd.title != post.title { sd.title = post.title; changed = true }
+        if sd.content != post.content { sd.content = post.content; changed = true }
+        if sd.imageUrl != post.imageUrl { sd.imageUrl = post.imageUrl; changed = true }
+        if sd.pinned != (post.pinned ?? false) { sd.pinned = post.pinned ?? false; changed = true }
+        if sd.type != post.type?.rawValue { sd.type = post.type?.rawValue; changed = true }
+        if sd.reviewId != post.reviewId { sd.reviewId = post.reviewId; changed = true }
+        if sd.createdAt != post.createdAt { sd.createdAt = post.createdAt; changed = true }
+        if sd.updatedAt != post.updatedAt { sd.updatedAt = post.updatedAt; changed = true }
+        if sd.authorName != post.author?.name { sd.authorName = post.author?.name; changed = true }
+        if sd.authorAvatarUrl != post.author?.avatarUrl { sd.authorAvatarUrl = post.author?.avatarUrl; changed = true }
+        if sd.commentCount != post.commentCount { sd.commentCount = post.commentCount; changed = true }
+        return changed
+    }
+
+    private func updateSDCommentIfChanged(_ sd: SDTownHallComment, with comment: TownHallComment) -> Bool {
+        var changed = false
+        if sd.postId != comment.postId { sd.postId = comment.postId; changed = true }
+        if sd.userId != comment.userId { sd.userId = comment.userId; changed = true }
+        if sd.parentCommentId != comment.parentCommentId { sd.parentCommentId = comment.parentCommentId; changed = true }
+        if sd.content != comment.content { sd.content = comment.content; changed = true }
+        if sd.createdAt != comment.createdAt { sd.createdAt = comment.createdAt; changed = true }
+        if sd.updatedAt != comment.updatedAt { sd.updatedAt = comment.updatedAt; changed = true }
+        if sd.authorName != comment.author?.name { sd.authorName = comment.author?.name; changed = true }
+        if sd.authorAvatarUrl != comment.author?.avatarUrl { sd.authorAvatarUrl = comment.author?.avatarUrl; changed = true }
+        return changed
+    }
+
     // MARK: - Change-detection sync methods
 
     /// Full reconciliation with change detection. Only saves if at least one record changed.
@@ -764,6 +793,142 @@ actor BackgroundSyncActor {
                 qaCount: favor.qaCount ?? 0
             )
             modelContext.insert(sdFavor)
+            inserted = 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: 1, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: 0,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Full town hall posts reconciliation with change detection.
+    func syncPostsWithChangeDetection(_ posts: [TownHallPost]) throws -> RefreshMetrics {
+        let start = Date()
+        var evaluated = 0, mutated = 0, inserted = 0, deleted = 0
+
+        let allLocal = (try? modelContext.fetch(FetchDescriptor<SDTownHallPost>())) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+        let serverIds = Set(posts.map { $0.id })
+        evaluated = posts.count
+
+        for post in posts {
+            if let existing = existingById[post.id] {
+                if updateSDPostIfChanged(existing, with: post) { mutated += 1 }
+            } else {
+                let sdPost = SDTownHallPost(
+                    id: post.id, userId: post.userId,
+                    title: post.title, content: post.content,
+                    imageUrl: post.imageUrl, pinned: post.pinned ?? false,
+                    type: post.type?.rawValue, reviewId: post.reviewId,
+                    createdAt: post.createdAt, updatedAt: post.updatedAt,
+                    authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
+                    commentCount: post.commentCount
+                )
+                modelContext.insert(sdPost)
+                inserted += 1
+            }
+        }
+
+        for local in allLocal where !serverIds.contains(local.id) {
+            modelContext.delete(local)
+            deleted += 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0 || deleted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: evaluated, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: deleted,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Full town hall comments reconciliation with change detection.
+    func syncCommentsWithChangeDetection(_ comments: [TownHallComment], forPostId postId: UUID) throws -> RefreshMetrics {
+        let start = Date()
+        var evaluated = 0, mutated = 0, inserted = 0, deleted = 0
+
+        let fetchDescriptor = FetchDescriptor<SDTownHallComment>(predicate: #Predicate { $0.postId == postId })
+        let allLocal = (try? modelContext.fetch(fetchDescriptor)) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+
+        // Flatten nested comment structure
+        let flatComments = flattenTownHallComments(comments)
+        let serverIds = Set(flatComments.map { $0.id })
+        evaluated = flatComments.count
+
+        for comment in flatComments {
+            if let existing = existingById[comment.id] {
+                if updateSDCommentIfChanged(existing, with: comment) { mutated += 1 }
+            } else {
+                let sdComment = SDTownHallComment(
+                    id: comment.id, postId: comment.postId, userId: comment.userId,
+                    parentCommentId: comment.parentCommentId, content: comment.content,
+                    createdAt: comment.createdAt, updatedAt: comment.updatedAt,
+                    authorName: comment.author?.name, authorAvatarUrl: comment.author?.avatarUrl
+                )
+                modelContext.insert(sdComment)
+                inserted += 1
+            }
+        }
+
+        for local in allLocal where !serverIds.contains(local.id) {
+            modelContext.delete(local)
+            deleted += 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0 || deleted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: evaluated, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: deleted,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Flatten nested TownHallComment structure for batch processing.
+    private func flattenTownHallComments(_ comments: [TownHallComment]) -> [TownHallComment] {
+        var result: [TownHallComment] = []
+        for comment in comments {
+            result.append(comment)
+            if let replies = comment.replies {
+                result.append(contentsOf: flattenTownHallComments(replies))
+            }
+        }
+        return result
+    }
+
+    /// Targeted single-post upsert with change detection.
+    func upsertPostWithChangeDetection(_ post: TownHallPost) throws -> RefreshMetrics {
+        let start = Date()
+        let postId = post.id
+        let descriptor = FetchDescriptor<SDTownHallPost>(predicate: #Predicate { $0.id == postId })
+        let existing = try? modelContext.fetch(descriptor).first
+
+        var mutated = 0, inserted = 0
+        if let existing {
+            if updateSDPostIfChanged(existing, with: post) { mutated = 1 }
+        } else {
+            let sdPost = SDTownHallPost(
+                id: post.id, userId: post.userId,
+                title: post.title, content: post.content,
+                imageUrl: post.imageUrl, pinned: post.pinned ?? false,
+                type: post.type?.rawValue, reviewId: post.reviewId,
+                createdAt: post.createdAt, updatedAt: post.updatedAt,
+                authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
+                commentCount: post.commentCount
+            )
+            modelContext.insert(sdPost)
             inserted = 1
         }
 
