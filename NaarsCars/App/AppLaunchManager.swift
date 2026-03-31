@@ -312,6 +312,11 @@ final class AppLaunchManager: ObservableObject {
     private func startDeferredSyncEnginesIfNeeded(for userId: UUID) {
         guard deferredSyncStartedForUserId != userId else { return }
         deferredSyncStartedForUserId = userId
+
+        // Initialize refresh coordinator and start safety poll
+        RefreshCoordinator.shared.initializeStates()
+        RefreshCoordinator.shared.startSafetyPoll()
+
         SyncEngineOrchestrator.shared.startAll()
     }
 

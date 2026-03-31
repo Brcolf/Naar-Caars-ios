@@ -610,11 +610,18 @@ final class AuthService: ObservableObject {
         // Ensure sync engines release subscriptions and reset lifecycle state.
         await SyncEngineOrchestrator.shared.teardownAll()
 
-        AppLogger.auth.info("Sign out cleanup completed")
-    }
+        // Reset refresh coordinator
+        await RefreshCoordinator.shared.reset()
 
-    func restartRealtimeSyncEngines() async {
-        await SyncEngineOrchestrator.shared.startAll()
+        // Wipe SwiftData cache (prevents cross-user data leakage)
+        do {
+            try await SyncEngineOrchestrator.shared.wipeSwiftDataCache()
+            AppLogger.auth.info("SwiftData cache cleared on sign-out")
+        } catch {
+            AppLogger.error("auth", "SwiftData wipe failed: \(error)")
+        }
+
+        AppLogger.auth.info("Sign out cleanup completed")
     }
     
     /// Poll for profile creation after signup with exponential backoff

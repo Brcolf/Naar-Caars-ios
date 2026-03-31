@@ -13,6 +13,7 @@ final class SyncEngineOrchestrator {
     static let shared = SyncEngineOrchestrator()
 
     private var engines: [SyncEngineProtocol] = []
+    private var modelContext: ModelContext?
 
     private init() {}
 
@@ -25,6 +26,7 @@ final class SyncEngineOrchestrator {
     }
 
     func setupAll(modelContext: ModelContext) {
+        self.modelContext = modelContext
         for engine in engines {
             engine.setup(modelContext: modelContext)
         }
@@ -56,5 +58,23 @@ final class SyncEngineOrchestrator {
             AppLogger.info("sync", "Tearing down \(engine.engineName)")
             await engine.teardown()
         }
+    }
+
+    /// Deletes all SwiftData records to prevent cross-user data leakage on sign-out.
+    /// Deletes leaves before parents to respect cascade relationships.
+    func wipeSwiftDataCache() throws {
+        guard let modelContext else {
+            AppLogger.warning("sync", "wipeSwiftDataCache called but modelContext is nil")
+            return
+        }
+        try modelContext.delete(model: SDDeletedMessage.self)
+        try modelContext.delete(model: SDMessage.self)
+        try modelContext.delete(model: SDConversation.self)
+        try modelContext.delete(model: SDRide.self)
+        try modelContext.delete(model: SDFavor.self)
+        try modelContext.delete(model: SDNotification.self)
+        try modelContext.delete(model: SDTownHallComment.self)
+        try modelContext.delete(model: SDTownHallPost.self)
+        try modelContext.save()
     }
 }
