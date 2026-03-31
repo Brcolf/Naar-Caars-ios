@@ -110,8 +110,10 @@ struct ContentView: View {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             AppLogger.info("lock", "scenePhase: \(oldPhase) → \(newPhase), lockState=\(lockManager.state)")
             if newPhase == .active, isAuthenticated {
-                Task { await AuthService.shared.restartRealtimeSyncEngines() }
+                RefreshCoordinator.shared.handleAppForegrounded()
                 Task { await launchManager.recheckBanStatus() }
+            } else if newPhase == .background {
+                RefreshCoordinator.shared.stopSafetyPoll()
             }
             lockManager.handleScenePhase(newPhase, isAuthenticated: isAuthenticated)
         }

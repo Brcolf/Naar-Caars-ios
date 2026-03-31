@@ -248,7 +248,8 @@ final class ConversationDetailViewModel {
         }
         typingManager.stopTypingObservation()
         searchManager.stop()
-        MessagingSyncEngine.shared.teardownReactionsSubscription(conversationId: conversationId)
+        // Start grace period for conversation WebSocket (5s before teardown)
+        MessagingSyncEngine.shared.beginGracePeriod()
     }
 
     private func setupLocalObservation() {
@@ -365,7 +366,9 @@ final class ConversationDetailViewModel {
         } setHasMoreMessages: { [weak self] value in
             self?.hasMoreMessages = value
         }
-        MessagingSyncEngine.shared.setupReactionsSubscription(conversationId: conversationId)
+        // Subscribe to conversation-scoped WebSocket (messages + reactions)
+        // This also triggers subscribe-then-fetch hydration
+        MessagingSyncEngine.shared.subscribeToConversation(conversationId)
 
         // Hydrate reactions and reply counts for loaded messages
         await loadReactionsForMessages()
