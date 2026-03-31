@@ -67,6 +67,28 @@ final class TownHallSyncEngine: SyncEngineProtocol {
         await pauseSync()
     }
 
+    // MARK: - Coordinator Entry Points
+
+    /// TEMPORARY STUB — will be replaced in Task 8
+    /// Called by RefreshCoordinator to perform a full network-to-SwiftData sync.
+    func performFullSync() async throws -> RefreshMetrics {
+        do {
+            let posts = try await townHallService.fetchPosts()
+            try repository.upsertPosts(posts)
+            health.recordSuccess()
+        } catch {
+            health.recordFailure(error)
+            throw error
+        }
+        return .empty
+    }
+
+    /// TEMPORARY STUB — will be replaced in Task 8
+    /// Called by RefreshCoordinator to sync a single entity by ID.
+    func performTargetedSync(entityId: UUID) async throws -> RefreshMetrics {
+        return try await performFullSync()
+    }
+
     // MARK: - Subscriptions
 
     private func setupPostsSubscription() {

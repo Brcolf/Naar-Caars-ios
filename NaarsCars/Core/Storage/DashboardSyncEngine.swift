@@ -109,6 +109,22 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         }
     }
 
+    // MARK: - Coordinator Entry Points
+
+    /// TEMPORARY STUB — will be replaced in Task 7
+    /// Called by RefreshCoordinator to perform a full network-to-SwiftData sync.
+    func performFullSync() async throws -> RefreshMetrics {
+        await syncAll()
+        return .empty
+    }
+
+    /// TEMPORARY STUB — will be replaced in Task 7
+    /// Called by RefreshCoordinator to sync a single entity by ID.
+    func performTargetedSync(entityId: UUID) async throws -> RefreshMetrics {
+        await syncAll()
+        return .empty
+    }
+
     // MARK: - Subscriptions
 
     private func setupRidesSubscription() {

@@ -85,6 +85,29 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         lastStartSyncAt = .distantPast
     }
 
+    // MARK: - Coordinator Entry Points
+
+    /// TEMPORARY STUB — will be replaced in Task 9
+    /// Called by RefreshCoordinator to refresh the conversation list.
+    func refreshConversationList() async throws -> RefreshMetrics {
+        guard let userId = authService.currentUserId else { return .empty }
+        do {
+            let remoteConversations = try await conversationService.fetchConversations(userId: userId)
+            if let backgroundActor {
+                let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
+                let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
+                repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
+            } else {
+                try await repository.syncConversations(userId: userId)
+            }
+            health.recordSuccess()
+        } catch {
+            health.recordFailure(error)
+            throw error
+        }
+        return .empty
+    }
+
     private func handleIncomingMessage(_ event: RealtimeRecord) {
 #if DEBUG
         if FeatureFlags.verbosePerformanceLogsEnabled {
