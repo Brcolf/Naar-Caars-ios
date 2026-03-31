@@ -363,8 +363,7 @@
 		B4A1D20E9F3B4E2CA1B2C3D9 /* Features/Favors/FavorDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1D20E9F3B4E2CA1B2C3D8 /* Features/Favors/FavorDetailViewModelTests.swift */; };
 		B5EC968E233947D3AC523AAC /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55441C41BD446FF92B0D9AC /* Date+Extensions.swift */; };
 		B7F4E2A2C3D5489E00AABB11 /* BackgroundSyncActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */; };
-		B7F4E2A4C3D5489E00AABB12 /* DashboardPayloadMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F4E2A3C3D5489E00AABB12 /* DashboardPayloadMapper.swift */; };
-		B7F4E2A6C3D5489E00AABB13 /* NotificationPayloadMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F4E2A5C3D5489E00AABB13 /* NotificationPayloadMapper.swift */; };
+
 		B8A3E1E96A7B4435BF3A7BDD /* PublicProfileViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15A09E880A74ED5B394100A /* PublicProfileViewModelTests.swift */; };
 		B9F69F275657451E86990E68 /* InviteCodeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F63DA2130274DFC8D8A0F89 /* InviteCodeCard.swift */; };
 		BAN0ACC7V1EW00000000BLD1 /* BannedAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAN0ACC7V1EW00000000F1L3 /* BannedAccountView.swift */; };
@@ -861,8 +860,7 @@
 		B4A1D20E9F3B4E2CA1B2C3D6 /* Features/Messaging/InAppToastManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Messaging/InAppToastManagerTests.swift; sourceTree = "<group>"; };
 		B4A1D20E9F3B4E2CA1B2C3D8 /* Features/Favors/FavorDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Favors/FavorDetailViewModelTests.swift; sourceTree = "<group>"; };
 		B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncActor.swift; sourceTree = "<group>"; };
-		B7F4E2A3C3D5489E00AABB12 /* DashboardPayloadMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPayloadMapper.swift; sourceTree = "<group>"; };
-		B7F4E2A5C3D5489E00AABB13 /* NotificationPayloadMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPayloadMapper.swift; sourceTree = "<group>"; };
+
 		B95D311AB72EEB6F63D843BF /* NaarsTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaarsTextField.swift; sourceTree = "<group>"; };
 		B9CBBEBE4127414D8A8CA26C /* SecondaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryButton.swift; sourceTree = "<group>"; };
 		BA366FCF68554DFC9FE4A5A1 /* NaarsCarsUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaarsCarsUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -1325,8 +1323,7 @@
 			isa = PBXGroup;
 			children = (
 				B7F4E2A1C3D5489E00AABB11 /* BackgroundSyncActor.swift */,
-				B7F4E2A3C3D5489E00AABB12 /* DashboardPayloadMapper.swift */,
-				B7F4E2A5C3D5489E00AABB13 /* NotificationPayloadMapper.swift */,
+	
 				F6CC1F9ACBA66945C7ACCD5A /* NotificationRepository.swift */,
 				AC4F1E1D2F23495600CC5DBA /* DashboardSyncEngine.swift */,
 				AC4F1E142F23340500CC5DBA /* MessagingMapper.swift */,
@@ -2506,8 +2503,7 @@
 				ACBF4AA82F12CAB9006A7C8A /* Number+Localization.swift in Sources */,
 				AC4F1E1E2F23495600CC5DBA /* DashboardSyncEngine.swift in Sources */,
 				B7F4E2A2C3D5489E00AABB11 /* BackgroundSyncActor.swift in Sources */,
-				B7F4E2A4C3D5489E00AABB12 /* DashboardPayloadMapper.swift in Sources */,
-				B7F4E2A6C3D5489E00AABB13 /* NotificationPayloadMapper.swift in Sources */,
+	
 				ACBF4AA92F12CAB9006A7C8A /* Date+Localization.swift in Sources */,
 				ACD19A572F14D3C5009C1DE5 /* PerformanceMonitor.swift in Sources */,
 				AC305EF72F0DB7BD0063AFDF /* SignupDetailsView.swift in Sources */,

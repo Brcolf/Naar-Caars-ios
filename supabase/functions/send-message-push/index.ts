@@ -17,6 +17,7 @@ interface APNsPayload {
     sound: string
     badge: number
     priority: number
+    'content-available'?: number
     category?: string
   }
   type: string
@@ -407,6 +408,7 @@ async function sendPushToRecipient(
       sound: 'default',
       badge: badgeCount,
       priority: 10,
+      'content-available': 1,
       category: 'MESSAGE'
     },
     type: NOTIFICATION_TYPES.MESSAGE,

@@ -94,10 +94,6 @@ enum Constants {
         static let typingSignalThreshold: TimeInterval = 2.0
         /// Auto-clear typing indicator when no new typing signal is sent (5s)
         static let typingAutoClearNanoseconds: UInt64 = 5_000_000_000
-        /// Badge polling when connected (30s)
-        static let badgePollConnected: TimeInterval = 30.0
-        /// Badge polling when disconnected (90s)
-        static let badgePollDisconnected: TimeInterval = 90.0
         /// Minimum interval between badge refresh executions
         static let badgeRefreshMinInterval: TimeInterval = 2.0
         /// Debounce interval before forcing a network badge refresh after local message read clear.
