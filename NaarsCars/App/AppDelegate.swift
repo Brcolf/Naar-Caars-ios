@@ -88,8 +88,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Schedule next refresh
         scheduleAppRefresh()
 
-        let syncTask = Task {
-            await DashboardSyncEngine.shared.syncAll()
+        let syncTask = Task { @MainActor in
+            do {
+                let metrics = try await DashboardSyncEngine.shared.performFullSync()
+                RefreshCoordinator.shared.markSyncCompleted(.dashboard, metrics: metrics)
+            } catch {
+                RefreshCoordinator.shared.markSyncFailed(.dashboard, error: error, partial: nil)
+            }
         }
 
         task.expirationHandler = {

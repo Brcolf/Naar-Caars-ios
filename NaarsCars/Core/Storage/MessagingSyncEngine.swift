@@ -49,7 +49,10 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                     let remoteConversations = try await conversationService.fetchConversations(userId: userId)
                     if let backgroundActor {
                         let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
-                        let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
+                        let changedIds = try await backgroundActor.syncConversations(
+                payloads, currentUserId: userId,
+                excludeMessagesForConversation: RefreshCoordinator.shared.activeConversationId
+            )
                         repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
                     } else {
                         try await repository.syncConversations(userId: userId)
@@ -93,7 +96,10 @@ final class MessagingSyncEngine: SyncEngineProtocol {
 
         if let backgroundActor {
             let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
-            let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
+            let changedIds = try await backgroundActor.syncConversations(
+                payloads, currentUserId: userId,
+                excludeMessagesForConversation: RefreshCoordinator.shared.activeConversationId
+            )
             repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
 
             health.recordSuccess()
@@ -242,6 +248,10 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         Task {
             await realtimeManager.unsubscribe(channelName: "messages:\(id.uuidString)")
             await realtimeManager.unsubscribe(channelName: "reactions:\(id.uuidString)")
+            // Also tear down typing channel to prevent leaks on tab switch
+            // (TypingIndicatorManager.stopTypingObservation handles its own cleanup
+            // via onDisappear, but tab-switch may fire before onDisappear)
+            await realtimeManager.unsubscribe(channelName: "typing:\(id.uuidString)")
         }
         activeConversationId = nil
         RefreshCoordinator.shared.setActiveConversation(nil)

@@ -227,7 +227,7 @@ actor BackgroundSyncActor {
 
     /// Sync conversations (and their last messages) from network response to SwiftData.
     /// Returns the set of conversation IDs that were changed so the caller can refresh publishers.
-    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID) throws -> Set<UUID> {
+    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID, excludeMessagesForConversation: UUID? = nil) throws -> Set<UUID> {
         var changedIds = Set<UUID>()
 
         // Batch fetch all existing SDConversations and SDMessages at once
@@ -265,8 +265,10 @@ actor BackgroundSyncActor {
                 modelContext.insert(newSDConv)
             }
 
-            // Upsert last message if present
-            if let msg = payload.lastMessage {
+            // Upsert last message if present — skip for active conversation
+            // to avoid concurrent writes with MainActor WebSocket path (INV-C1)
+            if let msg = payload.lastMessage,
+               payload.conversationId != excludeMessagesForConversation {
                 upsertSDMessage(msg, existingById: existingMsgById, conversationId: payload.conversationId)
             }
         }

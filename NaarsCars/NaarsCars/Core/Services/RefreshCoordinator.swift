@@ -109,6 +109,12 @@ final class RefreshCoordinator {
 
     /// Push-triggered single-entity refresh. Fire-and-forget.
     /// Badges always refresh (exempt from in-flight dedup — no SwiftData conflict).
+    ///
+    /// **Collision policy:** If a full sync is already in-flight for this domain,
+    /// the targeted refresh is skipped (logged as "joined:inFlight"). The in-flight
+    /// full sync will fetch ALL entities including the one this push is about.
+    /// The 30s staleness window guarantees the next full sync runs within 30s of
+    /// the in-flight one completing, catching any subsequent changes.
     func performTargetedRefresh(_ domain: Domain, entityId: UUID, trigger: String) {
         if domain == .badges {
             lastTriggers[domain] = trigger
