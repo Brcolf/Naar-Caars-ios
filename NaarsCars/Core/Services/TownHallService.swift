@@ -87,6 +87,18 @@ final class TownHallService {
         return posts.first?.id
     }
     
+    /// Fetch a single town hall post by ID for targeted refresh.
+    func fetchPost(id: UUID) async throws -> TownHallPost {
+        let response: TownHallPost = try await supabase
+            .from("town_hall_posts")
+            .select()
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute()
+            .value
+        return response
+    }
+
     // MARK: - Create Post
     
     /// Create a new town hall post

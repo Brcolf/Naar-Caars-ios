@@ -38,4 +38,13 @@ protocol SyncEngineProtocol: AnyObject {
     func pauseSync() async
     func resumeSync() async
     func teardown() async
+    func performFullSync() async throws -> RefreshMetrics
+    func performTargetedSync(entityId: UUID) async throws -> RefreshMetrics
+    func setupBackgroundActor(container: ModelContainer)
+}
+
+extension SyncEngineProtocol {
+    func performFullSync() async throws -> RefreshMetrics { .empty }
+    func performTargetedSync(entityId: UUID) async throws -> RefreshMetrics { .empty }
+    func setupBackgroundActor(container: ModelContainer) {}
 }

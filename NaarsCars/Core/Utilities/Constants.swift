@@ -112,6 +112,20 @@ enum Constants {
         static let messagingListRemoteSyncMinInterval: TimeInterval = 2.0
         /// Audio playback progress timer interval (0.2s)
         static let audioPlaybackProgressInterval: TimeInterval = 0.2
+        /// Staleness window for pull-on-appear refresh (30s)
+        static let refreshStalenessWindow: TimeInterval = 30.0
+        /// Safety poll interval (5 minutes)
+        static let refreshSafetyPollInterval: TimeInterval = 300.0
+        /// Badge refresh debounce (5s)
+        static let badgeRefreshDebounce: TimeInterval = 5.0
+        /// Conversation WebSocket grace period before teardown (5s)
+        static let conversationGracePeriod: TimeInterval = 5.0
+        /// Subscribe-then-fetch confirmation timeout (3s)
+        static let subscriptionConfirmationTimeout: TimeInterval = 3.0
+        /// Background push execution budget (8s)
+        static let backgroundPushBudget: TimeInterval = 8.0
+        /// Background push deadline timer (25s — leaves 5s margin of 30s iOS limit)
+        static let backgroundPushDeadline: TimeInterval = 25.0
     }
 
     /// Performance thresholds and retention policies
