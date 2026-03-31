@@ -248,7 +248,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let userInfo = notification.request.content.userInfo
         PushNotificationService.shared.recordLastPushPayload(userInfo)
-        
+
+        // Trigger data refresh based on push type
+        PushNotificationService.shared.handlePushReceived(userInfo: userInfo)
+
         // Avoid duplicate alerts when in Messages; allow banners elsewhere in foreground.
         if let type = userInfo["type"] as? String,
            type == "message" || type == "added_to_conversation" {
@@ -264,6 +267,53 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound, .badge])
     }
     
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        // Deadline timer — guarantees completion handler is always called (INV-B4)
+        let deadline = Task {
+            try? await Task.sleep(for: .seconds(Constants.Timing.backgroundPushDeadline))
+            completionHandler(.failed)
+        }
+
+        Task { @MainActor in
+            guard let typeString = userInfo["type"] as? String,
+                  let type = NotificationType(rawValue: typeString) else {
+                deadline.cancel()
+                completionHandler(.noData)
+                return
+            }
+
+            let entityId: UUID? = {
+                guard let key = type.entityIdKey,
+                      let idString = userInfo[key] as? String else { return nil }
+                return UUID(uuidString: idString)
+            }()
+
+            // Route through coordinator — targeted if entity ID available
+            let domains = type.affectedDomains
+            for domain in domains {
+                if let entityId {
+                    RefreshCoordinator.shared.performTargetedRefresh(
+                        domain, entityId: entityId, trigger: "backgroundPush:\(typeString)"
+                    )
+                } else {
+                    RefreshCoordinator.shared.invalidate(domains)
+                }
+            }
+
+            // Badges always refresh (cheap, no SwiftData)
+            RefreshCoordinator.shared.performTargetedRefresh(
+                .badges, entityId: UUID(), trigger: "backgroundPush:\(typeString)"
+            )
+
+            deadline.cancel()
+            completionHandler(entityId != nil ? .newData : .noData)
+        }
+    }
+
     // MARK: - Deep Link Handling
     
     private func handleDeepLink(_ deepLink: DeepLink, userInfo: [AnyHashable: Any]? = nil) {
