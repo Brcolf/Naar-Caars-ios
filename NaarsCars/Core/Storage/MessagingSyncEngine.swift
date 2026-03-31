@@ -18,6 +18,9 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     private var modelContext: ModelContext?
     private var backgroundActor: BackgroundSyncActor?
     private var lastStartSyncAt: Date = .distantPast
+    private var activeConversationId: UUID?
+    private var gracePeriodTimer: Timer?
+    private let messageService = MessageService.shared
     let health = SyncHealthMetrics()
 
     private init() {}
@@ -32,7 +35,7 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     }
 
     func startSync() {
-        setupMessagesSubscription()
+        // No global messages subscription — conversations are WebSocket-scoped now
 
         let now = Date()
         guard now.timeIntervalSince(lastStartSyncAt) >= Constants.Timing.syncEngineStartCooldown else {
@@ -43,26 +46,18 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         if let userId = authService.currentUserId {
             Task {
                 do {
-                    // Step 1: Fetch conversations from network
                     let remoteConversations = try await conversationService.fetchConversations(userId: userId)
-
-                    // Step 2: Write to SwiftData on background actor (if available)
                     if let backgroundActor {
                         let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
                         let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
-
-                        // Step 3: Refresh Combine publishers on MainActor
                         repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
                     } else {
-                        // Fallback: use repository's MainActor path if actor not yet wired
                         try await repository.syncConversations(userId: userId)
                     }
-
                     health.recordSuccess()
                 } catch {
                     health.recordFailure(error)
                 }
-                // Start the durable send worker and process any pending messages
                 await MessageSendWorker.shared.start()
                 await MessageSendWorker.shared.notifyNewPendingMessage()
             }
@@ -70,16 +65,17 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     }
 
     func pauseSync() async {
-        await realtimeManager.unsubscribe(channelName: "messages:sync")
         await MessageSendWorker.shared.stop()
     }
 
     func resumeSync() async {
-        setupMessagesSubscription()
+        // Conversation subscription managed by subscribeToConversation/beginGracePeriod
+        // Send worker restarted by startSync
     }
 
     func teardown() async {
-        await pauseSync()
+        cancelGracePeriodAndUnsubscribe()
+        await MessageSendWorker.shared.stop()
         modelContext = nil
         backgroundActor = nil
         lastStartSyncAt = .distantPast
@@ -87,25 +83,32 @@ final class MessagingSyncEngine: SyncEngineProtocol {
 
     // MARK: - Coordinator Entry Points
 
-    /// TEMPORARY STUB — will be replaced in Task 9
     /// Called by RefreshCoordinator to refresh the conversation list.
     func refreshConversationList() async throws -> RefreshMetrics {
         guard let userId = authService.currentUserId else { return .empty }
-        do {
-            let remoteConversations = try await conversationService.fetchConversations(userId: userId)
-            if let backgroundActor {
-                let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
-                let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
-                repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
-            } else {
-                try await repository.syncConversations(userId: userId)
-            }
+        let start = Date()
+
+        let remoteConversations = try await conversationService.fetchConversations(userId: userId)
+        guard !Task.isCancelled else { throw CancellationError() }
+
+        if let backgroundActor {
+            let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
+            let changedIds = try await backgroundActor.syncConversations(payloads, currentUserId: userId)
+            repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
+
             health.recordSuccess()
-        } catch {
-            health.recordFailure(error)
-            throw error
+            return RefreshMetrics(
+                recordsEvaluated: remoteConversations.count,
+                recordsMutated: changedIds.count,
+                recordsInserted: 0, recordsDeleted: 0,
+                savedToStore: !changedIds.isEmpty,
+                durationMs: Int(Date().timeIntervalSince(start) * 1000)
+            )
+        } else {
+            try await repository.syncConversations(userId: userId)
+            health.recordSuccess()
+            return .empty
         }
-        return .empty
     }
 
     private func handleIncomingMessage(_ event: RealtimeRecord) {
@@ -176,21 +179,97 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         }
     }
 
-    private func setupMessagesSubscription() {
+    // MARK: - Conversation WebSocket Lifecycle
+
+    /// Subscribe to messages and reactions for a specific conversation.
+    /// Called by conversation detail ViewModel on appear.
+    func subscribeToConversation(_ conversationId: UUID) {
+        // Cancel grace period if re-entering same conversation
+        gracePeriodTimer?.invalidate()
+        gracePeriodTimer = nil
+
+        guard activeConversationId != conversationId else { return }
+
+        if activeConversationId != nil {
+            unsubscribeFromActiveConversation()
+        }
+
+        activeConversationId = conversationId
+        RefreshCoordinator.shared.setActiveConversation(conversationId)
+
         Task {
+            // Subscribe to messages for this conversation
             await realtimeManager.subscribe(
-                channelName: "messages:sync",
+                channelName: "messages:\(conversationId.uuidString)",
                 table: "messages",
-                onInsert: { [weak self] record in
-                    self?.handleIncomingMessage(record)
-                },
-                onUpdate: { [weak self] record in
-                    self?.handleIncomingMessage(record)
-                },
-                onDelete: { [weak self] record in
-                    self?.handleIncomingMessage(record)
-                }
+                filter: "conversation_id=eq.\(conversationId.uuidString)",
+                onInsert: { [weak self] record in self?.handleIncomingMessage(record) },
+                onUpdate: { [weak self] record in self?.handleIncomingMessage(record) },
+                onDelete: { [weak self] record in self?.handleIncomingMessage(record) }
             )
+
+            // Subscribe to reactions for this conversation
+            setupReactionsSubscription(conversationId: conversationId)
+
+            // Subscribe-then-fetch: REST hydration after subscription
+            await hydrateConversation(conversationId)
+        }
+    }
+
+    /// Start 5-second grace period before tearing down WebSocket.
+    /// Called by conversation detail ViewModel on disappear (back to list).
+    func beginGracePeriod() {
+        gracePeriodTimer?.invalidate()
+        gracePeriodTimer = Timer.scheduledTimer(
+            withTimeInterval: Constants.Timing.conversationGracePeriod,
+            repeats: false
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.unsubscribeFromActiveConversation()
+            }
+        }
+    }
+
+    /// Immediately tear down WebSocket. Called on tab switch or app background.
+    func cancelGracePeriodAndUnsubscribe() {
+        gracePeriodTimer?.invalidate()
+        gracePeriodTimer = nil
+        unsubscribeFromActiveConversation()
+    }
+
+    private func unsubscribeFromActiveConversation() {
+        guard let id = activeConversationId else { return }
+        Task {
+            await realtimeManager.unsubscribe(channelName: "messages:\(id.uuidString)")
+            await realtimeManager.unsubscribe(channelName: "reactions:\(id.uuidString)")
+        }
+        activeConversationId = nil
+        RefreshCoordinator.shared.setActiveConversation(nil)
+    }
+
+    /// Subscribe-then-fetch: REST fetch recent messages to cover the connection gap.
+    /// Dedup by message UUID prevents duplicates with buffered WebSocket events.
+    private func hydrateConversation(_ conversationId: UUID) async {
+        do {
+            let messages = try await messageService.fetchMessages(
+                conversationId: conversationId,
+                limit: 50,
+                beforeMessageId: nil
+            )
+            guard !Task.isCancelled else { return }
+
+            var changedCount = 0
+            for message in messages {
+                let result = try repository.upsertMessageDetailed(message)
+                if case .contentChanged = result { changedCount += 1 }
+                if case .inserted = result { changedCount += 1 }
+            }
+
+            if changedCount > 0 {
+                try repository.save(changedConversationIds: [conversationId])
+            }
+        } catch {
+            AppLogger.error("messaging", "Conversation hydration failed for \(conversationId): \(error)")
         }
     }
 
