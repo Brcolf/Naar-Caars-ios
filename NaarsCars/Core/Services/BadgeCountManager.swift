@@ -8,7 +8,6 @@
 import Foundation
 import Observation
 import UIKit
-internal import Combine
 import Supabase
 import PostgREST
 
@@ -26,11 +25,11 @@ extension BadgeCountManager: BadgeCountManaging {}
 /// Tracks unread notifications and new content for each tab
 @MainActor
 @Observable final class BadgeCountManager {
-    
+
     // MARK: - Singleton
-    
+
     static let shared = BadgeCountManager()
-    
+
     // MARK: - Badge Counts
 
     /// All badge values coalesced into a single struct so that
@@ -49,25 +48,15 @@ extension BadgeCountManager: BadgeCountManaging {}
 
     /// True when badge values are being served from cached/zero data due to RPC failure.
     private(set) var isBadgeStale: Bool = false
-    
+
     // MARK: - Private Properties
-    
+
     private let adminService = AdminService.shared
     private let authService = AuthService.shared
     private let supabase = SupabaseService.shared.client
-    private let realtimeManager = RealtimeManager.shared
-    private var cancellables = Set<AnyCancellable>()
 
-    private let connectedPollingInterval: TimeInterval = 30
-    private let disconnectedPollingInterval: TimeInterval = 90
-    private var pollingTimer: Timer?
-    private var pollingInterval: TimeInterval?
     private var deferredMessagesBadgeRefreshTask: Task<Void, Never>?
 
-    /// Debounce guard: true while a refresh is in-flight
-    private var isRefreshing = false
-    /// Minimum interval between refreshes (seconds)
-    private let minRefreshInterval: TimeInterval = Constants.Timing.badgeRefreshMinInterval
     /// Timestamp of last completed refresh
     private var lastRefreshTime: Date = .distantPast
     /// Consecutive badge RPC failures
@@ -76,73 +65,29 @@ extension BadgeCountManager: BadgeCountManaging {}
     private var badgeRpcBackoffUntil: Date?
     /// Last successful badge payload returned by RPC.
     private var lastKnownCounts: BadgeCountsPayload?
-    
+
     /// UserDefaults keys for last viewed timestamps
     private let lastViewedCommunityKey = "lastViewedCommunity"
     private let lastViewedRequestsKey = "lastViewedRequests"
-    
+
     // MARK: - Initialization
-    
+
     private init() {
         // Load initial badge counts when user is authenticated
         Task {
             await refreshAllBadges(reason: "init")
-            updatePollingInterval(reason: "init")
         }
-        
-        // Listen for notification changes
-        setupNotificationListeners()
     }
-    
-    // MARK: - Setup
-    
-    private func setupNotificationListeners() {
-        // Refresh badges when app becomes active
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { [weak self] in
-                // Yield once so the first frame after foreground isn't blocked
-                await Task.yield()
-                await self?.refreshAllBadges(reason: "didBecomeActive")
-                self?.updatePollingInterval(reason: "didBecomeActive")
-            }
-        }
 
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.stopPolling(reason: "didEnterBackground")
-        }
-
-        realtimeManager.$isConnected
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updatePollingInterval(reason: "realtimeStatusChanged")
-            }
-            .store(in: &cancellables)
-    }
-    
     // MARK: - Public Methods
-    
+
     /// Refresh all badge counts
     func refreshAllBadges(reason: String = "manual") async {
         guard let userId = authService.currentUserId else { return }
 
-        // Debounce: skip if a refresh is already in-flight or was completed very recently
-        guard !isRefreshing else { return }
+        // Simple debounce: skip if refreshed within the debounce window
         let elapsed = Date().timeIntervalSince(lastRefreshTime)
-        guard elapsed >= minRefreshInterval else { return }
-
-        isRefreshing = true
-        defer {
-            isRefreshing = false
-            lastRefreshTime = Date()
-        }
+        guard elapsed >= Constants.Timing.badgeRefreshDebounce else { return }
 
         AppLogger.info("badges", "Refreshing badges (\(reason))")
         async let profileCount = calculateProfileBadgeCount()
@@ -201,6 +146,8 @@ extension BadgeCountManager: BadgeCountManaging {}
                 isBadgeStale = true
             }
 
+            lastRefreshTime = Date()
+
             let profile = await profileCount
 
             // Build a single struct and assign once → one objectWillChange emission
@@ -236,19 +183,19 @@ extension BadgeCountManager: BadgeCountManaging {}
             AppLogger.error("badges", "Failed to refresh badge counts (\(reason)): \(error)")
         }
     }
-    
+
     /// Update the app icon badge number
     private func updateAppIconBadge(_ count: Int) {
         UIApplication.shared.applicationIconBadgeNumber = count
     }
-    
+
     /// Clear Requests badge (called when navigating to Requests tab)
     func clearRequestsBadge() async {
         // Don't auto-clear all request notifications on tab view
         UserDefaults.standard.set(Date(), forKey: lastViewedRequestsKey)
         await refreshAllBadges(reason: "clearRequestsBadge")
     }
-    
+
     /// Clear Messages badge (called when viewing a conversation)
     func clearMessagesBadge(for conversationId: UUID? = nil) async {
         if let conversationId = conversationId {
@@ -268,7 +215,7 @@ extension BadgeCountManager: BadgeCountManaging {}
                 object: nil,
                 userInfo: ["counts": [ConversationCountDetail(conversationId: conversationId, unreadCount: 0)]]
             )
-            
+
             // Also update the local SwiftData store immediately
             if let sdConv = try? MessagingRepository.shared.fetchSDConversation(id: conversationId) {
                 sdConv.unreadCount = 0
@@ -282,11 +229,11 @@ extension BadgeCountManager: BadgeCountManaging {}
             updateAppIconBadge(counts.totalUnread)
             return
         }
-        
+
         // Refresh all badges to ensure the tab bar badge is updated correctly
         await refreshAllBadges(reason: "clearMessagesBadge")
     }
-    
+
     /// Clear Community badge (called when viewing Community tab or a post)
     func clearCommunityBadge() async {
         guard let userId = authService.currentUserId else { return }
@@ -323,47 +270,14 @@ extension BadgeCountManager: BadgeCountManaging {}
             AppLogger.warning("badges", "Error clearing community badge: \(error)")
         }
     }
-    
+
     /// Clear Profile badge (called when approving/denying users)
     func clearProfileBadge() async {
         // Badge count will automatically update when pending users change
         await refreshAllBadges(reason: "clearProfileBadge")
     }
 
-    // MARK: - Polling
-
-    private func updatePollingInterval(reason: String) {
-        guard authService.currentUserId != nil else {
-            stopPolling(reason: "notAuthenticated")
-            return
-        }
-
-        guard UIApplication.shared.applicationState == .active else {
-            stopPolling(reason: "appInactive")
-            return
-        }
-
-        let interval = realtimeManager.isConnected ? connectedPollingInterval : disconnectedPollingInterval
-        guard pollingInterval != interval else { return }
-
-        pollingInterval = interval
-        pollingTimer?.invalidate()
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.refreshAllBadges(reason: "polling")
-            }
-        }
-
-        let status = realtimeManager.isConnected ? "connected" : "disconnected"
-        AppLogger.info("badges", "Polling every \(Int(interval))s (\(status), \(reason))")
-    }
-
-    private func stopPolling(reason: String) {
-        pollingTimer?.invalidate()
-        pollingTimer = nil
-        pollingInterval = nil
-        AppLogger.info("badges", "Polling stopped (\(reason))")
-    }
+    // MARK: - Deferred Refresh
 
     private func scheduleDeferredMessagesBadgeRefresh(reason: String) {
         deferredMessagesBadgeRefreshTask?.cancel()
@@ -373,9 +287,9 @@ extension BadgeCountManager: BadgeCountManaging {}
             await self.refreshAllBadges(reason: reason)
         }
     }
-    
+
     // MARK: - Private Methods
-    
+
     /// Calculate Profile badge count (admin only)
     /// Counts: pending user approvals
     private func calculateProfileBadgeCount() async -> Int {
@@ -384,7 +298,7 @@ extension BadgeCountManager: BadgeCountManaging {}
               profile.isAdmin else {
             return 0
         }
-        
+
         do {
             let pendingUsers = try await adminService.fetchPendingUsers()
             return pendingUsers.count
