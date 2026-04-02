@@ -99,11 +99,18 @@ final class ConversationDetailViewModel {
     /// then disarms permanently. Prevents the publisher→fetch→timeout storm that causes OOM.
     @ObservationIgnored private var allowPublisherReactionFetch = true
     
+    /// Diagnostic counter — tracks total VM instances created this session.
+    /// Remove after confirming Hypothesis A (eager NavigationLink VM creation).
+    private static var _initCount = 0
+
     init(
         conversationId: UUID,
         messageService: any MessageServiceProtocol = MessageService.shared,
         authService: any AuthServiceProtocol = AuthService.shared
     ) {
+        Self._initCount += 1
+        let shortId = String(conversationId.uuidString.prefix(8))
+        AppLogger.info("messaging", "[VM INIT #\(Self._initCount)] conv=\(shortId)")
         self.conversationId = conversationId
         self.messageService = messageService
         self.authService = authService
