@@ -119,16 +119,30 @@ final class MessageReactionService {
     }
 
     /// Batch-fetch individual reaction records for multiple messages in a single query.
+    /// Uses a 10s timeout to fail fast on degraded QUIC connections instead of
+    /// queuing for 60s (the default), which caused thousands of accumulated
+    /// URLSession tasks and OOM kills.
     /// - Parameter messageIds: Array of message IDs
     /// - Returns: Dictionary mapping message ID → its reaction records
     func fetchIndividualReactionsBatch(messageIds: [UUID]) async throws -> [UUID: [MessageReaction]] {
         guard !messageIds.isEmpty else { return [:] }
 
-        let response = try await supabase
-            .from("message_reactions")
-            .select("id, message_id, user_id, reaction, created_at")
-            .in("message_id", values: messageIds.map { $0.uuidString })
-            .execute()
+        let response = try await withThrowingTaskGroup(of: PostgrestResponse.self) { group in
+            group.addTask {
+                try await self.supabase
+                    .from("message_reactions")
+                    .select("id, message_id, user_id, reaction, created_at")
+                    .in("message_id", values: messageIds.map { $0.uuidString })
+                    .execute()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: 10_000_000_000) // 10s
+                throw URLError(.timedOut)
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
 
         let decoder = createDateDecoder()
         let allReactions = try decoder.decode([MessageReaction].self, from: response.data)
