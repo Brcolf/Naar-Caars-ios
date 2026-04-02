@@ -100,6 +100,11 @@ final class MessagesViewController: UIViewController {
     private var didScrollToFirstUnread = false
 
     private var lastAppliedFingerprint: UpdateFingerprint?
+    /// Central height cache: avoids repeated sizeThatFits in preferredLayoutAttributesFitting.
+    /// Key: "messageId:width:contentHash". Invalidated on structural snapshot changes.
+    private var heightCache: [String: CGFloat] = [:]
+    /// Previous message state for targeted reconfigure — only reconfigure cells whose content changed.
+    private var previousMessages: [UUID: Message] = [:]
 
     private struct UpdateFingerprint: Equatable {
         let messageIds: [UUID]
@@ -182,6 +187,11 @@ final class MessagesViewController: UIViewController {
                 replyCount: self.configuration.replyCountMap[messageId] ?? 0
             )
 
+            // Wire height cache — avoids duplicate sizeThatFits in preferredLayoutAttributesFitting
+            cell.heightCacheKey = self.heightCacheKey(messageId: messageId, width: self.collectionView.bounds.width, message: message)
+            cell.heightCacheLookup = { [weak self] key in self?.cachedHeight(for: key) }
+            cell.heightCacheStore = { [weak self] h, key in self?.storeHeight(h, for: key) }
+
             cell.messageCellView.delegate = self
             cell.messageCellView.configure(with: config)
         }
@@ -214,6 +224,8 @@ final class MessagesViewController: UIViewController {
 
     private func applyConfiguration() {
         let config = configuration
+
+        // Always update content lookups — cell provider reads from these
         messagesById = Dictionary(uniqueKeysWithValues: config.messages.map { ($0.id, $0) })
         cellConfigurations = config.cellConfigurations
 
@@ -223,11 +235,13 @@ final class MessagesViewController: UIViewController {
             scrollToMessageId: config.scrollToMessageId,
             scrollToBottom: config.scrollToBottom
         )
+
         let messageIdsChanged = currentFingerprint.messageIds != (lastAppliedFingerprint?.messageIds ?? [])
-        let fingerprintChanged = currentFingerprint != lastAppliedFingerprint
         lastAppliedFingerprint = currentFingerprint
 
-        if fingerprintChanged && messageIdsChanged {
+        // Snapshot rebuild — only when message list structure changed
+        if messageIdsChanged {
+            heightCache.removeAll(keepingCapacity: true)
             var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
             snapshot.appendSections([0])
 
@@ -325,18 +339,36 @@ final class MessagesViewController: UIViewController {
             }
         }
 
-        // Reconfigure visible cells for content-only changes
+        // Targeted reconfigure — only reconfigure visible cells whose content actually changed.
+        // Compares only visible items (not full message list) to keep this O(visible), not O(N).
         let isInitialLoad = lastSnapshotCount == 0
-        if !isInitialLoad, let dataSource {
-            let visibleIds = collectionView.indexPathsForVisibleItems.compactMap {
+        if !isInitialLoad, !messageIdsChanged, let dataSource {
+            let visibleItemIds = collectionView.indexPathsForVisibleItems.compactMap {
                 dataSource.itemIdentifier(for: $0)
             }.filter { !$0.hasPrefix("date:") && !$0.hasPrefix("unread:") }
-            if !visibleIds.isEmpty {
-                var reconfigureSnapshot = dataSource.snapshot()
-                reconfigureSnapshot.reconfigureItems(visibleIds)
-                dataSource.apply(reconfigureSnapshot, animatingDifferences: false)
+
+            var changedItems: [String] = []
+            for itemId in visibleItemIds {
+                guard let msgId = UUID(uuidString: itemId),
+                      let msg = messagesById[msgId] else { continue }
+                if let prev = previousMessages[msgId],
+                   prev.text == msg.text,
+                   prev.individualReactions?.count == msg.individualReactions?.count,
+                   prev.readBy.count == msg.readBy.count,
+                   prev.editedAt == msg.editedAt,
+                   prev.sendStatus == msg.sendStatus {
+                    continue // unchanged
+                }
+                changedItems.append(itemId)
+            }
+
+            if !changedItems.isEmpty {
+                var snap = dataSource.snapshot()
+                snap.reconfigureItems(changedItems)
+                dataSource.apply(snap, animatingDifferences: false)
             }
         }
+        previousMessages = messagesById
 
         // Handle scroll-to-message
         if let targetId = config.scrollToMessageId {
@@ -361,6 +393,34 @@ final class MessagesViewController: UIViewController {
         let hasPrevious = index > 0 && messages[index - 1].replyToId == replyToId
         let hasNext = index < messages.count - 1 && messages[index + 1].replyToId == replyToId
         return (showTop: hasPrevious, showBottom: hasNext)
+    }
+
+    // MARK: - Height Cache
+
+    /// Lightweight content hash for cache key — covers all layout-affecting fields.
+    static func contentHash(for msg: Message) -> Int {
+        var h = msg.text.hashValue
+        h ^= (msg.individualReactions?.count ?? 0)
+        h ^= msg.readBy.count &* 31
+        h ^= (msg.replyToMessage != nil ? 1 : 0) &* 97
+        h ^= (msg.imageUrl != nil ? 1 : 0) &* 127
+        h ^= (msg.audioUrl != nil ? 1 : 0) &* 151
+        h ^= (msg.latitude != nil ? 1 : 0) &* 173
+        h ^= (msg.editedAt != nil ? 1 : 0) &* 199
+        h ^= (msg.sendStatus?.rawValue.hashValue ?? 0) &* 211
+        return h
+    }
+
+    func heightCacheKey(messageId: UUID, width: CGFloat, message: Message) -> String {
+        "\(messageId.uuidString):\(Int(width)):\(Self.contentHash(for: message))"
+    }
+
+    func cachedHeight(for key: String) -> CGFloat? {
+        heightCache[key]
+    }
+
+    func storeHeight(_ height: CGFloat, for key: String) {
+        heightCache[key] = height
     }
 }
 

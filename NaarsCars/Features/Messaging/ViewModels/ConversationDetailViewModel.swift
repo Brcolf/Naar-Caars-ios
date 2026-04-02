@@ -16,11 +16,15 @@ internal import Combine
 final class ConversationDetailViewModel {
     var messages: [Message] = [] {
         didSet {
+            messagesVersion += 1
             recomputeCellConfigurationsIncrementally(oldMessages: oldValue)
             recomputeUnreadCount()
             notifyMessageObservers()
         }
     }
+    /// Monotonic version counter incremented on every `messages` mutation.
+    /// Used by the representable to skip config rebuilds when only non-message state changed.
+    private(set) var messagesVersion: Int = 0
     private(set) var messageCellConfigurations: [UUID: MessageCellConfiguration] = [:]
     var isLoading: Bool = false
     var isLoadingMore: Bool = false
@@ -81,6 +85,19 @@ final class ConversationDetailViewModel {
     @ObservationIgnored private let throttler = Throttler.shared
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var conversationUpdatedObserver: NSObjectProtocol?
+    /// In-flight guards: prevent overlapping reaction/reply fetches that cause request storms.
+    /// Boolean flags are set synchronously BEFORE creating Tasks to close TOCTOU race.
+    @ObservationIgnored private var isLoadingReactions = false
+    @ObservationIgnored private var isLoadingReplyCounts = false
+    @ObservationIgnored private var reactionFetchTask: Task<Void, Never>?
+    @ObservationIgnored private var replyCountFetchTask: Task<Void, Never>?
+    /// Retry backoff: skip re-fetch if last failure was < 30s ago.
+    @ObservationIgnored private var lastReactionFetchFailure: Date = .distantPast
+    @ObservationIgnored private var lastReplyCountFetchFailure: Date = .distantPast
+    private static let fetchRetryBackoff: TimeInterval = 30
+    /// One-shot: allows exactly one publisher-triggered reaction fetch (for hydrated messages),
+    /// then disarms permanently. Prevents the publisher→fetch→timeout storm that causes OOM.
+    @ObservationIgnored private var allowPublisherReactionFetch = true
     
     init(
         conversationId: UUID,
@@ -246,25 +263,80 @@ final class ConversationDetailViewModel {
             NotificationCenter.default.removeObserver(observer)
             conversationUpdatedObserver = nil
         }
+        // Cancel all in-flight async work to prevent orphaned requests after navigation
+        coalesceTask?.cancel()
+        coalesceTask = nil
+        reactionFetchTask?.cancel()
+        reactionFetchTask = nil
+        replyCountFetchTask?.cancel()
+        replyCountFetchTask = nil
+        isLoadingReactions = false
+        isLoadingReplyCounts = false
+        cancellables.removeAll()
         typingManager.stopTypingObservation()
         searchManager.stop()
         // Start grace period for conversation WebSocket (5s before teardown)
         MessagingSyncEngine.shared.beginGracePeriod()
     }
 
+    /// Staged messages waiting to be committed. Multiple rapid publisher emissions
+    /// (e.g. local load → hydration save) are coalesced into a single `messages` assignment.
+    @ObservationIgnored private var stagedMessages: [Message]?
+    @ObservationIgnored private var coalesceTask: Task<Void, Never>?
+
     private func setupLocalObservation() {
         repository.getMessagesPublisher(for: conversationId)
             .sink { [weak self] updatedMessages in
                 guard let self = self, self.repository.isConfigured else { return }
-                
+
                 // Skip redundant updates — if IDs and count match, nothing changed
-                let currentIds = self.messages.map { $0.id }
+                let currentIds = (self.stagedMessages ?? self.messages).map { $0.id }
                 let updatedIds = updatedMessages.map { $0.id }
                 guard currentIds != updatedIds else { return }
-                
-                // All messages (including pending/failed) now come from SwiftData
-                self.messages = updatedMessages
-                self.scheduleReplyContextHydration()
+
+                // Stage the update — commit after a microtask yield so back-to-back
+                // publisher emissions collapse into one didSet cascade.
+                self.stagedMessages = updatedMessages
+                self.coalesceTask?.cancel()
+                self.coalesceTask = Task { @MainActor [weak self] in
+                    await Task.yield()
+                    guard let self, !Task.isCancelled, var pending = self.stagedMessages else { return }
+                    self.stagedMessages = nil
+
+                    // Preserve reactions from current messages — SwiftData doesn't store them.
+                    // Only fill nil slots; never overwrite non-nil (realtime is authoritative).
+                    let currentReactions = Dictionary(
+                        self.messages.compactMap { msg -> (UUID, [MessageReaction])? in
+                            guard let reactions = msg.individualReactions else { return nil }
+                            return (msg.id, reactions)
+                        },
+                        uniquingKeysWith: { _, new in new }
+                    )
+                    if !currentReactions.isEmpty {
+                        for i in pending.indices {
+                            if pending[i].individualReactions == nil,
+                               let existing = currentReactions[pending[i].id] {
+                                pending[i].setIndividualReactions(existing)
+                            }
+                        }
+                    }
+
+                    let previousMessageCount = self.messages.count
+                    self.messages = pending
+                    self.scheduleReplyContextHydration()
+                    // One-shot reaction fetch for hydrated messages. Fires at most once per
+                    // conversation open to cover messages added by REST hydration after the
+                    // initial loadMessages() fetch. Disarms permanently to prevent the
+                    // publisher→fetch→timeout storm that caused OOM kills (5689 requests).
+                    // Only consumed when hydration actually expanded the message list —
+                    // not burned by local replay, reorder, replacement, or noop saves.
+                    if self.allowPublisherReactionFetch,
+                       pending.count > previousMessageCount,
+                       pending.contains(where: { $0.individualReactions == nil }) {
+                        self.allowPublisherReactionFetch = false
+                        Task { await self.loadReactionsIfNeeded() }
+                    }
+                }
             }
             .store(in: &cancellables)
     }
@@ -349,6 +421,10 @@ final class ConversationDetailViewModel {
     }
 
     func loadMessages() async {
+        // Reset fetch backoff so an explicit conversation open always gets a fresh attempt.
+        // Publisher-triggered retries (setupLocalObservation) still respect the 30s backoff.
+        lastReactionFetchFailure = .distantPast
+        lastReplyCountFetchFailure = .distantPast
         await checkLeftStatus()
         error = nil
         await paginationManager.loadMessages(
@@ -370,56 +446,105 @@ final class ConversationDetailViewModel {
         // This also triggers subscribe-then-fetch hydration
         MessagingSyncEngine.shared.subscribeToConversation(conversationId)
 
-        // Hydrate reactions and reply counts for loaded messages
-        await loadReactionsForMessages()
+        // Fetch reactions and reply counts once per conversation open.
+        // NOT re-fetched from the publisher path — on congested networks, publisher-triggered
+        // fetches create thousands of queued requests that OOM-kill the app.
+        await loadReactionsIfNeeded()
         await loadReplyCountsForMessages()
     }
 
-    /// Fetch reactions for all currently loaded messages in a single batch query.
-    /// Applied in a single array assignment so `didSet` fires once.
-    private func loadReactionsForMessages() async {
-        let messageIds = messages.map(\.id)
-        guard !messageIds.isEmpty else { return }
+    /// Fetch reactions for messages that don't have them yet.
+    /// Uses `individualReactions == nil` as the "needs fetch" signal.
+    /// Messages with reactions (from realtime or prior fetch) are skipped.
+    /// Guarded: at most one in-flight fetch; 30s backoff on failure.
+    private func loadReactionsIfNeeded() async {
+        // In-flight guard: boolean flag set synchronously to close TOCTOU race
+        guard !isLoadingReactions else { return }
+        // Backoff guard: skip if last failure was recent
+        guard Date().timeIntervalSince(lastReactionFetchFailure) >= Self.fetchRetryBackoff else { return }
 
-        let reactionsByMessage: [UUID: [MessageReaction]]
-        do {
-            reactionsByMessage = try await MessageReactionService.shared.fetchIndividualReactionsBatch(messageIds: messageIds)
-        } catch {
-            AppLogger.error("messaging", "Failed to batch-fetch reactions: \(error)")
-            return
-        }
+        let idsNeedingReactions = messages
+            .filter { $0.individualReactions == nil }
+            .map(\.id)
+        guard !idsNeedingReactions.isEmpty else { return }
 
-        guard !reactionsByMessage.isEmpty else { return }
+        // Set flag BEFORE creating Task — no other caller can slip through.
+        // defer guarantees the flag is cleared on every exit path (success, error, cancellation).
+        isLoadingReactions = true
+        defer { isLoadingReactions = false; reactionFetchTask = nil }
 
-        var updated = messages
-        var didChange = false
-        for (id, records) in reactionsByMessage {
-            if let index = updated.firstIndex(where: { $0.id == id }) {
-                updated[index].setIndividualReactions(records)
+        let task = Task { [weak self] in
+            guard let self else { return }
+            let reactionsByMessage: [UUID: [MessageReaction]]
+            do {
+                reactionsByMessage = try await MessageReactionService.shared.fetchIndividualReactionsBatch(messageIds: idsNeedingReactions)
+            } catch {
+                if !Task.isCancelled {
+                    AppLogger.error("messaging", "Failed to batch-fetch reactions: \(error)")
+                    self.lastReactionFetchFailure = Date()
+                }
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            var updated = self.messages
+            var didChange = false
+            for (id, records) in reactionsByMessage {
+                if let i = updated.firstIndex(where: { $0.id == id }) {
+                    updated[i].setIndividualReactions(records)
+                    didChange = true
+                }
+            }
+            // Mark messages with zero reactions as fetched (empty array, not nil)
+            // so they are never re-fetched.
+            for i in updated.indices where idsNeedingReactions.contains(updated[i].id)
+                && updated[i].individualReactions == nil {
+                updated[i].setIndividualReactions([])
                 didChange = true
             }
+            if didChange {
+                self.messages = updated
+            }
         }
-        if didChange {
-            messages = updated
-        }
+        reactionFetchTask = task
+        await task.value
     }
     
     /// Fetch reply counts for all currently loaded messages.
+    /// Guarded: at most one in-flight fetch; 30s backoff on failure.
     private func loadReplyCountsForMessages() async {
+        // In-flight guard: boolean flag set synchronously to close TOCTOU race
+        guard !isLoadingReplyCounts else { return }
+        // Backoff guard: skip if last failure was recent
+        guard Date().timeIntervalSince(lastReplyCountFetchFailure) >= Self.fetchRetryBackoff else { return }
+
         let messageIds = messages.map(\.id)
         guard !messageIds.isEmpty else { return }
-        do {
-            let counts = try await MessageService.shared.fetchReplyCounts(
-                conversationId: conversationId,
-                messageIds: messageIds
-            )
-            guard !counts.isEmpty else { return }
-            replyCountMap.merge(counts) { _, new in new }
-        } catch {
-            #if DEBUG
-            print("[ConversationDetailVM] Failed to load reply counts: \(error)")
-            #endif
+
+        // Set flag BEFORE creating Task — no other caller can slip through.
+        // defer guarantees the flag is cleared on every exit path (success, error, cancellation).
+        isLoadingReplyCounts = true
+        defer { isLoadingReplyCounts = false; replyCountFetchTask = nil }
+
+        let task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let counts = try await MessageService.shared.fetchReplyCounts(
+                    conversationId: self.conversationId,
+                    messageIds: messageIds
+                )
+                guard !Task.isCancelled else { return }
+                guard !counts.isEmpty else { return }
+                self.replyCountMap.merge(counts) { _, new in new }
+            } catch {
+                if !Task.isCancelled {
+                    AppLogger.error("messaging", "[ConversationDetailVM] Failed to load reply counts: \(error)")
+                    self.lastReplyCountFetchFailure = Date()
+                }
+            }
         }
+        replyCountFetchTask = task
+        await task.value
     }
 
     func loadMoreMessages() async {

@@ -143,8 +143,9 @@ final class RefreshCoordinator {
     }
 
     /// Invalidate domains (push without entity ID). Marks stale for next access.
-    func invalidate(_ domains: Set<Domain>) {
+    func invalidate(_ domains: Set<Domain>, reason: String = "push") {
         for domain in domains {
+            logDecision(domain: domain, trigger: "invalidation", decision: "invalidated(reason=\(reason))")
             invalidateDomain(domain)
         }
     }

@@ -66,7 +66,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **Guest mode is implemented.** Anonymous users can browse rides, favors, and town hall without an account. Auth-required actions (create, claim, vote, comment, report, message) are gated in the UI and guarded by RLS policies (`20260320_0001_guest_mode_anon_read_policies.sql`). Deep link intents that require auth prompt the guest to sign up. `exitGuestMode()` must be called before any auth flow begins.
 
-**The app uses a push-notify, pull-hydrate architecture.** Realtime WebSockets are scoped to the active conversation only (messages + reactions + typing). All other domains (dashboard, town hall, notifications, conversations) use pull-on-appear with 30s staleness and push-triggered refresh. A centralized `RefreshCoordinator` is the single source of truth for refresh decisions, staleness tracking, and in-flight dedup. Badge counts are push-triggered with a 5-minute safety poll. See `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` for the full architecture spec.
+**The app uses a push-notify, pull-hydrate architecture.** The previous design used 7-8 WebSocket subscriptions per client, which hit Supabase connection limits at ~17 concurrent users. Realtime WebSockets are now scoped to the active conversation only (messages + reactions + typing). All other domains (dashboard, town hall, notifications, conversations) use pull-on-appear with 30s staleness and push-triggered refresh. Do not widen WebSocket scope — this was the root cause of the scaling issue. A centralized `RefreshCoordinator` is the single source of truth for refresh decisions, staleness tracking, and in-flight dedup. Badge counts are push-triggered with a 5-minute safety poll. See `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` for the full architecture spec.
 
 **Critical active risks:**
 - WebSocket callbacks (active conversation only) arrive on background threads and must be marshalled to the main actor before reaching UIKit views
@@ -340,6 +340,17 @@ Engines are pure fetch-and-store. The `RefreshCoordinator` owns all refresh deci
 ```
 setup → performFullSync / performTargetedSync → teardown
 ```
+
+**Coordinator per-domain state machine** (domains: `dashboard`, `townHall`, `conversations`, `badges`):
+```
+unhydrated → hydrated → invalidated → refreshing → hydrated
+                                    ↘ failed → invalidated (on retry)
+```
+- `unhydrated`: initial state, no data fetched yet
+- `hydrated`: data is fresh (within staleness window)
+- `invalidated`: push or staleness expired, needs refresh
+- `refreshing`: fetch in progress (join, don't duplicate)
+- `failed`: fetch errored, retryable
 
 **Coordinator methods (not engine methods):** `refreshIfNeeded`, `forceFullRefresh`, `invalidate`, `setVisibleDomain`. ViewModels do not call engines or coordinator refresh methods directly.
 

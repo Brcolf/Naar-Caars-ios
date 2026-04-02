@@ -34,7 +34,7 @@ final class MessagingRepository {
     }
     
     private init() {}
-    
+
     /// Set up the model context for SwiftData operations.
     /// The conversations publisher is populated asynchronously to avoid blocking
     /// the main thread during app init (was taking 1.3s+ for O(n) SwiftData fetches).
@@ -45,13 +45,37 @@ final class MessagingRepository {
             refreshConversationsPublisher()
         }
     }
+
+    /// Reset all in-memory publisher caches on sign-out.
+    /// Must be called BEFORE the UI transition notification so new sessions start clean.
+    func resetPublishers() {
+        conversationsSubject.send([])
+        messageSubjects.removeAll()
+        messageMetadataSubjects.removeAll()
+        lastMessageBackfillSyncAt.removeAll()
+    }
     
     // MARK: - Conversations
     
-    func getConversations() throws -> [ConversationWithDetails] {
+    func getConversations(for userId: UUID? = nil) throws -> [ConversationWithDetails] {
         guard let modelContext = modelContext else { return [] }
         let descriptor = FetchDescriptor<SDConversation>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
-        let sdConversations = try modelContext.fetch(descriptor)
+        let allConversations = try modelContext.fetch(descriptor)
+
+        // Defensive filter: only return conversations where user is a participant.
+        // After the sign-out wipe fix this should never filter anything, but guards
+        // against cross-user data leakage if a race ever reappears.
+        let sdConversations: [SDConversation]
+        if let userId {
+            let before = allConversations.count
+            sdConversations = allConversations.filter { $0.participantIds.contains(userId) }
+            let removed = before - sdConversations.count
+            if removed > 0 {
+                AppLogger.warning("messaging", "[MessagingRepository] Filtered \(removed) conversations not belonging to user \(userId) — possible cross-user leak")
+            }
+        } else {
+            sdConversations = allConversations
+        }
         
         return sdConversations.map { sdConv in
             // Query by conversationId field (not relationship) for reliability —

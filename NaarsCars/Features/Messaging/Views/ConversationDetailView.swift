@@ -330,6 +330,7 @@ struct ConversationDetailView: View {
                 } else {
                     MessagesViewControllerRepresentable(
                         messages: viewModel.messages,
+                        messagesVersion: viewModel.messagesVersion,
                         cellConfigurations: messageCellConfigurations,
                         participantProfiles: participantsViewModel.participants,
                         isGroupConversation: isGroup,

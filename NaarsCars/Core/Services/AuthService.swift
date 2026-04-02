@@ -549,10 +549,11 @@ final class AuthService: ObservableObject {
     }
     
     /// Handle sign out with complete cleanup.
-    /// Clears state and posts notification FIRST so the UI transitions immediately,
-    /// then tears down subscriptions, caches, and sync engines in the background.
-    /// A reentrancy guard prevents concurrent calls from overlapping cleanup.
-    private var isSigningOut = false
+    /// Critical data wipe and teardown happen BEFORE the UI transition notification
+    /// to prevent cross-user data leakage when a new user signs in quickly.
+    /// The `isSigningOut` flag acts as a safety barrier: SyncEngineOrchestrator and
+    /// RealtimeManager check it to reject late work during teardown.
+    private(set) var isSigningOut = false
 
     private func handleSignOut() async {
         // Reentrancy guard — prevent multiple concurrent teardowns
@@ -562,7 +563,7 @@ final class AuthService: ObservableObject {
         }
         isSigningOut = true
 
-        AppLogger.auth.debug("handleSignOut() started")
+        AppLogger.auth.info("handleSignOut() started — barrier active")
         let userIdToRemove = currentUserId
 
         // Log action for crash context
@@ -576,42 +577,19 @@ final class AuthService: ObservableObject {
             isAdmin: false
         )
 
-        // --- State change phase: clear state and notify FIRST for immediate UI transition ---
+        // --- Phase 1: Clear auth state ---
 
         currentUserId = nil
         currentProfile = nil
-        AppLogger.auth.debug("Local state cleared")
+        AppLogger.auth.debug("User ID cleared")
 
-        AppLogger.auth.debug("Posting userDidSignOut notification")
-        NotificationCenter.default.post(name: .userDidSignOut, object: nil, userInfo: nil)
-
-        // Reset the reentrancy guard BEFORE the teardown awaits.
-        // RealtimeManager.unsubscribeAll() and SyncEngineOrchestrator.teardownAll()
-        // can hang indefinitely (observed in production logs). If the guard stays true,
-        // every subsequent sign-out is permanently skipped. The teardown calls below
-        // are idempotent, so overlapping calls from a future sign-out are safe.
-        isSigningOut = false
-
-        // --- Teardown phase: clean up resources after UI has transitioned ---
-
-        if let userId = userIdToRemove {
-            try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
-        }
-        PushNotificationService.shared.clearRegisteredTokenState()
-
-        // Clear caches
-        await CacheManager.shared.clearAll()
-        AppLogger.cache.debug("Cache cleared on sign out")
-
-        // Unsubscribe from all realtime channels (best-effort)
-        await RealtimeManager.shared.unsubscribeAll()
-        AppLogger.realtime.debug("Realtime unsubscribed on sign out")
-
-        // Ensure sync engines release subscriptions and reset lifecycle state.
-        await SyncEngineOrchestrator.shared.teardownAll()
-
-        // Reset refresh coordinator
+        // --- Phase 2: Fast wipe (MUST complete before UI transition) ---
+        // Cancel in-flight refresh tasks (no network)
         await RefreshCoordinator.shared.reset()
+
+        // Clear realtime session state — prevents stale channel restoration
+        await MessagingSyncEngine.shared.clearSessionState()
+        RealtimeManager.shared.clearAllState()
 
         // Wipe SwiftData cache (prevents cross-user data leakage)
         do {
@@ -620,6 +598,41 @@ final class AuthService: ObservableObject {
         } catch {
             AppLogger.error("auth", "SwiftData wipe failed: \(error)")
         }
+
+        // Reset in-memory publisher caches so new session starts clean
+        await MessagingRepository.shared.resetPublishers()
+
+        // --- Phase 3: Post notification for immediate UI transition ---
+        // This MUST fire before the potentially-hanging teardown below.
+        // The barrier (isSigningOut) remains true to block startAll() and late subscriptions.
+        AppLogger.auth.debug("Posting userDidSignOut notification")
+        NotificationCenter.default.post(name: .userDidSignOut, object: nil, userInfo: nil)
+
+        // Reset the reentrancy guard BEFORE the teardown awaits.
+        // teardownAll() and unsubscribeAll() can hang indefinitely (observed in production).
+        // If the guard stays true, every subsequent sign-out is permanently skipped.
+        // The barrier served its purpose: SwiftData is wiped, publishers are reset,
+        // and the UI has transitioned. Teardown calls below are idempotent.
+        isSigningOut = false
+        AppLogger.auth.info("Sign-out barrier released — beginning async teardown")
+
+        // --- Phase 4: Async teardown (best-effort, can hang) ---
+
+        // Stop sync engines (cancels subscriptions, stops workers)
+        await SyncEngineOrchestrator.shared.teardownAll()
+
+        // Unsubscribe from all realtime channels
+        await RealtimeManager.shared.unsubscribeAll()
+        AppLogger.realtime.debug("Realtime unsubscribed on sign out")
+
+        // Clear caches
+        await CacheManager.shared.clearAll()
+        AppLogger.cache.debug("Cache cleared on sign out")
+
+        if let userId = userIdToRemove {
+            try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
+        }
+        PushNotificationService.shared.clearRegisteredTokenState()
 
         AppLogger.auth.info("Sign out cleanup completed")
     }

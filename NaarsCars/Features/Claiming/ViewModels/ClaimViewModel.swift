@@ -19,6 +19,8 @@ final class ClaimViewModel: ObservableObject {
     @Published var error: String?
     @Published var showPhoneRequired: Bool = false
     @Published var showPushPermissionPrompt: Bool = false
+    /// Set by claim sheet onConfirm, read by detail view onDismiss to trigger calendar offer.
+    var lastClaimSucceeded: Bool = false
     
     // MARK: - Private Properties
     

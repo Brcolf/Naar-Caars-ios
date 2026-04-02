@@ -117,7 +117,7 @@ struct MainTabView: View {
 
             // Tear down conversation WebSocket when leaving messaging tab
             if oldValue == 1 && newTab != 1 {
-                MessagingSyncEngine.shared.cancelGracePeriodAndUnsubscribe()
+                Task { await MessagingSyncEngine.shared.cancelGracePeriodAndUnsubscribe() }
             }
 
             guard !appState.isGuest else { return }

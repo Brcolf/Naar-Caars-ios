@@ -33,6 +33,10 @@ final class SyncEngineOrchestrator {
     }
 
     func startAll() {
+        guard !AuthService.shared.isSigningOut else {
+            AppLogger.warning("sync", "startAll() blocked — sign-out in progress")
+            return
+        }
         for engine in engines {
             AppLogger.info("sync", "Starting \(engine.engineName)")
             engine.startSync()

@@ -20,10 +20,23 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     private var lastStartSyncAt: Date = .distantPast
     private var activeConversationId: UUID?
     private var gracePeriodTimer: Timer?
+    private var subscriptionTask: Task<Void, Never>?
+    /// Short correlation token for log tracing (subscribe → hydrate → save → UI)
+    private var refreshId: String = ""
     private let messageService = MessageService.shared
     let health = SyncHealthMetrics()
 
     private init() {}
+
+    /// Synchronous session state clear for sign-out fast path.
+    /// Cancels in-flight subscription task, kills grace timer, clears active conversation.
+    func clearSessionState() {
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
+        gracePeriodTimer?.invalidate()
+        gracePeriodTimer = nil
+        activeConversationId = nil
+    }
 
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -77,7 +90,7 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     }
 
     func teardown() async {
-        cancelGracePeriodAndUnsubscribe()
+        await cancelGracePeriodAndUnsubscribe()
         await MessageSendWorker.shared.stop()
         modelContext = nil
         backgroundActor = nil
@@ -194,17 +207,30 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         gracePeriodTimer?.invalidate()
         gracePeriodTimer = nil
 
-        guard activeConversationId != conversationId else { return }
+        // Allow re-subscribe if previous task was cancelled (rapid switching) or never started
+        guard activeConversationId != conversationId || subscriptionTask?.isCancelled != false else { return }
 
         if activeConversationId != nil {
-            unsubscribeFromActiveConversation()
+            // Cancel any in-flight subscription before starting a new one
+            subscriptionTask?.cancel()
+            subscriptionTask = nil
+            Task { await unsubscribeFromActiveConversation() }
         }
 
         activeConversationId = conversationId
         RefreshCoordinator.shared.setActiveConversation(conversationId)
 
-        Task {
-            // Subscribe to messages for this conversation
+        let shortId = String(conversationId.uuidString.prefix(8))
+        refreshId = String(UUID().uuidString.prefix(6))
+        let rid = refreshId
+        AppLogger.info("messaging", "[subscribe] start conv=\(shortId) refresh=\(rid)")
+
+        subscriptionTask = Task {
+            // Fire REST hydration immediately — don't block on WebSocket handshake.
+            // This ensures messages load even when realtime is slow or congested.
+            async let hydration: Void = self.hydrateConversation(conversationId, refreshId: rid)
+
+            // Subscribe to messages for this conversation (may be slow on congested network)
             await realtimeManager.subscribe(
                 channelName: "messages:\(conversationId.uuidString)",
                 table: "messages",
@@ -213,12 +239,24 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                 onUpdate: { [weak self] record in self?.handleIncomingMessage(record) },
                 onDelete: { [weak self] record in self?.handleIncomingMessage(record) }
             )
+            guard !Task.isCancelled else {
+                AppLogger.info("messaging", "[subscribe] cancelled(messages) conv=\(shortId) refresh=\(rid)")
+                _ = await hydration
+                return
+            }
 
             // Subscribe to reactions for this conversation
-            setupReactionsSubscription(conversationId: conversationId)
+            await setupReactionsSubscription(conversationId: conversationId)
+            guard !Task.isCancelled else {
+                AppLogger.info("messaging", "[subscribe] cancelled(reactions) conv=\(shortId) refresh=\(rid)")
+                _ = await hydration
+                return
+            }
 
-            // Subscribe-then-fetch: REST hydration after subscription
-            await hydrateConversation(conversationId)
+            AppLogger.info("messaging", "[subscribe] channels ready conv=\(shortId) refresh=\(rid)")
+
+            // Ensure hydration completes (likely already finished before channels are ready)
+            _ = await hydration
         }
     }
 
@@ -231,35 +269,46 @@ final class MessagingSyncEngine: SyncEngineProtocol {
             repeats: false
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.unsubscribeFromActiveConversation()
+                await self?.unsubscribeFromActiveConversation()
             }
         }
     }
 
     /// Immediately tear down WebSocket. Called on tab switch or app background.
-    func cancelGracePeriodAndUnsubscribe() {
+    func cancelGracePeriodAndUnsubscribe() async {
         gracePeriodTimer?.invalidate()
         gracePeriodTimer = nil
-        unsubscribeFromActiveConversation()
+        await unsubscribeFromActiveConversation()
     }
 
-    private func unsubscribeFromActiveConversation() {
+    private func unsubscribeFromActiveConversation() async {
+        // Cancel any in-flight subscription task first — prevents late subscribe
+        // from re-adding a channel after we unsubscribe it.
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
+
         guard let id = activeConversationId else { return }
-        Task {
-            await realtimeManager.unsubscribe(channelName: "messages:\(id.uuidString)")
-            await realtimeManager.unsubscribe(channelName: "reactions:\(id.uuidString)")
-            // Also tear down typing channel to prevent leaks on tab switch
-            // (TypingIndicatorManager.stopTypingObservation handles its own cleanup
-            // via onDisappear, but tab-switch may fire before onDisappear)
-            await realtimeManager.unsubscribe(channelName: "typing:\(id.uuidString)")
-        }
+        let shortId = String(id.uuidString.prefix(8))
+        let rid = refreshId
+        AppLogger.info("messaging", "[unsubscribe] start conv=\(shortId) refresh=\(rid)")
         activeConversationId = nil
         RefreshCoordinator.shared.setActiveConversation(nil)
+
+        await realtimeManager.unsubscribe(channelName: "messages:\(id.uuidString)")
+        await realtimeManager.unsubscribe(channelName: "reactions:\(id.uuidString)")
+        // Also tear down typing channel to prevent leaks on tab switch
+        // (TypingIndicatorManager.stopTypingObservation handles its own cleanup
+        // via onDisappear, but tab-switch may fire before onDisappear)
+        await realtimeManager.unsubscribe(channelName: "typing:\(id.uuidString)")
+        AppLogger.info("messaging", "[unsubscribe] done conv=\(shortId) refresh=\(rid)")
     }
 
     /// Subscribe-then-fetch: REST fetch recent messages to cover the connection gap.
     /// Dedup by message UUID prevents duplicates with buffered WebSocket events.
-    private func hydrateConversation(_ conversationId: UUID) async {
+    private func hydrateConversation(_ conversationId: UUID, refreshId rid: String = "") async {
+        let shortId = String(conversationId.uuidString.prefix(8))
+        let start = Date()
+        AppLogger.info("messaging", "[hydrate] start conv=\(shortId) refresh=\(rid)")
         do {
             let messages = try await messageService.fetchMessages(
                 conversationId: conversationId,
@@ -276,27 +325,35 @@ final class MessagingSyncEngine: SyncEngineProtocol {
             }
 
             if changedCount > 0 {
+                let saveStart = Date()
                 try repository.save(changedConversationIds: [conversationId])
+                let saveMs = Int(Date().timeIntervalSince(saveStart) * 1000)
+                if saveMs > 50 {
+                    AppLogger.warning("messaging", "[hydrate] slow save conv=\(shortId) refresh=\(rid) \(saveMs)ms changed=\(changedCount)")
+                }
             }
+
+            let totalMs = Int(Date().timeIntervalSince(start) * 1000)
+            AppLogger.info("messaging", "[hydrate] done conv=\(shortId) refresh=\(rid) fetched=\(messages.count) changed=\(changedCount) \(totalMs)ms")
         } catch {
-            AppLogger.error("messaging", "Conversation hydration failed for \(conversationId): \(error)")
+            let totalMs = Int(Date().timeIntervalSince(start) * 1000)
+            AppLogger.error("messaging", "[hydrate] failed conv=\(shortId) refresh=\(rid) \(totalMs)ms error=\(error)")
         }
     }
 
-    /// Subscribe to reaction changes for a specific conversation
-    func setupReactionsSubscription(conversationId: UUID) {
-        Task {
-            await realtimeManager.subscribe(
-                channelName: "reactions:\(conversationId.uuidString)",
-                table: "message_reactions",
-                onInsert: { [weak self] record in
-                    self?.handleReactionChange(record, conversationId: conversationId)
-                },
-                onDelete: { [weak self] record in
-                    self?.handleReactionChange(record, conversationId: conversationId)
-                }
-            )
-        }
+    /// Subscribe to reaction changes for a specific conversation.
+    /// Called from within the tracked `subscriptionTask` — no fire-and-forget Task needed.
+    private func setupReactionsSubscription(conversationId: UUID) async {
+        await realtimeManager.subscribe(
+            channelName: "reactions:\(conversationId.uuidString)",
+            table: "message_reactions",
+            onInsert: { [weak self] record in
+                self?.handleReactionChange(record, conversationId: conversationId)
+            },
+            onDelete: { [weak self] record in
+                self?.handleReactionChange(record, conversationId: conversationId)
+            }
+        )
     }
 
     /// Unsubscribe from reaction changes for a conversation
