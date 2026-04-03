@@ -277,17 +277,30 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        // Guard against calling completionHandler more than once (fatal in UIKit).
+        // The deadline task and the main task race — whichever finishes first calls it.
+        let called = OSAllocatedUnfairLock(initialState: false)
+        let safeComplete: (UIBackgroundFetchResult) -> Void = { result in
+            let alreadyCalled = called.withLock { wasCalled -> Bool in
+                let was = wasCalled
+                wasCalled = true
+                return was
+            }
+            guard !alreadyCalled else { return }
+            completionHandler(result)
+        }
+
         // Deadline timer — guarantees completion handler is always called (INV-B4)
         let deadline = Task {
             try? await Task.sleep(for: .seconds(Constants.Timing.backgroundPushDeadline))
-            completionHandler(.failed)
+            safeComplete(.failed)
         }
 
         Task { @MainActor in
             guard let typeString = userInfo["type"] as? String,
                   let type = NotificationType(rawValue: typeString) else {
                 deadline.cancel()
-                completionHandler(.noData)
+                safeComplete(.noData)
                 return
             }
 
@@ -315,7 +328,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             )
 
             deadline.cancel()
-            completionHandler(entityId != nil ? .newData : .noData)
+            safeComplete(entityId != nil ? .newData : .noData)
         }
     }
 
