@@ -39,11 +39,7 @@ struct SignupMethodChoiceView: View {
                     },
                     onCompletion: { result in
                         Task {
-                            await appleSignInViewModel.handleSignInCompletion(
-                                result: result,
-                                inviteCodeId: inviteCode.id,
-                                isNewUser: true
-                            )
+                            await appleSignInViewModel.handleSignUpCompletion(result: result)
                             
                             if appleSignInViewModel.error == nil {
                                 // Success - trigger AppLaunchManager to check auth state
@@ -105,10 +101,7 @@ struct SignupMethodChoiceView: View {
         .navigationTitle("signup_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToEmailSignup) {
-            SignupDetailsView(
-                viewModel: signupViewModel,
-                validatedInviteCode: inviteCode
-            )
+            SignupDetailsView(viewModel: signupViewModel)
         }
         .alert("common_error".localized, isPresented: $showError) {
             Button("common_ok".localized, role: .cancel) {}

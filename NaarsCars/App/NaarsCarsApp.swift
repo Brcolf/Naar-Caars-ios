@@ -61,11 +61,8 @@ struct NaarsCarsApp: App {
             }
         }
         
-        // Test connection on app launch
-        Task {
-            let connected = await SupabaseService.shared.testConnection()
-            AppLogger.info("app", connected ? "Supabase connected" : "Supabase connection failed")
-        }
+        // Connection test removed — unnecessary network round-trip during init.
+        // Auth session check in performCriticalLaunch() validates connectivity.
 
         Task {
             await PerformanceMonitor.shared.record(
@@ -131,6 +128,7 @@ struct NaarsCarsApp: App {
         SyncEngineOrchestrator.shared.setupAll(modelContext: context)
         DashboardSyncEngine.shared.setupBackgroundActor(container: container)
         MessagingSyncEngine.shared.setupBackgroundActor(container: container)
+        TownHallSyncEngine.shared.setupBackgroundActor(container: container)
 
         // Sync engines are intentionally started after first interactive launch state
         // in AppLaunchManager.performDeferredLoading(userId:) to keep startup lean.

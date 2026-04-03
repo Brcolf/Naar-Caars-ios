@@ -388,7 +388,70 @@ final class AdminService {
         
         AppLogger.info("admin", "Set admin status for \(userId): \(isAdmin)")
     }
-    
+
+    /// Ban/restrict a user account
+    /// - Parameters:
+    ///   - userId: ID of user to ban
+    ///   - reason: Required reason for the ban (displayed to the user)
+    /// - Throws: AppError if not admin, attempting self-ban, or operation fails
+    func banUser(userId: UUID, reason: String) async throws {
+        try await verifyAdminStatus()
+
+        guard userId != authService.currentUserId else {
+            throw AppError.unknown("Cannot restrict your own account")
+        }
+
+        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedReason.isEmpty else {
+            throw AppError.unknown("A reason is required to restrict a user")
+        }
+
+        guard let adminId = authService.currentUserId else {
+            throw AppError.unauthorized
+        }
+
+        let updates: [String: AnyCodable] = [
+            "is_banned": AnyCodable(true),
+            "ban_reason": AnyCodable(trimmedReason),
+            "banned_at": AnyCodable(ISO8601DateFormatter().string(from: Date())),
+            "banned_by": AnyCodable(adminId.uuidString),
+            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+        ]
+
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+
+        Log.security("Admin \(adminId) banned user \(userId): \(trimmedReason)")
+        AppLogger.info("admin", "Banned user \(userId)")
+    }
+
+    /// Unban/remove restriction from a user account
+    /// - Parameter userId: ID of user to unban
+    /// - Throws: AppError if not admin or operation fails
+    func unbanUser(userId: UUID) async throws {
+        try await verifyAdminStatus()
+
+        let updates: [String: AnyCodable] = [
+            "is_banned": AnyCodable(false),
+            "ban_reason": AnyCodable(Optional<String>.none),
+            "banned_at": AnyCodable(Optional<String>.none),
+            "banned_by": AnyCodable(Optional<String>.none),
+            "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
+        ]
+
+        try await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", value: userId.uuidString)
+            .execute()
+
+        Log.security("Admin \(authService.currentUserId?.uuidString ?? "unknown") unbanned user \(userId)")
+        AppLogger.info("admin", "Unbanned user \(userId)")
+    }
+
     // MARK: - Broadcast
     
     /// Send a broadcast announcement to all approved users

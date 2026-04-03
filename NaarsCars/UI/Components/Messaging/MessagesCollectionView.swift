@@ -22,6 +22,13 @@ final class MessageContentCell: UICollectionViewCell {
     let messageCellView = MessageCellView()
     private var layoutInvalidationWork: DispatchWorkItem?
 
+    /// Cache key for height lookup — set by cell provider, used by preferredLayoutAttributesFitting.
+    var heightCacheKey: String?
+    /// Closure to look up cached height — set by cell provider, avoids direct VC coupling.
+    var heightCacheLookup: ((String) -> CGFloat?)?
+    /// Closure to store computed height — set by cell provider.
+    var heightCacheStore: ((CGFloat, String) -> Void)?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         contentView.addSubview(messageCellView)
@@ -52,9 +59,22 @@ final class MessageContentCell: UICollectionViewCell {
         _ layoutAttributes: UICollectionViewLayoutAttributes
     ) -> UICollectionViewLayoutAttributes {
         let attrs = super.preferredLayoutAttributesFitting(layoutAttributes)
-        let targetSize = CGSize(width: layoutAttributes.frame.width, height: UIView.layoutFittingCompressedSize.height)
+        let width = layoutAttributes.frame.width
+
+        // Check height cache before expensive sizeThatFits measurement
+        if let key = heightCacheKey, let cached = heightCacheLookup?(key) {
+            attrs.frame.size.height = cached
+            return attrs
+        }
+
+        let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
         let fittingSize = messageCellView.sizeThatFits(targetSize)
         attrs.frame.size.height = fittingSize.height
+
+        // Store in cache for next layout pass
+        if let key = heightCacheKey {
+            heightCacheStore?(fittingSize.height, key)
+        }
         return attrs
     }
 

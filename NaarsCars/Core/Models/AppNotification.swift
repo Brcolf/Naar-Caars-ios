@@ -61,7 +61,10 @@ enum NotificationType: String, Codable, CaseIterable {
     case pendingApproval = "pending_approval"
     case userApproved = "user_approved"
     case userRejected = "user_rejected"
-    
+
+    // Account restriction
+    case accountRestricted = "account_restricted"
+
     case other = "other"
     
     /// Icon name for notification type
@@ -94,6 +97,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return "checkmark.circle.fill"
         case .userRejected:
             return "xmark.circle.fill"
+        case .accountRestricted:
+            return "exclamationmark.triangle.fill"
         case .other:
             return "bell.fill"
         }
@@ -107,7 +112,7 @@ enum NotificationType: String, Codable, CaseIterable {
             return false
         case .announcement, .adminAnnouncement, .broadcast:  // Board announcements
             return false
-        case .userApproved, .userRejected:  // Account status
+        case .userApproved, .userRejected, .accountRestricted:  // Account status
             return false
         case .pendingApproval:  // Admin must see pending users
             return false
@@ -172,6 +177,7 @@ enum NotificationType: String, Codable, CaseIterable {
             "pending_approval",
             "user_approved",
             "user_rejected",
+            "account_restricted",
             "other"
         ]
         assert(
@@ -180,6 +186,48 @@ enum NotificationType: String, Codable, CaseIterable {
         )
     }()
     #endif
+}
+
+// MARK: - Refresh Domain Mapping
+
+extension NotificationType {
+    /// Domains that should be refreshed when this notification type is received as a push.
+    var affectedDomains: Set<RefreshDomain> {
+        switch self {
+        case .message, .addedToConversation:
+            return [.conversations]
+        case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted,
+             .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted,
+             .completionReminder,
+             .qaActivity, .qaQuestion, .qaAnswer,
+             .review, .reviewReceived, .reviewReminder, .reviewRequest,
+             .contentReported,
+             .pendingApproval, .userApproved, .userRejected,
+             .accountRestricted:
+            return [.dashboard]
+        case .townHallPost, .townHallComment, .townHallReaction,
+             .announcement, .adminAnnouncement, .broadcast:
+            return [.townHall]
+        case .other:
+            return []
+        }
+    }
+
+    /// Key in push userInfo that contains the affected entity ID, if available.
+    var entityIdKey: String? {
+        switch self {
+        case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted:
+            return "ride_id"
+        case .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted:
+            return "favor_id"
+        case .townHallPost, .townHallComment, .townHallReaction:
+            return "post_id"
+        case .message, .addedToConversation:
+            return "conversation_id"
+        default:
+            return nil
+        }
+    }
 }
 
 /// In-app notification model

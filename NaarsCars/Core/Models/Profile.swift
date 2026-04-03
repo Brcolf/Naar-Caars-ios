@@ -18,7 +18,19 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
     let isAdmin: Bool
     let approved: Bool
     let invitedBy: UUID?
-    
+
+    // Ban fields
+    let isBanned: Bool
+    let banReason: String?
+    let bannedAt: Date?
+    let bannedBy: UUID?
+
+    // Application fields (public signup)
+    let heardAbout: String?
+    let joinReason: String?
+    let applicationComplete: Bool
+    let applicationSubmittedAt: Date?
+
     // Notification preferences
     let notifyRideUpdates: Bool
     let notifyMessages: Bool
@@ -66,6 +78,14 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         case isAdmin = "is_admin"
         case approved
         case invitedBy = "invited_by"
+        case isBanned = "is_banned"
+        case banReason = "ban_reason"
+        case bannedAt = "banned_at"
+        case bannedBy = "banned_by"
+        case heardAbout = "heard_about"
+        case joinReason = "join_reason"
+        case applicationComplete = "application_complete"
+        case applicationSubmittedAt = "application_submitted_at"
         case notifyRideUpdates = "notify_ride_updates"
         case notifyMessages = "notify_messages"
         case notifyAnnouncements = "notify_announcements"
@@ -92,6 +112,14 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         isAdmin: Bool = false,
         approved: Bool = false,
         invitedBy: UUID? = nil,
+        isBanned: Bool = false,
+        banReason: String? = nil,
+        bannedAt: Date? = nil,
+        bannedBy: UUID? = nil,
+        heardAbout: String? = nil,
+        joinReason: String? = nil,
+        applicationComplete: Bool = false,
+        applicationSubmittedAt: Date? = nil,
         notifyRideUpdates: Bool = true,
         notifyMessages: Bool = true,
         notifyAnnouncements: Bool = true,
@@ -114,6 +142,14 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         self.isAdmin = isAdmin
         self.approved = approved
         self.invitedBy = invitedBy
+        self.isBanned = isBanned
+        self.banReason = banReason
+        self.bannedAt = bannedAt
+        self.bannedBy = bannedBy
+        self.heardAbout = heardAbout
+        self.joinReason = joinReason
+        self.applicationComplete = applicationComplete
+        self.applicationSubmittedAt = applicationSubmittedAt
         self.notifyRideUpdates = notifyRideUpdates
         self.notifyMessages = notifyMessages
         self.notifyAnnouncements = notifyAnnouncements
@@ -139,6 +175,14 @@ struct Profile: Codable, Identifiable, Equatable, Sendable {
         isAdmin = try container.decodeIfPresent(Bool.self, forKey: .isAdmin) ?? false
         approved = try container.decodeIfPresent(Bool.self, forKey: .approved) ?? false
         invitedBy = try container.decodeIfPresent(UUID.self, forKey: .invitedBy)
+        isBanned = try container.decodeIfPresent(Bool.self, forKey: .isBanned) ?? false
+        banReason = try container.decodeIfPresent(String.self, forKey: .banReason)
+        bannedAt = try container.decodeIfPresent(Date.self, forKey: .bannedAt)
+        bannedBy = try container.decodeIfPresent(UUID.self, forKey: .bannedBy)
+        heardAbout = try container.decodeIfPresent(String.self, forKey: .heardAbout)
+        joinReason = try container.decodeIfPresent(String.self, forKey: .joinReason)
+        applicationComplete = try container.decodeIfPresent(Bool.self, forKey: .applicationComplete) ?? false
+        applicationSubmittedAt = try container.decodeIfPresent(Date.self, forKey: .applicationSubmittedAt)
         notifyRideUpdates = try container.decodeIfPresent(Bool.self, forKey: .notifyRideUpdates) ?? true
         notifyMessages = try container.decodeIfPresent(Bool.self, forKey: .notifyMessages) ?? true
         notifyAnnouncements = try container.decodeIfPresent(Bool.self, forKey: .notifyAnnouncements) ?? true

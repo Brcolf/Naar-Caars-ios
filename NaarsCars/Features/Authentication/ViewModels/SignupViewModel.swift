@@ -14,16 +14,13 @@ internal import Combine
 final class SignupViewModel: ObservableObject {
     
     // MARK: - Published Properties
-    
-    /// Invite code entered by user
-    @Published var inviteCode: String = ""
-    
+
     /// User's name
     @Published var name: String = ""
-    
+
     /// User's email address
     @Published var email: String = ""
-    
+
     /// User's password
     @Published var password: String = ""
 
@@ -32,32 +29,26 @@ final class SignupViewModel: ObservableObject {
 
     /// User's car (optional)
     @Published var car: String = ""
-    
+
     /// Loading state
     @Published var isLoading: Bool = false
-    
+
     /// Current error message
     @Published var errorMessage: String?
-    
-    /// Validated invite code (set after validation)
-    @Published var validatedInviteCode: InviteCode?
-    
+
     // MARK: - Validation Errors
-    
+
     /// Name validation error
     @Published var nameError: String?
-    
+
     /// Email validation error
     @Published var emailError: String?
-    
+
     /// Password validation error
     @Published var passwordError: String?
 
     /// Confirm password validation error
     @Published var confirmPasswordError: String?
-
-    /// Invite code validation error
-    @Published var inviteCodeError: String?
     
     // MARK: - Private Properties
     
@@ -69,60 +60,33 @@ final class SignupViewModel: ObservableObject {
     }
     
     // MARK: - Validation Methods
-    
-    /// Validate invite code format and check with server
-    func validateInviteCode() async -> Bool {
-        inviteCodeError = nil
-        
-        // Normalize and check format
-        let normalized = InviteCodeGenerator.normalize(inviteCode)
-        
-        guard InviteCodeGenerator.isValidFormat(normalized) else {
-            inviteCodeError = "signup_error_invalid_code_format".localized
-            return false
-        }
-        
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            let code = try await authService.validateInviteCode(normalized)
-            validatedInviteCode = code
-            inviteCodeError = nil
-            return true
-        } catch {
-            if let appError = error as? AppError {
-                switch appError {
-                case .rateLimited:
-                    inviteCodeError = "signup_error_rate_limited".localized
-                case .invalidInviteCode:
-                    inviteCodeError = "signup_error_invalid_or_expired_code".localized
-                default:
-                    inviteCodeError = appError.errorDescription ?? "signup_error_validation_failed".localized
-                }
-            } else {
-                inviteCodeError = "signup_error_validation_failed_retry".localized
-            }
-            return false
-        }
-    }
-    
+
     /// Validate name field
     func validateName() -> Bool {
         nameError = nil
-        
+
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !trimmed.isEmpty else {
             nameError = "signup_error_name_required".localized
             return false
         }
-        
+
         guard trimmed.count >= 2 else {
             nameError = "signup_error_name_too_short".localized
             return false
         }
-        
+
+        guard trimmed.count <= 100 else {
+            nameError = "signup_error_name_too_long".localized
+            return false
+        }
+
+        guard Validators.isSafeUserInput(trimmed) else {
+            nameError = "signup_error_name_invalid_characters".localized
+            return false
+        }
+
         return true
     }
     
@@ -196,43 +160,23 @@ final class SignupViewModel: ObservableObject {
     
     // MARK: - Signup Method
     
-    /// Perform signup with validated data
+    /// Perform signup with validated data (public signup — no invite code)
     func signUp() async throws {
-        AppLogger.info("auth", "signUp() called")
-        AppLogger.info("auth", "validatedInviteCode: \(validatedInviteCode?.code ?? "nil")")
-        
-        guard let inviteCode = validatedInviteCode else {
-            AppLogger.error("auth", "No validated invite code")
-            errorMessage = "signup_error_no_invite_code".localized
-            throw AppError.invalidInviteCode
-        }
-        
-        AppLogger.info("auth", "Validating all fields...")
-        let isValid = validateAll()
-        AppLogger.info("auth", "Validation result: \(isValid)")
-        AppLogger.info("auth", "Field errors - name: \(nameError ?? "nil"), email: \(emailError ?? "nil"), password: \(passwordError ?? "nil")")
-        
-        guard isValid else {
-            AppLogger.error("auth", "Validation failed")
+        guard validateAll() else {
             errorMessage = "signup_error_fields_invalid".localized
             throw AppError.requiredFieldMissing
         }
-        
-        AppLogger.info("auth", "Starting signup process...")
+
         isLoading = true
         errorMessage = nil
-        defer { 
-            isLoading = false
-            AppLogger.info("auth", "Signup process completed, isLoading set to false")
-        }
-        
+        defer { isLoading = false }
+
         do {
             try await authService.signUp(
                 email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                 password: password,
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                car: car.isEmpty ? nil : car.trimmingCharacters(in: .whitespacesAndNewlines),
-                inviteCodeId: inviteCode.id
+                name: Validators.sanitizeUserInput(name, maxLength: 100),
+                car: car.isEmpty ? nil : Validators.sanitizeUserInput(car, maxLength: 100)
             )
             HapticManager.success()
         } catch {

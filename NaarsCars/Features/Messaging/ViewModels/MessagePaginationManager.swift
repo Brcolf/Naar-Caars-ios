@@ -81,20 +81,9 @@ final class MessagePaginationManager {
             }
         }
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                try await repository.syncMessages(conversationId: conversationId)
-                source = "synced"
-            } catch {
-                source = localMessages.isEmpty ? "empty" : "local_only"
-                AppLogger.warning("messaging", "[MessagePaginationManager] Background sync failed: \(error.localizedDescription)")
-            }
-
-            let currentMessages = getMessages()
-            setHasMoreMessages(currentMessages.count >= self.pageSize)
-            self.oldestMessageId = currentMessages.first?.id
-        }
+        // Remote sync is handled by MessagingSyncEngine.hydrateConversation() —
+        // the single network fetch path on conversation open. Removed duplicate
+        // repository.syncMessages() call that was causing double fetches.
 
         await PerformanceMonitor.shared.record(
             operation: "messaging.conversationOpen",

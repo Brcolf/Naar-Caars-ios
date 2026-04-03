@@ -20,6 +20,7 @@ These instructions apply to all work in this repository. Follow them unless the 
 ## Architecture
 
 - **MVVM**: Views in `Features/<FeatureName>/Views/`, ViewModels in `Features/<FeatureName>/ViewModels/`. One primary ViewModel per screen; Views call ViewModels, ViewModels call services in `Core/Services/`.
+- **Push-notify, pull-hydrate**: Realtime WebSockets are scoped to the active conversation only (messages + reactions + typing). All other domains (dashboard, town hall, notifications, conversations) use pull-on-appear with 30s staleness and push-triggered refresh. A centralized `RefreshCoordinator` owns all refresh decisions, staleness tracking, and in-flight dedup. Engines are pure fetch-and-store. ViewModels do not call refresh methods directly — `MainTabView.onChange(of: selectedTab)` is the sole staleness trigger. See `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` for the full spec.
 - **Shared UI**: Reusable components in `NaarsCars/UI/Components/`. Use existing components (e.g. `PrimaryButton`, `EmptyStateView`, `LocationAutocompleteField`) before adding new ones.
 - **Constants**: Use `Constants` in `Core/Utilities/Constants.swift` for animation durations, spacing, timeouts, cache TTLs, rate limits, page sizes, and URLs. Do not introduce new magic numbers; add to the appropriate `Constants` enum if needed.
 

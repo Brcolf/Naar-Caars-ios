@@ -13,6 +13,7 @@ enum ReportContext {
     case comment(id: UUID, authorId: UUID, preview: String)
     case ride(id: UUID, authorId: UUID, preview: String)
     case favor(id: UUID, authorId: UUID, preview: String)
+    case user(id: UUID, name: String)
 }
 
 /// Sheet for reporting user-generated content
@@ -40,6 +41,7 @@ struct ReportContentSheet: View {
         case .comment(_, _, let preview): return preview
         case .ride(_, _, let preview): return preview
         case .favor(_, _, let preview): return preview
+        case .user(_, let name): return name
         }
     }
 
@@ -49,6 +51,7 @@ struct ReportContentSheet: View {
         case .comment: return "town_hall_comment".localized
         case .ride: return "report_content_type_ride".localized
         case .favor: return "report_content_type_favor".localized
+        case .user: return "report_content_type_user".localized
         }
     }
 
@@ -176,6 +179,13 @@ struct ReportContentSheet: View {
                     reporterId: currentUserId,
                     favorId: id,
                     authorId: authorId,
+                    type: selectedReportType,
+                    description: description.isEmpty ? nil : description
+                )
+            case .user(let id, _):
+                try await MessageService.shared.reportUser(
+                    reporterId: currentUserId,
+                    reportedUserId: id,
                     type: selectedReportType,
                     description: description.isEmpty ? nil : description
                 )

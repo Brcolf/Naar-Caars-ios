@@ -78,5 +78,40 @@ final class UserManagementViewModel: ObservableObject {
     func canChangeAdminStatus(for userId: UUID) -> Bool {
         return userId != authService.currentUserId
     }
+
+    /// Ban a user with a required reason
+    func banUser(userId: UUID, reason: String) async {
+        error = nil
+
+        guard userId != authService.currentUserId else {
+            error = AppError.unknown("admin_cannot_restrict_self".localized)
+            return
+        }
+
+        do {
+            try await adminService.banUser(userId: userId, reason: reason)
+            HapticManager.success()
+            await loadAllMembers()
+            AppLogger.info("admin", "Successfully banned user \(userId)")
+        } catch {
+            self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+            AppLogger.error("admin", "Error banning user: \(error.localizedDescription)")
+        }
+    }
+
+    /// Remove ban/restriction from a user
+    func unbanUser(userId: UUID) async {
+        error = nil
+
+        do {
+            try await adminService.unbanUser(userId: userId)
+            HapticManager.success()
+            await loadAllMembers()
+            AppLogger.info("admin", "Successfully unbanned user \(userId)")
+        } catch {
+            self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+            AppLogger.error("admin", "Error unbanning user: \(error.localizedDescription)")
+        }
+    }
 }
 

@@ -39,6 +39,7 @@ enum NotificationTypeRegistry {
         "pending_approval",
         "user_approved",
         "user_rejected",
+        "account_restricted",
         "other"
     ]
 

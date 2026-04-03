@@ -19,7 +19,7 @@ struct ContentView: View {
 
     private var isAuthenticated: Bool {
         if case .ready(let authState) = launchManager.state {
-            return authState == .authenticated || authState == .pendingApproval
+            return authState == .authenticated || authState == .pendingApproval || authState == .needsApplication
         }
         return false
     }
@@ -38,11 +38,22 @@ struct ContentView: View {
 
                     case .unauthenticated:
                         NavigationStack {
-                            LoginView()
+                            WelcomeView()
+                        }
+
+                    case .guest:
+                        MainTabView()
+
+                    case .needsApplication:
+                        NavigationStack {
+                            ApplicationFieldsView()
                         }
 
                     case .pendingApproval:
                         PendingApprovalView()
+
+                    case .banned:
+                        BannedAccountView()
 
                     case .authenticated:
                         MainTabView()
@@ -99,7 +110,10 @@ struct ContentView: View {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             AppLogger.info("lock", "scenePhase: \(oldPhase) → \(newPhase), lockState=\(lockManager.state)")
             if newPhase == .active, isAuthenticated {
-                Task { await AuthService.shared.restartRealtimeSyncEngines() }
+                RefreshCoordinator.shared.handleAppForegrounded()
+                Task { await launchManager.recheckBanStatus() }
+            } else if newPhase == .background {
+                RefreshCoordinator.shared.stopSafetyPoll()
             }
             lockManager.handleScenePhase(newPhase, isAuthenticated: isAuthenticated)
         }

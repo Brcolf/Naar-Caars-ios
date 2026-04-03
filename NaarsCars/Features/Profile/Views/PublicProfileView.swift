@@ -18,6 +18,9 @@ struct PublicProfileView: View {
     @State private var isBlocking = false
     @State private var blockError: String?
     @State private var didBlock = false
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .sendMessage
+    @State private var showReportSheet = false
 
     var body: some View {
         ScrollView {
@@ -32,8 +35,8 @@ struct PublicProfileView: View {
                         fulfilledCount: viewModel.fulfilledCount
                     )
                     
-                    // Phone Section (if available)
-                    if let phoneNumber = profile.phoneNumber {
+                    // Phone Section (if available — hidden for guests)
+                    if !appState.isGuest, let phoneNumber = profile.phoneNumber {
                         phoneSection(phoneNumber: phoneNumber, profile: profile)
                     }
                     
@@ -66,9 +69,15 @@ struct PublicProfileView: View {
         .navigationTitle(viewModel.profile?.name ?? "nav_tab_profile".localized)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let profile = viewModel.profile, profile.id != appState.currentUser?.id {
+            if let profile = viewModel.profile, profile.id != appState.currentUser?.id, !appState.isGuest {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        Button {
+                            showReportSheet = true
+                        } label: {
+                            Label("profile_report_user".localized, systemImage: "exclamationmark.triangle")
+                        }
+
                         if didBlock {
                             Label("profile_user_blocked".localized, systemImage: "hand.raised.fill")
                         } else {
@@ -84,6 +93,19 @@ struct PublicProfileView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showGuestPrompt) {
+            GuestSignInPromptView(
+                reason: guestRestrictionReason,
+                onSignUp: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                }
+            )
         }
         .confirmationDialog(
             "profile_block_user".localized,
@@ -104,6 +126,13 @@ struct PublicProfileView: View {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
             Text(blockError ?? "")
+        }
+        .sheet(isPresented: $showReportSheet) {
+            if let profile = viewModel.profile {
+                ReportContentSheet(
+                    context: .user(id: profile.id, name: profile.name)
+                )
+            }
         }
         .task {
             didBlock = MessageService.shared.isBlocked(userId)
@@ -200,16 +229,21 @@ struct PublicProfileView: View {
     
     private func sendMessageButton(userId: UUID) -> some View {
         Button {
-            Task {
-                guard let currentUserId = appState.currentUser?.id else { return }
-                do {
-                    let conversation = try await ConversationService.shared.getOrCreateDirectConversation(
-                        userId: currentUserId,
-                        otherUserId: userId
-                    )
-                    selectedConversationId = conversation.id
-                } catch {
-                    AppLogger.error("profile", "Error creating conversation: \(error.localizedDescription)")
+            if appState.isGuest {
+                guestRestrictionReason = .sendMessage
+                showGuestPrompt = true
+            } else {
+                Task {
+                    guard let currentUserId = appState.currentUser?.id else { return }
+                    do {
+                        let conversation = try await ConversationService.shared.getOrCreateDirectConversation(
+                            userId: currentUserId,
+                            otherUserId: userId
+                        )
+                        selectedConversationId = conversation.id
+                    } catch {
+                        AppLogger.error("profile", "Error creating conversation: \(error.localizedDescription)")
+                    }
                 }
             }
         } label: {

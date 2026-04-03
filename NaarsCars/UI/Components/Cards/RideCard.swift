@@ -11,7 +11,9 @@ import SwiftUI
 struct RideCard: View {
     let ride: Ride
     var unreadCount: Int = 0
-    
+
+    @Environment(AppState.self) private var appState
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header: Poster info and status
@@ -72,9 +74,9 @@ struct RideCard: View {
                     Image(systemName: "circle.fill")
                         .foregroundColor(.green)
                         .font(.naarsCaption)
-                    AddressText(ride.pickup)
+                    AddressText(ride.pickup, isRedacted: appState.isGuest)
                 }
-                
+
                 HStack(spacing: 8) {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.3))
@@ -82,12 +84,12 @@ struct RideCard: View {
                         .padding(.leading, 4)
                     Spacer()
                 }
-                
+
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.rideAccent)
                         .font(.naarsCallout)
-                    AddressText(ride.destination)
+                    AddressText(ride.destination, isRedacted: appState.isGuest)
                 }
             }
             
@@ -148,7 +150,9 @@ struct RideCard: View {
         .cornerRadius(12)
         .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Ride from \(ride.pickup) to \(ride.destination) on \(ride.date.dateString), \(ride.status.displayText)")
+        .accessibilityLabel(appState.isGuest
+            ? "Ride on \(ride.date.dateString), \(ride.status.displayText)"
+            : "Ride from \(ride.pickup) to \(ride.destination) on \(ride.date.dateString), \(ride.status.displayText)")
         .accessibilityHint("Double-tap to view ride details")
     }
 

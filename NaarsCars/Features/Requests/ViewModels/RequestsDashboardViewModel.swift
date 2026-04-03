@@ -127,6 +127,15 @@ final class RequestsDashboardViewModel: ObservableObject {
 
     /// Load requests (rides + favors) from network and sync to SwiftData
     func loadRequests(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
+        // Guest users viewing user-specific filters have no data — skip the network call
+        if authService.currentUserId == nil && (filter == .mine || filter == .claimed) {
+            filteredRides = []
+            filteredFavors = []
+            filteredRequests = []
+            isLoading = false
+            return
+        }
+
         loadTask?.cancel()
         loadTask = Task { @MainActor in
             defer { loadTask = nil }

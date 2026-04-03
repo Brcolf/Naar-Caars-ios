@@ -28,7 +28,8 @@ final class RequestFilterManager {
         favors: [SDFavor],
         filter: RequestFilter
     ) -> [RequestItem] {
-        guard let userId = authService.currentUserId else { return [] }
+        let userId = authService.currentUserId
+        if userId == nil && filter != .open { return [] }
 
         var allRequests: [RequestItem] = []
 
@@ -98,11 +99,14 @@ final class RequestFilterManager {
 
         switch filter {
         case .open:
-            allRequests = allRequests.filter { $0.isUnclaimed && !$0.isParticipating(userId: userId) }
+            // Guests (userId nil) see all unclaimed. Authenticated users also exclude requests they participate in.
+            allRequests = allRequests.filter { item in
+                item.isUnclaimed && (userId == nil || !item.isParticipating(userId: userId!))
+            }
         case .mine:
-            allRequests = allRequests.filter { $0.isParticipating(userId: userId) }
+            allRequests = allRequests.filter { $0.isParticipating(userId: userId!) }
         case .claimed:
-            allRequests = allRequests.filter { $0.claimedBy == userId }
+            allRequests = allRequests.filter { $0.claimedBy == userId! }
         }
 
         let now = Date()
@@ -117,43 +121,49 @@ final class RequestFilterManager {
     }
 
     func fetchFilteredRides(in context: ModelContext, filter: RequestFilter) -> [SDRide] {
-        guard let userId = authService.currentUserId else { return [] }
+        let userId = authService.currentUserId
+        if userId == nil && filter != .open { return [] }
 
         let predicate: Predicate<SDRide>
         switch filter {
         case .open:
             predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
-            predicate = #Predicate { $0.status != "completed" && ($0.userId == userId || $0.claimedBy == userId) }
+            let uid = userId!
+            predicate = #Predicate { $0.status != "completed" && ($0.userId == uid || $0.claimedBy == uid) }
         case .claimed:
-            predicate = #Predicate { $0.claimedBy == userId && $0.status != "completed" }
+            let uid = userId!
+            predicate = #Predicate { $0.claimedBy == uid && $0.status != "completed" }
         }
 
         let descriptor = FetchDescriptor<SDRide>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
-        if filter == .mine {
-            return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
+        if filter == .mine, let uid = userId {
+            return fetched.filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
         }
         return fetched
     }
 
     func fetchFilteredFavors(in context: ModelContext, filter: RequestFilter) -> [SDFavor] {
-        guard let userId = authService.currentUserId else { return [] }
+        let userId = authService.currentUserId
+        if userId == nil && filter != .open { return [] }
 
         let predicate: Predicate<SDFavor>
         switch filter {
         case .open:
             predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
-            predicate = #Predicate { $0.status != "completed" && ($0.userId == userId || $0.claimedBy == userId) }
+            let uid = userId!
+            predicate = #Predicate { $0.status != "completed" && ($0.userId == uid || $0.claimedBy == uid) }
         case .claimed:
-            predicate = #Predicate { $0.claimedBy == userId && $0.status != "completed" }
+            let uid = userId!
+            predicate = #Predicate { $0.claimedBy == uid && $0.status != "completed" }
         }
 
         let descriptor = FetchDescriptor<SDFavor>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
-        if filter == .mine {
-            return fetched.filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId }
+        if filter == .mine, let uid = userId {
+            return fetched.filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
         }
         return fetched
     }
@@ -194,39 +204,45 @@ final class RequestFilterManager {
 
     /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredRides`.
     private func filterRidesInMemory(_ rides: [SDRide], for filter: RequestFilter) -> [SDRide] {
-        guard let userId = authService.currentUserId else { return [] }
+        let userId = authService.currentUserId
+        if userId == nil && filter != .open { return [] }
         switch filter {
         case .open:
             return rides.filter { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
+            let uid = userId!
             // Matches the predicate (status != completed && (poster or claimer))
             // then the post-fetch participantIds check.
             return rides.filter {
                 $0.status != "completed"
-                    && ($0.userId == userId || $0.claimedBy == userId)
+                    && ($0.userId == uid || $0.claimedBy == uid)
             }.filter {
-                $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId
+                $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid
             }
         case .claimed:
-            return rides.filter { $0.claimedBy == userId && $0.status != "completed" }
+            let uid = userId!
+            return rides.filter { $0.claimedBy == uid && $0.status != "completed" }
         }
     }
 
     /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredFavors`.
     private func filterFavorsInMemory(_ favors: [SDFavor], for filter: RequestFilter) -> [SDFavor] {
-        guard let userId = authService.currentUserId else { return [] }
+        let userId = authService.currentUserId
+        if userId == nil && filter != .open { return [] }
         switch filter {
         case .open:
             return favors.filter { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
+            let uid = userId!
             return favors.filter {
                 $0.status != "completed"
-                    && ($0.userId == userId || $0.claimedBy == userId)
+                    && ($0.userId == uid || $0.claimedBy == uid)
             }.filter {
-                $0.participantIds.contains(userId) || $0.userId == userId || $0.claimedBy == userId
+                $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid
             }
         case .claimed:
-            return favors.filter { $0.claimedBy == userId && $0.status != "completed" }
+            let uid = userId!
+            return favors.filter { $0.claimedBy == uid && $0.status != "completed" }
         }
     }
 

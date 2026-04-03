@@ -14,7 +14,6 @@ struct SignupDetailsView: View {
     }
 
     @ObservedObject var viewModel: SignupViewModel
-    let validatedInviteCode: InviteCode
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) var appState
     @FocusState private var focusedField: SignupField?
@@ -159,12 +158,9 @@ struct SignupDetailsView: View {
                             do {
                                 try await viewModel.signUp()
                                 
-                                // Success! Account was created.
-                                // Directly set state to pendingApproval since new signups require approval.
-                                // Don't use performCriticalLaunch() because:
-                                // 1. If email confirmation is required, there won't be a valid session yet
-                                // 2. The account definitely needs approval (it was just created)
-                                AppLaunchManager.shared.state = .ready(.pendingApproval)
+                                // Success! Account was created with application_complete = false.
+                                // Route to application fields to collect heardAbout + joinReason.
+                                AppLaunchManager.shared.state = .ready(.needsApplication)
                                 
                                 let generator = UINotificationFeedbackGenerator()
                                 generator.notificationOccurred(.success)
@@ -201,12 +197,6 @@ struct SignupDetailsView: View {
                 Button("common_done".localized) { focusedField = nil }
             }
         }
-        .onAppear {
-            // Ensure the ViewModel has the validated invite code set
-            if viewModel.validatedInviteCode == nil {
-                viewModel.validatedInviteCode = validatedInviteCode
-            }
-        }
     }
 
     private func moveFocus(forward: Bool) {
@@ -221,13 +211,7 @@ struct SignupDetailsView: View {
 
 #Preview {
     NavigationStack {
-        SignupDetailsView(
-            viewModel: SignupViewModel(),
-            validatedInviteCode: InviteCode(
-                code: "NCABCD1234",
-                createdBy: UUID()
-            )
-        )
-        .environment(AppState())
+        SignupDetailsView(viewModel: SignupViewModel())
+            .environment(AppState())
     }
 }

@@ -11,7 +11,10 @@ import SwiftUI
 struct TownHallFeedView: View {
     @StateObject private var viewModel = TownHallFeedViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
+    @Environment(AppState.self) private var appState
     @State private var showCreatePost = false
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .createPost
     @State private var highlightedPostId: UUID?
     @State private var highlightTask: Task<Void, Never>?
     @State private var openCommentsTarget: PostCommentsTarget?
@@ -22,7 +25,12 @@ struct TownHallFeedView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        showCreatePost = true
+                        if appState.isGuest {
+                            guestRestrictionReason = .createPost
+                            showGuestPrompt = true
+                        } else {
+                            showCreatePost = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.naarsTitle3)
@@ -31,6 +39,19 @@ struct TownHallFeedView: View {
             }
             .sheet(isPresented: $showCreatePost) {
                 CreatePostView()
+            }
+            .sheet(isPresented: $showGuestPrompt) {
+                GuestSignInPromptView(
+                    reason: guestRestrictionReason,
+                    onSignUp: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
+                    },
+                    onLogIn: {
+                        appState.isGuestMode = false
+                        AppLaunchManager.shared.exitGuestMode()
+                    }
+                )
             }
             .task {
                 await viewModel.loadPosts()
@@ -92,7 +113,12 @@ struct TownHallFeedView: View {
             message: "townhall_be_first_to_share".localized,
             actionTitle: "townhall_create_post".localized,
             action: {
-                showCreatePost = true
+                if appState.isGuest {
+                    guestRestrictionReason = .createPost
+                    showGuestPrompt = true
+                } else {
+                    showCreatePost = true
+                }
             },
             customImage: "naars_community_icon"
         )
@@ -163,8 +189,11 @@ struct TownHallFeedView: View {
                 // Comment action is handled within TownHallPostCard
             },
             onVote: { postId, voteType in
-                Task {
-                    await viewModel.votePost(postId: postId, voteType: voteType)
+                if appState.isGuest {
+                    guestRestrictionReason = .voteOnPost
+                    showGuestPrompt = true
+                } else {
+                    Task { await viewModel.votePost(postId: postId, voteType: voteType) }
                 }
             },
             isHighlighted: highlightedPostId == post.id

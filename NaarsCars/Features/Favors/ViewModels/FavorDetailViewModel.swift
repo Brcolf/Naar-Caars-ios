@@ -70,6 +70,7 @@ final class FavorDetailViewModel: ObservableObject {
     /// Post a question on this favor
     /// - Parameter question: Question text
     func postQuestion(_ question: String) async {
+        guard AuthService.shared.currentUserId != nil else { return }
         guard canAskQuestions else {
             error = "favor_edit_questions_disabled".localized
             return

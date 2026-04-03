@@ -10,6 +10,7 @@ import SwiftUI
 /// Main tab view with 4 tabs for authenticated users
 /// Notifications are shown as badges on relevant tabs
 struct MainTabView: View {
+    @Environment(AppState.self) private var appState
     @State private var badgeManager = BadgeCountManager.shared
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var promptCoordinator = PromptCoordinator.shared
@@ -18,6 +19,7 @@ struct MainTabView: View {
     @State private var showGuidelinesAcceptance = false
     @State private var showNotificationsSheet = false
     @State private var isNotificationsSheetVisible = false
+    @State private var showGuestDeepLinkPrompt = false
 
     @ViewBuilder
     private var toastOverlay: some View {
@@ -56,7 +58,13 @@ struct MainTabView: View {
                 }
                 .accessibilityHint("View ride and favor requests")
             
-            ConversationsListView()
+            Group {
+                if appState.isGuest {
+                    GuestMessagesView()
+                } else {
+                    ConversationsListView()
+                }
+            }
                 .tag(1)
                 .badge(badgeManager.counts.messages > 0 ? String(badgeManager.counts.messages) : nil)
                 .tabItem {
@@ -72,7 +80,13 @@ struct MainTabView: View {
                 }
                 .accessibilityHint("View community features")
             
-            MyProfileView()
+            Group {
+                if appState.isGuest {
+                    GuestProfileView()
+                } else {
+                    MyProfileView()
+                }
+            }
                 .tag(3)
                 .badge(badgeManager.counts.profile > 0 ? String(badgeManager.counts.profile) : nil)
                 .tabItem {
@@ -88,7 +102,25 @@ struct MainTabView: View {
             if let tab = NavigationCoordinator.Tab(rawValue: newTab) {
                 navigationCoordinator.selectedTab = tab
             }
-            
+
+            // Notify RefreshCoordinator of visible domain
+            let domain: RefreshCoordinator.Domain? = {
+                switch newTab {
+                case 0: return .dashboard
+                case 1: return .conversations
+                case 2: return .townHall
+                case 3: return nil  // profile — no refresh domain
+                default: return nil
+                }
+            }()
+            RefreshCoordinator.shared.setVisibleDomain(domain)
+
+            // Tear down conversation WebSocket when leaving messaging tab
+            if oldValue == 1 && newTab != 1 {
+                Task { await MessagingSyncEngine.shared.cancelGracePeriodAndUnsubscribe() }
+            }
+
+            guard !appState.isGuest else { return }
             // Clear badges when navigating to their respective tabs
             Task {
                 switch newTab {
@@ -107,6 +139,21 @@ struct MainTabView: View {
         }
         .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
             guard let intent else { return }
+
+            // Guest guard: admin-only intents are silently dropped; auth-required intents
+            // show the sign-in prompt and clear the pending intent.
+            if appState.isGuest {
+                if navigationCoordinator.intentIsAdminOnly(intent) {
+                    navigationCoordinator.pendingIntent = nil
+                    return
+                }
+                if navigationCoordinator.intentRequiresAuth(intent) {
+                    navigationCoordinator.pendingIntent = nil
+                    showGuestDeepLinkPrompt = true
+                    return
+                }
+            }
+
             if case .notifications = intent {
                 showNotificationsSheet = true
                 return
@@ -130,6 +177,7 @@ struct MainTabView: View {
             }
         }
         .task {
+            guard !appState.isGuest else { return }
             // Check if user needs to accept community guidelines
             checkGuidelinesAcceptance()
             // Refresh badges on appear
@@ -143,7 +191,9 @@ struct MainTabView: View {
             showGuidelinesAcceptance = false
         }
         .overlay(alignment: .top) {
-            toastOverlay
+            if !appState.isGuest {
+                toastOverlay
+            }
         }
         .offlineBanner()
         .sheet(isPresented: $showNotificationsSheet, onDismiss: {
@@ -221,6 +271,19 @@ struct MainTabView: View {
                     }
                 )
             }
+        }
+        .sheet(isPresented: $showGuestDeepLinkPrompt) {
+            GuestSignInPromptView(
+                reason: .deepLinkSignIn,
+                onSignUp: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                }
+            )
         }
         .alert("nav_open_link".localized, isPresented: $navigationCoordinator.showDeepLinkConfirmation) {
             Button("nav_open".localized, role: .destructive) {

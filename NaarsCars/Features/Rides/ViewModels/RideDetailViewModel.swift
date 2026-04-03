@@ -71,6 +71,7 @@ final class RideDetailViewModel: ObservableObject {
     /// Post a question on this ride
     /// - Parameter question: Question text
     func postQuestion(_ question: String) async {
+        guard AuthService.shared.currentUserId != nil else { return }
         guard canAskQuestions else {
             error = "ride_edit_questions_disabled".localized
             return

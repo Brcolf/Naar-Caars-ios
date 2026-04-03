@@ -16,9 +16,11 @@ struct TownHallPostCard: View {
     let onVote: ((UUID, VoteType?) -> Void)? // Post ID, Vote type (nil = remove vote)
     let isHighlighted: Bool
     
+    @Environment(AppState.self) private var appState
     @State private var showDeleteAlert = false
     @State private var showComments = false
     @State private var showReportSheet = false
+    @State private var showGuestPrompt = false
     @State private var hasReported = false
     
     init(
@@ -254,7 +256,11 @@ struct TownHallPostCard: View {
                         .foregroundColor(.secondary.opacity(0.5))
                     } else {
                         Button(action: {
-                            showReportSheet = true
+                            if appState.isGuest {
+                                showGuestPrompt = true
+                            } else {
+                                showReportSheet = true
+                            }
                         }) {
                             Image(systemName: "flag")
                                 .font(.naarsCaption)
@@ -357,6 +363,19 @@ struct TownHallPostCard: View {
                     preview: post.content.prefix(100) + (post.content.count > 100 ? "..." : "")
                 ),
                 onReported: { hasReported = true }
+            )
+        }
+        .sheet(isPresented: $showGuestPrompt) {
+            GuestSignInPromptView(
+                reason: .reportContent,
+                onSignUp: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                }
             )
         }
         .alert("townhall_delete_post".localized, isPresented: $showDeleteAlert) {

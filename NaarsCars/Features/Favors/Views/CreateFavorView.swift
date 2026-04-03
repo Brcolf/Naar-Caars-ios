@@ -11,16 +11,58 @@ import SwiftUI
 struct CreateFavorView: View {
     @StateObject private var viewModel = CreateFavorViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
     var onFavorCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .postFavor
     /// Deferred so LocationService init runs off the first frame while user fills title/description.
     @State private var locationServiceReady = false
     
     var body: some View {
         NavigationStack {
             Form {
+                if appState.isGuest {
+                    Section {
+                        VStack(spacing: 20) {
+                            Spacer().frame(height: 24)
+
+                            Image(systemName: "lock.shield")
+                                .font(.system(size: 48))
+                                .foregroundColor(.naarsPrimary.opacity(0.6))
+
+                            Text(GuestRestrictionReason.postFavor.title)
+                                .font(.naarsTitle2)
+                                .multilineTextAlignment(.center)
+
+                            Text(GuestRestrictionReason.postFavor.message)
+                                .font(.naarsBody)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 16)
+
+                            VStack(spacing: 12) {
+                                PrimaryButton(title: "guest_prompt_sign_up".localized) {
+                                    appState.isGuestMode = false
+                                    AppLaunchManager.shared.exitGuestMode()
+                                }
+                                SecondaryButton(title: "guest_prompt_log_in".localized) {
+                                    appState.isGuestMode = false
+                                    AppLaunchManager.shared.exitGuestMode()
+                                }
+                            }
+                            .padding(.horizontal, 32)
+
+                            Spacer().frame(height: 24)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                } else {
+
                 Section("favor_create_section_title_description".localized) {
                     TextField("favor_create_title_placeholder".localized, text: $viewModel.title)
                         .accessibilityIdentifier("createFavor.title")
@@ -106,7 +148,12 @@ struct CreateFavorView: View {
                 
                 Section("favor_create_section_participants".localized) {
                     Button {
-                        showAddParticipants = true
+                        if appState.isGuest {
+                            guestRestrictionReason = .addParticipants
+                            showGuestPrompt = true
+                        } else {
+                            showAddParticipants = true
+                        }
                     } label: {
                         HStack {
                             Text(viewModel.selectedParticipantIds.isEmpty ? "favor_create_add_participants".localized : "favor_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
@@ -132,6 +179,7 @@ struct CreateFavorView: View {
                             .font(.naarsCaption)
                     }
                 }
+                } // end else (authenticated form sections)
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
@@ -153,26 +201,27 @@ struct CreateFavorView: View {
                     .accessibilityHint("Dismiss without creating a favor")
                 }
                 
+                if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("favor_create_post".localized) {
-                        Task {
-                            do {
-                                let favor = try await viewModel.createFavor()
-                                // Call callback with created favor ID before dismissing
-                                onFavorCreated?(favor.id)
-                                showSuccess = true
-                                HapticManager.success()
-                                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
-                                dismiss()
-                            } catch {
-                                showErrorAlert = true
+                            Task {
+                                do {
+                                    let favor = try await viewModel.createFavor()
+                                    onFavorCreated?(favor.id)
+                                    showSuccess = true
+                                    HapticManager.success()
+                                    try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                                    dismiss()
+                                } catch {
+                                    showErrorAlert = true
+                                }
                             }
-                        }
                     }
                     .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createFavor.post")
                     .accessibilityLabel("Post favor")
                     .accessibilityHint("Double-tap to submit this favor request")
+                }
                 }
             }
             .sheet(isPresented: $showAddParticipants) {

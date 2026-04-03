@@ -279,7 +279,21 @@ async function sendPushToUser(
   body: string,
   data: Record<string, any>
 ): Promise<{ sent: boolean; devices?: number; successes?: number; failures?: number; skipped?: boolean; reason?: string }> {
-  
+
+  // Skip notifications for banned users (except the ban notification itself)
+  if (notificationType !== NOTIFICATION_TYPES.ACCOUNT_RESTRICTED) {
+    const { data: recipientProfile } = await supabase
+      .from('profiles')
+      .select('is_banned')
+      .eq('id', userId)
+      .single()
+
+    if (recipientProfile?.is_banned) {
+      console.log(`Skipping notification for banned user: ${userId}`)
+      return { sent: false, skipped: true, reason: 'user_banned' }
+    }
+  }
+
   // Get user's push tokens
   const { data: tokens, error: tokenError } = await supabase
     .from('push_tokens')
@@ -305,6 +319,7 @@ async function sendPushToUser(
       sound: 'default',
       badge: badgeCount,
       'mutable-content': 1,
+      'content-available': 1,
     },
     type: notificationType,
     ...data

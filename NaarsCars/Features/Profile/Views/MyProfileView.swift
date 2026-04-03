@@ -11,15 +11,12 @@ import PhotosUI
 /// View for displaying and managing current user's profile
 struct MyProfileView: View {
     @StateObject private var viewModel = MyProfileViewModel()
+    @Environment(AppState.self) private var appState
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showEditProfile = false
     @State private var showLogoutAlert = false
     @State private var showImagePicker = false
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var showRateLimitAlert = false
-    @State private var rateLimitMessage: String?
-    @State private var showInvitationWorkflow = false
-
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
     @State private var isDeletingAccount = false
@@ -73,9 +70,9 @@ struct MyProfileView: View {
                             }
                             
                             accountSettingsSection()
-                            
-                            // Invite Codes Section
-                            inviteCodesSection()
+
+                            // Share App Section
+                            shareAppSection()
 
                             // Badges Section
                             BadgeListSection(earnedBadges: badges)
@@ -179,23 +176,20 @@ struct MyProfileView: View {
                     await viewModel.refreshProfile(userId: userId)
                 }
             }
-            .task {
-                // If auth state hasn't propagated yet (user tapped profile tab
-                // immediately after sign-in), wait briefly for it to settle.
-                var userId = AuthService.shared.currentUserId
-                if userId == nil {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    userId = AuthService.shared.currentUserId
-                }
+            .task(id: appState.currentUser?.id) {
+                // Reactive: fires immediately if currentUser is set, or re-fires
+                // the moment currentUser arrives after deferred loading completes.
+                guard let userId = appState.currentUser?.id else { return }
 
-                if let userId {
-                    async let profileTask: Void = viewModel.loadProfile(userId: userId)
-                    async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
-                    await profileTask
-                    badges = (try? await badgesTask) ?? []
+                // loadProfile has an internal cache guard — returns immediately
+                // if data for this user is already loaded, preventing the
+                // thundering herd of 6+ RPCs on every tab switch.
+                await viewModel.loadProfile(userId: userId)
+
+                // Only fetch badges if we don't already have them for this user
+                if badges.isEmpty {
+                    badges = (try? await LeaderboardService.shared.fetchUserBadges(userId: userId)) ?? []
                     BadgeCache.shared.store(badges: badges, for: userId)
-                } else {
-                    viewModel.error = AppError.notAuthenticated
                 }
             }
             .sheet(isPresented: $showEditProfile) {
@@ -239,14 +233,6 @@ struct MyProfileView: View {
             } message: {
                 Text("profile_confirm_deletion_message".localized)
             }
-            .alert("profile_daily_limit_reached".localized, isPresented: $showRateLimitAlert) {
-                Button("common_ok".localized, role: .cancel) {
-                    rateLimitMessage = nil
-                    viewModel.error = nil
-                }
-            } message: {
-                Text(rateLimitMessage ?? "profile_invite_limit_message".localized)
-            }
             .alert("profile_deletion_failed".localized, isPresented: $showDeleteError) {
                 Button("common_ok".localized, role: .cancel) {
                     deleteErrorMessage = ""
@@ -263,16 +249,6 @@ struct MyProfileView: View {
                 }
             } message: {
                 Text("profile_account_deleted_message".localized)
-            }
-            .sheet(isPresented: $showInvitationWorkflow) {
-                if let userId = AuthService.shared.currentUserId {
-                    InvitationWorkflowView(userId: userId) { code in
-                        // Code generated - refresh profile to show new code
-                        Task {
-                            await viewModel.loadProfile(userId: userId)
-                        }
-                    }
-                }
             }
             .sheet(item: $activeProfileSheet) { sheet in
                 switch sheet {
@@ -372,25 +348,24 @@ struct MyProfileView: View {
         )
     }
     
-    // MARK: - Invite Codes Section
-    
-    private func inviteCodesSection() -> some View {
+    // MARK: - Share App Section
+
+    @State private var showShareSheet = false
+
+    private func shareAppSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("profile_invite_codes".localized)
+                Text("profile_share_app_title".localized)
                     .font(.naarsHeadline)
                 Spacer()
             }
-            
-            // Only show Generate button - no status messages
+
             Button(action: {
-                if AuthService.shared.currentUserId != nil {
-                    showInvitationWorkflow = true
-                }
+                showShareSheet = true
             }) {
                 HStack {
-                    Image(systemName: "person.badge.plus")
-                    Text("profile_invite_neighbor".localized)
+                    Image(systemName: "square.and.arrow.up")
+                    Text("profile_invite_friends".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -406,6 +381,12 @@ struct MyProfileView: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
+            .sheet(isPresented: $showShareSheet) {
+                ShareSheet(items: [
+                    "profile_share_message".localized,
+                    URL(string: Constants.URLs.appStore)!
+                ] as [Any])
+            }
         }
         .padding()
         .background(Color.naarsCardBackground)
@@ -598,147 +579,6 @@ struct MyProfileView: View {
         default:
             break
         }
-    }
-}
-
-// MARK: - Supporting Views
-
-private struct InviteCodeRow: View {
-    let codeWithInvitee: InviteCodeWithInvitee
-    @State private var showCopiedToast = false
-    @State private var showShareSheet = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-            HStack {
-                Text(formatCode(codeWithInvitee.code))
-                    .font(.system(.title3, design: .monospaced))
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                if codeWithInvitee.isUsed {
-                    Text("profile_invite_used".localized)
-                        .font(.naarsCaption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.gray.opacity(0.2))
-                        .foregroundColor(.secondary)
-                        .cornerRadius(8)
-                } else {
-                    Text("profile_invite_available".localized)
-                        .font(.naarsCaption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.green.opacity(0.2))
-                        .foregroundColor(.green)
-                        .cornerRadius(8)
-                }
-            }
-            
-            // Show invitee info if used
-            if codeWithInvitee.isUsed {
-                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                    if let inviteeName = codeWithInvitee.inviteeName {
-                        Text(String(format: "profile_invite_used_by".localized, inviteeName))
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if let usedAt = codeWithInvitee.usedAt {
-                        Text(usedAt.dateString)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            
-            // Action buttons
-            if !codeWithInvitee.isUsed {
-                HStack(spacing: 12) {
-                    Button(action: {
-                        copyCode(codeWithInvitee.code)
-                    }) {
-                        HStack(spacing: Constants.Spacing.xs) {
-                            Image(systemName: "doc.on.doc")
-                            Text("profile_copy".localized)
-                        }
-                        .font(.naarsCaption)
-                        .foregroundColor(.naarsPrimary)
-                    }
-                    
-                    Button(action: {
-                        showShareSheet = true
-                    }) {
-                        HStack(spacing: Constants.Spacing.xs) {
-                            Image(systemName: "square.and.arrow.up")
-                            Text("profile_share".localized)
-                        }
-                        .font(.naarsCaption)
-                        .foregroundColor(.naarsPrimary)
-                    }
-                }
-                .padding(.top, 4)
-            }
-        }
-        .padding()
-        .background(Color.naarsBackgroundSecondary)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-        .sheet(isPresented: $showShareSheet) {
-            ShareSheet(items: [generateShareMessage(codeWithInvitee.code)])
-        }
-        .overlay(
-            Group {
-                if showCopiedToast {
-                    VStack {
-                        Text("profile_copied".localized)
-                            .font(.naarsCaption)
-                            .padding(Constants.Spacing.sm)
-                            .background(Color(.systemGray))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                        Spacer()
-                    }
-                    .padding()
-                    .transition(.opacity)
-                }
-            },
-            alignment: .top
-        )
-        .onChange(of: showCopiedToast) { _, newValue in
-            if newValue {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation {
-                        showCopiedToast = false
-                    }
-                }
-            }
-        }
-    }
-    
-    private func formatCode(_ code: String) -> String {
-        InviteCodeFormatter.formatCode(code)
-    }
-    
-    private func copyCode(_ code: String) {
-        // Copy raw code without formatting
-        UIPasteboard.general.string = code
-        
-        // Haptic feedback
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-        
-        // Show toast
-        withAnimation {
-            showCopiedToast = true
-        }
-    }
-    
-    private func generateShareMessage(_ code: String) -> String {
-        InviteCodeFormatter.generateShareMessage(code)
     }
 }
 

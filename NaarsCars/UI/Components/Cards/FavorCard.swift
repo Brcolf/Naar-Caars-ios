@@ -11,7 +11,9 @@ import SwiftUI
 struct FavorCard: View {
     let favor: Favor
     var unreadCount: Int = 0
-    
+
+    @Environment(AppState.self) private var appState
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header: Poster info and status
@@ -77,7 +79,7 @@ struct FavorCard: View {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.favorAccent) // Teal/cyan for favors
                         .font(.naarsCallout)
-                    AddressText(favor.location)
+                    AddressText(favor.location, isRedacted: appState.isGuest)
                 }
                 
                 HStack(spacing: 8) {
@@ -139,7 +141,9 @@ struct FavorCard: View {
         .cornerRadius(12)
         .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Favor \(favor.title) at \(favor.location) on \(favor.date.dateString), \(favor.status.displayText)")
+        .accessibilityLabel(appState.isGuest
+            ? "Favor \(favor.title) on \(favor.date.dateString), \(favor.status.displayText)"
+            : "Favor \(favor.title) at \(favor.location) on \(favor.date.dateString), \(favor.status.displayText)")
         .accessibilityHint("Double-tap to view favor details")
     }
 

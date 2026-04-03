@@ -217,19 +217,9 @@ final class RealtimeManager {
     /// Shared singleton instance
     static let shared = RealtimeManager()
     
-    /// Maximum concurrent subscriptions across app features.
-    private let maxConcurrentSubscriptions = 30
-    
-    /// Protected channel prefixes that should not be evicted when possible
-    private let protectedChannelPrefixes = [
-        "messages:",
-        "typing:",
-        "rides:sync",
-        "favors:sync",
-        "notifications:sync",
-        "town-hall-",
-        "requests-dashboard-"
-    ]
+    /// Maximum concurrent subscriptions. With at most ~3 active channels
+    /// (messages + reactions + typing for one conversation), 10 is a generous ceiling.
+    private let maxConcurrentSubscriptions = 10
 
     /// Active channel subscriptions
     private var activeChannels: [String: ChannelSubscription] = [:]
@@ -251,8 +241,27 @@ final class RealtimeManager {
         setupAppLifecycleObservers()
     }
     
+    // MARK: - Session Lifecycle
+
+    /// Synchronous state clear for sign-out fast path.
+    /// Cancels stream-consumer tasks, empties all tracking dictionaries, kills timers.
+    /// Does NOT call removeChannel/unsubscribeAll (async, can hang).
+    func clearAllState() {
+        let channelCount = activeChannels.count
+        let configCount = subscriptionConfigs.count
+        for (_, sub) in activeChannels {
+            sub.tasks.forEach { $0.cancel() }
+        }
+        activeChannels.removeAll()
+        subscriptionConfigs.removeAll()
+        backgroundUnsubscribeTimer?.invalidate()
+        backgroundUnsubscribeTimer = nil
+        isConnected = false
+        AppLogger.realtime.info("Cleared realtime state channels=\(channelCount) configs=\(configCount)")
+    }
+
     // MARK: - Public Methods
-    
+
     /// Subscribe to realtime updates for a table
     /// - Parameters:
     ///   - channelName: Unique identifier for this subscription
@@ -331,6 +340,13 @@ final class RealtimeManager {
             filter: filter
         )
         
+        // Pre-subscribe cancellation guard — avoid wasted network call
+        guard !Task.isCancelled else {
+            await supabaseClient.removeChannel(channel)
+            subscriptionConfigs.removeValue(forKey: channelName)
+            return
+        }
+
         // Subscribe to the channel (using subscribeWithError instead of deprecated subscribe)
         do {
             AppLogger.realtime.info("Subscribing to channel: \(channelName) table: \(table) filter: \(filter ?? "(none)")")
@@ -342,11 +358,19 @@ final class RealtimeManager {
             }
         } catch {
             AppLogger.realtime.error("Failed to subscribe to channel \(channelName): \(error)")
-            // Don't throw - log the error but continue
-            // The caller can check if subscription was successful by checking activeChannels
+            await supabaseClient.removeChannel(channel)
+            subscriptionConfigs.removeValue(forKey: channelName)
             return
         }
-        
+
+        // Post-subscribe cancellation guard — catch race where cancel arrived during network call
+        guard !Task.isCancelled else {
+            await channel.unsubscribe()
+            await supabaseClient.removeChannel(channel)
+            subscriptionConfigs.removeValue(forKey: channelName)
+            return
+        }
+
         var tasks: [Task<Void, Never>] = []
         
         if let onInsert, let insertStream {
@@ -415,6 +439,18 @@ final class RealtimeManager {
             })
         }
         
+        // Post-signout guard: if sign-out started while this subscribe was in-flight,
+        // discard the subscription immediately to prevent orphaned channels.
+        if AuthService.shared.isSigningOut {
+            AppLogger.realtime.warning("Subscribe completed during sign-out — discarding channel: \(channelName)")
+            assertionFailure("[RealtimeManager] Late subscription completed after sign-out started: \(channelName). This is a lifecycle regression.")
+            tasks.forEach { $0.cancel() }
+            await channel.unsubscribe()
+            await supabaseClient.removeChannel(channel)
+            subscriptionConfigs.removeValue(forKey: channelName)
+            return
+        }
+
         // Store subscription
         activeChannels[channelName] = ChannelSubscription(
             channel: channel,
@@ -423,7 +459,7 @@ final class RealtimeManager {
             tasks: tasks
         )
         isConnected = true
-        
+
         AppLogger.realtime.info("Subscribed to channel: \(channelName) (table: \(table))")
     }
     
@@ -472,20 +508,12 @@ final class RealtimeManager {
     
     // MARK: - Private Methods
     
-    /// Remove the oldest subscription to make room for a new one
+    /// Remove the oldest subscription to make room for a new one.
+    /// With at most ~3 concurrent channels all channels are treated equally.
     private func removeOldestSubscription() async {
-        guard !activeChannels.isEmpty else { return }
-        
-        // Prefer evicting non-protected channels first
-        let nonProtected = activeChannels.filter { key, _ in
-            !protectedChannelPrefixes.contains { key.hasPrefix($0) }
-        }
-        
-        let candidatePool = nonProtected.isEmpty ? activeChannels : nonProtected
-        guard let oldest = candidatePool.min(by: { $0.value.subscribedAt < $1.value.subscribedAt }) else {
+        guard let oldest = activeChannels.min(by: { $0.value.subscribedAt < $1.value.subscribedAt }) else {
             return
         }
-        
         AppLogger.realtime.warning("Removing oldest subscription: \(oldest.key) to make room for new subscription")
         await unsubscribe(channelName: oldest.key)
     }
@@ -494,70 +522,6 @@ final class RealtimeManager {
     private func resubscribeAll() async {
         let configs = Array(subscriptionConfigs.values)
         for config in configs {
-            await subscribe(
-                channelName: config.channelName,
-                table: config.table,
-                filter: config.filter,
-                onInsert: config.onInsert,
-                onUpdate: config.onUpdate,
-                onDelete: config.onDelete
-            )
-        }
-    }
-
-    // MARK: - Staggered Reconnection
-
-    /// Priority tiers for staggered reconnection on app foreground.
-    /// Channels are reconnected in tier order with small delays between tiers
-    /// to avoid flooding the MainActor with simultaneous sync events.
-    private static let reconnectionTiers: [[String]] = [
-        // Tier 1 (highest priority): User-facing messaging channels
-        ["messages:", "typing:"],
-        // Tier 2: Dashboard sync channels
-        ["rides:sync", "favors:sync"],
-        // Tier 3: Remaining channels (notifications, town-hall, requests, etc.)
-        // — handled implicitly by resubscribing everything not yet restored
-    ]
-
-    /// Delay between reconnection tiers (milliseconds)
-    private static let tierDelayMilliseconds: UInt64 = 200
-
-    /// Resubscribe to tracked channels in priority order with small delays
-    /// between tiers so that user-facing channels recover first and buffered
-    /// events don't all hit the MainActor simultaneously.
-    private func resubscribeStaggered() async {
-        let allConfigs = subscriptionConfigs
-        guard !allConfigs.isEmpty else { return }
-
-        var resubscribed = Set<String>()
-
-        for tier in Self.reconnectionTiers {
-            let tierConfigs = allConfigs.filter { channelName, _ in
-                tier.contains(where: { channelName.hasPrefix($0) })
-                    && !resubscribed.contains(channelName)
-            }
-
-            for (_, config) in tierConfigs {
-                await subscribe(
-                    channelName: config.channelName,
-                    table: config.table,
-                    filter: config.filter,
-                    onInsert: config.onInsert,
-                    onUpdate: config.onUpdate,
-                    onDelete: config.onDelete
-                )
-                resubscribed.insert(config.channelName)
-            }
-
-            // Small yield between tiers to let the UI settle
-            if !tierConfigs.isEmpty {
-                try? await Task.sleep(nanoseconds: Self.tierDelayMilliseconds * 1_000_000)
-            }
-        }
-
-        // Final tier: everything not yet resubscribed
-        let remainingConfigs = allConfigs.filter { !resubscribed.contains($0.key) }
-        for (_, config) in remainingConfigs {
             await subscribe(
                 channelName: config.channelName,
                 table: config.table,
@@ -639,6 +603,10 @@ final class RealtimeManager {
     }
 
     private func restoreTrackedSubscriptionsIfNeeded(reason: String) async {
+        assert(
+            subscriptionConfigs.isEmpty || AuthService.shared.currentUserId != nil,
+            "[RealtimeManager] Stale configs found with no authenticated user — sign-out cleanup missed"
+        )
         guard !subscriptionConfigs.isEmpty else { return }
 
         let hasMissingChannels = activeChannels.count < subscriptionConfigs.count
@@ -652,9 +620,9 @@ final class RealtimeManager {
             await realtime.setAuth(accessToken)
         }
 
-        await resubscribeStaggered()
+        await resubscribeAll()
         AppLogger.realtime.info(
-            "Resubscribed \(self.subscriptionConfigs.count) tracked channel(s) on \(reason) (staggered)"
+            "Resubscribed \(self.subscriptionConfigs.count) tracked channel(s) on \(reason)"
         )
     }
     

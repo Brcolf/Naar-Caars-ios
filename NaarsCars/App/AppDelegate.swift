@@ -88,8 +88,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Schedule next refresh
         scheduleAppRefresh()
 
-        let syncTask = Task {
-            await DashboardSyncEngine.shared.syncAll()
+        let syncTask = Task { @MainActor in
+            do {
+                let metrics = try await DashboardSyncEngine.shared.performFullSync()
+                RefreshCoordinator.shared.markSyncCompleted(.dashboard, metrics: metrics)
+            } catch {
+                RefreshCoordinator.shared.markSyncFailed(.dashboard, error: error, partial: nil)
+            }
         }
 
         task.expirationHandler = {
@@ -125,19 +130,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func handleURL(_ url: URL) {
-        // Handle invite code deep links: https://naarscars.com/signup?code=CODE
-        // This will be handled by SignupInviteCodeView's onOpenURL modifier
         AppLogger.info("app", "Received URL: \(url.absoluteString)")
-        
-        // Post notification for signup view to handle
-        if url.host == "naarscars.com" || url.host == "www.naarscars.com",
-           url.path == "/signup" {
-            NotificationCenter.default.post(
-                name: .handleInviteCodeDeepLink,
-                object: nil,
-                userInfo: ["url": url]
-            )
-        }
+        // Legacy /signup?code=CODE deep links are no longer handled (invite codes removed).
+        // New signup flow is through the public WelcomeView.
     }
     
     // MARK: - Remote Notification Registration
@@ -258,7 +253,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let userInfo = notification.request.content.userInfo
         PushNotificationService.shared.recordLastPushPayload(userInfo)
-        
+
+        // Trigger data refresh based on push type
+        PushNotificationService.shared.handlePushReceived(userInfo: userInfo)
+
         // Avoid duplicate alerts when in Messages; allow banners elsewhere in foreground.
         if let type = userInfo["type"] as? String,
            type == "message" || type == "added_to_conversation" {
@@ -274,6 +272,53 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound, .badge])
     }
     
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        // Deadline timer — guarantees completion handler is always called (INV-B4)
+        let deadline = Task {
+            try? await Task.sleep(for: .seconds(Constants.Timing.backgroundPushDeadline))
+            completionHandler(.failed)
+        }
+
+        Task { @MainActor in
+            guard let typeString = userInfo["type"] as? String,
+                  let type = NotificationType(rawValue: typeString) else {
+                deadline.cancel()
+                completionHandler(.noData)
+                return
+            }
+
+            let entityId: UUID? = {
+                guard let key = type.entityIdKey,
+                      let idString = userInfo[key] as? String else { return nil }
+                return UUID(uuidString: idString)
+            }()
+
+            // Route through coordinator — targeted if entity ID available
+            let domains = type.affectedDomains
+            for domain in domains {
+                if let entityId {
+                    RefreshCoordinator.shared.performTargetedRefresh(
+                        domain, entityId: entityId, trigger: "backgroundPush:\(typeString)"
+                    )
+                } else {
+                    RefreshCoordinator.shared.invalidate(domains)
+                }
+            }
+
+            // Badges always refresh (cheap, no SwiftData)
+            RefreshCoordinator.shared.performTargetedRefresh(
+                .badges, entityId: UUID(), trigger: "backgroundPush:\(typeString)"
+            )
+
+            deadline.cancel()
+            completionHandler(entityId != nil ? .newData : .noData)
+        }
+    }
+
     // MARK: - Deep Link Handling
     
     private func handleDeepLink(_ deepLink: DeepLink, userInfo: [AnyHashable: Any]? = nil) {

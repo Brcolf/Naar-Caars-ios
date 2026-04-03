@@ -4,6 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Naar's Cars iOS
 
+## Table of Contents
+
+- [Read This First](#-read-this-first--before-any-code-change)
+- [Current State of the Codebase](#current-state-of-the-codebase-active-context)
+- [What This App Is](#what-this-app-is)
+- [Build and Test Commands](#build-and-test-commands)
+- [File and Naming Conventions](#file-and-naming-conventions)
+- [Priority Order for Tradeoffs](#priority-order-for-tradeoffs)
+- [Fragile Systems](#fragile-systems--mandatory-conservative-handling) — realtime pipeline, optimistic send, reactions, notifications, auth, sync engines, badges, SwiftData
+- [Architecture Rules](#architecture-rules)
+- [State Management Rules](#state-management-rules)
+- [Concurrency Rules](#concurrency-rules)
+- [Networking Rules](#networking-rules)
+- [Realtime Rules](#realtime-rules)
+- [Messaging-Specific Rules](#messaging-specific-rules)
+- [Notification Rules](#notification-rules)
+- [Cross-Layer Synchronization Rules](#cross-layer-synchronization-rules)
+- [SwiftData and Local Storage Rules](#swiftdata-and-local-storage-rules)
+- [Security and Privacy Rules](#security-and-privacy-rules)
+- [App Store Compliance Rules](#app-store-compliance-rules)
+- [UI and UX Rules](#ui-and-ux-rules)
+- [Performance Rules](#performance-rules)
+- [Refactor Rules](#refactor-rules)
+- [Testing Expectations](#testing-expectations)
+- [How to Respond to Code Tasks](#how-to-respond-to-code-tasks)
+- [When to Slow Down](#when-to-slow-down)
+- [Quick Reference — Critical Invariants](#quick-reference--critical-invariants)
+- [Audit Notes — Known Deviations](#audit-notes--known-deviations-2026-03-31)
+
+---
+
 ## ⚠️ Read This First — Before Any Code Change
 
 You are working in a production iOS app actively preparing for App Store submission.
@@ -33,16 +64,22 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **Swift Observation migration is partially complete.** Several ViewModels have been migrated from `ObservableObject` to `@Observable`, but this has surfaced init/deinit storms and navigation hangs (see recent commits). When touching ViewModels, check whether they use `ObservableObject` or `@Observable` and follow the existing pattern for that file. Do not opportunistically migrate additional ViewModels without explicit approval.
 
+**Guest mode is implemented.** Anonymous users can browse rides, favors, and town hall without an account. Auth-required actions (create, claim, vote, comment, report, message) are gated in the UI and guarded by RLS policies (`20260320_0001_guest_mode_anon_read_policies.sql`). Deep link intents that require auth prompt the guest to sign up. `exitGuestMode()` must be called before any auth flow begins.
+
+**The app uses a push-notify, pull-hydrate architecture.** The previous design used 7-8 WebSocket subscriptions per client, which hit Supabase connection limits at ~17 concurrent users. Realtime WebSockets are now scoped to the active conversation only (messages + reactions + typing). All other domains (dashboard, town hall, notifications, conversations) use pull-on-appear with 30s staleness and push-triggered refresh. Do not widen WebSocket scope — this was the root cause of the scaling issue. A centralized `RefreshCoordinator` is the single source of truth for refresh decisions, staleness tracking, and in-flight dedup. Badge counts are push-triggered with a 5-minute safety poll. See `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` for the full architecture spec.
+
 **Critical active risks:**
-- Supabase Realtime callbacks arrive on background threads and must be marshalled to the main actor before reaching UIKit views
+- WebSocket callbacks (active conversation only) arrive on background threads and must be marshalled to the main actor before reaching UIKit views
 - `@Observable` ViewModels passed through `.environment()` can cause init/deinit storms — recent fixes removed these patterns from sheets and tab views
 - Any regression of previously-fixed App Store issues (account deletion, moderation, SIWA) is a blocker
+- Guest mode gating must remain consistent — if a new auth-required action is added, it must be gated in both the UI and RLS
+- `RefreshCoordinator` state machine must not be bypassed — ViewModels do not call refresh methods directly; `MainTabView.onChange(of: selectedTab)` is the sole staleness trigger
 
 ---
 
 ## What This App Is
 
-**Naar's Cars** is an invite-only community platform for neighbors to help each other with rides and favors. It's an iOS 17+ Swift app with:
+**Naar's Cars** is a community platform for neighbors to help each other with rides and favors. It's an iOS 17+ Swift 5.9+ app with:
 
 | Layer | Technology |
 |---|---|
@@ -54,7 +91,9 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **SPM dependencies (Xcode-managed):** supabase-swift v2.5.1+, firebase-ios-sdk v12.8.0+, PhoneNumberKit v4.0.0+.
 
-**Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, invite-based auth and approval flows, moderation/blocking/reporting.
+**Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, open signup with admin approval flows, moderation/blocking/reporting.
+
+**Feature modules** (`Features/<Name>/`): Admin, Authentication, Claiming, Community, Favors, Leaderboards, Messaging (UIKit collection view), Notifications, Profile, Prompts (completion/review reminders), Requests, Reviews, Rides, TownHall. Each has `Views/` and `ViewModels/` subdirectories.
 
 ---
 
@@ -113,6 +152,8 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `verify-apple-signin-config.sh` — validates SIWA entitlements and Info.plist
 - `validate-notification-types.sh` — checks notification type registry consistency across Swift and TypeScript layers
 - `verify-xcode-file-sync.sh` — runs automatically after every Write/Edit via Claude Code PostToolUse hook (configured in `.claude/settings.json`); warns if `.swift` files are placed outside filesystem-synced roots
+- `pre-commit-localization-check.sh` — validates localization key consistency (called by the pre-commit hook)
+- `pre-commit-secrets-check.sh` — blocks commits containing secrets or signing files (called by the pre-commit hook)
 
 **No CI/CD pipeline exists.** All automated checks are pre-commit hooks and local validation scripts. Build and test verification is manual.
 
@@ -128,6 +169,7 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 
 - `SECURITY.md` — RLS policies, security requirements, compliance details (720 lines)
 - `MESSAGING-REVIEW-AND-PLAN.md` — deep architectural review of the messaging/realtime system; read before touching messaging internals
+- `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` — authoritative spec for the push-notify, pull-hydrate architecture and `RefreshCoordinator`
 
 ---
 
@@ -153,7 +195,7 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `database/` — legacy SQL files with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `132`. Do not modify existing files.
 - `supabase/migrations/` — Supabase-managed migrations with `YYYYMMDD_XXXX_description.sql` naming. Use this location for new migrations via the Supabase MCP `apply_migration` tool.
 
-**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify.
+**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify. Deploy edge functions using the Supabase MCP `deploy_edge_function` tool.
 
 **Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, and `NotificationFixtures.swift`. When adding payload handling, add corresponding fixtures and decoding tests here.
 
@@ -179,6 +221,7 @@ These systems require extra care. Before changing any of them: read the relevant
 ### 1. Realtime Messaging Pipeline
 
 **Files:**
+- `Core/Services/RefreshCoordinator.swift`
 - `Core/Storage/MessagingSyncEngine.swift`
 - `Core/Services/RealtimeManager.swift`
 - `Core/Storage/MessagingRepository.swift`
@@ -186,24 +229,37 @@ These systems require extra care. Before changing any of them: read the relevant
 - `Core/Services/MessageService.swift`
 - `Core/Services/MessageReactionService.swift`
 
-**Required data flow — do not break or bypass any step:**
+**Realtime WebSockets apply ONLY to the active conversation** (messages + reactions + typing). All other domains use push-triggered refresh through the coordinator.
+
+**Active conversation data flow — do not break or bypass any step:**
 ```
-realtime payload
+WebSocket event
   → payload adapter
   → sync engine
-  → repository
+  → repository (MainActor upsert with change detection)
   → publisher
   → view model
   → UI
 ```
 
-**Why this matters:** Bypassing any layer in this chain causes message loss, duplication, or silent corruption that is very hard to reproduce in testing but will affect users reliably.
+**All other domains (dashboard, town hall, notifications, conversations):**
+```
+push notification / staleness expiry / pull-to-refresh
+  → RefreshCoordinator
+  → sync engine (performFullSync / performTargetedSync)
+  → BackgroundSyncActor (compare-before-write, conditional save)
+  → SwiftData
+  → @Query / publisher
+  → UI
+```
+
+**Why this matters:** Bypassing the repository layer or the coordinator causes message loss, duplication, stale data, or silent corruption that is very hard to reproduce in testing but will affect users reliably.
 
 **Do not:**
 - Bypass the repository layer for any reason
 - Remove deduplication logic
 - Assume payloads are well-formed — they aren't always
-- Collapse structured and unstructured realtime handling without preserving fallbacks
+- Call sync engine methods directly from ViewModels — go through `RefreshCoordinator`
 - Change message ordering behavior without explicit approval
 
 ### 2. Optimistic Message Sending
@@ -278,27 +334,45 @@ initializing → checkingAuth → ready(authState)
 
 ### 6. Sync Engine Lifecycle
 
-**Required lifecycle:**
+Engines are pure fetch-and-store. The `RefreshCoordinator` owns all refresh decisions, staleness tracking, and in-flight dedup.
+
+**Required engine lifecycle:**
 ```
-setup → startSync → pauseSync → resumeSync → teardown
+setup → performFullSync / performTargetedSync → teardown
 ```
 
+**Coordinator per-domain state machine** (domains: `dashboard`, `townHall`, `conversations`, `badges`):
+```
+unhydrated → hydrated → invalidated → refreshing → hydrated
+                                    ↘ failed → invalidated (on retry)
+```
+- `unhydrated`: initial state, no data fetched yet
+- `hydrated`: data is fresh (within staleness window)
+- `invalidated`: push or staleness expired, needs refresh
+- `refreshing`: fetch in progress (join, don't duplicate)
+- `failed`: fetch errored, retryable
+
+**Coordinator methods (not engine methods):** `refreshIfNeeded`, `forceFullRefresh`, `invalidate`, `setVisibleDomain`. ViewModels do not call engines or coordinator refresh methods directly.
+
+**MessagingSyncEngine has additional conversation-scoped methods** outside the protocol: `subscribeToConversation(id:)`, `unsubscribeFromConversation()`, `switchConversation(id:)`, `beginGracePeriod()`, `refreshConversationList()`.
+
 **Do not:**
-- Call engine methods out of this order
-- Start an engine without setup
+- Call engine `performFullSync`/`performTargetedSync` from ViewModels — go through the coordinator
+- Bypass the coordinator's in-flight dedup (at most one task per domain)
 - Tear down partially
 - Leave subscriptions alive after sign-out
 
 ### 7. Badge Count System
 
-Push badges, tab badges, in-app toast counts, and unread counts are one connected system. Changes to any one affect all others.
+Push badges, tab badges, in-app toast counts, and unread counts are one connected system. Changes to any one affect all others. Badge counts are **push-triggered** (every push refreshes badges) with a **5-minute safety poll** managed by `RefreshCoordinator`. There are no 30s/90s polling timers.
 
 **If `get_badge_counts` RPC fails:** prefer cached/stale values with a staleness indicator rather than introducing a second client-side aggregation logic path.
 
 **Do not:**
-- Remove debounce or backoff logic
-- Introduce badge refresh calls that could spam the system
+- Remove the 5s debounce (prevents push bursts) or backoff logic
+- Reintroduce frequent polling timers — the safety poll interval is 5 minutes
 - Let app icon, tab badges, and unread counts diverge without deliberate reason
+- Bypass the coordinator for badge refresh scheduling
 
 ### 8. SwiftData Schema
 
@@ -349,7 +423,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 6. Prefer explicit cancellation over orphaned tasks.
 7. Do not perform SwiftData batch sync writes on the main actor.
 8. Be careful with mixed Combine + async/await flows — preserve existing delivery guarantees when refactoring.
-9. **Realtime callbacks must be marshalled to `@MainActor` before touching SwiftData, NotificationCenter, UIKit, ViewModels, or repositories.** See "Realtime Callback Threading" in the audit notes below for required patterns.
+9. **Realtime callbacks must be marshalled to `@MainActor`.** See "Realtime Callback Threading" in the Audit Notes section for required patterns and affected files.
 
 ---
 
@@ -369,15 +443,19 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 
 ## Realtime Rules
 
+**Realtime WebSockets are conversation-scoped only.** At most ~3 channels are active at any time (messages, reactions, typing for one conversation). All other domains use push-triggered refresh and pull-on-appear through the `RefreshCoordinator`.
+
 1. Realtime payload parsing must always be defensive — payloads are not guaranteed to be well-formed.
 2. If payload parsing fails or is unreliable, prefer a safe fallback sync over silent corruption.
-3. Do not widen subscription scope without checking channel count and cleanup behavior.
-4. Reactions remain per-conversation subscriptions, not global subscriptions.
+3. Do not widen subscription scope beyond the active conversation. Dashboard, town hall, and notifications must not use WebSocket subscriptions.
+4. At most one conversation has active WebSocket channels at any time.
 5. Preserve deduplication between optimistic local inserts and server-originated events.
 6. Preserve message ordering guarantees.
 7. Treat metadata-only changes carefully — they should not trigger unnecessary full UI recomputation.
 8. Any realtime refactor must be validated end-to-end, not just at compile time. Compilation is not correctness.
-9. All realtime subscription callbacks must be dispatched on `@MainActor`. Plain `(RealtimeRecord) -> Void` closures invoked from background `Task` contexts are not actor-isolated — the compiler does not hop automatically. See "Realtime Callback Threading" in the audit notes.
+9. All realtime subscription callbacks must be dispatched on `@MainActor`. See "Realtime Callback Threading" in the Audit Notes section for required patterns.
+10. Conversation WebSocket lifecycle follows subscribe-then-fetch: subscribe to channels, wait for confirmation, REST fetch recent messages, upsert to SwiftData, then process buffered events. This closes the race window between REST and WebSocket.
+11. A 5-second grace period applies when navigating back to conversation list. Leaving the messaging tab or backgrounding the app triggers immediate unsubscribe.
 
 ---
 
@@ -407,6 +485,7 @@ Push notifications, in-app toasts, and badge counts are one connected system. A 
 5. Do not silently change notification grouping or archival rules.
 6. Do not remove background refresh or silent push behavior without explicit approval.
 7. **Cross-layer sync required:** Adding, removing, or changing a notification type requires updating ALL of: the Swift enum/model, SQL triggers/RPCs/functions, Edge Function handlers, preferences mapping, badge logic, and routing logic. Do not introduce new notification type strings inline — use the single registry.
+8. When adding or changing deep link routing, validate the mapping between notification types and navigation intents with a test or debug harness. The full routing table must be documented and verifiable.
 
 ---
 
@@ -415,16 +494,20 @@ Push notifications, in-app toasts, and badge counts are one connected system. A 
 Several systems span Swift client code, SQL (database RPCs/triggers), and Supabase Edge Functions. Changes to any layer must be reflected in all others.
 
 **High-blast-radius seams** — before changing any of these, list upstream/downstream dependencies and update ALL consumers in the same change set:
+- `RefreshCoordinator` — centralized refresh orchestration, staleness tracking, in-flight dedup, domain state machine. All refresh decisions flow through here. ViewModels must not bypass it.
+- `PushNotificationService.handlePushReceived()` — push type to domain mapping. `NotificationType.affectedDomains` and `entityIdKey` must stay in sync with edge function payload construction.
 - `BadgeCountManager` — if a `get_badge_counts` RPC exists, treat it as authoritative; do not expand client-side fallback aggregation
-- `RealtimeManager` — subscription scope, channel count, cleanup
+- `RealtimeManager` — conversation-scoped subscription only (~3 channels max), cleanup
 - `NavigationCoordinator` — routing table mapping notification types to intents
-- `NotificationType` — registry must match across Swift enum, SQL, and Edge Functions
+- `NotificationType` — registry must match across Swift enum, SQL, and Edge Functions. `affectedDomains` and `entityIdKey` extensions must cover all cases.
 - Sync engines — `MessagingSyncEngine`, `DashboardSyncEngine`, `TownHallSyncEngine`
-- SwiftData ↔ Domain mappers — if you change a domain model (`Message`, `Ride`, `Favor`, `Conversation`, `Notification`, `TownHall`), update the SwiftData model, mapper(s), and sync engine insert/update logic
+- SwiftData ↔ Domain mappers — if you change a domain model (`Message`, `Ride`, `Favor`, `Conversation`, `Notification`, `TownHall`), you MUST atomically update all three: the SwiftData model, mapper(s), and sync engine insert/update logic. These are a mandatory trio — updating one without the others will cause silent data loss or crashes.
 - Supabase RPC call sites — signature changes must propagate to all callers
 - `NSNotification.Name` constants and `Constants.swift` values
 
 **Payload parsing must be centralized.** ViewModels and sync engines must NOT hand-parse raw `Any`/JSON. All payloads go through a single adapter/decoder layer that normalizes known shapes (`record`/`new`, `data.record`/`data.new`, `oldRecord`/`old`, insert/update/delete variants).
+
+**Fixture test gate for seam changes.** When modifying high-blast-radius seams (badge, notifications, realtime, mappers, RPCs, edge functions), at minimum one fixture test covering the changed payload or contract is required. See `NaarsCarsTests/Core/Fixtures/` for existing patterns.
 
 ---
 
@@ -566,7 +649,7 @@ Be maximally conservative when changes touch any of these:
 - Reactions
 - Deep links
 - Push notifications
-- Sync engines
+- RefreshCoordinator or sync engines
 - SwiftData schema
 - Account deletion
 - Reporting, blocking, or moderation
@@ -579,25 +662,30 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 
 | System | Invariant |
 |---|---|
-| Realtime pipeline | payload → adapter → sync engine → repository → publisher → view model → UI |
+| RefreshCoordinator | At most ONE refresh task per domain. Join in-flight, never cancel (except sign-out). |
+| Push-triggered refresh | push → PushNotificationService → RefreshCoordinator → engine → BackgroundSyncActor → SwiftData |
+| Active conversation | Subscribe-then-fetch: subscribe → confirmation → REST fetch → upsert → process buffered events |
+| Realtime pipeline (active conversation) | WebSocket → adapter → sync engine → repository (MainActor) → publisher → view model → UI |
+| Non-realtime domains | coordinator → engine → BackgroundSyncActor (compare-before-write) → SwiftData → @Query/publisher → UI |
+| SwiftData writes | Change detection mandatory: no save without mutation. NSNotifications posted only after save. |
 | Optimistic send | pending appears immediately; failed stays recoverable; server ack reconciles |
 | Reactions | `individualReactions` is source of truth; only `setIndividualReactions(_:)` mutates it |
 | Reaction badges | render at the TOP of the bubble |
 | Notifications | push → AppDelegate → DeepLinkParser → NavigationIntent → NavigationCoordinator → destination |
 | Auth state | initializing → checkingAuth → ready(authState) |
-| Sign-out | must teardown: subscriptions, caches, sync engines, tokens |
-| SwiftData | additive-only changes without a formal migration |
+| Sign-out | teardown → wipe SwiftData → clear sync timestamps → reset coordinator. All domains nil, badges zero, @Query returns []. |
+| SwiftData schema | additive-only changes without a formal migration |
 | UIKit messaging | MessagesCollectionView is not replaceable with SwiftUI List |
 
 ---
 
-## Audit Notes — Known Deviations (2026-03-16)
+## Audit Notes — Known Deviations (2026-03-31)
 
 These document where the code currently deviates from the rules above. Check these before touching the affected areas.
 
 ### Known Violations
 
-- **`TownHallSyncEngine`** currently writes on the MainActor — this violates the SwiftData background-write rule. Do not extend this pattern; when touching this file, prefer migrating writes to `BackgroundSyncActor`.
+No known violations. The previous `TownHallSyncEngine` MainActor write deviation has been resolved — TownHall writes now use `BackgroundSyncActor`.
 
 ### Realtime Callback Threading — Required Patterns
 
@@ -609,13 +697,13 @@ await MainActor.run { handler(record) }
 @MainActor @Sendable typealias RealtimeInsertCallback = (RealtimeRecord) -> Void
 ```
 
-Files where this invariant is critical: `RealtimeManager.swift`, `MessagingSyncEngine.swift`, `DashboardSyncEngine.swift`, `TownHallSyncEngine.swift`. Any future realtime subscription must follow this pattern.
+Files where this invariant is critical: `RealtimeManager.swift`, `MessagingSyncEngine.swift`. Realtime is now conversation-scoped only, so `DashboardSyncEngine` and `TownHallSyncEngine` no longer have realtime callbacks. Any future realtime subscription must follow this pattern.
 
 ### High-Risk Files
 
 Extra care required when editing — verify concurrency safety, messaging invariants, notification routing, and SwiftData schema stability:
 
-`RealtimeManager.swift`, `MessagingSyncEngine.swift`, `MessageSendManager.swift`, `MessagingRepository.swift`, `NavigationCoordinator.swift`, `AuthService.swift`, `BadgeCountManager.swift`, `BackgroundSyncActor.swift`, `SDModels.swift`
+`RefreshCoordinator.swift`, `RealtimeManager.swift`, `MessagingSyncEngine.swift`, `MessageSendManager.swift`, `MessageSendWorker.swift`, `MessagingRepository.swift`, `NavigationCoordinator.swift`, `AuthService.swift`, `BadgeCountManager.swift`, `BackgroundSyncActor.swift`, `PushNotificationService.swift`, `SDModels.swift`
 
 ---
 

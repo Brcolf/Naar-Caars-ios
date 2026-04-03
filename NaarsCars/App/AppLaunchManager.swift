@@ -134,28 +134,23 @@ final class AppLaunchManager: ObservableObject {
                 return
             }
             
-            // Step 2: Minimal approval check (query only 'approved' field)
-            let isApproved = await checkApprovalStatus(userId: userId)
-            
-            if isApproved {
-                // User is approved - ready for main app
-                state = .ready(.authenticated)
-            } else {
-                // User is pending approval
-                state = .ready(.pendingApproval)
-            }
-            
+            // Step 2: Check account lifecycle (approved + application_complete)
+            let authState = await checkAccountStatus(userId: userId)
+            state = .ready(authState)
+
             // Step 3: Start deferred loading in background (non-blocking)
-            Task(priority: .userInitiated) { [weak self, userId] in
-                guard let self else { return }
-                await self.performDeferredLoading(userId: userId)
+            if authState == .authenticated {
+                Task(priority: .userInitiated) { [weak self, userId] in
+                    guard let self else { return }
+                    await self.performDeferredLoading(userId: userId)
+                }
             }
             await recordLaunchDuration(
                 start: launchStart,
                 result: "success",
                 metadata: [
                     "state": state.id,
-                    "approved": isApproved,
+                    "authState": "\(authState)",
                     "hasSession": true
                 ]
             )
@@ -186,59 +181,100 @@ final class AppLaunchManager: ObservableObject {
             guard let userId = UUID(uuidString: userIdString) else {
                 return false
             }
-            return await checkApprovalStatus(userId: userId)
+            let status = await checkAccountStatus(userId: userId)
+            return status == .authenticated
         } catch {
             AppLogger.warning("launch", "Lightweight approval check failed: \(error.localizedDescription)")
             return false
         }
     }
     
+    /// Lightweight ban re-check for use on app foreground.
+    /// If user is now banned, transitions state to .banned.
+    func recheckBanStatus() async {
+        guard case .ready(.authenticated) = state else { return }
+        do {
+            let session = try await supabase.auth.session
+            guard let userId = UUID(uuidString: session.user.id.uuidString) else { return }
+            let status = await checkAccountStatus(userId: userId)
+            if status == .banned {
+                state = .ready(.banned)
+            }
+        } catch {
+            AppLogger.warning("launch", "Ban re-check failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Enter guest browsing mode without creating a Supabase session.
+    /// Callers must also set `appState.isGuestMode = true` before calling this.
+    /// No session, no profile, no deferred loading, no sync engines.
+    func enterGuestMode() {
+        state = .ready(.guest)
+    }
+
+    /// Exit guest mode and return to the unauthenticated welcome screen.
+    /// Callers must also set `appState.isGuestMode = false` before calling this.
+    func exitGuestMode() {
+        state = .ready(.unauthenticated)
+    }
+
     // MARK: - Private Methods
     
-    /// Check approval status with minimal query (only 'approved' field)
+    /// Check account status with minimal query (approved + application_complete)
     /// - Parameter userId: User ID to check
-    /// - Returns: true if user is approved, false otherwise
-    private func checkApprovalStatus(userId: UUID) async -> Bool {
+    /// - Returns: The appropriate AuthState for the user
+    private func checkAccountStatus(userId: UUID) async -> AuthState {
         let start = Date()
         do {
-            // Minimal query - only fetch the 'approved' field
-            struct ProfileApproval: Codable {
+            struct ProfileStatus: Codable {
+                let isBanned: Bool
                 let approved: Bool
+                let applicationComplete: Bool
+
+                enum CodingKeys: String, CodingKey {
+                    case isBanned = "is_banned"
+                    case approved
+                    case applicationComplete = "application_complete"
+                }
             }
-            
-            AppLogger.info("launch", "Checking approval status for user: \(userId)")
-            
-            let response: ProfileApproval = try await supabase
+
+            AppLogger.info("launch", "Checking account status for user: \(userId)")
+
+            let response: ProfileStatus = try await supabase
                 .from("profiles")
-                .select("approved")
+                .select("is_banned, approved, application_complete")
                 .eq("id", value: userId.uuidString)
                 .single()
                 .execute()
                 .value
-            
-            AppLogger.info("launch", "Approval status for user \(userId): \(response.approved)")
+
+            AppLogger.info("launch", "Account status for user \(userId): isBanned=\(response.isBanned), approved=\(response.approved), applicationComplete=\(response.applicationComplete)")
             await PerformanceMonitor.shared.record(
                 operation: "launch.approvalCheck",
                 duration: Date().timeIntervalSince(start),
-                metadata: ["approved": response.approved],
+                metadata: ["isBanned": response.isBanned, "approved": response.approved, "applicationComplete": response.applicationComplete],
                 slowThreshold: 0.5
             )
-            return response.approved
+
+            if response.isBanned {
+                return .banned
+            } else if response.approved {
+                return .authenticated
+            } else if !response.applicationComplete {
+                return .needsApplication
+            } else {
+                return .pendingApproval
+            }
         } catch {
-            // Log error for debugging
-            AppLogger.warning("launch", "Failed to check approval status for user \(userId): \(error.localizedDescription)")
-            AppLogger.warning("launch", "Error details: \(error)")
+            AppLogger.warning("launch", "Failed to check account status for user \(userId): \(error.localizedDescription)")
             await PerformanceMonitor.shared.record(
                 operation: "launch.approvalCheck",
                 duration: Date().timeIntervalSince(start),
-                metadata: [
-                    "approved": false,
-                    "error": error.localizedDescription
-                ],
+                metadata: ["error": error.localizedDescription],
                 slowThreshold: 0.5
             )
-            // If query fails, assume not approved (safer default)
-            return false
+            // If query fails, assume needs application (safer default)
+            return .needsApplication
         }
     }
     
@@ -276,6 +312,11 @@ final class AppLaunchManager: ObservableObject {
     private func startDeferredSyncEnginesIfNeeded(for userId: UUID) {
         guard deferredSyncStartedForUserId != userId else { return }
         deferredSyncStartedForUserId = userId
+
+        // Initialize refresh coordinator and start safety poll
+        RefreshCoordinator.shared.initializeStates()
+        RefreshCoordinator.shared.startSafetyPoll()
+
         SyncEngineOrchestrator.shared.startAll()
     }
 

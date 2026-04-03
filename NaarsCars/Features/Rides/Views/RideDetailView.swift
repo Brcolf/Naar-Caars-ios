@@ -15,6 +15,9 @@ struct RideDetailView: View {
     @StateObject private var claimViewModel = ClaimViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
+    @State private var showGuestPrompt = false
+    @State private var guestRestrictionReason: GuestRestrictionReason = .claimRide
     @State private var showEditRide = false
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
@@ -67,7 +70,7 @@ struct RideDetailView: View {
         .navigationTitle("ride_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if !viewModel.isPoster, viewModel.ride != nil {
+            if !viewModel.isPoster, viewModel.ride != nil, !appState.isGuest {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if hasReported {
                         Image(systemName: "flag.fill")
@@ -84,6 +87,19 @@ struct RideDetailView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showGuestPrompt) {
+            GuestSignInPromptView(
+                reason: guestRestrictionReason,
+                onSignUp: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                },
+                onLogIn: {
+                    appState.isGuestMode = false
+                    AppLaunchManager.shared.exitGuestMode()
+                }
+            )
         }
         .sheet(isPresented: $showReportSheet) {
             if let ride = viewModel.ride {
@@ -145,7 +161,13 @@ struct RideDetailView: View {
         } message: {
             Text("calendar_offer_ride_message".localized)
         }
-        .sheet(isPresented: $showClaimSheet) {
+        .sheet(isPresented: $showClaimSheet, onDismiss: {
+            // Check calendar offer after sheet is fully dismissed so the alert can present
+            if claimViewModel.lastClaimSucceeded {
+                claimViewModel.lastClaimSucceeded = false
+                viewModel.checkCalendarOffer()
+            }
+        }) {
             if let ride = viewModel.ride {
                 ClaimSheet(
                     requestType: "ride",
@@ -153,6 +175,7 @@ struct RideDetailView: View {
                     onConfirm: {
                         try await claimViewModel.claim(requestType: "ride", requestId: ride.id)
                         await viewModel.loadRide(id: rideId)
+                        claimViewModel.lastClaimSucceeded = true
                     }
                 )
                 .id(RequestDetailAnchor.claimSheet.anchorId(for: .ride))
@@ -293,26 +316,26 @@ struct RideDetailView: View {
                             Text("ride_detail_pickup_label".localized)
                                 .font(.naarsCaption).fontWeight(.bold)
                                 .foregroundColor(.secondary)
-                            AddressText(ride.pickup)
+                            AddressText(ride.pickup, isRedacted: appState.isGuest)
                         }
                     }
-                    
+
                     Rectangle()
                         .fill(Color.secondary.opacity(0.3))
                         .frame(width: 1, height: 20)
                         .padding(.leading, 29)
-                    
+
                     HStack(spacing: Constants.Spacing.md) {
                         Image(systemName: "mappin.circle.fill")
                             .foregroundColor(.rideAccent)
                             .font(.naarsTitle3)
                             .frame(width: 20)
-                        
+
                         VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                             Text("ride_detail_destination_label".localized)
                                 .font(.naarsCaption).fontWeight(.bold)
                                 .foregroundColor(.secondary)
-                            AddressText(ride.destination)
+                            AddressText(ride.destination, isRedacted: appState.isGuest)
                         }
                     }
                 }
@@ -349,17 +372,32 @@ struct RideDetailView: View {
                     }
                 }
 
-                RouteMapView(pickup: ride.pickup, destination: ride.destination)
-                    .contentShape(Rectangle()) // Ensure the entire area is tappable
-                    .overlay(isOpeningMaps ? Color.black.opacity(0.15) : nil)
-                    .allowsHitTesting(!isOpeningMaps)
-                    .onTapGesture {
-                        handleMapTap(ride: ride)
+                if appState.isGuest {
+                    VStack(spacing: 12) {
+                        Image(systemName: "map")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.secondary)
+                        Text("guest_map_hidden".localized)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                    .onLongPressGesture(minimumDuration: 0.5) {
-                        showMapsChoiceDialog = true
-                    }
-                    .accessibilityHint("ride_detail_map_open_maps_hint".localized)
+                    .frame(height: 200)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    RouteMapView(pickup: ride.pickup, destination: ride.destination)
+                        .contentShape(Rectangle()) // Ensure the entire area is tappable
+                        .overlay(isOpeningMaps ? Color.black.opacity(0.15) : nil)
+                        .allowsHitTesting(!isOpeningMaps)
+                        .onTapGesture {
+                            handleMapTap(ride: ride)
+                        }
+                        .onLongPressGesture(minimumDuration: 0.5) {
+                            showMapsChoiceDialog = true
+                        }
+                        .accessibilityHint("ride_detail_map_open_maps_hint".localized)
+                }
             }
             .cardStyle()
             .confirmationDialog("ride_detail_open_in_maps_title".localized, isPresented: $showMapsChoiceDialog, titleVisibility: .visible) {
@@ -542,6 +580,11 @@ struct RideDetailView: View {
                 requestId: ride.id,
                 requestType: "ride",
                 onPostQuestion: { question in
+                    if appState.isGuest {
+                        guestRestrictionReason = .askQuestion
+                        showGuestPrompt = true
+                        return
+                    }
                     let countBefore = viewModel.qaItems.count
                     await viewModel.postQuestion(question)
                     if viewModel.qaItems.count > countBefore {
@@ -550,6 +593,11 @@ struct RideDetailView: View {
                 },
                 isClaimed: ride.claimedBy != nil,
                 onMessageParticipants: ride.claimedBy == nil ? nil : {
+                    if appState.isGuest {
+                        guestRestrictionReason = .sendMessage
+                        showGuestPrompt = true
+                        return
+                    }
                     Task { await openOrCreateConversation(ride: ride) }
                 }
             )
@@ -787,42 +835,50 @@ struct RideDetailView: View {
     
     @ViewBuilder
     private func claimButtonSection(ride: Ride) -> some View {
-        let authService = AuthService.shared
-        let currentUserId = authService.currentUserId
-        
-        let buttonState: ClaimButtonState = {
-            if viewModel.isPoster {
-                return .isPoster
-            } else if ride.status == .completed {
-                return .completed
-            } else if let claimedBy = ride.claimedBy {
-                return claimedBy == currentUserId ? .claimedByMe : .claimedByOther
-            } else {
-                return .canClaim
+        if appState.isGuest {
+            PrimaryButton(title: "guest_prompt_title_claim_ride".localized) {
+                guestRestrictionReason = .claimRide
+                showGuestPrompt = true
             }
-        }()
-        
-        ClaimButton(
-            state: buttonState,
-            action: {
-                switch buttonState {
-                case .canClaim:
-                    Task {
-                        let canClaim = await claimViewModel.checkCanClaim()
-                        if canClaim {
-                            showClaimSheet = true
-                        } else {
-                            showPhoneRequired = true
-                        }
-                    }
-                case .claimedByMe:
-                    showUnclaimSheet = true
-                default:
-                    break
+            .accessibilityIdentifier("ride.guestClaimPrompt")
+        } else {
+            let authService = AuthService.shared
+            let currentUserId = authService.currentUserId
+
+            let buttonState: ClaimButtonState = {
+                if viewModel.isPoster {
+                    return .isPoster
+                } else if ride.status == .completed {
+                    return .completed
+                } else if let claimedBy = ride.claimedBy {
+                    return claimedBy == currentUserId ? .claimedByMe : .claimedByOther
+                } else {
+                    return .canClaim
                 }
-            },
-            isLoading: claimViewModel.isLoading
-        )
+            }()
+
+            ClaimButton(
+                state: buttonState,
+                action: {
+                    switch buttonState {
+                    case .canClaim:
+                        Task {
+                            let canClaim = await claimViewModel.checkCanClaim()
+                            if canClaim {
+                                showClaimSheet = true
+                            } else {
+                                showPhoneRequired = true
+                            }
+                        }
+                    case .claimedByMe:
+                        showUnclaimSheet = true
+                    default:
+                        break
+                    }
+                },
+                isLoading: claimViewModel.isLoading
+            )
+        }
     }
 }
 

@@ -76,6 +76,9 @@ final class NavigationCoordinator {
     var pendingCompletionPromptFromDeferred: (RequestType, UUID)?
     var pendingDeepLink: DeepLink?
     var showDeepLinkConfirmation: Bool = false
+    /// Set true when a guest attempts to follow an auth-required navigation intent.
+    /// MainTabView presents GuestSignInPromptView in response, then clears this flag.
+    var showGuestDeepLinkPrompt: Bool = false
     
     // MARK: - Tab Enum
     
@@ -315,8 +318,36 @@ final class NavigationCoordinator {
         showReviewPrompt = true
     }
     
+    // MARK: - Guest Gating
+
+    /// Returns true if this intent requires an authenticated user.
+    /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll)
+    /// pass through. Admin-only intents (adminPanel, pendingUsers, adminReports) are
+    /// treated as silently ignorable — guests should never encounter them via deep link.
+    func intentRequiresAuth(_ intent: NavigationIntent) -> Bool {
+        switch intent {
+        case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard:
+            return false
+        case .conversation, .announcements, .notifications:
+            return true
+        case .adminPanel, .pendingUsers, .adminReports:
+            // Admin-only: silently ignore rather than prompt
+            return false
+        }
+    }
+
+    /// Returns true if the intent is admin-only and should be silently dropped for guests.
+    func intentIsAdminOnly(_ intent: NavigationIntent) -> Bool {
+        switch intent {
+        case .adminPanel, .pendingUsers, .adminReports:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Public Methods
-    
+
     func consumeRequestNavigationTarget(for requestType: RequestType, requestId: UUID) -> RequestNotificationTarget? {
         switch pendingIntent {
         case .ride(let id, let anchor):

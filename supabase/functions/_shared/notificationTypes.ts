@@ -28,6 +28,7 @@ export const NOTIFICATION_TYPES = {
   PENDING_APPROVAL: 'pending_approval',
   USER_APPROVED: 'user_approved',
   USER_REJECTED: 'user_rejected',
+  ACCOUNT_RESTRICTED: 'account_restricted',
   OTHER: 'other',
 } as const
 

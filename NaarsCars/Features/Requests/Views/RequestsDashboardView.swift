@@ -12,6 +12,7 @@ import UIKit
 /// Unified dashboard view for all requests
 struct RequestsDashboardView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppState.self) private var appState
     @StateObject private var viewModel = RequestsDashboardViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var showCreateRide = false
@@ -104,7 +105,9 @@ struct RequestsDashboardView: View {
                 // ViewModel now uses SwiftData for its source of truth
                 viewModel.setup(modelContext: modelContext)
                 await viewModel.loadRequests()
-                viewModel.setupRealtimeSubscription()
+                if !appState.isGuest {
+                    viewModel.setupRealtimeSubscription()
+                }
             }
             .onDisappear { viewModel.stop() }
             .trackScreen("RequestsDashboard")

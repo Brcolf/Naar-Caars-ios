@@ -418,7 +418,9 @@ final class ConversationParticipantService {
         
         guard let data = response?.data,
               let status = try? createDateDecoder().decode(LeftStatus.self, from: data) else {
-            return true // Not found = effectively left
+            // Network failure or decode error — assume user is still active.
+            // Returning true here would freeze the conversation UI on slow connections.
+            return false
         }
         
         return status.leftAt != nil

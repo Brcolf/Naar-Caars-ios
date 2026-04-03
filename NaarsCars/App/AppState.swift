@@ -26,6 +26,9 @@ final class AppState {
 
     /// Whether the notifications surface is currently shown
     var showNotifications: Bool = false
+
+    /// Whether the app is in guest browsing mode
+    var isGuestMode: Bool = false
     
     // MARK: - Private Properties
     
@@ -52,17 +55,29 @@ final class AppState {
         if isLoading {
             return .loading
         }
-        
+
+        if isGuestMode {
+            return .guest
+        }
+
         guard let user = currentUser else {
             return .unauthenticated
         }
-        
-        if !user.approved {
+
+        if user.isBanned {
+            return .banned
+        } else if user.approved {
+            return .authenticated
+        } else if !user.applicationComplete {
+            return .needsApplication
+        } else {
             return .pendingApproval
         }
-        
-        return .authenticated
     }
+
+    /// Whether the current user is browsing as a guest.
+    /// This is the sole source of truth for guest feature gating in views.
+    var isGuest: Bool { isGuestMode }
     
     // MARK: - Initialization
     
@@ -94,6 +109,7 @@ final class AppState {
             .sink { [weak self] _ in
                 self?.currentUser = nil
                 self?.isLoading = false
+                self?.isGuestMode = false
             }
             .store(in: &cancellables)
     }
