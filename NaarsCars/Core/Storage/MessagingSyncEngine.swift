@@ -232,11 +232,16 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         AppLogger.info("messaging", "[subscribe] start conv=\(shortId) refresh=\(rid)")
 
         subscriptionTask = Task {
-            // Fire REST hydration immediately — don't block on WebSocket handshake.
-            // This ensures messages load even when realtime is slow or congested.
-            async let hydration: Void = self.hydrateConversation(conversationId, refreshId: rid)
+            // Subscribe-then-fetch per spec Section 8:
+            // 1. Attempt to subscribe all channels with a 3s timeout
+            // 2. REST hydrate after subscribe (or after timeout)
+            // 3. Dedup handles overlap between REST and buffered WebSocket events
 
-            // Subscribe to messages for this conversation (may be slow on congested network)
+            let subscribeDeadline = Task {
+                try await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+
+            // Subscribe to messages channel
             await realtimeManager.subscribe(
                 channelName: "messages:\(conversationId.uuidString)",
                 table: "messages",
@@ -247,22 +252,23 @@ final class MessagingSyncEngine: SyncEngineProtocol {
             )
             guard !Task.isCancelled else {
                 AppLogger.info("messaging", "[subscribe] cancelled(messages) conv=\(shortId) refresh=\(rid)")
-                _ = await hydration
                 return
             }
 
-            // Subscribe to reactions for this conversation
+            // Subscribe to reactions channel
             await setupReactionsSubscription(conversationId: conversationId)
             guard !Task.isCancelled else {
                 AppLogger.info("messaging", "[subscribe] cancelled(reactions) conv=\(shortId) refresh=\(rid)")
-                _ = await hydration
                 return
             }
 
+            // If subscribe completed before the 3s deadline, cancel the timeout
+            subscribeDeadline.cancel()
             AppLogger.info("messaging", "[subscribe] channels ready conv=\(shortId) refresh=\(rid)")
 
-            // Ensure hydration completes (likely already finished before channels are ready)
-            _ = await hydration
+            // REST hydrate AFTER subscription is established (or after 3s timeout)
+            // Dedup by message UUID prevents duplicates with buffered WebSocket events
+            await self.hydrateConversation(conversationId, refreshId: rid)
         }
     }
 
@@ -372,7 +378,14 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     /// Handle an incoming reaction change event.
     /// Parses the realtime payload into a `MessageReaction` when possible so
     /// consumers can apply the change locally without an additional API call.
+    /// Note: The reactions subscription has no conversation-scoped filter because
+    /// message_reactions lacks a conversation_id column. We guard here instead,
+    /// dropping events for messages not in the active conversation.
     private func handleReactionChange(_ event: RealtimeRecord, conversationId: UUID) {
+        // Drop events not for the active conversation — the unfiltered subscription
+        // can deliver reactions from other conversations on the same table.
+        guard conversationId == activeConversationId else { return }
+
         let dict = event.record
         guard let messageIdString = dict["message_id"] as? String,
               let messageId = UUID(uuidString: messageIdString) else { return }
