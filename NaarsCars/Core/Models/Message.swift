@@ -165,7 +165,7 @@ struct Message: Codable, Identifiable, Sendable {
     /// sets `individualReactions`, then derives `reactions` from it.
     /// Use this everywhere instead of setting the two properties independently.
     mutating func setIndividualReactions(_ records: [MessageReaction]?) {
-        individualReactions = records?.isEmpty == true ? nil : records
+        individualReactions = records
         reactions = MessageReactions.from(records ?? [])
     }
 

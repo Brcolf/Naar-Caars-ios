@@ -430,8 +430,8 @@ struct ConversationsListView: View {
         let isPinned = pinnedConversations.contains(conversationDetail.conversation.id)
         let isMuted = mutedConversations.contains(conversationDetail.conversation.id)
         
-        NavigationLink {
-            ConversationDetailView(conversationId: conversationDetail.conversation.id)
+        Button {
+            selectedConversationId = conversationDetail.conversation.id
         } label: {
             ConversationRow(
                 conversationDetail: conversationDetail,

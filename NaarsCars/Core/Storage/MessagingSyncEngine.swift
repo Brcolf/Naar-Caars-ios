@@ -210,11 +210,17 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         // Allow re-subscribe if previous task was cancelled (rapid switching) or never started
         guard activeConversationId != conversationId || subscriptionTask?.isCancelled != false else { return }
 
-        if activeConversationId != nil {
+        if let previousId = activeConversationId {
             // Cancel any in-flight subscription before starting a new one
             subscriptionTask?.cancel()
             subscriptionTask = nil
-            Task { await unsubscribeFromActiveConversation() }
+            // Unsubscribe the OLD conversation by captured ID — avoids the race where
+            // fire-and-forget unsubscribe reads the already-reassigned activeConversationId.
+            Task {
+                await realtimeManager.unsubscribe(channelName: "messages:\(previousId.uuidString)")
+                await realtimeManager.unsubscribe(channelName: "reactions:\(previousId.uuidString)")
+                await realtimeManager.unsubscribe(channelName: "typing:\(previousId.uuidString)")
+            }
         }
 
         activeConversationId = conversationId
