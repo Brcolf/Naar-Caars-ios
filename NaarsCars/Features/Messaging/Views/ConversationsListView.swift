@@ -24,6 +24,9 @@ struct ConversationsListView: View {
     @State private var toastMessage: String? = nil
     @State private var conversationToMute: UUID?
     @State private var showMutePicker = false
+    @State private var showPushPrompt = false
+    @State private var pushDisabled = false
+    @State private var conversationsPollTimer: Timer?
     
     /// Whether the user is actively searching messages
     private var isMessageSearchActive: Bool {
@@ -325,8 +328,32 @@ struct ConversationsListView: View {
                     mutedConversations = await ConversationMuteService.shared.fetchMutedConversationIds(userId: userId)
                 }
                 await viewModel.loadConversations()
+                // Check push status and show banner / start moderate poll if disabled
+                await checkPushStatusAndStartPollIfNeeded()
             }
-            .onDisappear { viewModel.stop() }
+            .onDisappear {
+                viewModel.stop()
+                conversationsPollTimer?.invalidate()
+                conversationsPollTimer = nil
+            }
+            .sheet(isPresented: $showPushPrompt) {
+                PushPermissionPromptView(
+                    onAllow: {
+                        Task {
+                            let granted = await PushNotificationService.shared.requestPermission()
+                            if granted {
+                                pushDisabled = false
+                                conversationsPollTimer?.invalidate()
+                                conversationsPollTimer = nil
+                            }
+                        }
+                    },
+                    onNotNow: {
+                        // User declined — moderate poll continues as fallback
+                        UserDefaults.standard.set(true, forKey: "pushPromptDismissedOnMessagesList")
+                    }
+                )
+            }
             .toast(message: $toastMessage)
             .trackScreen("ConversationsList")
         }
@@ -430,8 +457,8 @@ struct ConversationsListView: View {
         let isPinned = pinnedConversations.contains(conversationDetail.conversation.id)
         let isMuted = mutedConversations.contains(conversationDetail.conversation.id)
         
-        NavigationLink {
-            ConversationDetailView(conversationId: conversationDetail.conversation.id)
+        Button {
+            selectedConversationId = conversationDetail.conversation.id
         } label: {
             ConversationRow(
                 conversationDetail: conversationDetail,
@@ -506,6 +533,30 @@ struct ConversationsListView: View {
     private func loadSavedPreferences() {
         if let pinnedIds = UserDefaults.standard.array(forKey: "pinnedConversations") as? [String] {
             pinnedConversations = Set(pinnedIds.compactMap { UUID(uuidString: $0) })
+        }
+    }
+
+    /// Check push notification status. If disabled, show a prompt (once per session
+    /// unless previously dismissed) and start a 60s conversations-only poll as fallback.
+    private func checkPushStatusAndStartPollIfNeeded() async {
+        let status = await PushNotificationService.shared.checkAuthorizationStatus()
+        let isEnabled = status == .authorized || status == .provisional
+        pushDisabled = !isEnabled
+
+        guard !isEnabled else { return }
+
+        // Show push prompt once — not if the user already dismissed it this install
+        let alreadyDismissed = UserDefaults.standard.bool(forKey: "pushPromptDismissedOnMessagesList")
+        if !alreadyDismissed {
+            showPushPrompt = true
+        }
+
+        // Start 60s conversations-only poll while push is off and user is on messages tab
+        guard conversationsPollTimer == nil else { return }
+        conversationsPollTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+            Task { @MainActor in
+                await viewModel.loadConversations()
+            }
         }
     }
 }

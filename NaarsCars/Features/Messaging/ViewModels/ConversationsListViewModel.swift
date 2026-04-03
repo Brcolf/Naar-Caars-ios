@@ -266,10 +266,12 @@ struct MessageSearchResult: Identifiable {
         
         // 1. Load from local SwiftData immediately
         do {
-            let localConversations = try repository.getConversations()
+            let localConversations = try repository.getConversations(for: userId)
             applyLocalConversations(localConversations, animated: false)
+            // Set offset from local count so pagination works even before remote sync completes
+            currentOffset = conversations.count
             AppLogger.info("messaging", "[ConversationsListVM] Loaded \(conversations.count) conversations from local storage")
-            
+
             // Hydrate profiles for local conversations
             await hydrateProfiles(for: localConversations)
         } catch {
@@ -289,7 +291,7 @@ struct MessageSearchResult: Identifiable {
             do {
                 try await repository.syncConversations(userId: userId)
                 guard !Task.isCancelled else { return }
-                let updatedConversations = try repository.getConversations()
+                let updatedConversations = try repository.getConversations(for: userId)
                 self.applyLocalConversations(updatedConversations, animated: false)
                 currentOffset = self.conversations.count
                 hasMoreConversations = true // Reset so pagination can continue after sync
@@ -315,12 +317,20 @@ struct MessageSearchResult: Identifiable {
         )
         guard !allOtherParticipantIds.isEmpty else { return }
 
-        let profiles: [Profile]
+        var profiles: [Profile]
         do {
             profiles = try await profileService.fetchProfiles(userIds: Array(allOtherParticipantIds))
         } catch {
-            AppLogger.warning("messaging", "[ConversationsListVM] Batch profile hydration failed: \(error.localizedDescription)")
-            return
+            AppLogger.warning("messaging", "[ConversationsListVM] Batch profile hydration failed, falling back to cache: \(error.localizedDescription)")
+            // Fall back to cache-only lookup so previously-fetched profiles still appear
+            var cached: [Profile] = []
+            for id in allOtherParticipantIds {
+                if let p = await CacheManager.shared.getCachedProfile(id: id) {
+                    cached.append(p)
+                }
+            }
+            guard !cached.isEmpty else { return }
+            profiles = cached
         }
         let profilesById = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
 

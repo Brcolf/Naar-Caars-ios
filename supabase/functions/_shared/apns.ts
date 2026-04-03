@@ -6,6 +6,22 @@ export const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Module-level JWT cache. APNs JWTs are valid for 60 minutes.
+// Reuse the same token for up to 50 minutes to avoid TooManyProviderTokenUpdates (429).
+let _cachedJwt: string | null = null
+let _cachedJwtCreatedAt = 0
+const JWT_MAX_AGE_MS = 50 * 60 * 1000 // 50 minutes
+
+async function getOrCreateAPNsJWT(teamId: string, keyId: string, key: string): Promise<string> {
+  const now = Date.now()
+  if (_cachedJwt && (now - _cachedJwtCreatedAt) < JWT_MAX_AGE_MS) {
+    return _cachedJwt
+  }
+  _cachedJwt = await createAPNsJWT(teamId, keyId, key)
+  _cachedJwtCreatedAt = now
+  return _cachedJwt
+}
+
 /**
  * Send an APNs push notification to a specific device token.
  * Optionally cleans up invalid tokens (410 response) if supabase client is provided.
@@ -25,8 +41,8 @@ export async function sendAPNsPush(
     throw new Error('Missing APNs environment variables')
   }
 
-  // Create JWT token for APNs authentication
-  const jwt = await createAPNsJWT(apnsTeamId, apnsKeyId, apnsKey)
+  // Reuse cached JWT to avoid APNs TooManyProviderTokenUpdates (429)
+  const jwt = await getOrCreateAPNsJWT(apnsTeamId, apnsKeyId, apnsKey)
 
   // Determine push type
   let pushType = 'alert'

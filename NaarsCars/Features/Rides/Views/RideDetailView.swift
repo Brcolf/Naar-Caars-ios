@@ -161,7 +161,13 @@ struct RideDetailView: View {
         } message: {
             Text("calendar_offer_ride_message".localized)
         }
-        .sheet(isPresented: $showClaimSheet) {
+        .sheet(isPresented: $showClaimSheet, onDismiss: {
+            // Check calendar offer after sheet is fully dismissed so the alert can present
+            if claimViewModel.lastClaimSucceeded {
+                claimViewModel.lastClaimSucceeded = false
+                viewModel.checkCalendarOffer()
+            }
+        }) {
             if let ride = viewModel.ride {
                 ClaimSheet(
                     requestType: "ride",
@@ -169,6 +175,7 @@ struct RideDetailView: View {
                     onConfirm: {
                         try await claimViewModel.claim(requestType: "ride", requestId: ride.id)
                         await viewModel.loadRide(id: rideId)
+                        claimViewModel.lastClaimSucceeded = true
                     }
                 )
                 .id(RequestDetailAnchor.claimSheet.anchorId(for: .ride))

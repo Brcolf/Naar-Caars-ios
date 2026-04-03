@@ -227,7 +227,7 @@ actor BackgroundSyncActor {
 
     /// Sync conversations (and their last messages) from network response to SwiftData.
     /// Returns the set of conversation IDs that were changed so the caller can refresh publishers.
-    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID) throws -> Set<UUID> {
+    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID, excludeMessagesForConversation: UUID? = nil) throws -> Set<UUID> {
         var changedIds = Set<UUID>()
 
         // Batch fetch all existing SDConversations and SDMessages at once
@@ -265,8 +265,10 @@ actor BackgroundSyncActor {
                 modelContext.insert(newSDConv)
             }
 
-            // Upsert last message if present
-            if let msg = payload.lastMessage {
+            // Upsert last message if present — skip for active conversation
+            // to avoid concurrent writes with MainActor WebSocket path (INV-C1)
+            if let msg = payload.lastMessage,
+               payload.conversationId != excludeMessagesForConversation {
                 upsertSDMessage(msg, existingById: existingMsgById, conversationId: payload.conversationId)
             }
         }
@@ -500,6 +502,447 @@ actor BackgroundSyncActor {
         sd.claimerName = favor.claimer?.name
         sd.claimerAvatarUrl = favor.claimer?.avatarUrl
         sd.participantIds = favor.participants?.map { $0.id } ?? []
+    }
+
+    // MARK: - Change detection helpers
+
+    /// Returns true if any field was actually modified.
+    /// IMPORTANT: Must cover every field that updateSDRide assigns.
+    /// When adding a field to SDRide, add the comparison here too.
+    private func updateSDRideIfChanged(_ sd: SDRide, with ride: Ride) -> Bool {
+        var changed = false
+        if sd.status != ride.status.rawValue { sd.status = ride.status.rawValue; changed = true }
+        if sd.claimedBy != ride.claimedBy { sd.claimedBy = ride.claimedBy; changed = true }
+        if sd.updatedAt != ride.updatedAt { sd.updatedAt = ride.updatedAt; changed = true }
+        if sd.qaCount != (ride.qaCount ?? 0) { sd.qaCount = ride.qaCount ?? 0; changed = true }
+        if sd.date != ride.date { sd.date = ride.date; changed = true }
+        if sd.time != ride.time { sd.time = ride.time; changed = true }
+        if sd.timezone != ride.timezone { sd.timezone = ride.timezone; changed = true }
+        if sd.pickup != ride.pickup { sd.pickup = ride.pickup; changed = true }
+        if sd.destination != ride.destination { sd.destination = ride.destination; changed = true }
+        if sd.seats != ride.seats { sd.seats = ride.seats; changed = true }
+        if sd.notes != ride.notes { sd.notes = ride.notes; changed = true }
+        if sd.gift != ride.gift { sd.gift = ride.gift; changed = true }
+        if sd.reviewed != ride.reviewed { sd.reviewed = ride.reviewed; changed = true }
+        if sd.reviewSkipped != ride.reviewSkipped { sd.reviewSkipped = ride.reviewSkipped; changed = true }
+        if sd.reviewSkippedAt != ride.reviewSkippedAt { sd.reviewSkippedAt = ride.reviewSkippedAt; changed = true }
+        if sd.estimatedCost != ride.estimatedCost { sd.estimatedCost = ride.estimatedCost; changed = true }
+        if sd.flightNormalized != ride.flightNormalized { sd.flightNormalized = ride.flightNormalized; changed = true }
+        if sd.posterName != ride.poster?.name { sd.posterName = ride.poster?.name; changed = true }
+        if sd.posterAvatarUrl != ride.poster?.avatarUrl { sd.posterAvatarUrl = ride.poster?.avatarUrl; changed = true }
+        if sd.claimerName != ride.claimer?.name { sd.claimerName = ride.claimer?.name; changed = true }
+        if sd.claimerAvatarUrl != ride.claimer?.avatarUrl { sd.claimerAvatarUrl = ride.claimer?.avatarUrl; changed = true }
+        let newParticipantIds = ride.participants?.map { $0.id } ?? []
+        if sd.participantIds != newParticipantIds { sd.participantIds = newParticipantIds; changed = true }
+        return changed
+    }
+
+    /// Returns true if any field was actually modified.
+    private func updateSDFavorIfChanged(_ sd: SDFavor, with favor: Favor) -> Bool {
+        var changed = false
+        if sd.status != favor.status.rawValue { sd.status = favor.status.rawValue; changed = true }
+        if sd.claimedBy != favor.claimedBy { sd.claimedBy = favor.claimedBy; changed = true }
+        if sd.updatedAt != favor.updatedAt { sd.updatedAt = favor.updatedAt; changed = true }
+        if sd.qaCount != (favor.qaCount ?? 0) { sd.qaCount = favor.qaCount ?? 0; changed = true }
+        if sd.title != favor.title { sd.title = favor.title; changed = true }
+        if sd.favorDescription != favor.description { sd.favorDescription = favor.description; changed = true }
+        if sd.location != favor.location { sd.location = favor.location; changed = true }
+        if sd.duration != favor.duration.rawValue { sd.duration = favor.duration.rawValue; changed = true }
+        if sd.requirements != favor.requirements { sd.requirements = favor.requirements; changed = true }
+        if sd.date != favor.date { sd.date = favor.date; changed = true }
+        if sd.time != favor.time { sd.time = favor.time; changed = true }
+        if sd.timezone != favor.timezone { sd.timezone = favor.timezone; changed = true }
+        if sd.gift != favor.gift { sd.gift = favor.gift; changed = true }
+        if sd.reviewed != favor.reviewed { sd.reviewed = favor.reviewed; changed = true }
+        if sd.reviewSkipped != favor.reviewSkipped { sd.reviewSkipped = favor.reviewSkipped; changed = true }
+        if sd.reviewSkippedAt != favor.reviewSkippedAt { sd.reviewSkippedAt = favor.reviewSkippedAt; changed = true }
+        if sd.posterName != favor.poster?.name { sd.posterName = favor.poster?.name; changed = true }
+        if sd.posterAvatarUrl != favor.poster?.avatarUrl { sd.posterAvatarUrl = favor.poster?.avatarUrl; changed = true }
+        if sd.claimerName != favor.claimer?.name { sd.claimerName = favor.claimer?.name; changed = true }
+        if sd.claimerAvatarUrl != favor.claimer?.avatarUrl { sd.claimerAvatarUrl = favor.claimer?.avatarUrl; changed = true }
+        let newParticipantIds = favor.participants?.map { $0.id } ?? []
+        if sd.participantIds != newParticipantIds { sd.participantIds = newParticipantIds; changed = true }
+        return changed
+    }
+
+    /// Returns true if any field was actually modified.
+    private func updateSDNotificationIfChanged(_ sd: SDNotification, with notification: AppNotification) -> Bool {
+        var changed = false
+        if sd.read != notification.read { sd.read = notification.read; changed = true }
+        if sd.pinned != notification.pinned { sd.pinned = notification.pinned; changed = true }
+        if sd.title != notification.title { sd.title = notification.title; changed = true }
+        if sd.body != notification.body { sd.body = notification.body; changed = true }
+        if sd.rideId != notification.rideId { sd.rideId = notification.rideId; changed = true }
+        if sd.favorId != notification.favorId { sd.favorId = notification.favorId; changed = true }
+        if sd.conversationId != notification.conversationId { sd.conversationId = notification.conversationId; changed = true }
+        if sd.reviewId != notification.reviewId { sd.reviewId = notification.reviewId; changed = true }
+        if sd.townHallPostId != notification.townHallPostId { sd.townHallPostId = notification.townHallPostId; changed = true }
+        if sd.sourceUserId != notification.sourceUserId { sd.sourceUserId = notification.sourceUserId; changed = true }
+        return changed
+    }
+
+    private func updateSDPostIfChanged(_ sd: SDTownHallPost, with post: TownHallPost) -> Bool {
+        var changed = false
+        if sd.title != post.title { sd.title = post.title; changed = true }
+        if sd.content != post.content { sd.content = post.content; changed = true }
+        if sd.imageUrl != post.imageUrl { sd.imageUrl = post.imageUrl; changed = true }
+        if sd.pinned != (post.pinned ?? false) { sd.pinned = post.pinned ?? false; changed = true }
+        if sd.type != post.type?.rawValue { sd.type = post.type?.rawValue; changed = true }
+        if sd.reviewId != post.reviewId { sd.reviewId = post.reviewId; changed = true }
+        if sd.createdAt != post.createdAt { sd.createdAt = post.createdAt; changed = true }
+        if sd.updatedAt != post.updatedAt { sd.updatedAt = post.updatedAt; changed = true }
+        if sd.authorName != post.author?.name { sd.authorName = post.author?.name; changed = true }
+        if sd.authorAvatarUrl != post.author?.avatarUrl { sd.authorAvatarUrl = post.author?.avatarUrl; changed = true }
+        if sd.commentCount != post.commentCount { sd.commentCount = post.commentCount; changed = true }
+        return changed
+    }
+
+    private func updateSDCommentIfChanged(_ sd: SDTownHallComment, with comment: TownHallComment) -> Bool {
+        var changed = false
+        if sd.postId != comment.postId { sd.postId = comment.postId; changed = true }
+        if sd.userId != comment.userId { sd.userId = comment.userId; changed = true }
+        if sd.parentCommentId != comment.parentCommentId { sd.parentCommentId = comment.parentCommentId; changed = true }
+        if sd.content != comment.content { sd.content = comment.content; changed = true }
+        if sd.createdAt != comment.createdAt { sd.createdAt = comment.createdAt; changed = true }
+        if sd.updatedAt != comment.updatedAt { sd.updatedAt = comment.updatedAt; changed = true }
+        if sd.authorName != comment.author?.name { sd.authorName = comment.author?.name; changed = true }
+        if sd.authorAvatarUrl != comment.author?.avatarUrl { sd.authorAvatarUrl = comment.author?.avatarUrl; changed = true }
+        return changed
+    }
+
+    // MARK: - Change-detection sync methods
+
+    /// Full reconciliation with change detection. Only saves if at least one record changed.
+    /// Returns metrics for observability.
+    func syncAllWithChangeDetection(
+        rides: [Ride], favors: [Favor], notifications: [AppNotification]
+    ) throws -> RefreshMetrics {
+        let start = Date()
+        var evaluated = 0, mutated = 0, inserted = 0, deleted = 0
+
+        // --- Rides ---
+        let allLocalRides = (try? modelContext.fetch(FetchDescriptor<SDRide>())) ?? []
+        let existingRidesById = Dictionary(uniqueKeysWithValues: allLocalRides.map { ($0.id, $0) })
+        let serverRideIds = Set(rides.map { $0.id })
+        evaluated += rides.count
+
+        for ride in rides {
+            if let existing = existingRidesById[ride.id] {
+                if updateSDRideIfChanged(existing, with: ride) { mutated += 1 }
+            } else {
+                let sdRide = SDRide(
+                    id: ride.id, userId: ride.userId, type: ride.type,
+                    date: ride.date, time: ride.time, timezone: ride.timezone,
+                    pickup: ride.pickup, destination: ride.destination,
+                    seats: ride.seats, notes: ride.notes, gift: ride.gift,
+                    status: ride.status.rawValue, claimedBy: ride.claimedBy,
+                    reviewed: ride.reviewed, reviewSkipped: ride.reviewSkipped,
+                    reviewSkippedAt: ride.reviewSkippedAt,
+                    estimatedCost: ride.estimatedCost, flightNormalized: ride.flightNormalized,
+                    createdAt: ride.createdAt, updatedAt: ride.updatedAt,
+                    posterName: ride.poster?.name, posterAvatarUrl: ride.poster?.avatarUrl,
+                    claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
+                    participantIds: ride.participants?.map { $0.id } ?? [],
+                    qaCount: ride.qaCount ?? 0
+                )
+                modelContext.insert(sdRide)
+                inserted += 1
+            }
+        }
+        for local in allLocalRides where !serverRideIds.contains(local.id) {
+            modelContext.delete(local)
+            deleted += 1
+        }
+
+        // --- Favors ---
+        let allLocalFavors = (try? modelContext.fetch(FetchDescriptor<SDFavor>())) ?? []
+        let existingFavorsById = Dictionary(uniqueKeysWithValues: allLocalFavors.map { ($0.id, $0) })
+        let serverFavorIds = Set(favors.map { $0.id })
+        evaluated += favors.count
+
+        for favor in favors {
+            if let existing = existingFavorsById[favor.id] {
+                if updateSDFavorIfChanged(existing, with: favor) { mutated += 1 }
+            } else {
+                let sdFavor = SDFavor(
+                    id: favor.id, userId: favor.userId,
+                    title: favor.title, favorDescription: favor.description,
+                    location: favor.location, duration: favor.duration.rawValue,
+                    requirements: favor.requirements,
+                    date: favor.date, time: favor.time, timezone: favor.timezone,
+                    gift: favor.gift, status: favor.status.rawValue,
+                    claimedBy: favor.claimedBy,
+                    reviewed: favor.reviewed, reviewSkipped: favor.reviewSkipped,
+                    reviewSkippedAt: favor.reviewSkippedAt,
+                    createdAt: favor.createdAt, updatedAt: favor.updatedAt,
+                    posterName: favor.poster?.name, posterAvatarUrl: favor.poster?.avatarUrl,
+                    claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
+                    participantIds: favor.participants?.map { $0.id } ?? [],
+                    qaCount: favor.qaCount ?? 0
+                )
+                modelContext.insert(sdFavor)
+                inserted += 1
+            }
+        }
+        for local in allLocalFavors where !serverFavorIds.contains(local.id) {
+            modelContext.delete(local)
+            deleted += 1
+        }
+
+        // --- Notifications ---
+        let allLocalNotifs = (try? modelContext.fetch(FetchDescriptor<SDNotification>())) ?? []
+        let existingNotifsById = Dictionary(uniqueKeysWithValues: allLocalNotifs.map { ($0.id, $0) })
+        evaluated += notifications.count
+
+        for notification in notifications {
+            if let existing = existingNotifsById[notification.id] {
+                if updateSDNotificationIfChanged(existing, with: notification) { mutated += 1 }
+            } else {
+                let sd = SDNotification(
+                    id: notification.id, userId: notification.userId,
+                    type: notification.type.rawValue,
+                    title: notification.title, body: notification.body,
+                    read: notification.read, pinned: notification.pinned,
+                    createdAt: notification.createdAt,
+                    rideId: notification.rideId, favorId: notification.favorId,
+                    conversationId: notification.conversationId,
+                    reviewId: notification.reviewId,
+                    townHallPostId: notification.townHallPostId,
+                    sourceUserId: notification.sourceUserId
+                )
+                modelContext.insert(sd)
+                inserted += 1
+            }
+        }
+
+        let didMutate = mutated > 0 || inserted > 0 || deleted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: evaluated, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: deleted,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Targeted single-ride upsert with change detection.
+    func upsertRideWithChangeDetection(_ ride: Ride) throws -> RefreshMetrics {
+        let start = Date()
+        let rideId = ride.id
+        let descriptor = FetchDescriptor<SDRide>(predicate: #Predicate { $0.id == rideId })
+        let existing = try? modelContext.fetch(descriptor).first
+
+        var mutated = 0, inserted = 0
+        if let existing {
+            if updateSDRideIfChanged(existing, with: ride) { mutated = 1 }
+        } else {
+            let sdRide = SDRide(
+                id: ride.id, userId: ride.userId, type: ride.type,
+                date: ride.date, time: ride.time, timezone: ride.timezone,
+                pickup: ride.pickup, destination: ride.destination,
+                seats: ride.seats, notes: ride.notes, gift: ride.gift,
+                status: ride.status.rawValue, claimedBy: ride.claimedBy,
+                reviewed: ride.reviewed, reviewSkipped: ride.reviewSkipped,
+                reviewSkippedAt: ride.reviewSkippedAt,
+                estimatedCost: ride.estimatedCost, flightNormalized: ride.flightNormalized,
+                createdAt: ride.createdAt, updatedAt: ride.updatedAt,
+                posterName: ride.poster?.name, posterAvatarUrl: ride.poster?.avatarUrl,
+                claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
+                participantIds: ride.participants?.map { $0.id } ?? [],
+                qaCount: ride.qaCount ?? 0
+            )
+            modelContext.insert(sdRide)
+            inserted = 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: 1, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: 0,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Targeted single-favor upsert with change detection.
+    func upsertFavorWithChangeDetection(_ favor: Favor) throws -> RefreshMetrics {
+        let start = Date()
+        let favorId = favor.id
+        let descriptor = FetchDescriptor<SDFavor>(predicate: #Predicate { $0.id == favorId })
+        let existing = try? modelContext.fetch(descriptor).first
+
+        var mutated = 0, inserted = 0
+        if let existing {
+            if updateSDFavorIfChanged(existing, with: favor) { mutated = 1 }
+        } else {
+            let sdFavor = SDFavor(
+                id: favor.id, userId: favor.userId,
+                title: favor.title, favorDescription: favor.description,
+                location: favor.location, duration: favor.duration.rawValue,
+                requirements: favor.requirements,
+                date: favor.date, time: favor.time, timezone: favor.timezone,
+                gift: favor.gift, status: favor.status.rawValue,
+                claimedBy: favor.claimedBy,
+                reviewed: favor.reviewed, reviewSkipped: favor.reviewSkipped,
+                reviewSkippedAt: favor.reviewSkippedAt,
+                createdAt: favor.createdAt, updatedAt: favor.updatedAt,
+                posterName: favor.poster?.name, posterAvatarUrl: favor.poster?.avatarUrl,
+                claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
+                participantIds: favor.participants?.map { $0.id } ?? [],
+                qaCount: favor.qaCount ?? 0
+            )
+            modelContext.insert(sdFavor)
+            inserted = 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: 1, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: 0,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Full town hall posts reconciliation with change detection.
+    func syncPostsWithChangeDetection(_ posts: [TownHallPost]) throws -> RefreshMetrics {
+        let start = Date()
+        var evaluated = 0, mutated = 0, inserted = 0, deleted = 0
+
+        let allLocal = (try? modelContext.fetch(FetchDescriptor<SDTownHallPost>())) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+        let serverIds = Set(posts.map { $0.id })
+        evaluated = posts.count
+
+        for post in posts {
+            if let existing = existingById[post.id] {
+                if updateSDPostIfChanged(existing, with: post) { mutated += 1 }
+            } else {
+                let sdPost = SDTownHallPost(
+                    id: post.id, userId: post.userId,
+                    title: post.title, content: post.content,
+                    imageUrl: post.imageUrl, pinned: post.pinned ?? false,
+                    type: post.type?.rawValue, reviewId: post.reviewId,
+                    createdAt: post.createdAt, updatedAt: post.updatedAt,
+                    authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
+                    commentCount: post.commentCount
+                )
+                modelContext.insert(sdPost)
+                inserted += 1
+            }
+        }
+
+        for local in allLocal where !serverIds.contains(local.id) {
+            modelContext.delete(local)
+            deleted += 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0 || deleted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: evaluated, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: deleted,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Full town hall comments reconciliation with change detection.
+    func syncCommentsWithChangeDetection(_ comments: [TownHallComment], forPostId postId: UUID) throws -> RefreshMetrics {
+        let start = Date()
+        var evaluated = 0, mutated = 0, inserted = 0, deleted = 0
+
+        let fetchDescriptor = FetchDescriptor<SDTownHallComment>(predicate: #Predicate { $0.postId == postId })
+        let allLocal = (try? modelContext.fetch(fetchDescriptor)) ?? []
+        let existingById = Dictionary(uniqueKeysWithValues: allLocal.map { ($0.id, $0) })
+
+        // Flatten nested comment structure
+        let flatComments = flattenTownHallComments(comments)
+        let serverIds = Set(flatComments.map { $0.id })
+        evaluated = flatComments.count
+
+        for comment in flatComments {
+            if let existing = existingById[comment.id] {
+                if updateSDCommentIfChanged(existing, with: comment) { mutated += 1 }
+            } else {
+                let sdComment = SDTownHallComment(
+                    id: comment.id, postId: comment.postId, userId: comment.userId,
+                    parentCommentId: comment.parentCommentId, content: comment.content,
+                    createdAt: comment.createdAt, updatedAt: comment.updatedAt,
+                    authorName: comment.author?.name, authorAvatarUrl: comment.author?.avatarUrl
+                )
+                modelContext.insert(sdComment)
+                inserted += 1
+            }
+        }
+
+        for local in allLocal where !serverIds.contains(local.id) {
+            modelContext.delete(local)
+            deleted += 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0 || deleted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: evaluated, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: deleted,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
+
+    /// Flatten nested TownHallComment structure for batch processing.
+    private func flattenTownHallComments(_ comments: [TownHallComment]) -> [TownHallComment] {
+        var result: [TownHallComment] = []
+        for comment in comments {
+            result.append(comment)
+            if let replies = comment.replies {
+                result.append(contentsOf: flattenTownHallComments(replies))
+            }
+        }
+        return result
+    }
+
+    /// Targeted single-post upsert with change detection.
+    func upsertPostWithChangeDetection(_ post: TownHallPost) throws -> RefreshMetrics {
+        let start = Date()
+        let postId = post.id
+        let descriptor = FetchDescriptor<SDTownHallPost>(predicate: #Predicate { $0.id == postId })
+        let existing = try? modelContext.fetch(descriptor).first
+
+        var mutated = 0, inserted = 0
+        if let existing {
+            if updateSDPostIfChanged(existing, with: post) { mutated = 1 }
+        } else {
+            let sdPost = SDTownHallPost(
+                id: post.id, userId: post.userId,
+                title: post.title, content: post.content,
+                imageUrl: post.imageUrl, pinned: post.pinned ?? false,
+                type: post.type?.rawValue, reviewId: post.reviewId,
+                createdAt: post.createdAt, updatedAt: post.updatedAt,
+                authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
+                commentCount: post.commentCount
+            )
+            modelContext.insert(sdPost)
+            inserted = 1
+        }
+
+        let didMutate = mutated > 0 || inserted > 0
+        if didMutate { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: 1, recordsMutated: mutated,
+            recordsInserted: inserted, recordsDeleted: 0,
+            savedToStore: didMutate,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
     }
 }
 

@@ -14,7 +14,7 @@ final class CreateRideViewModel: ObservableObject {
     
     // MARK: - Published Properties
     
-    @Published var date: Date = Date()
+    @Published var date: Date = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
     @Published var hour: Int = 9
     @Published var minute: Int = 0
     @Published var isAM: Bool = true

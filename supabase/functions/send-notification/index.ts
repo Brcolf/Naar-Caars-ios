@@ -319,6 +319,7 @@ async function sendPushToUser(
       sound: 'default',
       badge: badgeCount,
       'mutable-content': 1,
+      'content-available': 1,
     },
     type: notificationType,
     ...data

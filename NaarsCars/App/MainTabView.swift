@@ -103,6 +103,23 @@ struct MainTabView: View {
                 navigationCoordinator.selectedTab = tab
             }
 
+            // Notify RefreshCoordinator of visible domain
+            let domain: RefreshCoordinator.Domain? = {
+                switch newTab {
+                case 0: return .dashboard
+                case 1: return .conversations
+                case 2: return .townHall
+                case 3: return nil  // profile — no refresh domain
+                default: return nil
+                }
+            }()
+            RefreshCoordinator.shared.setVisibleDomain(domain)
+
+            // Tear down conversation WebSocket when leaving messaging tab
+            if oldValue == 1 && newTab != 1 {
+                Task { await MessagingSyncEngine.shared.cancelGracePeriodAndUnsubscribe() }
+            }
+
             guard !appState.isGuest else { return }
             // Clear badges when navigating to their respective tabs
             Task {

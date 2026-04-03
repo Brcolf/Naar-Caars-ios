@@ -145,7 +145,13 @@ struct FavorDetailView: View {
         } message: {
             Text("calendar_offer_favor_message".localized)
         }
-        .sheet(isPresented: $showClaimSheet) {
+        .sheet(isPresented: $showClaimSheet, onDismiss: {
+            // Check calendar offer after sheet is fully dismissed so the alert can present
+            if claimViewModel.lastClaimSucceeded {
+                claimViewModel.lastClaimSucceeded = false
+                viewModel.checkCalendarOffer()
+            }
+        }) {
             if let favor = viewModel.favor {
                 ClaimSheet(
                     requestType: "favor",
@@ -153,6 +159,7 @@ struct FavorDetailView: View {
                     onConfirm: {
                         try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
                         await viewModel.loadFavor(id: favorId)
+                        claimViewModel.lastClaimSucceeded = true
                     }
                 )
                 .id(RequestDetailAnchor.claimSheet.anchorId(for: .favor))

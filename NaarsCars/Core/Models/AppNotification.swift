@@ -188,6 +188,48 @@ enum NotificationType: String, Codable, CaseIterable {
     #endif
 }
 
+// MARK: - Refresh Domain Mapping
+
+extension NotificationType {
+    /// Domains that should be refreshed when this notification type is received as a push.
+    var affectedDomains: Set<RefreshDomain> {
+        switch self {
+        case .message, .addedToConversation:
+            return [.conversations]
+        case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted,
+             .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted,
+             .completionReminder,
+             .qaActivity, .qaQuestion, .qaAnswer,
+             .review, .reviewReceived, .reviewReminder, .reviewRequest,
+             .contentReported,
+             .pendingApproval, .userApproved, .userRejected,
+             .accountRestricted:
+            return [.dashboard]
+        case .townHallPost, .townHallComment, .townHallReaction,
+             .announcement, .adminAnnouncement, .broadcast:
+            return [.townHall]
+        case .other:
+            return []
+        }
+    }
+
+    /// Key in push userInfo that contains the affected entity ID, if available.
+    var entityIdKey: String? {
+        switch self {
+        case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted:
+            return "ride_id"
+        case .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted:
+            return "favor_id"
+        case .townHallPost, .townHallComment, .townHallReaction:
+            return "post_id"
+        case .message, .addedToConversation:
+            return "conversation_id"
+        default:
+            return nil
+        }
+    }
+}
+
 /// In-app notification model
 struct AppNotification: Codable, Identifiable, Equatable, Sendable {
     let id: UUID

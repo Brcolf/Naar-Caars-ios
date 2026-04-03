@@ -753,8 +753,45 @@ final class PushNotificationService: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Push-Triggered Data Refresh
+
+    /// Called when any push is received (foreground or background).
+    /// Routes refresh decisions through RefreshCoordinator — no direct engine calls.
+    func handlePushReceived(userInfo: [AnyHashable: Any]) {
+        guard let typeString = userInfo["type"] as? String,
+              let type = NotificationType(rawValue: typeString) else {
+            // Unknown type — just refresh badges
+            Task { @MainActor in
+                await BadgeCountManager.shared.refreshAllBadges(reason: "push:unknown")
+            }
+            return
+        }
+
+        let domains = type.affectedDomains
+        let entityId: UUID? = {
+            guard let key = type.entityIdKey,
+                  let idString = userInfo[key] as? String else { return nil }
+            return UUID(uuidString: idString)
+        }()
+
+        // Route through coordinator — targeted if entity ID available, else invalidate.
+        // RefreshCoordinator is @MainActor-isolated; marshal onto main actor.
+        Task { @MainActor in
+            for domain in domains {
+                if let entityId {
+                    RefreshCoordinator.shared.performTargetedRefresh(domain, entityId: entityId, trigger: "push:\(typeString)")
+                } else {
+                    RefreshCoordinator.shared.invalidate([domain])
+                }
+            }
+
+            // Badges always refresh on any push
+            RefreshCoordinator.shared.performTargetedRefresh(.badges, entityId: UUID(), trigger: "push:\(typeString)")
+        }
+    }
+
     // MARK: - Badge Management
-    
+
     /// Update the app icon badge count
     func updateBadgeCount() async {
         guard let userId = AuthService.shared.currentUserId else { return }

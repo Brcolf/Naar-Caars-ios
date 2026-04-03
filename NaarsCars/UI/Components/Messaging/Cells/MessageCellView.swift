@@ -38,6 +38,16 @@ final class MessageCellView: UIView {
     // MARK: - State
 
     private var config: MessageCellConfig?
+
+    // MARK: - Layout Size Cache
+    // sizeThatFits() owns measurement and populates this cache.
+    // layoutSubviews() reads cached values to avoid duplicate measurement.
+    private var cachedContentSizes: [ObjectIdentifier: CGSize] = [:]
+    private var cachedFitWidth: CGFloat = 0
+    /// Set to true by configure(). Cleared after the first successful layoutSubviews pass.
+    /// When true, layoutSubviews performs a full layout; when false, it skips if bounds unchanged.
+    private var layoutInvalidated: Bool = true
+    private var lastLayoutBounds: CGRect = .zero
     weak var delegate: MessageCellDelegate?
 
     /// Called when the cell's intrinsic size changes (e.g. timestamp toggle).
@@ -75,6 +85,8 @@ final class MessageCellView: UIView {
 
     func configure(with config: MessageCellConfig) {
         self.config = config
+        cachedContentSizes.removeAll(keepingCapacity: true)
+        layoutInvalidated = true
         let msg = config.message
 
         // Hide all content views first
@@ -455,6 +467,17 @@ final class MessageCellView: UIView {
         super.layoutSubviews()
         guard let config else { return }
 
+        // Skip layout if nothing changed — bounds same and no configure() since last pass
+        if !layoutInvalidated && bounds == lastLayoutBounds { return }
+
+        // Width changed since sizeThatFits — invalidate cached sizes
+        if cachedFitWidth > 0 && abs(bounds.width - cachedFitWidth) > 1 {
+            cachedContentSizes.removeAll(keepingCapacity: true)
+        }
+
+        lastLayoutBounds = bounds
+        layoutInvalidated = false
+
         // System and unsent messages are centered
         if config.message.isUnsent {
             unsentMessage?.frame = bounds
@@ -465,7 +488,7 @@ final class MessageCellView: UIView {
             return
         }
 
-        // Regular message layout
+        // Regular message layout — uses cached sizes from sizeThatFits() when available
         let maxBubbleWidth = bounds.width * 0.75
         let avatarSize: CGFloat = config.showAvatar ? 28 : 0
         let avatarSpacing: CGFloat = config.showAvatar ? 8 : 0
@@ -479,9 +502,10 @@ final class MessageCellView: UIView {
             y += 18
         }
 
-        // Reply preview
+        // Reply preview — use cached size or fall back to measurement
         if let rp = replyPreview, !rp.isHidden {
-            let rpSize = rp.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude))
+            let rpSize = cachedContentSizes[ObjectIdentifier(rp)]
+                ?? rp.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude))
             let x = config.isFromCurrentUser
                 ? bounds.width - rpSize.width
                 : avatarSize + avatarSpacing
@@ -489,13 +513,13 @@ final class MessageCellView: UIView {
             y += rpSize.height + 2
         }
 
-        // Content bubbles (may have multiple: e.g. text + link preview, image + caption)
+        // Content bubbles — use cached sizes or fall back to measurement
         let contentViews = visibleContentViews()
         var primaryContentView: UIView?
         for cv in contentViews {
-            // Emoji bubbles have no background, so they don't need width limiting
             let fitWidth = (cv is EmojiBubbleView) ? bounds.width : maxBubbleWidth
-            let cvSize = cv.sizeThatFits(CGSize(width: fitWidth, height: .greatestFiniteMagnitude))
+            let cvSize = cachedContentSizes[ObjectIdentifier(cv)]
+                ?? cv.sizeThatFits(CGSize(width: fitWidth, height: .greatestFiniteMagnitude))
             let x = config.isFromCurrentUser
                 ? bounds.width - cvSize.width
                 : avatarSize + avatarSpacing
@@ -505,9 +529,10 @@ final class MessageCellView: UIView {
         }
         if !contentViews.isEmpty { y += 2 }
 
-        // Reaction badge (anchored to first content view)
+        // Reaction badge — use cached size or fall back
         if let primary = primaryContentView, let rb = reactionStickerBadge, !rb.isHidden {
-            let rbSize = rb.sizeThatFits(.zero)
+            let rbSize = cachedContentSizes[ObjectIdentifier(rb)]
+                ?? rb.sizeThatFits(.zero)
             let rbX = config.isFromCurrentUser ? primary.frame.minX + 4 : primary.frame.maxX - rbSize.width - 4
             rb.frame = CGRect(x: rbX, y: primary.frame.minY - rbSize.height * 0.6, width: rbSize.width, height: rbSize.height)
         }
@@ -523,7 +548,7 @@ final class MessageCellView: UIView {
             }
         }
 
-        // Timestamp row
+        // Timestamp row — these are fixed-height labels, sizeToFit is cheap
         if let ts = timestampLabel, !ts.isHidden {
             ts.sizeToFit()
             let rowX = config.isFromCurrentUser
@@ -580,17 +605,14 @@ final class MessageCellView: UIView {
             path.move(to: CGPoint(x: spineX, y: topY))
 
             if !spine.showTop && spine.showBottom {
-                // First in chain: curve from reply preview down to cell bottom
                 let controlY = topY + (bottomY - topY) * 0.3
                 path.addQuadCurve(to: CGPoint(x: spineX, y: bottomY),
                                   controlPoint: CGPoint(x: spineX + (config.isFromCurrentUser ? 6 : -6), y: controlY))
             } else if spine.showTop && !spine.showBottom {
-                // Last in chain: curve from cell top down to content
                 let controlY = topY + (bottomY - topY) * 0.7
                 path.addQuadCurve(to: CGPoint(x: spineX, y: bottomY),
                                   controlPoint: CGPoint(x: spineX + (config.isFromCurrentUser ? 6 : -6), y: controlY))
             } else {
-                // Middle of chain or single: straight vertical line
                 path.addLine(to: CGPoint(x: spineX, y: bottomY))
             }
 
@@ -615,6 +637,10 @@ final class MessageCellView: UIView {
             return systemMessage?.sizeThatFits(size) ?? .zero
         }
 
+        // Populate cache for layoutSubviews() to consume
+        cachedFitWidth = size.width
+        cachedContentSizes.removeAll(keepingCapacity: true)
+
         let maxBubbleWidth = size.width * 0.75
         var height: CGFloat = 0
 
@@ -622,13 +648,17 @@ final class MessageCellView: UIView {
         if senderNameLabel?.isHidden == false { height += 18 }
         // Reply preview
         if let rp = replyPreview, !rp.isHidden {
-            height += rp.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude)).height + 2
+            let rpSize = rp.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude))
+            cachedContentSizes[ObjectIdentifier(rp)] = rpSize
+            height += rpSize.height + 2
         }
         // Content — sum all visible content views
         let cvs = visibleContentViews()
         for cv in cvs {
             let fitWidth = (cv is EmojiBubbleView) ? size.width : maxBubbleWidth
-            height += cv.sizeThatFits(CGSize(width: fitWidth, height: .greatestFiniteMagnitude)).height + 2
+            let cvSize = cv.sizeThatFits(CGSize(width: fitWidth, height: .greatestFiniteMagnitude))
+            cachedContentSizes[ObjectIdentifier(cv)] = cvSize
+            height += cvSize.height + 2
         }
         if !cvs.isEmpty { height += 2 }
         // Timestamp

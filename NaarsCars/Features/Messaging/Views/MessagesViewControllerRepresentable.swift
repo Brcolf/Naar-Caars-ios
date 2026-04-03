@@ -15,6 +15,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     // MARK: Collection View Props (same as MessagesCollectionView)
 
     let messages: [Message]
+    let messagesVersion: Int
     let cellConfigurations: [UUID: MessageCellConfiguration]
     let participantProfiles: [Profile]
     let isGroupConversation: Bool
@@ -98,54 +99,74 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
 
     func updateUIViewController(_ vc: MessagesViewController, context: Context) {
         context.coordinator.parent = self
+        let coord = context.coordinator
 
-        var config = MessagesViewController.Configuration()
-        config.messages = messages
-        config.cellConfigurations = cellConfigurations
-        config.participantProfiles = participantProfiles
-        config.isGroupConversation = isGroupConversation
-        config.totalParticipants = totalParticipants
-        config.scrollToMessageId = scrollToMessageId
-        config.scrollToBottom = scrollToBottom
+        // O(1) gate: only rebuild message-collection config when relevant data changed.
+        // Typing indicators, search state, loading flags do NOT affect message cells.
+        let needsConfigUpdate =
+            messagesVersion != coord.lastMessagesVersion
+            || scrollToMessageId != coord.lastScrollToId
+            || scrollToBottom != coord.lastScrollToBottom
+            || firstUnreadMessageId != coord.lastFirstUnreadId
+            || showUnreadDivider != coord.lastShowUnreadDivider
+            || participantProfiles.count != coord.lastProfileCount
+            || isConversationFrozen != coord.lastIsFrozen
 
-        config.firstUnreadMessageId = firstUnreadMessageId
-        config.unreadCount = unreadCount
-        config.showUnreadDivider = showUnreadDivider
+        if needsConfigUpdate {
+            var config = MessagesViewController.Configuration()
+            config.messages = messages
+            config.cellConfigurations = cellConfigurations
+            config.participantProfiles = participantProfiles
+            config.isGroupConversation = isGroupConversation
+            config.totalParticipants = totalParticipants
+            config.scrollToMessageId = scrollToMessageId
+            config.scrollToBottom = scrollToBottom
 
-        config.onOverlayAction = onOverlayAction
-        config.onSwipeReply = onSwipeReply
-        config.onImageTap = onImageTap
-        config.onReplyPreviewTap = onReplyPreviewTap
-        config.onRetry = onRetry
-        config.onReactionTap = onReactionTap
-        config.onLoadMore = onLoadMore
-        config.onScrolledToBottom = onScrolledToBottom
-        config.onUnreadDividerDismissed = onUnreadDividerDismissed
+            config.firstUnreadMessageId = firstUnreadMessageId
+            config.unreadCount = unreadCount
+            config.showUnreadDivider = showUnreadDivider
 
-        config.isConversationFrozen = isConversationFrozen
-        config.replyCountMap = replyCountMap
-        config.onViewThread = { [weak coordinator = context.coordinator] message in
-            coordinator?.parent.onViewThread?(message)
+            config.onOverlayAction = onOverlayAction
+            config.onSwipeReply = onSwipeReply
+            config.onImageTap = onImageTap
+            config.onReplyPreviewTap = onReplyPreviewTap
+            config.onRetry = onRetry
+            config.onReactionTap = onReactionTap
+            config.onLoadMore = onLoadMore
+            config.onScrolledToBottom = onScrolledToBottom
+            config.onUnreadDividerDismissed = onUnreadDividerDismissed
+
+            config.isConversationFrozen = isConversationFrozen
+            config.replyCountMap = replyCountMap
+            config.onViewThread = { [weak coordinator = context.coordinator] message in
+                coordinator?.parent.onViewThread?(message)
+            }
+
+            vc.configuration = config
+
+            coord.lastMessagesVersion = messagesVersion
+            coord.lastScrollToId = scrollToMessageId
+            coord.lastScrollToBottom = scrollToBottom
+            coord.lastFirstUnreadId = firstUnreadMessageId
+            coord.lastShowUnreadDivider = showUnreadDivider
+            coord.lastProfileCount = participantProfiles.count
+            coord.lastIsFrozen = isConversationFrozen
         }
 
-        vc.configuration = config
-
-        // Update input bar state — only mutate when the mode actually changes.
-        // Without this guard, every parent body re-evaluation would call
-        // clearEditContext() which resets textView.text to "", wiping user input.
+        // Input bar state — always update (cheap, independent of message collection)
         let bar = vc.inputBar
-        let prevMode = context.coordinator.lastInputMode
+        let prevMode = coord.lastInputMode
         if let edit = editingMessage {
             bar.setEditContext(text: edit.text, messageId: edit.id)
-            context.coordinator.lastInputMode = .editing
+            coord.lastInputMode = .editing
         } else if let reply = replyContext {
             bar.setReplyContext(reply)
-            context.coordinator.lastInputMode = .replying
+            coord.lastInputMode = .replying
         } else {
             // Only clear when transitioning OUT of reply/edit mode
             if prevMode == .replying { bar.clearReplyContext() }
             if prevMode == .editing  { bar.clearEditContext() }
-            context.coordinator.lastInputMode = .normal
+            coord.lastInputMode = .normal
         }
 
         bar.setImagePreview(imageToSend)
@@ -161,6 +182,15 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         /// Tracks the last input-bar mode so updateUIViewController only
         /// clears reply/edit state on actual mode transitions, not every call.
         var lastInputMode: InputMode = .normal
+
+        // O(1) tracking for message-collection config gating
+        var lastMessagesVersion: Int = -1
+        var lastScrollToId: UUID?
+        var lastScrollToBottom: Bool = false
+        var lastFirstUnreadId: UUID?
+        var lastShowUnreadDivider: Bool = false
+        var lastProfileCount: Int = -1
+        var lastIsFrozen: Bool = false
 
         init(parent: MessagesViewControllerRepresentable) {
             self.parent = parent
