@@ -20,6 +20,7 @@ final class MessageCellView: UIView {
     private var linkPreviewBubble: LinkPreviewBubbleView?
     private var systemMessage: SystemMessageView?
     private var unsentMessage: UnsentMessageView?
+    private var moderationHiddenMessage: ModerationHiddenMessageView?
 
     private var avatarView: AvatarUIView?
     private var senderNameLabel: UILabel?
@@ -92,7 +93,9 @@ final class MessageCellView: UIView {
         // Hide all content views first
         hideAllContent()
 
-        if msg.isUnsent {
+        if msg.isModerationHidden {
+            showModerationHidden(config: config)
+        } else if msg.isUnsent {
             showUnsent(config: config)
         } else if isSystemMessage(msg) {
             showSystem(msg: msg)
@@ -129,7 +132,7 @@ final class MessageCellView: UIView {
         // Accessibility — container exposes child elements
         isAccessibilityElement = false
         accessibilityElements = visibleContentViews()
-            + [reactionStickerBadge, timestampLabel, readReceipt, failedRetryLabel, replyPreview]
+            + [moderationHiddenMessage, systemMessage, unsentMessage, reactionStickerBadge, timestampLabel, readReceipt, failedRetryLabel, replyPreview]
                 .compactMap { $0 }
                 .filter { !$0.isHidden }
 
@@ -147,6 +150,17 @@ final class MessageCellView: UIView {
         }()
         view.isHidden = false
         view.configure(isFromCurrentUser: config.isFromCurrentUser)
+    }
+
+    private func showModerationHidden(config: MessageCellConfig) {
+        let view = moderationHiddenMessage ?? {
+            let v = ModerationHiddenMessageView()
+            addSubview(v)
+            moderationHiddenMessage = v
+            return v
+        }()
+        view.isHidden = false
+        view.configure(reason: config.message.hiddenReason)
     }
 
     private func showSystem(msg: Message) {
@@ -446,6 +460,7 @@ final class MessageCellView: UIView {
         linkPreviewBubble?.isHidden = true
         systemMessage?.isHidden = true
         unsentMessage?.isHidden = true
+        moderationHiddenMessage?.isHidden = true
         avatarView?.isHidden = true
         senderNameLabel?.isHidden = true
         replyPreview?.isHidden = true
@@ -454,6 +469,7 @@ final class MessageCellView: UIView {
         timestampLabel?.isHidden = true
         editedLabel?.isHidden = true
         failedRetryLabel?.isHidden = true
+        replyCountLabel?.isHidden = true
         spineLayer.isHidden = true
     }
 
@@ -478,7 +494,11 @@ final class MessageCellView: UIView {
         lastLayoutBounds = bounds
         layoutInvalidated = false
 
-        // System and unsent messages are centered
+        // Moderation, system, and unsent placeholders are centered
+        if config.message.isModerationHidden {
+            moderationHiddenMessage?.frame = bounds
+            return
+        }
         if config.message.isUnsent {
             unsentMessage?.frame = bounds
             return
@@ -630,6 +650,9 @@ final class MessageCellView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         guard let config else { return .zero }
 
+        if config.message.isModerationHidden {
+            return moderationHiddenMessage?.sizeThatFits(size) ?? .zero
+        }
         if config.message.isUnsent {
             return unsentMessage?.sizeThatFits(size) ?? .zero
         }
@@ -699,7 +722,7 @@ final class MessageCellView: UIView {
     }
 
     @objc private func handlePan(_ gr: UIPanGestureRecognizer) {
-        guard let config else { return }
+        guard let config, !config.message.isModerationHidden else { return }
         let translation = gr.translation(in: self)
 
         switch gr.state {
@@ -753,13 +776,17 @@ final class MessageCellView: UIView {
     }
 
     @objc private func handleLongPress(_ gr: UILongPressGestureRecognizer) {
-        guard gr.state == .began, let config else { return }
+        guard gr.state == .began, let config, !config.message.isModerationHidden else { return }
         HapticManager.heavyImpact()
         delegate?.messageCellDidLongPress(self, message: config.message)
     }
 
     @objc private func handleTap(_ gr: UITapGestureRecognizer) {
         guard let config else { return }
+
+        if config.message.isModerationHidden {
+            return
+        }
 
         if config.isFailed {
             delegate?.messageCellDidTapRetry(self, message: config.message)
@@ -810,6 +837,7 @@ final class MessageCellView: UIView {
         linkPreviewBubble?.prepareForReuse()
         systemMessage?.prepareForReuse()
         unsentMessage?.prepareForReuse()
+        moderationHiddenMessage?.prepareForReuse()
         avatarView?.prepareForReuse()
         reactionStickerBadge?.prepareForReuse()
         readReceipt?.prepareForReuse()
@@ -825,6 +853,10 @@ final class MessageCellView: UIView {
 
 extension MessageCellView: UIGestureRecognizerDelegate {
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if config?.message.isModerationHidden == true,
+           (gestureRecognizer === panGesture || gestureRecognizer === longPressGesture) {
+            return false
+        }
         if gestureRecognizer === panGesture {
             let velocity = panGesture.velocity(in: self)
             // Only begin if predominantly horizontal
@@ -836,5 +868,158 @@ extension MessageCellView: UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         // Don't conflict with collection view scroll
         return false
+    }
+}
+
+/// Displays a placeholder for a moderation-hidden message.
+final class ModerationHiddenMessageView: UIView {
+
+    // MARK: - Subviews
+
+    private let iconView = UIImageView()
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let borderLayer = CAShapeLayer()
+
+    // MARK: - State
+
+    private var hiddenReason: String?
+
+    // MARK: - Init
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
+        borderLayer.fillColor = UIColor.systemOrange.withAlphaComponent(0.08).cgColor
+        borderLayer.strokeColor = UIColor.systemOrange.withAlphaComponent(0.5).cgColor
+        borderLayer.lineWidth = 1
+        layer.addSublayer(borderLayer)
+
+        let iconConfig = UIImage.SymbolConfiguration(textStyle: .caption1)
+        iconView.image = UIImage(systemName: "eye.slash", withConfiguration: iconConfig)
+        iconView.tintColor = .systemOrange
+        addSubview(iconView)
+
+        titleLabel.font = .preferredFont(forTextStyle: .caption1).withWeight(.semibold)
+        titleLabel.textColor = .label
+        titleLabel.text = "messaging_moderation_hidden_title".localized
+        titleLabel.numberOfLines = 1
+        addSubview(titleLabel)
+
+        subtitleLabel.font = .preferredFont(forTextStyle: .caption2)
+        subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.text = "messaging_moderation_hidden_subtitle".localized
+        subtitleLabel.numberOfLines = 0
+        addSubview(subtitleLabel)
+
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
+        accessibilityIdentifier = "message.moderationHiddenPlaceholder"
+    }
+
+    // MARK: - Configure
+
+    func configure(reason: String?) {
+        hiddenReason = reason?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let hiddenReason, !hiddenReason.isEmpty {
+            accessibilityLabel = "messaging_moderation_hidden_accessibility_with_reason".localized(with: hiddenReason)
+        } else {
+            accessibilityLabel = "messaging_moderation_hidden_accessibility".localized
+        }
+        accessibilityHint = subtitleLabel.text
+        setNeedsLayout()
+    }
+
+    // MARK: - Layout
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let b = bounds
+        let cornerRadius: CGFloat = 18
+        borderLayer.path = UIBezierPath(roundedRect: b, cornerRadius: cornerRadius).cgPath
+
+        let hPad: CGFloat = 14
+        let vPad: CGFloat = 10
+        let spacing: CGFloat = 8
+        let labelSpacing: CGFloat = 2
+        let iconSize: CGFloat = 16
+
+        let contentWidth = max(0, b.width - (hPad * 2) - iconSize - spacing)
+        let titleSize = titleLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude))
+        let subtitleSize = subtitleLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude))
+        let totalLabelHeight = titleSize.height + labelSpacing + subtitleSize.height
+
+        iconView.frame = CGRect(
+            x: hPad,
+            y: vPad,
+            width: iconSize,
+            height: iconSize
+        )
+
+        let labelX = iconView.frame.maxX + spacing
+        titleLabel.frame = CGRect(
+            x: labelX,
+            y: vPad,
+            width: contentWidth,
+            height: titleSize.height
+        )
+        subtitleLabel.frame = CGRect(
+            x: labelX,
+            y: titleLabel.frame.maxY + labelSpacing,
+            width: contentWidth,
+            height: subtitleSize.height
+        )
+
+        let iconOffset = max(0, (totalLabelHeight - iconSize) / 2)
+        iconView.frame.origin.y += iconOffset
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let hPad: CGFloat = 14
+        let vPad: CGFloat = 10
+        let spacing: CGFloat = 8
+        let labelSpacing: CGFloat = 2
+        let iconSize: CGFloat = 16
+        let fittingWidth = size.width > 0 ? size.width : 260
+        let contentWidth = max(0, fittingWidth - (hPad * 2) - iconSize - spacing)
+        let titleSize = titleLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude))
+        let subtitleSize = subtitleLabel.sizeThatFits(CGSize(width: contentWidth, height: .greatestFiniteMagnitude))
+        let height = vPad + titleSize.height + labelSpacing + subtitleSize.height + vPad
+        return CGSize(width: fittingWidth, height: max(height, iconSize + vPad * 2))
+    }
+
+    // MARK: - Reuse
+
+    func prepareForReuse() {
+        hiddenReason = nil
+        accessibilityLabel = nil
+        accessibilityHint = nil
+    }
+
+    // MARK: - Trait changes
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            borderLayer.fillColor = UIColor.systemOrange.withAlphaComponent(0.08).cgColor
+            borderLayer.strokeColor = UIColor.systemOrange.withAlphaComponent(0.5).cgColor
+        }
+    }
+}
+
+private extension UIFont {
+    func withWeight(_ weight: UIFont.Weight) -> UIFont {
+        let descriptor = fontDescriptor.addingAttributes([
+            .traits: [UIFontDescriptor.TraitKey.weight: weight]
+        ])
+        return UIFont(descriptor: descriptor, size: pointSize)
     }
 }

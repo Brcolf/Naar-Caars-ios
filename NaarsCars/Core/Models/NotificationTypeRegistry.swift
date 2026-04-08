@@ -33,6 +33,8 @@ enum NotificationTypeRegistry {
         "town_hall_post",
         "town_hall_comment",
         "town_hall_reaction",
+        "content_reported",
+        "content_hidden",
         "announcement",
         "admin_announcement",
         "broadcast",

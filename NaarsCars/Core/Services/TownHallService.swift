@@ -37,7 +37,6 @@ final class TownHallService {
         let response = try await supabase
             .from("town_hall_posts")
             .select()
-            .is("hidden_at", value: nil)
             .order("created_at", ascending: false)
             .range(from: offset, to: offset + limit - 1)
             .execute()
@@ -74,7 +73,6 @@ final class TownHallService {
             .from("town_hall_posts")
             .select("id")
             .eq("review_id", value: reviewId.uuidString)
-            .is("hidden_at", value: nil)
             .order("created_at", ascending: false)
             .limit(1)
             .execute()
@@ -466,7 +464,6 @@ final class TownHallService {
             .from("town_hall_comments")
             .select("post_id")
             .in("post_id", values: postIds.map { $0.uuidString })
-            .is("hidden_at", value: nil)
             .execute()
         
         guard let data = response?.data else { return [:] }

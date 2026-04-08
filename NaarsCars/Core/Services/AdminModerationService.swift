@@ -14,8 +14,12 @@ struct AdminReport: Codable, Identifiable, Equatable {
     let reporterName: String?
     let reportedUserId: UUID?
     let reportedUserName: String?
+    let reportedMessageId: UUID?
     let reportedPostId: UUID?
     let reportedCommentId: UUID?
+    let reportedRideId: UUID?
+    let reportedFavorId: UUID?
+    let targetType: String
     let reportType: String
     let description: String?
     let status: String
@@ -33,11 +37,39 @@ struct AdminReport: Codable, Identifiable, Equatable {
 
     var isPost: Bool { reportedPostId != nil }
     var isComment: Bool { reportedCommentId != nil }
-    var contentTypeLabel: String {
-        if reportedPostId != nil { return "Post" }
-        if reportedCommentId != nil { return "Comment" }
-        if reportedUserId != nil { return "User" }
-        return "Message"
+
+    var contentTypeLocalizationKey: String {
+        switch targetType {
+        case "message":
+            return "admin_reports_target_message"
+        case "town_hall_post":
+            return "admin_reports_target_post"
+        case "town_hall_comment":
+            return "admin_reports_target_comment"
+        case "ride":
+            return "admin_reports_target_ride"
+        case "favor":
+            return "admin_reports_target_favor"
+        default:
+            return "admin_reports_target_user"
+        }
+    }
+
+    var contentTypeSystemImageName: String {
+        switch targetType {
+        case "message":
+            return "message.fill"
+        case "town_hall_post":
+            return "text.bubble"
+        case "town_hall_comment":
+            return "text.quote"
+        case "ride":
+            return "car.fill"
+        case "favor":
+            return "hand.raised.fill"
+        default:
+            return "person.fill"
+        }
     }
 }
 

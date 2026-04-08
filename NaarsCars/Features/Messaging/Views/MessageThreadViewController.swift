@@ -11,6 +11,8 @@ import SwiftUI
 import PhotosUI
 internal import Combine
 
+private let messageThreadReportRequestedNotification = Notification.Name("messaging.thread.reportRequested")
+
 // Section indices for the thread collection view
 private let kSectionParent = 0
 private let kSectionDivider = 1
@@ -594,6 +596,8 @@ final class MessageThreadViewController: UIViewController {
 
 extension MessageThreadViewController: MessageCellDelegate {
     func messageCellDidLongPress(_ cell: MessageCellView, message: Message) {
+        guard !message.isModerationHidden else { return }
+
         let cellFrame = cell.convert(cell.bounds, to: nil)
         guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
 
@@ -709,6 +713,8 @@ extension MessageThreadViewController: MessageCellDelegate {
     }
 
     private func handleOverlayAction(_ action: OverlayAction, for message: Message) {
+        guard !message.isModerationHidden else { return }
+
         switch action {
         case .react(let emoji):
             Task { await conversationViewModel.addReaction(messageId: message.id, reaction: emoji) }
@@ -729,7 +735,21 @@ extension MessageThreadViewController: MessageCellDelegate {
         case .deleteForMe:
             Task { await conversationViewModel.deleteMessageForMe(message) }
         case .report:
-            break
+            presentReportSheet(for: message)
+        }
+    }
+
+    private func presentReportSheet(for message: Message) {
+        let dismissingController = navigationController ?? self
+        dismissingController.dismiss(animated: true) {
+            NotificationCenter.default.post(
+                name: messageThreadReportRequestedNotification,
+                object: nil,
+                userInfo: [
+                    "conversationId": self.conversationId,
+                    "message": message
+                ]
+            )
         }
     }
 }

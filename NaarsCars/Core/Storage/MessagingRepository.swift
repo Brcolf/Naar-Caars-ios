@@ -370,6 +370,9 @@ final class MessagingRepository {
                 existing.replyToId != message.replyToId ||
                 existing.editedAt != message.editedAt ||
                 existing.deletedAt != message.deletedAt ||
+                existing.hiddenAt != message.hiddenAt ||
+                existing.hiddenBy != message.hiddenBy ||
+                existing.hiddenReason != message.hiddenReason ||
                 existing.status != incomingStatus ||
                 existing.localAttachmentPath != message.localAttachmentPath ||
                 existing.isPending
@@ -389,6 +392,9 @@ final class MessagingRepository {
             existing.replyToId = message.replyToId
             existing.editedAt = message.editedAt
             existing.deletedAt = message.deletedAt
+            existing.hiddenAt = message.hiddenAt
+            existing.hiddenBy = message.hiddenBy
+            existing.hiddenReason = message.hiddenReason
             existing.status = incomingStatus
             existing.localAttachmentPath = message.localAttachmentPath
             existing.syncError = message.syncError

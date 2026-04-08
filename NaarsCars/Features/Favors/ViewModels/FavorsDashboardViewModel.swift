@@ -65,12 +65,16 @@ final class FavorsDashboardViewModel: ObservableObject {
                 requirements: sd.requirements,
                 date: sd.date,
                 time: sd.time,
+                timezone: sd.timezone,
                 gift: sd.gift,
                 status: FavorStatus(rawValue: sd.status) ?? .open,
                 claimedBy: sd.claimedBy,
                 reviewed: sd.reviewed,
                 reviewSkipped: sd.reviewSkipped,
                 reviewSkippedAt: sd.reviewSkippedAt,
+                hiddenAt: sd.hiddenAt,
+                hiddenBy: sd.hiddenBy,
+                hiddenReason: sd.hiddenReason,
                 createdAt: sd.createdAt,
                 updatedAt: sd.updatedAt,
                 qaCount: sd.qaCount
@@ -145,6 +149,9 @@ final class FavorsDashboardViewModel: ObservableObject {
                 existing.reviewed = favor.reviewed
                 existing.reviewSkipped = favor.reviewSkipped
                 existing.reviewSkippedAt = favor.reviewSkippedAt
+                existing.hiddenAt = favor.hiddenAt
+                existing.hiddenBy = favor.hiddenBy
+                existing.hiddenReason = favor.hiddenReason
             } else {
                 let sdFavor = SDFavor(
                     id: favor.id,
@@ -156,12 +163,16 @@ final class FavorsDashboardViewModel: ObservableObject {
                     requirements: favor.requirements,
                     date: favor.date,
                     time: favor.time,
+                    timezone: favor.timezone,
                     gift: favor.gift,
                     status: favor.status.rawValue,
                     claimedBy: favor.claimedBy,
                     reviewed: favor.reviewed,
                     reviewSkipped: favor.reviewSkipped,
                     reviewSkippedAt: favor.reviewSkippedAt,
+                    hiddenAt: favor.hiddenAt,
+                    hiddenBy: favor.hiddenBy,
+                    hiddenReason: favor.hiddenReason,
                     createdAt: favor.createdAt,
                     updatedAt: favor.updatedAt,
                     qaCount: favor.qaCount ?? 0

@@ -37,7 +37,6 @@ final class TownHallCommentService {
             .from("town_hall_comments")
             .select()
             .eq("post_id", value: postId.uuidString)
-            .is("hidden_at", value: nil)
             .order("created_at", ascending: true)
             .execute()
         

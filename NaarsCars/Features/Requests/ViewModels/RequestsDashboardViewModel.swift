@@ -200,6 +200,9 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.reviewSkippedAt = ride.reviewSkippedAt
                 existing.estimatedCost = ride.estimatedCost
                 existing.flightNormalized = ride.flightNormalized
+                existing.hiddenAt = ride.hiddenAt
+                existing.hiddenBy = ride.hiddenBy
+                existing.hiddenReason = ride.hiddenReason
                 existing.posterName = ride.poster?.name
                 existing.posterAvatarUrl = ride.poster?.avatarUrl
                 existing.claimerName = ride.claimer?.name
@@ -226,6 +229,9 @@ final class RequestsDashboardViewModel: ObservableObject {
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost,
                     flightNormalized: ride.flightNormalized,
+                    hiddenAt: ride.hiddenAt,
+                    hiddenBy: ride.hiddenBy,
+                    hiddenReason: ride.hiddenReason,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
                     posterName: ride.poster?.name,
@@ -263,6 +269,9 @@ final class RequestsDashboardViewModel: ObservableObject {
                 existing.reviewed = favor.reviewed
                 existing.reviewSkipped = favor.reviewSkipped
                 existing.reviewSkippedAt = favor.reviewSkippedAt
+                existing.hiddenAt = favor.hiddenAt
+                existing.hiddenBy = favor.hiddenBy
+                existing.hiddenReason = favor.hiddenReason
                 existing.posterName = favor.poster?.name
                 existing.posterAvatarUrl = favor.poster?.avatarUrl
                 existing.claimerName = favor.claimer?.name
@@ -287,6 +296,9 @@ final class RequestsDashboardViewModel: ObservableObject {
                     reviewed: favor.reviewed,
                     reviewSkipped: favor.reviewSkipped,
                     reviewSkippedAt: favor.reviewSkippedAt,
+                    hiddenAt: favor.hiddenAt,
+                    hiddenBy: favor.hiddenBy,
+                    hiddenReason: favor.hiddenReason,
                     createdAt: favor.createdAt,
                     updatedAt: favor.updatedAt,
                     posterName: favor.poster?.name,

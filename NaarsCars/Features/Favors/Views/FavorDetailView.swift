@@ -65,7 +65,10 @@ struct FavorDetailView: View {
         .navigationTitle("favor_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if !viewModel.isPoster, viewModel.favor != nil, !appState.isGuest {
+            if !viewModel.isPoster,
+               let favor = viewModel.favor,
+               !appState.isGuest,
+               !favor.isModerationHidden {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if hasReported {
                         Image(systemName: "flag.fill")
@@ -111,7 +114,9 @@ struct FavorDetailView: View {
         .refreshable { await viewModel.loadFavor(id: favorId) }
         .task {
             await viewModel.loadFavor(id: favorId)
-            viewModel.checkCalendarOffer()
+            if !(viewModel.favor?.isModerationHidden ?? false) {
+                viewModel.checkCalendarOffer()
+            }
         }
         .sheet(isPresented: $showEditFavor) {
             if let favor = viewModel.favor {
@@ -245,271 +250,272 @@ struct FavorDetailView: View {
     
     @ViewBuilder
     private func favorDetails(favor: Favor) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Header Section: Status and Poster
-            HStack(alignment: .center, spacing: Constants.Spacing.md) {
-                if let poster = favor.poster {
-                    UserAvatarLink(profile: poster, size: 60)
-                }
-                
-                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                    Text(favor.status.displayText)
-                        .font(.naarsHeadline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(favor.status.color)
-                        .cornerRadius(8)
-                        .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
-                        .requestHighlight(highlightedAnchor == .statusBadge)
-                    
+        if favor.isModerationHidden {
+            if viewModel.isPoster {
+                hiddenFavorPlaceholder(favor: favor)
+            } else {
+                ErrorView(error: "moderation_content_unavailable".localized)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .center, spacing: Constants.Spacing.md) {
                     if let poster = favor.poster {
-                        Text("favor_detail_requested_by".localized(with: poster.name))
-                            .font(.naarsCaption)
+                        UserAvatarLink(profile: poster, size: 60)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                        Text(favor.status.displayText)
+                            .font(.naarsHeadline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(favor.status.color)
+                            .cornerRadius(8)
+                            .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
+                            .requestHighlight(highlightedAnchor == .statusBadge)
+                        
+                        if let poster = favor.poster {
+                            Text("favor_detail_requested_by".localized(with: poster.name))
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.bottom, 8)
+                .id(RequestDetailAnchor.mainTop.anchorId(for: .favor))
+                .requestHighlight(highlightedAnchor == .mainTop)
+                .onAppear { handleSectionAppeared(.mainTop) }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(favor.title)
+                        .font(.naarsTitle2)
+                        .foregroundColor(.primary)
+                    
+                    if let description = favor.description, !description.isEmpty {
+                        Text(description)
+                            .font(.naarsBody)
                             .foregroundColor(.secondary)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardStyle()
                 
-                Spacer()
-            }
-            .padding(.bottom, 8)
-            .id(RequestDetailAnchor.mainTop.anchorId(for: .favor))
-            .requestHighlight(highlightedAnchor == .mainTop)
-            .onAppear { handleSectionAppeared(.mainTop) }
-            
-            // Title & Description Card
-            VStack(alignment: .leading, spacing: 12) {
-                Text(favor.title)
-                    .font(.naarsTitle2)
-                    .foregroundColor(.primary)
-                
-                if let description = favor.description, !description.isEmpty {
-                    Text(description)
-                        .font(.naarsBody)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardStyle()
-            
-            // Location & Time Card
-            VStack(alignment: .leading, spacing: Constants.Spacing.md) {
-                HStack {
-                    Label("favor_detail_details".localized, systemImage: "info.circle.fill")
-                        .font(.naarsTitle3)
-                        .foregroundColor(.favorAccent)
-                    Spacer()
-                    Text("favor_detail_hold_to_copy".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                }
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "mappin.circle.fill")
-                            .foregroundColor(.favorAccent)
+                VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                    HStack {
+                        Label("favor_detail_details".localized, systemImage: "info.circle.fill")
                             .font(.naarsTitle3)
-                        AddressText(favor.location, isRedacted: appState.isGuest)
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        openInExternalMaps(favor: favor)
+                            .foregroundColor(.favorAccent)
+                        Spacer()
+                        Text("favor_detail_hold_to_copy".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
                     }
                     
-                    Divider()
-                    
-                    HStack(spacing: Constants.Spacing.md) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(favor.date.dateString)
-                                    .font(.naarsHeadline)
-                                Text("favor_detail_date".localized)
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "calendar")
-                                .foregroundColor(.naarsPrimary)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.favorAccent)
+                                .font(.naarsTitle3)
+                            AddressText(favor.location, isRedacted: appState.isGuest)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            openInExternalMaps(favor: favor)
+                        }
                         
-                        if let time = favor.time {
+                        Divider()
+                        
+                        HStack(spacing: Constants.Spacing.md) {
                             Label {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 4) {
-                                        Text(time)
-                                            .font(.naarsHeadline)
-                                        let abbrev = favor.timeZone.abbreviation(for: RequestItem.favor(favor).eventTime) ?? favor.timeZone.abbreviation() ?? "PT"
-                                        Text(abbrev)
-                                            .font(.naarsCaption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Text("favor_detail_time".localized)
+                                    Text(favor.date.dateString)
+                                        .font(.naarsHeadline)
+                                    Text("favor_detail_date".localized)
                                         .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
                             } icon: {
-                                Image(systemName: "clock")
+                                Image(systemName: "calendar")
                                     .foregroundColor(.naarsPrimary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(favor.duration.displayText)
-                                .font(.naarsHeadline)
-                            Text("favor_detail_estimated_duration".localized)
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: favor.duration.icon)
-                            .foregroundColor(.naarsPrimary)
-                    }
-                }
-            }
-            .cardStyle()
-            
-            // Participants Section
-            if let participants = favor.participants, !participants.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("favor_detail_participants".localized)
-                        .font(.naarsTitle3)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Constants.Spacing.md) {
-                            ForEach(participants) { participant in
-                                VStack(spacing: 6) {
-                                    UserAvatarLink(profile: participant, size: 50)
-                                    Text(participant.name)
-                                        .font(.naarsCaption)
-                                        .lineLimit(1)
-                                        .frame(width: 60)
+                            
+                            if let time = favor.time {
+                                Label {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 4) {
+                                            Text(time)
+                                                .font(.naarsHeadline)
+                                            let abbrev = favor.timeZone.abbreviation(for: RequestItem.favor(favor).eventTime) ?? favor.timeZone.abbreviation() ?? "PT"
+                                            Text(abbrev)
+                                                .font(.naarsCaption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Text("favor_detail_time".localized)
+                                            .font(.naarsCaption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: "clock")
+                                        .foregroundColor(.naarsPrimary)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .padding(.horizontal, 4)
+                        
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(favor.duration.displayText)
+                                    .font(.naarsHeadline)
+                                Text("favor_detail_estimated_duration".localized)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: favor.duration.icon)
+                                .foregroundColor(.naarsPrimary)
+                        }
                     }
                 }
                 .cardStyle()
-            }
-            
-            // Claimer Section
-            if let claimer = favor.claimer {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("favor_detail_claimed_by".localized)
-                        .font(.naarsTitle3)
-                    
-                    HStack(spacing: 12) {
-                        UserAvatarLink(profile: claimer, size: 50)
+                
+                if let participants = favor.participants, !participants.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("favor_detail_participants".localized)
+                            .font(.naarsTitle3)
                         
-                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                            Text(claimer.name)
-                                .font(.naarsHeadline)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: Constants.Spacing.md) {
+                                ForEach(participants) { participant in
+                                    VStack(spacing: 6) {
+                                        UserAvatarLink(profile: participant, size: 50)
+                                        Text(participant.name)
+                                            .font(.naarsCaption)
+                                            .lineLimit(1)
+                                            .frame(width: 60)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                    }
+                    .cardStyle()
+                }
+                
+                if let claimer = favor.claimer {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("favor_detail_claimed_by".localized)
+                            .font(.naarsTitle3)
+                        
+                        HStack(spacing: 12) {
+                            UserAvatarLink(profile: claimer, size: 50)
+                            
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text(claimer.name)
+                                    .font(.naarsHeadline)
+                            }
+                            
+                            Spacer()
+                        }
+                    }
+                    .cardStyle()
+                    .id(RequestDetailAnchor.claimerCard.anchorId(for: .favor))
+                    .requestHighlight(highlightedAnchor == .claimerCard)
+                }
+
+                if favor.claimedBy != nil {
+                    RequestReviewSection(
+                        requestType: "favor",
+                        requestId: favor.id,
+                        posterId: favor.userId,
+                        claimerId: favor.claimedBy,
+                        isCompleted: favor.status == .completed,
+                        requestTitle: favor.title,
+                        onReviewSubmitted: {
+                            Task { await viewModel.loadFavor(id: favorId) }
+                        }
+                    )
+                }
+
+                if !(favor.requirements?.isEmpty ?? true) || !(favor.gift?.isEmpty ?? true) {
+                    VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                        if let requirements = favor.requirements, !requirements.isEmpty {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                                Label("favor_detail_requirements".localized, systemImage: "list.bullet.clipboard")
+                                    .font(.naarsHeadline)
+                                Text(requirements)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         
-                        Spacer()
+                        if !(favor.requirements?.isEmpty ?? true) && !(favor.gift?.isEmpty ?? true) {
+                            Divider()
+                        }
+                        
+                        if let gift = favor.gift, !gift.isEmpty {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                                Label("favor_detail_gift".localized, systemImage: "gift.fill")
+                                    .font(.naarsHeadline)
+                                    .foregroundColor(.naarsPrimary)
+                                Text(gift)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+                    .cardStyle()
                 }
-                .cardStyle()
-                .id(RequestDetailAnchor.claimerCard.anchorId(for: .favor))
-                .requestHighlight(highlightedAnchor == .claimerCard)
-            }
-
-            // Review Section (for completed favors)
-            if favor.claimedBy != nil {
-                RequestReviewSection(
-                    requestType: "favor",
+                
+                RequestQAView(
+                    qaItems: viewModel.qaItems,
                     requestId: favor.id,
-                    posterId: favor.userId,
-                    claimerId: favor.claimedBy,
-                    isCompleted: favor.status == .completed,
-                    requestTitle: favor.title,
-                    onReviewSubmitted: {
-                        Task { await viewModel.loadFavor(id: favorId) }
+                    requestType: "favor",
+                    onPostQuestion: { question in
+                        if appState.isGuest {
+                            guestRestrictionReason = .askQuestion
+                            showGuestPrompt = true
+                            return
+                        }
+                        let countBefore = viewModel.qaItems.count
+                        await viewModel.postQuestion(question)
+                        if viewModel.qaItems.count > countBefore {
+                            toastMessage = "toast_question_posted".localized
+                        }
+                    },
+                    isClaimed: favor.claimedBy != nil,
+                    onMessageParticipants: favor.claimedBy == nil ? nil : {
+                        if appState.isGuest {
+                            guestRestrictionReason = .sendMessage
+                            showGuestPrompt = true
+                            return
+                        }
+                        Task { await openOrCreateConversation(favor: favor) }
                     }
                 )
-            }
-
-            // Requirements & Gift
-            if !(favor.requirements?.isEmpty ?? true) || !(favor.gift?.isEmpty ?? true) {
-                VStack(alignment: .leading, spacing: Constants.Spacing.md) {
-                    if let requirements = favor.requirements, !requirements.isEmpty {
-                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-                            Label("favor_detail_requirements".localized, systemImage: "list.bullet.clipboard")
-                                .font(.naarsHeadline)
-                            Text(requirements)
-                                .font(.naarsBody)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    if !(favor.requirements?.isEmpty ?? true) && !(favor.gift?.isEmpty ?? true) {
-                        Divider()
-                    }
-                    
-                    if let gift = favor.gift, !gift.isEmpty {
-                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-                            Label("favor_detail_gift".localized, systemImage: "gift.fill")
-                                .font(.naarsHeadline)
-                                .foregroundColor(.naarsPrimary)
-                            Text(gift)
-                                .font(.naarsBody)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                .id(RequestDetailAnchor.qaSection.anchorId(for: .favor))
+                .requestHighlight(highlightedAnchor == .qaSection)
+                .onAppear { handleSectionAppeared(.qaSection) }
+                
+                claimButtonSection(favor: favor)
+                    .id(RequestDetailAnchor.claimAction.anchorId(for: .favor))
+                    .requestHighlight(highlightedAnchor == .claimAction)
+                    .onAppear { handleSectionAppeared(.claimAction) }
+                
+                if viewModel.canEdit {
+                    addParticipantsButton(favor: favor)
+                        .accessibilityIdentifier("favor.addParticipants")
                 }
-                .cardStyle()
-            }
-            
-            RequestQAView(
-                qaItems: viewModel.qaItems,
-                requestId: favor.id,
-                requestType: "favor",
-                onPostQuestion: { question in
-                    if appState.isGuest {
-                        guestRestrictionReason = .askQuestion
-                        showGuestPrompt = true
-                        return
+                
+                if viewModel.canEdit {
+                    HStack(spacing: Constants.Spacing.md) {
+                        SecondaryButton(title: "favor_detail_edit".localized) { showEditFavor = true }
+                            .accessibilityIdentifier("favor.edit")
+                        SecondaryButton(title: "favor_detail_delete".localized) { showDeleteAlert = true }
+                            .accessibilityIdentifier("favor.delete")
                     }
-                    let countBefore = viewModel.qaItems.count
-                    await viewModel.postQuestion(question)
-                    if viewModel.qaItems.count > countBefore {
-                        toastMessage = "toast_question_posted".localized
-                    }
-                },
-                isClaimed: favor.claimedBy != nil,
-                onMessageParticipants: favor.claimedBy == nil ? nil : {
-                    if appState.isGuest {
-                        guestRestrictionReason = .sendMessage
-                        showGuestPrompt = true
-                        return
-                    }
-                    Task { await openOrCreateConversation(favor: favor) }
-                }
-            )
-            .id(RequestDetailAnchor.qaSection.anchorId(for: .favor))
-            .requestHighlight(highlightedAnchor == .qaSection)
-            .onAppear { handleSectionAppeared(.qaSection) }
-            
-            claimButtonSection(favor: favor)
-                .id(RequestDetailAnchor.claimAction.anchorId(for: .favor))
-                .requestHighlight(highlightedAnchor == .claimAction)
-                .onAppear { handleSectionAppeared(.claimAction) }
-            
-            if viewModel.canEdit {
-                addParticipantsButton(favor: favor)
-                    .accessibilityIdentifier("favor.addParticipants")
-            }
-            
-            if viewModel.canEdit {
-                HStack(spacing: Constants.Spacing.md) {
-                    SecondaryButton(title: "favor_detail_edit".localized) { showEditFavor = true }
-                        .accessibilityIdentifier("favor.edit")
-                    SecondaryButton(title: "favor_detail_delete".localized) { showDeleteAlert = true }
-                        .accessibilityIdentifier("favor.delete")
                 }
             }
         }
@@ -700,6 +706,60 @@ struct FavorDetailView: View {
         } else {
             AppLogger.info("favors", "Attempting Apple Maps")
             appleMapsOpen()
+        }
+    }
+
+    @ViewBuilder
+    private func hiddenFavorPlaceholder(favor: Favor) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: Constants.Spacing.md) {
+                if let poster = favor.poster {
+                    UserAvatarLink(profile: poster, size: 60)
+                }
+
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text(favor.status.displayText)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(favor.status.color)
+                        .cornerRadius(8)
+
+                    if let poster = favor.poster {
+                        Text("favor_detail_requested_by".localized(with: poster.name))
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                Label("requests_hidden_title".localized, systemImage: "eye.slash")
+                    .font(.naarsTitle3)
+                    .foregroundColor(.secondary)
+
+                Text("requests_hidden_body".localized)
+                    .font(.naarsBody)
+                    .foregroundColor(.secondary)
+
+                if let hiddenReason = favor.hiddenReason, !hiddenReason.isEmpty {
+                    Text("moderation_hidden_reason".localized(with: hiddenReason))
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+
+            if viewModel.canEdit {
+                SecondaryButton(title: "favor_detail_delete".localized) {
+                    showDeleteAlert = true
+                }
+                .accessibilityIdentifier("favor.delete")
+            }
         }
     }
     

@@ -57,6 +57,9 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
     let estimatedCost: Double?
     /// First parsed flight code from notes (e.g. DL123), saved in background after creation
     let flightNormalized: String?
+    let hiddenAt: Date?
+    let hiddenBy: UUID?
+    let hiddenReason: String?
     let createdAt: Date
     let updatedAt: Date
     
@@ -81,6 +84,10 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         TimeZone(identifier: timezone) ?? TimeZone(identifier: "America/Los_Angeles") ?? .current
     }
 
+    var isModerationHidden: Bool {
+        hiddenAt != nil
+    }
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
@@ -102,6 +109,9 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         case reviewSkippedAt = "review_skipped_at"
         case estimatedCost = "estimated_cost"
         case flightNormalized = "flight_normalized"
+        case hiddenAt = "hidden_at"
+        case hiddenBy = "hidden_by"
+        case hiddenReason = "hidden_reason"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         // Joined fields are not in CodingKeys - they're populated separately
@@ -128,6 +138,9 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         reviewSkippedAt: Date? = nil,
         estimatedCost: Double? = nil,
         flightNormalized: String? = nil,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         poster: Profile? = nil,
@@ -153,6 +166,9 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         self.reviewSkippedAt = reviewSkippedAt
         self.estimatedCost = estimatedCost
         self.flightNormalized = flightNormalized
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.poster = poster

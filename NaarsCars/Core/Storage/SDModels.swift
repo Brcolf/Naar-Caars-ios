@@ -72,6 +72,11 @@ final class SDMessage {
     // Edit/Unsend
     var editedAt: Date?
     var deletedAt: Date?
+
+    // Moderation
+    var hiddenAt: Date?
+    var hiddenBy: UUID?
+    var hiddenReason: String?
     
     // Sync status
     var isPending: Bool = false
@@ -86,7 +91,7 @@ final class SDMessage {
     // Relationship
     var conversation: SDConversation?
     
-    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, isPending: Bool = false, status: String = "sent", localAttachmentPath: String? = nil) {
+    init(id: UUID, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, readBy: [UUID] = [], createdAt: Date = Date(), messageType: String = "text", replyToId: UUID? = nil, audioUrl: String? = nil, audioDuration: Double? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, latitude: Double? = nil, longitude: Double? = nil, locationName: String? = nil, editedAt: Date? = nil, deletedAt: Date? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, isPending: Bool = false, status: String = "sent", localAttachmentPath: String? = nil) {
         self.id = id
         self.conversationId = conversationId
         self.fromId = fromId
@@ -105,6 +110,9 @@ final class SDMessage {
         self.locationName = locationName
         self.editedAt = editedAt
         self.deletedAt = deletedAt
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.isPending = isPending
         self.status = status
         self.localAttachmentPath = localAttachmentPath
@@ -147,6 +155,9 @@ final class SDRide {
     var reviewSkippedAt: Date?
     var estimatedCost: Double?
     var flightNormalized: String?
+    var hiddenAt: Date?
+    var hiddenBy: UUID?
+    var hiddenReason: String?
     var createdAt: Date
     var updatedAt: Date
     
@@ -160,7 +171,7 @@ final class SDRide {
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -179,6 +190,9 @@ final class SDRide {
         self.reviewSkippedAt = reviewSkippedAt
         self.estimatedCost = estimatedCost
         self.flightNormalized = flightNormalized
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.posterName = posterName
@@ -208,6 +222,9 @@ final class SDFavor {
     var reviewed: Bool
     var reviewSkipped: Bool?
     var reviewSkippedAt: Date?
+    var hiddenAt: Date?
+    var hiddenBy: UUID?
+    var hiddenReason: String?
     var createdAt: Date
     var updatedAt: Date
     
@@ -221,7 +238,7 @@ final class SDFavor {
     var participantIds: [UUID] = []
     var qaCount: Int = 0
     
-    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
         self.id = id
         self.userId = userId
         self.title = title
@@ -238,6 +255,9 @@ final class SDFavor {
         self.reviewed = reviewed
         self.reviewSkipped = reviewSkipped
         self.reviewSkippedAt = reviewSkippedAt
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.posterName = posterName
@@ -298,6 +318,9 @@ final class SDTownHallPost {
     var pinned: Bool
     var type: String?
     var reviewId: UUID?
+    var hiddenAt: Date?
+    var hiddenBy: UUID?
+    var hiddenReason: String?
     var createdAt: Date
     var updatedAt: Date
 
@@ -317,6 +340,9 @@ final class SDTownHallPost {
         pinned: Bool = false,
         type: String? = nil,
         reviewId: UUID? = nil,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         authorName: String? = nil,
@@ -331,6 +357,9 @@ final class SDTownHallPost {
         self.pinned = pinned
         self.type = type
         self.reviewId = reviewId
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.authorName = authorName
@@ -346,6 +375,9 @@ final class SDTownHallComment {
     var userId: UUID
     var parentCommentId: UUID?
     var content: String
+    var hiddenAt: Date?
+    var hiddenBy: UUID?
+    var hiddenReason: String?
     var createdAt: Date
     var updatedAt: Date
 
@@ -359,6 +391,9 @@ final class SDTownHallComment {
         userId: UUID,
         parentCommentId: UUID? = nil,
         content: String,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         authorName: String? = nil,
@@ -369,6 +404,9 @@ final class SDTownHallComment {
         self.userId = userId
         self.parentCommentId = parentCommentId
         self.content = content
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.authorName = authorName

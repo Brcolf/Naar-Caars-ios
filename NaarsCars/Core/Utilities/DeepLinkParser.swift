@@ -95,6 +95,28 @@ struct DeepLinkParser {
         case "pending_approval":
             return .pendingUsers
 
+        case "content_reported":
+            return .adminReports
+
+        case "content_hidden":
+            if let conversationIdString = userInfo["conversation_id"] as? String,
+               let conversationId = UUID(uuidString: conversationIdString) {
+                return .conversation(id: conversationId)
+            }
+            if let rideIdString = userInfo["ride_id"] as? String,
+               let rideId = UUID(uuidString: rideIdString) {
+                return .ride(id: rideId)
+            }
+            if let favorIdString = userInfo["favor_id"] as? String,
+               let favorId = UUID(uuidString: favorIdString) {
+                return .favor(id: favorId)
+            }
+            if let postIdString = userInfo["town_hall_post_id"] as? String,
+               let postId = UUID(uuidString: postIdString) {
+                return .townHallPostHighlight(id: postId)
+            }
+            return .dashboard
+
         case "admin_panel":
             return .adminPanel
             

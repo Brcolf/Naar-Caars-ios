@@ -118,6 +118,20 @@ final class NotificationNavigationRouter {
             return .openPendingUsers
         case .contentReported:
             return .openAdminReports
+        case .contentHidden:
+            if let conversationId = notification.conversationId {
+                return .openConversation(conversationId: conversationId, scrollTarget: nil)
+            }
+            if let rideId = notification.rideId {
+                return .openRide(rideId: rideId, anchor: nil)
+            }
+            if let favorId = notification.favorId {
+                return .openFavor(favorId: favorId, anchor: nil)
+            }
+            if let postId = notification.townHallPostId {
+                return .openTownHallPost(postId: postId, mode: .highlightPost)
+            }
+            return .openDashboard
         case .review:
             if let rideId = notification.rideId { return .openRide(rideId: rideId, anchor: nil) }
             if let favorId = notification.favorId { return .openFavor(favorId: favorId, anchor: nil) }

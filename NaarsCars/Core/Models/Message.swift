@@ -110,6 +110,17 @@ struct Message: Codable, Identifiable, Sendable {
     
     /// Timestamp when the message was unsent (nil if not unsent)
     var deletedAt: Date?
+
+    // MARK: - Moderation Fields
+
+    /// Timestamp when the message was hidden by moderation (nil if visible)
+    var hiddenAt: Date?
+
+    /// Moderator user ID for manual hides (nil for visible or automatic hides)
+    var hiddenBy: UUID?
+
+    /// Most recent moderator-visible reason for the current hidden state
+    var hiddenReason: String?
     
     // MARK: - Audio Message Fields
     
@@ -183,6 +194,11 @@ struct Message: Codable, Identifiable, Sendable {
     var isUnsent: Bool {
         deletedAt != nil
     }
+
+    /// Whether this message is currently hidden by moderation
+    var isModerationHidden: Bool {
+        hiddenAt != nil
+    }
     
     /// Whether this message can still be unsent (within 15 minutes of sending)
     var canUnsend: Bool {
@@ -230,6 +246,9 @@ struct Message: Codable, Identifiable, Sendable {
         case replyToId = "reply_to_id"
         case editedAt = "edited_at"
         case deletedAt = "deleted_at"
+        case hiddenAt = "hidden_at"
+        case hiddenBy = "hidden_by"
+        case hiddenReason = "hidden_reason"
         case audioUrl = "audio_url"
         case audioDuration = "audio_duration"
         case imageWidth = "image_width"
@@ -257,6 +276,9 @@ struct Message: Codable, Identifiable, Sendable {
         replyToId: UUID? = nil,
         editedAt: Date? = nil,
         deletedAt: Date? = nil,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         audioUrl: String? = nil,
         audioDuration: Double? = nil,
         imageWidth: Int? = nil,
@@ -284,6 +306,9 @@ struct Message: Codable, Identifiable, Sendable {
         self.replyToId = replyToId
         self.editedAt = editedAt
         self.deletedAt = deletedAt
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.audioUrl = audioUrl
         self.audioDuration = audioDuration
         self.imageWidth = imageWidth
@@ -344,6 +369,9 @@ extension Message: Equatable {
                lhs.replyToId == rhs.replyToId &&
                lhs.editedAt == rhs.editedAt &&
                lhs.deletedAt == rhs.deletedAt &&
+               lhs.hiddenAt == rhs.hiddenAt &&
+               lhs.hiddenBy == rhs.hiddenBy &&
+               lhs.hiddenReason == rhs.hiddenReason &&
                lhs.audioUrl == rhs.audioUrl &&
                lhs.audioDuration == rhs.audioDuration &&
                lhs.imageWidth == rhs.imageWidth &&

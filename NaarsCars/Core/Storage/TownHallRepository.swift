@@ -139,6 +139,9 @@ final class TownHallRepository {
             pinned: sdPost.pinned,
             type: sdPost.type.flatMap(PostType.init(rawValue:)),
             reviewId: sdPost.reviewId,
+            hiddenAt: sdPost.hiddenAt,
+            hiddenBy: sdPost.hiddenBy,
+            hiddenReason: sdPost.hiddenReason,
             createdAt: sdPost.createdAt,
             updatedAt: sdPost.updatedAt,
             author: author,
@@ -160,6 +163,9 @@ final class TownHallRepository {
             pinned: post.pinned ?? false,
             type: post.type?.rawValue,
             reviewId: post.reviewId,
+            hiddenAt: post.hiddenAt,
+            hiddenBy: post.hiddenBy,
+            hiddenReason: post.hiddenReason,
             createdAt: post.createdAt,
             updatedAt: post.updatedAt,
             authorName: post.author?.name,
@@ -175,6 +181,9 @@ final class TownHallRepository {
         sdPost.pinned = post.pinned ?? false
         sdPost.type = post.type?.rawValue
         sdPost.reviewId = post.reviewId
+        sdPost.hiddenAt = post.hiddenAt
+        sdPost.hiddenBy = post.hiddenBy
+        sdPost.hiddenReason = post.hiddenReason
         sdPost.createdAt = post.createdAt
         sdPost.updatedAt = post.updatedAt
         sdPost.authorName = post.author?.name
@@ -195,6 +204,9 @@ final class TownHallRepository {
             userId: sdComment.userId,
             parentCommentId: sdComment.parentCommentId,
             content: sdComment.content,
+            hiddenAt: sdComment.hiddenAt,
+            hiddenBy: sdComment.hiddenBy,
+            hiddenReason: sdComment.hiddenReason,
             createdAt: sdComment.createdAt,
             updatedAt: sdComment.updatedAt,
             author: author,
@@ -212,6 +224,9 @@ final class TownHallRepository {
             userId: comment.userId,
             parentCommentId: comment.parentCommentId,
             content: comment.content,
+            hiddenAt: comment.hiddenAt,
+            hiddenBy: comment.hiddenBy,
+            hiddenReason: comment.hiddenReason,
             createdAt: comment.createdAt,
             updatedAt: comment.updatedAt,
             authorName: comment.author?.name,
@@ -224,6 +239,9 @@ final class TownHallRepository {
         sdComment.userId = comment.userId
         sdComment.parentCommentId = comment.parentCommentId
         sdComment.content = comment.content
+        sdComment.hiddenAt = comment.hiddenAt
+        sdComment.hiddenBy = comment.hiddenBy
+        sdComment.hiddenReason = comment.hiddenReason
         sdComment.createdAt = comment.createdAt
         sdComment.updatedAt = comment.updatedAt
         sdComment.authorName = comment.author?.name

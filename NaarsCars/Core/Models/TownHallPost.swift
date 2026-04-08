@@ -35,6 +35,9 @@ struct TownHallPost: Codable, Identifiable, Equatable {
     let pinned: Bool?
     let type: PostType?
     let reviewId: UUID? // Link to review if this post is about a review
+    let hiddenAt: Date?
+    let hiddenBy: UUID?
+    let hiddenReason: String?
     
     // Joined data (not from database)
     var author: Profile?
@@ -43,6 +46,10 @@ struct TownHallPost: Codable, Identifiable, Equatable {
     var upvotes: Int = 0
     var downvotes: Int = 0
     var userVote: VoteType? // Current user's vote on this post
+
+    var isModerationHidden: Bool {
+        hiddenAt != nil
+    }
     
     // MARK: - CodingKeys
     
@@ -55,6 +62,9 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         case pinned
         case type
         case reviewId = "review_id"
+        case hiddenAt = "hidden_at"
+        case hiddenBy = "hidden_by"
+        case hiddenReason = "hidden_reason"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -72,6 +82,9 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         try container.encodeIfPresent(pinned, forKey: .pinned)
         try container.encodeIfPresent(type, forKey: .type)
         try container.encodeIfPresent(reviewId, forKey: .reviewId)
+        try container.encodeIfPresent(hiddenAt, forKey: .hiddenAt)
+        try container.encodeIfPresent(hiddenBy, forKey: .hiddenBy)
+        try container.encodeIfPresent(hiddenReason, forKey: .hiddenReason)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
@@ -87,6 +100,9 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         pinned: Bool? = nil,
         type: PostType? = nil,
         reviewId: UUID? = nil,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         author: Profile? = nil,
@@ -104,6 +120,9 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         self.pinned = pinned
         self.type = type ?? .userPost
         self.reviewId = reviewId
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.author = author
@@ -127,7 +146,10 @@ struct TownHallPost: Codable, Identifiable, Equatable {
                lhs.title == rhs.title &&
                lhs.pinned == rhs.pinned &&
                lhs.type == rhs.type &&
-               lhs.reviewId == rhs.reviewId
+               lhs.reviewId == rhs.reviewId &&
+               lhs.hiddenAt == rhs.hiddenAt &&
+               lhs.hiddenBy == rhs.hiddenBy &&
+               lhs.hiddenReason == rhs.hiddenReason
     }
 }
 

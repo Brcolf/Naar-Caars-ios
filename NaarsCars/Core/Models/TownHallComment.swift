@@ -16,6 +16,9 @@ struct TownHallComment: Codable, Identifiable, Equatable {
     let content: String
     let createdAt: Date
     let updatedAt: Date
+    let hiddenAt: Date?
+    let hiddenBy: UUID?
+    let hiddenReason: String?
     
     // Joined data (not from database)
     var author: Profile?
@@ -23,6 +26,10 @@ struct TownHallComment: Codable, Identifiable, Equatable {
     var upvotes: Int = 0
     var downvotes: Int = 0
     var userVote: VoteType? // Current user's vote on this comment
+
+    var isModerationHidden: Bool {
+        hiddenAt != nil
+    }
     
     // MARK: - CodingKeys
     
@@ -32,6 +39,9 @@ struct TownHallComment: Codable, Identifiable, Equatable {
         case userId = "user_id"
         case parentCommentId = "parent_comment_id"
         case content
+        case hiddenAt = "hidden_at"
+        case hiddenBy = "hidden_by"
+        case hiddenReason = "hidden_reason"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -44,6 +54,9 @@ struct TownHallComment: Codable, Identifiable, Equatable {
         userId: UUID,
         parentCommentId: UUID? = nil,
         content: String,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         author: Profile? = nil,
@@ -57,6 +70,9 @@ struct TownHallComment: Codable, Identifiable, Equatable {
         self.userId = userId
         self.parentCommentId = parentCommentId
         self.content = content
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.author = author

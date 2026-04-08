@@ -70,7 +70,10 @@ struct RideDetailView: View {
         .navigationTitle("ride_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if !viewModel.isPoster, viewModel.ride != nil, !appState.isGuest {
+            if !viewModel.isPoster,
+               let ride = viewModel.ride,
+               !appState.isGuest,
+               !ride.isModerationHidden {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if hasReported {
                         Image(systemName: "flag.fill")
@@ -116,7 +119,9 @@ struct RideDetailView: View {
         .refreshable { await viewModel.loadRide(id: rideId) }
         .task {
             await viewModel.loadRide(id: rideId)
-            viewModel.checkCalendarOffer()
+            if !(viewModel.ride?.isModerationHidden ?? false) {
+                viewModel.checkCalendarOffer()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .rideFlightEnrichmentDidComplete)) { notification in
             guard let s = notification.userInfo?[RideFlightEnrichmentNotification.rideIdKey] as? String,
@@ -261,366 +266,368 @@ struct RideDetailView: View {
     
     @ViewBuilder
     private func rideDetails(ride: Ride) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Header Section: Status and Poster
-            HStack(alignment: .center, spacing: Constants.Spacing.md) {
-                if let poster = ride.poster {
-                    UserAvatarLink(profile: poster, size: 60)
-                }
-                
-                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                    Text(ride.status.displayText)
-                        .font(.naarsHeadline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(ride.status.color)
-                        .cornerRadius(8)
-                        .id(RequestDetailAnchor.statusBadge.anchorId(for: .ride))
-                        .requestHighlight(highlightedAnchor == .statusBadge)
-                    
+        if ride.isModerationHidden {
+            if viewModel.isPoster {
+                hiddenRidePlaceholder(ride: ride)
+            } else {
+                ErrorView(error: "moderation_content_unavailable".localized)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 20) {
+                // Header Section: Status and Poster
+                HStack(alignment: .center, spacing: Constants.Spacing.md) {
                     if let poster = ride.poster {
-                        Text("ride_detail_requested_by".localized(with: poster.name))
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
+                        UserAvatarLink(profile: poster, size: 60)
                     }
-                }
-                
-                Spacer()
-            }
-            .padding(.bottom, 8)
-            .id(RequestDetailAnchor.mainTop.anchorId(for: .ride))
-            .requestHighlight(highlightedAnchor == .mainTop)
-            .onAppear { handleSectionAppeared(.mainTop) }
-            
-            // Route Card
-            VStack(alignment: .leading, spacing: Constants.Spacing.md) {
-                HStack {
-                    Label("ride_detail_route".localized, systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                        .font(.naarsTitle3)
-                        .foregroundColor(.rideAccent)
-                    Spacer()
-                    Text("ride_detail_hold_to_copy".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                }
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: Constants.Spacing.md) {
-                        Image(systemName: "circle.fill")
-                            .foregroundColor(.green)
-                            .font(.naarsCaption)
-                            .frame(width: 20)
-                        
-                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                            Text("ride_detail_pickup_label".localized)
-                                .font(.naarsCaption).fontWeight(.bold)
-                                .foregroundColor(.secondary)
-                            AddressText(ride.pickup, isRedacted: appState.isGuest)
-                        }
-                    }
-
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.3))
-                        .frame(width: 1, height: 20)
-                        .padding(.leading, 29)
-
-                    HStack(spacing: Constants.Spacing.md) {
-                        Image(systemName: "mappin.circle.fill")
-                            .foregroundColor(.rideAccent)
-                            .font(.naarsTitle3)
-                            .frame(width: 20)
-
-                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                            Text("ride_detail_destination_label".localized)
-                                .font(.naarsCaption).fontWeight(.bold)
-                                .foregroundColor(.secondary)
-                            AddressText(ride.destination, isRedacted: appState.isGuest)
-                        }
-                    }
-                }
-                
-                if let estimatedCost = ride.estimatedCost {
-                    Divider()
-                    HStack {
-                        Label("ride_detail_estimated_savings".localized, systemImage: "dollarsign.circle.fill")
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(RideCostEstimator.formatCost(estimatedCost))
+                    
+                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                        Text(ride.status.displayText)
                             .font(.naarsHeadline)
-                            .foregroundColor(.naarsPrimary)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(ride.status.color)
+                            .cornerRadius(8)
+                            .id(RequestDetailAnchor.statusBadge.anchorId(for: .ride))
+                            .requestHighlight(highlightedAnchor == .statusBadge)
+                        
+                        if let poster = ride.poster {
+                            Text("ride_detail_requested_by".localized(with: poster.name))
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
                     }
-                }
-            }
-            .cardStyle()
-            
-            // Map Section
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Label("ride_detail_route_map".localized, systemImage: "map.fill")
-                        .font(.naarsTitle3)
+                    
                     Spacer()
-                    if isOpeningMaps {
-                        Text("ride_detail_opening_maps".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("ride_detail_tap_open_maps".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
                 }
-
-                if appState.isGuest {
-                    VStack(spacing: 12) {
-                        Image(systemName: "map")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.secondary)
-                        Text("guest_map_hidden".localized)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(height: 200)
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                } else {
-                    RouteMapView(pickup: ride.pickup, destination: ride.destination)
-                        .contentShape(Rectangle()) // Ensure the entire area is tappable
-                        .overlay(isOpeningMaps ? Color.black.opacity(0.15) : nil)
-                        .allowsHitTesting(!isOpeningMaps)
-                        .onTapGesture {
-                            handleMapTap(ride: ride)
-                        }
-                        .onLongPressGesture(minimumDuration: 0.5) {
-                            showMapsChoiceDialog = true
-                        }
-                        .accessibilityHint("ride_detail_map_open_maps_hint".localized)
-                }
-            }
-            .cardStyle()
-            .confirmationDialog("ride_detail_open_in_maps_title".localized, isPresented: $showMapsChoiceDialog, titleVisibility: .visible) {
-                Button("ride_detail_maps_apple".localized) {
-                    preferredMapsApp = PreferredMapsApp.apple.rawValue
-                    openInExternalMaps(ride: ride, provider: .apple)
-                }
-                Button("ride_detail_maps_google".localized) {
-                    preferredMapsApp = PreferredMapsApp.google.rawValue
-                    openInExternalMaps(ride: ride, provider: .google)
-                }
-                Button("ride_detail_cancel".localized, role: .cancel) {}
-            } message: {
-                Text("ride_detail_open_in_maps_message".localized)
-            }
-            
-            // Time and Seats Info
-            HStack(spacing: Constants.Spacing.md) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(ride.date.dateString)
-                                .font(.naarsHeadline)
-                            Text("ride_detail_date".localized)
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "calendar")
-                            .foregroundColor(.naarsPrimary)
-                    }
-                    
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
-                                Text(ride.time)
-                                    .font(.naarsHeadline)
-                                let abbrev = ride.timeZone.abbreviation(for: RequestItem.ride(ride).eventTime) ?? ride.timeZone.abbreviation() ?? "PT"
-                                Text(abbrev)
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Text("ride_detail_time".localized)
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "clock")
-                            .foregroundColor(.naarsPrimary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 8)
+                .id(RequestDetailAnchor.mainTop.anchorId(for: .ride))
+                .requestHighlight(highlightedAnchor == .mainTop)
+                .onAppear { handleSectionAppeared(.mainTop) }
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("ride_detail_seats_count".localized(with: ride.seats))
-                                .font(.naarsHeadline)
-                            Text("ride_detail_requested".localized)
+                // Route Card
+                VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                    HStack {
+                        Label("ride_detail_route".localized, systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.naarsTitle3)
+                            .foregroundColor(.rideAccent)
+                        Spacer()
+                        Text("ride_detail_hold_to_copy".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: Constants.Spacing.md) {
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(.green)
+                                .font(.naarsCaption)
+                                .frame(width: 20)
+                            
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text("ride_detail_pickup_label".localized)
+                                    .font(.naarsCaption).fontWeight(.bold)
+                                    .foregroundColor(.secondary)
+                                AddressText(ride.pickup, isRedacted: appState.isGuest)
+                            }
+                        }
+
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.3))
+                            .frame(width: 1, height: 20)
+                            .padding(.leading, 29)
+
+                        HStack(spacing: Constants.Spacing.md) {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.rideAccent)
+                                .font(.naarsTitle3)
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text("ride_detail_destination_label".localized)
+                                    .font(.naarsCaption).fontWeight(.bold)
+                                    .foregroundColor(.secondary)
+                                AddressText(ride.destination, isRedacted: appState.isGuest)
+                            }
+                        }
+                    }
+                    
+                    if let estimatedCost = ride.estimatedCost {
+                        Divider()
+                        HStack {
+                            Label("ride_detail_estimated_savings".localized, systemImage: "dollarsign.circle.fill")
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "person.2.fill")
-                            .foregroundColor(.naarsPrimary)
-                    }
-                    
-                    // Placeholder for potential future field or empty space to align
-                    Spacer().frame(height: 34)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .cardStyle()
-            
-            // Participants Section
-            if let participants = ride.participants, !participants.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("ride_detail_participants".localized)
-                        .font(.naarsTitle3)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Constants.Spacing.md) {
-                            ForEach(participants) { participant in
-                                VStack(spacing: 6) {
-                                    UserAvatarLink(profile: participant, size: 50)
-                                    Text(participant.name)
-                                        .font(.naarsCaption)
-                                        .lineLimit(1)
-                                        .frame(width: 60)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 4)
-                    }
-                }
-                .cardStyle()
-            }
-            
-            // Claimer Section
-            if let claimer = ride.claimer {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("ride_detail_claimed_by".localized)
-                        .font(.naarsTitle3)
-                    
-                    HStack(spacing: 12) {
-                        UserAvatarLink(profile: claimer, size: 50)
-                        
-                        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                            Text(claimer.name)
-                                .font(.naarsHeadline)
-                            if let car = claimer.car, !car.isEmpty {
-                                Label(car, systemImage: "car.fill")
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Spacer()
-                    }
-                }
-                .cardStyle()
-                .id(RequestDetailAnchor.claimerCard.anchorId(for: .ride))
-                .requestHighlight(highlightedAnchor == .claimerCard)
-            }
-
-            // Review Section (for completed rides)
-            if ride.claimedBy != nil {
-                RequestReviewSection(
-                    requestType: "ride",
-                    requestId: ride.id,
-                    posterId: ride.userId,
-                    claimerId: ride.claimedBy,
-                    isCompleted: ride.status == .completed,
-                    requestTitle: "\(ride.pickup) → \(ride.destination)",
-                    onReviewSubmitted: {
-                        Task { await viewModel.loadRide(id: rideId) }
-                    }
-                )
-            }
-
-            // Flight (persisted or parsed from notes; tappable to open status search)
-            if let flightInfo = FlightInfo.displayInfo(for: ride) {
-                FlightRowView(flightInfo: flightInfo, style: .detail)
-                    .cardStyle()
-            }
-            
-            // Notes & Gift
-            if !(ride.notes?.isEmpty ?? true) || !(ride.gift?.isEmpty ?? true) {
-                VStack(alignment: .leading, spacing: Constants.Spacing.md) {
-                    if let notes = ride.notes, !notes.isEmpty {
-                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-                            Label("ride_detail_notes".localized, systemImage: "note.text")
-                                .font(.naarsHeadline)
-                            Text(notes)
-                                .font(.naarsBody)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    if !(ride.notes?.isEmpty ?? true) && !(ride.gift?.isEmpty ?? true) {
-                        Divider()
-                    }
-                    
-                    if let gift = ride.gift, !gift.isEmpty {
-                        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-                            Label("ride_detail_gift".localized, systemImage: "gift.fill")
+                            Spacer()
+                            Text(RideCostEstimator.formatCost(estimatedCost))
                                 .font(.naarsHeadline)
                                 .foregroundColor(.naarsPrimary)
-                            Text(gift)
-                                .font(.naarsBody)
-                                .foregroundColor(.secondary)
                         }
                     }
                 }
                 .cardStyle()
-            }
-            
-            RequestQAView(
-                qaItems: viewModel.qaItems,
-                requestId: ride.id,
-                requestType: "ride",
-                onPostQuestion: { question in
+                
+                // Map Section
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label("ride_detail_route_map".localized, systemImage: "map.fill")
+                            .font(.naarsTitle3)
+                        Spacer()
+                        if isOpeningMaps {
+                            Text("ride_detail_opening_maps".localized)
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("ride_detail_tap_open_maps".localized)
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
                     if appState.isGuest {
-                        guestRestrictionReason = .askQuestion
-                        showGuestPrompt = true
-                        return
+                        VStack(spacing: 12) {
+                            Image(systemName: "map")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.secondary)
+                            Text("guest_map_hidden".localized)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(height: 200)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        RouteMapView(pickup: ride.pickup, destination: ride.destination)
+                            .contentShape(Rectangle())
+                            .overlay(isOpeningMaps ? Color.black.opacity(0.15) : nil)
+                            .allowsHitTesting(!isOpeningMaps)
+                            .onTapGesture {
+                                handleMapTap(ride: ride)
+                            }
+                            .onLongPressGesture(minimumDuration: 0.5) {
+                                showMapsChoiceDialog = true
+                            }
+                            .accessibilityHint("ride_detail_map_open_maps_hint".localized)
                     }
-                    let countBefore = viewModel.qaItems.count
-                    await viewModel.postQuestion(question)
-                    if viewModel.qaItems.count > countBefore {
-                        toastMessage = "toast_question_posted".localized
-                    }
-                },
-                isClaimed: ride.claimedBy != nil,
-                onMessageParticipants: ride.claimedBy == nil ? nil : {
-                    if appState.isGuest {
-                        guestRestrictionReason = .sendMessage
-                        showGuestPrompt = true
-                        return
-                    }
-                    Task { await openOrCreateConversation(ride: ride) }
                 }
-            )
-            .id(RequestDetailAnchor.qaSection.anchorId(for: .ride))
-            .requestHighlight(highlightedAnchor == .qaSection)
-            .onAppear { handleSectionAppeared(.qaSection) }
-            
-            claimButtonSection(ride: ride)
-                .id(RequestDetailAnchor.claimAction.anchorId(for: .ride))
-                .requestHighlight(highlightedAnchor == .claimAction)
-                .onAppear { handleSectionAppeared(.claimAction) }
-            
-            if viewModel.canEdit {
-                addParticipantsButton(ride: ride)
-                    .accessibilityIdentifier("ride.addParticipants")
-            }
-            
-            if viewModel.canEdit {
+                .cardStyle()
+                .confirmationDialog("ride_detail_open_in_maps_title".localized, isPresented: $showMapsChoiceDialog, titleVisibility: .visible) {
+                    Button("ride_detail_maps_apple".localized) {
+                        preferredMapsApp = PreferredMapsApp.apple.rawValue
+                        openInExternalMaps(ride: ride, provider: .apple)
+                    }
+                    Button("ride_detail_maps_google".localized) {
+                        preferredMapsApp = PreferredMapsApp.google.rawValue
+                        openInExternalMaps(ride: ride, provider: .google)
+                    }
+                    Button("ride_detail_cancel".localized, role: .cancel) {}
+                } message: {
+                    Text("ride_detail_open_in_maps_message".localized)
+                }
+                
+                // Time and Seats Info
                 HStack(spacing: Constants.Spacing.md) {
-                    SecondaryButton(title: "ride_detail_edit".localized) { showEditRide = true }
-                        .accessibilityIdentifier("ride.edit")
-                    SecondaryButton(title: "ride_detail_delete".localized) { showDeleteAlert = true }
-                        .accessibilityIdentifier("ride.delete")
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ride.date.dateString)
+                                    .font(.naarsHeadline)
+                                Text("ride_detail_date".localized)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.naarsPrimary)
+                        }
+                        
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Text(ride.time)
+                                        .font(.naarsHeadline)
+                                    let abbrev = ride.timeZone.abbreviation(for: RequestItem.ride(ride).eventTime) ?? ride.timeZone.abbreviation() ?? "PT"
+                                    Text(abbrev)
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Text("ride_detail_time".localized)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "clock")
+                                .foregroundColor(.naarsPrimary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("ride_detail_seats_count".localized(with: ride.seats))
+                                    .font(.naarsHeadline)
+                                Text("ride_detail_requested".localized)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "person.2.fill")
+                                .foregroundColor(.naarsPrimary)
+                        }
+                        
+                        Spacer().frame(height: 34)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .cardStyle()
+                
+                if let participants = ride.participants, !participants.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("ride_detail_participants".localized)
+                            .font(.naarsTitle3)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: Constants.Spacing.md) {
+                                ForEach(participants) { participant in
+                                    VStack(spacing: 6) {
+                                        UserAvatarLink(profile: participant, size: 50)
+                                        Text(participant.name)
+                                            .font(.naarsCaption)
+                                            .lineLimit(1)
+                                            .frame(width: 60)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 4)
+                        }
+                    }
+                    .cardStyle()
+                }
+                
+                if let claimer = ride.claimer {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("ride_detail_claimed_by".localized)
+                            .font(.naarsTitle3)
+                        
+                        HStack(spacing: 12) {
+                            UserAvatarLink(profile: claimer, size: 50)
+                            
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                                Text(claimer.name)
+                                    .font(.naarsHeadline)
+                                if let car = claimer.car, !car.isEmpty {
+                                    Label(car, systemImage: "car.fill")
+                                        .font(.naarsCaption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            Spacer()
+                        }
+                    }
+                    .cardStyle()
+                    .id(RequestDetailAnchor.claimerCard.anchorId(for: .ride))
+                    .requestHighlight(highlightedAnchor == .claimerCard)
+                }
+
+                if ride.claimedBy != nil {
+                    RequestReviewSection(
+                        requestType: "ride",
+                        requestId: ride.id,
+                        posterId: ride.userId,
+                        claimerId: ride.claimedBy,
+                        isCompleted: ride.status == .completed,
+                        requestTitle: "\(ride.pickup) → \(ride.destination)",
+                        onReviewSubmitted: {
+                            Task { await viewModel.loadRide(id: rideId) }
+                        }
+                    )
+                }
+
+                if let flightInfo = FlightInfo.displayInfo(for: ride) {
+                    FlightRowView(flightInfo: flightInfo, style: .detail)
+                        .cardStyle()
+                }
+                
+                if !(ride.notes?.isEmpty ?? true) || !(ride.gift?.isEmpty ?? true) {
+                    VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                        if let notes = ride.notes, !notes.isEmpty {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                                Label("ride_detail_notes".localized, systemImage: "note.text")
+                                    .font(.naarsHeadline)
+                                Text(notes)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        if !(ride.notes?.isEmpty ?? true) && !(ride.gift?.isEmpty ?? true) {
+                            Divider()
+                        }
+                        
+                        if let gift = ride.gift, !gift.isEmpty {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                                Label("ride_detail_gift".localized, systemImage: "gift.fill")
+                                    .font(.naarsHeadline)
+                                    .foregroundColor(.naarsPrimary)
+                                Text(gift)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .cardStyle()
+                }
+                
+                RequestQAView(
+                    qaItems: viewModel.qaItems,
+                    requestId: ride.id,
+                    requestType: "ride",
+                    onPostQuestion: { question in
+                        if appState.isGuest {
+                            guestRestrictionReason = .askQuestion
+                            showGuestPrompt = true
+                            return
+                        }
+                        let countBefore = viewModel.qaItems.count
+                        await viewModel.postQuestion(question)
+                        if viewModel.qaItems.count > countBefore {
+                            toastMessage = "toast_question_posted".localized
+                        }
+                    },
+                    isClaimed: ride.claimedBy != nil,
+                    onMessageParticipants: ride.claimedBy == nil ? nil : {
+                        if appState.isGuest {
+                            guestRestrictionReason = .sendMessage
+                            showGuestPrompt = true
+                            return
+                        }
+                        Task { await openOrCreateConversation(ride: ride) }
+                    }
+                )
+                .id(RequestDetailAnchor.qaSection.anchorId(for: .ride))
+                .requestHighlight(highlightedAnchor == .qaSection)
+                .onAppear { handleSectionAppeared(.qaSection) }
+                
+                claimButtonSection(ride: ride)
+                    .id(RequestDetailAnchor.claimAction.anchorId(for: .ride))
+                    .requestHighlight(highlightedAnchor == .claimAction)
+                    .onAppear { handleSectionAppeared(.claimAction) }
+                
+                if viewModel.canEdit {
+                    addParticipantsButton(ride: ride)
+                        .accessibilityIdentifier("ride.addParticipants")
+                }
+                
+                if viewModel.canEdit {
+                    HStack(spacing: Constants.Spacing.md) {
+                        SecondaryButton(title: "ride_detail_edit".localized) { showEditRide = true }
+                            .accessibilityIdentifier("ride.edit")
+                        SecondaryButton(title: "ride_detail_delete".localized) { showDeleteAlert = true }
+                            .accessibilityIdentifier("ride.delete")
+                    }
                 }
             }
         }
@@ -830,6 +837,60 @@ struct RideDetailView: View {
             }
         } onCancel: {
             locationProvider.stop()
+        }
+    }
+
+    @ViewBuilder
+    private func hiddenRidePlaceholder(ride: Ride) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: Constants.Spacing.md) {
+                if let poster = ride.poster {
+                    UserAvatarLink(profile: poster, size: 60)
+                }
+
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text(ride.status.displayText)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(ride.status.color)
+                        .cornerRadius(8)
+
+                    if let poster = ride.poster {
+                        Text("ride_detail_requested_by".localized(with: poster.name))
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                Label("requests_hidden_title".localized, systemImage: "eye.slash")
+                    .font(.naarsTitle3)
+                    .foregroundColor(.secondary)
+
+                Text("requests_hidden_body".localized)
+                    .font(.naarsBody)
+                    .foregroundColor(.secondary)
+
+                if let hiddenReason = ride.hiddenReason, !hiddenReason.isEmpty {
+                    Text("moderation_hidden_reason".localized(with: hiddenReason))
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+
+            if viewModel.canEdit {
+                SecondaryButton(title: "ride_detail_delete".localized) {
+                    showDeleteAlert = true
+                }
+                .accessibilityIdentifier("ride.delete")
+            }
         }
     }
     

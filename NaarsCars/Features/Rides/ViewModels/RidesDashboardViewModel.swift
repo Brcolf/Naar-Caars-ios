@@ -69,6 +69,7 @@ final class RidesDashboardViewModel: ObservableObject {
                 type: sd.type,
                 date: sd.date,
                 time: sd.time,
+                timezone: sd.timezone,
                 pickup: sd.pickup,
                 destination: sd.destination,
                 seats: sd.seats,
@@ -81,6 +82,9 @@ final class RidesDashboardViewModel: ObservableObject {
                 reviewSkippedAt: sd.reviewSkippedAt,
                 estimatedCost: sd.estimatedCost,
                 flightNormalized: sd.flightNormalized,
+                hiddenAt: sd.hiddenAt,
+                hiddenBy: sd.hiddenBy,
+                hiddenReason: sd.hiddenReason,
                 createdAt: sd.createdAt,
                 updatedAt: sd.updatedAt,
                 qaCount: sd.qaCount
@@ -160,6 +164,9 @@ final class RidesDashboardViewModel: ObservableObject {
                 existing.reviewSkippedAt = ride.reviewSkippedAt
                 existing.estimatedCost = ride.estimatedCost
                 existing.flightNormalized = ride.flightNormalized
+                existing.hiddenAt = ride.hiddenAt
+                existing.hiddenBy = ride.hiddenBy
+                existing.hiddenReason = ride.hiddenReason
             } else {
                 let sdRide = SDRide(
                     id: ride.id,
@@ -167,6 +174,7 @@ final class RidesDashboardViewModel: ObservableObject {
                     type: ride.type,
                     date: ride.date,
                     time: ride.time,
+                    timezone: ride.timezone,
                     pickup: ride.pickup,
                     destination: ride.destination,
                     seats: ride.seats,
@@ -179,6 +187,9 @@ final class RidesDashboardViewModel: ObservableObject {
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost,
                     flightNormalized: ride.flightNormalized,
+                    hiddenAt: ride.hiddenAt,
+                    hiddenBy: ride.hiddenBy,
+                    hiddenReason: ride.hiddenReason,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
                     qaCount: ride.qaCount ?? 0

@@ -49,8 +49,9 @@ enum NotificationType: String, Codable, CaseIterable {
     case townHallComment = "town_hall_comment"
     case townHallReaction = "town_hall_reaction"
 
-    // Content moderation (admin-only)
+    // Content moderation
     case contentReported = "content_reported"
+    case contentHidden = "content_hidden"
 
     // Announcements (admin board announcements - cannot be disabled)
     case announcement = "announcement"
@@ -89,6 +90,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return "building.columns.fill"
         case .contentReported:
             return "flag.fill"
+        case .contentHidden:
+            return "eye.slash.fill"
         case .announcement, .adminAnnouncement, .broadcast:
             return "megaphone.fill"
         case .pendingApproval:
@@ -145,45 +148,7 @@ enum NotificationType: String, Codable, CaseIterable {
 
     #if DEBUG
     private static let registryValidation: Void = {
-        let enumCases = Set(NotificationType.allCases.map(\.rawValue))
-        let knownTypes: Set<String> = [
-            "message",
-            "added_to_conversation",
-            "new_ride",
-            "ride_update",
-            "ride_claimed",
-            "ride_unclaimed",
-            "ride_completed",
-            "new_favor",
-            "favor_update",
-            "favor_claimed",
-            "favor_unclaimed",
-            "favor_completed",
-            "completion_reminder",
-            "qa_activity",
-            "qa_question",
-            "qa_answer",
-            "review",
-            "review_received",
-            "review_reminder",
-            "review_request",
-            "town_hall_post",
-            "town_hall_comment",
-            "town_hall_reaction",
-            "content_reported",
-            "announcement",
-            "admin_announcement",
-            "broadcast",
-            "pending_approval",
-            "user_approved",
-            "user_rejected",
-            "account_restricted",
-            "other"
-        ]
-        assert(
-            enumCases == knownTypes,
-            "NotificationType enum and registry values are out of sync."
-        )
+        NotificationTypeRegistry.validateRegistry()
     }()
     #endif
 }
@@ -196,6 +161,8 @@ extension NotificationType {
         switch self {
         case .message, .addedToConversation:
             return [.conversations]
+        case .contentHidden:
+            return [.conversations, .townHall, .dashboard]
         case .newRide, .rideUpdate, .rideClaimed, .rideUnclaimed, .rideCompleted,
              .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted,
              .completionReminder,
@@ -224,6 +191,8 @@ extension NotificationType {
             return "post_id"
         case .message, .addedToConversation:
             return "conversation_id"
+        case .contentHidden:
+            return nil
         default:
             return nil
         }

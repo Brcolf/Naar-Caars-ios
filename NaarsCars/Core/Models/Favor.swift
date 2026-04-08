@@ -83,6 +83,9 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
     let reviewed: Bool
     let reviewSkipped: Bool?
     let reviewSkippedAt: Date?
+    let hiddenAt: Date?
+    let hiddenBy: UUID?
+    let hiddenReason: String?
     let createdAt: Date
     let updatedAt: Date
     
@@ -107,6 +110,10 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         TimeZone(identifier: timezone) ?? TimeZone(identifier: "America/Los_Angeles") ?? .current
     }
 
+    var isModerationHidden: Bool {
+        hiddenAt != nil
+    }
+
     // MARK: - CodingKeys
     
     enum CodingKeys: String, CodingKey {
@@ -126,6 +133,9 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         case reviewed
         case reviewSkipped = "review_skipped"
         case reviewSkippedAt = "review_skipped_at"
+        case hiddenAt = "hidden_at"
+        case hiddenBy = "hidden_by"
+        case hiddenReason = "hidden_reason"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         // Joined fields are not in CodingKeys - they're populated separately
@@ -150,6 +160,9 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         reviewed: Bool = false,
         reviewSkipped: Bool? = nil,
         reviewSkippedAt: Date? = nil,
+        hiddenAt: Date? = nil,
+        hiddenBy: UUID? = nil,
+        hiddenReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         poster: Profile? = nil,
@@ -173,6 +186,9 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         self.reviewed = reviewed
         self.reviewSkipped = reviewSkipped
         self.reviewSkippedAt = reviewSkippedAt
+        self.hiddenAt = hiddenAt
+        self.hiddenBy = hiddenBy
+        self.hiddenReason = hiddenReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.poster = poster

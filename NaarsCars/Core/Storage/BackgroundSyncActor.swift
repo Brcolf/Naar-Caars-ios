@@ -58,6 +58,9 @@ actor BackgroundSyncActor {
             existing.reviewSkippedAt = ride.reviewSkippedAt
             existing.estimatedCost = ride.estimatedCost
             existing.flightNormalized = ride.flightNormalized
+            existing.hiddenAt = ride.hiddenAt
+            existing.hiddenBy = ride.hiddenBy
+            existing.hiddenReason = ride.hiddenReason
             // Preserve poster/claimer/participants/qaCount — not in realtime payloads
         } else {
             let sdRide = SDRide(
@@ -79,6 +82,9 @@ actor BackgroundSyncActor {
                 reviewSkippedAt: ride.reviewSkippedAt,
                 estimatedCost: ride.estimatedCost,
                 flightNormalized: ride.flightNormalized,
+                hiddenAt: ride.hiddenAt,
+                hiddenBy: ride.hiddenBy,
+                hiddenReason: ride.hiddenReason,
                 createdAt: ride.createdAt,
                 updatedAt: ride.updatedAt,
                 posterName: ride.poster?.name,
@@ -116,6 +122,9 @@ actor BackgroundSyncActor {
             existing.reviewed = favor.reviewed
             existing.reviewSkipped = favor.reviewSkipped
             existing.reviewSkippedAt = favor.reviewSkippedAt
+            existing.hiddenAt = favor.hiddenAt
+            existing.hiddenBy = favor.hiddenBy
+            existing.hiddenReason = favor.hiddenReason
             // Preserve poster/claimer/participants/qaCount — not in realtime payloads
         } else {
             let sdFavor = SDFavor(
@@ -135,6 +144,9 @@ actor BackgroundSyncActor {
                 reviewed: favor.reviewed,
                 reviewSkipped: favor.reviewSkipped,
                 reviewSkippedAt: favor.reviewSkippedAt,
+                hiddenAt: favor.hiddenAt,
+                hiddenBy: favor.hiddenBy,
+                hiddenReason: favor.hiddenReason,
                 createdAt: favor.createdAt,
                 updatedAt: favor.updatedAt,
                 posterName: favor.poster?.name,
@@ -301,6 +313,9 @@ actor BackgroundSyncActor {
             existing.replyToId = message.replyToId
             existing.editedAt = message.editedAt
             existing.deletedAt = message.deletedAt
+            existing.hiddenAt = message.hiddenAt
+            existing.hiddenBy = message.hiddenBy
+            existing.hiddenReason = message.hiddenReason
             existing.status = message.sendStatus?.rawValue ?? "sent"
             existing.localAttachmentPath = message.localAttachmentPath
             existing.syncError = message.syncError
@@ -349,6 +364,9 @@ actor BackgroundSyncActor {
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost,
                     flightNormalized: ride.flightNormalized,
+                    hiddenAt: ride.hiddenAt,
+                    hiddenBy: ride.hiddenBy,
+                    hiddenReason: ride.hiddenReason,
                     createdAt: ride.createdAt,
                     updatedAt: ride.updatedAt,
                     posterName: ride.poster?.name,
@@ -398,6 +416,9 @@ actor BackgroundSyncActor {
                     reviewed: favor.reviewed,
                     reviewSkipped: favor.reviewSkipped,
                     reviewSkippedAt: favor.reviewSkippedAt,
+                    hiddenAt: favor.hiddenAt,
+                    hiddenBy: favor.hiddenBy,
+                    hiddenReason: favor.hiddenReason,
                     createdAt: favor.createdAt,
                     updatedAt: favor.updatedAt,
                     posterName: favor.poster?.name,
@@ -473,6 +494,9 @@ actor BackgroundSyncActor {
         sd.reviewSkippedAt = ride.reviewSkippedAt
         sd.estimatedCost = ride.estimatedCost
         sd.flightNormalized = ride.flightNormalized
+        sd.hiddenAt = ride.hiddenAt
+        sd.hiddenBy = ride.hiddenBy
+        sd.hiddenReason = ride.hiddenReason
         sd.posterName = ride.poster?.name
         sd.posterAvatarUrl = ride.poster?.avatarUrl
         sd.claimerName = ride.claimer?.name
@@ -497,6 +521,9 @@ actor BackgroundSyncActor {
         sd.reviewed = favor.reviewed
         sd.reviewSkipped = favor.reviewSkipped
         sd.reviewSkippedAt = favor.reviewSkippedAt
+        sd.hiddenAt = favor.hiddenAt
+        sd.hiddenBy = favor.hiddenBy
+        sd.hiddenReason = favor.hiddenReason
         sd.posterName = favor.poster?.name
         sd.posterAvatarUrl = favor.poster?.avatarUrl
         sd.claimerName = favor.claimer?.name
@@ -528,6 +555,9 @@ actor BackgroundSyncActor {
         if sd.reviewSkippedAt != ride.reviewSkippedAt { sd.reviewSkippedAt = ride.reviewSkippedAt; changed = true }
         if sd.estimatedCost != ride.estimatedCost { sd.estimatedCost = ride.estimatedCost; changed = true }
         if sd.flightNormalized != ride.flightNormalized { sd.flightNormalized = ride.flightNormalized; changed = true }
+        if sd.hiddenAt != ride.hiddenAt { sd.hiddenAt = ride.hiddenAt; changed = true }
+        if sd.hiddenBy != ride.hiddenBy { sd.hiddenBy = ride.hiddenBy; changed = true }
+        if sd.hiddenReason != ride.hiddenReason { sd.hiddenReason = ride.hiddenReason; changed = true }
         if sd.posterName != ride.poster?.name { sd.posterName = ride.poster?.name; changed = true }
         if sd.posterAvatarUrl != ride.poster?.avatarUrl { sd.posterAvatarUrl = ride.poster?.avatarUrl; changed = true }
         if sd.claimerName != ride.claimer?.name { sd.claimerName = ride.claimer?.name; changed = true }
@@ -556,6 +586,9 @@ actor BackgroundSyncActor {
         if sd.reviewed != favor.reviewed { sd.reviewed = favor.reviewed; changed = true }
         if sd.reviewSkipped != favor.reviewSkipped { sd.reviewSkipped = favor.reviewSkipped; changed = true }
         if sd.reviewSkippedAt != favor.reviewSkippedAt { sd.reviewSkippedAt = favor.reviewSkippedAt; changed = true }
+        if sd.hiddenAt != favor.hiddenAt { sd.hiddenAt = favor.hiddenAt; changed = true }
+        if sd.hiddenBy != favor.hiddenBy { sd.hiddenBy = favor.hiddenBy; changed = true }
+        if sd.hiddenReason != favor.hiddenReason { sd.hiddenReason = favor.hiddenReason; changed = true }
         if sd.posterName != favor.poster?.name { sd.posterName = favor.poster?.name; changed = true }
         if sd.posterAvatarUrl != favor.poster?.avatarUrl { sd.posterAvatarUrl = favor.poster?.avatarUrl; changed = true }
         if sd.claimerName != favor.claimer?.name { sd.claimerName = favor.claimer?.name; changed = true }
@@ -589,6 +622,9 @@ actor BackgroundSyncActor {
         if sd.pinned != (post.pinned ?? false) { sd.pinned = post.pinned ?? false; changed = true }
         if sd.type != post.type?.rawValue { sd.type = post.type?.rawValue; changed = true }
         if sd.reviewId != post.reviewId { sd.reviewId = post.reviewId; changed = true }
+        if sd.hiddenAt != post.hiddenAt { sd.hiddenAt = post.hiddenAt; changed = true }
+        if sd.hiddenBy != post.hiddenBy { sd.hiddenBy = post.hiddenBy; changed = true }
+        if sd.hiddenReason != post.hiddenReason { sd.hiddenReason = post.hiddenReason; changed = true }
         if sd.createdAt != post.createdAt { sd.createdAt = post.createdAt; changed = true }
         if sd.updatedAt != post.updatedAt { sd.updatedAt = post.updatedAt; changed = true }
         if sd.authorName != post.author?.name { sd.authorName = post.author?.name; changed = true }
@@ -603,6 +639,9 @@ actor BackgroundSyncActor {
         if sd.userId != comment.userId { sd.userId = comment.userId; changed = true }
         if sd.parentCommentId != comment.parentCommentId { sd.parentCommentId = comment.parentCommentId; changed = true }
         if sd.content != comment.content { sd.content = comment.content; changed = true }
+        if sd.hiddenAt != comment.hiddenAt { sd.hiddenAt = comment.hiddenAt; changed = true }
+        if sd.hiddenBy != comment.hiddenBy { sd.hiddenBy = comment.hiddenBy; changed = true }
+        if sd.hiddenReason != comment.hiddenReason { sd.hiddenReason = comment.hiddenReason; changed = true }
         if sd.createdAt != comment.createdAt { sd.createdAt = comment.createdAt; changed = true }
         if sd.updatedAt != comment.updatedAt { sd.updatedAt = comment.updatedAt; changed = true }
         if sd.authorName != comment.author?.name { sd.authorName = comment.author?.name; changed = true }
@@ -639,6 +678,7 @@ actor BackgroundSyncActor {
                     reviewed: ride.reviewed, reviewSkipped: ride.reviewSkipped,
                     reviewSkippedAt: ride.reviewSkippedAt,
                     estimatedCost: ride.estimatedCost, flightNormalized: ride.flightNormalized,
+                    hiddenAt: ride.hiddenAt, hiddenBy: ride.hiddenBy, hiddenReason: ride.hiddenReason,
                     createdAt: ride.createdAt, updatedAt: ride.updatedAt,
                     posterName: ride.poster?.name, posterAvatarUrl: ride.poster?.avatarUrl,
                     claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
@@ -674,6 +714,7 @@ actor BackgroundSyncActor {
                     claimedBy: favor.claimedBy,
                     reviewed: favor.reviewed, reviewSkipped: favor.reviewSkipped,
                     reviewSkippedAt: favor.reviewSkippedAt,
+                    hiddenAt: favor.hiddenAt, hiddenBy: favor.hiddenBy, hiddenReason: favor.hiddenReason,
                     createdAt: favor.createdAt, updatedAt: favor.updatedAt,
                     posterName: favor.poster?.name, posterAvatarUrl: favor.poster?.avatarUrl,
                     claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
@@ -746,6 +787,7 @@ actor BackgroundSyncActor {
                 reviewed: ride.reviewed, reviewSkipped: ride.reviewSkipped,
                 reviewSkippedAt: ride.reviewSkippedAt,
                 estimatedCost: ride.estimatedCost, flightNormalized: ride.flightNormalized,
+                hiddenAt: ride.hiddenAt, hiddenBy: ride.hiddenBy, hiddenReason: ride.hiddenReason,
                 createdAt: ride.createdAt, updatedAt: ride.updatedAt,
                 posterName: ride.poster?.name, posterAvatarUrl: ride.poster?.avatarUrl,
                 claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
@@ -788,6 +830,7 @@ actor BackgroundSyncActor {
                 claimedBy: favor.claimedBy,
                 reviewed: favor.reviewed, reviewSkipped: favor.reviewSkipped,
                 reviewSkippedAt: favor.reviewSkippedAt,
+                hiddenAt: favor.hiddenAt, hiddenBy: favor.hiddenBy, hiddenReason: favor.hiddenReason,
                 createdAt: favor.createdAt, updatedAt: favor.updatedAt,
                 posterName: favor.poster?.name, posterAvatarUrl: favor.poster?.avatarUrl,
                 claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
@@ -828,6 +871,7 @@ actor BackgroundSyncActor {
                     title: post.title, content: post.content,
                     imageUrl: post.imageUrl, pinned: post.pinned ?? false,
                     type: post.type?.rawValue, reviewId: post.reviewId,
+                    hiddenAt: post.hiddenAt, hiddenBy: post.hiddenBy, hiddenReason: post.hiddenReason,
                     createdAt: post.createdAt, updatedAt: post.updatedAt,
                     authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
                     commentCount: post.commentCount
@@ -874,6 +918,7 @@ actor BackgroundSyncActor {
                 let sdComment = SDTownHallComment(
                     id: comment.id, postId: comment.postId, userId: comment.userId,
                     parentCommentId: comment.parentCommentId, content: comment.content,
+                    hiddenAt: comment.hiddenAt, hiddenBy: comment.hiddenBy, hiddenReason: comment.hiddenReason,
                     createdAt: comment.createdAt, updatedAt: comment.updatedAt,
                     authorName: comment.author?.name, authorAvatarUrl: comment.author?.avatarUrl
                 )
@@ -926,6 +971,7 @@ actor BackgroundSyncActor {
                 title: post.title, content: post.content,
                 imageUrl: post.imageUrl, pinned: post.pinned ?? false,
                 type: post.type?.rawValue, reviewId: post.reviewId,
+                hiddenAt: post.hiddenAt, hiddenBy: post.hiddenBy, hiddenReason: post.hiddenReason,
                 createdAt: post.createdAt, updatedAt: post.updatedAt,
                 authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
                 commentCount: post.commentCount

@@ -12,6 +12,8 @@ import Supabase
 import PostgREST
 import CoreLocation
 
+private let messageThreadReportRequestedNotification = Notification.Name("messaging.thread.reportRequested")
+
 /// View for displaying conversation detail (chat screen)
 struct ConversationDetailView: View {
     let conversationId: UUID
@@ -46,8 +48,8 @@ struct ConversationDetailView: View {
     @State private var showImageViewer = false
     
     // Report state
-    @State private var showReportSheet = false
     @State private var messageToReport: Message?
+    @State private var reportErrorMessage: String?
     
     // Unsend confirmation state
     @State private var showUnsendConfirmation = false
@@ -217,6 +219,14 @@ struct ConversationDetailView: View {
                 scrollToMessage(messageId)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: messageThreadReportRequestedNotification)) { notification in
+            guard let handoffConversationId = notification.userInfo?["conversationId"] as? UUID,
+                  handoffConversationId == conversationId,
+                  let message = notification.userInfo?["message"] as? Message,
+                  message.conversationId == conversationId else { return }
+            activeThreadParent = nil
+            messageToReport = message
+        }
         .toast(message: $toastMessage)
         .trackScreen("ConversationDetail")
         .fullScreenCover(isPresented: $showImageViewer) {
@@ -224,19 +234,7 @@ struct ConversationDetailView: View {
                 fullscreenImageViewer(imageUrl: imageUrl)
             }
         }
-        .sheet(isPresented: $showReportSheet) {
-            reportSheetContent
-        }
-        .alert("messaging_unsend_title".localized, isPresented: $showUnsendConfirmation) {
-            unsendAlertActions
-        } message: {
-            Text("messaging_unsend_confirmation_message".localized)
-        }
-    }
-
-    @ViewBuilder
-    private var reportSheetContent: some View {
-        if let message = messageToReport {
+        .sheet(item: $messageToReport) { message in
             ReportMessageSheet(
                 message: message,
                 onSubmit: { reportType, description in
@@ -245,6 +243,19 @@ struct ConversationDetailView: View {
                     }
                 }
             )
+        }
+        .alert("messaging_unsend_title".localized, isPresented: $showUnsendConfirmation) {
+            unsendAlertActions
+        } message: {
+            Text("messaging_unsend_confirmation_message".localized)
+        }
+        .alert("report_failed".localized, isPresented: Binding(
+            get: { reportErrorMessage != nil },
+            set: { if !$0 { reportErrorMessage = nil } }
+        )) {
+            Button("common_ok".localized, role: .cancel) {}
+        } message: {
+            Text(reportErrorMessage ?? "")
         }
     }
 
@@ -269,7 +280,8 @@ struct ConversationDetailView: View {
     /// Submit a report for a message
     private func submitReport(message: Message, type: MessageService.ReportType, description: String?) async {
         guard let userId = AuthService.shared.currentUserId else { return }
-        
+        reportErrorMessage = nil
+
         do {
             try await MessageService.shared.reportMessage(
                 reporterId: userId,
@@ -277,10 +289,13 @@ struct ConversationDetailView: View {
                 type: type,
                 description: description
             )
-            
+
+            reportErrorMessage = nil
+            toastMessage = "messaging_report_submitted".localized
             messageToReport = nil
         } catch {
             AppLogger.error("messaging", "Error submitting report: \(error.localizedDescription)")
+            reportErrorMessage = error.localizedDescription
         }
     }
     
@@ -587,6 +602,8 @@ struct ConversationDetailView: View {
     // MARK: - Overlay Action Handler (routed from UIKit MessageOverlayController)
 
     private func handleOverlayAction(_ action: OverlayAction, for message: Message) {
+        guard !message.isModerationHidden else { return }
+
         switch action {
         case .react(let emoji):
             Task { await viewModel.addReaction(messageId: message.id, reaction: emoji) }
@@ -612,7 +629,6 @@ struct ConversationDetailView: View {
             Task { await viewModel.deleteMessageForMe(message) }
         case .report:
             messageToReport = message
-            showReportSheet = true
         }
     }
 

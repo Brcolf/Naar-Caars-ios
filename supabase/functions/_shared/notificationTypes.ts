@@ -22,6 +22,8 @@ export const NOTIFICATION_TYPES = {
   TOWN_HALL_POST: 'town_hall_post',
   TOWN_HALL_COMMENT: 'town_hall_comment',
   TOWN_HALL_REACTION: 'town_hall_reaction',
+  CONTENT_REPORTED: 'content_reported',
+  CONTENT_HIDDEN: 'content_hidden',
   ANNOUNCEMENT: 'announcement',
   ADMIN_ANNOUNCEMENT: 'admin_announcement',
   BROADCAST: 'broadcast',

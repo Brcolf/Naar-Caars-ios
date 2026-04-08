@@ -39,6 +39,9 @@ struct MessagingMapper {
             locationName: message.locationName,
             editedAt: message.editedAt,
             deletedAt: message.deletedAt,
+            hiddenAt: message.hiddenAt,
+            hiddenBy: message.hiddenBy,
+            hiddenReason: message.hiddenReason,
             isPending: isPending,
             status: message.sendStatus?.rawValue ?? (isPending ? "sending" : "sent"),
             localAttachmentPath: message.localAttachmentPath
@@ -58,6 +61,9 @@ struct MessagingMapper {
             replyToId: sdMessage.replyToId,
             editedAt: sdMessage.editedAt,
             deletedAt: sdMessage.deletedAt,
+            hiddenAt: sdMessage.hiddenAt,
+            hiddenBy: sdMessage.hiddenBy,
+            hiddenReason: sdMessage.hiddenReason,
             audioUrl: sdMessage.audioUrl,
             audioDuration: sdMessage.audioDuration,
             imageWidth: sdMessage.imageWidth,
@@ -107,6 +113,9 @@ struct MessagingMapper {
         let imageHeight = parseInt(record["image_height"])
         let editedAt = parseDate(record["edited_at"])
         let deletedAt = parseDate(record["deleted_at"])
+        let hiddenAt = parseDate(record["hidden_at"])
+        let hiddenBy = parseUUID(record["hidden_by"])
+        let hiddenReason = parseString(record["hidden_reason"])
         
         var readBy: [UUID] = []
         if let readByArray = normalizeValue(record["read_by"]) as? [Any] {
@@ -148,6 +157,9 @@ struct MessagingMapper {
             replyToId: replyToId,
             editedAt: editedAt,
             deletedAt: deletedAt,
+            hiddenAt: hiddenAt,
+            hiddenBy: hiddenBy,
+            hiddenReason: hiddenReason,
             audioUrl: audioUrl,
             audioDuration: audioDuration,
             imageWidth: imageWidth,

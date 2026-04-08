@@ -214,193 +214,67 @@ struct CommentRow: View {
     var isOwnComment: Bool {
         currentUserId == comment.userId
     }
+
+    private var showsHiddenPlaceholder: Bool {
+        comment.isModerationHidden && isOwnComment
+    }
+
+    private var hidesContentCompletely: Bool {
+        comment.isModerationHidden && !isOwnComment
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-            // Comment content
-            HStack(alignment: .top, spacing: Constants.Spacing.sm) {
-                // Indentation for nested comments
-                if depth > 0 {
-                    Rectangle()
-                        .fill(Color(.separator))
-                        .frame(width: 2)
-                        .padding(.trailing, 4)
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    // Author and time
-                    HStack(alignment: .center, spacing: 6) {
-                        if let author = comment.author {
-                            Text(author.name)
-                                .font(.naarsCaption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                        } else {
-                            Text("townhall_unknown".localized)
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Text(comment.createdAt.localizedRelative)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                    }
-                    
-                    // Comment content
-                    Text(comment.content)
-                        .font(.naarsBody)
-                        .foregroundColor(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    
-                        // Actions: Reply, Delete, Vote
-                    HStack(spacing: Constants.Spacing.md) {
-                        // Reply button
-                        if depth < maxDepth {
-                            Button(action: {
-                                onReply(comment.id)
-                            }) {
-                                HStack(spacing: Constants.Spacing.xs) {
-                                    Image(systemName: "arrowshape.turn.up.left")
-                                        .font(.naarsCaption)
-                                    Text("townhall_reply".localized)
-                                        .font(.naarsCaption)
-                                }
-                                .foregroundColor(.naarsPrimary)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                            .accessibilityLabel("Reply to comment")
-                            .accessibilityHint("Double-tap to reply")
-                        }
-                        
-                        // Delete button (if own comment)
-                        if isOwnComment {
-                            Button(action: {
-                                showDeleteAlert = true
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.red)
-                            }
-                            .buttonStyle(PlainButtonStyle())
+        Group {
+            if hidesContentCompletely {
+                EmptyView()
+            } else {
+                VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                    HStack(alignment: .top, spacing: Constants.Spacing.sm) {
+                        if depth > 0 {
+                            Rectangle()
+                                .fill(Color(.separator))
+                                .frame(width: 2)
+                                .padding(.trailing, 4)
                         }
 
-                        // Report button (not on own comments)
-                        if !isOwnComment {
-                            if hasReported {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "flag.fill")
-                                        .font(.naarsCaption)
-                                    Text("townhall_reported".localized)
-                                        .font(.naarsCaption)
-                                }
-                                .foregroundColor(.secondary.opacity(0.5))
+                        VStack(alignment: .leading, spacing: 6) {
+                            authorAndTimeRow
+
+                            if showsHiddenPlaceholder {
+                                hiddenPlaceholderBody
                             } else {
+                                regularCommentBody
+                            }
+
+                            if let replies = comment.replies, !replies.isEmpty {
                                 Button(action: {
-                                    if appState.isGuest {
-                                        showGuestPrompt = true
-                                    } else {
-                                        showReportSheet = true
-                                    }
+                                    showReplies.toggle()
                                 }) {
-                                    Image(systemName: "flag")
-                                        .font(.naarsCaption)
-                                        .foregroundColor(.secondary)
+                                    HStack(spacing: Constants.Spacing.xs) {
+                                        Image(systemName: showReplies ? "chevron.down" : "chevron.right")
+                                            .font(.naarsCaption)
+                                        Text("\(replies.count) \(replies.count == 1 ? "townhall_reply_singular".localized : "townhall_reply_plural".localized)")
+                                            .font(.naarsCaption)
+                                    }
+                                    .foregroundColor(.naarsPrimary)
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                .accessibilityLabel("Report comment")
-                            }
-                        }
+                                .padding(.top, 4)
 
-                        Spacer()
-                        
-                        // Voting buttons on right
-                        HStack(spacing: Constants.Spacing.sm) {
-                            // Downvote
-                            Button(action: {
-                                if comment.userVote == .downvote {
-                                    onVote(comment.id, nil)
-                                } else {
-                                    onVote(comment.id, .downvote)
-                                }
-                            }) {
-                                HStack(spacing: Constants.Spacing.xs) {
-                                    Image(systemName: "arrow.down")
-                                        .font(.naarsCaption)
-                                        .foregroundColor(comment.userVote == .downvote ? .blue : .secondary)
-                                    if comment.downvotes > 0 {
-                                        Text("\(comment.downvotes)")
-                                            .font(.naarsCaption)
-                                            .foregroundColor(.secondary)
+                                if showReplies {
+                                    ForEach(replies) { reply in
+                                        CommentRow(
+                                            comment: reply,
+                                            currentUserId: currentUserId,
+                                            onReply: onReply,
+                                            onVote: onVote,
+                                            onDelete: onDelete,
+                                            depth: depth + 1
+                                        )
+                                        .padding(.leading, indent)
+                                        .padding(.top, Constants.Spacing.sm)
                                     }
                                 }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                            .accessibilityLabel("Downvote comment")
-                            .accessibilityHint("Double-tap to downvote")
-                            
-                            // Upvote
-                            Button(action: {
-                                if comment.userVote == .upvote {
-                                    onVote(comment.id, nil)
-                                } else {
-                                    onVote(comment.id, .upvote)
-                                }
-                            }) {
-                                HStack(spacing: Constants.Spacing.xs) {
-                                    Image(systemName: "arrow.up")
-                                        .font(.naarsCaption)
-                                        .foregroundColor(comment.userVote == .upvote ? .orange : .secondary)
-                                    if comment.upvotes > 0 {
-                                        Text("\(comment.upvotes)")
-                                            .font(.naarsCaption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                            .accessibilityLabel("Upvote comment")
-                            .accessibilityHint("Double-tap to upvote")
-                        }
-                    }
-                    .padding(.top, 4)
-                    
-                    // Show replies toggle (if has replies)
-                    if let replies = comment.replies, !replies.isEmpty {
-                        Button(action: {
-                            showReplies.toggle()
-                        }) {
-                            HStack(spacing: Constants.Spacing.xs) {
-                                Image(systemName: showReplies ? "chevron.down" : "chevron.right")
-                                    .font(.naarsCaption)
-                                Text("\(replies.count) \(replies.count == 1 ? "townhall_reply_singular".localized : "townhall_reply_plural".localized)")
-                                    .font(.naarsCaption)
-                            }
-                            .foregroundColor(.naarsPrimary)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.top, 4)
-                        
-                        // Nested replies (if expanded)
-                        if showReplies {
-                            ForEach(replies) { reply in
-                                CommentRow(
-                                    comment: reply,
-                                    currentUserId: currentUserId,
-                                    onReply: onReply,
-                                    onVote: onVote,
-                                    onDelete: onDelete,
-                                    depth: depth + 1
-                                )
-                                .padding(.leading, indent)
-                                .padding(.top, Constants.Spacing.sm)
                             }
                         }
                     }
@@ -439,6 +313,183 @@ struct CommentRow: View {
         } message: {
             Text("townhall_delete_comment_confirmation".localized)
         }
+    }
+
+    @ViewBuilder
+    private var authorAndTimeRow: some View {
+        HStack(alignment: .center, spacing: 6) {
+            if let author = comment.author {
+                Text(author.name)
+                    .font(.naarsCaption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+            } else {
+                Text("townhall_unknown".localized)
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
+
+            Text(comment.createdAt.localizedRelative)
+                .font(.naarsCaption)
+                .foregroundColor(.secondary)
+
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var hiddenPlaceholderBody: some View {
+        HStack(alignment: .top, spacing: Constants.Spacing.sm) {
+            Image(systemName: "eye.slash")
+                .font(.naarsCaption)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("townhall_comment_hidden_title".localized)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.secondary)
+
+                // Keep the comment-row placeholder compact while still surfacing the moderator reason.
+                if let hiddenReason = comment.hiddenReason, !hiddenReason.isEmpty {
+                    Text("moderation_hidden_reason".localized(with: hiddenReason))
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if isOwnComment {
+                Button(action: {
+                    showDeleteAlert = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.naarsCaption)
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var regularCommentBody: some View {
+        Text(comment.content)
+            .font(.naarsBody)
+            .foregroundColor(.primary)
+            .fixedSize(horizontal: false, vertical: true)
+
+        HStack(spacing: Constants.Spacing.md) {
+            if depth < maxDepth {
+                Button(action: {
+                    onReply(comment.id)
+                }) {
+                    HStack(spacing: Constants.Spacing.xs) {
+                        Image(systemName: "arrowshape.turn.up.left")
+                            .font(.naarsCaption)
+                        Text("townhall_reply".localized)
+                            .font(.naarsCaption)
+                    }
+                    .foregroundColor(.naarsPrimary)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Reply to comment")
+                .accessibilityHint("Double-tap to reply")
+            }
+
+            if isOwnComment {
+                Button(action: {
+                    showDeleteAlert = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.naarsCaption)
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+
+            if !isOwnComment {
+                if hasReported {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flag.fill")
+                            .font(.naarsCaption)
+                        Text("townhall_reported".localized)
+                            .font(.naarsCaption)
+                    }
+                    .foregroundColor(.secondary.opacity(0.5))
+                } else {
+                    Button(action: {
+                        if appState.isGuest {
+                            showGuestPrompt = true
+                        } else {
+                            showReportSheet = true
+                        }
+                    }) {
+                        Image(systemName: "flag")
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("Report comment")
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: Constants.Spacing.sm) {
+                Button(action: {
+                    if comment.userVote == .downvote {
+                        onVote(comment.id, nil)
+                    } else {
+                        onVote(comment.id, .downvote)
+                    }
+                }) {
+                    HStack(spacing: Constants.Spacing.xs) {
+                        Image(systemName: "arrow.down")
+                            .font(.naarsCaption)
+                            .foregroundColor(comment.userVote == .downvote ? .blue : .secondary)
+                        if comment.downvotes > 0 {
+                            Text("\(comment.downvotes)")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Downvote comment")
+                .accessibilityHint("Double-tap to downvote")
+
+                Button(action: {
+                    if comment.userVote == .upvote {
+                        onVote(comment.id, nil)
+                    } else {
+                        onVote(comment.id, .upvote)
+                    }
+                }) {
+                    HStack(spacing: Constants.Spacing.xs) {
+                        Image(systemName: "arrow.up")
+                            .font(.naarsCaption)
+                            .foregroundColor(comment.userVote == .upvote ? .orange : .secondary)
+                        if comment.upvotes > 0 {
+                            Text("\(comment.upvotes)")
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Upvote comment")
+                .accessibilityHint("Double-tap to upvote")
+            }
+        }
+        .padding(.top, 4)
     }
 }
 
