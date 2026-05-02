@@ -14,10 +14,10 @@ Naar's Cars is a community platform for neighbors to help each other with rides 
 
 ```
 naars-cars-ios/
-├── docs/
-│   ├── PRDs/              # Product Requirements Documents (21 features)
-│   ├── Tasks/             # Detailed task breakdowns for implementation
-│   └── QA/                # Quality assurance framework and checkpoints
+├── PRDs/                  # Product Requirements Documents (21 features)
+├── Tasks/                 # Detailed task breakdowns for implementation
+├── QA/                    # Quality assurance framework and checkpoints
+├── Docs/                  # Audit reports, debug runbooks, plans, superpowers specs
 │
 ├── database/              # Database setup files
 │   ├── migrations/        # SQL migration files (generated in Phase 0)
@@ -96,7 +96,7 @@ naars-cars-ios/
 6. Seed test data
 7. Verify schema with test queries
 
-**Start here:** `docs/Tasks/tasks-foundation-architecture.md` → Task 0.1
+**Start here:** `Tasks/tasks-foundation-architecture.md` → Task 0.1
 
 **Completion Criteria:** Pass QA-DATABASE-FINAL checkpoint
 
@@ -115,7 +115,7 @@ naars-cars-ios/
 6. Create reusable UI components
 7. Set up navigation architecture
 
-**Start here:** `docs/Tasks/tasks-foundation-architecture.md` → Task 1.1
+**Start here:** `Tasks/tasks-foundation-architecture.md` → Task 1.1
 
 **Completion Criteria:** Pass QA-FOUNDATION-001 checkpoint
 
@@ -132,7 +132,7 @@ naars-cars-ios/
 - Biometric authentication (Face ID/Touch ID)
 - Apple Sign-In
 
-**Start here:** `docs/Tasks/tasks-authentication.md`
+**Start here:** `Tasks/tasks-authentication.md`
 
 ---
 
@@ -148,11 +148,11 @@ naars-cars-ios/
 - User reviews and ratings
 
 **Task Lists:**
-- `docs/Tasks/tasks-user-profile.md`
-- `docs/Tasks/tasks-ride-requests.md`
-- `docs/Tasks/tasks-favor-requests.md`
-- `docs/Tasks/tasks-request-claiming.md`
-- `docs/Tasks/tasks-reviews-ratings.md`
+- `Tasks/tasks-user-profile.md`
+- `Tasks/tasks-ride-requests.md`
+- `Tasks/tasks-favor-requests.md`
+- `Tasks/tasks-request-claiming.md`
+- `Tasks/tasks-reviews-ratings.md`
 
 ---
 
@@ -167,9 +167,9 @@ naars-cars-ios/
 - Request Q&A (public questions on posts)
 
 **Task Lists:**
-- `docs/Tasks/tasks-messaging.md`
-- `docs/Tasks/tasks-push-notifications.md`
-- `docs/Tasks/tasks-in-app-notifications.md`
+- `Tasks/tasks-messaging.md`
+- `Tasks/tasks-push-notifications.md`
+- `Tasks/tasks-in-app-notifications.md`
 
 ---
 
@@ -183,9 +183,9 @@ naars-cars-ios/
 - Invite system
 
 **Task Lists:**
-- `docs/Tasks/tasks-town-hall.md`
-- `docs/Tasks/tasks-leaderboards.md`
-- `docs/Tasks/tasks-invite-system.md`
+- `Tasks/tasks-town-hall.md`
+- `Tasks/tasks-leaderboards.md`
+- `Tasks/tasks-invite-system.md`
 
 ---
 
@@ -202,12 +202,12 @@ naars-cars-ios/
 - Crash reporting
 
 **Task Lists:**
-- `docs/Tasks/tasks-admin-panel.md`
-- `docs/Tasks/tasks-dark-mode.md`
-- `docs/Tasks/tasks-localization.md`
-- `docs/Tasks/tasks-location-autocomplete.md`
-- `docs/Tasks/tasks-map-view.md`
-- `docs/Tasks/tasks-crash-reporting.md`
+- `Tasks/tasks-admin-panel.md`
+- `Tasks/tasks-dark-mode.md`
+- `Tasks/tasks-localization.md`
+- `Tasks/tasks-location-autocomplete.md`
+- `Tasks/tasks-map-view.md`
+- `Tasks/tasks-crash-reporting.md`
 
 ---
 
@@ -217,11 +217,11 @@ naars-cars-ios/
 
 | Document | Purpose |
 |----------|---------|
-| `docs/PRDs/PRD-INDEX.md` | Master index of all features |
-| `docs/Tasks/TASK-LISTS-SUMMARY.md` | Summary of all tasks (~1,880 total) |
-| `docs/QA/CHECKPOINT-GUIDE.md` | How to run quality checkpoints |
-| `docs/QA/FLOW-CATALOG.md` | All 27 user flows for testing |
-| `docs/QA/QA-RUNNER-INSTRUCTIONS.md` | Cursor-specific QA guide |
+| `PRDs/PRD-INDEX.md` | Master index of all features |
+| `Tasks/TASK-LISTS-SUMMARY.md` | Summary of all tasks (~1,880 total) |
+| `QA/CHECKPOINT-GUIDE.md` | How to run quality checkpoints |
+| `QA/FLOW-CATALOG.md` | All 27 user flows for testing |
+| `QA/QA-RUNNER-INSTRUCTIONS.md` | Cursor-specific QA guide |
 | `SECURITY.md` | Security requirements and RLS policies |
 | `PRIVACY-DISCLOSURES.md` | Privacy requirements for App Store |
 | `Legal/PRIVACY_POLICY.md` | Draft Privacy Policy (must be hosted for App Store submission) |
@@ -235,8 +235,8 @@ Each feature has:
 3. **Checkpoints** - Mandatory quality gates marked with 🔒
 
 **Example workflow:**
-1. Read `docs/PRDs/prd-authentication.md` to understand the feature
-2. Follow `docs/Tasks/tasks-authentication.md` checklist
+1. Read `PRDs/prd-authentication.md` to understand the feature
+2. Follow `Tasks/tasks-authentication.md` checklist
 3. Check off each task as you complete it (`- [ ]` → `- [x]`)
 4. When you hit a 🔒 CHECKPOINT, run the verification script
 5. Fix any issues before continuing
@@ -261,7 +261,7 @@ This project is designed to work with Cursor IDE for AI-assisted development.
 
 **Example Cursor prompt:**
 ```
-Implement Task 2.3 from docs/Tasks/tasks-authentication.md:
+Implement Task 2.3 from Tasks/tasks-authentication.md:
 
 Create LoginViewModel.swift in Features/Authentication/ViewModels/
 
@@ -270,7 +270,7 @@ Requirements:
 - @Published properties for email, password, isLoading, errorMessage
 - loginWithEmail() async function
 - Use AuthService.shared for actual login
-- Follow MVVM pattern from prd-foundation-architecture.md
+- Follow MVVM pattern from `PRDs/prd-foundation-architecture.md`
 ```
 
 ### Running Checkpoints
@@ -280,10 +280,10 @@ At each 🔒 CHECKPOINT in task lists:
 ```bash
 # Stop coding
 # Run the checkpoint script
-./docs/QA/Scripts/checkpoint.sh <checkpoint-id>
+./QA/Scripts/checkpoint.sh <checkpoint-id>
 
 # Example:
-./docs/QA/Scripts/checkpoint.sh foundation-001
+./QA/Scripts/checkpoint.sh foundation-001
 
 # Fix any failures
 # Only continue when checkpoint passes
@@ -483,10 +483,10 @@ This is a personal project, but if you're collaborating:
 ## 📞 Support
 
 For questions about:
-- **PRDs and requirements:** See `docs/PRDs/`
-- **Implementation tasks:** See `docs/Tasks/`
-- **Quality assurance:** See `docs/QA/CHECKPOINT-GUIDE.md`
-- **Database setup:** See Phase 0 tasks in `docs/Tasks/tasks-foundation-architecture.md`
+- **PRDs and requirements:** See `PRDs/`
+- **Implementation tasks:** See `Tasks/`
+- **Quality assurance:** See `QA/CHECKPOINT-GUIDE.md`
+- **Database setup:** See Phase 0 tasks in `Tasks/tasks-foundation-architecture.md`
 
 ---
 
@@ -498,13 +498,13 @@ Before you begin:
 - [ ] Xcode 16+ installed
 - [ ] Cursor IDE installed
 - [ ] Supabase account created
-- [ ] All documentation files in `docs/` folder
+- [ ] Documentation present at the repo root: `PRDs/`, `Tasks/`, `QA/`, `Docs/`
 - [ ] SECURITY.md and PRIVACY-DISCLOSURES.md present
 - [ ] Read this README completely
 - [ ] Ready to commit 25+ hours/week
 
 **Then start here:**
-1. Open `docs/Tasks/tasks-foundation-architecture.md`
+1. Open `Tasks/tasks-foundation-architecture.md`
 2. Begin with **Task 0.1** (Create Supabase Project)
 3. Work through Phase 0 completely
 4. Pass QA-DATABASE-FINAL checkpoint
