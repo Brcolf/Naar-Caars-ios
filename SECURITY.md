@@ -289,7 +289,127 @@ Owner-only on every operation.
 | `town_hall_posts_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
 | `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is admin` |
 
-### 2.15 Admin Operations
+### 2.15 town_hall_comments
+
+Mirror of `town_hall_posts` (§2.14): authenticated approved users see visible rows + their own hidden rows; anon guests see visible rows only; inserts gated by `is_active_user`. Adds an UPDATE policy so users can edit their own comments — `town_hall_posts` does not currently have an analogous UPDATE policy (posts are insert-then-immutable from the client side).
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Authenticated users can view visible or own hidden town hall comments` | SELECT | authenticated | `hidden_at IS NULL OR user_id = auth.uid()` |
+| `Guests can view visible town hall comments` | SELECT | anon | `hidden_at IS NULL` |
+| `town_hall_comments_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
+| `Users can update own comments` | UPDATE | authenticated | `auth.uid() = user_id` |
+| `Users can delete own comments` | DELETE | authenticated | `auth.uid() = user_id` |
+
+### 2.16 town_hall_votes
+
+Owner-write, all-read. The deliberate choice to expose vote rows publicly (`USING true` for SELECT) is what enables vote-count transparency and per-user "you voted X" UI; the privacy tradeoff is that vote authorship is not anonymous.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Users can view all votes` | SELECT | authenticated | `true` |
+| `Users can create votes` | INSERT | authenticated | CHECK `auth.uid() = user_id` |
+| `Users can update own votes` | UPDATE | authenticated | `auth.uid() = user_id` |
+| `Users can delete own votes` | DELETE | authenticated | `auth.uid() = user_id` |
+
+### 2.17 town_hall_post_interactions
+
+Per-user post interactions (e.g. saves, dismissals, "I helped"). Approved users can see all interactions; mutations are owner-only.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `interactions_select_approved` | SELECT | authenticated | caller is approved |
+| `interactions_insert_own` | INSERT | authenticated | CHECK `user_id = auth.uid()` |
+| `interactions_delete_own` | DELETE | authenticated | `user_id = auth.uid()` |
+
+### 2.18 message_reactions
+
+Reactions inherit visibility from messages: a row is visible only if the caller is a participant in the message's conversation. Mutations are owner-only and the INSERT also re-checks conversation participation, so a participant cannot react to a message in a conversation they aren't in (defense-in-depth against forged `message_id`).
+
+This table is part of the active-conversation realtime subscription (see CLAUDE.md → Realtime Rules). RLS gates both the WebSocket-delivered events and the REST hydration path.
+
+| Policy | Op | USING / CHECK |
+|---|---|---|
+| `message_reactions_select` | SELECT | caller is in `conversation_participants` for the message's conversation (joined to `messages`) |
+| `message_reactions_insert` | INSERT | CHECK `user_id = auth.uid()` AND caller is in the message's conversation |
+| `message_reactions_update` | UPDATE | `user_id = auth.uid()` |
+| `message_reactions_delete` | DELETE | `user_id = auth.uid()` |
+
+### 2.19 typing_indicators
+
+Active-participants only on every operation (`left_at IS NULL`). A user who has been removed from the conversation cannot see or write typing state.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Users can view typing in their conversations` | SELECT | authenticated | caller has an active (`left_at IS NULL`) row in `conversation_participants` |
+| `Users can insert own typing indicator` | INSERT | authenticated | CHECK `user_id = auth.uid()` AND caller is an active participant |
+| `Users can update own typing indicator` | UPDATE | authenticated | `user_id = auth.uid()` |
+| `Users can delete own typing indicator` | DELETE | authenticated | `user_id = auth.uid()` |
+
+### 2.20 reports
+
+User-facing reporting endpoint for the App Store moderation requirement. Three-way SELECT split: reporters see their own reports, reported users see reports filed against them, admins see everything. Updates (status transitions like "resolved" / "dismissed") are admin-only — the client-side report-creation flow never updates an existing row.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Users can view own reports` | SELECT | authenticated | `auth.uid() = reporter_id` |
+| `Users can view reports about them` | SELECT | authenticated | `auth.uid() = reported_user_id` |
+| `Admins can view all reports` | SELECT | authenticated | caller is admin |
+| `Users can create reports` | INSERT | authenticated | CHECK `auth.uid() = reporter_id` |
+| `Admins can update reports` | UPDATE | authenticated | caller is admin |
+
+### 2.21 blocked_users
+
+Owner-only on every operation. Blocking is one-directional in the schema (`blocker_id` / `blocked_id`); a `B blocks A` row is invisible to A, which is intentional — A should not be able to detect that they have been blocked.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Users can view own blocks` | SELECT | authenticated | `auth.uid() = blocker_id` |
+| `Users can create blocks` | INSERT | authenticated | CHECK `auth.uid() = blocker_id` |
+| `Users can delete own blocks` | DELETE | authenticated | `auth.uid() = blocker_id` |
+
+### 2.22 notification_queue
+
+Outbound push-notification queue, processed by edge functions (`send-message-push`, `send-notification`). Service-role-only on every operation — no client (anon or authenticated) has any access. If an APNs send fails the row stays in the queue for retry; client code never reads or writes this table.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `notification_queue_select_service_role` | SELECT | service_role | `true` |
+| `notification_queue_insert_service_role` | INSERT | service_role | CHECK `true` |
+| `notification_queue_update_service_role` | UPDATE | service_role | `true` |
+
+### 2.23 completion_reminders
+
+Scheduled reminders to ride/favor claimers asking them to mark a request complete. Split client/service-role: the claimer reads and updates their own reminder rows (e.g. snooze, dismiss); the service role manages the underlying schedule (insert when a request is claimed, update when the reminder fires).
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `completion_reminders_select_own` | SELECT | authenticated | `claimer_user_id = auth.uid()` |
+| `completion_reminders_update_own` | UPDATE | authenticated | `claimer_user_id = auth.uid()` |
+| `completion_reminders_insert_service_only` | INSERT | service_role | CHECK `true` |
+| `completion_reminders_update_service_role` | UPDATE | service_role | `true` |
+
+### 2.24 geocoding_cache
+
+Shared cache of address-to-coordinates lookups. Any authenticated user can read or write any row — there's no per-user ownership and no row-level filtering. The cache key is the (address, region) tuple; collisions overwrite.
+
+This is a deliberate trade: cache hit-rate matters more than per-user isolation, the cached values are coarse-grained (lat/lng + display address) and not sensitive, and the alternative (per-user caches) would multiply Google Places API spend. If the data ever becomes sensitive (PII in addresses, per-user prefix searches), this needs revisiting.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `geocoding_cache_select_authenticated` | SELECT | authenticated | `true` |
+| `geocoding_cache_insert_authenticated` | INSERT | authenticated | CHECK `true` |
+| `geocoding_cache_update_authenticated` | UPDATE | authenticated | `true` |
+
+### 2.25 xp_events
+
+Append-only XP/gamification log used for leaderboards. Read-only from the client (caller sees own rows); writes flow through SECURITY DEFINER triggers and RPCs (e.g. when a request is completed, a review is posted, an invite is redeemed). No client-direct INSERT, UPDATE, or DELETE policies.
+
+| Policy | Op | USING / CHECK |
+|---|---|---|
+| `Users can read own xp_events` | SELECT | `auth.uid() = user_id` |
+
+### 2.26 Admin Operations
 
 Any operation that requires admin privileges MUST verify via RLS:
 
@@ -306,7 +426,7 @@ CREATE POLICY "admin_approve_users" ON public.profiles
 -- IMPORTANT: This should be an Edge Function for additional safety
 ```
 
-### 2.16 content_moderation_events (audit log)
+### 2.27 content_moderation_events (audit log)
 
 Append-only audit log of moderation actions: which content (`message`, `town_hall_post`, `town_hall_comment`, `ride`, `favor`) was hidden / dismissed / restored / auto-hidden, by which admin, with what reason, linked to which report. Created by `supabase/migrations/20260403_0011_content_moderation_redesign.sql`. RLS enabled and a single admin-only SELECT policy added in `supabase/migrations/20260502_0001_enable_rls_content_moderation_events.sql` (audit ref: Supabase advisor `rls_disabled_in_public`).
 
