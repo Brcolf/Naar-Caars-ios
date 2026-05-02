@@ -79,7 +79,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 ## What This App Is
 
-**Naar's Cars** is a community platform for neighbors to help each other with rides and favors. It's an iOS 17+ Swift 5.9+ app with:
+iOS 17+ Swift 5.9+ community app for neighbor rides/favors with messaging, town hall, notifications, open signup with admin approval, and moderation/blocking/reporting. See `README.md` for the product overview; this section covers only what's load-bearing for code work.
 
 | Layer | Technology |
 |---|---|
@@ -91,13 +91,13 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **SPM dependencies (Xcode-managed):** supabase-swift v2.5.1+, firebase-ios-sdk v12.8.0+, PhoneNumberKit v4.0.0+.
 
-**Core product areas:** ride and favor requests, group messaging and reactions, town hall/community content, notifications and deep linking, open signup with admin approval flows, moderation/blocking/reporting.
-
-**Feature modules** (`Features/<Name>/`): Admin, Authentication, Claiming, Community, Favors, Leaderboards, Messaging (UIKit collection view), Notifications, Profile, Prompts (completion/review reminders), Requests, Reviews, Rides, TownHall. Each has `Views/` and `ViewModels/` subdirectories.
+**Feature modules** live in `Features/<Name>/Views/` and `Features/<Name>/ViewModels/`.
 
 ---
 
 ## Build and Test Commands
+
+> **First-time setup:** the build will fail until you create `Secrets.swift` — see [Secrets Setup](#secrets-setup-required-for-build) below before running any of the commands here.
 
 The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars`. Simulator target: iPhone, iOS 17+.
 
@@ -170,6 +170,8 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `SECURITY.md` — RLS policies, security requirements, compliance details (720 lines)
 - `MESSAGING-REVIEW-AND-PLAN.md` — deep architectural review of the messaging/realtime system; read before touching messaging internals
 - `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` — authoritative spec for the push-notify, pull-hydrate architecture and `RefreshCoordinator`
+
+**Historical artifacts — do not treat as authoritative.** Root-level `*-PLAN.md`, `*-SUMMARY.md`, `*-CHECKLIST.md`, `CHECKPOINT-RESULTS.md`, and similar files (e.g., `BUILD-PLAN.md`, `EXECUTION-SUMMARY.md`, `FOUNDATION-COMPLETION-SUMMARY.md`, `REMAINING-TASKS-SUMMARY.md`, `NaarsCars/CLEANUP_SUMMARY*.md`, `NaarsCars/ADD-FILES-TO-XCODE.md`, `NaarsCars/FIX-*.md`, `NaarsCars/MISSING-FILES-REPORT.txt`) are stale planning/migration notes left over from earlier phases. Do not cite them in code review or rely on them for current behavior unless they are explicitly cross-referenced from this file or `SECURITY.md`.
 
 ---
 
@@ -677,15 +679,35 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 | SwiftData schema | additive-only changes without a formal migration |
 | UIKit messaging | MessagesCollectionView is not replaceable with SwiftUI List |
 
+### Canonical Entry Points
+
+When you need to do one of these things, this is the *only* path. Do not duplicate — extend the existing API.
+
+| If you need to… | Call this | Do not |
+|---|---|---|
+| Send a chat message | `MessageSendManager.sendMessage(...)` (or `sendAudioMessage` / `sendLocationMessage` / `retryMessage`) | Send from `MessagingRepository`, Views, ViewModels, or untracked `Task {}` blocks |
+| Refresh a domain after push or staleness | `RefreshCoordinator.refreshIfNeeded(_ domain:, trigger:)` | Call sync engine `performFullSync` / `performTargetedSync` from a ViewModel |
+| Force-refresh on pull-to-refresh | `RefreshCoordinator.forceFullRefresh(_:trigger:)` | Bypass the coordinator's in-flight dedup |
+| Mark a domain dirty after a push | `RefreshCoordinator.invalidate(_:reason:)` | Mutate engine state directly |
+| Track which tab/screen is visible | `RefreshCoordinator.setVisibleDomain(_:)` from `MainTabView.onChange(of: selectedTab)` | Call this from individual ViewModels |
+| Mutate reaction state on a `Message` | `Message.setIndividualReactions(_:)` | Mutate `reactions` (aggregated) directly |
+| Route a deep link / push intent | `NavigationCoordinator.navigate(to: DeepLink)` (sets `pendingIntent`) | Set `@Published navigateToX` flags or navigate from `AppDelegate` / `PushNotificationService` |
+| Subscribe to a conversation's realtime channels | `MessagingSyncEngine.subscribeToConversation(id:)` (subscribe-then-fetch) | Open WebSocket channels from anywhere else, or fetch before subscribing |
+| Persist sync writes from a sync engine | `BackgroundSyncActor` (compare-before-write, conditional `save()`) | Call `modelContext.save()` from the main actor or a ViewModel for sync data |
+
 ---
 
-## Audit Notes — Known Deviations (2026-03-31)
+## Audit Notes — Known Deviations
 
 These document where the code currently deviates from the rules above. Check these before touching the affected areas.
 
 ### Known Violations
 
+**Last audited: 2026-05-02 against commit `adf369a` (main).**
+
 No known violations. The previous `TownHallSyncEngine` MainActor write deviation has been resolved — TownHall writes now use `BackgroundSyncActor`.
+
+If you make a fragile-system change, re-verify this section and bump the audit date and commit.
 
 ### Realtime Callback Threading — Required Patterns
 
