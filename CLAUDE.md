@@ -37,7 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ⚠️ Read This First — Before Any Code Change
 
-You are working in a production iOS app actively preparing for App Store submission.
+You are working in a production iOS app that is shipped on the App Store with live users.
 Several subsystems are fragile. This document tells you where, why, and how to proceed safely.
 
 **Your default posture is: minimal, targeted, conservative.**
@@ -56,7 +56,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 > Update this section as the project state changes.
 
-**App Store submission is in progress.** All changes must be App Store-safe by default. If a change has any submission risk, say so explicitly before proceeding.
+**The app is live on the App Store.** All updates must be App Store-safe by default — a rejected update blocks fix delivery to live users. If a change has any submission risk, say so explicitly before proceeding.
 
 **The messaging view layer is mid-UIKit refactor.** The original SwiftUI messaging components are not the reference implementation. The UIKit `MessagesCollectionView`-based implementation is the current canonical path. Do not treat SwiftUI messaging components as authoritative when they conflict with UIKit ones.
 
