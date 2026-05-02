@@ -27,31 +27,81 @@ All Supabase tables MUST have RLS enabled. The following policies are REQUIRED b
 
 ### 2.1 profiles
 
-| Policy Name | Operation | SQL Check |
-|-------------|-----------|-----------|
-| `profiles_select_approved` | SELECT | `auth.uid() = id OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND approved = true)` |
-| `profiles_update_own` | UPDATE | `auth.uid() = id` |
-| `profiles_insert_own` | INSERT | `auth.uid() = id` |
+The `profiles` table contains PII (`email`, `phone_number`, `is_admin`, `is_banned`, `ban_reason`, `banned_by`, `heard_about`, `join_reason`, `application_submitted_at`, `application_complete`, `notify_*`). Direct SELECT on `profiles` is restricted to **self and admin only**. All cross-user profile reads — messaging sender hydration, town-hall author lookup, user search, invite flows, profile cards — go through the **`public_profiles` view** instead, which exposes only non-PII columns (`id`, `name`, `avatar_url`, `car`, `approved`, `created_at`, `updated_at`).
+
+This split was introduced by audit-CRIT-7 in `supabase/migrations/20260416_0002_security_profiles_projection_split.sql`. See [§2.1.1 The `public_profiles` view](#211-the-public_profiles-view) below for the design rationale.
+
+| Policy Name | Operation | Roles | SQL Check |
+|-------------|-----------|-------|-----------|
+| `profiles_select_own` | SELECT | authenticated | `auth.uid() = id` |
+| `profiles_select_admin` | SELECT | authenticated | `is_admin_user(auth.uid())` |
+| `Users can insert own profile` | INSERT | (all) | `WITH CHECK (auth.uid() = id)` |
+| `Users can update own profile` | UPDATE | (all) | `auth.uid() = id` |
+| `profiles_update_own` | UPDATE | (all) | `auth.uid() = id` |
+| `profiles_update_admin` | UPDATE | (all) | `is_admin_user(auth.uid())` |
+| `profiles_admin_delete` | DELETE | authenticated | `approved = false AND <caller is admin>` |
 
 ```sql
--- Enable RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Users can view own profile or other approved users
-CREATE POLICY "profiles_select_approved" ON public.profiles
-  FOR SELECT USING (
-    auth.uid() = id 
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
+-- Self-read full row
+CREATE POLICY "profiles_select_own"
+ON public.profiles FOR SELECT TO authenticated
+USING (auth.uid() = id);
 
--- Users can only update their own profile
-CREATE POLICY "profiles_update_own" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id);
+-- Admin-read full row
+CREATE POLICY "profiles_select_admin"
+ON public.profiles FOR SELECT TO authenticated
+USING (is_admin_user(auth.uid()));
 
--- Users can only insert their own profile (during signup)
-CREATE POLICY "profiles_insert_own" ON public.profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
+-- Anyone can create their own profile during signup
+CREATE POLICY "Users can insert own profile"
+ON public.profiles FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+-- Self and admin can update
+CREATE POLICY "profiles_update_own"
+ON public.profiles FOR UPDATE
+USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "profiles_update_admin"
+ON public.profiles FOR UPDATE
+USING (is_admin_user(auth.uid())) WITH CHECK (is_admin_user(auth.uid()));
+
+-- Admins can prune unapproved applications
+CREATE POLICY "profiles_admin_delete"
+ON public.profiles FOR DELETE TO authenticated
+USING (
+  approved = false
+  AND EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid() AND p.is_admin = true
+  )
+);
 ```
+
+#### 2.1.1 The `public_profiles` view
+
+```sql
+CREATE OR REPLACE VIEW public.public_profiles
+WITH (security_barrier = true, security_invoker = false) AS
+SELECT id, name, avatar_url, car, approved, created_at, updated_at
+FROM public.profiles;
+
+REVOKE ALL  ON public.public_profiles FROM PUBLIC;
+GRANT SELECT ON public.public_profiles TO authenticated, anon, service_role;
+```
+
+**Design decision: `security_invoker = false` is intentional.** The Supabase advisor `0010_security_definer_view` flags this view because it bypasses the underlying RLS on `profiles` and runs with the view-creator's (postgres) privileges. **This is the mechanism that makes the split work** — if the view ran as the invoker, the narrowed RLS on `profiles` (self + admin only) would block every cross-user profile lookup the app does (messaging, town hall, search, invites).
+
+Realistic alternatives evaluated and rejected:
+
+| Alternative | Why rejected |
+|---|---|
+| Convert to `security_invoker = true` + permissive RLS on `profiles` + column-level GRANTs | Would require self/admin to read PII through a separate SECURITY DEFINER RPC, weakens defense-in-depth (PII becomes column-grant-protected instead of network-unreachable on the base table), and column-level GRANT semantics are easy to misconfigure. |
+| Convert to a SECURITY DEFINER RPC (`get_public_profiles(ids[])`) | Breaks every relationship-style join in `MessageService`, `ConversationService`, `TownHallService`, `TownHallCommentService`, `InviteService`, `ProfileService`, `UserSearchView`, `SupabaseService` (e.g. `sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)`). PostgREST doesn't join RPCs. Trades one advisor warning for another. |
+
+**The view stays as-is.** The advisor warning is a known accepted exception — record it as such, do not auto-remediate. If the underlying `profiles` schema changes (new PII columns), update the view's column list at the same time.
 
 ### 2.2 rides
 
@@ -376,6 +426,28 @@ CREATE POLICY "admin_approve_users" ON public.profiles
 -- Only admins can toggle admin status
 -- IMPORTANT: This should be an Edge Function for additional safety
 ```
+
+### 2.16 content_moderation_events (audit log)
+
+Append-only audit log of moderation actions: which content (`message`, `town_hall_post`, `town_hall_comment`, `ride`, `favor`) was hidden / dismissed / restored / auto-hidden, by which admin, with what reason, linked to which report. Created by `supabase/migrations/20260403_0011_content_moderation_redesign.sql`. RLS enabled and a single admin-only SELECT policy added in `supabase/migrations/20260502_0001_enable_rls_content_moderation_events.sql` (audit ref: Supabase advisor `rls_disabled_in_public`).
+
+| Policy Name | Operation | Roles | SQL Check |
+|---|---|---|---|
+| `moderation_events_select_admin` | SELECT | authenticated | `is_admin_user(auth.uid())` |
+
+```sql
+ALTER TABLE public.content_moderation_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "moderation_events_select_admin"
+ON public.content_moderation_events FOR SELECT TO authenticated
+USING (is_admin_user(auth.uid()));
+```
+
+**Insert path:** legitimate inserts come from SECURITY DEFINER RPCs in `20260403_0011` (e.g. `hide_content`, `dismiss_report`, `restore_content`, the auto-hide trigger). Those run as `postgres` (the table owner) and bypass RLS — RLS does not need an INSERT policy. Direct client INSERTs are denied by default.
+
+**UPDATE/DELETE:** blocked by the `content_moderation_events_append_only` trigger from `20260403_0011`, which raises an exception. The trigger catches row-level mutations; RLS adds belt-and-braces denial.
+
+**Pre-fix exposure (now closed):** before `20260502_0001` enabled RLS, anon/authenticated callers with the publishable anon key could `SELECT *` (see who hid what), and could `INSERT` arbitrary rows (planting fake `auto_hide` events into the audit trail).
 
 ---
 
