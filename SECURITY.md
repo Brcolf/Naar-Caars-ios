@@ -103,312 +103,191 @@ Realistic alternatives evaluated and rejected:
 
 **The view stays as-is.** The advisor warning is a known accepted exception — record it as such, do not auto-remediate. If the underlying `profiles` schema changes (new PII columns), update the view's column list at the same time.
 
+#### 2.1.2 Common policy patterns
+
+Three idioms recur across most tables. Documented here once instead of repeated in every section:
+
+- **`is_active_user(auth.uid())`** — SECURITY DEFINER helper meaning "approved AND not banned". This is the standard INSERT/CREATE gate on user-generated content (rides, favors, messages, reviews, town hall posts). Replaces the older "approved-only" check from earlier migrations.
+- **`is_admin_user(auth.uid())`** — SECURITY DEFINER helper. Returns true if the caller has `is_admin = true` on their profile.
+- **Content-moderation hide pattern (`hidden_at IS NULL OR <author>`)** — added by `20260403_0011_content_moderation_redesign.sql`. SELECT policies on `messages`, `rides`, `favors`, `town_hall_posts`, `town_hall_comments` filter hidden rows from everyone except the author, who can still see their own hidden content (so they get the "this was hidden" affordance).
+- **Guest-mode anon SELECT policies** — added by `20260320_0001_guest_mode_anon_read_policies.sql`. Tables that are browseable without an account (`rides`, `favors`, `town_hall_posts`, `request_qa`, `reviews`) have a dedicated `*_select_anon_guest` (or similarly named) policy `TO anon`. Auth-required actions remain gated by the authenticated-role policies.
+
 ### 2.2 rides
 
-| Policy Name | Operation | SQL Check |
-|-------------|-----------|-----------|
-| `rides_select_approved` | SELECT | User is approved |
-| `rides_insert_own` | INSERT | `auth.uid() = user_id` |
-| `rides_update_own_or_claimer` | UPDATE | `auth.uid() = user_id OR auth.uid() = claimed_by` |
-| `rides_delete_own` | DELETE | `auth.uid() = user_id` |
+Rides are visible to authenticated users (with hide-state filter) and to anon guests (visible rows only). Inserts require an active user (approved + not banned). Updates split between owner-edit and claim-flow (open→confirmed via `Authenticated users can claim open rides`, confirmed→open via `Claimers can unclaim rides`).
 
-```sql
-ALTER TABLE public.rides ENABLE ROW LEVEL SECURITY;
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Authenticated users can view visible or own hidden rides` | SELECT | authenticated | `hidden_at IS NULL OR user_id = auth.uid()` |
+| `Guests can view visible rides` | SELECT | anon | `hidden_at IS NULL` |
+| `rides_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
+| `Users can update own or claimed rides` | UPDATE | (all) | `auth.uid() = user_id OR auth.uid() = claimed_by` |
+| `Users can update their own rides` | UPDATE | authenticated | `user_id = auth.uid()` (subset of the above; redundant) |
+| `Authenticated users can claim open rides` | UPDATE | (all) | USING `claimed_by IS NULL AND status = 'open' AND user_id <> auth.uid()`, CHECK `claimed_by = auth.uid() AND status = 'confirmed'` |
+| `Claimers can unclaim rides` | UPDATE | (all) | USING `claimed_by = auth.uid() AND status = 'confirmed'`, CHECK `claimed_by IS NULL AND status = 'open'` |
+| `Users can delete own rides` | DELETE | (all) | `auth.uid() = user_id` |
 
--- Approved users can view all rides
-CREATE POLICY "rides_select_approved" ON public.rides
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Users can only create their own rides
-CREATE POLICY "rides_insert_own" ON public.rides
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Users can update their own rides or rides they've claimed
-CREATE POLICY "rides_update_own_or_claimer" ON public.rides
-  FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = claimed_by);
-
--- Users can only delete their own rides
-CREATE POLICY "rides_delete_own" ON public.rides
-  FOR DELETE USING (auth.uid() = user_id);
-```
+> The two UPDATE policies that overlap (`Users can update own or claimed rides` and `Users can update their own rides`) are a known minor cleanup target — both are PERMISSIVE so they OR together; effective permission is the broader `auth.uid() = user_id OR auth.uid() = claimed_by`. Removing the narrower one is a low-risk follow-up.
 
 ### 2.3 favors
 
-Same pattern as rides:
+Mirror of `rides`. Same 8 policies with names substituting `favors`/`favor_status` where applicable.
 
-```sql
-ALTER TABLE public.favors ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "favors_select_approved" ON public.favors
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
-CREATE POLICY "favors_insert_own" ON public.favors
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "favors_update_own_or_claimer" ON public.favors
-  FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = claimed_by);
-
-CREATE POLICY "favors_delete_own" ON public.favors
-  FOR DELETE USING (auth.uid() = user_id);
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Authenticated users can view visible or own hidden favors` | SELECT | authenticated | `hidden_at IS NULL OR user_id = auth.uid()` |
+| `Guests can view visible favors` | SELECT | anon | `hidden_at IS NULL` |
+| `favors_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
+| `Users can update own or claimed favors` | UPDATE | (all) | `auth.uid() = user_id OR auth.uid() = claimed_by` |
+| `Users can update their own favors` | UPDATE | authenticated | `user_id = auth.uid()` (redundant subset) |
+| `Authenticated users can claim open favors` | UPDATE | (all) | USING `claimed_by IS NULL AND status = 'open' AND user_id <> auth.uid()`, CHECK `claimed_by = auth.uid() AND status = 'confirmed'` |
+| `Claimers can unclaim favors` | UPDATE | (all) | USING `claimed_by = auth.uid() AND status = 'confirmed'`, CHECK `claimed_by IS NULL AND status = 'open'` |
+| `Users can delete own favors` | DELETE | (all) | `auth.uid() = user_id` |
 
 ### 2.4 ride_participants
 
-```sql
-ALTER TABLE public.ride_participants ENABLE ROW LEVEL SECURITY;
+Participants are visible to all approved users. Only the ride owner may add or remove participants, and the `added_by` column must equal the caller — this prevents the ride owner from impersonating attribution.
 
--- Approved users can view participants
-CREATE POLICY "ride_participants_select_approved" ON public.ride_participants
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Only ride owner can add participants
-CREATE POLICY "ride_participants_insert_owner" ON public.ride_participants
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.rides 
-      WHERE id = ride_participants.ride_id 
-      AND user_id = auth.uid()
-    )
-  );
-```
+| Policy | Op | USING / CHECK |
+|---|---|---|
+| `ride_participants_select` | SELECT | caller is approved (via `profiles.approved`) |
+| `ride_participants_insert` | INSERT | CHECK ride owner is `auth.uid()` AND `added_by = auth.uid()` |
+| `ride_participants_delete` | DELETE | ride owner is `auth.uid()` |
 
 ### 2.5 favor_participants
 
-```sql
-ALTER TABLE public.favor_participants ENABLE ROW LEVEL SECURITY;
+Mirror of `ride_participants`.
 
--- Approved users can view participants
-CREATE POLICY "favor_participants_select_approved" ON public.favor_participants
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Only favor owner can add participants
-CREATE POLICY "favor_participants_insert_owner" ON public.favor_participants
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.favors 
-      WHERE id = favor_participants.favor_id 
-      AND user_id = auth.uid()
-    )
-  );
-```
+| Policy | Op | USING / CHECK |
+|---|---|---|
+| `favor_participants_select` | SELECT | caller is approved |
+| `favor_participants_insert` | INSERT | CHECK favor owner is `auth.uid()` AND `added_by = auth.uid()` |
+| `favor_participants_delete` | DELETE | favor owner is `auth.uid()` |
 
 ### 2.6 request_qa
 
-```sql
-ALTER TABLE public.request_qa ENABLE ROW LEVEL SECURITY;
-
--- Approved users can view Q&A
-CREATE POLICY "request_qa_select_approved" ON public.request_qa
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Approved users can ask questions
-CREATE POLICY "request_qa_insert_approved" ON public.request_qa
-  FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Users can only delete their own questions/answers
-CREATE POLICY "request_qa_delete_own" ON public.request_qa
-  FOR DELETE USING (auth.uid() = created_by);
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Approved users can view Q&A` | SELECT | (all) | caller is approved |
+| `request_qa_select_anon_guest` | SELECT | anon | `true` (guest browseable) |
+| `Approved users can create Q&A` | INSERT | (all) | CHECK caller is approved AND `auth.uid() = user_id` |
+| `Users can delete own Q&A` | DELETE | (all) | `auth.uid() = user_id` |
 
 ### 2.7 messages
 
-| Policy Name | Operation | SQL Check |
-|-------------|-----------|-----------|
-| `messages_select_participant` | SELECT | User is participant in conversation |
-| `messages_insert_participant` | INSERT | User is sender and participant |
+Two policies — but the SELECT policy is the most subtle in the database and it does three things at once. Read it carefully before changing it.
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Users can view messages in their conversations` | SELECT | authenticated | (1) caller is in `conversation_participants` for this conversation, (2) `messages.created_at` is within `[joined_at, left_at]` of the caller's participant row, (3) `hidden_at IS NULL OR from_id = auth.uid()` |
+| `Users can send messages in their conversations` | INSERT | (all) | CHECK `from_id = auth.uid()` AND `is_active_user(auth.uid())` AND (caller is the conversation creator OR caller is an active participant with `left_at IS NULL`) |
 
 ```sql
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-
--- Users can only see messages in conversations they're part of
-CREATE POLICY "messages_select_participant" ON public.messages
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_participants 
-      WHERE conversation_id = messages.conversation_id 
-      AND user_id = auth.uid()
-    )
-  );
-
--- Users can only send messages as themselves in conversations they're in
-CREATE POLICY "messages_insert_participant" ON public.messages
-  FOR INSERT WITH CHECK (
-    auth.uid() = from_id
-    AND EXISTS (
-      SELECT 1 FROM public.conversation_participants 
-      WHERE conversation_id = messages.conversation_id 
-      AND user_id = auth.uid()
-    )
-  );
+-- The SELECT policy in full — drop or modify with extreme care.
+CREATE POLICY "Users can view messages in their conversations"
+ON public.messages FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.conversation_participants cp
+    WHERE cp.conversation_id = messages.conversation_id
+      AND cp.user_id = auth.uid()
+      AND messages.created_at >= cp.joined_at
+      AND (cp.left_at IS NULL OR messages.created_at <= cp.left_at)
+  )
+  AND (messages.hidden_at IS NULL OR messages.from_id = auth.uid())
+);
 ```
+
+Why the `joined_at` / `left_at` window matters: when a user is added to an existing group conversation they only see messages from that point forward; if they leave they only see messages up to the moment they left. Removing this window would either back-leak history to new joiners or front-leak messages to past members.
 
 ### 2.8 conversations
 
-```sql
-ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+A user has access if they are the creator OR a current participant. Two SELECT and two UPDATE policies are present — they OR together as PERMISSIVE policies.
 
--- Users can only see conversations they're part of
-CREATE POLICY "conversations_select_participant" ON public.conversations
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.conversation_participants 
-      WHERE conversation_id = id 
-      AND user_id = auth.uid()
-    )
-  );
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `users_can_view_their_conversations` | SELECT | authenticated | caller is in `conversation_participants` |
+| `conversations_select_creator` | SELECT | (all) | `created_by = auth.uid()` |
+| `conversations_insert_approved` | INSERT | (all) | CHECK caller is approved AND `created_by = auth.uid()` |
+| `conversations_update_creator` | UPDATE | (all) | `created_by = auth.uid()` |
+| `participants_can_update_conversations` | UPDATE | authenticated | caller is in `conversation_participants` |
+| `conversations_delete_creator` | DELETE | (all) | `created_by = auth.uid()` |
 
 ### 2.9 conversation_participants
 
-```sql
-ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
+Reads use a SECURITY DEFINER helper to avoid infinite recursion (the policy needs to query the same table it protects).
 
--- Helper function to check participation without RLS recursion
+```sql
+-- Helper used by the SELECT policy.
 CREATE OR REPLACE FUNCTION public.is_conversation_participant(
   p_conversation_id UUID,
   p_user_id UUID
 ) RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
+LANGUAGE sql SECURITY DEFINER STABLE
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.conversation_participants
-    WHERE conversation_id = p_conversation_id
-    AND user_id = p_user_id
+    WHERE conversation_id = p_conversation_id AND user_id = p_user_id
   );
 $$;
-
--- Users can see participants in their conversations
--- Uses SECURITY DEFINER function to avoid infinite recursion
-CREATE POLICY "participants_select_own_convos" ON public.conversation_participants
-  FOR SELECT USING (
-    -- User can see their own participation
-    user_id = auth.uid()
-    OR
-    -- User can see other participants in conversations where they are a participant
-    public.is_conversation_participant(conversation_participants.conversation_id, auth.uid())
-  );
-
--- Users can add themselves or be added by conversation creator
-CREATE POLICY "participants_insert_creator_or_self" ON public.conversation_participants
-  FOR INSERT WITH CHECK (
-    user_id = auth.uid()
-    OR
-    EXISTS (
-      SELECT 1 FROM public.conversations c
-      WHERE c.id = conversation_participants.conversation_id
-      AND c.created_by = auth.uid()
-    )
-  );
-
--- Users can update their own participation
-CREATE POLICY "participants_update_own" ON public.conversation_participants
-  FOR UPDATE USING (user_id = auth.uid());
-
--- Users can remove their own participation
-CREATE POLICY "participants_delete_own" ON public.conversation_participants
-  FOR DELETE USING (user_id = auth.uid());
 ```
+
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `users_can_view_participants_in_their_conversations` | SELECT | authenticated | `is_conversation_participant(conversation_id, auth.uid())` |
+| `authenticated_users_can_add_participants` | INSERT | authenticated | CHECK `user_id = auth.uid()` (self-join) OR caller is the conversation creator |
+| `Users can update own participant record` | UPDATE | (all) | `user_id = auth.uid()` |
+| `users_can_remove_themselves` | DELETE | authenticated | `user_id = auth.uid()` |
 
 ### 2.10 notifications
 
-```sql
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+Despite its name, `notifications_insert_service_only` is a self-only check, not a service-role-only check. Cross-user notification inserts (the legitimate path) are issued by SECURITY DEFINER triggers/RPCs which run as `postgres` and bypass RLS — those don't need a policy. The named policy here exists as a defense-in-depth denial for client-direct INSERTs.
 
--- Users can only see their own notifications
-CREATE POLICY "notifications_select_own" ON public.notifications
-  FOR SELECT USING (auth.uid() = user_id);
-
--- Users can only update (mark read) their own notifications
-CREATE POLICY "notifications_update_own" ON public.notifications
-  FOR UPDATE USING (auth.uid() = user_id);
-
--- System/admins can insert notifications for any user
-CREATE POLICY "notifications_insert" ON public.notifications
-  FOR INSERT WITH CHECK (true);
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `notifications_select_own` | SELECT | (all) | `user_id = auth.uid()` |
+| `notifications_update_own` | UPDATE | (all) | `user_id = auth.uid()` |
+| `notifications_insert_service_only` | INSERT | authenticated | CHECK `auth.uid() = user_id` (denies cross-user direct inserts; legitimate cross-user inserts go through SECURITY DEFINER paths) |
 
 ### 2.11 invite_codes
 
-```sql
-ALTER TABLE public.invite_codes ENABLE ROW LEVEL SECURITY;
+The redemption flow has a non-obvious split: the `invite_codes_update_mark_as_used` policy lets *any* authenticated user transition an unused code to "used by self" — that's how strangers redeem the code they were given. There is a row-level UPDATE on the lookup, not an INSERT into a redemptions table.
 
--- Users can see their own created codes
-CREATE POLICY "invite_codes_select_own" ON public.invite_codes
-  FOR SELECT USING (auth.uid() = created_by);
-
--- Approved users can create invite codes
-CREATE POLICY "invite_codes_insert_approved" ON public.invite_codes
-  FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Allow code lookup during signup (before user is authenticated)
-CREATE POLICY "invite_codes_select_for_validation" ON public.invite_codes
-  FOR SELECT USING (used_by IS NULL);
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Users can view own created codes` | SELECT | (all) | `created_by = auth.uid()` |
+| `Users can view unused codes` | SELECT | (all) | `used_at IS NULL` (allows anonymous lookup during signup) |
+| `Approved users can create invite codes` | INSERT | (all) | CHECK caller is approved |
+| `invite_codes_insert_allowed` | INSERT | (all) | CHECK either (bulk-code redemption: `used_by = auth.uid() AND bulk_code_id IS NOT NULL AND is_bulk = false`) OR (creator-of-row is caller AND caller is approved) |
+| `invite_codes_update_mark_as_used` | UPDATE | (all) | USING `used_by IS NULL AND auth.uid() IS NOT NULL`, CHECK `used_by = auth.uid() AND used_at IS NOT NULL` |
 
 ### 2.12 push_tokens
 
-```sql
-ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+Owner-only on every operation.
 
--- Users can only manage their own push tokens
-CREATE POLICY "push_tokens_own" ON public.push_tokens
-  FOR ALL USING (auth.uid() = user_id);
-```
+| Policy | Op | USING / CHECK |
+|---|---|---|
+| `Users can view own tokens` | SELECT | `auth.uid() = user_id` |
+| `Users can create own tokens` | INSERT | CHECK `auth.uid() = user_id` |
+| `Users can update own tokens` | UPDATE | `auth.uid() = user_id` |
+| `Users can delete own tokens` | DELETE | `auth.uid() = user_id` |
 
 ### 2.13 reviews
 
-```sql
-ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
-
--- Approved users can view all reviews
-CREATE POLICY "reviews_select_approved" ON public.reviews
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Users can only create reviews as themselves
-CREATE POLICY "reviews_insert_own" ON public.reviews
-  FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Approved users can view reviews` | SELECT | (all) | caller is approved |
+| `reviews_select_anon_guest` | SELECT | anon | `true` (guest browseable) |
+| `reviews_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = reviewer_id AND is_active_user(auth.uid())` |
 
 ### 2.14 town_hall_posts
 
-```sql
-ALTER TABLE public.town_hall_posts ENABLE ROW LEVEL SECURITY;
-
--- Approved users can view all posts
-CREATE POLICY "town_hall_posts_select_approved" ON public.town_hall_posts
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND approved = true)
-  );
-
--- Users can only create their own posts
-CREATE POLICY "town_hall_posts_insert_own" ON public.town_hall_posts
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Users can delete their own posts, admins can delete any
-CREATE POLICY "town_hall_posts_delete_own_or_admin" ON public.town_hall_posts
-  FOR DELETE USING (
-    auth.uid() = user_id 
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
-  );
-```
+| Policy | Op | Roles | USING / CHECK |
+|---|---|---|---|
+| `Authenticated users can view visible or own hidden town hall posts` | SELECT | authenticated | `(hidden_at IS NULL AND caller is approved) OR user_id = auth.uid()` |
+| `Guests can view visible town hall posts` | SELECT | anon | `hidden_at IS NULL` |
+| `town_hall_posts_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
+| `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is admin` |
 
 ### 2.15 Admin Operations
 
