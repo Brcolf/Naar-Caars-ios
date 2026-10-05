@@ -15,7 +15,7 @@ Native iOS app for Naar's Cars — a community platform where neighbors help eac
 | Architecture | MVVM, singleton service layer, protocol abstractions |
 | Backend | Supabase (Postgres, Auth, Storage, RPC, Realtime) + Firebase (push, crash) |
 | Local storage | SwiftData (cache + durable pending-send queue) |
-| Minimum iOS | 17.0 |
+| Minimum iOS | 26.0 (raised from 17.0 on 2026-10-05; drops iPhone XS, XS Max, XR) |
 | Tooling | Xcode 26.6 (Swift 6.3 toolchain, Swift 5 language mode) |
 
 **Dependencies (SPM, Xcode-managed):** `supabase-swift` v2.5.1+, `firebase-ios-sdk` v12.8.0+, `PhoneNumberKit` v4.0.0+.

@@ -71,7 +71,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **Agent tooling is aligned with Xcode 26.6 (2026-10-05).** Build, test, and preview verification run through the Xcode MCP server (`xcrun mcpbridge`), not through ad hoc `xcodebuild` output parsing. Every change follows the [Verification Loop](#verification-loop--mandatory-after-every-change) below: build via MCP, fix errors and new warnings, run the relevant tests, snapshot any UI change in light and dark appearance and at a large accessibility text size, and report what was verified. The project-wiring gaps found during this alignment were repaired on the Mac on 2026-10-05 (ten orphaned unit test files attached, absolute symlinks removed, `PerformanceImprovementsTests` moved into the test tree); what remains is listed under [Audit Notes](#audit-notes--known-deviations). The development Mac is resource-constrained: Xcode, a simulator, and Claude together exhaust it, so default to the headless lane (Lane B) or CI (Lane C) described in Build and Test Commands, and open Xcode only when `RenderPreview` is needed.
 
-**Deployment target is iOS 17.0 and under review.** iOS 18 supports every device iOS 17 does, so raising the minimum to iOS 18 costs no users and unlocks newer APIs; iOS 26 drops iPhone XS, XS Max, and XR. Do not raise the target until App Store Connect iOS-version analytics have been checked and the change has been built and tested on the Mac (queued as a follow-up task). Users on an older iOS keep the installed app; they only stop receiving updates.
+**Deployment target is iOS 26.0 (raised from 17.0 on 2026-10-05).** App Store Connect analytics showed negligible iOS 17 and iOS 18 shares, so the minimum was raised straight to iOS 26 on all three targets; this drops iPhone XS, XS Max, and XR (the iOS 17/18-only devices). Users on an older iOS keep the installed app; they only stop receiving updates. Consequences for code: `#available(iOS 18/26)` guards are now redundant and can be removed when touched, iOS 26 APIs (Liquid Glass, new SwiftUI/SwiftData features) are available unconditionally, and the simulator runtime must be iOS 26.x. The raise surfaced 34 new `deprecated in iOS 26.0` compiler warnings (unique build warnings went from 112 to 113): `CLGeocoder`/`MKPlacemark`/`geocodeAddressString`/`reverseGeocodeLocation` in `LocationService` and `MapService` (replace with `MKGeocodingRequest` / `MKReverseGeocodingRequest`), `UIScreen.main`, `Text + Text` concatenation, and the `AppDelegate` `application(_:open:options:)` / `OpenURLOptionsKey` URL path (replace with the UIScene URL-context path; this is deep-link routing, so treat it as a fragile-system change). They are queued as follow-ups and were deliberately not fixed in the deployment-target change. Do not lower the target again without checking analytics.
 
 **Critical active risks:**
 - WebSocket callbacks (active conversation only) arrive on background threads and must be marshalled to the main actor before reaching UIKit views
@@ -84,11 +84,11 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 ## What This App Is
 
-iOS 17+ community app (built with the Xcode 26.6 / Swift 6.3 toolchain, compiled in Swift 5 language mode) for neighbor rides/favors with messaging, town hall, notifications, open signup with admin approval, and moderation/blocking/reporting. See `README.md` for the product overview; this section covers only what's load-bearing for code work.
+iOS 26+ community app (deployment target 26.0; built with the Xcode 26.6 / Swift 6.3 toolchain, compiled in Swift 5 language mode) for neighbor rides/favors with messaging, town hall, notifications, open signup with admin approval, and moderation/blocking/reporting. See `README.md` for the product overview; this section covers only what's load-bearing for code work.
 
 | Layer | Technology |
 |---|---|
-| Toolchain | Xcode 26.6, Swift 6.3 compiler, iOS 26 SDK (exact SDK version: confirm with `xcodebuild -showsdks`); `SWIFT_VERSION = 5.0` (Swift 5 language mode), `SWIFT_APPROACHABLE_CONCURRENCY = YES`, `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated` (app target). Do not change language mode or these flags without approval. |
+| Toolchain | Xcode 26.6, Swift 6.3 compiler, iOS 26 SDK (exact SDK version: confirm with `xcodebuild -showsdks`); `IPHONEOS_DEPLOYMENT_TARGET = 26.0` on all three targets; `SWIFT_VERSION = 5.0` (Swift 5 language mode), `SWIFT_APPROACHABLE_CONCURRENCY = YES`, `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated` (app target). Do not change language mode or these flags without approval. |
 | UI | SwiftUI (most surfaces) + UIKit (messaging) |
 | Architecture | MVVM, singleton service layer, protocol abstractions |
 | Backend | Supabase (auth, database, storage, RPC, realtime) |
@@ -105,7 +105,7 @@ iOS 17+ community app (built with the Xcode 26.6 / Swift 6.3 toolchain, compiled
 
 > **First-time setup:** the build will fail until you create `Secrets.swift` — see [Secrets Setup](#secrets-setup-required-for-build) below before running any of the commands here.
 
-The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars` (the only shared scheme; it builds the app and runs both `NaarsCarsTests` and `NaarsCarsUITests`, parallelized). Destination: iOS Simulator, `iPhone 16`, iOS 17+ deployment target.
+The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars` (the only shared scheme; it builds the app and runs both `NaarsCarsTests` and `NaarsCarsUITests`, parallelized). Destination: iOS Simulator, `iPhone 16` on an iOS 26.x runtime (create one with `xcrun simctl create 'iPhone 16' com.apple.CoreSimulator.SimDeviceType.iPhone-16 <iOS-26 runtime id>` if the device list has only iPhone 17 models); deployment target iOS 26.0.
 
 ### Preferred path: Xcode MCP tools
 

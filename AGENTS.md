@@ -50,7 +50,7 @@ These instructions apply to all work in this repository. Follow them unless the 
 
 ## Toolchain and verification
 
-- Xcode 26.6 / Swift 6.3 toolchain, Swift 5 language mode (`SWIFT_VERSION = 5.0`), iOS 17.0 deployment target. Scheme `NaarsCars`, simulator `iPhone 16`.
+- Xcode 26.6 / Swift 6.3 toolchain, Swift 5 language mode (`SWIFT_VERSION = 5.0`), iOS 26.0 deployment target (all three targets). Scheme `NaarsCars`, simulator `iPhone 16`.
 - After every change: build, fix all errors and new warnings, run the relevant unit tests, snapshot UI changes in light/dark and at a large accessibility text size, and report what was verified. Never report "done" on an unbuilt change. The development Mac is resource-constrained: prefer `xcodebuild` with a single headless simulator (`-parallel-testing-enabled NO -skip-testing:NaarsCarsUITests`) or the `iOS CI` GitHub Actions workflow over opening Xcode. Full commands and the Xcode MCP tool names are in `CLAUDE.md` → Build and Test Commands.
 - Tests are XCTest only. Do not add Swift Testing tests without also setting `SWIFT_TESTING_XCTEST_INTEROP_MODE=limited` in the scheme's test environment.
 
