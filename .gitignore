@@ -11,6 +11,8 @@
 
 # Build output
 build-output.log
+# Headless-lane DerivedData and result bundles (CLAUDE.md Lane B)
+build/
 *.log
 
 # Temporary files
