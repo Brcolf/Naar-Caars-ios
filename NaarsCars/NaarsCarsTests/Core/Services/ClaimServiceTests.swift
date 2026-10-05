@@ -12,7 +12,8 @@ final class ClaimServiceURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override class func canInit(with request: URLRequest) -> Bool {
-        true
+        // Only intercept while a test has installed a handler.
+        requestHandler != nil
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -54,15 +55,11 @@ final class ClaimServiceTests: XCTestCase {
         super.setUp()
         claimService = ClaimService.shared
         URLProtocol.registerClass(ClaimServiceURLProtocol.self)
-        if let defaultClasses = URLSessionConfiguration.default.protocolClasses {
-            URLSessionConfiguration.default.protocolClasses = [ClaimServiceURLProtocol.self] + defaultClasses
-        } else {
-            URLSessionConfiguration.default.protocolClasses = [ClaimServiceURLProtocol.self]
-        }
     }
     
     override func tearDown() {
         ClaimServiceURLProtocol.requestHandler = nil
+        URLProtocol.unregisterClass(ClaimServiceURLProtocol.self)
         super.tearDown()
     }
     

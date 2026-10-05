@@ -12,7 +12,8 @@ final class TestURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override class func canInit(with request: URLRequest) -> Bool {
-        true
+        // Only intercept while a test has installed a handler.
+        requestHandler != nil
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -46,24 +47,16 @@ final class TestURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private let _registerTestURLProtocol: Void = {
-    URLProtocol.registerClass(TestURLProtocol.self)
-    if let defaultClasses = URLSessionConfiguration.default.protocolClasses {
-        URLSessionConfiguration.default.protocolClasses = [TestURLProtocol.self] + defaultClasses
-    } else {
-        URLSessionConfiguration.default.protocolClasses = [TestURLProtocol.self]
-    }
-}()
-
 @MainActor
 final class ConversationParticipantsViewModelTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        _ = _registerTestURLProtocol
+        URLProtocol.registerClass(TestURLProtocol.self)
     }
 
     override func tearDown() {
         TestURLProtocol.requestHandler = nil
+        URLProtocol.unregisterClass(TestURLProtocol.self)
         super.tearDown()
     }
 
