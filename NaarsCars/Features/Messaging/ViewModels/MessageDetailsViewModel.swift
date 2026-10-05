@@ -234,7 +234,7 @@ final class MessageDetailsViewModel: ObservableObject {
             NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
             
 #if DEBUG
-            AppLogger.database.debug("[Membership] [MessageDetailsPopup] After remove: refetched \(participants.count) participants")
+            AppLogger.database.debug("[Membership] [MessageDetailsPopup] After remove: refetched \(self.participants.count) participants")
 #endif
             AppLogger.info("messaging", "[MessageDetailsPopup] Successfully removed participant")
         } catch {

@@ -37,38 +37,8 @@ extension ProfileService {
             .limit(limit)
             .execute()
 
-        // Use custom date decoder to handle various date formats
+        // Shared Supabase decoder (ISO8601 with/without fractional seconds, plain dates).
         // Profile model handles snake_case via CodingKeys
-        let decoder = JSONDecoder()
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-
-            // Try ISO8601 with fractional seconds
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-
-            // Try ISO8601 without fractional seconds
-            dateFormatter.formatOptions = [.withInternetDateTime]
-            if let date = dateFormatter.date(from: dateString) {
-                return date
-            }
-
-            // Try YYYY-MM-DD format
-            let simpleFormatter = DateFormatter()
-            simpleFormatter.dateFormat = "yyyy-MM-dd"
-            simpleFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-            if let date = simpleFormatter.date(from: dateString) {
-                return date
-            }
-
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
-        }
-
-        return try decoder.decode([Profile].self, from: response.data)
+        return try DateDecoderFactory.makeSupabaseDecoder().decode([Profile].self, from: response.data)
     }
 }

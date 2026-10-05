@@ -91,7 +91,7 @@ private actor Counter {
 }
 
 private actor TimeTracker {
-    private var values: [TimeInterval] = []
+    private(set) var values: [TimeInterval] = []
 
     func record(_ value: TimeInterval) {
         values.append(value)

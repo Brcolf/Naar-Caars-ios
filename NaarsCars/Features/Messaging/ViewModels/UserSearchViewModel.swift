@@ -80,7 +80,7 @@ final class UserSearchViewModel: ObservableObject {
         } catch {
             AppLogger.error("messaging", "UserSearchViewModel search error: \(error)")
             if let postgrestError = error as? PostgrestError {
-                AppLogger.error("messaging", "PostgREST error - code: \(postgrestError.code ?? "none"), message: \(postgrestError.message ?? "none"), hint: \(postgrestError.hint ?? "none")")
+                AppLogger.error("messaging", "PostgREST error - code: \(postgrestError.code ?? "none"), message: \(postgrestError.message), hint: \(postgrestError.hint ?? "none")")
             }
             self.error = AppError.processingError("Failed to search users: \(error.localizedDescription)")
             searchResults = []

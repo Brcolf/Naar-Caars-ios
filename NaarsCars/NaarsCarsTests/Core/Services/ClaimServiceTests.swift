@@ -138,7 +138,7 @@ final class ClaimServiceTests: XCTestCase {
                 throw URLError(.cannotConnectToHost)
             }
 
-            if url.path.contains("/rest/v1/profiles") {
+            if url.path.contains("/rest/v1/profiles") || url.path.contains("/rest/v1/public_profiles") {
                 let data = Data(profilePayload.utf8)
                 let response = HTTPURLResponse(
                     url: url,

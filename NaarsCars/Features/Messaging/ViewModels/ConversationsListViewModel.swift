@@ -518,7 +518,7 @@ struct MessageSearchResult: Identifiable {
             duration: duration
         )
         withAnimation {
-            mutedConversations.insert(conversationId)
+            _ = mutedConversations.insert(conversationId)
         }
     }
 
@@ -529,7 +529,7 @@ struct MessageSearchResult: Identifiable {
             userId: userId
         )
         withAnimation {
-            mutedConversations.remove(conversationId)
+            _ = mutedConversations.remove(conversationId)
         }
     }
 
