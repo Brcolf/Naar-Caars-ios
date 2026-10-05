@@ -3,53 +3,60 @@
 # verify-xcode-file-sync.sh
 # NaarsCars
 #
-# Verifies that a newly written .swift file is under a PBXFileSystemSynchronizedRootGroup
-# so Xcode will auto-discover it. Run as a Claude Code PostToolUse hook.
+# Claude Code PostToolUse hook (Write/Edit). Warns when a .swift file was written
+# somewhere Xcode will not compile it.
+#
+# Project layout (verified 2026-10-05):
+#   * NaarsCars/NaarsCarsUITests/  is a PBXFileSystemSynchronizedRootGroup: files there are
+#     auto-discovered by Xcode.
+#   * NaarsCars/NaarsCars/          is also a synced root, but it only holds the asset catalog
+#     and entitlements. Do not put Swift sources there.
+#   * Everything else (NaarsCars/App, Core, Features, UI and NaarsCars/NaarsCarsTests) uses
+#     classic Xcode groups: a new .swift file must be referenced in project.pbxproj or it is
+#     silently ignored by the build. This hook checks for that reference by file name.
 #
 # Receives JSON on stdin with tool_input.file_path from Write/Edit tools.
 
 set -euo pipefail
 
-# Parse the file path from hook input JSON
-if ! command -v jq &>/dev/null; then
-  # Fallback: extract file_path with sed if jq isn't installed
-  FILE_PATH=$(cat | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-else
+if command -v jq &>/dev/null; then
   FILE_PATH=$(cat | jq -r '.tool_input.file_path // empty')
+else
+  FILE_PATH=$(cat | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 fi
 
-# Nothing to check if we couldn't parse a path
 [ -z "${FILE_PATH:-}" ] && exit 0
-
-# Only check .swift files
 [[ "$FILE_PATH" != *.swift ]] && exit 0
 
-# Resolve project root (where .git lives)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PBXPROJ="$PROJECT_ROOT/NaarsCars/NaarsCars.xcodeproj/project.pbxproj"
 
-# The two filesystem-synced root groups in the Xcode project
-SYNCED_APP="$PROJECT_ROOT/NaarsCars/NaarsCars"
-SYNCED_UITESTS="$PROJECT_ROOT/NaarsCars/NaarsCarsUITests"
-SYNCED_TESTS="$PROJECT_ROOT/NaarsCars/NaarsCarsTests"
-
-# Normalize to absolute path
 if [[ "$FILE_PATH" != /* ]]; then
   FILE_PATH="$(cd "$(dirname "$FILE_PATH")" 2>/dev/null && pwd)/$(basename "$FILE_PATH")"
 fi
 
-# Check if file is under a synced root
-if [[ "$FILE_PATH" == "$SYNCED_APP"/* ]] || \
-   [[ "$FILE_PATH" == "$SYNCED_UITESTS"/* ]] || \
-   [[ "$FILE_PATH" == "$SYNCED_TESTS"/* ]]; then
+# Only care about files inside the Xcode project directory.
+[[ "$FILE_PATH" != "$PROJECT_ROOT/NaarsCars/"* ]] && exit 0
+
+# Synced UI test root: auto-discovered.
+[[ "$FILE_PATH" == "$PROJECT_ROOT/NaarsCars/NaarsCarsUITests/"* ]] && exit 0
+
+# Swift sources must not live in the assets-only synced root.
+if [[ "$FILE_PATH" == "$PROJECT_ROOT/NaarsCars/NaarsCars/"* ]]; then
+  echo "WARNING: $FILE_PATH is inside NaarsCars/NaarsCars/, which holds only assets and entitlements." >&2
+  echo "Put Swift sources under NaarsCars/App, Core, Features, UI (app) or NaarsCars/NaarsCarsTests (tests)." >&2
+  exit 2
+fi
+
+# Classic groups: the file name must appear in project.pbxproj.
+BASENAME="$(basename "$FILE_PATH")"
+if grep -qF "/* $BASENAME */" "$PBXPROJ"; then
   exit 0
 fi
 
-# File is a .swift file outside synced roots — warn
-echo "WARNING: $FILE_PATH is a .swift file outside Xcode's filesystem-synced groups." >&2
-echo "Xcode will NOT auto-discover this file. Synced roots are:" >&2
-echo "  - NaarsCars/NaarsCars/  (app target)" >&2
-echo "  - NaarsCars/NaarsCarsTests/  (unit tests)" >&2
-echo "  - NaarsCars/NaarsCarsUITests/  (UI tests)" >&2
-echo "Move the file or add it to the Xcode project manually." >&2
+echo "WARNING: $BASENAME is not referenced in project.pbxproj, so Xcode will not compile it." >&2
+echo "Add it to the project (drag into the matching group in Xcode, or add a PBXFileReference" >&2
+echo "plus PBXBuildFile for the right target). Consider 'Convert to Folder' on the group in" >&2
+echo "Xcode 16+ to make the directory filesystem-synced." >&2
 exit 2
