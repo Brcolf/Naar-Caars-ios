@@ -10,7 +10,7 @@ Native iOS app for Naar's Cars — a community platform where neighbors help eac
 
 | Layer | Technology |
 |---|---|
-| Language | Swift 5.9+ |
+| Language | Swift 6.3 toolchain, Swift 5 language mode (`SWIFT_VERSION = 5.0`) |
 | UI | SwiftUI (most surfaces) + UIKit (messaging) |
 | Architecture | MVVM, singleton service layer, protocol abstractions |
 | Backend | Supabase (Postgres, Auth, Storage, RPC, Realtime) + Firebase (push, crash) |
