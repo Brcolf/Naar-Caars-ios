@@ -31,7 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [How to Respond to Code Tasks](#how-to-respond-to-code-tasks)
 - [When to Slow Down](#when-to-slow-down)
 - [Quick Reference — Critical Invariants](#quick-reference--critical-invariants)
-- [Audit Notes — Known Deviations](#audit-notes--known-deviations-2026-03-31)
+- [Audit Notes — Known Deviations](#audit-notes--known-deviations)
 
 ---
 
@@ -58,6 +58,8 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **The app is live on the App Store.** All updates must be App Store-safe by default — a rejected update blocks fix delivery to live users. If a change has any submission risk, say so explicitly before proceeding.
 
+**October 2026 cleanup branch (`claude/quirky-gates-4bkmv4`) — large, and not yet compiled.** The branch was produced in a cloud session without Xcode. It landed: push delivery restored (database webhooks authenticate with a Vault shared secret sent as `x-webhook-secret`; see `SECURITY.md` §7.4), SECURITY DEFINER function lockdown, cross-user profile reads moved to the `public_profiles` view (own-row and admin reads stay on `profiles`), `RefreshCoordinator` conformance (pull-to-refresh via `forceFullRefreshAndWait`, no launch double-sync, `*DidSync` observers reload locally only, the push-off conversations poll owned by `ConversationsListViewModel` and routed through the coordinator), push navigation only via `pendingIntent`, quick reply via `MessageSendManager`, realtime callbacks typed `@MainActor @Sendable`, most View-level mutations moved into new ViewModels, the `Log` enum replaced by `AppLogger`, hardcoded strings localized, and a performance pass. **None of it has been built or tested.** Build and run the unit suites locally before any release; `Docs/handoff/2026-10-05-cleanup-handoff.md` lists the build order, the manual Supabase dashboard actions, and the deliberately deferred items.
+
 **The messaging view layer is mid-UIKit refactor.** The original SwiftUI messaging components are not the reference implementation. The UIKit `MessagesCollectionView`-based implementation is the current canonical path. Do not treat SwiftUI messaging components as authoritative when they conflict with UIKit ones.
 
 **MessageInputBar.swift** has been refactored into a thin rendering shell that reads state from `InputBarController` and delegates all mutations to it. The refactor is settled — treat `InputBarController` as the authoritative input state owner.
@@ -73,7 +75,7 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 - `@Observable` ViewModels passed through `.environment()` can cause init/deinit storms — recent fixes removed these patterns from sheets and tab views
 - Any regression of previously-fixed App Store issues (account deletion, moderation, SIWA) is a blocker
 - Guest mode gating must remain consistent — if a new auth-required action is added, it must be gated in both the UI and RLS
-- `RefreshCoordinator` state machine must not be bypassed — ViewModels do not call refresh methods directly; `MainTabView.onChange(of: selectedTab)` is the sole staleness trigger
+- `RefreshCoordinator` state machine must not be bypassed — ViewModels never call engines or `refreshIfNeeded`; the only coordinator call a ViewModel may make is `forceFullRefreshAndWait` for an explicit user-initiated reload. `MainTabView.onChange(of: selectedTab)` and app-foreground (`ContentView` → `handleAppForegrounded()`) remain the staleness triggers. The push-off conversations poll (`Constants.Timing.conversationsPushOffPollInterval`, owned by `ConversationsListViewModel`, each tick staleness-gated through the coordinator) is the one sanctioned timer besides the 5-minute safety poll
 
 ---
 
@@ -118,7 +120,7 @@ xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk ip
 scripts/CLEAR-XCODE-CACHE.sh
 ```
 
-Test targets: `NaarsCarsTests` (unit, ~66 files), `NaarsCarsUITests` (UI automation). Tests are parallelizable.
+Test targets: `NaarsCarsTests` (unit, 72 compiled test files — every `.swift` under `NaarsCarsTests/` is in the target as of this branch), `NaarsCarsUITests` (UI automation). Tests are parallelizable.
 
 **Do not launch multiple simulators.** If one is running when launching a new simulator, ensure others are shut down first.
 
@@ -141,9 +143,11 @@ The `.git/hooks/pre-commit` hook blocks commits containing:
 - Apple signing files (`*.p8`, `*.p12`, `*.key`)
 - It also validates that localization keys are not accidentally removed
 
+Install it with `scripts/install-hooks.sh`, which writes a thin wrapper that delegates to the versioned `scripts/pre-commit-secrets-check.sh` (that script chains `pre-commit-localization-check.sh`).
+
 ### MCP Servers
 
-Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MCP for database queries, migrations, and edge function management. Use the GitHub MCP for PR and issue operations.
+Supabase and GitHub MCP tools are provided by the Claude Code environment — there is no `.mcp.json` in the repository. Use the Supabase MCP for database queries, migrations, and edge function management; its `apply_migration` / `execute_sql` hold `DROP` and `CREATE OR REPLACE` statements for interactive confirmation, so see the migration rules under [File and Naming Conventions](#file-and-naming-conventions) before relying on it from a headless session. Use the GitHub MCP for PR and issue operations.
 
 ### Validation Scripts
 
@@ -151,7 +155,8 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `VERIFY-ALL-FILES.sh` — full-project file integrity check
 - `verify-apple-signin-config.sh` — validates SIWA entitlements and Info.plist
 - `validate-notification-types.sh` — checks notification type registry consistency across Swift and TypeScript layers
-- `verify-xcode-file-sync.sh` — runs automatically after every Write/Edit via Claude Code PostToolUse hook (configured in `.claude/settings.json`); warns if `.swift` files are placed outside filesystem-synced roots
+- `verify-xcode-file-sync.sh` — runs automatically after every Write/Edit via Claude Code PostToolUse hook (configured in `.claude/settings.json`); warns when a written `.swift` file name is missing from `project.pbxproj` or was placed in the assets-only `NaarsCars/NaarsCars/` root
+- `install-hooks.sh` — installs the git pre-commit hook (see above)
 - `pre-commit-localization-check.sh` — validates localization key consistency (called by the pre-commit hook)
 - `pre-commit-secrets-check.sh` — blocks commits containing secrets or signing files (called by the pre-commit hook)
 
@@ -163,13 +168,14 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 
 ### Agent Instructions
 
-`AGENTS.md` contains condensed project conventions for Codex and other AI agents. It mirrors the naming, architecture, and Xcode filesystem-sync rules from this file in a shorter format.
+`AGENTS.md` contains condensed project conventions for Codex and other AI agents. It mirrors the naming, architecture, and Xcode project-membership rules from this file in a shorter format.
 
 ### Key Reference Documents
 
-- `SECURITY.md` — RLS policies, security requirements, compliance details (720 lines)
+- `SECURITY.md` — RLS policies, security requirements, compliance details, webhook authentication (§7.4), credential rotation (§3.2)
 - `MESSAGING-REVIEW-AND-PLAN.md` — deep architectural review of the messaging/realtime system; read before touching messaging internals
 - `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` — authoritative spec for the push-notify, pull-hydrate architecture and `RefreshCoordinator`
+- `Docs/handoff/2026-10-05-cleanup-handoff.md` — what the October 2026 cleanup branch changed, what must be done on a Mac and in the Supabase dashboard, and what was deliberately deferred
 
 **Historical artifacts — do not treat as authoritative.** Root-level `*-PLAN.md`, `*-SUMMARY.md`, `*-CHECKLIST.md`, `CHECKPOINT-RESULTS.md`, and similar files (e.g., `BUILD-PLAN.md`, `EXECUTION-SUMMARY.md`, `FOUNDATION-COMPLETION-SUMMARY.md`, `REMAINING-TASKS-SUMMARY.md`, `NaarsCars/CLEANUP_SUMMARY*.md`, `NaarsCars/ADD-FILES-TO-XCODE.md`, `NaarsCars/FIX-*.md`, `NaarsCars/MISSING-FILES-REPORT.txt`) are stale planning/migration notes left over from earlier phases. Do not cite them in code review or rely on them for current behavior unless they are explicitly cross-referenced from this file or `SECURITY.md`.
 
@@ -181,23 +187,23 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - **Views**: `*View.swift`, `*Sheet.swift`, `*Card.swift`, `*Row.swift`
 - **Services**: `*Service.swift` or `*Manager.swift` in `Core/Services/`
 - **Models**: `Core/Models/`, struct/enum name matches filename
-- **Protocols**: `Core/Protocols/` — every service has a protocol (`AuthServiceProtocol`, `RideServiceProtocol`, etc.)
+- **Protocols**: `Core/Protocols/` — the core domain services have one (`AuthServiceProtocol`, `RideServiceProtocol`, etc.; `BadgeCountManaging` for `BadgeCountManager`). Many services still do not — see Architecture rule 4.
 - **Feature layout**: `Features/<Name>/Views/` and `Features/<Name>/ViewModels/`
 - **Shared UI**: Reusable components in `UI/Components/` (subdirs: Buttons, Cards, Common, Feedback, Inputs, Map, Messaging). Check existing components (e.g., `PrimaryButton`, `EmptyStateView`, `SkeletonView`, `LocationAutocompleteField`) before creating new ones.
 - **Swift file header**: `//` / `//  FileName.swift` / `//  NaarsCars` / `//`
 - **Constants**: Use the `Constants` enum in `Core/Utilities/Constants.swift` for animation durations, spacing, timeouts, cache TTLs, rate limits, page sizes, and URLs. Do not introduce new magic numbers.
 
-**Xcode uses filesystem-synced groups** (`PBXFileSystemSynchronizedRootGroup`). New `.swift` files placed under `NaarsCars/NaarsCars/`, `NaarsCars/NaarsCarsTests/`, or `NaarsCars/NaarsCarsUITests/` are auto-discovered by Xcode — no `project.pbxproj` edits needed. A PostToolUse hook (`scripts/verify-xcode-file-sync.sh`) warns if a `.swift` file is written outside these synced roots.
+**Xcode project membership.** All Swift sources (`NaarsCars/App`, `Core`, `Features`, `UI`, and `NaarsCars/NaarsCarsTests`) use classic Xcode groups: a new `.swift` file must be referenced in `project.pbxproj` or it is silently not compiled. The only filesystem-synced roots (`PBXFileSystemSynchronizedRootGroup`) are `NaarsCars/NaarsCars/` (asset catalog and entitlements — no Swift sources) and `NaarsCars/NaarsCarsUITests/`. After creating a file, add it to the project in Xcode (or add a `PBXFileReference` plus `PBXBuildFile` for the right target); Xcode 16+ "Convert to Folder" on a group is the way to make that directory filesystem-synced. A PostToolUse hook (`scripts/verify-xcode-file-sync.sh`, wired in `.claude/settings.json`) warns when a written `.swift` file name is missing from `project.pbxproj`.
 
 **Secrets**: `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `NaarsCars/Scripts/obfuscate.swift` for credential obfuscation.
 
 **Localization**: All user-facing strings use `"key".localized` with keys in `Resources/Localizable.xcstrings` (Xcode string catalog format). A pre-commit hook validates localization changes.
 
-**Database migrations**: Two locations with different conventions:
-- `database/` — legacy SQL files with numeric prefix (e.g., `092_badge_counts_rpc.sql`). Latest is `132`. Do not modify existing files.
-- `supabase/migrations/` — Supabase-managed migrations with `YYYYMMDD_XXXX_description.sql` naming. Use this location for new migrations via the Supabase MCP `apply_migration` tool.
+**Database migrations**: Two locations; only one is live:
+- `database/` — frozen legacy SQL files with numeric prefix (e.g., `092_badge_counts_rpc.sql`; latest is `132`). Do not add to or modify them.
+- `supabase/migrations/` — the schema source of truth. Both naming forms exist and are fine: `YYYYMMDD_XXXX_description.sql` (hand-written) and the Supabase MCP's 14-digit timestamp form (`YYYYMMDDHHMMSS_description.sql`). All new SQL goes here. A migration applied through the Supabase MCP or dashboard must be committed in the same change. The MCP's `apply_migration` / `execute_sql` hold `DROP` and `CREATE OR REPLACE` statements for interactive confirmation, so from a headless session prefer additive statements and leave destructive ones for the SQL editor. `20261005_0004_function_caller_guards.sql` is committed but pending manual application for exactly this reason.
 
-**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify. Deploy edge functions using the Supabase MCP `deploy_edge_function` tool.
+**Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`, `webhookAuth.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify. Deploy edge functions using the Supabase MCP `deploy_edge_function` tool. Database webhooks are created by `public.invoke_edge_webhook()` and never embed API keys: they send the Vault shared secret as `x-webhook-secret`, which `_shared/webhookAuth.ts` verifies (`SECURITY.md` §7.4).
 
 **Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, and `NotificationFixtures.swift`. When adding payload handling, add corresponding fixtures and decoding tests here.
 
@@ -223,7 +229,7 @@ These systems require extra care. Before changing any of them: read the relevant
 ### 1. Realtime Messaging Pipeline
 
 **Files:**
-- `Core/Services/RefreshCoordinator.swift`
+- `Core/Services/RefreshCoordinator.swift` (result contract: `Core/Models/RefreshMetrics.swift`)
 - `Core/Storage/MessagingSyncEngine.swift`
 - `Core/Services/RealtimeManager.swift`
 - `Core/Storage/MessagingRepository.swift`
@@ -340,8 +346,13 @@ Engines are pure fetch-and-store. The `RefreshCoordinator` owns all refresh deci
 
 **Required engine lifecycle:**
 ```
-setup → performFullSync / performTargetedSync → teardown
+setup / setupBackgroundActor (once per container)
+  → startSync (session setup only — must not fetch)
+  → performFullSync / performTargetedSync (coordinator-driven)
+  → teardown (cancels session work only)
 ```
+
+Engines keep their container-scoped `modelContext` / `backgroundActor` across sign-out — `teardown()` only cancels session work (realtime channels, the send worker) — because nothing re-runs `setup` / `setupBackgroundActor` on the next sign-in. `SyncEngineProtocol` has no `pauseSync` / `resumeSync`.
 
 **Coordinator per-domain state machine** (domains: `dashboard`, `townHall`, `conversations`, `badges`):
 ```
@@ -354,9 +365,9 @@ unhydrated → hydrated → invalidated → refreshing → hydrated
 - `refreshing`: fetch in progress (join, don't duplicate)
 - `failed`: fetch errored, retryable
 
-**Coordinator methods (not engine methods):** `refreshIfNeeded`, `forceFullRefresh`, `invalidate`, `setVisibleDomain`. ViewModels do not call engines or coordinator refresh methods directly.
+**Coordinator methods (not engine methods):** `refreshIfNeeded`, `performTargetedRefresh`, `forceFullRefresh`, `forceFullRefreshAndWait`, `invalidate`, `setVisibleDomain`, `handleAppForegrounded`, `reset`. ViewModels never call engines or `refreshIfNeeded`; the only coordinator call a ViewModel may make is `forceFullRefreshAndWait` for an explicit user-initiated reload (pull-to-refresh, mark-read, approve). `MainTabView.onChange(of: selectedTab)` and app-foreground remain the staleness triggers; the push-off conversations poll in `ConversationsListViewModel` (`Constants.Timing.conversationsPushOffPollInterval`, ticks staleness-gated through the coordinator) is the one sanctioned timer besides the 5-minute safety poll.
 
-**MessagingSyncEngine has additional conversation-scoped methods** outside the protocol: `subscribeToConversation(id:)`, `unsubscribeFromConversation()`, `switchConversation(id:)`, `beginGracePeriod()`, `refreshConversationList()`.
+**MessagingSyncEngine has additional conversation-scoped methods** outside the protocol: `subscribeToConversation(_ conversationId:)`, `beginGracePeriod()`, `cancelGracePeriodAndUnsubscribe()`, `refreshConversationList()`.
 
 **Do not:**
 - Call engine `performFullSync`/`performTargetedSync` from ViewModels — go through the coordinator
@@ -369,6 +380,8 @@ unhydrated → hydrated → invalidated → refreshing → hydrated
 Push badges, tab badges, in-app toast counts, and unread counts are one connected system. Changes to any one affect all others. Badge counts are **push-triggered** (every push refreshes badges) with a **5-minute safety poll** managed by `RefreshCoordinator`. There are no 30s/90s polling timers.
 
 **If `get_badge_counts` RPC fails:** prefer cached/stale values with a staleness indicator rather than introducing a second client-side aggregation logic path.
+
+**Badge refresh entry points:** after a user action (mark read, approve, review) call `RefreshCoordinator.forceFullRefreshAndWait(.badges, trigger:)`; after a push, `PushNotificationService` / `AppDelegate` call `RefreshCoordinator.performTargetedRefresh(.badges, …)`. Only the coordinator calls `BadgeCountManager.refreshAllBadges`.
 
 **Do not:**
 - Remove the 5s debounce (prevents push bursts) or backoff logic
@@ -392,8 +405,8 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 1. **MVVM is the architecture.** Preserve it.
 2. Views must not call services directly for business logic or network mutations — that belongs in ViewModels.
 3. ViewModels are the UI mutation boundary.
-4. Services must remain behind protocols in `Core/Protocols/`.
-5. New services require a protocol and must be injected into consumers. `.shared` defaults are acceptable in constructors, but logic must depend on protocols, not concrete types.
+4. Services must remain behind protocols in `Core/Protocols/`. **Known deviation:** roughly two dozen services still have none — `TownHallService`, `LeaderboardService`, `AdminService`, `PushNotificationService`, `RealtimeManager`, `RefreshCoordinator`, `MessageReactionService`, `MessageMediaService`, `ConversationParticipantService`, among others. Only the core domain services (`Auth`, `Ride`, `Favor`, `Claim`, `Conversation`, `Message`, `Notification`, `Profile`, `Review`) and `BadgeCountManager` (`BadgeCountManaging`) have one today.
+5. New services require a protocol and must be injected into consumers. `.shared` defaults are acceptable in constructors, but logic must depend on protocols, not concrete types. Add a protocol to an existing protocol-less service only when you are already editing that service for another reason — do not run a protocol sweep as its own change.
 6. No new cross-domain service dependencies without an explicit reason. If Messaging needs Claiming, route through a narrow interface — not direct service fan-in.
 7. Repositories are the preferred local data access layer. ViewModels should not perform raw SwiftData fetches when an established repository exists.
 8. Do not import one feature module directly into another to share internals. Use services, repositories, or established notifications for cross-feature communication.
@@ -405,8 +418,8 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 ## State Management Rules
 
 1. All UI-facing state holders must be `@MainActor`.
-2. All ViewModels remain `ObservableObject` unless an explicit codebase-wide migration is in progress.
-3. Use `@Published` for state the UI binds to.
+2. The observation split is mixed and settled: 33 screen ViewModels (31 once the two dead dashboard ViewModels are deleted) are `ObservableObject`; the four messaging/notifications screen ViewModels (`ConversationDetailViewModel`, `MessageThreadViewModel`, `ConversationsListViewModel`, `NotificationsListViewModel`), the ~11 helper managers under `Features/*/ViewModels/` (`MessageSendManager`, `TypingIndicatorManager`, `NotificationGroupingManager`, …), a few Core/UI state holders (`BadgeCountManager`, `InAppToastManager`, `InputBarController`, `AppTheme`), `AppState`, and `NavigationCoordinator` are `@Observable`. **New ViewModels must be `ObservableObject` + `@MainActor`.** Do not migrate existing ones in either direction without explicit approval.
+3. Use `@Published` for state the UI binds to in `ObservableObject` types.
 4. Published state should not trigger heavy side effects unless the pattern is already established and proven safe.
 5. Track cancellable async work with stored `Task` references.
 6. Cancel work in `stop()` / `deinit` / teardown wherever the existing feature pattern expects it.
@@ -457,7 +470,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 8. Any realtime refactor must be validated end-to-end, not just at compile time. Compilation is not correctness.
 9. All realtime subscription callbacks must be dispatched on `@MainActor`. See "Realtime Callback Threading" in the Audit Notes section for required patterns.
 10. Conversation WebSocket lifecycle follows subscribe-then-fetch: subscribe to channels, wait for confirmation, REST fetch recent messages, upsert to SwiftData, then process buffered events. This closes the race window between REST and WebSocket.
-11. A 5-second grace period applies when navigating back to conversation list. Leaving the messaging tab or backgrounding the app triggers immediate unsubscribe.
+11. A 5-second grace period applies when navigating back to conversation list. Leaving the messaging tab or backgrounding the app triggers immediate unsubscribe. (**Known deviation:** backgrounding currently unsubscribes after `Constants.Timing.realtimeBackgroundUnsubscribeDelay` — 30 s — see Audit Notes.)
 
 ---
 
@@ -620,6 +633,8 @@ For any meaningful code change, include or propose concrete tests for the affect
 | Storage | Migration safety, cache invalidation, sync engine behavior |
 | Realtime | Structured and unstructured payload cases |
 
+`NaarsCarsTests` compiles 72 test files. `BackgroundSyncActorConversationSyncTests` is the fixture test for the conversation-prune rule in `BackgroundSyncActor.syncConversations` (absent-within-window conversations deleted, older ones kept, an unchanged page writes nothing) — extend it rather than adding a parallel harness.
+
 **Required mindset:** Do not declare realtime, notifications, or auth "safe" based on compilation alone. Behavioral verification matters. The bugs in these systems do not show up at compile time.
 
 ---
@@ -675,7 +690,8 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 | Reaction badges | render at the TOP of the bubble |
 | Notifications | push → AppDelegate → DeepLinkParser → NavigationIntent → NavigationCoordinator → destination |
 | Auth state | initializing → checkingAuth → ready(authState) |
-| Sign-out | teardown → wipe SwiftData → clear sync timestamps → reset coordinator. All domains nil, badges zero, @Query returns []. |
+| Launch hydration | `AppLaunchManager` → `RefreshCoordinator.refreshIfNeeded(.dashboard / .conversations / .townHall, trigger: "launch")`. Engine `startSync()` is session setup only and never fetches. |
+| Sign-out | teardown (session work only — engines keep their container-scoped `modelContext` / `backgroundActor`) → wipe SwiftData → clear sync timestamps → reset coordinator. All domains nil, badges zero, @Query returns []. |
 | SwiftData schema | additive-only changes without a formal migration |
 | UIKit messaging | MessagesCollectionView is not replaceable with SwiftUI List |
 
@@ -687,12 +703,15 @@ When you need to do one of these things, this is the *only* path. Do not duplica
 |---|---|---|
 | Send a chat message | `MessageSendManager.sendMessage(...)` (or `sendAudioMessage` / `sendLocationMessage` / `retryMessage`) | Send from `MessagingRepository`, Views, ViewModels, or untracked `Task {}` blocks |
 | Refresh a domain after push or staleness | `RefreshCoordinator.refreshIfNeeded(_ domain:, trigger:)` | Call sync engine `performFullSync` / `performTargetedSync` from a ViewModel |
-| Force-refresh on pull-to-refresh | `RefreshCoordinator.forceFullRefresh(_:trigger:)` | Bypass the coordinator's in-flight dedup |
+| Pull-to-refresh / manual reload from a ViewModel | `RefreshCoordinator.forceFullRefreshAndWait(_:trigger:)` (awaitable; joins in-flight; never cancels) | Bypass the coordinator's in-flight dedup, or call an engine |
+| Refresh badges after a user action (mark read, approve, review) | `RefreshCoordinator.forceFullRefreshAndWait(.badges, trigger:)` | Call `BadgeCountManager.refreshAllBadges` directly — only the coordinator calls it |
+| Refresh badges after a push | `RefreshCoordinator.performTargetedRefresh(.badges, entityId:, trigger:)` from `PushNotificationService` / `AppDelegate` | Add a second badge-refresh path |
+| Send a quick reply from a push action | `MessageSendManager.sendMessage(...)` via `PushNotificationService` | Call `MessageService.sendMessage` directly from the push handler |
 | Mark a domain dirty after a push | `RefreshCoordinator.invalidate(_:reason:)` | Mutate engine state directly |
 | Track which tab/screen is visible | `RefreshCoordinator.setVisibleDomain(_:)` from `MainTabView.onChange(of: selectedTab)` | Call this from individual ViewModels |
 | Mutate reaction state on a `Message` | `Message.setIndividualReactions(_:)` | Mutate `reactions` (aggregated) directly |
 | Route a deep link / push intent | `NavigationCoordinator.navigate(to: DeepLink)` (sets `pendingIntent`) | Set `@Published navigateToX` flags or navigate from `AppDelegate` / `PushNotificationService` |
-| Subscribe to a conversation's realtime channels | `MessagingSyncEngine.subscribeToConversation(id:)` (subscribe-then-fetch) | Open WebSocket channels from anywhere else, or fetch before subscribing |
+| Subscribe to a conversation's realtime channels | `MessagingSyncEngine.subscribeToConversation(_:)` (subscribe-then-fetch) | Open WebSocket channels from anywhere else, or fetch before subscribing |
 | Persist sync writes from a sync engine | `BackgroundSyncActor` (compare-before-write, conditional `save()`) | Call `modelContext.save()` from the main actor or a ViewModel for sync data |
 
 ---
@@ -703,9 +722,20 @@ These document where the code currently deviates from the rules above. Check the
 
 ### Known Violations
 
-**Last audited: 2026-05-02 against commit `adf369a` (main).**
+**Last audited: 2026-10-05 against the head of `claude/quirky-gates-4bkmv4` (uncompiled).**
 
-No known violations. The previous `TownHallSyncEngine` MainActor write deviation has been resolved — TownHall writes now use `BackgroundSyncActor`.
+The October 2026 cleanup was produced without Xcode. Treat the whole branch as unverified until it has been built and the unit suites run on a Mac (`Docs/handoff/2026-10-05-cleanup-handoff.md` has the order of operations). Beyond that:
+
+1. **Realtime rule 11 — background teardown is delayed, not immediate.** `RealtimeManager` unsubscribes after `Constants.Timing.realtimeBackgroundUnsubscribeDelay` (30 s) instead of immediately on backgrounding. Immediate teardown plus foreground resubscribe is a documented follow-up that needs on-device verification.
+2. **Message inserts are not idempotent.** There is no client id / idempotency key on the send path, so a network flap mid-send can duplicate a message. Follow-up "E5b" (idempotent insert using the client id as the server id) is deferred until the SwiftData reconciliation can be verified on a simulator.
+3. **`TownHallFeedViewModel.loadMore` writes SwiftData on the main actor** through `TownHallRepository.upsertPosts` (the repository is `@MainActor`). Coordinator-driven Town Hall refreshes use `BackgroundSyncActor`; only the paging path is still main-actor.
+4. **`SDTownHallPost` stores no vote/review columns**, so the feed keeps a network enrichment fetch beside the coordinator refresh. That fetch must never write to SwiftData.
+5. **Dead files awaiting manual deletion in Xcode** (remove the project references too): `Features/Messaging/Views/DirectMessageContainerView.swift` (not in the project), `Core/Services/MessagingDebugView.swift` (DEBUG-only, unreferenced), `Core/Utilities/Logger.swift` (legacy `Log` enum, no callers), `Features/Rides/Views/RidesDashboardView.swift` + `RidesDashboardViewModel.swift` + its test, `Features/Favors/Views/FavorsDashboardView.swift` + `FavorsDashboardViewModel.swift` + its test (only referenced by previews/tests), and the eight tracked `NaarsCars/*.swift` symlinks (machine-specific absolute paths).
+6. **A production `service_role` key is in git history** and must be rotated (`SECURITY.md` §3.2).
+7. **`supabase/migrations/20261005_0004_function_caller_guards.sql` is committed but not applied** — run it from the Supabase SQL editor (see Database migrations).
+8. **Deliberately deferred:** an aggregate vote/comment-count RPC for Town Hall, message-window pagination in `MessagingRepository.getMessages`, incremental hydration gating in `MessagingSyncEngine`, and pruning of `SDNotification` rows.
+9. **Architecture rule 2:** `SettingsView` still writes notification preferences through `ProfileService.shared.updateNotificationPreferences` directly rather than via a ViewModel.
+10. **Architecture rule 4:** roughly two dozen services still have no protocol (see that rule for the policy).
 
 If you make a fragile-system change, re-verify this section and bump the audit date and commit.
 
@@ -715,8 +745,8 @@ Realtime callbacks that touch SwiftData, NotificationCenter, UIKit, ViewModels, 
 
 ```swift
 await MainActor.run { handler(record) }
-// or
-@MainActor @Sendable typealias RealtimeInsertCallback = (RealtimeRecord) -> Void
+// or (as in RealtimeManager.swift)
+typealias RealtimeInsertCallback = @MainActor @Sendable (RealtimeRecord) -> Void
 ```
 
 Files where this invariant is critical: `RealtimeManager.swift`, `MessagingSyncEngine.swift`. Realtime is now conversation-scoped only, so `DashboardSyncEngine` and `TownHallSyncEngine` no longer have realtime callbacks. Any future realtime subscription must follow this pattern.
