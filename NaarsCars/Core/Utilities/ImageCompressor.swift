@@ -98,7 +98,8 @@ struct ImageCompressor {
     ///   - maxDimension: Maximum dimension (longest side) in pixels
     /// - Returns: Resized UIImage
     private static func resize(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let size = image.size
+        // Work in pixels (points * scale) so scale>1 images are measured by their real bitmap size
+        let size = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
         
         // If image is already smaller than max dimension, return as-is
         if max(size.width, size.height) <= maxDimension {
