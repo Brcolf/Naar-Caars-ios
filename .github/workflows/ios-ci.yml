@@ -65,9 +65,12 @@ jobs:
           fi
 
       - name: Create GoogleService-Info.plist
-        # FirebaseApp.configure() raises if the plist is missing. The synchronized folder
+        # FirebaseApp.configure() raises if the plist is missing, and FirebaseInstallations
+        # raises at launch (crashing the unit-test host before XCTest connects) unless
+        # API_KEY is 39 base64url characters starting with "A" and PROJECT_ID is non-empty,
+        # so the placeholder below must keep that shape. The synchronized folder
         # NaarsCars/NaarsCars/ bundles it automatically. Provide the real file as a
-        # base64 secret (GOOGLE_SERVICE_INFO_PLIST_B64) or fall back to a placeholder.
+        # base64 secret (GOOGLE_SERVICE_INFO_PLIST_B64) or fall back to the placeholder.
         env:
           PLIST_B64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}
         run: |
@@ -82,7 +85,7 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>API_KEY</key><string>placeholder</string>
+            <key>API_KEY</key><string>A_PLACEHOLDER_FIREBASE_API_KEY_00000000</string>
             <key>GCM_SENDER_ID</key><string>000000000000</string>
             <key>PLIST_VERSION</key><string>1</string>
             <key>BUNDLE_ID</key><string>com.NaarsCars</string>
