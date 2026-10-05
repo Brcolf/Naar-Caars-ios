@@ -93,6 +93,9 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         vc.inputBarController.onTypingChanged = { [weak coordinator = context.coordinator] in
             coordinator?.parent.onTypingChanged()
         }
+        vc.inputBarController.onAttachmentCleared = { [weak coordinator = context.coordinator] in
+            coordinator?.handleAttachmentCleared()
+        }
 
         return vc
     }
@@ -153,23 +156,39 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
             coord.lastIsFrozen = isConversationFrozen
         }
 
-        // Input bar state — always update (cheap, independent of message collection)
+        // Input bar state — apply only on actual transitions. This runs on every
+        // body evaluation (typing ticks, receipts, reactions); re-applying the same
+        // context re-animated the banner, overwrote in-progress edit text and
+        // forced an accessory relayout each time.
         let bar = vc.inputBar
         let prevMode = coord.lastInputMode
         if let edit = editingMessage {
-            bar.setEditContext(text: edit.text, messageId: edit.id)
+            if prevMode != .editing || coord.lastEditId != edit.id {
+                bar.setEditContext(text: edit.text, messageId: edit.id)
+            }
+            coord.lastEditId = edit.id
+            coord.lastReplyId = nil
             coord.lastInputMode = .editing
         } else if let reply = replyContext {
-            bar.setReplyContext(reply)
+            if prevMode != .replying || coord.lastReplyId != reply.id {
+                bar.setReplyContext(reply)
+            }
+            coord.lastReplyId = reply.id
+            coord.lastEditId = nil
             coord.lastInputMode = .replying
         } else {
             // Only clear when transitioning OUT of reply/edit mode
             if prevMode == .replying { bar.clearReplyContext() }
             if prevMode == .editing  { bar.clearEditContext() }
+            coord.lastEditId = nil
+            coord.lastReplyId = nil
             coord.lastInputMode = .normal
         }
 
-        bar.setImagePreview(imageToSend)
+        if imageToSend !== coord.lastImageToSend {
+            bar.setImagePreview(imageToSend)
+            coord.lastImageToSend = imageToSend
+        }
     }
 
     // MARK: - Coordinator
@@ -182,6 +201,11 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         /// Tracks the last input-bar mode so updateUIViewController only
         /// clears reply/edit state on actual mode transitions, not every call.
         var lastInputMode: InputMode = .normal
+        /// Last applied edit/reply target and image preview, so the set paths
+        /// are also gated on real changes rather than every body evaluation.
+        var lastEditId: UUID?
+        var lastReplyId: UUID?
+        var lastImageToSend: UIImage?
 
         // O(1) tracking for message-collection config gating
         var lastMessagesVersion: Int = -1
@@ -203,6 +227,16 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
                 parent.onSendEditedMessage(payload.text, editId)
             } else {
                 parent.onSendMessage(payload.text)
+            }
+        }
+
+        /// The bar's dismiss (X) button clears the controller's attachment without
+        /// going through SwiftUI. Mirror that into `imageToSend` so the preview is
+        /// not re-applied by the gate above and the image is not sent anyway.
+        func handleAttachmentCleared() {
+            guard parent.imageToSend != nil else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.imageToSend = nil
             }
         }
 

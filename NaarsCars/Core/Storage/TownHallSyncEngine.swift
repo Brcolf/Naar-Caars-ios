@@ -55,11 +55,16 @@ final class TownHallSyncEngine: SyncEngineProtocol {
         let posts = try await townHallService.fetchPosts()
         guard !Task.isCancelled else { throw CancellationError() }
         guard let backgroundActor else {
-            try repository.upsertPosts(posts)
+            try repository.upsertPosts(posts, replaceAll: true)
             health.recordSuccess()
             return .empty
         }
         let metrics = try await backgroundActor.syncPostsWithChangeDetection(posts)
+        // Posted ONLY after a successful BackgroundSyncActor save; TownHallRepository's posts
+        // publisher re-reads SwiftData on it (same contract as DashboardSyncEngine's *DidSync).
+        if metrics.savedToStore {
+            NotificationCenter.default.post(name: .townHallPostsDidSync, object: nil)
+        }
         health.recordSuccess()
         return metrics
     }
@@ -73,6 +78,9 @@ final class TownHallSyncEngine: SyncEngineProtocol {
             return .empty
         }
         let metrics = try await backgroundActor.upsertPostWithChangeDetection(post)
+        if metrics.savedToStore {
+            NotificationCenter.default.post(name: .townHallPostsDidSync, object: nil)
+        }
         health.recordSuccess()
         return metrics
     }

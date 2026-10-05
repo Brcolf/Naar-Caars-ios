@@ -229,7 +229,12 @@ struct ConversationDetailView: View {
         .trackScreen("ConversationDetail")
         .fullScreenCover(isPresented: $showImageViewer) {
             if let imageUrl = selectedImageUrl {
-                fullscreenImageViewer(imageUrl: imageUrl)
+                // Shared viewer loads via PersistentImageService, so the asset the
+                // bubble already cached on disk is not downloaded a second time.
+                ImageViewerView(imageUrl: imageUrl, onDismiss: {
+                    showImageViewer = false
+                    selectedImageUrl = nil
+                })
             }
         }
         .sheet(item: $messageToReport) { message in
@@ -355,7 +360,9 @@ struct ConversationDetailView: View {
                             showImageViewer = true
                         },
                         onReplyPreviewTap: { replyToId in
-                            highlightedMessageId = replyToId
+                            // scrollToMessage schedules the 1.5s highlight reset; a bare
+                            // assignment left the id set and re-scrolled on every update.
+                            scrollToMessage(replyToId)
                         },
                         onRetry: { message in
                             Task { await viewModel.retryMessage(id: message.id) }
@@ -676,63 +683,6 @@ struct ConversationDetailView: View {
     }
     
     // MARK: - Inline Typing Indicator
-    
-    // MARK: - Inline Image Viewer
-    
-    @ViewBuilder
-    private func fullscreenImageViewer(imageUrl: URL) -> some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            AsyncImage(url: imageUrl) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                case .failure:
-                    VStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 40))
-                            .foregroundColor(.white.opacity(0.6))
-                        Text("messaging_failed_to_load_image".localized)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                default:
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                }
-            }
-            
-            // Close button
-            VStack {
-                HStack {
-                    Spacer()
-                    ShareLink(item: imageUrl) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.naarsCallout).fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                    .padding(.trailing, 8)
-                    
-                    Button(action: {
-                        showImageViewer = false
-                        selectedImageUrl = nil
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(12)
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                }
-                .padding()
-                Spacer()
-            }
-        }
-    }
 }
 
 /// ViewModel for managing conversation participants

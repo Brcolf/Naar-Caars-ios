@@ -86,14 +86,14 @@ final class RideService {
             .single()
             .execute()
         
-        var ride: Ride = try createDecoder().decode(Ride.self, from: response.data)
+        let fetchedRide: Ride = try createDecoder().decode(Ride.self, from: response.data)
         
-        // Enrich with profiles
-        ride = await enrichRideWithProfiles(ride)
+        // Enrich with profiles and fetch the Q&A count concurrently (independent requests)
+        async let enrichedRide = enrichRideWithProfiles(fetchedRide)
+        async let qaCount = fetchQACount(requestId: id, requestType: "ride")
         
-        // Fetch Q&A count
-        let qaCount = try await fetchQACount(requestId: id, requestType: "ride")
-        ride.qaCount = qaCount
+        var ride = await enrichedRide
+        ride.qaCount = try await qaCount
         
         return ride
     }
@@ -343,8 +343,9 @@ final class RideService {
             throw AppError.invalidInput("No fields to update")
         }
 
-        // Fetch original ride to check if claimer needs notification
-        let originalRide = try? await fetchRide(id: id)
+        // Snapshot only the columns compared below to decide whether the claimer
+        // needs a notification (no profile/participant/Q&A enrichment)
+        let originalRide = try? await fetchRideUpdateSnapshot(id: id)
         
         // Update ride
         let response = try await supabase
@@ -440,9 +441,12 @@ final class RideService {
         
         var qaItems: [RequestQA] = try createDecoder().decode([RequestQA].self, from: response.data)
         
-        // Enrich with asker profiles
-        for (index, qa) in qaItems.enumerated() {
-            if let asker = try? await ProfileService.shared.fetchProfile(userId: qa.userId) {
+        // Enrich with asker profiles using a single batched fetch
+        let askerIds = Array(Set(qaItems.map { $0.userId }))
+        let askers = (try? await ProfileService.shared.fetchProfiles(userIds: askerIds)) ?? []
+        let askerLookup = Dictionary(uniqueKeysWithValues: askers.map { ($0.id, $0) })
+        for index in qaItems.indices {
+            if let asker = askerLookup[qaItems[index].userId] {
                 qaItems[index].asker = asker
             }
         }
@@ -694,6 +698,37 @@ final class RideService {
         DateDecoderFactory.makeSupabaseDecoder()
     }
     
+    /// The ride columns updateRide compares before/after to decide whether the claimer is notified
+    private struct RideUpdateSnapshot: Decodable {
+        let date: Date
+        let time: String
+        let pickup: String
+        let destination: String
+        let seats: Int
+        let claimedBy: UUID?
+        
+        enum CodingKeys: String, CodingKey {
+            case date
+            case time
+            case pickup
+            case destination
+            case seats
+            case claimedBy = "claimed_by"
+        }
+    }
+    
+    /// Fetch only the ride columns needed by updateRide's change check
+    private func fetchRideUpdateSnapshot(id: UUID) async throws -> RideUpdateSnapshot {
+        let response = try await supabase
+            .from("rides")
+            .select("date, time, pickup, destination, seats, claimed_by")
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute()
+        
+        return try createDecoder().decode(RideUpdateSnapshot.self, from: response.data)
+    }
+    
     /// Enrich rides with profile data (poster, claimer, participants)
     /// Uses a single batched profile fetch to avoid N+1 queries
     private func enrichRidesWithProfiles(_ rides: [Ride]) async -> [Ride] {
@@ -730,22 +765,32 @@ final class RideService {
     }
     
     /// Enrich a single ride with profile data
+    /// Poster and claimer come from one batched profile fetch that runs alongside the participants fetch
     private func enrichRideWithProfiles(_ ride: Ride) async -> Ride {
         var enriched = ride
         
-        // Fetch poster profile
-        if let poster = try? await ProfileService.shared.fetchProfile(userId: ride.userId) {
+        // Collect unique profile IDs (poster + claimer) for a single batch fetch
+        var profileIds: Set<UUID> = [ride.userId]
+        if let claimedBy = ride.claimedBy {
+            profileIds.insert(claimedBy)
+        }
+        let profileUserIds = Array(profileIds)
+        
+        // Fetch profiles and participants concurrently (independent requests)
+        async let profilesTask = ProfileService.shared.fetchProfiles(userIds: profileUserIds)
+        async let participantsTask = fetchRideParticipants(rideId: ride.id)
+        
+        let profiles = (try? await profilesTask) ?? []
+        let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        
+        if let poster = profileLookup[ride.userId] {
             enriched.poster = poster
         }
-        
-        // Fetch claimer profile if claimed
-        if let claimedBy = ride.claimedBy,
-           let claimer = try? await ProfileService.shared.fetchProfile(userId: claimedBy) {
+        if let claimedBy = ride.claimedBy, let claimer = profileLookup[claimedBy] {
             enriched.claimer = claimer
         }
         
-        // Fetch participants
-        if let participants = try? await fetchRideParticipants(rideId: ride.id) {
+        if let participants = try? await participantsTask {
             enriched.participants = participants
         }
         

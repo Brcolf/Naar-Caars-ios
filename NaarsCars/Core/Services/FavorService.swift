@@ -85,14 +85,14 @@ final class FavorService {
             .single()
             .execute()
         
-        var favor: Favor = try createDecoder().decode(Favor.self, from: response.data)
+        let fetchedFavor: Favor = try createDecoder().decode(Favor.self, from: response.data)
         
-        // Enrich with profiles
-        favor = await enrichFavorWithProfiles(favor)
+        // Enrich with profiles and fetch the Q&A count concurrently (independent requests)
+        async let enrichedFavor = enrichFavorWithProfiles(fetchedFavor)
+        async let qaCount = fetchQACount(requestId: id, requestType: "favor")
         
-        // Fetch Q&A count
-        let qaCount = try await fetchQACount(requestId: id, requestType: "favor")
-        favor.qaCount = qaCount
+        var favor = await enrichedFavor
+        favor.qaCount = try await qaCount
         
         return favor
     }
@@ -241,8 +241,9 @@ final class FavorService {
             throw AppError.invalidInput("No fields to update")
         }
 
-        // Fetch original favor to check if claimer needs notification
-        let originalFavor = try? await fetchFavor(id: id)
+        // Snapshot only the columns compared below to decide whether the claimer
+        // needs a notification (no profile/participant/Q&A enrichment)
+        let originalFavor = try? await fetchFavorUpdateSnapshot(id: id)
         
         // Update favor
         let response = try await supabase
@@ -477,6 +478,37 @@ final class FavorService {
         DateDecoderFactory.makeSupabaseDecoder()
     }
     
+    /// The favor columns updateFavor compares before/after to decide whether the claimer is notified
+    private struct FavorUpdateSnapshot: Decodable {
+        let title: String
+        let location: String
+        let duration: FavorDuration
+        let date: Date
+        let time: String?
+        let claimedBy: UUID?
+        
+        enum CodingKeys: String, CodingKey {
+            case title
+            case location
+            case duration
+            case date
+            case time
+            case claimedBy = "claimed_by"
+        }
+    }
+    
+    /// Fetch only the favor columns needed by updateFavor's change check
+    private func fetchFavorUpdateSnapshot(id: UUID) async throws -> FavorUpdateSnapshot {
+        let response = try await supabase
+            .from("favors")
+            .select("title, location, duration, date, time, claimed_by")
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute()
+        
+        return try createDecoder().decode(FavorUpdateSnapshot.self, from: response.data)
+    }
+    
     /// Enrich favors with profile data (poster, claimer, participants)
     /// Uses a single batched profile fetch to avoid N+1 queries
     private func enrichFavorsWithProfiles(_ favors: [Favor]) async -> [Favor] {
@@ -513,22 +545,32 @@ final class FavorService {
     }
     
     /// Enrich a single favor with profile data
+    /// Poster and claimer come from one batched profile fetch that runs alongside the participants fetch
     private func enrichFavorWithProfiles(_ favor: Favor) async -> Favor {
         var enriched = favor
         
-        // Fetch poster profile
-        if let poster = try? await ProfileService.shared.fetchProfile(userId: favor.userId) {
+        // Collect unique profile IDs (poster + claimer) for a single batch fetch
+        var profileIds: Set<UUID> = [favor.userId]
+        if let claimedBy = favor.claimedBy {
+            profileIds.insert(claimedBy)
+        }
+        let profileUserIds = Array(profileIds)
+        
+        // Fetch profiles and participants concurrently (independent requests)
+        async let profilesTask = ProfileService.shared.fetchProfiles(userIds: profileUserIds)
+        async let participantsTask = fetchFavorParticipants(favorId: favor.id)
+        
+        let profiles = (try? await profilesTask) ?? []
+        let profileLookup = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        
+        if let poster = profileLookup[favor.userId] {
             enriched.poster = poster
         }
-        
-        // Fetch claimer profile if claimed
-        if let claimedBy = favor.claimedBy,
-           let claimer = try? await ProfileService.shared.fetchProfile(userId: claimedBy) {
+        if let claimedBy = favor.claimedBy, let claimer = profileLookup[claimedBy] {
             enriched.claimer = claimer
         }
         
-        // Fetch participants
-        if let participants = try? await fetchFavorParticipants(favorId: favor.id) {
+        if let participants = try? await participantsTask {
             enriched.participants = participants
         }
         

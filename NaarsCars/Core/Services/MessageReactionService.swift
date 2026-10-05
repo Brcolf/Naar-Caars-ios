@@ -7,6 +7,7 @@
 
 import Foundation
 import Supabase
+import PostgREST
 import OSLog
 
 /// Service for message reaction operations
@@ -41,48 +42,24 @@ final class MessageReactionService {
     ///   - reaction: The reaction emoji/text
     /// - Throws: AppError if operation fails
     func addReaction(messageId: UUID, userId: UUID, reaction: String) async throws {
-        // Check if user is a participant in the conversation
-        let messageResponse = try await supabase
-            .from("messages")
-            .select("conversation_id")
-            .eq("id", value: messageId.uuidString)
-            .single()
-            .execute()
-        
-        struct MessageConversation: Codable {
-            let conversationId: UUID
-            enum CodingKeys: String, CodingKey {
-                case conversationId = "conversation_id"
-            }
-        }
-        
-        let messageConv = try JSONDecoder().decode(MessageConversation.self, from: messageResponse.data)
-        
-        // Check if user is a participant
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: messageConv.conversationId.uuidString)
-            .eq("user_id", value: userId.uuidString)
-            .limit(1)
-            .execute()
-        
-        guard participantCheck?.data.isEmpty == false else {
-            throw AppError.permissionDenied("You must be a participant to react to messages")
-        }
-        
-        // Insert or update reaction (upsert)
+        // Participation is enforced server-side by the `message_reactions_insert` RLS policy
+        // (user_id = auth.uid() AND caller is in the message's conversation), so no lookups
+        // precede the write. A policy rejection surfaces as a permission error.
         let reactionData: [String: AnyCodable] = [
             "message_id": AnyCodable(messageId.uuidString),
             "user_id": AnyCodable(userId.uuidString),
             "reaction": AnyCodable(reaction)
         ]
-        
-        try await supabase
-            .from("message_reactions")
-            .upsert(reactionData, onConflict: "message_id,user_id")
-            .execute()
-        
+
+        do {
+            try await supabase
+                .from("message_reactions")
+                .upsert(reactionData, onConflict: "message_id,user_id")
+                .execute()
+        } catch let error as PostgrestError where error.code == "42501" {
+            throw AppError.permissionDenied("You must be a participant to react to messages")
+        }
+
         AppLogger.database.debug("Added reaction \(reaction) to message \(messageId)")
     }
     

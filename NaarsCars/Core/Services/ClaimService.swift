@@ -90,13 +90,15 @@ final class ClaimService {
                 .eq("id", value: requestId.uuidString)
                 .execute()
             
-            let posterId = try await getPosterId(requestType: requestType, requestId: requestId)
+            // One read of the request row serves both the in-app notification (poster id)
+            // and the calendar event data in the push payload
+            let requestRow = try await fetchClaimedRequestRow(requestType: requestType, requestId: requestId)
             
             // Create notification for poster
             try await createClaimNotification(
                 requestType: requestType,
                 requestId: requestId,
-                posterId: posterId,
+                posterId: requestRow.posterId,
                 claimerId: claimerId
             )
 
@@ -104,8 +106,9 @@ final class ClaimService {
             await queueClaimPushNotification(
                 requestType: requestType,
                 requestId: requestId,
-                posterId: posterId,
-                claimerName: profile.name
+                posterId: requestRow.posterId,
+                claimerName: profile.name,
+                requestData: requestRow.data
             )
 
             // Completion reminders are server-scheduled via database triggers.
@@ -353,6 +356,36 @@ final class ClaimService {
         return userId.userId
     }
     
+    /// Fetch the poster ID together with the fields needed for the claim push payload in one query
+    private func fetchClaimedRequestRow(requestType: String, requestId: UUID) async throws -> (posterId: UUID, data: Data) {
+        let tableName = requestType == "ride" ? "rides" : "favors"
+        
+        let response = try await supabase
+            .from(tableName)
+            .select("user_id, " + claimPushSelectFields(requestType: requestType))
+            .eq("id", value: requestId.uuidString)
+            .single()
+            .execute()
+        
+        struct UserId: Codable {
+            let userId: UUID
+            
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+            }
+        }
+        
+        let userId: UserId = try JSONDecoder().decode(UserId.self, from: response.data)
+        return (posterId: userId.userId, data: response.data)
+    }
+    
+    /// Request columns used to build the calendar event data in the claim push payload
+    private func claimPushSelectFields(requestType: String) -> String {
+        requestType == "ride"
+            ? "date, time, pickup, destination, notes, timezone"
+            : "date, time, location, title, description, duration, timezone"
+    }
+    
     /// Create notification when request is claimed
     private func createClaimNotification(
         requestType: String,
@@ -412,35 +445,24 @@ final class ClaimService {
     }
 
     /// Queue a push notification with calendar event data when request is claimed
+    /// - Parameter requestData: The request row (see `fetchClaimedRequestRow`) used for the calendar event data
     private func queueClaimPushNotification(
         requestType: String,
         requestId: UUID,
         posterId: UUID,
-        claimerName: String
+        claimerName: String,
+        requestData: Data
     ) async {
         do {
             let title = requestType == "ride" ? "Ride Claimed!" : "Favor Claimed!"
             let body = "\(claimerName) is helping with your \(requestType) request"
 
-            // Fetch request details for calendar event data in the push payload
-            let tableName = requestType == "ride" ? "rides" : "favors"
-            let selectFields = requestType == "ride"
-                ? "date, time, pickup, destination, notes, timezone"
-                : "date, time, location, title, description, duration, timezone"
-
-            let response = try await supabase
-                .from(tableName)
-                .select(selectFields)
-                .eq("id", value: requestId.uuidString)
-                .single()
-                .execute()
-
             var eventData: [String: Any] = [
                 "\(requestType)_id": requestId.uuidString
             ]
 
-            // Parse response and build event data for calendar creation on the client
-            if let json = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any] {
+            // Parse the request row and build event data for calendar creation on the client
+            if let json = try? JSONSerialization.jsonObject(with: requestData) as? [String: Any] {
                 let storedTimezone = json["timezone"] as? String ?? "America/Los_Angeles"
                 let tz = TimeZone(identifier: storedTimezone) ?? TimeZone(identifier: "America/Los_Angeles") ?? .current
 

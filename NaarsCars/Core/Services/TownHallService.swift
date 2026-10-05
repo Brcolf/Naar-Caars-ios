@@ -45,15 +45,9 @@ final class TownHallService {
         let decoder = createDateDecoder()
         var posts: [TownHallPost] = try decoder.decode([TownHallPost].self, from: response.data)
         
-        // Enrich with author profiles
-        posts = await enrichPostsWithProfiles(posts)
-        
-        // Enrich with vote counts and comment counts
-        if let userId = AuthService.shared.currentUserId {
-            posts = await enrichPostsWithVotesAndComments(posts, userId: userId)
-        } else {
-            posts = await enrichPostsWithVotesAndComments(posts, userId: nil)
-        }
+        // Enrich with author profiles, vote counts, comment counts, and review data.
+        // The lookups only depend on this page of posts, so they run concurrently.
+        posts = await enrichPosts(posts, userId: AuthService.shared.currentUserId)
         
         // Filter out posts from blocked users
         let blockedIds = MessageService.shared.cachedBlockedUserIds
@@ -337,59 +331,26 @@ final class TownHallService {
         return String(content.prefix(100))
     }
     
-    /// Enrich posts with author profiles
-    private func enrichPostsWithProfiles(_ posts: [TownHallPost]) async -> [TownHallPost] {
-        // Collect all user IDs
-        var userIds = Set<UUID>()
-        for post in posts {
-            userIds.insert(post.userId)
-        }
+    /// Enrich posts with author profiles, vote counts, comment counts, user votes, and review data
+    /// The four lookups depend only on the page of posts, so they are fetched concurrently
+    private func enrichPosts(_ posts: [TownHallPost], userId: UUID?) async -> [TownHallPost] {
+        guard !posts.isEmpty else { return posts }
         
-        guard !userIds.isEmpty else { return posts }
+        let postIds = posts.map { $0.id }
+        let authorIds = Array(Set(posts.map { $0.userId }))
+        let reviewIds = posts.compactMap { $0.reviewId }
         
-        // Fetch all profiles in one query
-        let response = try? await supabase
-            .from("public_profiles")
-            .select()
-            .in("id", values: Array(userIds).map { $0.uuidString })
-            .execute()
+        async let profileMapTask = fetchAuthorProfiles(userIds: authorIds)
+        async let voteCountsTask = fetchPostVoteCounts(postIds: postIds, userId: userId)
+        async let commentCountsTask = fetchCommentCounts(postIds: postIds)
+        async let reviewMapTask = fetchReviews(reviewIds: reviewIds)
         
-        guard let data = response?.data else { return posts }
-        
-        let decoder = DateDecoderFactory.makeSupabaseDecoder()
-        let profiles = (try? decoder.decode([Profile].self, from: data)) ?? []
-        let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        let (profileMap, voteCounts, commentCounts, reviewMap) = await (profileMapTask, voteCountsTask, commentCountsTask, reviewMapTask)
         
         // Enrich posts
         return posts.map { post in
             var enriched = post
             enriched.author = profileMap[post.userId]
-            return enriched
-        }
-    }
-    
-    /// Enrich posts with vote counts, comment counts, and user votes
-    private func enrichPostsWithVotesAndComments(_ posts: [TownHallPost], userId: UUID?) async -> [TownHallPost] {
-        guard !posts.isEmpty else { return posts }
-        
-        let postIds = posts.map { $0.id }
-        
-        // Fetch vote counts for all posts
-        let voteCounts = await fetchPostVoteCounts(postIds: postIds, userId: userId)
-        
-        // Fetch comment counts for all posts
-        let commentCounts = await fetchCommentCounts(postIds: postIds)
-        
-        // Fetch review data if any posts have reviewId
-        let reviewIds = posts.compactMap { $0.reviewId }
-        var reviewMap: [UUID: Review] = [:]
-        if !reviewIds.isEmpty {
-            reviewMap = await fetchReviews(reviewIds: reviewIds)
-        }
-        
-        // Enrich posts
-        return posts.map { post in
-            var enriched = post
             if let counts = voteCounts[post.id] {
                 enriched.upvotes = counts.upvotes
                 enriched.downvotes = counts.downvotes
@@ -401,6 +362,23 @@ final class TownHallService {
             }
             return enriched
         }
+    }
+    
+    /// Fetch author profiles for a set of user IDs in one query
+    private func fetchAuthorProfiles(userIds: [UUID]) async -> [UUID: Profile] {
+        guard !userIds.isEmpty else { return [:] }
+        
+        let response = try? await supabase
+            .from("public_profiles")
+            .select()
+            .in("id", values: userIds.map { $0.uuidString })
+            .execute()
+        
+        guard let data = response?.data else { return [:] }
+        
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
+        let profiles = (try? decoder.decode([Profile].self, from: data)) ?? []
+        return Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
     }
     
     /// Fetch vote counts for posts (helper method)

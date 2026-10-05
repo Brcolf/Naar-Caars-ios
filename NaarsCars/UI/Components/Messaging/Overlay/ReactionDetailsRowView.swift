@@ -296,18 +296,18 @@ final class ReactionDetailsRowView: UIView {
         circle.layer.borderWidth = 1.5
         circle.layer.borderColor = UIColor.systemBackground.cgColor
 
-        if let avatarUrlString = profile?.avatarUrl, let url = URL(string: avatarUrlString) {
-            // Use async image loading
+        if let avatarUrlString = profile?.avatarUrl, URL(string: avatarUrlString) != nil {
+            // Async image loading via the shared disk cache (same path as AvatarUIView),
+            // so opening the overlay does not re-download every reactor's avatar.
             let imageView = UIImageView()
             imageView.contentMode = .scaleAspectFill
             imageView.frame = circle.bounds
             imageView.clipsToBounds = true
             circle.addSubview(imageView)
 
-            Task { @MainActor in
-                if let (data, _) = try? await URLSession.shared.data(from: url),
-                   let image = UIImage(data: data) {
-                    imageView.image = image
+            Task { @MainActor [weak imageView] in
+                if let image = await PersistentImageService.shared.getImage(for: avatarUrlString) {
+                    imageView?.image = image
                 }
             }
         } else {

@@ -8,6 +8,7 @@ import Foundation
 protocol NotificationServiceProtocol: AnyObject {
     func fetchNotifications(userId: UUID, forceRefresh: Bool) async throws -> [AppNotification]
     func markAsRead(notificationId: UUID) async throws
+    func markAsRead(notificationIds: [UUID]) async throws
     func markAllBellNotificationsAsRead(userId: UUID) async throws
     func markRequestScopedRead(
         requestType: String,

@@ -228,13 +228,7 @@ internal import Combine
         Task { [weak self] in
             guard let self = self, !Task.isCancelled else { return }
             self.markNotificationsReadLocally(notificationsToMark.map { $0.id })
-            await withTaskGroup(of: Void.self) { group in
-                for notification in notificationsToMark {
-                    group.addTask {
-                        try? await self.notificationService.markAsRead(notificationId: notification.id)
-                    }
-                }
-            }
+            try? await self.notificationService.markAsRead(notificationIds: notificationsToMark.map { $0.id })
             if self.modelContext == nil {
                 await self.loadNotifications()
             }

@@ -234,21 +234,17 @@ final class ConversationService {
     
     /// Fetch unread message count for a conversation
     private func fetchUnreadCount(conversationId: UUID, userId: UUID, supabase: SupabaseClient) async -> Int {
-        struct MessageId: Codable {
-            let id: UUID
-        }
-        
         do {
+            // Head request with an exact count: no message rows cross the wire
             let response = try await supabase
                 .from("messages")
-                .select("id")
+                .select("id", head: true, count: .exact)
                 .eq("conversation_id", value: conversationId.uuidString)
                 .neq("from_id", value: userId.uuidString)
                 .or(MessageService.unreadReadByFilter(userId: userId))
                 .execute()
-            
-            let unreadMessages = try? JSONDecoder().decode([MessageId].self, from: response.data)
-            return unreadMessages?.count ?? 0
+
+            return response.count ?? 0
         } catch {
             return 0
         }
@@ -278,16 +274,9 @@ final class ConversationService {
             
             guard !participantIds.isEmpty else { return [] }
             
-            // Step 2: Fetch profiles for those user IDs
-            let userIdStrings = participantIds.map { $0.userId.uuidString }
-            let profilesResponse = try await supabase
-                .from("public_profiles")
-                .select("*")
-                .in("id", values: userIdStrings)
-                .execute()
-            
-            let decoder = createDateDecoder()
-            return try decoder.decode([Profile].self, from: profilesResponse.data)
+            // Step 2: Fetch profiles for those user IDs through ProfileService so the
+            // profile cache serves participants shared across conversations
+            return try await ProfileService.shared.fetchProfiles(userIds: participantIds.map { $0.userId })
         } catch {
             AppLogger.error("messaging", "Error fetching participants for conversation \(conversationId): \(error.localizedDescription)")
             

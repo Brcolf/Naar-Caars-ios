@@ -94,16 +94,24 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         guard !Task.isCancelled else { throw CancellationError() }
 
         guard let backgroundActor else { return .empty }
-        let metrics = try await backgroundActor.syncAllWithChangeDetection(
-            rides: rides, favors: favors, notifications: notifications
+        let result = try await backgroundActor.syncAllWithChangeDetection(
+            rides: rides, favors: favors, notifications: notifications,
+            // Guests fetched no notifications (empty array above); nil keeps that a no-op.
+            notificationPruneHorizon: userId == nil ? nil : notificationPruneHorizon
         )
+        let metrics = result.metrics
 
-        // Posted ONLY after a successful BackgroundSyncActor save. Observers (RequestRealtimeHandler,
-        // NotificationRealtimeHandler) must re-read SwiftData only — never fetch from the network —
-        // otherwise every coordinator-driven sync would trigger a second full fetch.
-        if metrics.savedToStore {
+        // Posted ONLY after a successful BackgroundSyncActor save, and only for the entity sets that
+        // actually changed. Observers (RequestRealtimeHandler, NotificationRealtimeHandler) must
+        // re-read SwiftData only — never fetch from the network — otherwise every coordinator-driven
+        // sync would trigger a second full fetch.
+        if result.ridesChanged {
             NotificationCenter.default.post(name: .ridesDidSync, object: nil)
+        }
+        if result.favorsChanged {
             NotificationCenter.default.post(name: .favorsDidSync, object: nil)
+        }
+        if result.notificationsChanged {
             NotificationCenter.default.post(name: .notificationsDidSync, object: nil)
         }
 
@@ -142,10 +150,19 @@ final class DashboardSyncEngine: SyncEngineProtocol {
     }
 
     /// Notifications require a session. For guests (nil userId) return an empty set so the public
-    /// rides/favors reconciliation still runs. `BackgroundSyncActor.syncAllWithChangeDetection` never
-    /// deletes notifications, so an empty array is a no-op for the notifications table.
+    /// rides/favors reconciliation still runs. `BackgroundSyncActor.syncAllWithChangeDetection` only
+    /// deletes notifications when a prune horizon is passed (never for guests), so an empty array is
+    /// a no-op for the notifications table.
     private func fetchNotificationsIfAuthenticated(_ userId: UUID?) async throws -> [AppNotification] {
         guard let userId else { return [] }
         return try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
+    }
+
+    /// Read notifications older than this are pruned from SwiftData when the server no longer returns
+    /// them. One day beyond `NotificationService.fetchHorizonDays` so the local window is never
+    /// narrower than the server's (`fetchNotifications` computes its horizon at a different instant).
+    /// Nil (calendar failure) skips pruning.
+    private var notificationPruneHorizon: Date? {
+        Calendar.current.date(byAdding: .day, value: -(NotificationService.fetchHorizonDays + 1), to: Date())
     }
 }

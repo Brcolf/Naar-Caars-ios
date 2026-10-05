@@ -256,14 +256,8 @@ extension BadgeCountManager: BadgeCountManaging {}
                 return
             }
 
-            // Mark all community notifications as read in parallel
-            await withTaskGroup(of: Void.self) { group in
-                for notificationId in communityNotificationIds {
-                    group.addTask {
-                        try? await NotificationService.shared.markAsRead(notificationId: notificationId)
-                    }
-                }
-            }
+            // Mark all community notifications as read in a single request
+            try? await NotificationService.shared.markAsRead(notificationIds: communityNotificationIds)
 
             await refreshAllBadges(reason: "clearCommunityBadge")
         } catch {

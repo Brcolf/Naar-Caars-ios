@@ -92,18 +92,9 @@ final class LeaderboardViewModel: ObservableObject {
         if let index = entries.firstIndex(where: { $0.userId == currentUserId }) {
             currentUserRank = index + 1 // 1-indexed
         } else {
-            // User not in top entries, try to find their rank
+            // User is not in the fetched entries. The leaderboard RPC returns the same
+            // list that was just searched, so querying it again cannot yield a rank.
             currentUserRank = nil
-            Task {
-                do {
-                    currentUserRank = try await leaderboardService.findCurrentUserRank(
-                        userId: currentUserId,
-                        period: selectedPeriod
-                    )
-                } catch {
-                    // Silently fail - rank is optional
-                }
-            }
         }
     }
 }

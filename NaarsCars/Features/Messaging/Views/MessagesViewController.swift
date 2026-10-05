@@ -105,6 +105,9 @@ final class MessagesViewController: UIViewController {
     private var heightCache: [String: CGFloat] = [:]
     /// Previous message state for targeted reconfigure — only reconfigure cells whose content changed.
     private var previousMessages: [UUID: Message] = [:]
+    /// The scroll target already honoured, so a reconfigure (new message, receipt,
+    /// reaction) does not yank the list back to it while it remains in the config.
+    private var lastScrolledToMessageId: UUID?
 
     private struct UpdateFingerprint: Equatable {
         let messageIds: [UUID]
@@ -351,12 +354,10 @@ final class MessagesViewController: UIViewController {
             for itemId in visibleItemIds {
                 guard let msgId = UUID(uuidString: itemId),
                       let msg = messagesById[msgId] else { continue }
-                if let prev = previousMessages[msgId],
-                   prev.text == msg.text,
-                   prev.individualReactions?.count == msg.individualReactions?.count,
-                   prev.readBy.count == msg.readBy.count,
-                   prev.editedAt == msg.editedAt,
-                   prev.sendStatus == msg.sendStatus {
+                // Full struct compare: count-based proxies missed same-count reaction
+                // swaps, late reply/sender hydration, moderation/unsend, and
+                // localAttachmentPath -> imageUrl upload completion.
+                if let prev = previousMessages[msgId], prev == msg {
                     continue // unchanged
                 }
                 changedItems.append(itemId)
@@ -370,10 +371,16 @@ final class MessagesViewController: UIViewController {
         }
         previousMessages = messagesById
 
-        // Handle scroll-to-message
-        if let targetId = config.scrollToMessageId {
-            if let indexPath = dataSource?.indexPath(for: targetId.uuidString) {
-                collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
+        // Handle scroll-to-message — once per target. A target not yet in the
+        // snapshot is retried on later updates (e.g. after pagination), as before.
+        if config.scrollToMessageId != lastScrolledToMessageId {
+            if let targetId = config.scrollToMessageId {
+                if let indexPath = dataSource?.indexPath(for: targetId.uuidString) {
+                    collectionView.scrollToItem(at: indexPath, at: .centeredVertically, animated: true)
+                    lastScrolledToMessageId = targetId
+                }
+            } else {
+                lastScrolledToMessageId = nil
             }
         }
 
@@ -408,6 +415,10 @@ final class MessagesViewController: UIViewController {
         h ^= (msg.latitude != nil ? 1 : 0) &* 173
         h ^= (msg.editedAt != nil ? 1 : 0) &* 199
         h ^= (msg.sendStatus?.rawValue.hashValue ?? 0) &* 211
+        h ^= (msg.hiddenAt != nil ? 1 : 0) &* 223
+        h ^= (msg.deletedAt != nil ? 1 : 0) &* 227
+        h ^= (msg.localAttachmentPath != nil ? 1 : 0) &* 229
+        h ^= (msg.sender?.name.hashValue ?? 0) &* 233
         return h
     }
 

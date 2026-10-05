@@ -51,13 +51,11 @@ final class InputBarController {
 
     enum AttachmentState: Equatable {
         case none
-        case processing(UIImage)
         case ready(InputAttachment)
 
         var previewImage: UIImage? {
             switch self {
             case .none: return nil
-            case .processing(let image): return image
             case .ready(let attachment): return attachment.image
             }
         }
@@ -68,13 +66,13 @@ final class InputBarController {
         }
     }
 
+    /// The picked image only. Encoding happens once, in MessageSendManager,
+    /// after the resize — a full-resolution JPEG here was never read.
     struct InputAttachment: Equatable {
         let image: UIImage
-        let data: Data
     }
 
     private(set) var attachmentState: AttachmentState = .none
-    private var attachmentGeneration: UInt64 = 0
 
     // MARK: - Recording
 
@@ -113,6 +111,9 @@ final class InputBarController {
     var onCameraRequested: (() -> Void)?
     var onLocationPickerRequested: (() -> Void)?
     var onTypingChanged: (() -> Void)?
+    /// Fired when the user dismisses the attachment (not after a send), so a host
+    /// that mirrors the image in its own state can drop it too.
+    var onAttachmentCleared: (() -> Void)?
 
     // MARK: - Actions
 
@@ -159,31 +160,15 @@ final class InputBarController {
     }
 
     func setImage(_ image: UIImage) {
-        // Skip if already processing or ready with the same image instance
+        // Skip if already ready with the same image instance
         if let existing = attachmentState.previewImage, existing === image { return }
-        attachmentGeneration &+= 1
-        let gen = attachmentGeneration
-        attachmentState = .processing(image)
-        Task.detached(priority: .userInitiated) {
-            guard let data = image.jpegData(compressionQuality: 0.8) else {
-                await MainActor.run {
-                    guard self.attachmentGeneration == gen else { return }
-                    AppLogger.error("messaging", "Failed to compress image attachment")
-                    self.attachmentState = .none
-                }
-                return
-            }
-            await MainActor.run {
-                guard self.attachmentGeneration == gen else { return }
-                self.attachmentState = .ready(InputAttachment(image: image, data: data))
-            }
-        }
+        attachmentState = .ready(InputAttachment(image: image))
     }
 
     func clearAttachment() {
         guard attachmentState != .none else { return }
-        attachmentGeneration &+= 1
         attachmentState = .none
+        onAttachmentCleared?()
     }
 
     func startRecording() { audioCoordinator.start() }
@@ -204,7 +189,6 @@ final class InputBarController {
     private func reset() {
         currentText = ""
         attachmentState = .none
-        attachmentGeneration &+= 1
         mode = .normal
     }
 

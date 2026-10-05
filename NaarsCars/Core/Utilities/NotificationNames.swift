@@ -40,6 +40,11 @@ extension Notification.Name {
     static let favorsDidSync = Notification.Name("favorsDidSync")
     /// See `ridesDidSync` for the posting/observing contract.
     static let notificationsDidSync = Notification.Name("notificationsDidSync")
+    /// Posted by `TownHallSyncEngine` (after a `BackgroundSyncActor` save) and `TownHallRepository`
+    /// (after a MainActor save) when town hall post rows changed. Same contract as `ridesDidSync`.
+    static let townHallPostsDidSync = Notification.Name("townHallPostsDidSync")
+    /// Posted by `TownHallRepository` after comment rows changed; `object` is the post's `UUID`.
+    static let townHallCommentsDidSync = Notification.Name("townHallCommentsDidSync")
 
     // MARK: - Ride flight enrichment
     /// Posted when flight_normalized was successfully saved for a ride (background task). userInfo["rideId"] = rideId (UUID). Subscribers should refetch that ride/list so UI shows the flight.

@@ -649,9 +649,9 @@ extension MessageThreadViewController: MessageCellDelegate {
             iv.trailingAnchor.constraint(equalTo: imageVC.view.trailingAnchor),
         ])
 
-        Task.detached(priority: .userInitiated) {
-            guard let data = try? Data(contentsOf: url), let img = UIImage(data: data) else { return }
-            await MainActor.run {
+        // Disk cache first: the bubble already stored this asset via PersistentImageService.
+        Task {
+            if let img = await PersistentImageService.shared.getImage(for: url.absoluteString) {
                 iv.image = img
             }
         }

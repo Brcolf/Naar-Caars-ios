@@ -79,6 +79,15 @@ final class MessageService {
     }
 
     private func hasRemoteConversationMembership(conversationId: UUID, userId: UUID) async -> Bool {
+        // The two reads are independent; run them concurrently so the cold path
+        // costs one round trip instead of two.
+        async let participantTask = hasActiveRemoteParticipantRow(conversationId: conversationId, userId: userId)
+        async let creatorTask = isRemoteConversationCreator(conversationId: conversationId, userId: userId)
+        let (hasParticipant, isCreator) = await (participantTask, creatorTask)
+        return hasParticipant || isCreator
+    }
+
+    private func hasActiveRemoteParticipantRow(conversationId: UUID, userId: UUID) async -> Bool {
         let participantCheck = try? await supabase
             .from("conversation_participants")
             .select("user_id")
@@ -88,6 +97,14 @@ final class MessageService {
             .limit(1)
             .execute()
 
+        guard let data = participantCheck?.data,
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return false
+        }
+        return !rows.isEmpty
+    }
+
+    private func isRemoteConversationCreator(conversationId: UUID, userId: UUID) async -> Bool {
         let conversationCheck = try? await supabase
             .from("conversations")
             .select("created_by")
@@ -96,21 +113,11 @@ final class MessageService {
             .limit(1)
             .execute()
 
-        let hasParticipant: Bool = {
-            guard let data = participantCheck?.data,
-                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return false
-            }
-            return !rows.isEmpty
-        }()
-        let isCreator: Bool = {
-            guard let data = conversationCheck?.data,
-                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return false
-            }
-            return !rows.isEmpty
-        }()
-        return hasParticipant || isCreator
+        guard let data = conversationCheck?.data,
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return false
+        }
+        return !rows.isEmpty
     }
 
     private func ensureConversationMembership(conversationId: UUID, userId: UUID) async -> Bool {
@@ -118,6 +125,31 @@ final class MessageService {
             return true
         }
         return await hasRemoteConversationMembership(conversationId: conversationId, userId: userId)
+    }
+
+    /// The user's most recent `conversation_participants` row for a conversation.
+    /// `leftAt == nil` means the row is active; `joinedAt` bounds history visibility.
+    private struct ParticipantRow: Codable {
+        let joinedAt: Date
+        let leftAt: Date?
+        enum CodingKeys: String, CodingKey {
+            case joinedAt = "joined_at"
+            case leftAt = "left_at"
+        }
+    }
+
+    private func fetchParticipantRow(conversationId: UUID, userId: UUID) async -> ParticipantRow? {
+        let response = try? await supabase
+            .from("conversation_participants")
+            .select("joined_at, left_at")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .order("joined_at", ascending: false)
+            .limit(1)
+            .single()
+            .execute()
+        guard let data = response?.data else { return nil }
+        return try? createDateDecoder().decode(ParticipantRow.self, from: data)
     }
     
     // MARK: - Fetch Messages
@@ -135,28 +167,20 @@ final class MessageService {
             throw AppError.notAuthenticated
         }
 
-        guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
-            throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
+        // One participant-row read serves both the membership check (an active row
+        // means the user is a participant) and the joined_at history visibility
+        // boundary. The fuller local/remote membership check only runs when no
+        // active row exists, e.g. for a creator who is not a participant.
+        let participantRow = await fetchParticipantRow(conversationId: conversationId, userId: currentUserId)
+        let isActiveParticipant = participantRow.map { $0.leftAt == nil } ?? false
+        if !isActiveParticipant {
+            guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
+                throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
+            }
         }
 
-        // Defense-in-depth: fetch participant's joined_at for history visibility boundary
-        let participantJoinedAt: Date? = await {
-            let resp = try? await supabase
-                .from("conversation_participants")
-                .select("joined_at")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .eq("user_id", value: currentUserId.uuidString)
-                .order("joined_at", ascending: false)
-                .limit(1)
-                .single()
-                .execute()
-            guard let data = resp?.data else { return nil }
-            struct JoinRow: Codable {
-                let joinedAt: Date
-                enum CodingKeys: String, CodingKey { case joinedAt = "joined_at" }
-            }
-            return try? createDateDecoder().decode(JoinRow.self, from: data).joinedAt
-        }()
+        // Defense-in-depth: participant's joined_at bounds history visibility
+        let participantJoinedAt = participantRow?.joinedAt
 
         var query = supabase
             .from("messages")
@@ -227,28 +251,20 @@ final class MessageService {
             throw AppError.notAuthenticated
         }
 
-        guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
-            throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
+        // One participant-row read serves both the membership check (an active row
+        // means the user is a participant) and the joined_at history visibility
+        // boundary. The fuller local/remote membership check only runs when no
+        // active row exists, e.g. for a creator who is not a participant.
+        let participantRow = await fetchParticipantRow(conversationId: conversationId, userId: currentUserId)
+        let isActiveParticipant = participantRow.map { $0.leftAt == nil } ?? false
+        if !isActiveParticipant {
+            guard await ensureConversationMembership(conversationId: conversationId, userId: currentUserId) else {
+                throw AppError.permissionDenied("You don't have permission to view messages in this conversation")
+            }
         }
 
-        // Defense-in-depth: fetch participant's joined_at for history visibility boundary
-        let participantJoinedAt: Date? = await {
-            let resp = try? await supabase
-                .from("conversation_participants")
-                .select("joined_at")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .eq("user_id", value: currentUserId.uuidString)
-                .order("joined_at", ascending: false)
-                .limit(1)
-                .single()
-                .execute()
-            guard let data = resp?.data else { return nil }
-            struct JoinRow: Codable {
-                let joinedAt: Date
-                enum CodingKeys: String, CodingKey { case joinedAt = "joined_at" }
-            }
-            return try? createDateDecoder().decode(JoinRow.self, from: data).joinedAt
-        }()
+        // Defense-in-depth: participant's joined_at bounds history visibility
+        let participantJoinedAt = participantRow?.joinedAt
 
         let effectiveAfter: Date
         if let participantJoinedAt = participantJoinedAt {
@@ -393,47 +409,54 @@ final class MessageService {
     // MARK: - Message Enrichment
 
     private func enrichMessages(_ messages: inout [Message]) async {
-        await attachReactions(to: &messages)
-        await attachReplyContexts(to: &messages)
-    }
-
-    private func attachReactions(to messages: inout [Message]) async {
         let messageIds = messages.map { $0.id.uuidString }
         guard !messageIds.isEmpty else { return }
-        
+        let replyIds = Array(Set(messages.compactMap { $0.replyToId }))
+
+        let (reactionsByMessage, replyContexts) = await fetchEnrichment(messageIds: messageIds, replyIds: replyIds)
+
+        for index in messages.indices {
+            // Attach reactions via centralized setter (maintains invariant)
+            if let recordsForMessage = reactionsByMessage[messages[index].id] {
+                messages[index].setIndividualReactions(recordsForMessage)
+            }
+            if let replyId = messages[index].replyToId,
+               let context = replyContexts[replyId] {
+                messages[index].replyToMessage = context
+            }
+        }
+    }
+
+    /// Reactions and reply contexts are independent reads; fetch them concurrently.
+    private func fetchEnrichment(
+        messageIds: [String],
+        replyIds: [UUID]
+    ) async -> ([UUID: [MessageReaction]], [UUID: ReplyContext]) {
+        async let reactionsTask = fetchReactionsByMessage(messageIds: messageIds)
+        async let replyContextsTask = fetchReplyContextsIfAny(for: replyIds)
+        return await (reactionsTask, replyContextsTask)
+    }
+
+    private func fetchReactionsByMessage(messageIds: [String]) async -> [UUID: [MessageReaction]] {
+        guard !messageIds.isEmpty else { return [:] }
+
         let reactionsResponse = try? await supabase
             .from("message_reactions")
             .select("id, message_id, user_id, reaction, created_at")
             .in("message_id", values: messageIds)
             .execute()
-        
-        guard let reactionsData = reactionsResponse?.data else { return }
+
+        guard let reactionsData = reactionsResponse?.data else { return [:] }
         let decoder = createDateDecoder()
         let reactions: [MessageReaction] = (try? decoder.decode([MessageReaction].self, from: reactionsData)) ?? []
-        
-        // Group reactions by message ID
-        let reactionsByMessage = Dictionary(grouping: reactions, by: \.messageId)
 
-        // Attach reactions to messages via centralized setter (maintains invariant)
-        for index in messages.indices {
-            if let recordsForMessage = reactionsByMessage[messages[index].id] {
-                messages[index].setIndividualReactions(recordsForMessage)
-            }
-        }
+        // Group reactions by message ID
+        return Dictionary(grouping: reactions, by: \.messageId)
     }
 
-    private func attachReplyContexts(to messages: inout [Message]) async {
-        let replyIds = Array(Set(messages.compactMap { $0.replyToId }))
-        guard !replyIds.isEmpty else { return }
-        
-        if let replyContexts = try? await fetchReplyContexts(for: replyIds) {
-            for index in messages.indices {
-                if let replyId = messages[index].replyToId,
-                   let context = replyContexts[replyId] {
-                    messages[index].replyToMessage = context
-                }
-            }
-        }
+    private func fetchReplyContextsIfAny(for replyIds: [UUID]) async -> [UUID: ReplyContext] {
+        guard !replyIds.isEmpty else { return [:] }
+        return (try? await fetchReplyContexts(for: replyIds)) ?? [:]
     }
 
     /// Fetch reply contexts for a set of message IDs
@@ -499,43 +522,14 @@ final class MessageService {
     /// - Returns: The created message
     /// - Throws: AppError if send fails
     func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, replyToId: UUID? = nil) async throws -> Message {
-        // Security check: Verify user is an active participant (left_at IS NULL) or conversation creator
-        let participantCheck = try? await supabase
-            .from("conversation_participants")
-            .select("user_id")
-            .eq("conversation_id", value: conversationId.uuidString)
-            .eq("user_id", value: fromId.uuidString)
-            .is("left_at", value: nil) // Only active participants; users who left must not send
-            .limit(1)
-            .execute()
-        
-        let conversationCheck = try? await supabase
-            .from("conversations")
-            .select("created_by")
-            .eq("id", value: conversationId.uuidString)
-            .eq("created_by", value: fromId.uuidString)
-            .limit(1)
-            .execute()
-        
-        let hasParticipant: Bool = {
-            guard let data = participantCheck?.data,
-                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return false
-            }
-            return !rows.isEmpty
-        }()
-        let isCreator: Bool = {
-            guard let data = conversationCheck?.data,
-                  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return false
-            }
-            return !rows.isEmpty
-        }()
-        let isParticipant = hasParticipant || isCreator
-        
+        // Security check: Verify user is an active participant (left_at IS NULL) or conversation creator.
+        // The SwiftData copy of the conversation answers this without a network round trip; the remote
+        // check only runs when the conversation is not cached. RLS remains the real boundary.
+        let isParticipant = await ensureConversationMembership(conversationId: conversationId, userId: fromId)
+
 #if DEBUG
         if !isParticipant {
-            AppLogger.database.debug("[Membership] sendMessage denied: conversationId=\(conversationId), fromId=\(fromId), hasParticipant=\(hasParticipant), isCreator=\(isCreator)")
+            AppLogger.database.debug("[Membership] sendMessage denied: conversationId=\(conversationId), fromId=\(fromId)")
         }
 #endif
         guard isParticipant else {

@@ -36,7 +36,7 @@ final class NotificationService {
     /// Unread notifications are always relevant, but we rely on the server
     /// returning recent rows plus any unread ones. 30 days is a generous
     /// window that keeps the payload small while covering all realistic cases.
-    private static let fetchHorizonDays: Int = 30
+    static let fetchHorizonDays: Int = 30
 
     func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
         if let inFlightTask = inFlightFetchesByUser[userId] {
@@ -199,6 +199,26 @@ final class NotificationService {
         
         invalidateCachedNotifications()
         AppLogger.info("notifications", "Marked notification \(notificationId) as read")
+    }
+    
+    /// Mark several notifications as read in a single request
+    /// - Parameter notificationIds: The notification IDs
+    /// - Throws: AppError if update fails
+    func markAsRead(notificationIds: [UUID]) async throws {
+        guard !notificationIds.isEmpty else { return }
+        
+        try await supabase
+            .from("notifications")
+            .update(["read": true])
+            .in("id", values: notificationIds.map { $0.uuidString })
+            .execute()
+        
+        if let userId = AuthService.shared.currentUserId {
+            invalidateCachedNotifications(for: userId)
+        } else {
+            invalidateCachedNotifications()
+        }
+        AppLogger.info("notifications", "Marked \(notificationIds.count) notifications as read")
     }
     
     /// Mark all notifications as read for a user

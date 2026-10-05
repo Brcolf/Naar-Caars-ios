@@ -238,30 +238,37 @@ actor BackgroundSyncActor {
     }
 
     /// Sync conversations (and their last messages) from network response to SwiftData.
-    /// Returns the set of conversation IDs that were changed so the caller can refresh publishers.
-    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID, excludeMessagesForConversation: UUID? = nil) throws -> Set<UUID> {
+    /// Returns the set of conversation IDs whose row or last message actually changed, or that were
+    /// deleted, so the caller can refresh only those publishers. Saves only when something changed.
+    ///
+    /// Reconciliation of removals is bounded by the page window: the server orders by `updated_at`
+    /// DESC and omits conversations the user has left or that were deleted, so a local conversation
+    /// absent from the page whose `updatedAt` is within the page's window would have been returned
+    /// if the user were still a member — it is deleted (cascade-deleting its cached messages).
+    /// A local conversation older than the window may simply be on a later page and is kept,
+    /// unless `serverSetIsComplete` is true (the page was short, so the whole server set is
+    /// present) — then every absent local conversation is deleted.
+    func syncConversations(_ payloads: [ConversationSyncPayload], currentUserId: UUID, excludeMessagesForConversation: UUID? = nil, serverSetIsComplete: Bool = false) throws -> Set<UUID> {
         var changedIds = Set<UUID>()
+        guard !payloads.isEmpty || serverSetIsComplete else { return changedIds }
 
-        // Batch fetch all existing SDConversations and SDMessages at once
-        let allLocalConvs = (try? modelContext.fetch(FetchDescriptor<SDConversation>())) ?? []
-        let existingConvById = Dictionary(uniqueKeysWithValues: allLocalConvs.map { ($0.id, $0) })
+        // Batch fetch only the rows this page can touch (not the whole SDMessage table)
+        let serverConvIds = payloads.map { $0.conversationId }
+        let convDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { serverConvIds.contains($0.id) })
+        let localConvs = serverConvIds.isEmpty ? [] : ((try? modelContext.fetch(convDescriptor)) ?? [])
+        var convById = Dictionary(uniqueKeysWithValues: localConvs.map { ($0.id, $0) })
 
-        let allLocalMsgs = (try? modelContext.fetch(FetchDescriptor<SDMessage>())) ?? []
-        let existingMsgById = Dictionary(uniqueKeysWithValues: allLocalMsgs.map { ($0.id, $0) })
-
-        let serverConvIds = Set(payloads.map { $0.conversationId })
+        let lastMessageIds = payloads.compactMap { $0.lastMessage?.id }
+        let msgDescriptor = FetchDescriptor<SDMessage>(predicate: #Predicate { lastMessageIds.contains($0.id) })
+        let localMsgs = lastMessageIds.isEmpty ? [] : ((try? modelContext.fetch(msgDescriptor)) ?? [])
+        let existingMsgById = Dictionary(uniqueKeysWithValues: localMsgs.map { ($0.id, $0) })
 
         for payload in payloads {
-            changedIds.insert(payload.conversationId)
-
             // Upsert conversation
-            if let existing = existingConvById[payload.conversationId] {
-                existing.title = payload.title
-                existing.groupImageUrl = payload.groupImageUrl
-                existing.isArchived = payload.isArchived
-                existing.updatedAt = payload.updatedAt
-                existing.unreadCount = payload.unreadCount
-                existing.participantIds = payload.participantIds
+            if let existing = convById[payload.conversationId] {
+                if updateSDConversationIfChanged(existing, with: payload) {
+                    changedIds.insert(payload.conversationId)
+                }
             } else {
                 let newSDConv = SDConversation(
                     id: payload.conversationId,
@@ -275,61 +282,53 @@ actor BackgroundSyncActor {
                 )
                 newSDConv.unreadCount = payload.unreadCount
                 modelContext.insert(newSDConv)
+                convById[payload.conversationId] = newSDConv
+                changedIds.insert(payload.conversationId)
             }
 
             // Upsert last message if present — skip for active conversation
             // to avoid concurrent writes with MainActor WebSocket path (INV-C1)
             if let msg = payload.lastMessage,
-               payload.conversationId != excludeMessagesForConversation {
-                upsertSDMessage(msg, existingById: existingMsgById, conversationId: payload.conversationId)
+               payload.conversationId != excludeMessagesForConversation,
+               upsertSDMessage(msg, existingById: existingMsgById, conversation: convById[payload.conversationId]) {
+                changedIds.insert(payload.conversationId)
             }
         }
 
-        // Delete stale conversations not on server
-        for local in allLocalConvs where !serverConvIds.contains(local.id) {
+        // Delete local conversations the server no longer returns, bounded by the page window
+        // (see the doc comment). Only the small SDConversation table is fetched here.
+        let absentDescriptor: FetchDescriptor<SDConversation>
+        if serverSetIsComplete {
+            absentDescriptor = FetchDescriptor<SDConversation>()
+        } else {
+            let oldestUpdatedAt = payloads.map { $0.updatedAt }.min() ?? Date.distantFuture
+            absentDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.updatedAt >= oldestUpdatedAt })
+        }
+        let serverConvIdSet = Set(serverConvIds)
+        let candidates = (try? modelContext.fetch(absentDescriptor)) ?? []
+        for local in candidates where !serverConvIdSet.contains(local.id) {
             modelContext.delete(local)
             changedIds.insert(local.id)
         }
 
-        try modelContext.save()
+        if !changedIds.isEmpty { try modelContext.save() }
         return changedIds
     }
 
     // MARK: - Internal sync logic
 
     /// Upsert a single SDMessage using a pre-fetched lookup dictionary.
+    /// Returns true if a row was inserted or a field actually changed.
     /// Intentionally does NOT manage publisher state — that stays on MainActor.
-    private func upsertSDMessage(_ message: Message, existingById: [UUID: SDMessage], conversationId: UUID) {
+    private func upsertSDMessage(_ message: Message, existingById: [UUID: SDMessage], conversation: SDConversation?) -> Bool {
         if let existing = existingById[message.id] {
-            existing.text = message.text
-            existing.readBy = message.readBy
-            existing.imageUrl = message.imageUrl
-            existing.audioUrl = message.audioUrl
-            existing.audioDuration = message.audioDuration
-            existing.latitude = message.latitude
-            existing.longitude = message.longitude
-            existing.locationName = message.locationName
-            existing.messageType = message.messageType?.rawValue ?? "text"
-            existing.replyToId = message.replyToId
-            existing.editedAt = message.editedAt
-            existing.deletedAt = message.deletedAt
-            existing.hiddenAt = message.hiddenAt
-            existing.hiddenBy = message.hiddenBy
-            existing.hiddenReason = message.hiddenReason
-            existing.status = message.sendStatus?.rawValue ?? "sent"
-            existing.localAttachmentPath = message.localAttachmentPath
-            existing.syncError = message.syncError
-            existing.isPending = (message.sendStatus?.rawValue ?? "sent") == "sending"
-        } else {
-            let sdMsg = MessagingMapper.mapToSDMessage(message)
-            // Link to conversation if it exists in this context
-            let convId = conversationId
-            let convFetch = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == convId })
-            if let sdConv = try? modelContext.fetch(convFetch).first {
-                sdMsg.conversation = sdConv
-            }
-            modelContext.insert(sdMsg)
+            return updateSDMessageIfChanged(existing, with: message)
         }
+        let sdMsg = MessagingMapper.mapToSDMessage(message)
+        // Link to conversation if it exists in this context
+        sdMsg.conversation = conversation
+        modelContext.insert(sdMsg)
+        return true
     }
 
     private func syncRidesInternal(_ rides: [Ride]) {
@@ -614,6 +613,47 @@ actor BackgroundSyncActor {
         return changed
     }
 
+    /// Returns true if any field was actually modified.
+    private func updateSDConversationIfChanged(_ sd: SDConversation, with payload: ConversationSyncPayload) -> Bool {
+        var changed = false
+        if sd.title != payload.title { sd.title = payload.title; changed = true }
+        if sd.groupImageUrl != payload.groupImageUrl { sd.groupImageUrl = payload.groupImageUrl; changed = true }
+        if sd.isArchived != payload.isArchived { sd.isArchived = payload.isArchived; changed = true }
+        if sd.updatedAt != payload.updatedAt { sd.updatedAt = payload.updatedAt; changed = true }
+        if sd.unreadCount != payload.unreadCount { sd.unreadCount = payload.unreadCount; changed = true }
+        if sd.participantIds != payload.participantIds { sd.participantIds = payload.participantIds; changed = true }
+        return changed
+    }
+
+    /// Returns true if any field was actually modified.
+    /// IMPORTANT: Must cover every field the conversation-list sync assigns to an existing SDMessage.
+    private func updateSDMessageIfChanged(_ sd: SDMessage, with message: Message) -> Bool {
+        var changed = false
+        let messageType = message.messageType?.rawValue ?? "text"
+        let status = message.sendStatus?.rawValue ?? "sent"
+        let isPending = status == "sending"
+        if sd.text != message.text { sd.text = message.text; changed = true }
+        if sd.readBy != message.readBy { sd.readBy = message.readBy; changed = true }
+        if sd.imageUrl != message.imageUrl { sd.imageUrl = message.imageUrl; changed = true }
+        if sd.audioUrl != message.audioUrl { sd.audioUrl = message.audioUrl; changed = true }
+        if sd.audioDuration != message.audioDuration { sd.audioDuration = message.audioDuration; changed = true }
+        if sd.latitude != message.latitude { sd.latitude = message.latitude; changed = true }
+        if sd.longitude != message.longitude { sd.longitude = message.longitude; changed = true }
+        if sd.locationName != message.locationName { sd.locationName = message.locationName; changed = true }
+        if sd.messageType != messageType { sd.messageType = messageType; changed = true }
+        if sd.replyToId != message.replyToId { sd.replyToId = message.replyToId; changed = true }
+        if sd.editedAt != message.editedAt { sd.editedAt = message.editedAt; changed = true }
+        if sd.deletedAt != message.deletedAt { sd.deletedAt = message.deletedAt; changed = true }
+        if sd.hiddenAt != message.hiddenAt { sd.hiddenAt = message.hiddenAt; changed = true }
+        if sd.hiddenBy != message.hiddenBy { sd.hiddenBy = message.hiddenBy; changed = true }
+        if sd.hiddenReason != message.hiddenReason { sd.hiddenReason = message.hiddenReason; changed = true }
+        if sd.status != status { sd.status = status; changed = true }
+        if sd.localAttachmentPath != message.localAttachmentPath { sd.localAttachmentPath = message.localAttachmentPath; changed = true }
+        if sd.syncError != message.syncError { sd.syncError = message.syncError; changed = true }
+        if sd.isPending != isPending { sd.isPending = isPending; changed = true }
+        return changed
+    }
+
     private func updateSDPostIfChanged(_ sd: SDTownHallPost, with post: TownHallPost) -> Bool {
         var changed = false
         if sd.title != post.title { sd.title = post.title; changed = true }
@@ -652,10 +692,16 @@ actor BackgroundSyncActor {
     // MARK: - Change-detection sync methods
 
     /// Full reconciliation with change detection. Only saves if at least one record changed.
-    /// Returns metrics for observability.
+    /// Returns metrics for observability plus per-entity change flags so the caller can post only
+    /// the `*DidSync` notifications whose entity set actually changed.
+    /// - Parameter notificationPruneHorizon: when non-nil, read notifications older than this that
+    ///   the server no longer returns are deleted locally (the server query only returns unread rows
+    ///   plus rows newer than its horizon, so these would otherwise accumulate for the life of the
+    ///   install). Pass nil to skip pruning, e.g. for guests whose notifications were not fetched.
     func syncAllWithChangeDetection(
-        rides: [Ride], favors: [Favor], notifications: [AppNotification]
-    ) throws -> RefreshMetrics {
+        rides: [Ride], favors: [Favor], notifications: [AppNotification],
+        notificationPruneHorizon: Date? = nil
+    ) throws -> DashboardSyncResult {
         let start = Date()
         var evaluated = 0, mutated = 0, inserted = 0, deleted = 0
 
@@ -693,6 +739,7 @@ actor BackgroundSyncActor {
             modelContext.delete(local)
             deleted += 1
         }
+        let touchedAfterRides = mutated + inserted + deleted
 
         // --- Favors ---
         let allLocalFavors = (try? modelContext.fetch(FetchDescriptor<SDFavor>())) ?? []
@@ -729,6 +776,7 @@ actor BackgroundSyncActor {
             modelContext.delete(local)
             deleted += 1
         }
+        let touchedAfterFavors = mutated + inserted + deleted
 
         // --- Notifications ---
         let allLocalNotifs = (try? modelContext.fetch(FetchDescriptor<SDNotification>())) ?? []
@@ -755,15 +803,31 @@ actor BackgroundSyncActor {
                 inserted += 1
             }
         }
+        // Prune read rows that fell outside the server fetch window. Unread rows are kept
+        // regardless of age — the server always returns them.
+        if let horizon = notificationPruneHorizon {
+            let serverNotifIds = Set(notifications.map { $0.id })
+            for local in allLocalNotifs where !serverNotifIds.contains(local.id) && local.read && local.createdAt < horizon {
+                modelContext.delete(local)
+                deleted += 1
+            }
+        }
+        let touchedTotal = mutated + inserted + deleted
 
-        let didMutate = mutated > 0 || inserted > 0 || deleted > 0
+        let didMutate = touchedTotal > 0
         if didMutate { try modelContext.save() }
 
-        return RefreshMetrics(
+        let metrics = RefreshMetrics(
             recordsEvaluated: evaluated, recordsMutated: mutated,
             recordsInserted: inserted, recordsDeleted: deleted,
             savedToStore: didMutate,
             durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+        return DashboardSyncResult(
+            metrics: metrics,
+            ridesChanged: touchedAfterRides > 0,
+            favorsChanged: touchedAfterFavors > touchedAfterRides,
+            notificationsChanged: touchedTotal > touchedAfterFavors
         )
     }
 
@@ -990,6 +1054,17 @@ actor BackgroundSyncActor {
             durationMs: Int(Date().timeIntervalSince(start) * 1000)
         )
     }
+}
+
+// MARK: - Dashboard sync result
+
+/// Result of `syncAllWithChangeDetection`: aggregate metrics plus which entity sets actually changed,
+/// so `DashboardSyncEngine` posts only the matching `*DidSync` notifications.
+struct DashboardSyncResult: Sendable {
+    let metrics: RefreshMetrics
+    let ridesChanged: Bool
+    let favorsChanged: Bool
+    let notificationsChanged: Bool
 }
 
 // MARK: - Conversation sync payload

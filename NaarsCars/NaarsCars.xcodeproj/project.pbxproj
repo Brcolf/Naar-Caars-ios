@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DEEA249A5E3AFF0D21B3209E /* BackgroundSyncActorConversationSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F3F64ED6F3F0825347EA8 /* BackgroundSyncActorConversationSyncTests.swift */; };
 		3811CB0DF3F7D62E1E93F545 /* ReportContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0705203B5FC1596DCA56B5B1 /* ReportContentViewModel.swift */; };
 		1D534F51AD19917397A72E3D /* ReviewPromptViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE8A64455C177A13FACFDBD /* ReviewPromptViewModel.swift */; };
 		CA5EB75288B43B5E1402BD43 /* BlockedUsersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EA476C1A00E8E575B889EC /* BlockedUsersViewModel.swift */; };
@@ -496,6 +497,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		385F3F64ED6F3F0825347EA8 /* BackgroundSyncActorConversationSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncActorConversationSyncTests.swift; sourceTree = "<group>"; };
 		0705203B5FC1596DCA56B5B1 /* ReportContentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportContentViewModel.swift; sourceTree = "<group>"; };
 		ABE8A64455C177A13FACFDBD /* ReviewPromptViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptViewModel.swift; sourceTree = "<group>"; };
 		32EA476C1A00E8E575B889EC /* BlockedUsersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockedUsersViewModel.swift; sourceTree = "<group>"; };
@@ -1403,6 +1405,7 @@
 			children = (
 				AC9DDD142F2B1379003465D3 /* MessagingMapperTests.swift */,
 				AC9DDD152F2B1379003465D3 /* MessagingRepositoryTests.swift */,
+				385F3F64ED6F3F0825347EA8 /* BackgroundSyncActorConversationSyncTests.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -2892,6 +2895,7 @@
 				5A27F6DCE56AAE7163DF3843 /* DeepLinkParserTests.swift in Sources */,
 				9F59B80A6C617AE74B0445AE /* ThrottlerTests.swift in Sources */,
 				84CC81DC3F7ED93C173866D1 /* FlightCodeParserTests.swift in Sources */,
+				DEEA249A5E3AFF0D21B3209E /* BackgroundSyncActorConversationSyncTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

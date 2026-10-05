@@ -18,6 +18,9 @@ final class AvatarUIView: UIView {
     // MARK: - Generation counter (cell-reuse safety)
 
     private var loadGeneration: UInt64 = 0
+    /// URL of the image currently loaded (or loading), so a reconfigure with the
+    /// same URL keeps the displayed image instead of blanking and re-reading it.
+    private var lastImageUrl: String?
 
     // MARK: - Init
 
@@ -74,6 +77,14 @@ final class AvatarUIView: UIView {
         accessibilityLabel = name
         accessibilityTraits = .image
 
+        // Skip redundant load — same URL already displayed (mirrors ImageBubbleView).
+        // Read-receipt and reaction reconfigures hit this path on every pass.
+        if let urlString = imageUrl, !urlString.isEmpty,
+           urlString == lastImageUrl, imageView.image != nil, !imageView.isHidden {
+            return
+        }
+        lastImageUrl = imageUrl
+
         loadGeneration &+= 1
         let gen = loadGeneration
 
@@ -103,6 +114,7 @@ final class AvatarUIView: UIView {
 
     func prepareForReuse() {
         loadGeneration &+= 1
+        lastImageUrl = nil
         imageView.image = nil
         imageView.isHidden = true
         initialsLabel.isHidden = false

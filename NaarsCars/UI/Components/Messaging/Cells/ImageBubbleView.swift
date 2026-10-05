@@ -29,7 +29,16 @@ final class ImageBubbleView: UIView {
     // MARK: - Constants
 
     private let maxSize: CGFloat = 220
+    private let maxHeight: CGFloat = 300
     private let cornerRad: CGFloat = 18
+
+    /// Largest bitmap (in pixels) the bubble can ever display: `sizeThatFits`
+    /// caps the view at `maxSize` x `maxHeight` points, so anything beyond
+    /// that at the screen scale is wasted decode time and resident memory.
+    private var thumbnailPixelBounds: CGSize {
+        let scale = window?.screen.scale ?? UIScreen.main.scale
+        return CGSize(width: maxSize * scale, height: maxHeight * scale)
+    }
 
     // MARK: - Init
 
@@ -91,9 +100,13 @@ final class ImageBubbleView: UIView {
 
         loadGeneration &+= 1
         let gen = loadGeneration
+        let pixelBounds = thumbnailPixelBounds
 
         Task { [weak self] in
-            let img = await PersistentImageService.shared.getImage(for: remoteUrl)
+            var img = await PersistentImageService.shared.getImage(for: remoteUrl)
+            if let full = img {
+                img = await Self.downsampled(full, toFit: pixelBounds)
+            }
             guard let self, self.loadGeneration == gen else { return }
             if let img {
                 self.showImage(img)
@@ -128,12 +141,16 @@ final class ImageBubbleView: UIView {
 
         loadGeneration &+= 1
         let gen = loadGeneration
+        let pixelBounds = thumbnailPixelBounds
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            let img: UIImage? = {
+            var img: UIImage? = {
                 guard let data = try? Data(contentsOf: fileURL) else { return nil }
                 return UIImage(data: data)
             }()
+            if let full = img {
+                img = await Self.downsampled(full, toFit: pixelBounds)
+            }
             await MainActor.run {
                 guard let self, self.loadGeneration == gen else { return }
                 if let img {
@@ -143,6 +160,27 @@ final class ImageBubbleView: UIView {
                 }
             }
         }
+    }
+
+    // MARK: - Downsampling
+
+    /// Decode a display-sized thumbnail instead of retaining the full capture
+    /// (a 12 MP photo is ~48 MB decoded; the bubble needs well under 1 MB).
+    /// Aspect ratio is preserved and images already within bounds are returned
+    /// untouched. Runs off the main actor; the caller re-checks `loadGeneration`.
+    private nonisolated static func downsampled(_ image: UIImage, toFit maxPixelSize: CGSize) async -> UIImage {
+        let pixelWidth = image.size.width * image.scale
+        let pixelHeight = image.size.height * image.scale
+        guard pixelWidth > 0, pixelHeight > 0,
+              pixelWidth > maxPixelSize.width || pixelHeight > maxPixelSize.height else {
+            return image
+        }
+        let ratio = min(maxPixelSize.width / pixelWidth, maxPixelSize.height / pixelHeight)
+        let target = CGSize(
+            width: max(1, (pixelWidth * ratio).rounded(.down)),
+            height: max(1, (pixelHeight * ratio).rounded(.down))
+        )
+        return await image.byPreparingThumbnail(ofSize: target) ?? image
     }
 
     // MARK: - States
@@ -199,8 +237,8 @@ final class ImageBubbleView: UIView {
         var width = min(CGFloat(w), min(size.width, maxSize))
         var height = width * aspectRatio
         // Cap height at 300pt — but recalculate width to maintain aspect ratio
-        if height > 300 {
-            height = 300
+        if height > maxHeight {
+            height = maxHeight
             width = height / aspectRatio
         }
         return CGSize(width: width, height: height)

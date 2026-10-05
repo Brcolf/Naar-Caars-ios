@@ -82,16 +82,24 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         guard let userId = authService.currentUserId else { return .empty }
         let start = Date()
 
-        let remoteConversations = try await conversationService.fetchConversations(userId: userId)
+        let pageSize = Constants.PageSizes.conversations
+        let remoteConversations = try await conversationService.fetchConversations(userId: userId, limit: pageSize, offset: 0)
         guard !Task.isCancelled else { throw CancellationError() }
 
         if let backgroundActor {
             let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
             let changedIds = try await backgroundActor.syncConversations(
                 payloads, currentUserId: userId,
-                excludeMessagesForConversation: RefreshCoordinator.shared.activeConversationId
+                excludeMessagesForConversation: RefreshCoordinator.shared.activeConversationId,
+                // A short page means the server returned every conversation the user is still in,
+                // so the actor may delete any local conversation absent from it.
+                serverSetIsComplete: remoteConversations.count < pageSize
             )
-            repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
+            // An empty set means nothing was saved, so no publisher has anything new to emit;
+            // passing it through would trigger the repository's full-rebuild path on every no-op sync.
+            if !changedIds.isEmpty {
+                repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
+            }
 
             health.recordSuccess()
             return RefreshMetrics(
@@ -153,11 +161,12 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                         self.conversationService.unhideConversationForUser(conversationId: message.conversationId, userId: userId)
                     }
 
-                    // Media Pre-caching
-                    if let imageUrl = message.imageUrl {
-                        precacheMedia(url: imageUrl)
-                    }
-                    if let audioUrl = message.audioUrl {
+                    // Audio pre-caching: warm URLCache so the first tap (MessageAudioPlayer downloads
+                    // the whole file) is a cache hit. Only on insert — edits, unsends and moderation
+                    // hides re-deliver the same URL. Images are not pre-fetched here: the visible cell
+                    // loads them through PersistentImageService immediately, so the URLCache warm-up
+                    // was a second full download of the same bytes.
+                    if result == .inserted, let audioUrl = message.audioUrl {
                         precacheMedia(url: audioUrl)
                     }
 
@@ -337,12 +346,9 @@ final class MessagingSyncEngine: SyncEngineProtocol {
             )
             guard !Task.isCancelled else { return }
 
-            var changedCount = 0
-            for message in messages {
-                let result = try repository.upsertMessageDetailed(message)
-                if case .contentChanged = result { changedCount += 1 }
-                if case .inserted = result { changedCount += 1 }
-            }
+            // Batch upsert: one prefetch of existing rows instead of a SwiftData fetch per message.
+            let results = try repository.upsertMessagesDetailed(messages)
+            let changedCount = results.values.filter { $0 == .contentChanged || $0 == .inserted }.count
 
             if changedCount > 0 {
                 let saveStart = Date()

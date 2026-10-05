@@ -26,17 +26,47 @@ struct LinkPreviewData: Equatable, Sendable {
     }
 }
 
-/// Service for fetching link preview metadata
-class LinkPreviewService {
+/// Service for fetching link preview metadata.
+///
+/// Cache bounds and invalidation: at most `maxCachedPreviews` entries and
+/// `maxCachedImageBytes` of og:image bytes, evicted by NSCache (count/cost limits
+/// and memory pressure); a successful preview is otherwise kept for the process
+/// lifetime because a URL's metadata is effectively immutable for a session.
+/// Failed fetches are cached for `failureTTL` so scrolling past a dead link does
+/// not refetch on every cell configure. Concurrent requests for one URL join a
+/// single in-flight task, and each fetch gets its own `LPMetadataProvider`
+/// (the provider is a one-shot object; reusing one throws an
+/// NSInternalInconsistencyException on the second fetch).
+actor LinkPreviewService {
     static let shared = LinkPreviewService()
-    
-    private var cache: [URL: LinkPreviewData] = [:]
-    private let metadataProvider = LPMetadataProvider()
-    
+
+    private final class CacheEntry: Sendable {
+        let preview: LinkPreviewData
+        /// Set only for failed fetches, which are retried once this passes.
+        let expiresAt: Date?
+
+        init(preview: LinkPreviewData, expiresAt: Date?) {
+            self.preview = preview
+            self.expiresAt = expiresAt
+        }
+    }
+
+    private static let maxCachedPreviews = 100
+    private static let maxCachedImageBytes = 8 * 1024 * 1024
+    private static let failureTTL: TimeInterval = 60
+
+    private let cache: NSCache<NSURL, CacheEntry> = {
+        let cache = NSCache<NSURL, CacheEntry>()
+        cache.countLimit = LinkPreviewService.maxCachedPreviews
+        cache.totalCostLimit = LinkPreviewService.maxCachedImageBytes
+        return cache
+    }()
+    private var inFlight: [URL: Task<CacheEntry, Never>] = [:]
+
     private init() {}
-    
+
     /// Extract URLs from text
-    func extractURLs(from text: String) -> [URL] {
+    nonisolated func extractURLs(from text: String) -> [URL] {
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches = detector?.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text)) ?? []
         
@@ -49,20 +79,43 @@ class LinkPreviewService {
     
     /// Fetch link preview metadata
     func fetchPreview(for url: URL) async -> LinkPreviewData? {
-        // Check cache first
-        if let cached = cache[url] {
-            return cached
+        let key = url as NSURL
+
+        // Check cache first (expired failure entries fall through to a refetch)
+        if let cached = cache.object(forKey: key) {
+            if let expiresAt = cached.expiresAt, expiresAt <= Date() {
+                cache.removeObject(forKey: key)
+            } else {
+                return cached.preview
+            }
         }
-        
-        // Fetch metadata
+
+        // Join an in-flight fetch for the same URL
+        if let existing = inFlight[url] {
+            return await existing.value.preview
+        }
+
+        let task = Task { await Self.loadPreview(for: url) }
+        inFlight[url] = task
+        let entry = await task.value
+        inFlight[url] = nil
+
+        cache.setObject(entry, forKey: key, cost: entry.preview.imageData?.count ?? 0)
+        return entry.preview
+    }
+
+    /// One fetch with a fresh one-shot provider. Runs off the actor so a slow
+    /// page does not block cache lookups for other URLs.
+    private static func loadPreview(for url: URL) async -> CacheEntry {
+        let metadataProvider = LPMetadataProvider()
         do {
             let metadata = try await metadataProvider.startFetchingMetadata(for: url)
-            
+
             var imageData: Data? = nil
             if let imageProvider = metadata.imageProvider {
                 imageData = await loadImageData(from: imageProvider)
             }
-            
+
             let preview = LinkPreviewData(
                 url: url,
                 title: metadata.title,
@@ -70,22 +123,21 @@ class LinkPreviewService {
                 imageData: imageData,
                 siteName: metadata.url?.host
             )
-            
-            cache[url] = preview
-            return preview
+            return CacheEntry(preview: preview, expiresAt: nil)
         } catch {
-            // Return basic preview on error
-            return LinkPreviewData(
+            // Return basic preview on error, cached briefly to avoid refetch storms
+            let fallback = LinkPreviewData(
                 url: url,
                 title: nil,
                 description: nil,
                 imageData: nil,
                 siteName: url.host
             )
+            return CacheEntry(preview: fallback, expiresAt: Date().addingTimeInterval(failureTTL))
         }
     }
-    
-    private func loadImageData(from provider: NSItemProvider) async -> Data? {
+
+    private static func loadImageData(from provider: NSItemProvider) async -> Data? {
         let image: UIImage? = await withCheckedContinuation { continuation in
             if provider.canLoadObject(ofClass: UIImage.self) {
                 provider.loadObject(ofClass: UIImage.self) { object, _ in
