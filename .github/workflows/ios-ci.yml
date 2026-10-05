@@ -108,6 +108,18 @@ jobs:
           if [ -z "$DEVICE" ]; then echo "::error::No available iPhone simulator"; xcrun simctl list devices available; exit 1; fi
           echo "Using simulator: $DEVICE"
           echo "DESTINATION=platform=iOS Simulator,name=$DEVICE" >> "$GITHUB_ENV"
+          echo "SIM_DEVICE=$DEVICE" >> "$GITHUB_ENV"
+
+      - name: Boot the simulator ahead of time
+        # A fresh runner can take minutes to boot a device; booting here (and waiting for
+        # it) keeps that out of xcodebuild's own launch timeout, which otherwise surfaces
+        # as an "Early unexpected exit" with no test cases run.
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys,os; d=json.load(sys.stdin); print(next(dev["udid"] for rt,devs in d["devices"].items() if "iOS" in rt for dev in devs if dev["name"]==os.environ["SIM_DEVICE"]))')
+          echo "Booting $SIM_DEVICE ($UDID)"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl list devices booted
 
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project "$PROJECT" -scheme "$SCHEME" -derivedDataPath "$DERIVED_DATA"
@@ -147,15 +159,27 @@ jobs:
             -default-test-execution-time-allowance 60 \
             -maximum-test-execution-time-allowance 120 \
             -resultBundlePath build/UnitTests.xcresult \
-            2>&1 | tee build/test.log | grep -E 'Test (Case|Suite).*(passed|failed)|error:|\*\* TEST' || true
-          grep -q 'TEST EXECUTE SUCCEEDED\|TEST SUCCEEDED' build/test.log
+            2>&1 | tee build/test.log | grep -E 'Test (Case|Suite).*(passed|failed)|error:|Testing failed|Early unexpected exit|Failed to|crash|\*\* TEST' || true
+          if ! grep -q 'TEST EXECUTE SUCCEEDED\|TEST SUCCEEDED' build/test.log; then
+            echo "::group::Last 200 lines of test.log"
+            tail -200 build/test.log
+            echo "::endgroup::"
+            echo "::group::xcresult summary"
+            xcrun xcresulttool get test-results summary --path build/UnitTests.xcresult 2>/dev/null || echo "no result bundle"
+            echo "::endgroup::"
+            echo "::group::Host app crash reports (newest first)"
+            ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | head -5
+            for f in $(ls -t ~/Library/Logs/DiagnosticReports/*NaarsCars* 2>/dev/null | head -2); do echo "== $f"; head -60 "$f"; done
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: Test summary
         if: always()
         run: |
           echo "## Unit tests" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          xcrun xcresulttool get test-results summary --path build/UnitTests.xcresult 2>/dev/null | head -60 >> "$GITHUB_STEP_SUMMARY" || echo "no result bundle" >> "$GITHUB_STEP_SUMMARY"
+          xcrun xcresulttool get test-results summary --path build/UnitTests.xcresult 2>/dev/null | head -60 | tee -a "$GITHUB_STEP_SUMMARY" || echo "no result bundle" | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload logs and result bundle
