@@ -69,6 +69,39 @@ the "Needs your Mac" section has been compiled or run. Do that first.
   `20261005_0004` in the SQL editor; dropping the two disabled triggers and
   `upsert_profile_for_signup`; leaked-password protection; the simulator checklist.
 
+## Mac execution of the next steps (2026-10-05, later the same day)
+
+Everything in sections A–C below that did not need Xcode's GUI or a dashboard login
+was done on the Mac in commits `e804569`…`7e6c363`:
+
+- **A done.** `claude/eloquent-hypatia-rar9pm` is merged (`e804569`), including the
+  iOS 26.0 deployment target, the Xcode 26.6 verification lanes, the CI workflow and
+  the project slash commands. Conflicts were resolved toward this branch's structure;
+  `project.pbxproj` keeps this branch's references (the other branch's duplicate
+  registrations of the same test files were removed; 72 test files, no duplicates,
+  no dangling references).
+- **B done**, as tasks 1–7 plus three follow-ups: push-notification tests use an
+  injectable authorization seam (`NotificationAuthorizationRequesting`); Town Hall
+  feed, leaderboard, notification-service and profile tests are session-gated with
+  thrown `XCTSkip`; launch-path and percentile tests are deterministic; phone fixtures
+  are PhoneNumberKit-valid; `ImageCompressor` now resizes in pixel space at scale 1
+  (all 9 image tests pass). Two test-isolation bugs explained the long-standing
+  "live backend 500" failures and are fixed (see CLAUDE.md Audit Notes).
+- **C partly done.** Publishable-key docs updated (`4df914d`). The Supabase dashboard
+  items (migration `20261005_0004`, the trigger/function drops, leaked-password
+  protection) were declined by the MCP confirmation gate twice and remain manual.
+- **Closing run** (clean DerivedData, Xcode 26.6, headless iPhone 16 / iOS 26.5):
+  349 cases, 314 passed, 2 failed, 33 skipped; 0 compile errors; no build warning is
+  attributable to any line added after `c921f14`.
+- **Two confirmed production bugs are NOT fixed** (fix was blocked in the Mac session;
+  needs the owner): `ConversationDetailViewModel` drops the `.conversationUpdated`
+  object when re-posting on the main actor, and `MessagingSyncEngine.shouldIgnoreReadByUpdate`
+  suppresses every `read_by`-only realtime update instead of only the current user's
+  echo. Both are documented with file:line and fix sketches in CLAUDE.md Audit Notes;
+  their two tests stay red on purpose.
+- **Still manual:** dead-file deletion in Xcode; the simulator checklist with a
+  non-admin account; the three dashboard items above.
+
 ## Next steps for the cloud session (written on the Mac, 2026-10-05)
 
 The branch now has four Mac commits on top of `c921f14` (`0ad48c5`, `ec79930`,
