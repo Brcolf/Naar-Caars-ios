@@ -118,7 +118,11 @@ struct ImageCompressor {
         }
         
         // Use UIGraphicsImageRenderer for high-quality resizing on iOS
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        // Render at scale 1 so the bitmap is exactly newSize pixels; the default format
+        // uses the screen scale (3x), which made output 3x larger than the preset's max.
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }
