@@ -20,8 +20,13 @@ final class TownHallServiceTests: XCTestCase {
     /// Test that fetchPosts returns posts ordered by createdAt descending
     func testFetchPosts_OrderedByDate() async throws {
         // Given: A request to fetch posts
-        // Note: This test requires a real Supabase connection
-        // In a real scenario, you'd mock the Supabase client
+        // Note: This test requires a real Supabase connection (an anonymous read is
+        // enough, so no signed-in user is needed). With the CI placeholder
+        // Secrets.swift the client points at an unresolvable host, so skip there
+        // the same way SupabaseConnectionTests does.
+        guard Secrets.isConfigured else {
+            throw XCTSkip("Secrets.swift is the CI placeholder; credentials are not configured")
+        }
         
         // When: Fetching posts
         do {
