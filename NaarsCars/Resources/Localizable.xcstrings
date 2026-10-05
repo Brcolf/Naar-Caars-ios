@@ -31446,6 +31446,28 @@
         }
       }
     },
+    "profile_delete_account_confirm" : {
+      "comment" : "Destructive confirm button in the Delete Account alert (BannedAccountView).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account"
+          }
+        }
+      }
+    },
+    "profile_delete_account_message" : {
+      "comment" : "Body of the Delete Account alert (BannedAccountView).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will permanently delete your account including all rides, favors, messages, reviews, and Town Hall posts. Active requests you've claimed will be reopened for others. This cannot be undone."
+          }
+        }
+      }
+    },
     "profile_delete_warning" : {
       "extractionState" : "stale",
       "localizations" : {
