@@ -39,6 +39,36 @@ the "Needs your Mac" section has been compiled or run. Do that first.
   12 new source files registered. Every build-phase reference resolves to a file on disk.
 - **Docs**: README, AGENTS, SECURITY, privacy header, messaging review note, CLAUDE.md.
 
+## Mac verification (2026-10-05, Xcode 26.6, headless Lane B)
+
+- **Build**: `xcodebuild … build` succeeds after `3ed86da` (one compile error and two
+  new warnings in the branch's files, one test-target compile error in `ThrottlerTests`,
+  one test-mock mismatch in `ClaimServiceTests`). No warning in the build log is
+  attributable to a line this branch added; the ~110 remaining warnings predate it.
+- **Unit tests** (clean DerivedData, one simulator, UI tests skipped): 349 cases,
+  314 passed, 25 failed, 10 skipped. Of the 25: 19 are the baseline failures already
+  listed in CLAUDE.md (ImageCompressor ×4, Validators ×3, Leaderboard ×4,
+  NotificationService ×4, AppLaunchManager state transition, ConversationDetailViewModel
+  realtime, MessagingSyncEngine readBy, MyProfileViewModel); 3 are
+  `PushNotificationServiceTests` (live backend ×2, permission alert timeout); 2 are the
+  live-data `TownHallFeedViewModelTests` and 1 is the timing-based
+  `PerformanceImprovementsTests.testPerformanceMonitorPercentiles`, all three of which
+  pass when run in isolation. The handoff's named classes (`ClaimServiceTests`,
+  `AppLaunchManagerTests` perf case, `SupabaseConnectionTests`, `ThrottlerTests`,
+  `ConversationsListViewModelTests`, …) are green in isolation.
+- **Credentials**: the local `Secrets.swift` now carries the `sb_publishable_…` key
+  (legacy JWT copy kept outside the repo). `SupabaseConnectionTests` and the live
+  Town Hall fetches pass against it, so REST accepts the new key. Legacy JWT keys must
+  stay enabled until a build with this key has shipped.
+- **Repo hygiene done**: `.DS_Store`, `package-lock.json`, `supabase/.temp/*`,
+  `QA/Reports/**/*.log` untracked; the eight `NaarsCars/*.swift` symlinks deleted;
+  `build/` gitignored.
+- **Still manual**: deleting the dead source files in Xcode (`MessagingDebugView`,
+  `Logger`, `RidesDashboardView`/`ViewModel` + test, `FavorsDashboardView`/`ViewModel`
+  + test, `DirectMessageContainerView`) — their project references must go with them;
+  `20261005_0004` in the SQL editor; dropping the two disabled triggers and
+  `upsert_profile_for_signup`; leaked-password protection; the simulator checklist.
+
 ## Needs your Mac (in this order)
 
 1. `git fetch && git checkout claude/quirky-gates-4bkmv4`, open the project, build
