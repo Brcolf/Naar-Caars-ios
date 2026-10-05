@@ -69,6 +69,82 @@ the "Needs your Mac" section has been compiled or run. Do that first.
   `20261005_0004` in the SQL editor; dropping the two disabled triggers and
   `upsert_profile_for_signup`; leaked-password protection; the simulator checklist.
 
+## Next steps for the cloud session (written on the Mac, 2026-10-05)
+
+The branch now has four Mac commits on top of `c921f14` (`0ad48c5`, `ec79930`,
+`3ed86da`, `3cea181`). Pull before doing anything. Everything below is ordered by
+what needs no Mac first.
+
+### A. Reconcile with `claude/eloquent-hypatia-rar9pm` (cloud can do this)
+
+That branch was developed in parallel from the same merge-base (`1898859`) and is
+pushed. It carries `38d304d` (agent tooling for Xcode 26.6, Lane A/B/C), `0634cca`,
+`5036a2c` (RenderPreview variant names), `e599c32` (test-target wiring repair) and
+`6bb6df3` (deployment target raised to iOS 26.0 on all three targets — check whether
+that was intended before merging it; CLAUDE.md on this branch still says the target
+is iOS 17 and under review). Files modified by both branches since the merge-base,
+so they will conflict:
+
+`CLAUDE.md`, `README.md`, `AGENTS.md`, `.gitignore`, `.claude/settings.json`,
+`scripts/verify-xcode-file-sync.sh`, `NaarsCars/NaarsCars.xcodeproj/project.pbxproj`,
+`NaarsCarsTests/Core/Services/PerformanceImprovementsTests.swift` (both branches move
+it), and the eight `NaarsCars/*.swift` symlinks (both branches delete them).
+
+Resolution guidance: for the docs, keep this branch's structure and fold in hypatia's
+verification-lane and MCP-tool sections (they describe the only lanes that work on the
+8 GB Mac). For `project.pbxproj`, take this branch's version wholesale — `7fcf3ff`
+is a superset of `e599c32`, and the Mac build confirmed every reference resolves.
+Do the merge in a scratch branch and leave it for a Mac build before merging to main.
+
+### B. Tests the cloud can fix without a Mac (then a Mac run confirms)
+
+1. `PushNotificationServiceTests` — now attached by `7fcf3ff`, so it runs in every
+   suite: `testRequestPermission_ReturnsStatus` blocks on the simulator permission
+   alert (times out at 60 s under `-test-timeouts-enabled`), and the register/remove
+   token cases hit the live project. Inject a `UNUserNotificationCenter` stub and a
+   mocked service, or `XCTSkip` the three until then.
+2. `TownHallFeedViewModelTests.testLoadMore_LoadsAdditionalPosts` /
+   `testDeletePost_RemovesFromArray` — live-backend tests whose outcome depends on how
+   many posts exist and on sign-in state (they failed in the full run, passed in
+   isolation). Mock `TownHallService` through the existing protocol.
+3. `PerformanceImprovementsTests.testPerformanceMonitorPercentiles` and
+   `AppLaunchManagerTests.testCriticalLaunchPathPerformance` — timing thresholds
+   (the latter was 2.016 s against a 2.0 s limit while the Mac was under load).
+   Relax or move to a measure block.
+4. `AppLaunchManagerTests.testLaunchStateTransitions` asserts `.initializing` after
+   launch has already run — test bug, not app bug.
+5. The remaining baseline failures that are real assertions, not live-backend:
+   `ImageCompressorTests` ×4 (these corroborate the unverified findings
+   `images-media-1-1` / `utilities-maps-1-1`: resize renders at screen scale, so the
+   presets overshoot), `ValidatorsTests` phone ×3, `MessagingSyncEngineTests` readBy,
+   `MyProfileViewModelTests`, `ConversationDetailViewModelRealtimeTests`. Each needs
+   a decision: fix the code or fix the test.
+6. `LeaderboardServiceTests` ×4 and `NotificationServiceTests` ×4 are live-backend
+   tests that get HTTP 500 anonymously — mock the services or skip.
+
+### C. Backend follow-ups (cloud can prepare; dashboard actions are the user's)
+
+- `20261005_0004` is still unapplied: the MCP declined `CREATE OR REPLACE` here too.
+  Once the user runs it in the SQL editor, update the file's STATUS header.
+- Push delivery evidence is thin: the only queue row with a real `sent_at` in the
+  last 24 h is the handoff's own test row, and `function_edge_logs` show two
+  invocations with no status code. Ask the user to send a message between two
+  accounts on real devices and confirm a push arrives before the two disabled
+  triggers are dropped.
+- `notification_queue` still has 197 rows with `sent_at IS NULL`, the oldest from
+  2026-01-21. The 330-row suppression did not cover them; decide whether they are
+  stale (suppress with the same sentinel timestamp) or stuck.
+- Credential rotation: the local `Secrets.swift` is on the `sb_publishable_…` key and
+  REST accepts it. Update `Secrets.swift.template`, `README.md` and the comment in
+  `obfuscate.swift` to describe the publishable key as the expected value. Legacy JWT
+  keys must stay enabled until a build with the new key has shipped on the App Store.
+
+### D. Mac-only (the user)
+
+- Delete the seven dead files and their references in Xcode (see "Still manual").
+- Run the simulator checklist in "Needs your Mac" step 3 with a non-admin account.
+- Decide what to do with the `.worktrees/hypatia` checkout once A is merged.
+
 ## Needs your Mac (in this order)
 
 1. `git fetch && git checkout claude/quirky-gates-4bkmv4`, open the project, build
