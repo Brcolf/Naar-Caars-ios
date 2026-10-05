@@ -16,7 +16,7 @@ Native iOS app for Naar's Cars — a community platform where neighbors help eac
 | Backend | Supabase (Postgres, Auth, Storage, RPC, Realtime) + Firebase (push, crash) |
 | Local storage | SwiftData (cache + durable pending-send queue) |
 | Minimum iOS | 17.0 |
-| Tooling | Xcode 16+ |
+| Tooling | Xcode 26.6 (Swift 6.3 toolchain, Swift 5 language mode) |
 
 **Dependencies (SPM, Xcode-managed):** `supabase-swift` v2.5.1+, `firebase-ios-sdk` v12.8.0+, `PhoneNumberKit` v4.0.0+.
 
@@ -50,8 +50,8 @@ naars-cars-ios/
 ## 🚀 Building Locally
 
 ### Prerequisites
-- macOS Sonoma 14.0+
-- Xcode 16+
+- macOS 15.6+ (required by Xcode 26)
+- Xcode 26.6
 - Supabase project credentials (URL + anon key)
 - Apple Developer account (for signing real devices / TestFlight)
 

@@ -43,3 +43,6 @@ GoogleService-Info.plist
 .mcp.json
 
 
+
+# Local build output (Lane B headless builds, CI-style result bundles)
+build/

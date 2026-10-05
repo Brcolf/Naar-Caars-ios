@@ -27,7 +27,7 @@ These instructions apply to all work in this repository. Follow them unless the 
 ## Backend and database
 
 - **Supabase**: Use the shared client; credentials come from `Secrets` (obfuscated). Never commit `Secrets.swift`, hardcode keys, or share keys externally.
-- **Migrations**: SQL lives in `database/` with numeric prefix and description (e.g. `092_badge_counts_rpc.sql`). Do not modify existing migration files.
+- **Migrations**: legacy SQL lives in `database/` with numeric prefix (e.g. `092_badge_counts_rpc.sql`); do not modify existing files. New migrations go in `supabase/migrations/` as `YYYYMMDD_XXXX_description.sql`, applied through the Supabase MCP.
 - **RLS**: New tables or endpoints must consider RLS; see `SECURITY.md` and existing policies.
 
 ## UI and accessibility (App Store)
@@ -45,8 +45,14 @@ These instructions apply to all work in this repository. Follow them unless the 
 
 ## Xcode and new files
 
-- **Do not edit `project.pbxproj`** to add new Swift files. Xcode uses filesystem-synced groups (`PBXFileSystemSynchronizedRootGroup`), so new `.swift` files placed under `NaarsCars/NaarsCars/`, `NaarsCars/NaarsCarsTests/`, or `NaarsCars/NaarsCarsUITests/` are auto-discovered by Xcode — no manual add step needed.
-- When you create a **new file**, state the file path clearly (e.g. `NaarsCars/Features/Favors/Views/MyNewView.swift`).
+- **Do not hand-edit `project.pbxproj`.** Only two folders are filesystem-synchronized (`PBXFileSystemSynchronizedRootGroup`) and auto-discovered: `NaarsCars/NaarsCars/` (app target) and `NaarsCars/NaarsCarsUITests/`. `NaarsCars/App`, `Core`, `Features`, `UI`, and `NaarsCarsTests` use explicit file references, so a new `.swift` file there is **not compiled** until it is added to the project in Xcode. After adding, confirm it builds.
+- When you create a **new file**, state the file path clearly (e.g. `NaarsCars/Features/Favors/Views/MyNewView.swift`) and say that it still needs to be added to the Xcode project.
+
+## Toolchain and verification
+
+- Xcode 26.6 / Swift 6.3 toolchain, Swift 5 language mode (`SWIFT_VERSION = 5.0`), iOS 17.0 deployment target. Scheme `NaarsCars`, simulator `iPhone 16`.
+- After every change: build, fix all errors and new warnings, run the relevant unit tests, snapshot UI changes in light/dark and at a large accessibility text size, and report what was verified. Never report "done" on an unbuilt change. The development Mac is resource-constrained: prefer `xcodebuild` with a single headless simulator (`-parallel-testing-enabled NO -skip-testing:NaarsCarsUITests`) or the `iOS CI` GitHub Actions workflow over opening Xcode. Full commands and the Xcode MCP tool names are in `CLAUDE.md` → Build and Test Commands.
+- Tests are XCTest only. Do not add Swift Testing tests without also setting `SWIFT_TESTING_XCTEST_INTEROP_MODE=limited` in the scheme's test environment.
 
 ## Secrets and build
 

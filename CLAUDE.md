@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Current State of the Codebase](#current-state-of-the-codebase-active-context)
 - [What This App Is](#what-this-app-is)
 - [Build and Test Commands](#build-and-test-commands)
+- [Verification Loop](#verification-loop--mandatory-after-every-change)
 - [File and Naming Conventions](#file-and-naming-conventions)
 - [Priority Order for Tradeoffs](#priority-order-for-tradeoffs)
 - [Fragile Systems](#fragile-systems--mandatory-conservative-handling) — realtime pipeline, optimistic send, reactions, notifications, auth, sync engines, badges, SwiftData
@@ -68,6 +69,10 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 **The app uses a push-notify, pull-hydrate architecture.** The previous design used 7-8 WebSocket subscriptions per client, which hit Supabase connection limits at ~17 concurrent users. Realtime WebSockets are now scoped to the active conversation only (messages + reactions + typing). All other domains (dashboard, town hall, notifications, conversations) use pull-on-appear with 30s staleness and push-triggered refresh. Do not widen WebSocket scope — this was the root cause of the scaling issue. A centralized `RefreshCoordinator` is the single source of truth for refresh decisions, staleness tracking, and in-flight dedup. Badge counts are push-triggered with a 5-minute safety poll. See `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` for the full architecture spec.
 
+**Agent tooling is aligned with Xcode 26.6 (2026-10-05).** Build, test, and preview verification run through the Xcode MCP server (`xcrun mcpbridge`), not through ad hoc `xcodebuild` output parsing. Every change follows the [Verification Loop](#verification-loop--mandatory-after-every-change) below: build via MCP, fix errors and new warnings, run the relevant tests, snapshot any UI change in light and dark appearance and at a large accessibility text size, and report what was verified. Known project-wiring gaps found during this alignment (unit test files not attached to the test target, committed absolute symlinks, no test plan) are listed under [Audit Notes](#audit-notes--known-deviations) and queued as a Mac-side repair task. The development Mac is resource-constrained: Xcode, a simulator, and Claude together exhaust it, so default to the headless lane (Lane B) or CI (Lane C) described in Build and Test Commands, and open Xcode only when `RenderPreview` is needed.
+
+**Deployment target is iOS 17.0 and under review.** iOS 18 supports every device iOS 17 does, so raising the minimum to iOS 18 costs no users and unlocks newer APIs; iOS 26 drops iPhone XS, XS Max, and XR. Do not raise the target until App Store Connect iOS-version analytics have been checked and the change has been built and tested on the Mac (queued as a follow-up task). Users on an older iOS keep the installed app; they only stop receiving updates.
+
 **Critical active risks:**
 - WebSocket callbacks (active conversation only) arrive on background threads and must be marshalled to the main actor before reaching UIKit views
 - `@Observable` ViewModels passed through `.environment()` can cause init/deinit storms — recent fixes removed these patterns from sheets and tab views
@@ -79,10 +84,11 @@ This isn't excessive caution — it's the correct engineering posture for a syst
 
 ## What This App Is
 
-iOS 17+ Swift 5.9+ community app for neighbor rides/favors with messaging, town hall, notifications, open signup with admin approval, and moderation/blocking/reporting. See `README.md` for the product overview; this section covers only what's load-bearing for code work.
+iOS 17+ community app (built with the Xcode 26.6 / Swift 6.3 toolchain, compiled in Swift 5 language mode) for neighbor rides/favors with messaging, town hall, notifications, open signup with admin approval, and moderation/blocking/reporting. See `README.md` for the product overview; this section covers only what's load-bearing for code work.
 
 | Layer | Technology |
 |---|---|
+| Toolchain | Xcode 26.6, Swift 6.3 compiler, iOS 26 SDK (exact SDK version: confirm with `xcodebuild -showsdks`); `SWIFT_VERSION = 5.0` (Swift 5 language mode), `SWIFT_APPROACHABLE_CONCURRENCY = YES`, `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated` (app target). Do not change language mode or these flags without approval. |
 | UI | SwiftUI (most surfaces) + UIKit (messaging) |
 | Architecture | MVVM, singleton service layer, protocol abstractions |
 | Backend | Supabase (auth, database, storage, RPC, realtime) |
@@ -99,26 +105,68 @@ iOS 17+ Swift 5.9+ community app for neighbor rides/favors with messaging, town 
 
 > **First-time setup:** the build will fail until you create `Secrets.swift` — see [Secrets Setup](#secrets-setup-required-for-build) below before running any of the commands here.
 
-The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars`. Simulator target: iPhone, iOS 17+.
+The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars` (the only shared scheme; it builds the app and runs both `NaarsCarsTests` and `NaarsCarsUITests`, parallelized). Destination: iOS Simulator, `iPhone 16`, iOS 17+ deployment target.
+
+### Preferred path: Xcode MCP tools
+
+Claude Code connects to Xcode with `claude mcp add --transport stdio xcode -- xcrun mcpbridge` (Xcode → Settings → Intelligence → Model Context Protocol → Xcode Tools must be ON, and the project must be open in Xcode). Use these tools, by their real names, instead of parsing `xcodebuild` output:
+
+| Need | Tool | Notes |
+|---|---|---|
+| Find the project window | `XcodeListWindows` | Call first; every other tool needs the returned `tabIdentifier`. |
+| Build | `BuildProject` (`scheme: "NaarsCars"`) | Then `GetBuildLog` with `severity: "error"`, and again with `"warning"`. Fix all errors and every warning your change introduced. |
+| Live diagnostics | `XcodeListNavigatorIssues`, `XcodeRefreshCodeIssuesInFile` | Faster than a full build for a single file. |
+| Run tests | `RunAllTests`, `RunSomeTests` (`tests: [...]`), `GetTestList` | Prefer `RunSomeTests` with the affected test classes; run everything before declaring a seam change safe. |
+| Render a SwiftUI preview | `RenderPreview` (`filePath`, optional `previewName`) | Returns a PNG. Its result lists `supportedPreviewVariantOverrides`; call again with `previewVariantOverrides` (a map of variant group → variant) to render dark appearance, landscape, or a type-size override. Xcode 26.6+ only. |
+| Try an expression | `ExecuteSnippet` | Swift REPL; useful for decoding fixtures. |
+| Look up an API | `DocumentationSearch` | Apple docs and WWDC transcripts. |
+
+### Three verification lanes (pick the lightest that answers the question)
+
+| Lane | When | Cost on the Mac |
+|---|---|---|
+| **A. Xcode MCP** (tools above) | A UI change needs `RenderPreview`, or you want live diagnostics | Xcode open; heaviest. Close the Simulator app; `RenderPreview` does not need it. |
+| **B. Headless** (`xcodebuild` + `xcrun simctl`, Xcode closed) | Builds and unit tests; screenshots of the running app in light/dark and at accessibility text sizes | One headless simulator, no clones. Default lane on this machine. |
+| **C. CI** (`.github/workflows/ios-ci.yml`, GitHub-hosted `macos-26` runner with Xcode 26.6) | Every pull request and manual dispatch: build + unit tests with a placeholder `Secrets.swift` | Zero. Cloud sessions read the result through PR events. Uses paid macOS minutes. |
+
+Lane B commands. All of them keep the simulator count at one and skip UI tests unless asked:
 
 ```bash
-# Build (debug, simulator)
-xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -configuration Debug build
+# Build (debug, simulator) into a predictable DerivedData path
+xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -configuration Debug -derivedDataPath build/DerivedData -quiet build
 
-# Run all unit tests
-xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' test
+# Unit tests only, one simulator, no parallel clones (the scheme marks both targets parallelizable; these flags override it)
+xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -skip-testing:NaarsCarsUITests -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -derivedDataPath build/DerivedData -resultBundlePath build/TestResults.xcresult -quiet
 
-# Run a single test class
-xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:NaarsCarsTests/ProfileTests
+# Single test class / method
+xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:NaarsCarsTests/ProfileTests -parallel-testing-enabled NO -derivedDataPath build/DerivedData -quiet
+xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:NaarsCarsTests/ProfileTests/testSomething -parallel-testing-enabled NO -derivedDataPath build/DerivedData -quiet
 
-# Run a single test method
-xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:NaarsCarsTests/ProfileTests/testSomething
+# Read failures out of the result bundle without opening Xcode
+xcrun xcresulttool get test-results summary --path build/TestResults.xcresult
+
+# Headless simulator (no Simulator.app window): boot, install the built app, launch, screenshot
+xcrun simctl boot 'iPhone 16' 2>/dev/null || true
+xcrun simctl install booted build/DerivedData/Build/Products/Debug-iphonesimulator/NaarsCars.app
+xcrun simctl launch booted com.NaarsCars
+xcrun simctl io booted screenshot build/shot-light.png
+
+# Appearance and Dynamic Type overrides for the headless screenshots
+xcrun simctl ui booted appearance dark
+xcrun simctl ui booted content_size accessibility-extra-extra-extra-large   # sizes: extra-small … extra-extra-extra-large, accessibility-medium … accessibility-extra-extra-extra-large
+xcrun simctl io booted screenshot build/shot-dark-ax5.png
+xcrun simctl ui booted appearance light; xcrun simctl ui booted content_size large   # reset
+
+# Shut the simulator down when finished; it is the biggest memory consumer
+xcrun simctl shutdown booted
 
 # Clean build artifacts
 scripts/CLEAR-XCODE-CACHE.sh
 ```
 
-Test targets: `NaarsCarsTests` (unit, ~66 files), `NaarsCarsUITests` (UI automation). Tests are parallelizable.
+`build/` is gitignored. Run UI tests only on request: `-only-testing:NaarsCarsUITests` with the same single-simulator flags.
+
+Test targets: `NaarsCarsTests` (unit, XCTest; 70 files on disk, 11 of which are not attached to the target — see Audit Notes) and `NaarsCarsUITests` (UI automation, XCTest). Tests are parallelizable. There is no `.xctestplan`; the scheme's Test action runs both targets directly. `NaarsCarsTests/NaarsCarsTests.swift` is the Xcode template stub and is the only Swift Testing file; because XCTest/Swift Testing interop is off by default since Xcode 26.4, `SWIFT_TESTING_XCTEST_INTEROP_MODE=limited` would have to be set in a test plan or the scheme's test environment if real Swift Testing tests are ever mixed into this target.
 
 **Do not launch multiple simulators.** If one is running when launching a new simulator, ensure others are shut down first.
 
@@ -151,11 +199,13 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `VERIFY-ALL-FILES.sh` — full-project file integrity check
 - `verify-apple-signin-config.sh` — validates SIWA entitlements and Info.plist
 - `validate-notification-types.sh` — checks notification type registry consistency across Swift and TypeScript layers
-- `verify-xcode-file-sync.sh` — runs automatically after every Write/Edit via Claude Code PostToolUse hook (configured in `.claude/settings.json`); warns if `.swift` files are placed outside filesystem-synced roots
+- `verify-xcode-file-sync.sh` — runs after every Write/Edit as a Claude Code PostToolUse hook (configured in the tracked `.claude/settings.json`). For a `.swift` file outside the two synchronized folders, it checks whether `project.pbxproj` references the file and warns when it does not, since such a file will not compile until it is added to the project.
 - `pre-commit-localization-check.sh` — validates localization key consistency (called by the pre-commit hook)
 - `pre-commit-secrets-check.sh` — blocks commits containing secrets or signing files (called by the pre-commit hook)
 
-**No CI/CD pipeline exists.** All automated checks are pre-commit hooks and local validation scripts. Build and test verification is manual.
+**CI:** `.github/workflows/ios-ci.yml` (Lane C) builds the app and runs the unit tests on a GitHub-hosted `macos-26` runner with Xcode 26.6 on every pull request and on manual dispatch. It uses a placeholder `Secrets.swift` and a placeholder `GoogleService-Info.plist` unless the repository secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `GOOGLE_SERVICE_INFO_PLIST_B64` are set. UI tests do not run in CI. There is no deploy pipeline; TestFlight and App Store submission remain manual.
+
+**Project slash commands** (`.claude/commands/`): `/verify-ui <ViewName>` (build, then light/dark/large-text captures via `RenderPreview` or headless `simctl`), `/preflight` (build, unit tests, warnings summary, sensitive-path scan of the diff), `/headless-test [Class[/method]]` (unit tests on one headless simulator with Xcode closed).
 
 ### Cursor Rules
 
@@ -175,6 +225,17 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 
 ---
 
+## Verification Loop — Mandatory After Every Change
+
+Compilation is not correctness, and an unbuilt change is not done. After every code change, in this order:
+
+1. **Build through the Xcode MCP.** `BuildProject` on scheme `NaarsCars`, then `GetBuildLog` for errors and for warnings. Fix every error and every warning your diff introduced. Do not suppress warnings to get green.
+2. **Run the relevant tests.** `RunSomeTests` for the affected classes (see the Testing Expectations table for which areas need which coverage), then `RunAllTests` before finishing a change to any fragile system or high-blast-radius seam. Remember that 11 unit test files are not attached to the target; a green run does not exercise them.
+3. **Snapshot every UI change.** For each touched SwiftUI view with a `#Preview` (101 files have one), call `RenderPreview` and inspect the image, then render again with `previewVariantOverrides` for dark appearance and for a large accessibility type size. Render landscape only for screens that support it (the iPhone orientation mask allows landscape, but the messaging thread and input bar are the screens most likely to break; verify them when touched). Look at every image: clipped text, overlapping badges, truncated Dynamic Type, unreadable dark-mode contrast, reaction badges not at the top of the bubble. Fix before reporting. UIKit messaging surfaces (`MessagesCollectionView`, `MessageThreadViewController`) have no SwiftUI preview; verify them with Lane B screenshots (`simctl ui … appearance dark`, `content_size accessibility-…`). When Xcode cannot be opened, Lane B screenshots of the running app are the accepted substitute for `RenderPreview` for any view.
+4. **Report what was verified and how.** Name the build result, which tests ran and their outcome, and which snapshots were inspected. Say explicitly what could not be verified (no simulator, no Xcode MCP, test not wired). Never say "done" for a change that was not built.
+
+---
+
 ## File and Naming Conventions
 
 - **ViewModels**: `*ViewModel.swift`, `final class … : ObservableObject`
@@ -187,7 +248,10 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - **Swift file header**: `//` / `//  FileName.swift` / `//  NaarsCars` / `//`
 - **Constants**: Use the `Constants` enum in `Core/Utilities/Constants.swift` for animation durations, spacing, timeouts, cache TTLs, rate limits, page sizes, and URLs. Do not introduce new magic numbers.
 
-**Xcode uses filesystem-synced groups** (`PBXFileSystemSynchronizedRootGroup`). New `.swift` files placed under `NaarsCars/NaarsCars/`, `NaarsCars/NaarsCarsTests/`, or `NaarsCars/NaarsCarsUITests/` are auto-discovered by Xcode — no `project.pbxproj` edits needed. A PostToolUse hook (`scripts/verify-xcode-file-sync.sh`) warns if a `.swift` file is written outside these synced roots.
+**Xcode synchronized folders are only partially used.** The project (object version 77) has exactly two `PBXFileSystemSynchronizedRootGroup`s: `NaarsCars/NaarsCars/` (app target; today it holds only `Core/Services/RefreshCoordinator.swift`, `Core/Models/RefreshMetrics.swift`, `Assets.xcassets`, and the entitlements) and `NaarsCars/NaarsCarsUITests/`. Everything else is a classic group with explicit file references: `NaarsCars/App/`, `NaarsCars/Core/`, `NaarsCars/Features/`, `NaarsCars/UI/` (372 app files) and `NaarsCars/NaarsCarsTests/` (unit tests). Consequences:
+- A new `.swift` file under `NaarsCars/Core/`, `Features/`, `UI/`, or `NaarsCarsTests/` is **not** compiled until it is added to the project. Add it through Xcode (or the Xcode MCP file tools; confirm that files created this way land in the right target) and check it compiles via `BuildProject` and, for tests, shows up in `GetTestList`. Do not hand-edit `project.pbxproj`.
+- A new file under `NaarsCars/NaarsCars/` is auto-discovered, but that tree currently mirrors `Core/` only for two files; do not start a parallel tree there without approval.
+- The 11 unit test files listed in Audit Notes exist on disk but are not in the target, so they never run. Do not treat them as coverage.
 
 **Secrets**: `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `NaarsCars/Scripts/obfuscate.swift` for credential obfuscation.
 
@@ -425,7 +489,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 6. Prefer explicit cancellation over orphaned tasks.
 7. Do not perform SwiftData batch sync writes on the main actor.
 8. Be careful with mixed Combine + async/await flows — preserve existing delivery guarantees when refactoring.
-9. **Realtime callbacks must be marshalled to `@MainActor`.** See "Realtime Callback Threading" in the Audit Notes section for required patterns and affected files.
+9. **Realtime callbacks must be marshalled to `@MainActor`.** Supabase Realtime delivers channel events on its own socket queue. `MessagingSyncEngine` is `@MainActor`, `MessagingRepository` upserts on the main actor, and the UIKit messaging views are main-thread-only, so any handler that reaches them from the socket queue produces intermittent `UICollectionView` inconsistency crashes and SwiftData context violations that do not reproduce in tests. See "Realtime Callback Threading" in the Audit Notes section for required patterns and affected files.
 
 ---
 
@@ -473,6 +537,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 8. Do not introduce message duplication through optimistic + realtime overlap.
 9. After any messaging change, mentally verify both app-open and app-background receive paths.
 10. Do not break push delivery, in-app toasts, or badge updates when touching messaging.
+11. **UIKit memory hygiene in the messaging path.** `MessagesViewController`, `MessageThreadViewController`, `MessageOverlayController`, and `MessagesCollectionView` are long-lived UIKit objects hosted from SwiftUI through `UIViewControllerRepresentable`/`UIViewRepresentable` coordinators. Capture `self` weakly in every closure they store or hand to Combine, `Task`, `NotificationCenter`, gesture, or diffable-data-source APIs; keep delegates `weak`; cancel stored `Task`s and `cancellables` and remove observers in `deinit`/teardown; and never let a Representable coordinator and its ViewModel retain each other. **Why:** a leaked thread controller keeps its realtime handlers alive after the user leaves the conversation, which silently violates the "at most one conversation has active channels" invariant, double-applies incoming messages, and reintroduces the connection-limit problem that forced the push-notify, pull-hydrate redesign.
 
 ---
 
@@ -620,6 +685,8 @@ For any meaningful code change, include or propose concrete tests for the affect
 | Storage | Migration safety, cache invalidation, sync engine behavior |
 | Realtime | Structured and unstructured payload cases |
 
+**Frameworks:** the suite is XCTest. The lone Swift Testing file is the template stub `NaarsCarsTests.swift`. If a change adds real Swift Testing tests to `NaarsCarsTests`, set `SWIFT_TESTING_XCTEST_INTEROP_MODE=limited` in the scheme's test environment (or a new test plan) so both frameworks run under one invocation; since Xcode 26.4 this interop is off by default. For UI-related tests, attach the rendered image to the test (`XCTAttachment` in XCTest; `Attachment` with `UIImage`/`CGImage` in Swift Testing, available since Xcode 26.4) so failures are inspectable.
+
 **Required mindset:** Do not declare realtime, notifications, or auth "safe" based on compilation alone. Behavioral verification matters. The bugs in these systems do not show up at compile time.
 
 ---
@@ -633,7 +700,7 @@ For any non-trivial change, structure your response as:
 3. **Plan** — short step-by-step before writing any code
 4. **Code changes** — targeted implementation
 5. **Why this is safe** — which invariants are preserved and how
-6. **What to test** — concrete manual or programmatic verification steps
+6. **What was verified, and what to test** — the build result, tests run, and snapshots inspected (per the Verification Loop), followed by any remaining manual verification steps
 7. **Known risks / follow-ups** — anything that remains uncertain or needs future attention
 
 If the risk level is medium or high, state the risks **before** writing code, not after.
@@ -703,9 +770,18 @@ These document where the code currently deviates from the rules above. Check the
 
 ### Known Violations
 
-**Last audited: 2026-05-02 against commit `adf369a` (main).**
+**Last audited: 2026-10-05 against commit `1898859` (main).**
 
-No known violations. The previous `TownHallSyncEngine` MainActor write deviation has been resolved — TownHall writes now use `BackgroundSyncActor`.
+No known fragile-system violations. The previous `TownHallSyncEngine` MainActor write deviation has been resolved — TownHall writes now use `BackgroundSyncActor`.
+
+**Project-wiring deviations (found 2026-10-05, not yet fixed):**
+- Eleven unit test files exist under `NaarsCars/NaarsCarsTests/` but are not referenced by `project.pbxproj`, so they never compile or run: `AppDelegateNotificationHandlingTests`, `AppLaunchManagerTests`, `DeepLinkParserTests`, `FlightCodeParserTests`, `LeaderboardServiceTests`, `NotificationServiceTests`, `PushNotificationServiceTests`, `RideDirectionsLauncherTests`, `SupabaseConnectionTests`, `ThrottlerTests`, `TownHallServiceTests`. Several cover notification routing and deep links, which the Testing Expectations table lists as required coverage.
+- `PerformanceImprovementsTests.swift` lives in the app tree at `NaarsCars/Core/Services/` but is compiled into `NaarsCarsTests`.
+- `NaarsCars/Features/Messaging/Views/DirectMessageContainerView.swift` is referenced by nothing and is not in the project.
+- Eight committed symlinks in `NaarsCars/` (`ClaimViewModelTests.swift`, `CreateFavorViewModelTests.swift`, `CreateRideViewModelTests.swift`, `FavorsDashboardViewModelTests.swift`, `RideDetailViewModelTests.swift`, `RidesDashboardViewModelTests.swift`, `NaarsCarsUITests.swift`, `NaarsCarsUITestsLaunchTests.swift`) point at absolute `/Users/bcolf/...` paths; three are held in a "Recovered References" group. They resolve on one machine only.
+- `project.pbxproj` says `LastUpgradeCheck = 2620` while the shared scheme says `LastUpgradeVersion = 2630`; neither reflects Xcode 26.6. Let Xcode perform the upgrade check rather than editing by hand.
+
+All of the above are project-file changes that must be made on the Mac with a build between steps (attaching a never-compiled test file can turn the whole test target red). They are deliberately not fixed from a cloud session.
 
 If you make a fragile-system change, re-verify this section and bump the audit date and commit.
 

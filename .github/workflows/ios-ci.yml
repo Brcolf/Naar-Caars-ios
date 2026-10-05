@@ -1,0 +1,160 @@
+name: iOS CI
+
+# Lane C of the verification loop (see CLAUDE.md → Build and Test Commands).
+# Builds the app and runs the unit tests on a GitHub-hosted macOS 26 runner with
+# Xcode 26.6, so nothing has to run on the development Mac. macOS runners bill at
+# 10x Linux minutes; this is why it runs on pull requests and manual dispatch only.
+# Add `push: branches: ['claude/**']` under `on:` if every agent push should run it.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PROJECT: NaarsCars/NaarsCars.xcodeproj
+  SCHEME: NaarsCars
+  DESTINATION: platform=iOS Simulator,name=iPhone 16
+  DERIVED_DATA: build/DerivedData
+
+jobs:
+  build-and-unit-test:
+    name: Build + unit tests (Xcode 26.6)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.6 (falls back to the newest 26.x on the image)
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26.6*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1); fi
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          swift --version
+
+      - name: Create Secrets.swift
+        # SupabaseService tolerates empty credentials (it builds a placeholder client), so the
+        # template is enough for build + unit tests. Set the two repository secrets to run
+        # against a real project instead.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp NaarsCars/Core/Utilities/Secrets.swift.template NaarsCars/Core/Utilities/Secrets.swift
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            python3 - <<'PY'
+          import os, re
+          key = b"NaarsCars"
+          def obf(s): return ", ".join(f"0x{b ^ key[i % len(key)]:02X}" for i, b in enumerate(s.encode()))
+          p = "NaarsCars/Core/Utilities/Secrets.swift"
+          src = open(p).read()
+          src = re.sub(r"(obfuscatedURL: \[UInt8\] = \[)[^\]]*\]", lambda m: m.group(1) + "\n        " + obf(os.environ["SUPABASE_URL"]) + "\n    ]", src, count=1)
+          src = re.sub(r"(obfuscatedAnonKey: \[UInt8\] = \[)[^\]]*\]", lambda m: m.group(1) + "\n        " + obf(os.environ["SUPABASE_ANON_KEY"]) + "\n    ]", src, count=1)
+          open(p, "w").write(src)
+          print("Secrets.swift populated from repository secrets")
+          PY
+          else
+            echo "::notice::SUPABASE_URL / SUPABASE_ANON_KEY secrets not set; building with placeholder credentials"
+          fi
+
+      - name: Create GoogleService-Info.plist
+        # FirebaseApp.configure() raises if the plist is missing. The synchronized folder
+        # NaarsCars/NaarsCars/ bundles it automatically. Provide the real file as a
+        # base64 secret (GOOGLE_SERVICE_INFO_PLIST_B64) or fall back to a placeholder.
+        env:
+          PLIST_B64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}
+        run: |
+          TARGET=NaarsCars/NaarsCars/GoogleService-Info.plist
+          if [ -n "$PLIST_B64" ]; then
+            echo "$PLIST_B64" | base64 --decode > "$TARGET"
+            echo "Using GoogleService-Info.plist from secret"
+          else
+            echo "::notice::GOOGLE_SERVICE_INFO_PLIST_B64 not set; using placeholder Firebase config"
+            cat > "$TARGET" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key><string>placeholder</string>
+            <key>GCM_SENDER_ID</key><string>000000000000</string>
+            <key>PLIST_VERSION</key><string>1</string>
+            <key>BUNDLE_ID</key><string>com.NaarsCars</string>
+            <key>PROJECT_ID</key><string>placeholder</string>
+            <key>STORAGE_BUCKET</key><string>placeholder.appspot.com</string>
+            <key>IS_ADS_ENABLED</key><false/>
+            <key>IS_ANALYTICS_ENABLED</key><false/>
+            <key>IS_APPINVITE_ENABLED</key><false/>
+            <key>IS_GCM_ENABLED</key><true/>
+            <key>IS_SIGNIN_ENABLED</key><false/>
+            <key>GOOGLE_APP_ID</key><string>1:000000000000:ios:0000000000000000</string>
+          </dict>
+          </plist>
+          PLIST
+          fi
+          plutil -lint "$TARGET"
+
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project "$PROJECT" -scheme "$SCHEME" -derivedDataPath "$DERIVED_DATA"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "$PROJECT" -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/build.log | grep -E 'error:|warning:|BUILD (SUCCEEDED|FAILED)' || true
+          grep -q 'BUILD SUCCEEDED' build/build.log
+
+      - name: Warnings summary
+        if: always()
+        run: |
+          echo "## Compiler warnings" >> "$GITHUB_STEP_SUMMARY"
+          COUNT=$(grep -c ' warning: ' build/build.log || true)
+          echo "Total: $COUNT" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep ' warning: ' build/build.log | sed 's#.*/NaarsCars/##' | sort | uniq -c | sort -rn | head -40 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Unit tests (UI tests skipped; one simulator, no clones)
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project "$PROJECT" -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -skip-testing:NaarsCarsUITests \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-simulator-destinations 1 \
+            -resultBundlePath build/UnitTests.xcresult \
+            2>&1 | tee build/test.log | grep -E 'Test (Case|Suite).*(passed|failed)|error:|\*\* TEST' || true
+          grep -q 'TEST EXECUTE SUCCEEDED\|TEST SUCCEEDED' build/test.log
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Unit tests" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          xcrun xcresulttool get test-results summary --path build/UnitTests.xcresult 2>/dev/null | head -60 >> "$GITHUB_STEP_SUMMARY" || echo "no result bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs and result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ci-${{ github.run_number }}
+          path: |
+            build/build.log
+            build/test.log
+            build/UnitTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
