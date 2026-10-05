@@ -108,21 +108,26 @@ struct ImageCompressor {
         
         // Calculate new size maintaining aspect ratio
         let aspectRatio = size.width / size.height
-        let newSize: CGSize
+        let unroundedSize: CGSize
         
         if size.width > size.height {
             // Landscape: width is the limiting factor
-            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+            unroundedSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
         } else {
             // Portrait or square: height is the limiting factor
-            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+            unroundedSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
         }
+        // Round to whole pixels so the bitmap has no fractional, partly painted edge
+        let newSize = CGSize(width: unroundedSize.width.rounded(), height: unroundedSize.height.rounded())
         
         // Use UIGraphicsImageRenderer for high-quality resizing on iOS
         // Render at scale 1 so the bitmap is exactly newSize pixels; the default format
         // uses the screen scale (3x), which made output 3x larger than the preset's max.
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
+        // Output is always JPEG, so render opaque; with whole-pixel sizes this avoids a
+        // partly painted edge column that JPEG can show as a thin dark edge.
+        format.opaque = true
         let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
