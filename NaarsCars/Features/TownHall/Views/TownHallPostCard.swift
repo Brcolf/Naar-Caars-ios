@@ -384,7 +384,7 @@ struct TownHallPostCard: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Report post")
+                    .accessibilityLabel("townhall_report_post_accessibility".localized)
                 }
             }
 
@@ -423,8 +423,8 @@ struct TownHallPostCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel(post.userVote == .downvote ? "Remove downvote" : "Downvote post")
-                .accessibilityHint(post.userVote == .downvote ? "Double-tap to remove your downvote" : "Double-tap to downvote this post")
+                .accessibilityLabel(post.userVote == .downvote ? "townhall_remove_downvote_accessibility".localized : "townhall_downvote_post_accessibility".localized)
+                .accessibilityHint(post.userVote == .downvote ? "townhall_remove_downvote_hint".localized : "townhall_downvote_post_hint".localized)
 
                 Button(action: {
                     if post.userVote == .upvote {
@@ -447,8 +447,8 @@ struct TownHallPostCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel(post.userVote == .upvote ? "Remove upvote" : "Upvote post")
-                .accessibilityHint(post.userVote == .upvote ? "Double-tap to remove your upvote" : "Double-tap to upvote this post")
+                .accessibilityLabel(post.userVote == .upvote ? "townhall_remove_upvote_accessibility".localized : "townhall_upvote_post_accessibility".localized)
+                .accessibilityHint(post.userVote == .upvote ? "townhall_remove_upvote_hint".localized : "townhall_upvote_post_hint".localized)
             }
         }
         .padding(.top, Constants.Spacing.xs)

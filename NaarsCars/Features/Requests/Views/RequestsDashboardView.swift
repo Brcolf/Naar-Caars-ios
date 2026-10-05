@@ -54,8 +54,8 @@ struct RequestsDashboardView: View {
                             .font(.naarsTitle3)
                     }
                     .accessibilityIdentifier("requests.createMenu")
-                    .accessibilityLabel("Create new request")
-                    .accessibilityHint("Double-tap to create a new ride or favor request")
+                    .accessibilityLabel("requests_create_accessibility".localized)
+                    .accessibilityHint("requests_create_hint".localized)
                 }
             }
             .sheet(isPresented: $showCreateRide, onDismiss: {
@@ -176,7 +176,7 @@ struct RequestsDashboardView: View {
                                 })
                 .buttonStyle(PlainButtonStyle())
                 .accessibilityIdentifier("requests.card")
-                .accessibilityHint("Double-tap to view request details")
+                .accessibilityHint("requests_row_hint".localized)
                 .padding(.horizontal)
                                 .id(request.notificationKey)
                                 .overlay(
@@ -290,7 +290,8 @@ struct FilterTilesView: View {
         HStack(spacing: Constants.Spacing.sm) {
             ForEach(RequestFilter.allCases, id: \.self) { filter in
                 FilterTile(
-                    title: filter.rawValue,
+                    title: filter.localizedKey.localized,
+                    identifier: filter.rawValue,
                     isSelected: selectedFilter == filter,
                     badgeCount: badgeCounts[filter] ?? 0,
                     uniformHeight: uniformHeight
@@ -311,6 +312,7 @@ struct FilterTilesView: View {
 
 struct FilterTile: View {
     let title: String
+    let identifier: String
     let isSelected: Bool
     let badgeCount: Int
     let uniformHeight: CGFloat?
@@ -345,7 +347,7 @@ struct FilterTile: View {
                             .padding(.vertical, 2)
                             .background(Color.red)
                             .clipShape(Capsule())
-                            .accessibilityLabel("\(badgeCount) unseen notifications")
+                            .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: badgeCount))
                     }
                 }
             }
@@ -357,9 +359,9 @@ struct FilterTile: View {
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("requests.filter.\(title)")
-        .accessibilityLabel("\(title) filter\(isSelected ? ", selected" : "")")
-        .accessibilityHint("Double-tap to show \(title.lowercased()) requests")
+        .accessibilityIdentifier("requests.filter.\(identifier)")
+        .accessibilityLabel(isSelected ? "requests_filter_tile_selected_accessibility".localized(with: title) : "requests_filter_tile_accessibility".localized(with: title))
+        .accessibilityHint("requests_filter_tile_hint".localized(with: title.lowercased()))
         .simultaneousGesture(TapGesture().onEnded {
             HapticManager.selectionChanged()
         })

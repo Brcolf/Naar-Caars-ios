@@ -39,7 +39,7 @@ struct FilterBar: View {
             
             // Request count badge
             if requestCount > 0 {
-                Text("\(requestCount) \(requestCount == 1 ? "request" : "requests")")
+                Text(requestCount == 1 ? "requests_count_singular".localized(with: requestCount) : "requests_count_plural".localized(with: requestCount))
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(.secondary)

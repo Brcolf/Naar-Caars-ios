@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3811CB0DF3F7D62E1E93F545 /* ReportContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0705203B5FC1596DCA56B5B1 /* ReportContentViewModel.swift */; };
+		1D534F51AD19917397A72E3D /* ReviewPromptViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE8A64455C177A13FACFDBD /* ReviewPromptViewModel.swift */; };
+		CA5EB75288B43B5E1402BD43 /* BlockedUsersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32EA476C1A00E8E575B889EC /* BlockedUsersViewModel.swift */; };
+		0B03D8E7C3A745BD5305B94B /* UserSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1DEFDD9C9EC6143B900A27 /* UserSearchViewModel.swift */; };
+		AA2D7B0379391DA9DFA89ACD /* ReportMessageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3945E041BD6BB50E164AFA7 /* ReportMessageViewModel.swift */; };
+		AC2923A8F6BA835EEB5D8CD7 /* MessageDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5D6FE2E6FA59576F43837F /* MessageDetailsViewModel.swift */; };
+		8852F44B2282A755C77AD0C7 /* BannedAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23239C057D89CB4022E7A1EB /* BannedAccountViewModel.swift */; };
+		6686F4E6FDCFDCB4D862B44F /* ApplicationFieldsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */; };
+		E847D7FC5A2CEA01ED03C0CC /* AdminReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C990DFEE67A35B43C06D78E5 /* AdminReportsViewModel.swift */; };
+		8C0B03CA56EED6889B48D5DD /* ProfileService+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6BE2969BECCE63255A2634F /* ProfileService+Search.swift */; };
+		C12749ED61073F03BFBC28B1 /* ProfileService+AccountStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A290D244201497F85D8263E7 /* ProfileService+AccountStatus.swift */; };
 		5DDD5E74F61DBC72928F68DD /* RefreshMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9479DA69459CB1835C68CC9 /* RefreshMetrics.swift */; };
 		84A119E32778E3F30D9E131D /* RefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F551931D5275E0226CAA1B78 /* RefreshCoordinator.swift */; };
 		84CC81DC3F7ED93C173866D1 /* FlightCodeParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6269689ACFD3BFE689480804 /* FlightCodeParserTests.swift */; };
@@ -485,6 +496,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0705203B5FC1596DCA56B5B1 /* ReportContentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportContentViewModel.swift; sourceTree = "<group>"; };
+		ABE8A64455C177A13FACFDBD /* ReviewPromptViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptViewModel.swift; sourceTree = "<group>"; };
+		32EA476C1A00E8E575B889EC /* BlockedUsersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockedUsersViewModel.swift; sourceTree = "<group>"; };
+		FC1DEFDD9C9EC6143B900A27 /* UserSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSearchViewModel.swift; sourceTree = "<group>"; };
+		C3945E041BD6BB50E164AFA7 /* ReportMessageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportMessageViewModel.swift; sourceTree = "<group>"; };
+		CB5D6FE2E6FA59576F43837F /* MessageDetailsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageDetailsViewModel.swift; sourceTree = "<group>"; };
+		23239C057D89CB4022E7A1EB /* BannedAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BannedAccountViewModel.swift; sourceTree = "<group>"; };
+		EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationFieldsViewModel.swift; sourceTree = "<group>"; };
+		C990DFEE67A35B43C06D78E5 /* AdminReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminReportsViewModel.swift; sourceTree = "<group>"; };
+		C6BE2969BECCE63255A2634F /* ProfileService+Search.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProfileService+Search.swift"; sourceTree = "<group>"; };
+		A290D244201497F85D8263E7 /* ProfileService+AccountStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProfileService+AccountStatus.swift"; sourceTree = "<group>"; };
 		E9479DA69459CB1835C68CC9 /* RefreshMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshMetrics.swift; sourceTree = "<group>"; };
 		F551931D5275E0226CAA1B78 /* RefreshCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshCoordinator.swift; sourceTree = "<group>"; };
 		6269689ACFD3BFE689480804 /* FlightCodeParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightCodeParserTests.swift; sourceTree = "<group>"; };
@@ -1248,6 +1270,8 @@
 				AC305EE82F0DB7BD0063AFDF /* LoginViewModel.swift */,
 				AC305EE92F0DB7BD0063AFDF /* PasswordResetViewModel.swift */,
 				AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */,
+				EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */,
+				23239C057D89CB4022E7A1EB /* BannedAccountViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1307,6 +1331,7 @@
 			children = (
 				AC35AB552F0F080F0012096B /* CreatePostViewModel.swift */,
 				AC35AB562F0F080F0012096B /* TownHallFeedViewModel.swift */,
+				0705203B5FC1596DCA56B5B1 /* ReportContentViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1348,6 +1373,7 @@
 			children = (
 				AC8197B42F14C2C1003BB08B /* LeaveReviewViewModel.swift */,
 				AC8197B52F14C2C1003BB08B /* ReviewPromptManager.swift */,
+				ABE8A64455C177A13FACFDBD /* ReviewPromptViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1517,6 +1543,7 @@
 				ACBF4AD62F12CB30006A7C8A /* BroadcastViewModel.swift */,
 				ACBF4AD72F12CB30006A7C8A /* PendingUsersViewModel.swift */,
 				ACBF4AD82F12CB30006A7C8A /* UserManagementViewModel.swift */,
+				C990DFEE67A35B43C06D78E5 /* AdminReportsViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1567,6 +1594,9 @@
 				D15000172F3D00010043BFAE /* MessagePaginationManager.swift */,
 				D15000182F3D00010043BFAE /* MessageSendManager.swift */,
 				THREAD000000000000000A3 /* MessageThreadViewModel.swift */,
+				CB5D6FE2E6FA59576F43837F /* MessageDetailsViewModel.swift */,
+				C3945E041BD6BB50E164AFA7 /* ReportMessageViewModel.swift */,
+				FC1DEFDD9C9EC6143B900A27 /* UserSearchViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1831,6 +1861,8 @@
 				96A542FA637C7DC27504E5EC /* MessageReactionService.swift */,
 				9C811A6A8533596652B816E6 /* MessageServiceModels.swift */,
 				F551931D5275E0226CAA1B78 /* RefreshCoordinator.swift */,
+				A290D244201497F85D8263E7 /* ProfileService+AccountStatus.swift */,
+				C6BE2969BECCE63255A2634F /* ProfileService+Search.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -2166,6 +2198,7 @@
 				948807370C9A43E3A55D4641 /* MyProfileViewModel.swift */,
 				99BCE5B28CED4588BD3232BA /* EditProfileViewModel.swift */,
 				327937860EB7466991CA8C7B /* PublicProfileViewModel.swift */,
+				32EA476C1A00E8E575B889EC /* BlockedUsersViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -2770,6 +2803,17 @@
 				RECENT00000000000000001 /* RecentReactionsStore.swift in Sources */,
 				84A119E32778E3F30D9E131D /* RefreshCoordinator.swift in Sources */,
 				5DDD5E74F61DBC72928F68DD /* RefreshMetrics.swift in Sources */,
+				C12749ED61073F03BFBC28B1 /* ProfileService+AccountStatus.swift in Sources */,
+				8C0B03CA56EED6889B48D5DD /* ProfileService+Search.swift in Sources */,
+				E847D7FC5A2CEA01ED03C0CC /* AdminReportsViewModel.swift in Sources */,
+				6686F4E6FDCFDCB4D862B44F /* ApplicationFieldsViewModel.swift in Sources */,
+				8852F44B2282A755C77AD0C7 /* BannedAccountViewModel.swift in Sources */,
+				AC2923A8F6BA835EEB5D8CD7 /* MessageDetailsViewModel.swift in Sources */,
+				AA2D7B0379391DA9DFA89ACD /* ReportMessageViewModel.swift in Sources */,
+				0B03D8E7C3A745BD5305B94B /* UserSearchViewModel.swift in Sources */,
+				CA5EB75288B43B5E1402BD43 /* BlockedUsersViewModel.swift in Sources */,
+				1D534F51AD19917397A72E3D /* ReviewPromptViewModel.swift in Sources */,
+				3811CB0DF3F7D62E1E93F545 /* ReportContentViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -253,66 +253,6 @@ final class MessagingRepository {
         return (try? modelContext.fetch(fetchDescriptor))?.first?.createdAt
     }
     
-    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, replyToId: UUID? = nil) async throws {
-        guard let modelContext = modelContext else { return }
-        // 1. Create optimistic local message
-        let tempId = UUID()
-        let optimisticMessage = Message(
-            id: tempId,
-            conversationId: conversationId,
-            fromId: fromId,
-            text: text,
-            imageUrl: imageUrl,
-            createdAt: Date(),
-            messageType: imageUrl != nil ? .image : .text,
-            replyToId: replyToId
-        )
-        
-        let sdMessage = MessagingMapper.mapToSDMessage(optimisticMessage, isPending: true)
-        
-        // Link to conversation
-        let convFetch = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == conversationId })
-        if let sdConv = try modelContext.fetch(convFetch).first {
-            sdMessage.conversation = sdConv
-            sdConv.updatedAt = Date()
-        }
-        
-        modelContext.insert(sdMessage)
-        try save(changedConversationIds: Set([conversationId]))
-        
-        // 2. Attempt background sync
-        Task {
-            do {
-                let sentMessage = try await messageService.sendMessage(
-                    conversationId: conversationId,
-                    fromId: fromId,
-                    text: text,
-                    imageUrl: imageUrl,
-                    replyToId: replyToId
-                )
-                
-                // 3. Replace optimistic message with real one
-                await MainActor.run {
-                    modelContext.delete(sdMessage)
-                    let finalSDMessage = MessagingMapper.mapToSDMessage(sentMessage, isPending: false)
-                    
-                    if let sdConv = try? modelContext.fetch(convFetch).first {
-                        finalSDMessage.conversation = sdConv
-                        sdConv.updatedAt = sentMessage.createdAt
-                    }
-                    
-                    modelContext.insert(finalSDMessage)
-                    try? self.save(changedConversationIds: Set([conversationId]))
-                }
-            } catch {
-                await MainActor.run {
-                    sdMessage.syncError = error.localizedDescription
-                    try? self.save(changedConversationIds: Set([conversationId]))
-                }
-            }
-        }
-    }
-    
     func fetchSDConversation(id: UUID) throws -> SDConversation? {
         guard let modelContext = modelContext else { return nil }
         let fetchDescriptor = FetchDescriptor<SDConversation>(predicate: #Predicate { $0.id == id })

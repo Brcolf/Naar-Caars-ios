@@ -32,6 +32,7 @@ final class SyncEngineOrchestrator {
         }
     }
 
+    /// Runs each engine's non-fetching session-start hook. Blocked during sign-out.
     func startAll() {
         guard !AuthService.shared.isSigningOut else {
             AppLogger.warning("sync", "startAll() blocked — sign-out in progress")
@@ -40,20 +41,6 @@ final class SyncEngineOrchestrator {
         for engine in engines {
             AppLogger.info("sync", "Starting \(engine.engineName)")
             engine.startSync()
-        }
-    }
-
-    func pauseAll() async {
-        for engine in engines {
-            AppLogger.info("sync", "Pausing \(engine.engineName)")
-            await engine.pauseSync()
-        }
-    }
-
-    func resumeAll() async {
-        for engine in engines {
-            AppLogger.info("sync", "Resuming \(engine.engineName)")
-            await engine.resumeSync()
         }
     }
 

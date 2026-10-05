@@ -25,16 +25,20 @@ final class FavorDetailViewModel: ObservableObject {
     private let favorService: any FavorServiceProtocol
     private let rideService: any RideServiceProtocol // Reuse RideService for Q&A
     private let authService: any AuthServiceProtocol
+    /// Messaging seam used only to open a group chat for this favor (narrow protocol, not the concrete service)
+    private let conversationService: any ConversationServiceProtocol
     private let notificationRepository = NotificationRepository.shared
 
     init(
         favorService: any FavorServiceProtocol = FavorService.shared,
         rideService: any RideServiceProtocol = RideService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        conversationService: any ConversationServiceProtocol = ConversationService.shared
     ) {
         self.favorService = favorService
         self.rideService = rideService
         self.authService = authService
+        self.conversationService = conversationService
     }
     
     // MARK: - Public Methods
@@ -105,6 +109,49 @@ final class FavorDetailViewModel: ObservableObject {
         try await favorService.deleteFavor(id: favorId)
     }
     
+    /// Create a group conversation with the poster, claimer, participants and the current user.
+    /// - Returns: The conversation ID to navigate to, or nil on failure (logged)
+    func createConversationWithParticipants() async -> UUID? {
+        guard let favor = favor, let currentUserId = authService.currentUserId else { return nil }
+        
+        do {
+            var participantIds: Set<UUID> = [favor.userId]
+            if let claimedBy = favor.claimedBy { participantIds.insert(claimedBy) }
+            if let participants = favor.participants {
+                participantIds.formUnion(participants.map { $0.id })
+            }
+            participantIds.insert(currentUserId)
+            
+            let conversation = try await conversationService.createConversationWithUsers(
+                userIds: Array(participantIds),
+                createdBy: currentUserId,
+                title: nil
+            )
+            
+            return conversation.id
+        } catch {
+            AppLogger.error("favors", "Error creating conversation: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Add participants to this favor and reload it. Failures are logged (unchanged behaviour).
+    func addParticipants(_ userIds: [UUID]) async {
+        guard let currentUserId = authService.currentUserId,
+              let favor = favor else { return }
+        
+        do {
+            try await favorService.addFavorParticipants(
+                favorId: favor.id,
+                userIds: userIds,
+                addedBy: currentUserId
+            )
+            await loadFavor(id: favor.id)
+        } catch {
+            AppLogger.error("favors", "Error adding participants to favor: \(error.localizedDescription)")
+        }
+    }
+    
     /// Check if current user is the poster
     var isPoster: Bool {
         guard let favor = favor,
@@ -152,7 +199,7 @@ final class FavorDetailViewModel: ObservableObject {
         let eventTime = RequestItem.favor(favor).eventTime
         guard eventTime > Date() else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Constants.Timing.calendarOfferPresentationDelay) { [weak self] in
             self?.showCalendarOffer = true
         }
     }

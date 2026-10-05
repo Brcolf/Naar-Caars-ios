@@ -38,8 +38,8 @@ struct MainTabView: View {
             }
             .buttonStyle(.plain)
             .id("app.toast.inAppMessage")
-            .accessibilityLabel("New message notification")
-            .accessibilityHint("Double-tap to open the conversation")
+            .accessibilityLabel("toast_new_message_accessibility".localized)
+            .accessibilityHint("toast_new_message_hint".localized)
             .padding(.top, 8)
             .padding(.horizontal, 16)
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -56,7 +56,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("nav_tab_requests".localized, systemImage: "car.fill")
                 }
-                .accessibilityHint("View ride and favor requests")
+                .accessibilityHint("nav_tab_requests_hint".localized)
             
             Group {
                 if appState.isGuest {
@@ -70,7 +70,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("nav_tab_messages".localized, systemImage: "message.fill")
                 }
-                .accessibilityHint("View your conversations")
+                .accessibilityHint("nav_tab_messages_hint".localized)
             
             CommunityTabView()
                 .tag(2)
@@ -78,7 +78,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("nav_tab_community".localized, systemImage: "person.3.fill")
                 }
-                .accessibilityHint("View community features")
+                .accessibilityHint("nav_tab_community_hint".localized)
             
             Group {
                 if appState.isGuest {
@@ -92,7 +92,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("nav_tab_profile".localized, systemImage: "person.fill")
                 }
-                .accessibilityHint("View and edit your profile")
+                .accessibilityHint("nav_tab_profile_hint".localized)
         }
         .onChange(of: navigationCoordinator.selectedTab) { _, newTab in
             selectedTab = newTab.rawValue
@@ -180,8 +180,8 @@ struct MainTabView: View {
             guard !appState.isGuest else { return }
             // Check if user needs to accept community guidelines
             checkGuidelinesAcceptance()
-            // Refresh badges on appear
-            await badgeManager.refreshAllBadges()
+            // Refresh badges on appear (RefreshCoordinator is the single refresh owner)
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "mainTabAppear")
             // Check for pending prompts (completion and review)
             if let userId = AuthService.shared.currentUserId {
                 await promptCoordinator.checkForPendingPrompts(userId: userId)

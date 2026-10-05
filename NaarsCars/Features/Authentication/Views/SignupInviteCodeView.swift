@@ -30,7 +30,7 @@ struct SignupInviteCodeView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 240, maxHeight: 160)
-                        .accessibilityLabel("Naar's Cars - Community Ride Sharing")
+                        .accessibilityLabel("app_logo_tagline_accessibility".localized)
                     
                     Text("signup_invite_subtitle".localized)
                         .font(.naarsSubheadline)

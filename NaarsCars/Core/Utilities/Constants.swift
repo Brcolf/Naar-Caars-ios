@@ -27,9 +27,9 @@ enum Constants {
     
     /// API and network timeouts (in seconds)
     enum Timeout {
-        static let network: TimeInterval = 30
-        static let upload: TimeInterval = 60
-        static let download: TimeInterval = 60
+        /// Batch reaction fetch — fail fast on degraded QUIC links instead of queuing for the
+        /// 60s URLSession default (see MessageReactionService.fetchIndividualReactionsBatch)
+        static let reactionBatchFetch: TimeInterval = 10
     }
     
     /// Cache TTL values (in seconds)
@@ -53,7 +53,6 @@ enum Constants {
         static let townHallPost: TimeInterval = 30.0
         static let townHallComment: TimeInterval = 10.0
         static let authAction: TimeInterval = 3.0
-        static let throttleSend: TimeInterval = 1.0
         static let throttleMarkRead: TimeInterval = 0.5
         static let throttleLastSeen: TimeInterval = 5.0
         static let reportSubmission: TimeInterval = 10.0
@@ -68,6 +67,7 @@ enum Constants {
         static let searchMessages: Int = 30
         static let searchInConversation: Int = 50
         static let fetchAll: Int = 100
+        static let userSearch: Int = 20
     }
     
     /// Timing constants (in nanoseconds for Task.sleep or seconds for intervals)
@@ -80,16 +80,10 @@ enum Constants {
         static let requestsRealtimeReloadDebounceNanoseconds: UInt64 = 350_000_000
         /// Debounce interval for notifications realtime-triggered full refreshes (0.25s)
         static let notificationsRealtimeReloadDebounceNanoseconds: UInt64 = 250_000_000
-        /// Debounce interval for malformed/unexpected notifications realtime payload fallback refreshes (1.5s)
-        static let notificationsRealtimeFallbackReloadDebounceNanoseconds: UInt64 = 1_500_000_000
-        /// Debounce interval for malformed/unexpected request-notification payload fallback refreshes (1.5s)
-        static let requestsRealtimeFallbackReloadDebounceNanoseconds: UInt64 = 1_500_000_000
         /// Delay before dismissing success views (1.5s)
         static let successDismissNanoseconds: UInt64 = 1_500_000_000
         /// Toast display duration (4s)
         static let toastDurationNanoseconds: UInt64 = 4_000_000_000
-        /// Typing indicator poll interval (3s)
-        static let typingPollInterval: TimeInterval = 3.0
         /// Typing signal threshold (2s)
         static let typingSignalThreshold: TimeInterval = 2.0
         /// Auto-clear typing indicator when no new typing signal is sent (5s)
@@ -102,8 +96,6 @@ enum Constants {
         static let notificationsFetchCoalesceWindow: TimeInterval = 2.0
         /// Coalesce forced notification fetches within this smaller window.
         static let notificationsForceRefreshCoalesceWindow: TimeInterval = 0.75
-        /// Minimum interval between repeated initial sync-engine starts.
-        static let syncEngineStartCooldown: TimeInterval = 5.0
         /// Minimum interval for automatic remote sync in conversations list.
         static let messagingListRemoteSyncMinInterval: TimeInterval = 2.0
         /// Audio playback progress timer interval (0.2s)
@@ -112,16 +104,55 @@ enum Constants {
         static let refreshStalenessWindow: TimeInterval = 30.0
         /// Safety poll interval (5 minutes)
         static let refreshSafetyPollInterval: TimeInterval = 300.0
+        /// Conversations-list poll interval used ONLY while push notifications are not authorized
+        /// and the messages tab is visible (push-off fallback, commit 7dd1494). Ticks route through
+        /// RefreshCoordinator.refreshIfNeeded, so the 30s staleness window and failure backoff still apply.
+        static let conversationsPushOffPollInterval: TimeInterval = 60.0
         /// Badge refresh debounce (5s)
         static let badgeRefreshDebounce: TimeInterval = 5.0
         /// Conversation WebSocket grace period before teardown (5s)
         static let conversationGracePeriod: TimeInterval = 5.0
         /// Subscribe-then-fetch confirmation timeout (3s)
         static let subscriptionConfirmationTimeout: TimeInterval = 3.0
-        /// Background push execution budget (8s)
-        static let backgroundPushBudget: TimeInterval = 8.0
         /// Background push deadline timer (25s — leaves 5s margin of 30s iOS limit)
         static let backgroundPushDeadline: TimeInterval = 25.0
+        /// Delay before presenting the calendar-offer alert on ride/favor detail so the view settles first (0.5s)
+        static let calendarOfferPresentationDelay: TimeInterval = 0.5
+        /// Admin broadcast: auto-clear the success message after this delay (3s)
+        static let broadcastSuccessClearNanoseconds: UInt64 = 3_000_000_000
+        /// Realtime: auto-unsubscribe every channel once the app has been in background this long (30s).
+        /// Removed with the background timer when E6 lands.
+        static let realtimeBackgroundUnsubscribeDelay: TimeInterval = 30.0
+    }
+
+    /// Retry and exponential-backoff policy (delays in seconds; counts are attempts)
+    enum Retry {
+        /// RefreshCoordinator: delay before the first retry after a failed domain refresh; doubles per consecutive failure
+        static let refreshBackoffInitial: TimeInterval = 5.0
+        /// RefreshCoordinator: cap on the failed-refresh backoff
+        static let refreshBackoffMax: TimeInterval = 120.0
+        /// MessageSendWorker: delay before the first resend of a pending message; doubles per attempt
+        static let messageSendBackoffInitial: TimeInterval = 1.0
+        /// MessageSendWorker: cap on the resend delay
+        static let messageSendBackoffMax: TimeInterval = 30.0
+        /// MessageSendWorker: attempts before a pending message is marked failed (it stays recoverable via retry)
+        static let messageSendMaxAttempts: Int = 5
+    }
+
+    /// User-content limits
+    enum Limits {
+        /// Maximum characters in a chat message, enforced client-side before send ("messaging_too_long")
+        static let messageTextMaxLength: Int = 5000
+    }
+
+    /// Media upload parameters that are not ImagePreset-driven
+    enum Media {
+        /// Longest side (points) for the single-pass chat image resize in MessageSendManager.
+        /// Intentionally differs from ImagePreset.messageImage.maxDimension (2048); do not merge them.
+        static let messageImageMaxDimension: CGFloat = 1920
+        /// JPEG quality for the single-pass chat image compression in MessageSendManager.
+        /// Intentionally differs from ImagePreset.messageImage.initialQuality (0.75); do not merge them.
+        static let messageImageJPEGQuality: CGFloat = 0.7
     }
 
     /// Performance thresholds and retention policies
@@ -134,8 +165,6 @@ enum Constants {
         static let messageSendServerAcceptSlowThreshold: TimeInterval = 0.5
         /// Slow claim operation warning threshold
         static let claimOperationSlowThreshold: TimeInterval = 1.0
-        /// Offline cache retention window in days
-        static let offlineCacheRetentionDays: Int = 14
     }
 
     /// Storage limits and cache budgets
@@ -149,7 +178,6 @@ enum Constants {
     /// External URLs
     enum URLs {
         static let googleMapsSearch = "https://www.google.com/maps/search/"
-        static let googleMapsDirections = "https://www.google.com/maps/dir/"
         /// Google search for flight status (e.g. q=DL1234+flight+status). Open in browser; no in-app status.
         static func flightStatusSearch(normalizedFlightNumber: String) -> String {
             let q = (normalizedFlightNumber + " flight status").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedFlightNumber

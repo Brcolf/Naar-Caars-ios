@@ -148,13 +148,13 @@ final class PushNotificationService: NSObject, ObservableObject {
         // Completion Reminder category with Yes/No actions
         let yesAction = UNNotificationAction(
             identifier: NotificationAction.yesCompleted.rawValue,
-            title: "Yes, Completed",
+            title: "notifications_action_yes_completed".localized,
             options: []
         )
         
         let noAction = UNNotificationAction(
             identifier: NotificationAction.noNotYet.rawValue,
-            title: "No, Not Yet",
+            title: "notifications_action_no_not_yet".localized,
             options: []
         )
         
@@ -168,15 +168,15 @@ final class PushNotificationService: NSObject, ObservableObject {
         // Message category with quick-reply and mark-read actions
         let replyAction = UNTextInputNotificationAction(
             identifier: NotificationAction.reply.rawValue,
-            title: "Reply",
+            title: "notifications_action_reply".localized,
             options: [],
-            textInputButtonTitle: "Send",
-            textInputPlaceholder: "Type a reply…"
+            textInputButtonTitle: "notifications_action_send".localized,
+            textInputPlaceholder: "notifications_action_reply_placeholder".localized
         )
         
         let markReadAction = UNNotificationAction(
             identifier: NotificationAction.markRead.rawValue,
-            title: "Mark as Read",
+            title: "notifications_action_mark_read".localized,
             options: []
         )
         
@@ -190,7 +190,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         // New Request category with view action
         let viewRequestAction = UNNotificationAction(
             identifier: NotificationAction.viewRequest.rawValue,
-            title: "View Details",
+            title: "common_view_details".localized,
             options: [.foreground]
         )
         
@@ -204,13 +204,13 @@ final class PushNotificationService: NSObject, ObservableObject {
         // Claimed Request category with Add to Calendar and View Details actions
         let addToCalendarAction = UNNotificationAction(
             identifier: NotificationAction.addToCalendar.rawValue,
-            title: "Add to Calendar",
+            title: "calendar_offer_add".localized,
             options: [.foreground]
         )
 
         let viewClaimedRequestAction = UNNotificationAction(
             identifier: NotificationAction.viewRequest.rawValue,
-            title: "View Details",
+            title: "common_view_details".localized,
             options: [.foreground]
         )
 
@@ -238,10 +238,10 @@ final class PushNotificationService: NSObject, ObservableObject {
     func requestPermission() async -> Bool {
         do {
             let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound, .badge])
-            Log.push("Notification permission request result: \(granted ? "granted" : "denied")")
+            AppLogger.info("push", "Notification permission request result: \(granted ? "granted" : "denied")")
             return granted
         } catch {
-            Log.push("Failed to request notification permission: \(error.localizedDescription)", type: .error)
+            AppLogger.error("push", "Failed to request notification permission: \(error.localizedDescription)")
             return false
         }
     }
@@ -250,7 +250,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// - Returns: Authorization status
     func checkAuthorizationStatus() async -> UNAuthorizationStatus {
         let settings = await notificationCenter.notificationSettings()
-        Log.push("Notification authorization status: \(settings.authorizationStatus.rawValue)")
+        AppLogger.info("push", "Notification authorization status: \(settings.authorizationStatus.rawValue)")
         return settings.authorizationStatus
     }
     
@@ -340,7 +340,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     func storeDeviceToken(_ deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         PushTokenKeychain.save(key: tokenStorageKey, value: tokenString)
-        Log.push("Stored APNs token locally: \(tokenString.prefix(12))...")
+        AppLogger.info("push", "Stored APNs token locally: \(tokenString.prefix(12))...")
     }
 
     /// Register a locally stored token if needed (user changed or token updated)
@@ -354,14 +354,14 @@ final class PushNotificationService: NSObject, ObservableObject {
         case .authorized, .provisional, .ephemeral:
             break
         default:
-            Log.push("Push authorization is not enabled (status=\(settings.authorizationStatus.rawValue)); remote pushes will not be shown.", type: .info)
+            AppLogger.info("push", "Push authorization is not enabled (status=\(settings.authorizationStatus.rawValue)); remote pushes will not be shown.")
         }
 
         guard let tokenString = PushTokenKeychain.read(key: tokenStorageKey) else {
             #if DEBUG
             Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "No stored token", data: ["userId": userId.uuidString])
             #endif
-            Log.push("No stored APNs token to register for user \(userId)")
+            AppLogger.info("push", "No stored APNs token to register for user \(userId)")
             return
         }
 
@@ -371,11 +371,11 @@ final class PushNotificationService: NSObject, ObservableObject {
         if lastRegisteredToken == tokenString && lastRegisteredUserId == userId.uuidString {
             let registrationStillExists = await remoteRegistrationExists(tokenString: tokenString, userId: userId)
             if registrationStillExists {
-                Log.push("APNs token already registered for user \(userId)")
+                AppLogger.info("push", "APNs token already registered for user \(userId)")
                 return
             }
 
-            Log.push("Local APNs registration cache was stale; re-registering token for user \(userId)")
+            AppLogger.info("push", "Local APNs registration cache was stale; re-registering token for user \(userId)")
         }
 
         do {
@@ -387,7 +387,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             #if DEBUG
             Self.pushDebugLog(location: "PushNotificationService.swift:registerStoredDeviceTokenIfNeeded", message: "Register stored token failed", data: ["userId": userId.uuidString, "error": error.localizedDescription])
             #endif
-            Log.push("Failed to register stored APNs token: \(error.localizedDescription)", type: .error)
+            AppLogger.error("push", "Failed to register stored APNs token: \(error.localizedDescription)")
         }
     }
 
@@ -405,7 +405,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             let decoded = try JSONDecoder().decode([PushTokenRow].self, from: rows.data)
             return !decoded.isEmpty
         } catch {
-            Log.push("Unable to verify remote APNs registration: \(error.localizedDescription)", type: .error)
+            AppLogger.error("push", "Unable to verify remote APNs registration: \(error.localizedDescription)")
             return false
         }
     }
@@ -484,8 +484,8 @@ final class PushNotificationService: NSObject, ObservableObject {
         }
         
         let content = UNMutableNotificationContent()
-        content.title = "Is This Complete?"
-        content.body = "Did you complete the \(requestTitle)?"
+        content.title = "common_is_this_complete".localized
+        content.body = "notifications_completion_reminder_body".localized(with: requestTitle)
         content.sound = .default
         content.categoryIdentifier = NotificationCategory.completionReminder.rawValue
         
@@ -666,28 +666,28 @@ final class PushNotificationService: NSObject, ObservableObject {
             
             if completed {
                 // Refresh badge counts and post notification for review prompt
-                await BadgeCountManager.shared.refreshAllBadges()
+                _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "completionActionYes")
                 
                 // Show review prompt if applicable
                 if let rideIdString = userInfo["ride_id"] as? String,
                    let rideId = UUID(uuidString: rideIdString) {
                     await MainActor.run {
-                        NavigationCoordinator.shared.showReviewPromptFor(rideId: rideId)
+                        NavigationCoordinator.shared.applyNotificationIntent(.showReview(rideId: rideId, favorId: nil))
                     }
                 } else if let favorIdString = userInfo["favor_id"] as? String,
                           let favorId = UUID(uuidString: favorIdString) {
                     await MainActor.run {
-                        NavigationCoordinator.shared.showReviewPromptFor(favorId: favorId)
+                        NavigationCoordinator.shared.applyNotificationIntent(.showReview(rideId: nil, favorId: favorId))
                     }
                 }
             } else {
                 // User tapped "No" - schedule another reminder for 1 hour later
                 // Build request title from userInfo
-                var requestTitle = "your request"
+                var requestTitle = "notifications_completion_reminder_your_request".localized
                 if userInfo["ride_id"] != nil {
-                    requestTitle = "your ride"
+                    requestTitle = "notifications_completion_reminder_your_ride".localized
                 } else if userInfo["favor_id"] != nil {
-                    requestTitle = "your favor"
+                    requestTitle = "notifications_completion_reminder_your_favor".localized
                 }
                 
                 await rescheduleCompletionReminder(
@@ -708,27 +708,36 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// - Parameters:
     ///   - replyText: The text the user typed in the notification reply field
     ///   - userInfo: The notification payload (must contain conversation_id)
+    ///
+    /// Routes through `MessageSendManager` (the canonical send entry point) so the reply
+    /// is persisted as an optimistic `.sending` row before the network call. A failed send
+    /// is kept as `.failed` and is recoverable from the conversation instead of being lost.
     func handleMessageReply(replyText: String, userInfo: [AnyHashable: Any]) async {
         guard let conversationIdString = userInfo["conversation_id"] as? String,
               let conversationId = UUID(uuidString: conversationIdString),
-              let userId = AuthService.shared.currentUserId else {
-            Log.push("Missing conversation_id or user for quick reply", type: .error)
+              AuthService.shared.currentUserId != nil else {
+            AppLogger.error("push", "Missing conversation_id or user for quick reply")
             return
         }
         
         let trimmed = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        do {
-            _ = try await MessageService.shared.sendMessage(
-                conversationId: conversationId,
-                fromId: userId,
-                text: trimmed
-            )
-            Log.push("Quick reply sent to conversation \(conversationId)")
-        } catch {
-            Log.push("Quick reply failed: \(error.localizedDescription)", type: .error)
-        }
+        // MessageSendManager is @MainActor; no UI is attached, so the text/error
+        // callbacks only log. The manager performs the rate-limit and length checks.
+        let sendManager = await MessageSendManager()
+        await sendManager.sendMessage(
+            conversationId: conversationId,
+            messageText: trimmed,
+            image: nil,
+            setMessageText: { _ in },
+            setError: { error in
+                if let error {
+                    AppLogger.error("push", "Quick reply failed: \(error.localizedDescription)")
+                }
+            }
+        )
+        AppLogger.info("push", "Quick reply handed to MessageSendManager for conversation \(conversationId)")
     }
     
     /// Handle mark-as-read action from a message notification
@@ -737,7 +746,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         guard let conversationIdString = userInfo["conversation_id"] as? String,
               let conversationId = UUID(uuidString: conversationIdString),
               let userId = AuthService.shared.currentUserId else {
-            Log.push("Missing conversation_id or user for mark-read", type: .error)
+            AppLogger.error("push", "Missing conversation_id or user for mark-read")
             return
         }
         
@@ -746,10 +755,10 @@ final class PushNotificationService: NSObject, ObservableObject {
                 conversationId: conversationId,
                 userId: userId
             )
-            await BadgeCountManager.shared.refreshAllBadges(reason: "messageMarkedReadFromNotification")
-            Log.push("Marked conversation \(conversationId) as read from notification")
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "messageMarkedReadFromNotification")
+            AppLogger.info("push", "Marked conversation \(conversationId) as read from notification")
         } catch {
-            Log.push("Mark-read from notification failed: \(error.localizedDescription)", type: .error)
+            AppLogger.error("push", "Mark-read from notification failed: \(error.localizedDescription)")
         }
     }
     
@@ -760,9 +769,9 @@ final class PushNotificationService: NSObject, ObservableObject {
     func handlePushReceived(userInfo: [AnyHashable: Any]) {
         guard let typeString = userInfo["type"] as? String,
               let type = NotificationType(rawValue: typeString) else {
-            // Unknown type — just refresh badges
+            // Unknown type — just refresh badges (same push → coordinator path as known types)
             Task { @MainActor in
-                await BadgeCountManager.shared.refreshAllBadges(reason: "push:unknown")
+                RefreshCoordinator.shared.performTargetedRefresh(.badges, entityId: UUID(), trigger: "push:unknown")
             }
             return
         }

@@ -28,21 +28,21 @@ struct ReviewCard: View {
                 if let reviewerAvatarUrl = reviewerAvatarUrl {
                     AvatarView(
                         imageUrl: reviewerAvatarUrl,
-                        name: reviewerName ?? "Anonymous",
+                        name: reviewerName ?? "common_anonymous".localized,
                         size: 40,
                         userId: reviewerId
                     )
                 } else {
                     AvatarView(
                         imageUrl: nil,
-                        name: reviewerName ?? "Anonymous",
+                        name: reviewerName ?? "common_anonymous".localized,
                         size: 40,
                         userId: reviewerId
                     )
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(reviewerName ?? "Anonymous")
+                    Text(reviewerName ?? "common_anonymous".localized)
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     

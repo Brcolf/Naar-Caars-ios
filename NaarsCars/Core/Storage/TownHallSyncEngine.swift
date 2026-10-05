@@ -36,20 +36,12 @@ final class TownHallSyncEngine: SyncEngineProtocol {
         backgroundActor = BackgroundSyncActor(modelContainer: container)
     }
 
+    /// Session-start hook (SyncEngineProtocol). Setup only — must not fetch.
+    /// Initial hydration is owned by RefreshCoordinator
+    /// (`refreshIfNeeded(.townHall, trigger: "launch")` → `performFullSync()`).
     func startSync() {
-        Task {
-            do {
-                let metrics = try await performFullSync()
-                RefreshCoordinator.shared.markSyncCompleted(.townHall, metrics: metrics)
-            } catch {
-                RefreshCoordinator.shared.markSyncFailed(.townHall, error: error, partial: nil)
-            }
-        }
+        // Nothing to set up — this engine has no workers or subscriptions.
     }
-
-    func pauseSync() async { }
-
-    func resumeSync() async { }
 
     func teardown() async {
         backgroundActor = nil

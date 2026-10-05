@@ -50,7 +50,7 @@ struct AdminActiveRidesOverlay: View {
                                     .background(request.isRide ? Color.naarsPrimary : Color.orange)
                                     .cornerRadius(4)
 
-                                Text(request.posterName ?? "Unknown")
+                                Text(request.posterName ?? "common_unknown".localized)
                                     .font(.naarsHeadline)
                                 if let claimer = request.claimerName {
                                     Image(systemName: "arrow.right")

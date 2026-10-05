@@ -24,14 +24,18 @@ final class RideDetailViewModel: ObservableObject {
     
     private let rideService: any RideServiceProtocol
     private let authService: any AuthServiceProtocol
+    /// Messaging seam used only to open a group chat for this ride (narrow protocol, not the concrete service)
+    private let conversationService: any ConversationServiceProtocol
     private let notificationRepository = NotificationRepository.shared
 
     init(
         rideService: any RideServiceProtocol = RideService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        conversationService: any ConversationServiceProtocol = ConversationService.shared
     ) {
         self.rideService = rideService
         self.authService = authService
+        self.conversationService = conversationService
     }
     
     // MARK: - Public Methods
@@ -106,6 +110,48 @@ final class RideDetailViewModel: ObservableObject {
         try await rideService.deleteRide(id: rideId)
     }
     
+    /// Create a group conversation with the poster, claimer, participants and the current user.
+    /// - Returns: The conversation ID to navigate to, or nil on failure (logged)
+    func createConversationWithParticipants() async -> UUID? {
+        guard let ride = ride, let currentUserId = authService.currentUserId else { return nil }
+        
+        do {
+            var participantIds: Set<UUID> = [ride.userId]
+            if let claimedBy = ride.claimedBy { participantIds.insert(claimedBy) }
+            if let participants = ride.participants {
+                participantIds.formUnion(participants.map { $0.id })
+            }
+            participantIds.insert(currentUserId)
+            
+            let conversation = try await conversationService.createConversationWithUsers(
+                userIds: Array(participantIds),
+                createdBy: currentUserId,
+                title: nil
+            )
+            return conversation.id
+        } catch {
+            AppLogger.error("rides", "Error creating conversation: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Add participants to this ride and reload it. Failures are logged (unchanged behaviour).
+    func addParticipants(_ userIds: [UUID]) async {
+        guard let currentUserId = authService.currentUserId,
+              let ride = ride else { return }
+        
+        do {
+            try await rideService.addRideParticipants(
+                rideId: ride.id,
+                userIds: userIds,
+                addedBy: currentUserId
+            )
+            await loadRide(id: ride.id)
+        } catch {
+            AppLogger.error("rides", "Error adding participants to ride: \(error.localizedDescription)")
+        }
+    }
+    
     /// Check if current user is the poster
     var isPoster: Bool {
         guard let ride = ride,
@@ -157,7 +203,7 @@ final class RideDetailViewModel: ObservableObject {
         guard eventTime > Date() else { return }
 
         // Brief delay so the view settles before showing alert
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Constants.Timing.calendarOfferPresentationDelay) { [weak self] in
             self?.showCalendarOffer = true
         }
     }

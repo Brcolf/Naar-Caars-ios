@@ -201,8 +201,8 @@ final class ReactionDetailsRowView: UIView {
 
         container.isAccessibilityElement = true
         let reactionName = accessibleReactionName(for: reaction)
-        let names = reactions.compactMap { profiles[$0.userId]?.name ?? "Unknown" }
-        container.accessibilityLabel = "\(reactionName) by \(names.joined(separator: ", "))"
+        let names = reactions.compactMap { profiles[$0.userId]?.name ?? "common_unknown".localized }
+        container.accessibilityLabel = "messaging_reaction_by_accessibility".localized(with: reactionName, names.joined(separator: ", "))
 
         return container
     }
@@ -218,7 +218,7 @@ final class ReactionDetailsRowView: UIView {
         if TapbackArtwork.isHaha(reaction) {
             let imageView = UIImageView(image: TapbackArtwork.hahaImage(pointSize: size))
             imageView.contentMode = .scaleAspectFit
-            imageView.accessibilityLabel = "Ha ha"
+            imageView.accessibilityLabel = "messaging_reaction_haha".localized
             let inset: CGFloat = 6
             imageView.frame = CGRect(x: inset, y: inset, width: size - inset * 2, height: size - inset * 2)
             container.addSubview(imageView)
@@ -348,12 +348,12 @@ final class ReactionDetailsRowView: UIView {
 
     private func accessibleReactionName(for emoji: String) -> String {
         switch emoji {
-        case "\u{2764}\u{FE0F}": return "heart"
-        case "\u{1F44D}": return "thumbs up"
-        case "\u{1F44E}": return "thumbs down"
-        case "\u{1F602}": return "ha ha"
-        case "\u{203C}\u{FE0F}": return "exclamation"
-        case "\u{2753}": return "question mark"
+        case "\u{2764}\u{FE0F}": return "messaging_reaction_heart".localized
+        case "\u{1F44D}": return "messaging_reaction_thumbs_up".localized
+        case "\u{1F44E}": return "messaging_reaction_thumbs_down".localized
+        case "\u{1F602}": return "messaging_reaction_haha".localized
+        case "\u{203C}\u{FE0F}": return "messaging_reaction_exclamation".localized
+        case "\u{2753}": return "messaging_reaction_question_mark".localized
         default: return emoji
         }
     }

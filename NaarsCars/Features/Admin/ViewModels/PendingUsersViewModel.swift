@@ -23,13 +23,8 @@ final class PendingUsersViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let adminService = AdminService.shared
-    private let badgeManager: any BadgeCountManaging
     private let supabase = SupabaseService.shared.client
     private var loadTask: Task<Void, Never>?
-
-    init(badgeManager: any BadgeCountManaging = BadgeCountManager.shared) {
-        self.badgeManager = badgeManager
-    }
     
     // MARK: - Public Methods
 
@@ -112,7 +107,7 @@ final class PendingUsersViewModel: ObservableObject {
             inviterProfiles.removeValue(forKey: userId)
             
             // Refresh badge counts after approving user
-            await badgeManager.refreshAllBadges(reason: "adminApproveUser")
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "adminApproveUser")
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             AppLogger.error("admin", "Error approving user: \(error.localizedDescription)")
@@ -140,7 +135,7 @@ final class PendingUsersViewModel: ObservableObject {
             pendingUsers.removeAll { $0.id == userId }
             
             // Refresh badge counts after rejecting user
-            await badgeManager.refreshAllBadges(reason: "adminRejectUser")
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "adminRejectUser")
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             AppLogger.error("admin", "Error rejecting user: \(error.localizedDescription)")

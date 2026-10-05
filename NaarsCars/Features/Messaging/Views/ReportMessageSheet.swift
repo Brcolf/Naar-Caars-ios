@@ -17,7 +17,7 @@ struct ReportMessageSheet: View {
     @State private var description = ""
     @State private var isSubmitting = false
     @State private var showBlockConfirmation = false
-    @State private var blockError: String?
+    @StateObject private var viewModel = ReportMessageViewModel()
     
     private var reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] {[
         (.spam, "messaging_report_spam".localized, "exclamationmark.bubble"),
@@ -127,33 +127,19 @@ struct ReportMessageSheet: View {
         }
         .alert("messaging_block_user".localized, isPresented: $showBlockConfirmation) {
             Button("messaging_block".localized, role: .destructive) {
-                Task {
-                    guard let currentUserId = AuthService.shared.currentUserId else {
-                        blockError = "messaging_must_be_signed_in_to_block".localized
-                        return
-                    }
-                    do {
-                        try await MessageService.shared.blockUser(
-                            blockerId: currentUserId,
-                            blockedId: message.fromId,
-                            reason: "Blocked from message report"
-                        )
-                    } catch {
-                        blockError = "messaging_unable_to_block_user".localized
-                    }
-                }
+                Task { await viewModel.blockUser(message.fromId) }
             }
             Button("messaging_cancel".localized, role: .cancel) {}
         } message: {
             Text("messaging_block_user_footer".localized)
         }
         .alert("messaging_block_failed".localized, isPresented: Binding(
-            get: { blockError != nil },
-            set: { if !$0 { blockError = nil } }
+            get: { viewModel.blockError != nil },
+            set: { if !$0 { viewModel.blockError = nil } }
         )) {
             Button("messaging_ok".localized, role: .cancel) {}
         } message: {
-            Text(blockError ?? "")
+            Text(viewModel.blockError ?? "")
         }
         .presentationDetents([.medium, .large])
     }

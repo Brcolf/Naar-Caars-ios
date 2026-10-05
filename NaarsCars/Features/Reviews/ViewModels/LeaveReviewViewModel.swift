@@ -30,16 +30,14 @@ struct LeaveReviewDependencies {
     static func live() -> LeaveReviewDependencies {
         live(
             authService: AuthService.shared,
-            reviewService: ReviewService.shared,
-            badgeManager: BadgeCountManager.shared
+            reviewService: ReviewService.shared
         )
     }
 
     @MainActor
     static func live(
         authService: any AuthServiceProtocol,
-        reviewService: any ReviewServiceProtocol,
-        badgeManager: any BadgeCountManaging
+        reviewService: any ReviewServiceProtocol
     ) -> LeaveReviewDependencies {
         return LeaveReviewDependencies(
             currentUserId: { authService.currentUserId },
@@ -61,7 +59,7 @@ struct LeaveReviewDependencies {
                 )
             },
             refreshBadges: { reason in
-                await badgeManager.refreshAllBadges(reason: reason)
+                _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: reason)
             },
             fetchReviewPostId: { reviewId in
                 do {

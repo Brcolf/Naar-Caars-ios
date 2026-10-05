@@ -309,6 +309,13 @@ final class AppLaunchManager: ObservableObject {
         )
     }
 
+    /// Domains hydrated at launch. Mirrors the three sync engines that used to
+    /// fetch from `startSync()`. Badges are intentionally excluded: they are
+    /// refreshed by `MainTabView.task` → `RefreshCoordinator.forceFullRefreshAndWait(.badges, …)`.
+    private static let launchHydrationDomains: [RefreshCoordinator.Domain] = [
+        .dashboard, .conversations, .townHall
+    ]
+
     private func startDeferredSyncEnginesIfNeeded(for userId: UUID) {
         guard deferredSyncStartedForUserId != userId else { return }
         deferredSyncStartedForUserId = userId
@@ -317,7 +324,17 @@ final class AppLaunchManager: ObservableObject {
         RefreshCoordinator.shared.initializeStates()
         RefreshCoordinator.shared.startSafetyPoll()
 
+        // Session setup only (e.g. MessageSendWorker). Engines no longer fetch here.
         SyncEngineOrchestrator.shared.startAll()
+
+        // Initial hydration goes through RefreshCoordinator — the single refresh
+        // owner — so the launch fetch registers as `.refreshing` and tab-appear,
+        // push and safety-poll triggers join it instead of starting a second
+        // concurrent fetch for the same domain.
+        guard !authService.isSigningOut else { return }
+        for domain in Self.launchHydrationDomains {
+            RefreshCoordinator.shared.refreshIfNeeded(domain, trigger: "launch")
+        }
     }
 
     private func recordLaunchDuration(start: Date, result: String, metadata: [String: Any] = [:]) async {

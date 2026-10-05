@@ -22,14 +22,20 @@ final class MyProfileViewModel: ObservableObject {
     @Published var totalSavings: Double = 0
     @Published var totalXP: Int = 0
     @Published var isLoading: Bool = false
+    @Published var isDeletingAccount: Bool = false
     @Published var error: AppError?
     
     // MARK: - Private Properties
     
     private let profileService: any ProfileServiceProtocol
+    private let authService: any AuthServiceProtocol
 
-    init(profileService: any ProfileServiceProtocol = ProfileService.shared) {
+    init(
+        profileService: any ProfileServiceProtocol = ProfileService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared
+    ) {
         self.profileService = profileService
+        self.authService = authService
     }
     
     // MARK: - Public Methods
@@ -90,6 +96,35 @@ final class MyProfileViewModel: ObservableObject {
         
         // Reload data
         await loadProfile(userId: userId)
+    }
+    
+    // MARK: - Account Actions
+    
+    /// Upload a new avatar for the current user
+    /// - Throws: Error from the upload (caller logs and decides UI feedback)
+    func uploadAvatar(imageData: Data, userId: UUID) async throws {
+        _ = try await profileService.uploadAvatar(imageData: imageData, userId: userId)
+    }
+    
+    /// Delete the current user's account (App Store requirement — keep reachable).
+    /// - Returns: `false` when there is no signed-in user (nothing was attempted), `true` on success
+    /// - Throws: Error from the deletion (caller shows the failure alert)
+    @discardableResult
+    func deleteAccount() async throws -> Bool {
+        guard let userId = authService.currentUserId else {
+            return false
+        }
+
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+
+        do {
+            try await profileService.deleteAccount(userId: userId)
+            return true
+        } catch {
+            AppLogger.error("profile", "Error deleting account: \(error.localizedDescription)")
+            throw error
+        }
     }
 }
 

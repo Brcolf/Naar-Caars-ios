@@ -22,8 +22,6 @@ struct ConversationDetailView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @StateObject private var debugFrameDropMonitor: DebugFrameDropMonitor
     @State private var showMessageDetails = false
-    @State private var selectedUserIds: Set<UUID> = []
-    @State private var conversationDetail: ConversationWithDetails?
     @State private var showImagePicker = false
     @State private var selectedImage: PhotosPickerItem?
     @State private var imageToSend: UIImage?
@@ -73,7 +71,7 @@ struct ConversationDetailView: View {
     private var conversationTitle: String {
         // If group conversation (3+ participants), show editable group name or participant names
         if participantsViewModel.participants.count > 2 {
-            if let title = conversationDetail?.conversation.title, !title.isEmpty {
+            if let title = participantsViewModel.conversationDetail?.conversation.title, !title.isEmpty {
                 return title
             }
             // Show participant names (excluding current user)
@@ -127,7 +125,7 @@ struct ConversationDetailView: View {
                 } label: {
                     Image(systemName: "photo.on.rectangle")
                 }
-                .accessibilityLabel("Media")
+                .accessibilityLabel("messaging_media_title".localized)
                 
                 // Search button
                 Button {
@@ -135,7 +133,7 @@ struct ConversationDetailView: View {
                 } label: {
                     Image(systemName: viewModel.isSearchActive ? "xmark" : "magnifyingglass")
                 }
-                .accessibilityLabel(viewModel.isSearchActive ? "Close search" : "Search messages")
+                .accessibilityLabel(viewModel.isSearchActive ? "messaging_search_close_accessibility".localized : "messaging_search_open_accessibility".localized)
                 
                 // Edit button for group conversations (opens message details popup)
                 if participantsViewModel.participants.count > 2 {
@@ -150,15 +148,15 @@ struct ConversationDetailView: View {
         .sheet(isPresented: $showMessageDetails) {
             MessageDetailsPopup(
                 conversationId: conversationId,
-                currentTitle: conversationDetail?.conversation.title,
-                currentGroupImageUrl: conversationDetail?.conversation.groupImageUrl,
+                currentTitle: participantsViewModel.conversationDetail?.conversation.title,
+                currentGroupImageUrl: participantsViewModel.conversationDetail?.conversation.groupImageUrl,
                 participants: participantsViewModel.participants
             )
             .onDisappear {
                 // Reload participants and conversation details after closing
                 Task {
                     await participantsViewModel.loadParticipants()
-                    await loadConversationDetails()
+                    await participantsViewModel.loadConversationDetails()
                 }
             }
         }
@@ -184,7 +182,7 @@ struct ConversationDetailView: View {
         .task {
             await viewModel.loadMessages()
             await participantsViewModel.loadParticipants()
-            await loadConversationDetails()
+            await participantsViewModel.loadConversationDetails()
         }
         .onAppear {
             NotificationCenter.default.post(
@@ -279,16 +277,10 @@ struct ConversationDetailView: View {
     
     /// Submit a report for a message
     private func submitReport(message: Message, type: MessageService.ReportType, description: String?) async {
-        guard let userId = AuthService.shared.currentUserId else { return }
         reportErrorMessage = nil
 
         do {
-            try await MessageService.shared.reportMessage(
-                reporterId: userId,
-                messageId: message.id,
-                type: type,
-                description: description
-            )
+            guard try await viewModel.reportMessage(messageId: message.id, type: type, description: description) else { return }
 
             reportErrorMessage = nil
             toastMessage = "messaging_report_submitted".localized
@@ -311,7 +303,7 @@ struct ConversationDetailView: View {
     private var totalParticipantsCount: Int {
         max(
             participantsViewModel.participants.count,
-            (conversationDetail?.otherParticipants.count ?? 0) + 1
+            (participantsViewModel.conversationDetail?.otherParticipants.count ?? 0) + 1
         )
     }
     
@@ -741,36 +733,34 @@ struct ConversationDetailView: View {
             }
         }
     }
+}
+
+/// ViewModel for managing conversation participants
+@MainActor
+final class ConversationParticipantsViewModel: ObservableObject {
+    @Published var participants: [Profile] = []
+    @Published var conversationDetail: ConversationWithDetails?
+    @Published var isLoading = false
+    @Published var error: AppError?
     
-    private func addParticipants(_ userIds: [UUID]) async {
-        guard let currentUserId = AuthService.shared.currentUserId else { return }
-        
-        do {
-            try await ConversationParticipantService.shared.addParticipantsToConversation(
-                conversationId: conversationId,
-                userIds: userIds,
-                addedBy: currentUserId,
-                createAnnouncement: true
-            )
-            // Reload messages to show announcement
-            await viewModel.loadMessages()
-            // Reload participants
-            await participantsViewModel.loadParticipants()
-            // Reload conversation details to get updated participant list
-            await loadConversationDetails()
-            
-            // Post notification to refresh conversations list
-            NotificationCenter.default.post(name: NSNotification.Name("conversationUpdated"), object: conversationId)
-        } catch {
-            AppLogger.error("messaging", "Error adding participants: \(error.localizedDescription)")
-        }
+    let conversationId: UUID
+    private let messageService = MessageService.shared
+    private let conversationService: any ConversationServiceProtocol
+    private let participantService = ConversationParticipantService.shared
+    
+    init(
+        conversationId: UUID,
+        conversationService: any ConversationServiceProtocol = ConversationService.shared
+    ) {
+        self.conversationId = conversationId
+        self.conversationService = conversationService
     }
     
-    private func loadConversationDetails() async {
+    func loadConversationDetails() async {
         guard let userId = AuthService.shared.currentUserId else { return }
         
         do {
-            if let detail = try await ConversationService.shared.fetchConversationWithDetails(
+            if let detail = try await conversationService.fetchConversationWithDetails(
                 conversationId: conversationId,
                 userId: userId
             ) {
@@ -779,21 +769,6 @@ struct ConversationDetailView: View {
         } catch {
             AppLogger.error("messaging", "Error loading conversation details: \(error.localizedDescription)")
         }
-    }
-}
-
-/// ViewModel for managing conversation participants
-@MainActor
-final class ConversationParticipantsViewModel: ObservableObject {
-    @Published var participants: [Profile] = []
-    @Published var isLoading = false
-    @Published var error: AppError?
-    
-    let conversationId: UUID
-    private let messageService = MessageService.shared
-    
-    init(conversationId: UUID) {
-        self.conversationId = conversationId
     }
     
     var participantIds: [UUID] {
@@ -820,22 +795,7 @@ final class ConversationParticipantsViewModel: ObservableObject {
             }
 
             // 2. Fetch fresh participant user IDs from network
-            let response = try await SupabaseService.shared.client
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: conversationId.uuidString)
-                .is("left_at", value: nil) // ONLY active participants
-                .execute()
-            
-            struct ParticipantRow: Codable {
-                let userId: UUID
-                enum CodingKeys: String, CodingKey {
-                    case userId = "user_id"
-                }
-            }
-            
-            let rows = try JSONDecoder().decode([ParticipantRow].self, from: response.data)
-            let freshParticipantIds = rows.map { $0.userId }
+            let freshParticipantIds = try await participantService.fetchActiveParticipantIds(conversationId: conversationId)
 
             // 3. Update local SwiftData participant list
             if let sdConv = try? MessagingRepository.shared.fetchSDConversation(id: conversationId) {

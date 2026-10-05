@@ -29,14 +29,16 @@ final class SyncHealthMetrics {
     }
 }
 
-/// Shared lifecycle interface for all realtime sync engines.
+/// Shared lifecycle interface for all sync engines.
 @MainActor
 protocol SyncEngineProtocol: AnyObject {
     var engineName: String { get }
     func setup(modelContext: ModelContext)
+    /// Session-start hook run by `SyncEngineOrchestrator.startAll()` after sign-in/launch.
+    /// Setup only (e.g. start workers). MUST NOT fetch or write SwiftData — initial
+    /// hydration is issued by the launch path through `RefreshCoordinator.refreshIfNeeded`,
+    /// and all engine fetches are dispatched only from the coordinator.
     func startSync()
-    func pauseSync() async
-    func resumeSync() async
     func teardown() async
     func performFullSync() async throws -> RefreshMetrics
     func performTargetedSync(entityId: UUID) async throws -> RefreshMetrics

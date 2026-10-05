@@ -224,17 +224,17 @@ final class ReactionStickerBadgeView: UIView {
         let typeNames = types.map { reactionName(for: $0) }
         let count = reactions.count
         let typesString = typeNames.joined(separator: ", ")
-        accessibilityLabel = "\(count) \(count == 1 ? "reaction" : "reactions"): \(typesString)"
+        accessibilityLabel = count == 1 ? "messaging_reactions_count_singular".localized(with: count, typesString) : "messaging_reactions_count_plural".localized(with: count, typesString)
     }
 
     private func reactionName(for emoji: String) -> String {
         switch emoji {
-        case "\u{2764}\u{FE0F}": return "heart"
-        case "\u{1F44D}": return "thumbs up"
-        case "\u{1F44E}": return "thumbs down"
-        case "\u{1F602}": return "ha ha"
-        case "\u{203C}\u{FE0F}": return "exclamation"
-        case "\u{2753}": return "question mark"
+        case "\u{2764}\u{FE0F}": return "messaging_reaction_heart".localized
+        case "\u{1F44D}": return "messaging_reaction_thumbs_up".localized
+        case "\u{1F44E}": return "messaging_reaction_thumbs_down".localized
+        case "\u{1F602}": return "messaging_reaction_haha".localized
+        case "\u{203C}\u{FE0F}": return "messaging_reaction_exclamation".localized
+        case "\u{2753}": return "messaging_reaction_question_mark".localized
         default: return emoji
         }
     }

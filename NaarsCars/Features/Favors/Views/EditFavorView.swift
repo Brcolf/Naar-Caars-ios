@@ -94,21 +94,7 @@ struct EditFavorView: View {
                     Button("common_save".localized) {
                         Task {
                             do {
-                                // Format time from hour/minute/isAM if time is specified
-                                let formattedTime = viewModel.hasTime ? viewModel.formatTime(hour: viewModel.hour, minute: viewModel.minute, isAM: viewModel.isAM) : nil
-                                
-                                _ = try await FavorService.shared.updateFavor(
-                                    id: favor.id,
-                                    title: viewModel.title.isEmpty ? nil : viewModel.title,
-                                    description: viewModel.description.isEmpty ? nil : viewModel.description,
-                                    location: viewModel.location.isEmpty ? nil : viewModel.location,
-                                    duration: viewModel.duration,
-                                    requirements: viewModel.requirements.isEmpty ? nil : viewModel.requirements,
-                                    date: viewModel.date,
-                                    time: formattedTime,
-                                    gift: viewModel.gift.isEmpty ? nil : viewModel.gift,
-                                    timezone: viewModel.timezone
-                                )
+                                try await viewModel.updateFavor(id: favor.id)
                                 // Notify parent to refresh before dismissing
                                 onSaved?()
                                 showSuccess = true

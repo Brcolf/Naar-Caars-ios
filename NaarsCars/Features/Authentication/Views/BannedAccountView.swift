@@ -5,17 +5,12 @@
 //  Restricted screen shown to banned users — delete account, contact support, or sign out
 //
 
-import Supabase
 import SwiftUI
 
 /// View displayed when a user's account has been restricted by an admin.
 /// Users can only contact support, delete their account, or sign out.
 struct BannedAccountView: View {
-    @StateObject private var launchManager = AppLaunchManager.shared
-    @State private var banReason: String?
-    @State private var isLoadingReason = true
-    @State private var isSigningOut = false
-    @State private var isDeletingAccount = false
+    @StateObject private var viewModel = BannedAccountViewModel()
     @State private var showDeleteConfirmation = false
     @State private var showDeleteSuccess = false
     @State private var showDeleteError = false
@@ -42,10 +37,10 @@ struct BannedAccountView: View {
                     .font(.naarsHeadline)
                     .foregroundColor(.secondary)
 
-                if isLoadingReason {
+                if viewModel.isLoadingReason {
                     ProgressView()
                 } else {
-                    Text(banReason?.isEmpty == false ? banReason! : "banned_reason_fallback".localized)
+                    Text(viewModel.banReason?.isEmpty == false ? viewModel.banReason! : "banned_reason_fallback".localized)
                         .font(.naarsBody)
                         .foregroundColor(.primary)
                         .multilineTextAlignment(.center)
@@ -90,7 +85,7 @@ struct BannedAccountView: View {
                     showDeleteConfirmation = true
                 }) {
                     HStack {
-                        if isDeletingAccount {
+                        if viewModel.isDeletingAccount {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
                                 .scaleEffect(0.8)
@@ -108,7 +103,7 @@ struct BannedAccountView: View {
                             .stroke(Color(.separator), lineWidth: 1)
                     )
                 }
-                .disabled(isDeletingAccount)
+                .disabled(viewModel.isDeletingAccount)
                 .accessibilityIdentifier("banned.deleteAccount")
 
                 // Sign Out
@@ -116,7 +111,7 @@ struct BannedAccountView: View {
                     signOut()
                 }) {
                     HStack {
-                        if isSigningOut {
+                        if viewModel.isSigningOut {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
                                 .scaleEffect(0.8)
@@ -126,7 +121,7 @@ struct BannedAccountView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                .disabled(isSigningOut)
+                .disabled(viewModel.isSigningOut)
                 .accessibilityIdentifier("banned.signOut")
             }
             .padding(.horizontal, 32)
@@ -135,7 +130,7 @@ struct BannedAccountView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
         .task {
-            await loadBanReason()
+            await viewModel.loadBanReason()
         }
         .alert("profile_delete_account".localized, isPresented: $showDeleteConfirmation) {
             Button("common_cancel".localized, role: .cancel) {}
@@ -160,62 +155,20 @@ struct BannedAccountView: View {
         .trackScreen("BannedAccount")
     }
 
-    // MARK: - Data Loading
-
-    /// Minimal response struct for fetching only the ban reason column
-    private struct BanReasonResponse: Decodable {
-        let banReason: String?
-        enum CodingKeys: String, CodingKey {
-            case banReason = "ban_reason"
-        }
-    }
-
-    private func loadBanReason() async {
-        isLoadingReason = true
-        do {
-            let response: BanReasonResponse = try await SupabaseService.shared.client
-                .from("profiles")
-                .select("ban_reason")
-                .eq("id", value: AuthService.shared.currentUserId?.uuidString ?? "")
-                .single()
-                .execute()
-                .value
-            banReason = response.banReason
-        } catch {
-            AppLogger.warning("auth", "Failed to load ban reason: \(error.localizedDescription)")
-            banReason = nil
-        }
-        isLoadingReason = false
-    }
-
     // MARK: - Actions
 
     private func deleteAccount() async {
-        guard let userId = AuthService.shared.currentUserId else { return }
-        isDeletingAccount = true
         do {
-            try await ProfileService.shared.deleteAccount(userId: userId)
-            isDeletingAccount = false
+            guard try await viewModel.deleteAccount() else { return }
             showDeleteSuccess = true
         } catch {
-            isDeletingAccount = false
             deleteErrorMessage = error.localizedDescription
             showDeleteError = true
         }
     }
 
     private func signOut() {
-        Task {
-            isSigningOut = true
-            do {
-                try await AuthService.shared.signOut()
-                await launchManager.performCriticalLaunch()
-            } catch {
-                AppLogger.warning("auth", "Error signing out: \(error.localizedDescription)")
-                launchManager.state = .ready(.unauthenticated)
-            }
-            isSigningOut = false
-        }
+        Task { await viewModel.signOut() }
     }
 }
 

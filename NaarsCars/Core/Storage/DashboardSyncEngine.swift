@@ -20,7 +20,6 @@ final class DashboardSyncEngine: SyncEngineProtocol {
 
     private var modelContext: ModelContext?
     private var backgroundActor: BackgroundSyncActor?
-    private var lastStartSyncAt: Date = .distantPast
     let health = SyncHealthMetrics()
 
     private init() {}
@@ -35,38 +34,17 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         self.backgroundActor = BackgroundSyncActor(modelContainer: container)
     }
 
-    /// Start syncing dashboard and notifications
+    /// Session-start hook (SyncEngineProtocol). Setup only — must not fetch.
+    /// Initial hydration is owned by RefreshCoordinator, which calls
+    /// `performFullSync()` via `refreshIfNeeded(.dashboard, trigger: "launch")`
+    /// so the launch fetch participates in in-flight dedup.
     func startSync() {
-        let now = Date()
-        guard now.timeIntervalSince(lastStartSyncAt) >= Constants.Timing.syncEngineStartCooldown else {
-            return
-        }
-        lastStartSyncAt = now
-
-        Task {
-            do {
-                let metrics = try await performFullSync()
-                RefreshCoordinator.shared.markSyncCompleted(.dashboard, metrics: metrics)
-            } catch {
-                RefreshCoordinator.shared.markSyncFailed(.dashboard, error: error, partial: nil)
-            }
-        }
-    }
-
-    func pauseSync() async {
-        // No realtime subscriptions to manage anymore
-        // In-flight tasks are managed by the coordinator
-    }
-
-    func resumeSync() async {
-        // No realtime subscriptions to manage anymore
-        // Coordinator handles refresh on foreground
+        // Nothing to set up — this engine has no workers or subscriptions.
     }
 
     func teardown() async {
         modelContext = nil
         backgroundActor = nil
-        lastStartSyncAt = .distantPast
     }
 
     /// Sync all data from network to SwiftData
@@ -99,11 +77,14 @@ final class DashboardSyncEngine: SyncEngineProtocol {
     /// Full network-to-SwiftData sync with change detection.
     /// Called by RefreshCoordinator for staleness-based and pull-to-refresh.
     func performFullSync() async throws -> RefreshMetrics {
-        guard let userId = authService.currentUserId else { return .empty }
+        // Guests have no session: rides/favors are still readable (anon RLS, open items only) but
+        // notifications are not. Fetch the public data and skip only the notifications call, instead
+        // of skipping the whole sync — the Requests tab reads the SwiftData this populates.
+        let userId = authService.currentUserId
 
         async let ridesTask = rideService.fetchRides()
         async let favorsTask = favorService.fetchFavors()
-        async let notificationsTask = notificationService.fetchNotifications(userId: userId, forceRefresh: true)
+        async let notificationsTask = fetchNotificationsIfAuthenticated(userId)
 
         let (rides, favors, notifications) = try await (ridesTask, favorsTask, notificationsTask)
         guard !Task.isCancelled else { throw CancellationError() }
@@ -113,6 +94,9 @@ final class DashboardSyncEngine: SyncEngineProtocol {
             rides: rides, favors: favors, notifications: notifications
         )
 
+        // Posted ONLY after a successful BackgroundSyncActor save. Observers (RequestRealtimeHandler,
+        // NotificationRealtimeHandler) must re-read SwiftData only — never fetch from the network —
+        // otherwise every coordinator-driven sync would trigger a second full fetch.
         if metrics.savedToStore {
             NotificationCenter.default.post(name: .ridesDidSync, object: nil)
             NotificationCenter.default.post(name: .favorsDidSync, object: nil)
@@ -151,5 +135,13 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         }
 
         return .empty
+    }
+
+    /// Notifications require a session. For guests (nil userId) return an empty set so the public
+    /// rides/favors reconciliation still runs. `BackgroundSyncActor.syncAllWithChangeDetection` never
+    /// deletes notifications, so an empty array is a no-op for the notifications table.
+    private func fetchNotificationsIfAuthenticated(_ userId: UUID?) async throws -> [AppNotification] {
+        guard let userId else { return [] }
+        return try await notificationService.fetchNotifications(userId: userId, forceRefresh: true)
     }
 }

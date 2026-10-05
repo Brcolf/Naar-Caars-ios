@@ -51,7 +51,7 @@ struct FavorCard: View {
                 .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(accessibilityLabel)
-                .accessibilityHint("Double-tap to view favor details")
+                .accessibilityHint("card_favor_details_hint".localized)
             }
         }
     }
@@ -107,7 +107,7 @@ struct FavorCard: View {
                         .padding(.vertical, 2)
                         .background(Color.red)
                         .clipShape(Capsule())
-                        .accessibilityLabel("\(unreadCount) unseen notifications")
+                        .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
                 }
 
                 Text(favor.status.displayText)

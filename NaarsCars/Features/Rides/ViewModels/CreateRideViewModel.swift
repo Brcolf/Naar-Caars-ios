@@ -129,6 +129,33 @@ final class CreateRideViewModel: ObservableObject {
         }
     }
     
+    /// Update an existing ride with the current form values (EditRideView)
+    /// - Parameter id: Ride ID
+    /// - Returns: Updated ride
+    /// - Throws: Error if the update fails (also mirrored into `error`)
+    @discardableResult
+    func updateRide(id: UUID) async throws -> Ride {
+        // Format time from hour/minute/isAM
+        let formattedTime = formatTime(hour: hour, minute: minute, isAM: isAM)
+        
+        do {
+            return try await rideService.updateRide(
+                id: id,
+                date: date,
+                time: formattedTime,
+                pickup: pickup.isEmpty ? nil : pickup,
+                destination: destination.isEmpty ? nil : destination,
+                seats: seats,
+                notes: notes.isEmpty ? nil : notes,
+                gift: gift.isEmpty ? nil : gift,
+                timezone: timezone
+            )
+        } catch {
+            self.error = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Private Methods
     
     /// Format time from hour/minute/isAM to HH:mm:ss format (24-hour)

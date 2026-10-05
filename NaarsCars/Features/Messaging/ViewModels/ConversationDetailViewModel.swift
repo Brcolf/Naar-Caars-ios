@@ -960,4 +960,21 @@ final class ConversationDetailViewModel {
         typingManager.clearOwnTypingStatus()
     }
     
+    // MARK: - Reporting
+    
+    /// Report a message in this conversation.
+    /// - Returns: `false` when there is no signed-in user (nothing was attempted), `true` on success
+    /// - Throws: Error from the report (caller shows the failure alert)
+    @discardableResult
+    func reportMessage(messageId: UUID, type: MessageService.ReportType, description: String?) async throws -> Bool {
+        guard let userId = authService.currentUserId else { return false }
+        try await messageService.reportMessage(
+            reporterId: userId,
+            messageId: messageId,
+            type: type,
+            description: description
+        )
+        return true
+    }
+    
 }

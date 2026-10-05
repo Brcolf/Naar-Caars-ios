@@ -66,13 +66,13 @@ struct CreateFavorView: View {
                 Section("favor_create_section_title_description".localized) {
                     TextField("favor_create_title_placeholder".localized, text: $viewModel.title)
                         .accessibilityIdentifier("createFavor.title")
-                        .accessibilityLabel("Favor title")
-                        .accessibilityHint("Enter a short title for this favor")
+                        .accessibilityLabel("favor_create_title_accessibility".localized)
+                        .accessibilityHint("favor_create_title_hint".localized)
                     TextField("favor_create_description_placeholder".localized, text: $viewModel.description, axis: .vertical)
                         .lineLimit(3...6)
                         .accessibilityIdentifier("createFavor.description")
-                        .accessibilityLabel("Description")
-                        .accessibilityHint("Describe what you need help with")
+                        .accessibilityLabel("favor_create_description_accessibility".localized)
+                        .accessibilityHint("favor_create_description_hint".localized)
                 }
                 
                 Section("favor_create_section_location_duration".localized) {
@@ -87,8 +87,8 @@ struct CreateFavorView: View {
                             // Optional: Store coordinates for future map integration
                             // viewModel.locationCoordinate = details.coordinate
                         }
-                        .accessibilityLabel("Location")
-                        .accessibilityHint("Enter where this favor takes place")
+                        .accessibilityLabel("favor_create_location_placeholder".localized)
+                        .accessibilityHint("favor_create_location_hint".localized)
                     } else {
                         HStack(spacing: 12) {
                             ProgressView()
@@ -99,7 +99,7 @@ struct CreateFavorView: View {
                         }
                         .padding(.vertical, 4)
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Loading location field")
+                        .accessibilityLabel("favor_create_location_loading_accessibility".localized)
                     }
                     
                     Picker("favor_create_duration".localized, selection: $viewModel.duration) {
@@ -108,17 +108,17 @@ struct CreateFavorView: View {
                         }
                     }
                     .accessibilityIdentifier("createFavor.duration")
-                    .accessibilityHint("Select how long this favor will take")
+                    .accessibilityHint("favor_create_duration_hint".localized)
                 }
                 
                 Section("favor_create_section_date_time".localized) {
                     DatePicker("favor_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
-                        .accessibilityHint("Select the date for this favor")
+                        .accessibilityHint("favor_create_date_hint".localized)
                     
                     Toggle("favor_create_specify_time".localized, isOn: $viewModel.hasTime)
                         .accessibilityIdentifier("createFavor.hasTime")
-                        .accessibilityHint("Enable to set a specific time for this favor")
+                        .accessibilityHint("favor_create_time_toggle_hint".localized)
                     
                     if viewModel.hasTime {
                         TimePickerView(
@@ -126,8 +126,8 @@ struct CreateFavorView: View {
                             minute: $viewModel.minute,
                             isAM: $viewModel.isAM
                         )
-                        .accessibilityLabel("Favor time")
-                        .accessibilityHint("Set the time for this favor")
+                        .accessibilityLabel("favor_create_time_accessibility".localized)
+                        .accessibilityHint("favor_create_time_hint".localized)
                     }
 
                     TimeZonePicker(selectedTimezone: $viewModel.timezone)
@@ -137,13 +137,13 @@ struct CreateFavorView: View {
                     TextField("favor_create_requirements_placeholder".localized, text: $viewModel.requirements, axis: .vertical)
                         .lineLimit(2...4)
                         .accessibilityIdentifier("createFavor.requirements")
-                        .accessibilityLabel("Requirements")
-                        .accessibilityHint("List any special requirements for this favor")
+                        .accessibilityLabel("favor_create_requirements_accessibility".localized)
+                        .accessibilityHint("favor_create_requirements_hint".localized)
                     
                     TextField("favor_create_gift_placeholder".localized, text: $viewModel.gift)
                         .accessibilityIdentifier("createFavor.gift")
-                        .accessibilityLabel("Gift or thank-you")
-                        .accessibilityHint("Optionally offer a gift for the helper")
+                        .accessibilityLabel("favor_create_gift_accessibility".localized)
+                        .accessibilityHint("favor_create_gift_hint".localized)
                 }
                 
                 Section("favor_create_section_participants".localized) {
@@ -162,8 +162,8 @@ struct CreateFavorView: View {
                         }
                     }
                     .accessibilityIdentifier("createFavor.participants")
-                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "Add participants" : "\(viewModel.selectedParticipantIds.count) participants selected")
-                    .accessibilityHint("Double-tap to select participants for this favor")
+                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "favor_create_add_participants".localized : "favor_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
+                    .accessibilityHint("favor_create_participants_hint".localized)
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
                         Text("favor_create_max_participants".localized)
@@ -197,8 +197,8 @@ struct CreateFavorView: View {
                         dismiss()
                     }
                     .accessibilityIdentifier("createFavor.cancel")
-                    .accessibilityLabel("Cancel")
-                    .accessibilityHint("Dismiss without creating a favor")
+                    .accessibilityLabel("favor_create_cancel".localized)
+                    .accessibilityHint("favor_create_cancel_hint".localized)
                 }
                 
                 if !appState.isGuest {
@@ -219,8 +219,8 @@ struct CreateFavorView: View {
                     }
                     .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createFavor.post")
-                    .accessibilityLabel("Post favor")
-                    .accessibilityHint("Double-tap to submit this favor request")
+                    .accessibilityLabel("favor_create_post_accessibility".localized)
+                    .accessibilityHint("favor_create_post_hint".localized)
                 }
                 }
             }
@@ -235,11 +235,11 @@ struct CreateFavorView: View {
             }
             .trackScreen("CreateFavor")
             .alert("common_error".localized, isPresented: $showErrorAlert) {
-                Button("OK", role: .cancel) {
+                Button("common_ok".localized, role: .cancel) {
                     showErrorAlert = false
                 }
             } message: {
-                Text(viewModel.error ?? "An unexpected error occurred.")
+                Text(viewModel.error ?? "common_unexpected_error".localized)
             }
         }
         .successCheckmark(isShowing: $showSuccess)

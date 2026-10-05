@@ -234,7 +234,7 @@ struct SettingsView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(height: 100)
-                            .accessibilityLabel("Naar's Cars Supreme Leader")
+                            .accessibilityLabel("settings_supreme_leader_accessibility".localized)
                         
                         // App Name and Tagline
                         VStack(spacing: Constants.Spacing.xs) {
@@ -754,17 +754,15 @@ struct NotificationDiagnosticsView: View {
 
 /// View for managing blocked users
 struct BlockedUsersView: View {
-    @State private var blockedUsers: [BlockedUser] = []
-    @State private var isLoading = true
-    @State private var error: String?
+    @StateObject private var viewModel = BlockedUsersViewModel()
     @State private var showUnblockConfirmation = false
     @State private var userToUnblock: BlockedUser?
     
     var body: some View {
         Group {
-            if isLoading {
+            if viewModel.isLoading {
                 ProgressView("common_loading".localized)
-            } else if blockedUsers.isEmpty {
+            } else if viewModel.blockedUsers.isEmpty {
                 VStack(spacing: Constants.Spacing.md) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                         .font(.system(size: 60))
@@ -781,7 +779,7 @@ struct BlockedUsersView: View {
                 .padding()
             } else {
                 List {
-                    ForEach(blockedUsers) { blockedUser in
+                    ForEach(viewModel.blockedUsers) { blockedUser in
                         HStack(spacing: 12) {
                             // Avatar
                             AvatarView(
@@ -820,7 +818,7 @@ struct BlockedUsersView: View {
         .navigationTitle("settings_blocked_users".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await loadBlockedUsers()
+            await viewModel.loadBlockedUsers()
         }
         .alert("settings_unblock_user".localized, isPresented: $showUnblockConfirmation) {
             Button("common_cancel".localized, role: .cancel) {
@@ -829,7 +827,7 @@ struct BlockedUsersView: View {
             Button("settings_unblock".localized) {
                 if let user = userToUnblock {
                     Task {
-                        await unblockUser(user)
+                        await viewModel.unblockUser(user)
                     }
                 }
                 userToUnblock = nil
@@ -838,34 +836,6 @@ struct BlockedUsersView: View {
             if let user = userToUnblock {
                 Text(String(format: "settings_unblock_confirmation".localized, user.blockedName))
             }
-        }
-    }
-    
-    private func loadBlockedUsers() async {
-        guard let userId = AuthService.shared.currentUserId else {
-            isLoading = false
-            return
-        }
-        
-        do {
-            blockedUsers = try await MessageService.shared.getBlockedUsers(userId: userId)
-            isLoading = false
-        } catch {
-            self.error = error.localizedDescription
-            isLoading = false
-        }
-    }
-    
-    private func unblockUser(_ blockedUser: BlockedUser) async {
-        guard let userId = AuthService.shared.currentUserId else { return }
-        
-        do {
-            try await MessageService.shared.unblockUser(blockerId: userId, blockedId: blockedUser.blockedId)
-            
-            // Remove from local list
-            blockedUsers.removeAll { $0.blockedId == blockedUser.blockedId }
-        } catch {
-            self.error = error.localizedDescription
         }
     }
 }

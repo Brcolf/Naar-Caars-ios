@@ -6,17 +6,15 @@
 //
 
 import SwiftUI
-import Supabase
 import os
 
 /// Collects application fields after authentication, before pending review.
 /// Shown when a user has authenticated but not yet submitted their application
 /// (application_complete == false). Blocks access to the app until submitted.
 struct ApplicationFieldsView: View {
+    @StateObject private var viewModel = ApplicationFieldsViewModel()
     @State private var heardAbout: String = ""
     @State private var joinReason: String = ""
-    @State private var isSubmitting = false
-    @State private var errorMessage: String?
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable { case heardAbout, joinReason }
@@ -107,7 +105,7 @@ struct ApplicationFieldsView: View {
                 .padding(.horizontal)
 
                 // Error
-                if let errorMessage {
+                if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
                         .font(.naarsCaption)
                         .foregroundColor(.naarsError)
@@ -122,8 +120,8 @@ struct ApplicationFieldsView: View {
                             await submitApplication()
                         }
                     },
-                    isLoading: isSubmitting,
-                    isDisabled: isSubmitting || heardAbout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || joinReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    isLoading: viewModel.isSubmitting,
+                    isDisabled: viewModel.isSubmitting || heardAbout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || joinReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
                 .padding(.horizontal)
                 .accessibilityIdentifier("application.submit")
@@ -161,43 +159,12 @@ struct ApplicationFieldsView: View {
     }
 
     private func submitApplication() async {
-        guard let userId = AuthService.shared.currentUserId else {
-            errorMessage = "application_error_not_signed_in".localized
-            return
-        }
+        guard await viewModel.submitApplication(heardAbout: heardAbout, joinReason: joinReason) else { return }
 
-        let trimmedHeardAbout = Validators.sanitizeUserInput(heardAbout, maxLength: 500)
-        let trimmedJoinReason = Validators.sanitizeUserInput(joinReason, maxLength: 500)
+        HapticManager.success()
 
-        guard !trimmedHeardAbout.isEmpty, !trimmedJoinReason.isEmpty else {
-            errorMessage = "application_error_fields_required".localized
-            return
-        }
-
-        isSubmitting = true
-        errorMessage = nil
-
-        do {
-            try await SupabaseService.shared.client
-                .from("profiles")
-                .update([
-                    "heard_about": AnyCodable(trimmedHeardAbout),
-                    "join_reason": AnyCodable(trimmedJoinReason),
-                    "application_complete": AnyCodable(true),
-                    "application_submitted_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-                ])
-                .eq("id", value: userId.uuidString)
-                .execute()
-
-            HapticManager.success()
-
-            // Transition to pending approval
-            AppLaunchManager.shared.state = .ready(.pendingApproval)
-        } catch {
-            AppLogger.auth.error("Failed to submit application: \(error.localizedDescription)")
-            errorMessage = "application_error_submit_failed".localized
-            isSubmitting = false
-        }
+        // Transition to pending approval
+        AppLaunchManager.shared.state = .ready(.pendingApproval)
     }
 }
 

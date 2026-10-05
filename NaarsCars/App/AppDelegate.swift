@@ -88,16 +88,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Schedule next refresh
         scheduleAppRefresh()
 
+        // Route through RefreshCoordinator (the single refresh owner): joins an in-flight dashboard
+        // sync instead of racing it, and the coordinator records completion/failure itself.
+        // `syncTask` is only the waiter. The coordinator's own task is never cancelled from here
+        // (coordinator invariant: refresh tasks are cancelled only in reset()).
         let syncTask = Task { @MainActor in
-            do {
-                let metrics = try await DashboardSyncEngine.shared.performFullSync()
-                RefreshCoordinator.shared.markSyncCompleted(.dashboard, metrics: metrics)
-            } catch {
-                RefreshCoordinator.shared.markSyncFailed(.dashboard, error: error, partial: nil)
-            }
+            await RefreshCoordinator.shared.forceFullRefreshAndWait(.dashboard, trigger: "bgAppRefresh")
         }
 
         task.expirationHandler = {
+            // Stop the waiter so it cannot report completion after expiration has been reported.
             syncTask.cancel()
             task.setTaskCompleted(success: false)
         }
@@ -163,7 +163,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         #if DEBUG
         PushNotificationService.pushDebugLog(location: "AppDelegate.swift:didFailToRegister", message: "APNs registration failed", data: ["error": error.localizedDescription])
         #endif
-        Log.push("Failed to register for remote notifications: \(error.localizedDescription)", type: .error)
+        AppLogger.error("push", "Failed to register for remote notifications: \(error.localizedDescription)")
     }
     
     // MARK: - UNUserNotificationCenterDelegate
@@ -335,69 +335,33 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     // MARK: - Deep Link Handling
     
     private func handleDeepLink(_ deepLink: DeepLink, userInfo: [AnyHashable: Any]? = nil) {
-        // Navigate directly via the coordinator — no NSNotification indirection.
+        // One call into the coordinator's routing table (applyPushDeepLink → pendingIntent).
+        // AppDelegate only extracts the payload extras that DeepLink does not carry.
         let coordinator = NavigationCoordinator.shared
 
         switch deepLink {
         case .ride(let id):
-            AppLogger.info("app", "Navigate to ride: \(id)")
-            let anchor = requestNotificationTarget(from: userInfo, requestId: id, requestType: .ride)
-            coordinator.pendingIntent = .ride(id, anchor: anchor)
+            coordinator.applyPushDeepLink(
+                deepLink,
+                requestAnchor: requestNotificationTarget(from: userInfo, requestId: id, requestType: .ride)
+            )
 
         case .favor(let id):
-            AppLogger.info("app", "Navigate to favor: \(id)")
-            let anchor = requestNotificationTarget(from: userInfo, requestId: id, requestType: .favor)
-            coordinator.pendingIntent = .favor(id, anchor: anchor)
+            coordinator.applyPushDeepLink(
+                deepLink,
+                requestAnchor: requestNotificationTarget(from: userInfo, requestId: id, requestType: .favor)
+            )
 
         case .conversation(let id):
-            AppLogger.info("app", "Navigate to conversation: \(id)")
-            var scrollTarget: NavigationCoordinator.ConversationScrollTarget?
-            if let userInfo,
-               let messageIdString = userInfo["message_id"] as? String,
-               let messageId = UUID(uuidString: messageIdString) {
-                scrollTarget = .init(conversationId: id, messageId: messageId)
-            }
-            coordinator.pendingIntent = .conversation(id, scrollTarget: scrollTarget)
+            coordinator.applyPushDeepLink(
+                deepLink,
+                conversationScrollTarget: conversationScrollTarget(from: userInfo, conversationId: id)
+            )
 
-        case .profile(let id):
-            AppLogger.info("app", "Navigate to profile: \(id)")
-            coordinator.pendingIntent = .profile(id)
-
-        case .notifications:
-            AppLogger.info("app", "Navigate to notifications")
-            coordinator.pendingIntent = .notifications
-
-        case .announcements(let notificationId):
-            AppLogger.info("app", "Navigate to announcements")
-            coordinator.pendingIntent = .announcements(scrollToNotificationId: notificationId)
-
-        case .townHall:
-            AppLogger.info("app", "Navigate to town hall")
-            coordinator.navigate(to: .townHall)
-
-        case .townHallPostComments(let id):
-            AppLogger.info("app", "Navigate to town hall post comments: \(id)")
-            coordinator.pendingIntent = .townHallPost(id, mode: .openComments)
-
-        case .townHallPostHighlight(let id):
-            AppLogger.info("app", "Navigate to town hall post highlight: \(id)")
-            coordinator.pendingIntent = .townHallPost(id, mode: .highlightPost)
-
-        case .adminPanel:
-            AppLogger.info("app", "Navigate to admin panel")
-            coordinator.pendingIntent = .adminPanel
-
-        case .pendingUsers:
-            AppLogger.info("app", "Navigate to pending users list")
-            coordinator.pendingIntent = .pendingUsers
-
-        case .adminReports:
-            AppLogger.info("app", "Navigate to admin reports")
-            coordinator.pendingIntent = .adminReports
-
-        case .dashboard:
-            AppLogger.info("app", "Navigate to dashboard")
-            coordinator.pendingIntent = .dashboard
+        case .profile, .notifications, .announcements, .townHall,
+             .townHallPostComments, .townHallPostHighlight,
+             .adminPanel, .pendingUsers, .adminReports, .dashboard:
+            coordinator.applyPushDeepLink(deepLink)
 
         case .enterApp:
             AppLogger.info("app", "Enter app")
@@ -431,14 +395,26 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         )
     }
 
+    private func conversationScrollTarget(
+        from userInfo: [AnyHashable: Any]?,
+        conversationId: UUID
+    ) -> NavigationCoordinator.ConversationScrollTarget? {
+        guard let userInfo,
+              let messageIdString = userInfo["message_id"] as? String,
+              let messageId = UUID(uuidString: messageIdString) else {
+            return nil
+        }
+        return .init(conversationId: conversationId, messageId: messageId)
+    }
+
     private func postReviewPrompt(from userInfo: [AnyHashable: Any]) {
         let coordinator = NavigationCoordinator.shared
         if let rideIdString = userInfo["ride_id"] as? String,
            let rideId = UUID(uuidString: rideIdString) {
-            coordinator.showReviewPromptFor(rideId: rideId)
+            coordinator.applyNotificationIntent(.showReview(rideId: rideId, favorId: nil))
         } else if let favorIdString = userInfo["favor_id"] as? String,
                   let favorId = UUID(uuidString: favorIdString) {
-            coordinator.showReviewPromptFor(favorId: favorId)
+            coordinator.applyNotificationIntent(.showReview(rideId: nil, favorId: favorId))
         }
     }
 

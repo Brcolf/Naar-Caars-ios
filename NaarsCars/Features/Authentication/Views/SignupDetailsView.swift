@@ -125,7 +125,7 @@ struct SignupDetailsView: View {
                     .foregroundColor(.naarsError)
                     .padding(.horizontal)
                     .multilineTextAlignment(.center)
-                    .accessibilityLabel("Error: \(errorMessage)")
+                    .accessibilityLabel("app_error_format".localized(with: errorMessage))
             }
             
             // Terms and Privacy notice

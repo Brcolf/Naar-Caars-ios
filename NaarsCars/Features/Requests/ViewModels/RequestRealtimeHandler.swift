@@ -2,14 +2,24 @@
 //  RequestRealtimeHandler.swift
 //  NaarsCars
 //
-//  Handles requests dashboard sync notifications and coalescing
+//  NotificationCenter observer for DashboardSyncEngine's .ridesDidSync / .favorsDidSync /
+//  .notificationsDidSync posts; coalesces them into local-only (SwiftData) reloads.
 //
 
 import Foundation
-import SwiftData
 import Observation
 
-/// Handles requests dashboard refreshes driven by centralized sync-engine notifications.
+/// NotificationCenter observer for the requests dashboard.
+///
+/// Despite the historical name, this type owns NO Supabase Realtime (WebSocket) subscriptions.
+/// It observes the `.ridesDidSync`, `.favorsDidSync` and `.notificationsDidSync` notifications
+/// that `DashboardSyncEngine` posts after `BackgroundSyncActor` has saved fresh server data to
+/// SwiftData, debounces them, and asks the owning ViewModel to re-read SwiftData.
+///
+/// Invariant: reactions here must never fetch from the network. The data that triggered the
+/// notification is already in SwiftData, and `RefreshCoordinator` is the single owner of
+/// network refresh decisions. (The name is kept because the file is a classic Xcode file
+/// reference; renaming it would require a `project.pbxproj` edit.)
 @MainActor
 @Observable
 final class RequestRealtimeHandler {
@@ -20,26 +30,22 @@ final class RequestRealtimeHandler {
     private var favorsDidSyncObserver: NSObjectProtocol?
     private var notificationsDidSyncObserver: NSObjectProtocol?
 
-    private var modelContextProvider: (() -> ModelContext?)?
-    private var refreshFilteredRequests: (() -> Void)?
+    private var reloadRequestsFromLocalStore: (() async -> Void)?
     private var refreshRequestSummaries: (() async -> Void)?
-    private var loadRequestsForceRefresh: (() async -> Void)?
 
+    /// - Parameters:
+    ///   - reloadRequestsFromLocalStore: Re-reads rides/favors (and derived badge state) from
+    ///     SwiftData. Must not perform network I/O.
+    ///   - refreshRequestSummaries: Re-reads unread request-notification summaries from SwiftData.
     func configure(
-        modelContextProvider: @escaping () -> ModelContext?,
-        authUserIdProvider: @escaping () -> UUID?,
-        syncRidesToSwiftData: @escaping ([Ride], ModelContext) -> Void,
-        syncFavorsToSwiftData: @escaping ([Favor], ModelContext) -> Void,
-        refreshFilteredRequests: @escaping () -> Void,
-        refreshRequestSummaries: @escaping () async -> Void,
-        loadRequestsForceRefresh: @escaping () async -> Void
+        reloadRequestsFromLocalStore: @escaping () async -> Void,
+        refreshRequestSummaries: @escaping () async -> Void
     ) {
-        self.modelContextProvider = modelContextProvider
-        self.refreshFilteredRequests = refreshFilteredRequests
+        self.reloadRequestsFromLocalStore = reloadRequestsFromLocalStore
         self.refreshRequestSummaries = refreshRequestSummaries
-        self.loadRequestsForceRefresh = loadRequestsForceRefresh
     }
 
+    /// Registers NotificationCenter observers for the sync notifications (not WebSocket channels).
     func setupRealtimeSubscription() {
         if ridesDidSyncObserver == nil {
             ridesDidSyncObserver = NotificationCenter.default.addObserver(
@@ -72,6 +78,7 @@ final class RequestRealtimeHandler {
         }
     }
 
+    /// Cancels pending debounced reloads and removes the NotificationCenter observers.
     func cleanupRealtimeSubscription() {
         requestsReloadTask?.cancel()
         requestNotificationRefreshTask?.cancel()
@@ -97,9 +104,8 @@ final class RequestRealtimeHandler {
         requestsReloadTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: Constants.Timing.requestsRealtimeReloadDebounceNanoseconds)
             guard let self, !Task.isCancelled else { return }
-            AppLogger.info("requests", "[RequestRealtimeHandler] Coalesced sync refresh: \(reason)")
-            await self.loadRequestsForceRefresh?()
-            self.refreshFilteredRequests?()
+            AppLogger.info("requests", "[RequestRealtimeHandler] Coalesced local reload after sync: \(reason)")
+            await self.reloadRequestsFromLocalStore?()
         }
     }
 

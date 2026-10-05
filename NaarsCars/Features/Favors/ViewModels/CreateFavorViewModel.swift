@@ -128,6 +128,34 @@ final class CreateFavorViewModel: ObservableObject {
         }
     }
     
+    /// Update an existing favor with the current form values (EditFavorView)
+    /// - Parameter id: Favor ID
+    /// - Returns: Updated favor
+    /// - Throws: Error if the update fails (also mirrored into `error`)
+    @discardableResult
+    func updateFavor(id: UUID) async throws -> Favor {
+        // Format time from hour/minute/isAM if time is specified
+        let formattedTime = hasTime ? formatTime(hour: hour, minute: minute, isAM: isAM) : nil
+        
+        do {
+            return try await favorService.updateFavor(
+                id: id,
+                title: title.isEmpty ? nil : title,
+                description: description.isEmpty ? nil : description,
+                location: location.isEmpty ? nil : location,
+                duration: duration,
+                requirements: requirements.isEmpty ? nil : requirements,
+                date: date,
+                time: formattedTime,
+                gift: gift.isEmpty ? nil : gift,
+                timezone: timezone
+            )
+        } catch {
+            self.error = error.localizedDescription
+            throw error
+        }
+    }
+    
     // MARK: - Private Methods
     
     /// Format time from hour/minute/isAM to HH:mm:ss format (24-hour)

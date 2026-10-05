@@ -28,7 +28,7 @@ final class LeaderboardViewModel: ObservableObject {
     
     // Cache: [Period: (entries, spotlights, cachedAt)]
     private var cachedEntries: [LeaderboardPeriod: (entries: [LeaderboardEntry], spotlights: [SpotlightEntry], cachedAt: Date)] = [:]
-    private let cacheTTL: TimeInterval = 900 // 15 minutes
+    private let cacheTTL: TimeInterval = Constants.CacheTTL.leaderboard
     
     init(authService: any AuthServiceProtocol = AuthService.shared) {
         self.authService = authService

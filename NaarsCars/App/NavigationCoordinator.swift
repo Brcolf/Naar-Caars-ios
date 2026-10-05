@@ -139,19 +139,43 @@ final class NavigationCoordinator {
         showDeepLinkConfirmation = false
     }
 
-    private func applyDeepLink(_ deepLink: DeepLink) {
+    // MARK: - Push-originated navigation
+
+    /// Single entry point for push-originated deep links (AppDelegate / push action handlers).
+    ///
+    /// Uses the same routing table as `navigate(to:)` but skips the "open link?" confirmation
+    /// (a notification tap is an explicit user action) and carries the payload-derived extras
+    /// that `DeepLink` does not model: the request-detail anchor and the message scroll target.
+    /// `.enterApp` and `.unknown` are not navigation; callers handle them before reaching here.
+    func applyPushDeepLink(
+        _ deepLink: DeepLink,
+        requestAnchor: RequestNotificationTarget? = nil,
+        conversationScrollTarget: ConversationScrollTarget? = nil
+    ) {
+        applyDeepLink(
+            deepLink,
+            requestAnchor: requestAnchor,
+            conversationScrollTarget: conversationScrollTarget
+        )
+    }
+
+    private func applyDeepLink(
+        _ deepLink: DeepLink,
+        requestAnchor: RequestNotificationTarget? = nil,
+        conversationScrollTarget: ConversationScrollTarget? = nil
+    ) {
         switch deepLink {
         case .dashboard:
             pendingIntent = .dashboard
             
         case .ride(let rideId):
-            pendingIntent = .ride(rideId)
+            pendingIntent = .ride(rideId, anchor: requestAnchor)
             
         case .favor(let favorId):
-            pendingIntent = .favor(favorId)
+            pendingIntent = .favor(favorId, anchor: requestAnchor)
             
         case .conversation(let conversationId):
-            pendingIntent = .conversation(conversationId)
+            pendingIntent = .conversation(conversationId, scrollTarget: conversationScrollTarget)
             
         case .townHall:
             selectedTab = .community
@@ -267,9 +291,17 @@ final class NavigationCoordinator {
         guard let intent = deferredNotificationIntent else { return }
         deferredNotificationIntent = nil
         AppLogger.info("navigation", "[NavigationCoordinator] applyDeferredNotificationIntentIfNeeded: \(intent)")
+        applyNotificationIntent(intent)
+    }
 
+    /// Apply a unified notification intent immediately (set show flags / ids / nav path).
+    /// Push handlers call this directly: there is no notifications sheet whose dismissal would
+    /// apply a deferred intent. In-app taps go through `deferNotificationIntent(_:)` +
+    /// `applyDeferredNotificationIntentIfNeeded()`, which ends up here — one routing table.
+    func applyNotificationIntent(_ intent: NotificationIntent) {
         switch intent {
         case .showReview(let rideId, let favorId):
+            AppLogger.info("navigation", "[NavigationCoordinator] Queued pendingReview rideId=\(rideId?.uuidString ?? "nil") favorId=\(favorId?.uuidString ?? "nil")")
             reviewPromptRideId = rideId
             reviewPromptFavorId = favorId
             showReviewPrompt = true
@@ -306,16 +338,6 @@ final class NavigationCoordinator {
             pendingIntent = .dashboard
             selectedTab = .requests
         }
-    }
-
-    /// - Parameters:
-    ///   - rideId: The ride ID (if ride)
-    ///   - favorId: The favor ID (if favor)
-    func showReviewPromptFor(rideId: UUID? = nil, favorId: UUID? = nil) {
-        AppLogger.info("navigation", "[NavigationCoordinator] Queued pendingReview rideId=\(rideId?.uuidString ?? "nil") favorId=\(favorId?.uuidString ?? "nil")")
-        reviewPromptRideId = rideId
-        reviewPromptFavorId = favorId
-        showReviewPrompt = true
     }
     
     // MARK: - Guest Gating

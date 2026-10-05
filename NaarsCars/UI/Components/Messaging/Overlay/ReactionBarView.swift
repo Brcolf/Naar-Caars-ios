@@ -134,7 +134,7 @@ final class ReactionBarView: UIView {
             let img = TapbackArtwork.hahaImage(pointSize: 22, color: isSelected ? .white : .systemBlue)
             button.setImage(img, for: .normal)
             button.setTitle(nil, for: .normal)
-            button.accessibilityLabel = "Ha ha"
+            button.accessibilityLabel = "messaging_reaction_haha".localized
         } else {
             button.setTitle(emoji, for: .normal)
             button.titleLabel?.font = .systemFont(ofSize: 22)

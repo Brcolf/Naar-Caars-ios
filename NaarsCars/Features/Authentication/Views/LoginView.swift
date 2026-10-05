@@ -40,7 +40,7 @@ struct LoginView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 280, maxHeight: 120)
-                        .accessibilityLabel("Naar's Cars - Community Ride Sharing")
+                        .accessibilityLabel("app_logo_tagline_accessibility".localized)
 
                     Text("auth_login_title".localized)
                         .font(.naarsSubheadline)

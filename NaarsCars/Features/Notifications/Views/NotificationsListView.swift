@@ -96,7 +96,7 @@ struct NotificationsListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.naarsBackground)
-            .accessibilityLabel("Loading notifications")
+            .accessibilityLabel("notifications_loading_accessibility".localized)
         } else if let error = viewModel.error {
             ErrorView(
                 error: error.localizedDescription,

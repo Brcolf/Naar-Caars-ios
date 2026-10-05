@@ -51,12 +51,12 @@ final class MessageSendManager {
         let rateLimitKey = "send_message_\(conversationId.uuidString)"
         let canSend = await rateLimiter.checkAndRecord(action: rateLimitKey, minimumInterval: Constants.RateLimits.messageSend)
         guard canSend else {
-            setError(.rateLimitExceeded("Please wait before sending another message"))
+            setError(.rateLimitExceeded("messaging_rate_limit_send".localized))
             return
         }
 
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard text.count <= 5000 else {
+        guard text.count <= Constants.Limits.messageTextMaxLength else {
             await setError(.invalidInput("messaging_too_long".localized))
             return
         }
@@ -70,8 +70,8 @@ final class MessageSendManager {
         let compressedImageData: Data? = await {
             guard let image else { return nil }
             let result = await Task.detached(priority: .userInitiated) {
-                let resized = image.resizedForUpload(maxDimension: 1920)
-                return (resized.jpegData(compressionQuality: 0.7), Int(resized.size.width), Int(resized.size.height))
+                let resized = image.resizedForUpload(maxDimension: Constants.Media.messageImageMaxDimension)
+                return (resized.jpegData(compressionQuality: Constants.Media.messageImageJPEGQuality), Int(resized.size.width), Int(resized.size.height))
             }.value
             imageWidth = result.1
             imageHeight = result.2
@@ -125,7 +125,7 @@ final class MessageSendManager {
             } catch {
                 updateMessageStatus(id: localId, conversationId: conversationId, status: .failed, syncError: "Failed to upload image: \(error.localizedDescription)")
                 HapticManager.error()
-                setError(AppError.processingError("Failed to upload image: \(error.localizedDescription)"))
+                setError(AppError.processingError("messaging_error_upload_image".localized(with: error.localizedDescription)))
                 return
             }
         }
@@ -176,7 +176,7 @@ final class MessageSendManager {
             let audioData = try await Self.loadAudioData(from: audioURL)
             localPath = LocalAttachmentStorage.save(data: audioData, extension: "m4a")
         } catch {
-            setError(AppError.processingError("Failed to read audio: \(error.localizedDescription)"))
+            setError(AppError.processingError("messaging_error_read_audio".localized(with: error.localizedDescription)))
             return
         }
 
@@ -220,7 +220,7 @@ final class MessageSendManager {
             try? FileManager.default.removeItem(at: audioURL)
         } catch {
             updateMessageStatus(id: localId, conversationId: conversationId, status: .failed, syncError: error.localizedDescription)
-            setError(AppError.processingError("Failed to send audio: \(error.localizedDescription)"))
+            setError(AppError.processingError("messaging_error_send_audio".localized(with: error.localizedDescription)))
         }
     }
 
@@ -267,7 +267,7 @@ final class MessageSendManager {
             replaceOptimisticMessage(localId: localId, conversationId: conversationId, with: sentMessage)
         } catch {
             updateMessageStatus(id: localId, conversationId: conversationId, status: .failed, syncError: error.localizedDescription)
-            setError(AppError.processingError("Failed to send location: \(error.localizedDescription)"))
+            setError(AppError.processingError("messaging_error_send_location".localized(with: error.localizedDescription)))
         }
     }
 
@@ -298,7 +298,7 @@ final class MessageSendManager {
                 rollbackMessages[index].editedAt = editMsg.editedAt
                 setMessages(rollbackMessages)
             }
-            setError(AppError.processingError("Failed to edit message: \(error.localizedDescription)"))
+            setError(AppError.processingError("messaging_error_edit_message".localized(with: error.localizedDescription)))
         }
     }
 
@@ -324,7 +324,7 @@ final class MessageSendManager {
                 rollbackMessages[revertIndex].deletedAt = originalMessage.deletedAt
                 setMessages(rollbackMessages)
             }
-            setError(AppError.processingError("Failed to unsend message: \(error.localizedDescription)"))
+            setError(AppError.processingError("messaging_error_unsend_message".localized(with: error.localizedDescription)))
         }
     }
 

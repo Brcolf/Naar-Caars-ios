@@ -138,7 +138,7 @@ final class AdminService {
         let check = try JSONDecoder().decode(AdminCheck.self, from: response.data)
         
         guard check.isAdmin else {
-            Log.security("Non-admin attempted admin operation: \(userId)")
+            AppLogger.error("security", "Non-admin attempted admin operation: \(userId)")
             throw AppError.unauthorized
         }
     }
@@ -295,7 +295,7 @@ final class AdminService {
         
         if verifyProfile.approved {
             AppLogger.info("admin", "User \(userId) successfully approved (verified)")
-            Log.security("Admin approved user: \(userId)")
+            AppLogger.error("security", "Admin approved user: \(userId)")
         } else {
             AppLogger.error("admin", "User \(userId) update appeared to succeed but approved is still false")
             throw AppError.unknown("Approval update failed - user is still not approved")
@@ -351,7 +351,7 @@ final class AdminService {
             .value
         
         if response.success {
-            Log.security("Admin rejected user: \(userId)")
+            AppLogger.error("security", "Admin rejected user: \(userId)")
             AppLogger.info("admin", "Successfully rejected user: \(userId), rows deleted: \(response.rowsDeleted ?? 0)")
         } else {
             let errorMsg = response.error ?? "Unknown error"
@@ -384,7 +384,7 @@ final class AdminService {
             .eq("id", value: userId.uuidString)
             .execute()
         
-        Log.security("Admin set admin status for \(userId): \(isAdmin)")
+        AppLogger.error("security", "Admin set admin status for \(userId): \(isAdmin)")
         
         AppLogger.info("admin", "Set admin status for \(userId): \(isAdmin)")
     }
@@ -424,7 +424,7 @@ final class AdminService {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Log.security("Admin \(adminId) banned user \(userId): \(trimmedReason)")
+        AppLogger.error("security", "Admin \(adminId) banned user \(userId): \(trimmedReason)")
         AppLogger.info("admin", "Banned user \(userId)")
     }
 
@@ -448,7 +448,7 @@ final class AdminService {
             .eq("id", value: userId.uuidString)
             .execute()
 
-        Log.security("Admin \(authService.currentUserId?.uuidString ?? "unknown") unbanned user \(userId)")
+        AppLogger.error("security", "Admin \(authService.currentUserId?.uuidString ?? "unknown") unbanned user \(userId)")
         AppLogger.info("admin", "Unbanned user \(userId)")
     }
 
@@ -483,7 +483,7 @@ final class AdminService {
         }
         let count = try await task.value
         
-        Log.security("Admin sent broadcast to \(count) users")
+        AppLogger.error("security", "Admin sent broadcast to \(count) users")
         
         AppLogger.info("admin", "Sent broadcast to \(count) users")
         

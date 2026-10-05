@@ -90,7 +90,7 @@ struct AvatarView: View {
             width: resolvedBadges.isEmpty ? size : size + badgeContainerSize,
             height: resolvedBadges.isEmpty ? size : size + badgeContainerSize
         )
-        .accessibilityLabel("Avatar for \(name)")
+        .accessibilityLabel("common_avatar_accessibility".localized(with: name))
     }
 
     private var initialsView: some View {

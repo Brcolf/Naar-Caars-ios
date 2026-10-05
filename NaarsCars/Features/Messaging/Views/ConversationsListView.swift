@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import Supabase
-import PostgREST
 
 /// View for displaying list of conversations
 struct ConversationsListView: View {
@@ -20,13 +18,11 @@ struct ConversationsListView: View {
     @State private var conversationToDelete: ConversationWithDetails?
     @State private var showDeleteConfirmation = false
     @State private var pinnedConversations: Set<UUID> = []
-    @State private var mutedConversations: Set<UUID> = []
     @State private var toastMessage: String? = nil
     @State private var conversationToMute: UUID?
     @State private var showMutePicker = false
     @State private var showPushPrompt = false
     @State private var pushDisabled = false
-    @State private var conversationsPollTimer: Timer?
     
     /// Whether the user is actively searching messages
     private var isMessageSearchActive: Bool {
@@ -48,7 +44,7 @@ struct ConversationsListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.naarsBackground)
-            .accessibilityLabel("Loading conversations")
+            .accessibilityLabel("messaging_loading_conversations_accessibility".localized)
         } else if let error = viewModel.error {
             ErrorView(
                 error: error.localizedDescription,
@@ -103,7 +99,7 @@ struct ConversationsListView: View {
                             .foregroundColor(.secondary)
                         Spacer()
                     }
-                    .accessibilityLabel("Searching messages")
+                    .accessibilityLabel("messaging_searching_messages".localized)
                     .padding(.vertical, 12)
                     .listRowBackground(Color.clear)
                 } header: {
@@ -184,7 +180,7 @@ struct ConversationsListView: View {
                             .padding(.vertical, 16)
                         Spacer()
                     }
-                    .accessibilityLabel("Loading more conversations")
+                    .accessibilityLabel("messaging_loading_more_conversations_accessibility".localized)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .onAppear {
@@ -268,7 +264,11 @@ struct ConversationsListView: View {
                 if !isShowing && !selectedUserIds.isEmpty {
                     // Sheet was dismissed with selections - create/navigate to conversation
                     Task {
-                        await createOrNavigateToConversation(with: Array(selectedUserIds))
+                        if let conversationId = await viewModel.createOrFindConversation(with: Array(selectedUserIds)) {
+                            selectedConversationId = conversationId
+                            // Reload conversations to show the new/updated one
+                            await viewModel.loadConversations()
+                        }
                         selectedUserIds = []
                     }
                 } else if !isShowing {
@@ -305,17 +305,9 @@ struct ConversationsListView: View {
             .confirmationDialog("messaging_mute_notifications".localized, isPresented: $showMutePicker, titleVisibility: .visible) {
                 ForEach(ConversationMuteService.MuteDuration.allCases, id: \.self) { duration in
                     Button(duration.displayName) {
-                        guard let conversationId = conversationToMute,
-                              let userId = AuthService.shared.currentUserId else { return }
+                        guard let conversationId = conversationToMute else { return }
                         Task {
-                            try? await ConversationMuteService.shared.muteConversation(
-                                conversationId: conversationId,
-                                userId: userId,
-                                duration: duration
-                            )
-                            withAnimation {
-                                mutedConversations.insert(conversationId)
-                            }
+                            await viewModel.muteConversation(id: conversationId, duration: duration)
                             toastMessage = "messaging_toast_muted".localized
                         }
                     }
@@ -324,18 +316,12 @@ struct ConversationsListView: View {
             }
             .task {
                 loadSavedPreferences()
-                if let userId = AuthService.shared.currentUserId {
-                    mutedConversations = await ConversationMuteService.shared.fetchMutedConversationIds(userId: userId)
-                }
+                await viewModel.loadMutedConversations()
                 await viewModel.loadConversations()
                 // Check push status and show banner / start moderate poll if disabled
                 await checkPushStatusAndStartPollIfNeeded()
             }
-            .onDisappear {
-                viewModel.stop()
-                conversationsPollTimer?.invalidate()
-                conversationsPollTimer = nil
-            }
+            .onDisappear { viewModel.stop() }
             .sheet(isPresented: $showPushPrompt) {
                 PushPermissionPromptView(
                     onAllow: {
@@ -343,8 +329,7 @@ struct ConversationsListView: View {
                             let granted = await PushNotificationService.shared.requestPermission()
                             if granted {
                                 pushDisabled = false
-                                conversationsPollTimer?.invalidate()
-                                conversationsPollTimer = nil
+                                viewModel.stopPushOffPoll()
                             }
                         }
                     },
@@ -359,93 +344,6 @@ struct ConversationsListView: View {
         }
     }
     
-    /// Create or navigate to existing conversation with selected users
-    /// - If existing conversation found: Navigate to it
-    /// - If 1 user selected: Creates/finds direct message (2 participants)
-    /// - If 2+ users selected: Creates group conversation or finds existing (3+ participants)
-    private func createOrNavigateToConversation(with userIds: [UUID]) async {
-        guard let currentUserId = AuthService.shared.currentUserId else { return }
-        guard !userIds.isEmpty else { return }
-        
-        AppLogger.info("messaging", "[ConversationsListView] Looking for existing conversation with \(userIds.count) user(s)")
-        
-        do {
-            let conversation: Conversation
-            
-            if userIds.count == 1 {
-                // Direct message: getOrCreateDirectConversation already checks for existing
-                AppLogger.info("messaging", "[ConversationsListView] Creating/finding direct message")
-                conversation = try await ConversationService.shared.getOrCreateDirectConversation(
-                    userId: currentUserId,
-                    otherUserId: userIds[0]
-                )
-            } else {
-                // Group conversation: Check if one exists with exactly these participants
-                let allParticipantIds = Set([currentUserId] + userIds)
-                
-                AppLogger.info("messaging", "[ConversationsListView] Looking for group with participants: \(allParticipantIds.count) total")
-                
-                if let existingConversation = try await findExistingGroupConversation(participantIds: allParticipantIds) {
-                    AppLogger.info("messaging", "[ConversationsListView] Found existing group conversation: \(existingConversation.id)")
-                    conversation = existingConversation
-                } else {
-                    // Create new group conversation
-                    AppLogger.info("messaging", "[ConversationsListView] Creating new group conversation")
-                    conversation = try await ConversationService.shared.createConversationWithUsers(
-                        userIds: Array(allParticipantIds),
-                        createdBy: currentUserId,
-                        title: nil // User can set group name later
-                    )
-                }
-            }
-            
-            AppLogger.info("messaging", "[ConversationsListView] Navigating to conversation: \(conversation.id)")
-            selectedConversationId = conversation.id
-            
-            // Reload conversations to show the new/updated one
-            await viewModel.loadConversations()
-        } catch {
-            AppLogger.error("messaging", "[ConversationsListView] Error creating/navigating to conversation: \(error.localizedDescription)")
-        }
-    }
-    
-    /// Find existing group conversation with exact participant match
-    private func findExistingGroupConversation(participantIds: Set<UUID>) async throws -> Conversation? {
-        guard let currentUserId = AuthService.shared.currentUserId else { return nil }
-        
-        // Get all user's conversations
-        let conversations = try await ConversationService.shared.fetchConversations(userId: currentUserId, limit: 100, offset: 0)
-        
-        // Check each conversation for exact participant match
-        for convDetail in conversations {
-            // Get all participants for this conversation
-            let response = try? await SupabaseService.shared.client
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", value: convDetail.conversation.id.uuidString)
-                .execute()
-            
-            if let data = response?.data {
-                struct ParticipantRow: Codable {
-                    let userId: UUID
-                    enum CodingKeys: String, CodingKey {
-                        case userId = "user_id"
-                    }
-                }
-                
-                let rows = try? JSONDecoder().decode([ParticipantRow].self, from: data)
-                let conversationParticipantIds = Set(rows?.map { $0.userId } ?? [])
-                
-                // Check for exact match
-                if conversationParticipantIds == participantIds {
-                    return convDetail.conversation
-                }
-            }
-        }
-        
-        return nil
-    }
-    
     // NOTE: Conversation deletion is implemented as a soft-delete.
     // The conversation is hidden from the user's list via UserDefaults,
     // but messages remain on the server for the other participants.
@@ -455,7 +353,7 @@ struct ConversationsListView: View {
     @ViewBuilder
     private func conversationRow(for conversationDetail: ConversationWithDetails) -> some View {
         let isPinned = pinnedConversations.contains(conversationDetail.conversation.id)
-        let isMuted = mutedConversations.contains(conversationDetail.conversation.id)
+        let isMuted = viewModel.mutedConversations.contains(conversationDetail.conversation.id)
         
         Button {
             selectedConversationId = conversationDetail.conversation.id
@@ -502,14 +400,7 @@ struct ConversationsListView: View {
                 HapticManager.selectionChanged()
                 if isMuted {
                     Task {
-                        guard let userId = AuthService.shared.currentUserId else { return }
-                        try? await ConversationMuteService.shared.unmuteConversation(
-                            conversationId: conversationDetail.conversation.id,
-                            userId: userId
-                        )
-                        withAnimation {
-                            mutedConversations.remove(conversationDetail.conversation.id)
-                        }
+                        await viewModel.unmuteConversation(id: conversationDetail.conversation.id)
                         toastMessage = "messaging_toast_unmuted".localized
                     }
                 } else {
@@ -536,8 +427,9 @@ struct ConversationsListView: View {
         }
     }
 
-    /// Check push notification status. If disabled, show a prompt (once per session
-    /// unless previously dismissed) and start a 60s conversations-only poll as fallback.
+    /// Check push notification status. If disabled, show a prompt (once per install
+    /// unless previously dismissed) and start the conversations-only fallback poll,
+    /// which the ViewModel owns and routes through RefreshCoordinator.
     private func checkPushStatusAndStartPollIfNeeded() async {
         let status = await PushNotificationService.shared.checkAuthorizationStatus()
         let isEnabled = status == .authorized || status == .provisional
@@ -551,13 +443,8 @@ struct ConversationsListView: View {
             showPushPrompt = true
         }
 
-        // Start 60s conversations-only poll while push is off and user is on messages tab
-        guard conversationsPollTimer == nil else { return }
-        conversationsPollTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
-            Task { @MainActor in
-                await viewModel.loadConversations()
-            }
-        }
+        // Fallback poll while push is off and the user is on the messages tab
+        viewModel.startPushOffPoll()
     }
 }
 

@@ -86,7 +86,7 @@ struct ImageViewerView: View {
                                 .padding(12)
                                 .background(Circle().fill(Color.black.opacity(0.5)))
                         }
-                        .accessibilityLabel("Close image viewer")
+                        .accessibilityLabel("messaging_image_viewer_close_accessibility".localized)
                     }
                     .padding()
                     Spacer()

@@ -22,10 +22,9 @@ struct ReportContentSheet: View {
     var onReported: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel = ReportContentViewModel()
     @State private var selectedReportType: MessageService.ReportType = .other
     @State private var description = ""
-    @State private var isSubmitting = false
-    @State private var submitError: String?
 
     private var reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] {[
         (.spam, "messaging_report_spam".localized, "exclamationmark.bubble"),
@@ -129,72 +128,24 @@ struct ReportContentSheet: View {
                     Button("messaging_submit".localized) {
                         Task { await submitReport() }
                     }
-                    .disabled(isSubmitting)
+                    .disabled(viewModel.isSubmitting)
                 }
             }
             .alert("report_failed".localized, isPresented: Binding(
-                get: { submitError != nil },
-                set: { if !$0 { submitError = nil } }
+                get: { viewModel.submitError != nil },
+                set: { if !$0 { viewModel.submitError = nil } }
             )) {
                 Button("messaging_ok".localized, role: .cancel) {}
             } message: {
-                Text(submitError ?? "")
+                Text(viewModel.submitError ?? "")
             }
         }
         .presentationDetents([.medium, .large])
     }
 
     private func submitReport() async {
-        guard let currentUserId = AuthService.shared.currentUserId else { return }
-        isSubmitting = true
-
-        do {
-            switch context {
-            case .post(let id, let authorId, _):
-                try await MessageService.shared.reportPost(
-                    reporterId: currentUserId,
-                    postId: id,
-                    authorId: authorId,
-                    type: selectedReportType,
-                    description: description.isEmpty ? nil : description
-                )
-            case .comment(let id, let authorId, _):
-                try await MessageService.shared.reportComment(
-                    reporterId: currentUserId,
-                    commentId: id,
-                    authorId: authorId,
-                    type: selectedReportType,
-                    description: description.isEmpty ? nil : description
-                )
-            case .ride(let id, let authorId, _):
-                try await MessageService.shared.reportRide(
-                    reporterId: currentUserId,
-                    rideId: id,
-                    authorId: authorId,
-                    type: selectedReportType,
-                    description: description.isEmpty ? nil : description
-                )
-            case .favor(let id, let authorId, _):
-                try await MessageService.shared.reportFavor(
-                    reporterId: currentUserId,
-                    favorId: id,
-                    authorId: authorId,
-                    type: selectedReportType,
-                    description: description.isEmpty ? nil : description
-                )
-            case .user(let id, _):
-                try await MessageService.shared.reportUser(
-                    reporterId: currentUserId,
-                    reportedUserId: id,
-                    type: selectedReportType,
-                    description: description.isEmpty ? nil : description
-                )
-            }
-            onReported?()
-            dismiss()
-        } catch {
-            submitError = error.localizedDescription
-            isSubmitting = false
-        }
+        guard await viewModel.submitReport(context: context, type: selectedReportType, description: description) else { return }
+        onReported?()
+        dismiss()
     }
 }

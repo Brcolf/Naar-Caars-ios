@@ -60,22 +60,11 @@ final class RequestsDashboardViewModel: ObservableObject {
         realtimeHandler = RequestRealtimeHandler()
 
         realtimeHandler.configure(
-            modelContextProvider: { [weak self] in self?.modelContext },
-            authUserIdProvider: { [weak self] in self?.authService.currentUserId },
-            syncRidesToSwiftData: { [weak self] rides, context in
-                self?.syncRidesToSwiftData(rides, in: context)
-            },
-            syncFavorsToSwiftData: { [weak self] favors, context in
-                self?.syncFavorsToSwiftData(favors, in: context)
-            },
-            refreshFilteredRequests: { [weak self] in
-                self?.refreshFilteredRequests()
+            reloadRequestsFromLocalStore: { [weak self] in
+                await self?.reloadRequestsFromLocalStore()
             },
             refreshRequestSummaries: { [weak self] in
                 await self?.refreshUnseenRequestKeys()
-            },
-            loadRequestsForceRefresh: { [weak self] in
-                await self?.loadRequests(forceRefresh: true)
             }
         )
         flightEnrichmentObserver = NotificationCenter.default.addObserver(
@@ -125,7 +114,11 @@ final class RequestsDashboardViewModel: ObservableObject {
         )
     }
 
-    /// Load requests (rides + favors) from network and sync to SwiftData
+    /// Load requests (rides + favors). Network fetch and SwiftData persistence are owned by
+    /// `RefreshCoordinator` → `DashboardSyncEngine` → `BackgroundSyncActor`; this method awaits that
+    /// full reconciliation and then re-reads SwiftData on the main actor.
+    /// - Parameter forceRefresh: true for pull-to-refresh. Every call is a full reconciliation (as
+    ///   before — the previous implementation never read this flag); it only changes the logged trigger.
     func loadRequests(forceRefresh: Bool = false, showLoadingIndicator: Bool = true) async {
         // Guest users viewing user-specific filters have no data — skip the network call
         if authService.currentUserId == nil && (filter == .mine || filter == .claimed) {
@@ -150,168 +143,22 @@ final class RequestsDashboardViewModel: ObservableObject {
             if showLoadingIndicator && !hasCachedData { isLoading = true }
             defer { if !Task.isCancelled { isLoading = false } }
 
-            do {
-                async let ridesTask = rideService.fetchRides(status: nil, userId: nil, claimedBy: nil, excludeStatus: .completed)
-                async let favorsTask = favorService.fetchFavors(status: nil, userId: nil, claimedBy: nil, excludeStatus: .completed)
-                let rides = try await ridesTask
-                let favors = try await favorsTask
-                guard !Task.isCancelled else { return }
-                if let context = modelContext {
-                    syncRidesToSwiftData(rides, in: context)
-                    syncFavorsToSwiftData(favors, in: context)
-                    try? context.save()
-                }
-                refreshFilteredRequests()
-                await refreshUnseenRequestKeys()
-            } catch is CancellationError {
+            let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(
+                .dashboard,
+                trigger: forceRefresh ? "pullToRefresh:requests" : "manualReload:requests"
+            )
+            guard !Task.isCancelled else { return }
+            if case .failed(let error, _)? = result {
+                // URLSession cancellation is not a user-facing error (parity with previous handling)
+                guard (error as NSError).code != NSURLErrorCancelled else { return }
+                self.error = error.localizedDescription
+                AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
                 return
-            } catch let error as NSError where error.code == NSURLErrorCancelled {
-                return
-            } catch {
-                if !Task.isCancelled {
-                    self.error = error.localizedDescription
-                    AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
-                }
             }
+            refreshFilteredRequests()
+            await refreshUnseenRequestKeys()
         }
         await loadTask?.value
-    }
-
-    private func syncRidesToSwiftData(_ rides: [Ride], in context: ModelContext) {
-        for ride in rides {
-            let id = ride.id
-            let fetchDescriptor = FetchDescriptor<SDRide>(predicate: #Predicate { $0.id == id })
-            if let existing = try? context.fetch(fetchDescriptor).first {
-                // Update existing
-                existing.status = ride.status.rawValue
-                existing.claimedBy = ride.claimedBy
-                existing.updatedAt = ride.updatedAt
-                existing.qaCount = ride.qaCount ?? 0
-                existing.date = ride.date
-                existing.time = ride.time
-                existing.timezone = ride.timezone
-                existing.pickup = ride.pickup
-                existing.destination = ride.destination
-                existing.seats = ride.seats
-                existing.notes = ride.notes
-                existing.gift = ride.gift
-                existing.reviewed = ride.reviewed
-                existing.reviewSkipped = ride.reviewSkipped
-                existing.reviewSkippedAt = ride.reviewSkippedAt
-                existing.estimatedCost = ride.estimatedCost
-                existing.flightNormalized = ride.flightNormalized
-                existing.hiddenAt = ride.hiddenAt
-                existing.hiddenBy = ride.hiddenBy
-                existing.hiddenReason = ride.hiddenReason
-                existing.posterName = ride.poster?.name
-                existing.posterAvatarUrl = ride.poster?.avatarUrl
-                existing.claimerName = ride.claimer?.name
-                existing.claimerAvatarUrl = ride.claimer?.avatarUrl
-                existing.participantIds = ride.participants?.map { $0.id } ?? []
-            } else {
-                // Insert new
-                let sdRide = SDRide(
-                    id: ride.id,
-                    userId: ride.userId,
-                    type: ride.type,
-                    date: ride.date,
-                    time: ride.time,
-                    timezone: ride.timezone,
-                    pickup: ride.pickup,
-                    destination: ride.destination,
-                    seats: ride.seats,
-                    notes: ride.notes,
-                    gift: ride.gift,
-                    status: ride.status.rawValue,
-                    claimedBy: ride.claimedBy,
-                    reviewed: ride.reviewed,
-                    reviewSkipped: ride.reviewSkipped,
-                    reviewSkippedAt: ride.reviewSkippedAt,
-                    estimatedCost: ride.estimatedCost,
-                    flightNormalized: ride.flightNormalized,
-                    hiddenAt: ride.hiddenAt,
-                    hiddenBy: ride.hiddenBy,
-                    hiddenReason: ride.hiddenReason,
-                    createdAt: ride.createdAt,
-                    updatedAt: ride.updatedAt,
-                    posterName: ride.poster?.name,
-                    posterAvatarUrl: ride.poster?.avatarUrl,
-                    claimerName: ride.claimer?.name,
-                    claimerAvatarUrl: ride.claimer?.avatarUrl,
-                    participantIds: ride.participants?.map { $0.id } ?? [],
-                    qaCount: ride.qaCount ?? 0
-                )
-                context.insert(sdRide)
-            }
-        }
-        refreshFilteredRequests()
-    }
-
-    private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) {
-        for favor in favors {
-            let id = favor.id
-            let fetchDescriptor = FetchDescriptor<SDFavor>(predicate: #Predicate { $0.id == id })
-            if let existing = try? context.fetch(fetchDescriptor).first {
-                // Update existing
-                existing.status = favor.status.rawValue
-                existing.claimedBy = favor.claimedBy
-                existing.updatedAt = favor.updatedAt
-                existing.qaCount = favor.qaCount ?? 0
-                existing.title = favor.title
-                existing.favorDescription = favor.description
-                existing.location = favor.location
-                existing.duration = favor.duration.rawValue
-                existing.requirements = favor.requirements
-                existing.date = favor.date
-                existing.time = favor.time
-                existing.timezone = favor.timezone
-                existing.gift = favor.gift
-                existing.reviewed = favor.reviewed
-                existing.reviewSkipped = favor.reviewSkipped
-                existing.reviewSkippedAt = favor.reviewSkippedAt
-                existing.hiddenAt = favor.hiddenAt
-                existing.hiddenBy = favor.hiddenBy
-                existing.hiddenReason = favor.hiddenReason
-                existing.posterName = favor.poster?.name
-                existing.posterAvatarUrl = favor.poster?.avatarUrl
-                existing.claimerName = favor.claimer?.name
-                existing.claimerAvatarUrl = favor.claimer?.avatarUrl
-                existing.participantIds = favor.participants?.map { $0.id } ?? []
-            } else {
-                // Insert new
-                let sdFavor = SDFavor(
-                    id: favor.id,
-                    userId: favor.userId,
-                    title: favor.title,
-                    favorDescription: favor.description,
-                    location: favor.location,
-                    duration: favor.duration.rawValue,
-                    requirements: favor.requirements,
-                    date: favor.date,
-                    time: favor.time,
-                    timezone: favor.timezone,
-                    gift: favor.gift,
-                    status: favor.status.rawValue,
-                    claimedBy: favor.claimedBy,
-                    reviewed: favor.reviewed,
-                    reviewSkipped: favor.reviewSkipped,
-                    reviewSkippedAt: favor.reviewSkippedAt,
-                    hiddenAt: favor.hiddenAt,
-                    hiddenBy: favor.hiddenBy,
-                    hiddenReason: favor.hiddenReason,
-                    createdAt: favor.createdAt,
-                    updatedAt: favor.updatedAt,
-                    posterName: favor.poster?.name,
-                    posterAvatarUrl: favor.poster?.avatarUrl,
-                    claimerName: favor.claimer?.name,
-                    claimerAvatarUrl: favor.claimer?.avatarUrl,
-                    participantIds: favor.participants?.map { $0.id } ?? [],
-                    qaCount: favor.qaCount ?? 0
-                )
-                context.insert(sdFavor)
-            }
-        }
-        refreshFilteredRequests()
     }
 
     /// Update filter and reload requests
@@ -332,12 +179,14 @@ final class RequestsDashboardViewModel: ObservableObject {
         await loadRequests(forceRefresh: true)
     }
 
-    /// Setup realtime subscription for live updates
+    /// Start observing `DashboardSyncEngine`'s `.ridesDidSync` / `.favorsDidSync` /
+    /// `.notificationsDidSync` NotificationCenter posts (no WebSocket channels are opened).
+    /// Reactions re-read SwiftData only; network refresh is owned by `RefreshCoordinator`.
     func setupRealtimeSubscription() {
         realtimeHandler.setupRealtimeSubscription()
     }
 
-    /// Cleanup realtime subscription
+    /// Stop observing the sync notifications and cancel pending debounced reloads.
     func cleanupRealtimeSubscription() {
         realtimeHandler.cleanupRealtimeSubscription()
     }
@@ -345,6 +194,24 @@ final class RequestsDashboardViewModel: ObservableObject {
     private func refreshUnseenRequestKeys() async {
         await summaryManager.refreshUnseenRequestKeys(modelContext: modelContext)
         refreshFilterBadgeCounts()
+    }
+
+    /// Local-only reload used after `DashboardSyncEngine` posts `.ridesDidSync` / `.favorsDidSync`.
+    ///
+    /// `BackgroundSyncActor` has already written the fresh server rows to SwiftData, so this only
+    /// re-reads SwiftData (filtered lists, unread summaries, filter badge counts). It must never
+    /// hit the network: `RefreshCoordinator` is the single owner of refresh decisions, and a
+    /// network fetch here would turn every coordinator sync into a second full fetch.
+    private func reloadRequestsFromLocalStore() async {
+        // Without a context there is nothing local to read, and `summaryManager` would fall back
+        // to a network fetch — which this path must never do.
+        guard modelContext != nil else { return }
+        // A completed sync supersedes any earlier load error. This preserves the previous
+        // observable behaviour (the network reload cleared `error` on every sync); the view hides
+        // the list while `error` is non-nil.
+        error = nil
+        refreshFilteredRequests()
+        await refreshUnseenRequestKeys()
     }
 
     private func refreshFilteredRequests() {

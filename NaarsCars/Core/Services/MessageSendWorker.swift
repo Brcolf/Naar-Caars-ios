@@ -23,15 +23,15 @@ actor MessageSendWorker {
     
     private var isRunning = false
     private var retryTask: Task<Void, Never>?
-    private let networkMonitor = NWPathMonitor()
+    private var networkMonitor: NWPathMonitor?
     private let monitorQueue = DispatchQueue(label: "com.naarscars.sendWorker.network")
     private var isNetworkAvailable = true
     
     // MARK: - Constants
     
-    private let initialBackoffDelay: TimeInterval = 1.0
-    private let maxBackoffDelay: TimeInterval = 30.0
-    private let maxRetryAttempts = 5
+    private let initialBackoffDelay: TimeInterval = Constants.Retry.messageSendBackoffInitial
+    private let maxBackoffDelay: TimeInterval = Constants.Retry.messageSendBackoffMax
+    private let maxRetryAttempts = Constants.Retry.messageSendMaxAttempts
     
     // MARK: - Initialization
     
@@ -44,13 +44,17 @@ actor MessageSendWorker {
         guard !isRunning else { return }
         isRunning = true
         
-        // Start network monitoring
-        networkMonitor.pathUpdateHandler = { [weak self] path in
+        // Start network monitoring. A cancelled NWPathMonitor cannot be restarted, so a
+        // fresh instance is created on every start() — stop() → start() happens on
+        // sign-out → sign-in within one process (MessagingSyncEngine.teardown/startSync).
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
             Task { [weak self] in
                 await self?.handleNetworkChange(isAvailable: path.status == .satisfied)
             }
         }
-        networkMonitor.start(queue: monitorQueue)
+        monitor.start(queue: monitorQueue)
+        networkMonitor = monitor
         
         // Process any pending messages immediately
         retryTask = Task { [weak self] in
@@ -65,7 +69,8 @@ actor MessageSendWorker {
         isRunning = false
         retryTask?.cancel()
         retryTask = nil
-        networkMonitor.cancel()
+        networkMonitor?.cancel()
+        networkMonitor = nil
         AppLogger.info("messaging", "[MessageSendWorker] Stopped")
     }
     

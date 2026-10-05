@@ -46,12 +46,12 @@ struct AdminPanelView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .padding(.top)
-                    .accessibilityLabel("Back to profile")
-                    .accessibilityHint("Double-tap to return to your profile")
+                    .accessibilityLabel("admin_back_to_profile".localized)
+                    .accessibilityHint("admin_back_to_profile_hint".localized)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onAppear {
-                    Log.security("Non-admin accessed admin panel view")
+                    AppLogger.error("security", "Non-admin accessed admin panel view")
                 }
             }
         }
@@ -161,8 +161,8 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.broadcast")
-            .accessibilityLabel("Send announcement")
-            .accessibilityHint("Double-tap to compose a broadcast announcement")
+            .accessibilityLabel("admin_send_announcement".localized)
+            .accessibilityHint("admin_send_announcement_hint".localized)
             
             Button(action: {
                 let items: [Any] = [
@@ -194,8 +194,8 @@ struct AdminPanelView: View {
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityIdentifier("admin.shareApp")
-            .accessibilityLabel("Share app link")
-            .accessibilityHint("Double-tap to share the app with prospective members")
+            .accessibilityLabel("admin_share_app_link_accessibility".localized)
+            .accessibilityHint("admin_share_app_link_hint".localized)
         }
     }
     
@@ -224,8 +224,8 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.pendingUsers")
-            .accessibilityLabel("Pending approvals")
-            .accessibilityHint("Double-tap to review pending user approvals")
+            .accessibilityLabel("admin_pending_approvals".localized)
+            .accessibilityHint("admin_pending_approvals_hint".localized)
             
             NavigationLink(destination: UserManagementView()) {
                 HStack {
@@ -246,14 +246,14 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.userManagement")
-            .accessibilityLabel("All members")
-            .accessibilityHint("Double-tap to manage community members")
+            .accessibilityLabel("admin_all_members".localized)
+            .accessibilityHint("admin_all_members_hint".localized)
 
             NavigationLink(destination: AdminReportsView()) {
                 HStack {
                     Image(systemName: "flag.fill")
                         .foregroundColor(.red)
-                    Text("Reports")
+                    Text("admin_reports_title".localized)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -268,8 +268,8 @@ struct AdminPanelView: View {
                 )
             }
             .accessibilityIdentifier("admin.reports")
-            .accessibilityLabel("Reports")
-            .accessibilityHint("Double-tap to review content reports")
+            .accessibilityLabel("admin_reports_title".localized)
+            .accessibilityHint("admin_reports_hint".localized)
         }
     }
 }

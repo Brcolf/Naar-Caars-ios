@@ -77,7 +77,7 @@ struct CommunityHeaderView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Segmented picker
-            Picker("Community View", selection: $selectedView) {
+            Picker("community_view_picker".localized, selection: $selectedView) {
                 ForEach(CommunityTabView.CommunityView.allCases, id: \.self) { view in
                     Text(view.rawValue.localized).tag(view)
                 }

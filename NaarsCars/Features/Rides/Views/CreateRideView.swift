@@ -66,15 +66,15 @@ struct CreateRideView: View {
                 Section("ride_create_section_date_time".localized) {
                     DatePicker("ride_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)
-                        .accessibilityHint("Select the date for this ride")
+                        .accessibilityHint("ride_create_date_hint".localized)
                     
                     TimePickerView(
                         hour: $viewModel.hour,
                         minute: $viewModel.minute,
                         isAM: $viewModel.isAM
                     )
-                    .accessibilityLabel("Ride time")
-                    .accessibilityHint("Set the departure time")
+                    .accessibilityLabel("ride_create_time_accessibility".localized)
+                    .accessibilityHint("ride_create_time_hint".localized)
 
                     TimeZonePicker(selectedTimezone: $viewModel.timezone)
                 }
@@ -91,8 +91,8 @@ struct CreateRideView: View {
                             // Optional: Store coordinates for future map integration
                             // viewModel.pickupCoordinate = details.coordinate
                         }
-                        .accessibilityLabel("Pickup location")
-                        .accessibilityHint("Enter the pickup address")
+                        .accessibilityLabel("ride_create_pickup_placeholder".localized)
+                        .accessibilityHint("ride_create_pickup_hint".localized)
                         
                         LocationAutocompleteField(
                             label: "",
@@ -104,8 +104,8 @@ struct CreateRideView: View {
                             // Optional: Store coordinates for future map integration
                             // viewModel.destinationCoordinate = details.coordinate
                         }
-                        .accessibilityLabel("Destination")
-                        .accessibilityHint("Enter the destination address")
+                        .accessibilityLabel("ride_create_destination_placeholder".localized)
+                        .accessibilityHint("ride_create_destination_hint".localized)
                     } else {
                         HStack(spacing: 12) {
                             ProgressView()
@@ -116,25 +116,25 @@ struct CreateRideView: View {
                         }
                         .padding(.vertical, 4)
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Loading route fields")
+                        .accessibilityLabel("ride_create_route_loading_accessibility".localized)
                     }
                 }
                 
                 Section("ride_create_section_details".localized) {
                     Stepper("ride_create_seats_count".localized(with: viewModel.seats), value: $viewModel.seats, in: 1...7)
-                        .accessibilityLabel("Available seats, currently \(viewModel.seats)")
-                        .accessibilityHint("Adjust the number of available seats")
+                        .accessibilityLabel("ride_create_seats_accessibility".localized(with: viewModel.seats))
+                        .accessibilityHint("ride_create_seats_hint".localized)
                     
                     TextField("ride_create_notes_placeholder".localized, text: $viewModel.notes, axis: .vertical)
                         .lineLimit(3...6)
                         .accessibilityIdentifier("createRide.notes")
-                        .accessibilityLabel("Notes")
-                        .accessibilityHint("Add optional notes about this ride")
+                        .accessibilityLabel("ride_create_notes_accessibility".localized)
+                        .accessibilityHint("ride_create_notes_hint".localized)
                     
                     TextField("ride_create_gift_placeholder".localized, text: $viewModel.gift)
                         .accessibilityIdentifier("createRide.gift")
-                        .accessibilityLabel("Gift or thank-you")
-                        .accessibilityHint("Optionally offer a gift for the driver")
+                        .accessibilityLabel("ride_create_gift_accessibility".localized)
+                        .accessibilityHint("ride_create_gift_hint".localized)
                 }
                 
                 Section("ride_create_section_participants".localized) {
@@ -153,8 +153,8 @@ struct CreateRideView: View {
                         }
                     }
                     .accessibilityIdentifier("createRide.participants")
-                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "Add participants" : "\(viewModel.selectedParticipantIds.count) participants selected")
-                    .accessibilityHint("Double-tap to select participants for this ride")
+                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "ride_create_add_participants".localized : "ride_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
+                    .accessibilityHint("ride_create_participants_hint".localized)
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
                         Text("ride_create_max_participants".localized)
@@ -188,8 +188,8 @@ struct CreateRideView: View {
                         dismiss()
                     }
                     .accessibilityIdentifier("createRide.cancel")
-                    .accessibilityLabel("Cancel")
-                    .accessibilityHint("Dismiss without creating a ride")
+                    .accessibilityLabel("ride_create_cancel".localized)
+                    .accessibilityHint("ride_create_cancel_hint".localized)
                 }
                 
                 if !appState.isGuest {
@@ -215,8 +215,8 @@ struct CreateRideView: View {
                     }
                     .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createRide.post")
-                    .accessibilityLabel("Post ride")
-                    .accessibilityHint("Double-tap to submit this ride request")
+                    .accessibilityLabel("ride_create_post_accessibility".localized)
+                    .accessibilityHint("ride_create_post_hint".localized)
                 }
                 }
             }
@@ -231,11 +231,11 @@ struct CreateRideView: View {
             }
             .trackScreen("CreateRide")
             .alert("common_error".localized, isPresented: $showErrorAlert) {
-                Button("OK", role: .cancel) {
+                Button("common_ok".localized, role: .cancel) {
                     showErrorAlert = false
                 }
             } message: {
-                Text(viewModel.error ?? "An unexpected error occurred.")
+                Text(viewModel.error ?? "common_unexpected_error".localized)
             }
         }
         .successCheckmark(isShowing: $showSuccess)

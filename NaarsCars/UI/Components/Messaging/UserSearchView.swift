@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import Supabase
-import PostgREST
 
 /// View for searching and selecting users
 struct UserSearchView: View {
@@ -18,10 +16,7 @@ struct UserSearchView: View {
     let onDismiss: () -> Void
     
     @State private var searchText = ""
-    @State private var searchResults: [Profile] = []
-    @State private var isLoading = false
-    @State private var error: AppError?
-    @State private var searchTask: Task<Void, Never>?
+    @StateObject private var viewModel = UserSearchViewModel()
     @FocusState private var isSearchFocused: Bool
     @Environment(\.dismiss) private var dismiss
     
@@ -50,18 +45,7 @@ struct UserSearchView: View {
                 )
                 .padding()
                 .onChange(of: searchText) { _, newValue in
-                    // Cancel previous search task
-                    searchTask?.cancel()
-                    
-                    // Debounce search - wait 300ms after user stops typing
-                    searchTask = Task {
-                        try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
-                        
-                        // Check if task was cancelled
-                        guard !Task.isCancelled else { return }
-                        
-                        await searchUsers(query: newValue)
-                    }
+                    viewModel.scheduleSearch(query: newValue, excludeUserIds: excludeUserIds)
                 }
                 .onAppear {
                     // Auto-focus search field when view appears
@@ -74,7 +58,7 @@ struct UserSearchView: View {
                 if !selectedUserIds.isEmpty || (showExistingParticipants && !excludeUserIds.isEmpty) {
                     VStack(alignment: .leading, spacing: 8) {
                         let totalCount = selectedUserIds.count + (showExistingParticipants ? excludeUserIds.count : 0)
-                        Text(showExistingParticipants && !excludeUserIds.isEmpty ? "messaging_participants_count".localized(with: totalCount) : "Selected (\(selectedUserIds.count))")
+                        Text(showExistingParticipants && !excludeUserIds.isEmpty ? "messaging_participants_count".localized(with: totalCount) : "messaging_selected_count".localized(with: selectedUserIds.count))
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
@@ -107,16 +91,16 @@ struct UserSearchView: View {
                 }
                 
                 // Results list
-                if isLoading {
+                if viewModel.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if searchResults.isEmpty && !searchText.isEmpty {
+                } else if viewModel.searchResults.isEmpty && !searchText.isEmpty {
                     EmptyStateView(
                         icon: "person.fill.questionmark",
                         title: "messaging_no_users_found_title".localized,
                         message: "messaging_no_users_found_message".localized
                     )
-                } else if searchResults.isEmpty && searchText.isEmpty {
+                } else if viewModel.searchResults.isEmpty && searchText.isEmpty {
                     EmptyStateView(
                         icon: "magnifyingglass",
                         title: "messaging_search_for_users_title".localized,
@@ -124,7 +108,7 @@ struct UserSearchView: View {
                     )
                 } else {
                     List {
-                        ForEach(searchResults) { profile in
+                        ForEach(viewModel.searchResults) { profile in
                             UserSearchRow(
                                 profile: profile,
                                 isSelected: selectedUserIds.contains(profile.id),
@@ -136,7 +120,7 @@ struct UserSearchView: View {
                                     selectedUserIds.insert(profile.id)
                                     // Clear search after selection for easier multi-select
                                     searchText = ""
-                                    searchResults = []
+                                    viewModel.clearResults()
                                     // Refocus search for next selection
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                         isSearchFocused = true
@@ -172,94 +156,8 @@ struct UserSearchView: View {
             }
         }
         .onDisappear {
-            searchTask?.cancel()
-            searchTask = nil
+            viewModel.stop()
         }
-    }
-
-    private func searchUsers(query: String) async {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Require at least 2 characters to search
-        guard trimmedQuery.count >= 2 else {
-            searchResults = []
-            return
-        }
-        
-        isLoading = true
-        error = nil
-        
-        do {
-            // Search public profiles by name (the public_profiles view has no email column)
-            // PostgREST .or() syntax: "column.operator.value,column.operator.value"
-            // Use * as wildcard for ilike (case-insensitive LIKE)
-            // Escape special characters for PostgREST ilike pattern
-            // In PostgREST, * is the wildcard for ilike, so we need to escape it if it appears in the query
-            let escapedQuery = trimmedQuery.replacingOccurrences(of: "*", with: "\\*")
-                .replacingOccurrences(of: "%", with: "\\%")
-                .replacingOccurrences(of: "_", with: "\\_")
-            let searchPattern = "*\(escapedQuery)*"
-            
-            AppLogger.info("messaging", "UserSearchView searching for: '\(trimmedQuery)' (pattern: '\(searchPattern)')")
-            
-            // Select all view columns (Profile's decoder defaults any column the view lacks)
-            // Using .select() without arguments gets all columns, matching other services
-            let response = try await SupabaseService.shared.client
-                .from("public_profiles")
-                .select()
-                .or("name.ilike.\(searchPattern)")
-                .eq("approved", value: true)
-                .limit(20)
-                .execute()
-            
-            // Use custom date decoder to handle various date formats
-            // Profile model handles snake_case via CodingKeys
-            let decoder = JSONDecoder()
-            let dateFormatter = ISO8601DateFormatter()
-            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            
-            decoder.dateDecodingStrategy = .custom { decoder in
-                let container = try decoder.singleValueContainer()
-                let dateString = try container.decode(String.self)
-                
-                // Try ISO8601 with fractional seconds
-                if let date = dateFormatter.date(from: dateString) {
-                    return date
-                }
-                
-                // Try ISO8601 without fractional seconds
-                dateFormatter.formatOptions = [.withInternetDateTime]
-                if let date = dateFormatter.date(from: dateString) {
-                    return date
-                }
-                
-                // Try YYYY-MM-DD format
-                let simpleFormatter = DateFormatter()
-                simpleFormatter.dateFormat = "yyyy-MM-dd"
-                simpleFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-                if let date = simpleFormatter.date(from: dateString) {
-                    return date
-                }
-                
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
-            }
-            
-            let profiles: [Profile] = try decoder.decode([Profile].self, from: response.data)
-            
-            // Filter out excluded and blocked users
-            searchResults = profiles.filter { !excludeUserIds.contains($0.id) && !MessageService.shared.isBlocked($0.id) }
-            
-            AppLogger.info("messaging", "UserSearchView found \(searchResults.count) users matching '\(trimmedQuery)'")
-        } catch {
-            AppLogger.error("messaging", "UserSearchView search error: \(error)")
-            if let postgrestError = error as? PostgrestError {
-                AppLogger.error("messaging", "PostgREST error - code: \(postgrestError.code ?? "none"), message: \(postgrestError.message ?? "none"), hint: \(postgrestError.hint ?? "none")")
-            }
-            self.error = AppError.processingError("Failed to search users: \(error.localizedDescription)")
-            searchResults = []
-        }
-        
-        isLoading = false
     }
 }
 

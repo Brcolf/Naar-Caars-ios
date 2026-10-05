@@ -19,7 +19,6 @@ struct ReviewPromptDependencies {
     @MainActor
     static func live() -> ReviewPromptDependencies {
         let notificationService = NotificationService.shared
-        let badgeManager = BadgeCountManager.shared
         let profileService = ProfileService.shared
         let rideService = RideService.shared
         let favorService = FavorService.shared
@@ -32,7 +31,7 @@ struct ReviewPromptDependencies {
                 await notificationService.markReviewRequestAsRead(requestType: requestType, requestId: requestId)
             },
             refreshBadges: { reason in
-                await badgeManager.refreshAllBadges(reason: reason)
+                _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: reason)
             },
             fetchRide: { id in
                 try await rideService.fetchRide(id: id)

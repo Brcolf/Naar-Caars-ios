@@ -90,20 +90,7 @@ struct EditRideView: View {
                     Button("common_save".localized) {
                         Task {
                             do {
-                                // Format time from hour/minute/isAM
-                                let formattedTime = viewModel.formatTime(hour: viewModel.hour, minute: viewModel.minute, isAM: viewModel.isAM)
-                                
-                                _ = try await RideService.shared.updateRide(
-                                    id: ride.id,
-                                    date: viewModel.date,
-                                    time: formattedTime,
-                                    pickup: viewModel.pickup.isEmpty ? nil : viewModel.pickup,
-                                    destination: viewModel.destination.isEmpty ? nil : viewModel.destination,
-                                    seats: viewModel.seats,
-                                    notes: viewModel.notes.isEmpty ? nil : viewModel.notes,
-                                    gift: viewModel.gift.isEmpty ? nil : viewModel.gift,
-                                    timezone: viewModel.timezone
-                                )
+                                try await viewModel.updateRide(id: ride.id)
                                 // Notify parent to refresh before dismissing
                                 onSaved?()
                                 showSuccess = true

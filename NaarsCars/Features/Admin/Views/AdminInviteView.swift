@@ -130,7 +130,7 @@ struct AdminInviteView: View {
                                 
                                 if code.isBulk {
                                     if let expiresAt = code.expiresAt {
-                                        Text("Expires: \(expiresAt.dateString) at \(expiresAt.timeString)")
+                                        Text("admin_invite_expires_at".localized(with: expiresAt.dateString, expiresAt.timeString))
                                             .font(.naarsCaption)
                                             .foregroundColor(.secondary)
                                     }
@@ -215,8 +215,7 @@ struct AdminInviteView: View {
 /// Sheet for generating bulk invite codes
 private struct BulkInviteSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var isGenerating = false
-    @State private var errorMessage: String?
+    @StateObject private var viewModel = AdminInviteViewModel()
     
     let onCodeGenerated: (InviteCode) -> Void
     
@@ -240,7 +239,7 @@ private struct BulkInviteSheet: View {
                 }
                 .padding(.top, 20)
                 
-                if let error = errorMessage {
+                if let error = viewModel.errorMessage {
                     Text(error)
                         .font(.naarsCaption)
                         .foregroundColor(.naarsError)
@@ -256,7 +255,7 @@ private struct BulkInviteSheet: View {
                             await generateBulkCode()
                         }
                     },
-                    isLoading: isGenerating
+                    isLoading: viewModel.isGenerating
                 )
             .accessibilityIdentifier("admin.bulk.generate")
                 .padding(.horizontal)
@@ -276,23 +275,9 @@ private struct BulkInviteSheet: View {
     }
     
     private func generateBulkCode() async {
-        guard let userId = AuthService.shared.currentUserId else {
-            errorMessage = "admin_invite_not_signed_in".localized
-            return
-        }
-        
-        isGenerating = true
-        errorMessage = nil
-        
-        do {
-            let code = try await InviteService.shared.generateBulkInviteCode(userId: userId)
-            onCodeGenerated(code)
-            dismiss()
-        } catch {
-            errorMessage = (error as? AppError)?.errorDescription ?? "admin_invite_bulk_failed".localized
-        }
-        
-        isGenerating = false
+        guard let code = await viewModel.generateBulkCode() else { return }
+        onCodeGenerated(code)
+        dismiss()
     }
 }
 
@@ -301,6 +286,34 @@ private struct BulkInviteSheet: View {
 final class AdminInviteViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: AppError?
+    @Published var isGenerating = false
+    @Published var errorMessage: String?
+
+    private let inviteService = InviteService.shared
+    private let authService: any AuthServiceProtocol
+
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+    }
+
+    /// Generate a bulk invite code. Returns nil on failure with `errorMessage` set.
+    func generateBulkCode() async -> InviteCode? {
+        guard let userId = authService.currentUserId else {
+            errorMessage = "admin_invite_not_signed_in".localized
+            return nil
+        }
+        
+        isGenerating = true
+        errorMessage = nil
+        defer { isGenerating = false }
+        
+        do {
+            return try await inviteService.generateBulkInviteCode(userId: userId)
+        } catch {
+            errorMessage = (error as? AppError)?.errorDescription ?? "admin_invite_bulk_failed".localized
+            return nil
+        }
+    }
 }
 
 #Preview {

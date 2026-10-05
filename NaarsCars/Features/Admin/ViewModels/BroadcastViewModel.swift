@@ -75,7 +75,7 @@ final class BroadcastViewModel: ObservableObject {
             
             // Clear success message after delay
             Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                try? await Task.sleep(nanoseconds: Constants.Timing.broadcastSuccessClearNanoseconds)
                 await MainActor.run {
                     successMessage = nil
                 }

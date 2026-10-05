@@ -396,8 +396,8 @@ struct CommentRow: View {
                 .buttonStyle(PlainButtonStyle())
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Reply to comment")
-                .accessibilityHint("Double-tap to reply")
+                .accessibilityLabel("townhall_reply_comment_accessibility".localized)
+                .accessibilityHint("townhall_reply_comment_hint".localized)
             }
 
             if isOwnComment {
@@ -433,7 +433,7 @@ struct CommentRow: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Report comment")
+                    .accessibilityLabel("townhall_report_comment_accessibility".localized)
                 }
             }
 
@@ -461,8 +461,8 @@ struct CommentRow: View {
                 .buttonStyle(PlainButtonStyle())
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Downvote comment")
-                .accessibilityHint("Double-tap to downvote")
+                .accessibilityLabel("townhall_downvote_comment_accessibility".localized)
+                .accessibilityHint("townhall_downvote_comment_hint".localized)
 
                 Button(action: {
                     if comment.userVote == .upvote {
@@ -485,8 +485,8 @@ struct CommentRow: View {
                 .buttonStyle(PlainButtonStyle())
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Upvote comment")
-                .accessibilityHint("Double-tap to upvote")
+                .accessibilityLabel("townhall_upvote_comment_accessibility".localized)
+                .accessibilityHint("townhall_upvote_comment_hint".localized)
             }
         }
         .padding(.top, 4)

@@ -20,7 +20,6 @@ internal import Combine
     private var modelContext: ModelContext?
     private let notificationService: any NotificationServiceProtocol
     private let authService: any AuthServiceProtocol
-    private let badgeManager: any BadgeCountManaging
     private let groupingManager: NotificationGroupingManager
     private let navigationRouter: NotificationNavigationRouter
     private let realtimeHandler: NotificationRealtimeHandler
@@ -29,12 +28,10 @@ internal import Combine
 
     init(
         notificationService: any NotificationServiceProtocol = NotificationService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared,
-        badgeManager: any BadgeCountManaging = BadgeCountManager.shared
+        authService: any AuthServiceProtocol = AuthService.shared
     ) {
         self.notificationService = notificationService
         self.authService = authService
-        self.badgeManager = badgeManager
         groupingManager = NotificationGroupingManager()
         navigationRouter = NotificationNavigationRouter()
         realtimeHandler = NotificationRealtimeHandler()
@@ -65,8 +62,8 @@ internal import Combine
     /// Called from .task — only runs for the VM that actually renders (not throwaway @State instances).
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
-        realtimeHandler.setupRealtimeSubscription { [weak self] reason, fallback in
-            await self?.handleRealtimeReload(reason: reason, fallback: fallback)
+        realtimeHandler.setupRealtimeSubscription { [weak self] reason in
+            await self?.handleRealtimeReload(reason: reason)
         }
     }
 
@@ -85,6 +82,9 @@ internal import Combine
         groupingManager.computeGroupedNotifications(sdNotifications: sdNotifications)
     }
 
+    /// Load notifications. Persistence is owned by `RefreshCoordinator` → `DashboardSyncEngine`
+    /// (notifications are part of the `.dashboard` domain) → `BackgroundSyncActor`; the views'
+    /// `@Query` re-renders and this method only recomputes `unreadCount` from SwiftData.
     func loadNotifications(forceRefresh: Bool = false) async {
         loadTask?.cancel()
         loadTask = Task { @MainActor in
@@ -99,72 +99,27 @@ internal import Combine
             #endif
             isLoading = true
             error = nil
-            do {
-                if let context = modelContext {
-                    refreshUnreadCount(from: context, userId: userId)
-                }
-                guard !Task.isCancelled else { isLoading = false; return }
-                let fetched = try await notificationService.fetchNotifications(userId: userId, forceRefresh: forceRefresh)
-                guard !Task.isCancelled else { isLoading = false; return }
-                if let context = modelContext {
-                    syncNotificationsToSwiftData(fetched, in: context)
-                    try? context.save()
-                    refreshUnreadCount(from: context, userId: userId)
-                } else {
-                    unreadCount = fetched.filter { !$0.read }.count
-                }
-            } catch {
-                if !Task.isCancelled {
-                    self.error = AppError.processingError(error.localizedDescription)
-                    AppLogger.error("notifications", "Error loading notifications: \(error.localizedDescription)")
-                }
+            if let context = modelContext {
+                refreshUnreadCount(from: context, userId: userId)
             }
-            if !Task.isCancelled {
-                isLoading = false
+            guard !Task.isCancelled else { isLoading = false; return }
+            let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(
+                .dashboard,
+                trigger: forceRefresh ? "pullToRefresh:notifications" : "manualReload:notifications"
+            )
+            guard !Task.isCancelled else { isLoading = false; return }
+            if case .failed(let error, _)? = result {
+                self.error = AppError.processingError(error.localizedDescription)
+                AppLogger.error("notifications", "Error loading notifications: \(error.localizedDescription)")
+            } else if let context = modelContext {
+                refreshUnreadCount(from: context, userId: userId)
             }
+            isLoading = false
             #if DEBUG
             print("[NotificationsListVM] loadNotifications end cancelled=\(Task.isCancelled)")
             #endif
         }
         await loadTask?.value
-    }
-
-    private func syncNotificationsToSwiftData(_ notifications: [AppNotification], in context: ModelContext) {
-        for notification in notifications {
-            let id = notification.id
-            let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.id == id })
-            if let existing = try? context.fetch(fetchDescriptor).first {
-                existing.read = notification.read
-                existing.pinned = notification.pinned
-                existing.title = notification.title
-                existing.body = notification.body
-                existing.createdAt = notification.createdAt
-                existing.rideId = notification.rideId
-                existing.favorId = notification.favorId
-                existing.conversationId = notification.conversationId
-                existing.reviewId = notification.reviewId
-                existing.townHallPostId = notification.townHallPostId
-                existing.sourceUserId = notification.sourceUserId
-            } else {
-                let sd = SDNotification(
-                    id: notification.id,
-                    userId: notification.userId,
-                    type: notification.type.rawValue,
-                    title: notification.title,
-                    body: notification.body,
-                    read: notification.read,
-                    pinned: notification.pinned,
-                    createdAt: notification.createdAt,
-                    rideId: notification.rideId,
-                    favorId: notification.favorId,
-                    conversationId: notification.conversationId,
-                    reviewId: notification.reviewId,
-                    townHallPostId: notification.townHallPostId,
-                    sourceUserId: notification.sourceUserId
-                )
-                context.insert(sd)
-            }
-        }
     }
 
     func refreshNotifications() async {
@@ -180,7 +135,7 @@ internal import Combine
             if modelContext == nil {
                 await loadNotifications()
             }
-            await badgeManager.refreshAllBadges(reason: "notificationMarkedRead")
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationMarkedRead")
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
             AppLogger.error("notifications", "Error marking notification as read: \(error.localizedDescription)")
@@ -196,7 +151,7 @@ internal import Combine
             if modelContext == nil {
                 await loadNotifications()
             }
-            await badgeManager.refreshAllBadges(reason: "notificationsMarkAllRead")
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationsMarkAllRead")
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
             AppLogger.error("notifications", "Error marking all notifications as read: \(error.localizedDescription)")
@@ -254,9 +209,6 @@ internal import Combine
             },
             markGroupAsRead: { [weak self] tappedGroup in
                 self?.markGroupAsRead(tappedGroup)
-            },
-            handleReviewPromptNotification: { [weak self] tapped in
-                self?.handleReviewPromptNotification(tapped)
             }
         )
     }
@@ -286,7 +238,7 @@ internal import Combine
             if self.modelContext == nil {
                 await self.loadNotifications()
             }
-            await self.badgeManager.refreshAllBadges(reason: "notificationGroupMarkedRead")
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationGroupMarkedRead")
         }
     }
 
@@ -299,23 +251,14 @@ internal import Combine
         }
     }
 
-    private func handleReviewPromptNotification(_ notification: AppNotification) {
-        if let rideId = notification.rideId {
-            NavigationCoordinator.shared.showReviewPromptFor(rideId: rideId)
-        } else if let favorId = notification.favorId {
-            NavigationCoordinator.shared.showReviewPromptFor(favorId: favorId)
-        }
-    }
-
-    private func handleRealtimeReload(reason: String, fallback: Bool) async {
-        AppLogger.info("notifications", "[NotificationsListVM] Coalesced realtime reload: \(reason)")
-        if let context = modelContext, let userId = authService.currentUserId {
-            refreshUnreadCount(from: context, userId: userId)
-            if fallback {
-                await loadNotifications(forceRefresh: false)
-            }
-        } else {
-            await loadNotifications(forceRefresh: !fallback)
-        }
+    /// Local-only reload used after `DashboardSyncEngine` posts `.notificationsDidSync`.
+    ///
+    /// `BackgroundSyncActor` has already written the fresh rows to SwiftData and the list itself
+    /// is `@Query`-driven, so only the derived `unreadCount` needs recomputing. This must never
+    /// hit the network: `RefreshCoordinator` is the single owner of refresh decisions.
+    private func handleRealtimeReload(reason: String) async {
+        AppLogger.info("notifications", "[NotificationsListVM] Coalesced local reload after sync: \(reason)")
+        guard let context = modelContext, let userId = authService.currentUserId else { return }
+        refreshUnreadCount(from: context, userId: userId)
     }
 }

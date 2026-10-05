@@ -94,8 +94,8 @@ struct NotificationRow: View {
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("notifications.row")
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(notification.title)\(notification.body.map { ", \($0)" } ?? ""), \(isRead ? "read" : "unread"), \(notification.createdAt.timeAgoString)")
-        .accessibilityHint("Double-tap to open this \(notification.type.rawValue.replacingOccurrences(of: "_", with: " ")) notification")
+        .accessibilityLabel("\(notification.title)\(notification.body.map { ", \($0)" } ?? ""), \(isRead ? "notifications_row_read_accessibility".localized : "notifications_row_unread_accessibility".localized), \(notification.createdAt.timeAgoString)")
+        .accessibilityHint("notifications_row_open_hint".localized(with: notification.type.rawValue.replacingOccurrences(of: "_", with: " ")))
     }
 
     private var isRead: Bool {

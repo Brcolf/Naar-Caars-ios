@@ -230,7 +230,7 @@ struct FavorDetailView: View {
                     excludeUserIds: getExistingParticipantIds(favor: favor),
                     onDismiss: {
                         if !selectedUserIds.isEmpty {
-                            Task { await addParticipantsToFavor(Array(selectedUserIds)) }
+                            Task { await viewModel.addParticipants(Array(selectedUserIds)) }
                         }
                         showAddParticipants = false
                         selectedUserIds = []
@@ -492,7 +492,11 @@ struct FavorDetailView: View {
                             showGuestPrompt = true
                             return
                         }
-                        Task { await openOrCreateConversation(favor: favor) }
+                        Task {
+                            if let conversationId = await viewModel.createConversationWithParticipants() {
+                                selectedConversationId = conversationId
+                            }
+                        }
                     }
                 )
                 .id(RequestDetailAnchor.qaSection.anchorId(for: .favor))
@@ -586,7 +590,7 @@ struct FavorDetailView: View {
                 notificationTypes: types
             )
             if updated > 0 {
-                await BadgeCountManager.shared.refreshAllBadges(reason: "requestSectionViewed")
+                _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "requestSectionViewed")
             }
         }
     }
@@ -619,45 +623,6 @@ struct FavorDetailView: View {
             ids.append(contentsOf: participants.map { $0.id })
         }
         return ids
-    }
-    
-    private func openOrCreateConversation(favor: Favor) async {
-        guard let currentUserId = AuthService.shared.currentUserId else { return }
-        
-        do {
-            var participantIds: Set<UUID> = [favor.userId]
-            if let claimedBy = favor.claimedBy { participantIds.insert(claimedBy) }
-            if let participants = favor.participants {
-                participantIds.formUnion(participants.map { $0.id })
-            }
-            participantIds.insert(currentUserId)
-            
-            let conversation = try await ConversationService.shared.createConversationWithUsers(
-                userIds: Array(participantIds),
-                createdBy: currentUserId,
-                title: nil
-            )
-            
-            selectedConversationId = conversation.id
-        } catch {
-            AppLogger.error("favors", "Error creating conversation: \(error.localizedDescription)")
-        }
-    }
-    
-    private func addParticipantsToFavor(_ userIds: [UUID]) async {
-        guard let currentUserId = AuthService.shared.currentUserId,
-              let favor = viewModel.favor else { return }
-        
-        do {
-            try await FavorService.shared.addFavorParticipants(
-                favorId: favor.id,
-                userIds: userIds,
-                addedBy: currentUserId
-            )
-            await viewModel.loadFavor(id: favorId)
-        } catch {
-            AppLogger.error("favors", "Error adding participants to favor: \(error.localizedDescription)")
-        }
     }
     
     private func openInExternalMaps(favor: Favor) {

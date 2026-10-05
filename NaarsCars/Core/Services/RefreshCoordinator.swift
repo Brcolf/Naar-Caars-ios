@@ -49,10 +49,10 @@ final class RefreshCoordinator {
     private(set) var visibleDomain: Domain?
     private(set) var activeConversationId: UUID?
 
-    /// Staleness window — 30 seconds
-    let stalenessWindow: TimeInterval = 30.0
-    /// Safety poll interval — 5 minutes
-    let safetyPollInterval: TimeInterval = 300.0
+    /// Staleness window — see Constants.Timing.refreshStalenessWindow (30s)
+    let stalenessWindow: TimeInterval = Constants.Timing.refreshStalenessWindow
+    /// Safety poll interval — see Constants.Timing.refreshSafetyPollInterval (5 minutes)
+    let safetyPollInterval: TimeInterval = Constants.Timing.refreshSafetyPollInterval
 
     // MARK: - Initialization
 
@@ -140,6 +140,24 @@ final class RefreshCoordinator {
             return
         }
         startRefreshTask(domain: domain, trigger: trigger, mode: .full)
+    }
+
+    /// Awaitable variant of `forceFullRefresh(_:trigger:)` for pull-to-refresh and manual reloads
+    /// driven from a ViewModel. Starts a full sync — or joins the one already in flight — and
+    /// suspends until that task finishes, so a `.refreshable` spinner ends when the data has
+    /// actually been persisted.
+    ///
+    /// INVARIANTS preserved: the task is never cancelled here (only `reset()` cancels), and the
+    /// in-flight dedup is untouched (a second caller joins; it never duplicates).
+    /// Returns the terminal result recorded for `domain` (`.completed` / `.failed`), or nil if the
+    /// coordinator was reset (sign-out) while waiting.
+    func forceFullRefreshAndWait(_ domain: Domain, trigger: String) async -> RefreshResult? {
+        forceFullRefresh(domain, trigger: trigger)
+        guard case .refreshing(let task, _) = states[domain] else {
+            return lastResults[domain]
+        }
+        await task.value
+        return lastResults[domain]
     }
 
     /// Invalidate domains (push without entity ID). Marks stale for next access.
@@ -260,7 +278,7 @@ final class RefreshCoordinator {
         case .conversations:
             return try await MessagingSyncEngine.shared.refreshConversationList()
         case .badges:
-            await BadgeCountManager.shared.refreshAllBadges(reason: "coordinator")
+            await BadgeCountManager.shared.refreshAllBadges(reason: lastTriggers[.badges] ?? "coordinator")
             return .badgeOnly
         }
     }
@@ -294,7 +312,7 @@ final class RefreshCoordinator {
     func markSyncFailed(_ domain: Domain, error: Error, partial: RefreshMetrics?) {
         let count = (failureCounts[domain] ?? 0) + 1
         failureCounts[domain] = count
-        let backoff = min(pow(2.0, Double(count - 1)) * 5.0, 120.0)
+        let backoff = min(pow(2.0, Double(count - 1)) * Constants.Retry.refreshBackoffInitial, Constants.Retry.refreshBackoffMax)
         let hasCache = lastSyncTimestamp(domain) != nil
         states[domain] = .failed(retryAfter: Date().addingTimeInterval(backoff), hasCache: hasCache)
         lastResults[domain] = .failed(error, partial: partial)

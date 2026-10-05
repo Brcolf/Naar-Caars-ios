@@ -18,6 +18,7 @@ struct ReviewPromptSheet: View {
     let fulfillerName: String
     
     @State private var showLeaveReview = false
+    @StateObject private var viewModel = ReviewPromptViewModel()
     
     var onReviewSubmitted: (() -> Void)?
     var onReviewSkipped: (() -> Void)?
@@ -101,17 +102,9 @@ struct ReviewPromptSheet: View {
     // MARK: - Private Methods
     
     private func skipReview() async {
-        do {
-            try await ReviewService.shared.skipReview(
-                requestType: requestType,
-                requestId: requestId
-            )
-            
-            onReviewSkipped?()
-            dismiss()
-        } catch {
-            AppLogger.error("reviews", "Error skipping review: \(error.localizedDescription)")
-        }
+        guard await viewModel.skipReview(requestType: requestType, requestId: requestId) else { return }
+        onReviewSkipped?()
+        dismiss()
     }
 }
 

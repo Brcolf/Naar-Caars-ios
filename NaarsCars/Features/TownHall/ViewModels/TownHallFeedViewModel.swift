@@ -63,22 +63,13 @@ final class TownHallFeedViewModel: ObservableObject {
             currentOffset = localPosts.count
             hasMore = localPosts.count >= pageSize
             Task {
-                await refreshFromNetwork(resetOffset: true, showLoading: false)
+                await refreshFromNetwork(showLoading: false, trigger: "manualReload:townHall")
             }
             return
         }
 
-        do {
-            let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: 0)
-            updateVoteCache(with: fetchedPosts)
-            posts = sortWithPinnedFirst(applyVoteCache(to: fetchedPosts))
-            currentOffset = fetchedPosts.count
-            hasMore = fetchedPosts.count >= pageSize
-            try repository.upsertPosts(fetchedPosts)
-        } catch {
-            self.error = AppError.processingError(error.localizedDescription)
-            AppLogger.error("townhall", "Error loading posts: \(error.localizedDescription)")
-        }
+        // No local cache: block on the coordinator-owned reconciliation (skeleton stays up via isLoading).
+        await refreshFromNetwork(showLoading: false, trigger: "manualReload:townHall")
     }
     
     /// Load more posts for infinite scroll
@@ -108,7 +99,7 @@ final class TownHallFeedViewModel: ObservableObject {
     
     /// Refresh posts (pull-to-refresh)
     func refreshPosts() async {
-        await refreshFromNetwork(resetOffset: true, showLoading: false)
+        await refreshFromNetwork(showLoading: false, trigger: "pullToRefresh:townHall")
     }
     
     /// Delete a post
@@ -173,25 +164,29 @@ final class TownHallFeedViewModel: ObservableObject {
             }
     }
 
-    private func refreshFromNetwork(resetOffset: Bool, showLoading: Bool) async {
+    /// Full reconciliation of page 1. Persistence is owned by RefreshCoordinator → TownHallSyncEngine →
+    /// BackgroundSyncActor (change-detected, off the main actor); the repository publisher re-emits
+    /// after that save. Votes and the review join are NOT stored in SDTownHallPost, so a read-only
+    /// enrichment fetch keeps them fresh in memory — it must never write to SwiftData.
+    private func refreshFromNetwork(showLoading: Bool, trigger: String) async {
         if showLoading { isLoading = true }
         defer { if showLoading { isLoading = false } }
 
+        // Run the enrichment fetch concurrently with the coordinator refresh so pull-to-refresh
+        // latency stays at one round trip.
+        async let enrichment = townHallService.fetchPosts(limit: pageSize, offset: 0)
+        let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.townHall, trigger: trigger)
+        if case .failed(let error, _)? = result {
+            self.error = AppError.processingError(error.localizedDescription)
+            AppLogger.error("townhall", "Error refreshing posts: \(error.localizedDescription)")
+        }
+
         do {
-            let offset = resetOffset ? 0 : currentOffset
-            let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: offset)
-
+            let fetchedPosts = try await enrichment
             updateVoteCache(with: fetchedPosts)
-            let merged = mergePosts(existing: posts, new: fetchedPosts)
-            posts = applyVoteCache(to: merged)
-
-            if resetOffset {
-                currentOffset = max(currentOffset, fetchedPosts.count)
-            } else {
-                currentOffset += fetchedPosts.count
-            }
+            posts = applyVoteCache(to: mergePosts(existing: posts, new: fetchedPosts))
+            currentOffset = max(currentOffset, fetchedPosts.count)
             hasMore = fetchedPosts.count >= pageSize
-            try repository.upsertPosts(fetchedPosts)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
             AppLogger.error("townhall", "Error refreshing posts: \(error.localizedDescription)")

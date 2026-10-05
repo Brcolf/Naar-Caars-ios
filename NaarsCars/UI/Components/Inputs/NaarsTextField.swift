@@ -49,7 +49,7 @@ struct NaarsTextField: View {
                     }
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
-                    .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
+                    .accessibilityLabel(isPasswordVisible ? "common_hide_password_accessibility".localized : "common_show_password_accessibility".localized)
                 }
             }
             .padding(.leading, 20)
@@ -69,7 +69,7 @@ struct NaarsTextField: View {
                     .font(.naarsCaption)
                     .foregroundColor(.naarsError)
                     .padding(.leading, 20)
-                    .accessibilityLabel("Error: \(errorMessage)")
+                    .accessibilityLabel("app_error_format".localized(with: errorMessage))
             }
         }
     }

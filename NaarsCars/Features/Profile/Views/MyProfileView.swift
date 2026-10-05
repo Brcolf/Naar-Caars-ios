@@ -19,7 +19,6 @@ struct MyProfileView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
-    @State private var isDeletingAccount = false
     @State private var showDeleteError = false
     @State private var showDeleteSuccess = false
     @State private var deleteErrorMessage = ""
@@ -268,7 +267,7 @@ struct MyProfileView: View {
                     guard let userId = AuthService.shared.currentUserId else { return }
                     if let data = try? await newPhoto.loadTransferable(type: Data.self) {
                         do {
-                            let _ = try await ProfileService.shared.uploadAvatar(imageData: data, userId: userId)
+                            try await viewModel.uploadAvatar(imageData: data, userId: userId)
                             HapticManager.success()
                             toastMessage = "profile_photo_updated_toast".localized
                             await viewModel.loadProfile(userId: userId)
@@ -299,8 +298,8 @@ struct MyProfileView: View {
                     badges: badges
                 )
             }
-            .accessibilityLabel("Profile photo for \(profile.name)")
-            .accessibilityHint("Double-tap to change your profile photo")
+            .accessibilityLabel("profile_photo_accessibility".localized(with: profile.name))
+            .accessibilityHint("profile_photo_hint".localized)
             
             // Name and Email
             VStack(spacing: Constants.Spacing.xs) {
@@ -322,8 +321,8 @@ struct MyProfileView: View {
                     .foregroundColor(.red)
             }
             .accessibilityIdentifier("profile.signout")
-            .accessibilityLabel("Sign out")
-            .accessibilityHint("Double-tap to sign out of your account")
+            .accessibilityLabel("profile_sign_out".localized)
+            .accessibilityHint("profile_sign_out_hint".localized)
         }
         .padding()
         .photosPicker(
@@ -474,9 +473,9 @@ struct MyProfileView: View {
                 .cornerRadius(12)
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(isDeletingAccount)
+            .disabled(viewModel.isDeletingAccount)
             
-            if isDeletingAccount {
+            if viewModel.isDeletingAccount {
                 HStack {
                     ProgressView()
                         .scaleEffect(0.8)
@@ -493,20 +492,11 @@ struct MyProfileView: View {
     }
     
     private func deleteAccount() async {
-        guard let userId = AuthService.shared.currentUserId else {
-            return
-        }
-
-        isDeletingAccount = true
-
         do {
-            try await ProfileService.shared.deleteAccount(userId: userId)
+            guard try await viewModel.deleteAccount() else { return }
             // Account deleted — show confirmation before signing out
-            isDeletingAccount = false
             showDeleteSuccess = true
         } catch {
-            AppLogger.error("profile", "Error deleting account: \(error.localizedDescription)")
-            isDeletingAccount = false
             deleteErrorMessage = error.localizedDescription
             showDeleteError = true
         }

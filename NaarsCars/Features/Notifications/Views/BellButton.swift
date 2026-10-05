@@ -38,8 +38,8 @@ struct BellButton: View {
                 }
             }
         }
-        .accessibilityLabel(badgeManager.counts.bell > 0 ? "Notifications, \(badgeManager.counts.bell) unread" : "Notifications")
-        .accessibilityHint("Double-tap to view your notifications")
+        .accessibilityLabel(badgeManager.counts.bell > 0 ? "notifications_bell_unread_accessibility".localized(with: badgeManager.counts.bell) : "notifications_title".localized)
+        .accessibilityHint("notifications_bell_hint".localized)
         .accessibilityIdentifier("bell.button")
     }
 

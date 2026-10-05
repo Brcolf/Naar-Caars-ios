@@ -104,7 +104,7 @@ internal import Combine
     private func scheduleDismiss() {
         dismissTask?.cancel()
         dismissTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            try? await Task.sleep(nanoseconds: Constants.Timing.toastDurationNanoseconds)
             await MainActor.run {
                 self?.latestToast = nil
             }

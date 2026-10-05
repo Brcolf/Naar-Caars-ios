@@ -95,7 +95,7 @@ struct ConversationMediaGalleryView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Tab picker
-            Picker("Media Type", selection: $selectedTab) {
+            Picker("messaging_media_type_picker".localized, selection: $selectedTab) {
                 ForEach(MediaTab.allCases, id: \.self) { tab in
                     Text(tab.localizedTitle).tag(tab)
                 }
@@ -210,8 +210,8 @@ struct ConversationMediaGalleryView: View {
                                     .clipped()
                                 }
                                 .buttonStyle(PlainButtonStyle())
-                                .accessibilityLabel("Photo from \(message.sender?.name ?? "unknown")")
-                                .accessibilityHint("Double-tap to view full size")
+                                .accessibilityLabel("messaging_media_photo_from_accessibility".localized(with: message.sender?.name ?? "common_unknown".localized))
+                                .accessibilityHint("messaging_media_view_full_size_hint".localized)
                             }
                         }
                     }
@@ -256,7 +256,7 @@ struct ConversationMediaGalleryView: View {
                 )
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(message.sender?.name ?? "Unknown")
+                Text(message.sender?.name ?? "common_unknown".localized)
                     .font(.naarsSubheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
@@ -313,7 +313,7 @@ struct ConversationMediaGalleryView: View {
         return VStack(alignment: .leading, spacing: 8) {
             // Sender and date
             HStack {
-                Text(message.sender?.name ?? "Unknown")
+                Text(message.sender?.name ?? "common_unknown".localized)
                     .font(.naarsCaption)
                     .fontWeight(.medium)
                     .foregroundColor(.secondary)

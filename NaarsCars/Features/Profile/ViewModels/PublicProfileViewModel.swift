@@ -21,13 +21,23 @@ final class PublicProfileViewModel: ObservableObject {
     @Published var fulfilledCount: Int = 0
     @Published var isLoading: Bool = false
     @Published var error: AppError?
+    @Published var isBlocking: Bool = false
+    @Published var didBlock: Bool = false
     
     // MARK: - Private Properties
     
     private let profileService: any ProfileServiceProtocol
+    private let messageService: any MessageServiceProtocol
+    private let conversationService: any ConversationServiceProtocol
 
-    init(profileService: any ProfileServiceProtocol = ProfileService.shared) {
+    init(
+        profileService: any ProfileServiceProtocol = ProfileService.shared,
+        messageService: any MessageServiceProtocol = MessageService.shared,
+        conversationService: any ConversationServiceProtocol = ConversationService.shared
+    ) {
         self.profileService = profileService
+        self.messageService = messageService
+        self.conversationService = conversationService
     }
     
     // MARK: - Public Methods
@@ -65,6 +75,40 @@ final class PublicProfileViewModel: ObservableObject {
             
         } catch {
             self.error = error as? AppError ?? AppError.unknown(error.localizedDescription)
+        }
+    }
+    
+    // MARK: - Block / Message
+    
+    /// Seed `didBlock` from the locally cached blocked-user set
+    func refreshBlockedStatus(userId: UUID) {
+        didBlock = messageService.isBlocked(userId)
+    }
+    
+    /// Block `userId` on behalf of `currentUserId`. Throws on failure (caller shows the alert).
+    func blockUser(currentUserId: UUID, userId: UUID) async throws {
+        isBlocking = true
+        defer { isBlocking = false }
+        try await messageService.blockUser(
+            blockerId: currentUserId,
+            blockedId: userId,
+            reason: "Blocked from profile"
+        )
+        didBlock = true
+    }
+    
+    /// Find or create the direct conversation with `otherUserId`.
+    /// - Returns: The conversation ID, or nil on failure (logged)
+    func openDirectConversation(currentUserId: UUID, otherUserId: UUID) async -> UUID? {
+        do {
+            let conversation = try await conversationService.getOrCreateDirectConversation(
+                userId: currentUserId,
+                otherUserId: otherUserId
+            )
+            return conversation.id
+        } catch {
+            AppLogger.error("profile", "Error creating conversation: \(error.localizedDescription)")
+            return nil
         }
     }
 }

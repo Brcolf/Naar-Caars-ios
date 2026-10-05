@@ -426,6 +426,94 @@ final class ConversationParticipantService {
         return status.leftAt != nil
     }
     
+    // MARK: - Participant Queries
+
+    /// User IDs of the active (not left) participants of a conversation
+    func fetchActiveParticipantIds(conversationId: UUID) async throws -> [UUID] {
+        let response = try await supabase
+            .from("conversation_participants")
+            .select("user_id")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .is("left_at", value: nil) // ONLY active participants
+            .execute()
+
+        struct ParticipantRow: Codable {
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+            }
+        }
+
+        let rows = try JSONDecoder().decode([ParticipantRow].self, from: response.data)
+        return rows.map { $0.userId }
+    }
+
+    /// Number of active (not left) participants of a conversation
+    func fetchActiveParticipantCount(conversationId: UUID) async throws -> Int {
+        let countResp = try await supabase
+            .from("conversation_participants")
+            .select("id", head: true, count: .exact)
+            .eq("conversation_id", value: conversationId.uuidString)
+            .is("left_at", value: nil)
+            .execute()
+        return countResp.count ?? 0
+    }
+
+    /// Participant user IDs per conversation for many conversations in ONE query.
+    /// Returns every participant row, including users who have left — the same set
+    /// the former per-conversation lookup compared — keyed by conversation ID.
+    func fetchParticipantIdsByConversation(conversationIds: [UUID]) async throws -> [UUID: Set<UUID>] {
+        guard !conversationIds.isEmpty else { return [:] }
+
+        struct AllParticipantRow: Codable {
+            let conversationId: UUID
+            let userId: UUID
+            enum CodingKeys: String, CodingKey {
+                case conversationId = "conversation_id"
+                case userId = "user_id"
+            }
+        }
+
+        let response = try await supabase
+            .from("conversation_participants")
+            .select("conversation_id, user_id")
+            .in("conversation_id", values: conversationIds.map { $0.uuidString })
+            .execute()
+
+        let rows = try JSONDecoder().decode([AllParticipantRow].self, from: response.data)
+        return Dictionary(grouping: rows, by: \.conversationId)
+            .mapValues { Set($0.map { $0.userId }) }
+    }
+
+    /// The current user's "show read receipts" preference for a conversation (defaults to true)
+    func fetchShowReadReceipts(conversationId: UUID, userId: UUID) async throws -> Bool {
+        let response = try await supabase
+            .from("conversation_participants")
+            .select("show_read_receipts")
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .single()
+            .execute()
+
+        struct ReadReceiptRow: Codable {
+            let showReadReceipts: Bool?
+            enum CodingKeys: String, CodingKey { case showReadReceipts = "show_read_receipts" }
+        }
+
+        let row = try JSONDecoder().decode(ReadReceiptRow.self, from: response.data)
+        return row.showReadReceipts ?? true
+    }
+
+    /// Persist the current user's "show read receipts" preference for a conversation
+    func updateShowReadReceipts(conversationId: UUID, userId: UUID, enabled: Bool) async throws {
+        try await supabase
+            .from("conversation_participants")
+            .update(["show_read_receipts": enabled])
+            .eq("conversation_id", value: conversationId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+    }
+
     // MARK: - Permission Checking
     
     /// Check if a user has permission to modify participants in a conversation

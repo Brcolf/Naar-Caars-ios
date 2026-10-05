@@ -68,7 +68,7 @@ struct MemberDetailView: View {
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
 
-                        Text("Joined \(member.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                        Text("admin_member_joined".localized(with: member.createdAt.formatted(date: .abbreviated, time: .omitted)))
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }

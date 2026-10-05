@@ -22,8 +22,7 @@ final class NotificationNavigationRouter {
         _ notification: AppNotification,
         group: NotificationGroup?,
         markAsRead: @escaping @MainActor (AppNotification) -> Void,
-        markGroupAsRead: @escaping @MainActor (NotificationGroup) -> Void,
-        handleReviewPromptNotification: @escaping @MainActor (AppNotification) -> Void
+        markGroupAsRead: @escaping @MainActor (NotificationGroup) -> Void
     ) {
         if NotificationGrouping.announcementTypes.contains(notification.type) {
             handleAnnouncementTap(notification, markAsRead: markAsRead)

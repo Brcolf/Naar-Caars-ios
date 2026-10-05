@@ -24,4 +24,8 @@ protocol ProfileServiceProtocol: AnyObject {
     func fetchUserTotalXP(userId: UUID) async throws -> Int
     func fetchUserSavingsBreakdown(period: String) async throws -> [UserSavingsPeriod]
     func fetchUserXPEvents() async throws -> [XPEvent]
+    func deleteAccount(userId: UUID) async throws
+    func fetchBanReason(userId: UUID) async throws -> String?
+    func submitApplication(userId: UUID, heardAbout: String, joinReason: String) async throws
+    func searchPublicProfiles(query: String, limit: Int) async throws -> [Profile]
 }

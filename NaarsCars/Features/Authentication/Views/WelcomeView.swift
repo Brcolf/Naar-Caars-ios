@@ -29,7 +29,7 @@ struct WelcomeView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: 240, maxHeight: 160)
-                        .accessibilityLabel("Naar's Cars")
+                        .accessibilityLabel("app_name".localized)
 
                     Text("welcome_title".localized)
                         .font(.naarsTitle)

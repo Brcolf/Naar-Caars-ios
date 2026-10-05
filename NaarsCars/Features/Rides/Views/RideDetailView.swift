@@ -201,7 +201,7 @@ struct RideDetailView: View {
         }
         .sheet(isPresented: $showReviewSheet) {
             if let ride = viewModel.ride, let claimerId = ride.claimedBy {
-                let claimerName = ride.claimer?.name ?? "Someone"
+                let claimerName = ride.claimer?.name ?? "common_someone".localized
                 LeaveReviewView(
                     requestType: "ride",
                     requestId: ride.id,
@@ -246,7 +246,7 @@ struct RideDetailView: View {
                     excludeUserIds: getExistingParticipantIds(ride: ride),
                     onDismiss: {
                         if !selectedUserIds.isEmpty {
-                            Task { await addParticipantsToRide(Array(selectedUserIds)) }
+                            Task { await viewModel.addParticipants(Array(selectedUserIds)) }
                         }
                         showAddParticipants = false
                         selectedUserIds = []
@@ -604,7 +604,11 @@ struct RideDetailView: View {
                             showGuestPrompt = true
                             return
                         }
-                        Task { await openOrCreateConversation(ride: ride) }
+                        Task {
+                            if let conversationId = await viewModel.createConversationWithParticipants() {
+                                selectedConversationId = conversationId
+                            }
+                        }
                     }
                 )
                 .id(RequestDetailAnchor.qaSection.anchorId(for: .ride))
@@ -698,7 +702,7 @@ struct RideDetailView: View {
                 notificationTypes: types
             )
             if updated > 0 {
-                await BadgeCountManager.shared.refreshAllBadges(reason: "requestSectionViewed")
+                _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "requestSectionViewed")
             }
         }
     }
@@ -729,44 +733,6 @@ struct RideDetailView: View {
             ids.append(contentsOf: participants.map { $0.id })
         }
         return ids
-    }
-    
-    private func openOrCreateConversation(ride: Ride) async {
-        guard let currentUserId = AuthService.shared.currentUserId else { return }
-        
-        do {
-            var participantIds: Set<UUID> = [ride.userId]
-            if let claimedBy = ride.claimedBy { participantIds.insert(claimedBy) }
-            if let participants = ride.participants {
-                participantIds.formUnion(participants.map { $0.id })
-            }
-            participantIds.insert(currentUserId)
-            
-            let conversation = try await ConversationService.shared.createConversationWithUsers(
-                userIds: Array(participantIds),
-                createdBy: currentUserId,
-                title: nil
-            )
-            selectedConversationId = conversation.id
-        } catch {
-            AppLogger.error("rides", "Error creating conversation: \(error.localizedDescription)")
-        }
-    }
-    
-    private func addParticipantsToRide(_ userIds: [UUID]) async {
-        guard let currentUserId = AuthService.shared.currentUserId,
-              let ride = viewModel.ride else { return }
-        
-        do {
-            try await RideService.shared.addRideParticipants(
-                rideId: ride.id,
-                userIds: userIds,
-                addedBy: currentUserId
-            )
-            await viewModel.loadRide(id: rideId)
-        } catch {
-            AppLogger.error("rides", "Error adding participants to ride: \(error.localizedDescription)")
-        }
     }
     
     private func handleMapTap(ride: Ride) {

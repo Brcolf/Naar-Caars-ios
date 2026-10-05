@@ -30,7 +30,7 @@ struct AppLockView: View {
                     .scaledToFit()
                     .frame(width: 80, height: 80)
                     .foregroundColor(.accentColor)
-                    .accessibilityLabel("Naar's Cars logo")
+                    .accessibilityLabel("app_logo_accessibility".localized)
 
                 Text("app_lock_title".localized)
                     .font(.naarsTitle)
@@ -63,8 +63,8 @@ struct AppLockView: View {
                     .cornerRadius(12)
                 }
                 .disabled(lockManager.state == .authenticating)
-                .accessibilityLabel("Unlock with \(biometricService.biometricType.displayName)")
-                .accessibilityHint("Double-tap to authenticate and unlock the app")
+                .accessibilityLabel("app_lock_unlock_with".localized(with: biometricService.biometricType.displayName))
+                .accessibilityHint("app_lock_unlock_hint".localized)
                 .padding(.horizontal)
 
                 Spacer()

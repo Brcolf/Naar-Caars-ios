@@ -17,7 +17,6 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     private let authService = AuthService.shared
     private var modelContext: ModelContext?
     private var backgroundActor: BackgroundSyncActor?
-    private var lastStartSyncAt: Date = .distantPast
     private var activeConversationId: UUID?
     private var gracePeriodTimer: Timer?
     private var subscriptionTask: Task<Void, Never>?
@@ -25,6 +24,13 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     private var refreshId: String = ""
     private let messageService = MessageService.shared
     let health = SyncHealthMetrics()
+
+    /// Outcome of one child task in the subscribe-then-fetch race (see `subscribeToConversation`).
+    private enum SubscribePhase {
+        case subscribeFinished
+        case timedOut
+        case cancelled
+    }
 
     private init() {}
 
@@ -47,46 +53,18 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         self.backgroundActor = BackgroundSyncActor(modelContainer: container)
     }
 
+    /// Session-start hook (SyncEngineProtocol). Setup only — must not fetch.
+    /// Starts the durable send worker so pending messages resume immediately.
+    /// Initial conversation-list hydration is owned by RefreshCoordinator
+    /// (`refreshIfNeeded(.conversations, trigger: "launch")` → `refreshConversationList()`),
+    /// which is the same fetch + BackgroundSyncActor path this method used to duplicate.
     func startSync() {
         // No global messages subscription — conversations are WebSocket-scoped now
-
-        let now = Date()
-        guard now.timeIntervalSince(lastStartSyncAt) >= Constants.Timing.syncEngineStartCooldown else {
-            return
+        guard authService.currentUserId != nil else { return }
+        Task {
+            await MessageSendWorker.shared.start()
+            await MessageSendWorker.shared.notifyNewPendingMessage()
         }
-        lastStartSyncAt = now
-
-        if let userId = authService.currentUserId {
-            Task {
-                do {
-                    let remoteConversations = try await conversationService.fetchConversations(userId: userId)
-                    if let backgroundActor {
-                        let payloads = remoteConversations.map { ConversationSyncPayload(from: $0, currentUserId: userId) }
-                        let changedIds = try await backgroundActor.syncConversations(
-                payloads, currentUserId: userId,
-                excludeMessagesForConversation: RefreshCoordinator.shared.activeConversationId
-            )
-                        repository.refreshPublishersAfterBackgroundSync(changedConversationIds: changedIds)
-                    } else {
-                        try await repository.syncConversations(userId: userId)
-                    }
-                    health.recordSuccess()
-                } catch {
-                    health.recordFailure(error)
-                }
-                await MessageSendWorker.shared.start()
-                await MessageSendWorker.shared.notifyNewPendingMessage()
-            }
-        }
-    }
-
-    func pauseSync() async {
-        await MessageSendWorker.shared.stop()
-    }
-
-    func resumeSync() async {
-        // Conversation subscription managed by subscribeToConversation/beginGracePeriod
-        // Send worker restarted by startSync
     }
 
     func teardown() async {
@@ -94,7 +72,6 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         await MessageSendWorker.shared.stop()
         modelContext = nil
         backgroundActor = nil
-        lastStartSyncAt = .distantPast
     }
 
     // MARK: - Coordinator Entry Points
@@ -232,44 +209,74 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         AppLogger.info("messaging", "[subscribe] start conv=\(shortId) refresh=\(rid)")
 
         subscriptionTask = Task {
-            // Subscribe-then-fetch per spec Section 8:
-            // 1. Attempt to subscribe all channels with a 3s timeout
-            // 2. REST hydrate after subscribe (or after timeout)
-            // 3. Dedup handles overlap between REST and buffered WebSocket events
+            // Subscribe-then-fetch per spec Section 8 / INV-WS2:
+            // 1. Subscribe messages + reactions channels (the SDK buffers events once joined)
+            // 2. Wait for the subscribe to finish, bounded by Constants.Timing.subscriptionConfirmationTimeout
+            // 3. REST hydrate. If the deadline fires first, hydrate once now so the UI is not held
+            //    hostage by a slow join, then hydrate AGAIN when the subscribe finishes — the last
+            //    REST fetch must post-date the join, or rows committed between the early fetch and
+            //    the join are never seen (the race subscribe-then-fetch exists to close).
+            // 4. Repository upsert dedups by message UUID, absorbing REST/WebSocket overlap.
+            await withTaskGroup(of: SubscribePhase.self) { group in
+                group.addTask {
+                    await self.subscribeConversationChannels(conversationId, shortId: shortId, refreshId: rid)
+                        ? .subscribeFinished
+                        : .cancelled
+                }
+                group.addTask {
+                    do {
+                        try await Task.sleep(for: .seconds(Constants.Timing.subscriptionConfirmationTimeout))
+                        return .timedOut
+                    } catch {
+                        return .cancelled
+                    }
+                }
 
-            let subscribeDeadline = Task {
-                try await Task.sleep(nanoseconds: 3_000_000_000)
+                for await phase in group {
+                    guard !Task.isCancelled else { return }
+                    switch phase {
+                    case .timedOut:
+                        AppLogger.warning("messaging", "[subscribe] confirmation timeout conv=\(shortId) refresh=\(rid) — hydrating before channels ready")
+                        await self.hydrateConversation(conversationId, refreshId: rid)
+                        // Keep iterating: .subscribeFinished still arrives and triggers the post-join hydrate.
+                    case .subscribeFinished:
+                        group.cancelAll() // stops the deadline sleeper if it has not fired yet
+                        AppLogger.info("messaging", "[subscribe] channels ready conv=\(shortId) refresh=\(rid)")
+                        await self.hydrateConversation(conversationId, refreshId: rid)
+                        return
+                    case .cancelled:
+                        return
+                    }
+                }
             }
-
-            // Subscribe to messages channel
-            await realtimeManager.subscribe(
-                channelName: "messages:\(conversationId.uuidString)",
-                table: "messages",
-                filter: "conversation_id=eq.\(conversationId.uuidString)",
-                onInsert: { [weak self] record in self?.handleIncomingMessage(record) },
-                onUpdate: { [weak self] record in self?.handleIncomingMessage(record) },
-                onDelete: { [weak self] record in self?.handleIncomingMessage(record) }
-            )
-            guard !Task.isCancelled else {
-                AppLogger.info("messaging", "[subscribe] cancelled(messages) conv=\(shortId) refresh=\(rid)")
-                return
-            }
-
-            // Subscribe to reactions channel
-            await setupReactionsSubscription(conversationId: conversationId)
-            guard !Task.isCancelled else {
-                AppLogger.info("messaging", "[subscribe] cancelled(reactions) conv=\(shortId) refresh=\(rid)")
-                return
-            }
-
-            // If subscribe completed before the 3s deadline, cancel the timeout
-            subscribeDeadline.cancel()
-            AppLogger.info("messaging", "[subscribe] channels ready conv=\(shortId) refresh=\(rid)")
-
-            // REST hydrate AFTER subscription is established (or after 3s timeout)
-            // Dedup by message UUID prevents duplicates with buffered WebSocket events
-            await self.hydrateConversation(conversationId, refreshId: rid)
         }
+    }
+
+    /// Subscribe the messages + reactions channels for `conversationId`, in that order.
+    /// Returns `false` if the surrounding task was cancelled part-way; RealtimeManager's own
+    /// cancellation guards release any half-built channel in that case.
+    private func subscribeConversationChannels(_ conversationId: UUID, shortId: String, refreshId rid: String) async -> Bool {
+        // Subscribe to messages channel
+        await realtimeManager.subscribe(
+            channelName: "messages:\(conversationId.uuidString)",
+            table: "messages",
+            filter: "conversation_id=eq.\(conversationId.uuidString)",
+            onInsert: { [weak self] record in self?.handleIncomingMessage(record) },
+            onUpdate: { [weak self] record in self?.handleIncomingMessage(record) },
+            onDelete: { [weak self] record in self?.handleIncomingMessage(record) }
+        )
+        guard !Task.isCancelled else {
+            AppLogger.info("messaging", "[subscribe] cancelled(messages) conv=\(shortId) refresh=\(rid)")
+            return false
+        }
+
+        // Subscribe to reactions channel
+        await setupReactionsSubscription(conversationId: conversationId)
+        guard !Task.isCancelled else {
+            AppLogger.info("messaging", "[subscribe] cancelled(reactions) conv=\(shortId) refresh=\(rid)")
+            return false
+        }
+        return true
     }
 
     /// Start 5-second grace period before tearing down WebSocket.

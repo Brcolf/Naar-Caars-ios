@@ -15,9 +15,7 @@ struct PublicProfileView: View {
     @State private var isPhoneRevealed = false
     @State private var badges: [LeaderboardBadge] = []
     @State private var showBlockConfirmation = false
-    @State private var isBlocking = false
     @State private var blockError: String?
-    @State private var didBlock = false
     @State private var showGuestPrompt = false
     @State private var guestRestrictionReason: GuestRestrictionReason = .sendMessage
     @State private var showReportSheet = false
@@ -78,7 +76,7 @@ struct PublicProfileView: View {
                             Label("profile_report_user".localized, systemImage: "exclamationmark.triangle")
                         }
 
-                        if didBlock {
+                        if viewModel.didBlock {
                             Label("profile_user_blocked".localized, systemImage: "hand.raised.fill")
                         } else {
                             Button(role: .destructive) {
@@ -135,7 +133,7 @@ struct PublicProfileView: View {
             }
         }
         .task {
-            didBlock = MessageService.shared.isBlocked(userId)
+            viewModel.refreshBlockedStatus(userId: userId)
             async let profileTask: Void = viewModel.loadProfile(userId: userId)
             async let badgesTask = LeaderboardService.shared.fetchUserBadges(userId: userId)
             await profileTask
@@ -208,8 +206,8 @@ struct PublicProfileView: View {
                             .font(.naarsSubheadline)
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityLabel("Reveal phone number")
-                    .accessibilityHint("Double-tap to show the full phone number")
+                    .accessibilityLabel("profile_reveal_phone_accessibility".localized)
+                    .accessibilityHint("profile_reveal_phone_hint".localized)
                 }
             }
         }
@@ -235,14 +233,8 @@ struct PublicProfileView: View {
             } else {
                 Task {
                     guard let currentUserId = appState.currentUser?.id else { return }
-                    do {
-                        let conversation = try await ConversationService.shared.getOrCreateDirectConversation(
-                            userId: currentUserId,
-                            otherUserId: userId
-                        )
-                        selectedConversationId = conversation.id
-                    } catch {
-                        AppLogger.error("profile", "Error creating conversation: \(error.localizedDescription)")
+                    if let conversationId = await viewModel.openDirectConversation(currentUserId: currentUserId, otherUserId: userId) {
+                        selectedConversationId = conversationId
                     }
                 }
             }
@@ -259,8 +251,8 @@ struct PublicProfileView: View {
             .foregroundColor(.white)
             .cornerRadius(12)
         }
-        .accessibilityLabel("Send message")
-        .accessibilityHint("Double-tap to start a conversation with this person")
+        .accessibilityLabel("profile_send_message".localized)
+        .accessibilityHint("profile_send_message_hint".localized)
         .navigationDestination(item: $selectedConversationId) { conversationId in
             ConversationDetailView(conversationId: conversationId)
         }
@@ -294,18 +286,11 @@ struct PublicProfileView: View {
 
     private func blockUser() async {
         guard let currentUserId = appState.currentUser?.id else { return }
-        isBlocking = true
         do {
-            try await MessageService.shared.blockUser(
-                blockerId: currentUserId,
-                blockedId: userId,
-                reason: "Blocked from profile"
-            )
-            didBlock = true
+            try await viewModel.blockUser(currentUserId: currentUserId, userId: userId)
         } catch {
             blockError = error.localizedDescription
         }
-        isBlocking = false
     }
 
     // MARK: - Helper Methods

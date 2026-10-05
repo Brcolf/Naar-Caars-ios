@@ -45,18 +45,26 @@ struct MessageSearchResult: Identifiable {
     }
     var searchResults: [MessageSearchResult] = []
     var isSearching: Bool = false
+    /// Conversations the current user has muted (push suppressed); drives the row's bell icon
+    var mutedConversations: Set<UUID> = []
     
     private let conversationService: any ConversationServiceProtocol
     private let profileService: any ProfileServiceProtocol
     private let messageService: any MessageServiceProtocol
     private let repository = MessagingRepository.shared
     private let authService: any AuthServiceProtocol
+    private let muteService = ConversationMuteService.shared
+    private let participantService = ConversationParticipantService.shared
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
     private var searchTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var lastRemoteSyncAt: Date = .distantPast
+    /// Push-off fallback poll (see Constants.Timing.conversationsPushOffPollInterval).
+    /// Owned here so the View never owns polling. Started/stopped by the View's appear/disappear
+    /// lifecycle via startPushOffPoll()/stopPushOffPoll(); stop() also tears it down.
+    private var pushOffPollTimer: Timer?
     
     init(
         conversationService: any ConversationServiceProtocol = ConversationService.shared,
@@ -248,9 +256,48 @@ struct MessageSearchResult: Identifiable {
         searchTask = nil
         searchDebounceTask?.cancel()
         searchDebounceTask = nil
+        stopPushOffPoll()
     }
 
-    func loadConversations() async {
+    // MARK: - Push-off fallback poll
+
+    /// Start the conversations-list fallback poll used while push notifications are not
+    /// authorized. Idempotent: a second call while a timer exists is a no-op.
+    /// Each tick asks RefreshCoordinator for a staleness-gated refresh of `.conversations`
+    /// (the coordinator still owns the decision, dedup, and backoff) and hydrates participant
+    /// profiles for any conversation the refresh surfaced without them.
+    func startPushOffPoll() {
+        guard pushOffPollTimer == nil else { return }
+        AppLogger.info("messaging", "[ConversationsListVM] Starting push-off conversations poll")
+        pushOffPollTimer = Timer.scheduledTimer(
+            withTimeInterval: Constants.Timing.conversationsPushOffPollInterval,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.pushOffPollTick()
+            }
+        }
+    }
+
+    /// Stop the push-off fallback poll. Safe to call when no poll is running.
+    func stopPushOffPoll() {
+        guard pushOffPollTimer != nil else { return }
+        AppLogger.info("messaging", "[ConversationsListVM] Stopping push-off conversations poll")
+        pushOffPollTimer?.invalidate()
+        pushOffPollTimer = nil
+    }
+
+    private func pushOffPollTick() async {
+        RefreshCoordinator.shared.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
+
+        // Parity with the former loadConversations()-based poll: the coordinator path stores
+        // participant IDs only, so a conversation first seen via the publisher has no
+        // otherParticipants until hydrated. Only pay for the fetch when something is missing.
+        guard conversations.contains(where: { $0.otherParticipants.isEmpty }) else { return }
+        await hydrateProfiles(for: conversations)
+    }
+
+    func loadConversations(trigger: String = "manualReload:conversations") async {
         let showLoading = Self.shouldShowLoading(conversations: conversations)
         if showLoading {
             isLoading = true
@@ -284,13 +331,19 @@ struct MessageSearchResult: Identifiable {
         }
         lastRemoteSyncAt = now
 
-        // 2. Sync from remote in background (stored so we can cancel on disappear)
+        // 2. Remote sync is owned by RefreshCoordinator → MessagingSyncEngine.refreshConversationList()
+        //    → BackgroundSyncActor; the repository publisher re-emits after that save. The task is stored
+        //    so stop() can cancel *our* wait — the coordinator's task itself is never cancelled here.
         loadTask?.cancel()
         loadTask = Task { @MainActor in
             defer { loadTask = nil }
+            let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.conversations, trigger: trigger)
+            guard !Task.isCancelled else { return }
+            if case .failed(let error, _)? = result {
+                AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
+                return
+            }
             do {
-                try await repository.syncConversations(userId: userId)
-                guard !Task.isCancelled else { return }
                 let updatedConversations = try repository.getConversations(for: userId)
                 self.applyLocalConversations(updatedConversations, animated: false)
                 currentOffset = self.conversations.count
@@ -298,7 +351,7 @@ struct MessageSearchResult: Identifiable {
                 await hydrateProfiles(for: updatedConversations)
             } catch {
                 if !Task.isCancelled {
-                    AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
+                    AppLogger.error("messaging", "[ConversationsListVM] Error reading synced conversations: \(error)")
                 }
             }
         }
@@ -408,7 +461,9 @@ struct MessageSearchResult: Identifiable {
         currentOffset = 0
         hasMoreConversations = true
         lastRemoteSyncAt = .distantPast
-        await loadConversations()
+        await loadConversations(trigger: "pullToRefresh:conversations")
+        // Pull-to-refresh: keep the spinner up until the coordinator-owned sync has finished.
+        await loadTask?.value
     }
 
     func deleteConversation(_ conversation: Conversation) async {
@@ -432,6 +487,114 @@ struct MessageSearchResult: Identifiable {
         }
     }
     
+    // MARK: - Mute
+
+    func loadMutedConversations() async {
+        guard let userId = authService.currentUserId else { return }
+        mutedConversations = await muteService.fetchMutedConversationIds(userId: userId)
+    }
+
+    func muteConversation(id conversationId: UUID, duration: ConversationMuteService.MuteDuration) async {
+        guard let userId = authService.currentUserId else { return }
+        try? await muteService.muteConversation(
+            conversationId: conversationId,
+            userId: userId,
+            duration: duration
+        )
+        withAnimation {
+            mutedConversations.insert(conversationId)
+        }
+    }
+
+    func unmuteConversation(id conversationId: UUID) async {
+        guard let userId = authService.currentUserId else { return }
+        try? await muteService.unmuteConversation(
+            conversationId: conversationId,
+            userId: userId
+        )
+        withAnimation {
+            mutedConversations.remove(conversationId)
+        }
+    }
+
+    // MARK: - Compose
+
+    /// Create or find the conversation for the selected users.
+    /// - If 1 user selected: creates/finds the direct message (2 participants)
+    /// - If 2+ users selected: finds an existing group with exactly these participants, else creates one
+    /// - Returns: The conversation ID to navigate to, or nil on failure (logged)
+    func createOrFindConversation(with userIds: [UUID]) async -> UUID? {
+        guard let currentUserId = authService.currentUserId else { return nil }
+        guard !userIds.isEmpty else { return nil }
+        
+        AppLogger.info("messaging", "[ConversationsListVM] Looking for existing conversation with \(userIds.count) user(s)")
+        
+        do {
+            let conversation: Conversation
+            
+            if userIds.count == 1 {
+                // Direct message: getOrCreateDirectConversation already checks for existing
+                AppLogger.info("messaging", "[ConversationsListVM] Creating/finding direct message")
+                conversation = try await conversationService.getOrCreateDirectConversation(
+                    userId: currentUserId,
+                    otherUserId: userIds[0]
+                )
+            } else {
+                // Group conversation: Check if one exists with exactly these participants
+                let allParticipantIds = Set([currentUserId] + userIds)
+                
+                AppLogger.info("messaging", "[ConversationsListVM] Looking for group with participants: \(allParticipantIds.count) total")
+                
+                if let existingConversation = try await findExistingGroupConversation(participantIds: allParticipantIds, userId: currentUserId) {
+                    AppLogger.info("messaging", "[ConversationsListVM] Found existing group conversation: \(existingConversation.id)")
+                    conversation = existingConversation
+                } else {
+                    // Create new group conversation
+                    AppLogger.info("messaging", "[ConversationsListVM] Creating new group conversation")
+                    conversation = try await conversationService.createConversationWithUsers(
+                        userIds: Array(allParticipantIds),
+                        createdBy: currentUserId,
+                        title: nil // User can set group name later
+                    )
+                }
+            }
+            
+            AppLogger.info("messaging", "[ConversationsListVM] Navigating to conversation: \(conversation.id)")
+            return conversation.id
+        } catch {
+            AppLogger.error("messaging", "[ConversationsListVM] Error creating/navigating to conversation: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Find an existing group conversation with an exact participant match.
+    /// One batched participant query replaces the former one-query-per-conversation loop (up to 100 queries).
+    /// A failed conversations fetch throws (aborting the flow, as before); a failed participant lookup
+    /// yields "no match" (the old per-conversation `try?` semantics), so creation proceeds.
+    private func findExistingGroupConversation(participantIds: Set<UUID>, userId: UUID) async throws -> Conversation? {
+        // Get all user's conversations
+        let conversations = try await conversationService.fetchConversations(
+            userId: userId,
+            limit: Constants.PageSizes.fetchAll,
+            offset: 0
+        )
+        guard !conversations.isEmpty else { return nil }
+        
+        // All participant rows (including users who left — the same set the old loop compared) in one query
+        let participantsByConversation = (try? await participantService.fetchParticipantIdsByConversation(
+            conversationIds: conversations.map { $0.conversation.id }
+        )) ?? [:]
+        
+        // Check each conversation for exact participant match
+        for convDetail in conversations {
+            if participantsByConversation[convDetail.conversation.id] == participantIds {
+                return convDetail.conversation
+            }
+        }
+        
+        return nil
+    }
+    
     // MARK: - Search
     
     private var searchDebounceTask: Task<Void, Never>?
@@ -445,7 +608,7 @@ struct MessageSearchResult: Identifiable {
             return
         }
         searchDebounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: Constants.Timing.debounceNanoseconds)
             guard !Task.isCancelled else { return }
             self?.performSearch(query: query)
         }
@@ -463,7 +626,7 @@ struct MessageSearchResult: Identifiable {
             }
             
             do {
-                let messages = try await self.messageService.searchMessages(query: query, userId: userId, limit: 30)
+                let messages = try await self.messageService.searchMessages(query: query, userId: userId, limit: Constants.PageSizes.searchMessages)
                 
                 guard !Task.isCancelled else { return }
                 

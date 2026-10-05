@@ -12,10 +12,13 @@ import Realtime
 import OSLog
 internal import Combine
 
-/// Callback types for realtime events
-typealias RealtimeInsertCallback = (RealtimeRecord) -> Void
-typealias RealtimeUpdateCallback = (RealtimeRecord) -> Void
-typealias RealtimeDeleteCallback = (RealtimeRecord) -> Void
+/// Callback types for realtime events.
+/// `@MainActor`: every consumer (MessagingSyncEngine, TypingIndicatorManager) touches SwiftData,
+/// NotificationCenter or ViewModel state, so the manager hops to the main actor before invoking
+/// (CLAUDE.md "Realtime Callback Threading", spec INV-WS4).
+typealias RealtimeInsertCallback = @MainActor @Sendable (RealtimeRecord) -> Void
+typealias RealtimeUpdateCallback = @MainActor @Sendable (RealtimeRecord) -> Void
+typealias RealtimeDeleteCallback = @MainActor @Sendable (RealtimeRecord) -> Void
 
 /// Canonical representation of a decoded Supabase Realtime event.
 struct RealtimeRecord: @unchecked Sendable {
@@ -390,7 +393,7 @@ final class RealtimeManager {
                         }
                         continue
                     }
-                    onInsert(record)
+                    await onInsert(record)
                 }
             })
         }
@@ -412,7 +415,7 @@ final class RealtimeManager {
                         }
                         continue
                     }
-                    onUpdate(record)
+                    await onUpdate(record)
                 }
             })
         }
@@ -434,7 +437,7 @@ final class RealtimeManager {
                         }
                         continue
                     }
-                    onDelete(record)
+                    await onDelete(record)
                 }
             })
         }
@@ -579,7 +582,7 @@ final class RealtimeManager {
         backgroundUnsubscribeTimer?.invalidate()
         
         // Set timer to unsubscribe after 30 seconds
-        backgroundUnsubscribeTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
+        backgroundUnsubscribeTimer = Timer.scheduledTimer(withTimeInterval: Constants.Timing.realtimeBackgroundUnsubscribeDelay, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 // Keep configs so channels can be restored when app returns foreground.
                 await self?.unsubscribeAll(removeConfigs: false)

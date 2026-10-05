@@ -88,8 +88,8 @@ struct ConversationSearchBar: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("messages.search.loadOlder")
-                        .accessibilityLabel("Load older results")
-                        .accessibilityHint("Loads earlier matching messages")
+                        .accessibilityLabel("messaging_search_load_older_accessibility".localized)
+                        .accessibilityHint("messaging_search_load_older_hint".localized)
                     }
                 }
             } else if viewModel.isSearchingMessages {

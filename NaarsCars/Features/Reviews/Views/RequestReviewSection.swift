@@ -50,7 +50,7 @@ struct RequestReviewSection: View {
                     requestId: requestId,
                     requestTitle: requestTitle,
                     fulfillerId: claimerId,
-                    fulfillerName: reviewerProfile?.name ?? "Someone",
+                    fulfillerName: reviewerProfile?.name ?? "common_someone".localized,
                     onReviewSubmitted: {
                         Task {
                             await loadReview()

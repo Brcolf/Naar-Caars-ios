@@ -22,4 +22,16 @@ protocol FavorServiceProtocol: AnyObject {
     ) async throws -> Favor
     func addFavorParticipants(favorId: UUID, userIds: [UUID], addedBy: UUID) async throws
     func deleteFavor(id: UUID) async throws
+    func updateFavor(
+        id: UUID,
+        title: String?,
+        description: String?,
+        location: String?,
+        duration: FavorDuration?,
+        requirements: String?,
+        date: Date?,
+        time: String?,
+        gift: String?,
+        timezone: String?
+    ) async throws -> Favor
 }

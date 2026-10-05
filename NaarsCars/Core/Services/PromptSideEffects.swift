@@ -10,7 +10,6 @@ import Supabase
 
 final class DefaultPromptSideEffects: PromptSideEffects {
     private let notificationService = NotificationService.shared
-    private let badgeManager = BadgeCountManager.shared
     private let supabase = SupabaseService.shared.client
 
     func markReviewNotificationsRead(requestType: RequestType, requestId: UUID) async {
@@ -29,7 +28,7 @@ final class DefaultPromptSideEffects: PromptSideEffects {
     }
 
     func refreshBadges(reason: String) async {
-        await badgeManager.refreshAllBadges(reason: reason)
+        _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: reason)
     }
 
     func sendCompletionResponse(reminderId: UUID, completed: Bool) async throws {

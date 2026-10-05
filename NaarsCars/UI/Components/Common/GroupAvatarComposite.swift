@@ -33,7 +33,7 @@ struct GroupAvatarComposite: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .accessibilityLabel("Group avatar")
+        .accessibilityLabel("common_group_avatar_accessibility".localized)
     }
 
     // MARK: - Layouts

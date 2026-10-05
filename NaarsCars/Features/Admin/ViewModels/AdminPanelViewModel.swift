@@ -55,7 +55,7 @@ final class AdminPanelViewModel: ObservableObject {
         } catch {
             self.error = error as? AppError ?? AppError.unauthorized
             isAdmin = false
-            Log.security("Non-admin accessed admin panel view")
+            AppLogger.error("security", "Non-admin accessed admin panel view")
         }
     }
 

@@ -32,8 +32,13 @@ extension Notification.Name {
     static let languageDidChange = Notification.Name("languageDidChange")
 
     // MARK: - Sync notifications (Phase 7)
+    /// Contract: posted by `DashboardSyncEngine` only after `BackgroundSyncActor` has saved changed
+    /// rows to SwiftData (`RefreshMetrics.savedToStore == true`). Observers must re-read SwiftData
+    /// only; they must NOT fetch from the network — `RefreshCoordinator` owns refresh decisions.
     static let ridesDidSync = Notification.Name("ridesDidSync")
+    /// See `ridesDidSync` for the posting/observing contract.
     static let favorsDidSync = Notification.Name("favorsDidSync")
+    /// See `ridesDidSync` for the posting/observing contract.
     static let notificationsDidSync = Notification.Name("notificationsDidSync")
 
     // MARK: - Ride flight enrichment

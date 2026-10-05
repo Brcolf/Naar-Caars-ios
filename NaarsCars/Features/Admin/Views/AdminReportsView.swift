@@ -90,12 +90,9 @@ private struct PendingModerationAction: Identifiable {
 
 @MainActor
 struct AdminReportsView: View {
-    @State private var reports: [AdminReport] = []
-    @State private var isLoading = false
+    @StateObject private var viewModel = AdminReportsViewModel()
     @State private var selectedFilter: String? = "pending"
     @State private var pendingAction: PendingModerationAction?
-    @State private var isSubmittingAction = false
-    @State private var errorAlertMessage: String?
 
     private let filters: [(labelKey: String, value: String?)] = [
         ("admin_reports_filter_all", nil),
@@ -111,7 +108,7 @@ struct AdminReportsView: View {
                     ForEach(filters, id: \.labelKey) { filter in
                         Button(filter.labelKey.localized) {
                             selectedFilter = filter.value
-                            Task { await loadReports() }
+                            Task { await viewModel.loadReports(status: selectedFilter) }
                         }
                         .font(.naarsSubheadline)
                         .fontWeight(selectedFilter == filter.value ? .semibold : .regular)
@@ -127,10 +124,10 @@ struct AdminReportsView: View {
                 .padding(.vertical, 10)
             }
 
-            if isLoading && reports.isEmpty {
+            if viewModel.isLoading && viewModel.reports.isEmpty {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if reports.isEmpty {
+            } else if viewModel.reports.isEmpty {
                 ContentUnavailableView(
                     "admin_reports_empty_title".localized,
                     systemImage: "checkmark.shield",
@@ -139,11 +136,11 @@ struct AdminReportsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
-                    ForEach(reports) { report in
+                    ForEach(viewModel.reports) { report in
                         ReportCardView(
                             report: report,
                             actions: availableActions(for: report),
-                            isActionDisabled: isSubmittingAction,
+                            isActionDisabled: viewModel.isSubmittingAction,
                             onAction: { action in
                                 pendingAction = PendingModerationAction(report: report, action: action)
                             }
@@ -151,11 +148,11 @@ struct AdminReportsView: View {
                     }
                 }
                 .listStyle(.plain)
-                .refreshable { await loadReports() }
+                .refreshable { await viewModel.loadReports(status: selectedFilter) }
             }
         }
         .navigationTitle("admin_reports_title".localized)
-        .task { await loadReports() }
+        .task { await viewModel.loadReports(status: selectedFilter) }
         .sheet(item: $pendingAction) { action in
             NavigationStack {
                 Form {
@@ -172,7 +169,7 @@ struct AdminReportsView: View {
                             axis: .vertical
                         )
                         .lineLimit(3...6)
-                        .disabled(isSubmittingAction)
+                        .disabled(viewModel.isSubmittingAction)
                     }
                 }
                 .navigationTitle(action.action.localizedTitle)
@@ -182,41 +179,31 @@ struct AdminReportsView: View {
                         Button("common_cancel".localized) {
                             pendingAction = nil
                         }
-                        .disabled(isSubmittingAction)
+                        .disabled(viewModel.isSubmittingAction)
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(action.action.localizedTitle) {
                             Task { await submitPendingAction() }
                         }
                         .disabled(
-                            isSubmittingAction ||
+                            viewModel.isSubmittingAction ||
                             (currentPendingAction(from: action).action.requiresNote &&
                              trimmedNote(for: currentPendingAction(from: action)).isEmpty)
                         )
                     }
                 }
             }
-            .interactiveDismissDisabled(isSubmittingAction)
+            .interactiveDismissDisabled(viewModel.isSubmittingAction)
             .presentationDetents([.medium])
         }
         .alert("common_error".localized, isPresented: Binding(
-            get: { errorAlertMessage != nil },
-            set: { if !$0 { errorAlertMessage = nil } }
+            get: { viewModel.errorAlertMessage != nil },
+            set: { if !$0 { viewModel.errorAlertMessage = nil } }
         )) {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(errorAlertMessage ?? "")
+            Text(viewModel.errorAlertMessage ?? "")
         }
-    }
-
-    private func loadReports() async {
-        isLoading = true
-        do {
-            reports = try await AdminModerationService.shared.fetchReports(status: selectedFilter)
-        } catch {
-            errorAlertMessage = error.localizedDescription
-        }
-        isLoading = false
     }
 
     private func submitPendingAction() async {
@@ -227,19 +214,13 @@ struct AdminReportsView: View {
             return
         }
 
-        isSubmittingAction = true
-        do {
-            try await AdminModerationService.shared.moderateContent(
-                reportId: pendingAction.report.reportId,
-                action: pendingAction.action.rawValue,
-                notes: note.isEmpty ? nil : note
-            )
-            self.pendingAction = nil
-            await loadReports()
-        } catch {
-            errorAlertMessage = error.localizedDescription
-        }
-        isSubmittingAction = false
+        await viewModel.moderate(
+            reportId: pendingAction.report.reportId,
+            action: pendingAction.action.rawValue,
+            notes: note.isEmpty ? nil : note,
+            reloadStatus: selectedFilter,
+            onModerated: { self.pendingAction = nil }
+        )
     }
 
     private func availableActions(for report: AdminReport) -> [ModerationAction] {

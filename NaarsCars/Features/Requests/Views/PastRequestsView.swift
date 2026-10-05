@@ -38,7 +38,7 @@ struct PastRequestsView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Filter toggle
-                Picker("Filter", selection: $selectedFilter) {
+                Picker("common_filter".localized, selection: $selectedFilter) {
                     ForEach(PastRequestFilter.allCases, id: \.self) { filter in
                         Text(filter.rawValue.localized).tag(filter)
                     }
