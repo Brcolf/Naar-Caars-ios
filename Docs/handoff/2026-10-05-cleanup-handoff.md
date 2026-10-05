@@ -104,6 +104,8 @@ was done on the Mac in commits `e804569`…`7e6c363`:
 
 ## Next steps for the cloud session (written on the Mac, 2026-10-05)
 
+> Executed on the Mac (see "Mac execution of the next steps" above). Only the Supabase dashboard items, the dead-file deletion in Xcode, the simulator checklist and the two production messaging bugs (`.conversationUpdated` object drop, `read_by` filter) remain.
+
 The branch now has four Mac commits on top of `c921f14` (`0ad48c5`, `ec79930`,
 `3ed86da`, `3cea181`). Pull before doing anything. Everything below is ordered by
 what needs no Mac first.

@@ -51,7 +51,7 @@ final class ValidatorsTests: XCTestCase {
         XCTAssertEqual(result2, "+12015550123", "11-digit US number should add +")
         
         let result3 = Validators.formatPhoneForStorage("+442079460958")
-        XCTAssertEqual(result3, "+442079460958", "International number should add +")
+        XCTAssertEqual(result3, "+442079460958", "International E.164 number should pass through unchanged")
     }
     
     func testFormatPhoneForStorage_Invalid_ReturnsNil() {

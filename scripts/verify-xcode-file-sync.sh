@@ -7,6 +7,8 @@
 # be compiled by Xcode:
 #   - Only two folders are PBXFileSystemSynchronizedRootGroups and therefore
 #     auto-discovered: NaarsCars/NaarsCars/ (app target) and NaarsCars/NaarsCarsUITests/.
+#     NaarsCars/NaarsCars/ must hold no Swift sources (assets, plist and entitlements
+#     only), so a .swift file there is warned about too.
 #   - Everything else (NaarsCars/App, Core, Features, UI, NaarsCarsTests) uses explicit
 #     file references in project.pbxproj. A new file there is invisible to the build
 #     until it is added to the project in Xcode.
@@ -41,7 +43,17 @@ fi
 SYNCED_APP="$PROJECT_ROOT/NaarsCars/NaarsCars"
 SYNCED_UITESTS="$PROJECT_ROOT/NaarsCars/NaarsCarsUITests"
 
-if [[ "$FILE_PATH" == "$SYNCED_APP"/* ]] || [[ "$FILE_PATH" == "$SYNCED_UITESTS"/* ]]; then
+if [[ "$FILE_PATH" == "$SYNCED_APP"/* ]]; then
+  cat >&2 <<MSG
+WARNING: $FILE_PATH is a Swift file under NaarsCars/NaarsCars/. That synchronized folder holds
+only assets, the plist and entitlements; it must not contain Swift sources. Put app sources
+under NaarsCars/App, Core, Features or UI (and tests under NaarsCars/NaarsCarsTests), then add
+the file to the project in Xcode.
+MSG
+  exit 2
+fi
+
+if [[ "$FILE_PATH" == "$SYNCED_UITESTS"/* ]]; then
   exit 0   # synchronized folder: Xcode discovers it automatically
 fi
 
@@ -53,7 +65,7 @@ fi
 cat >&2 <<MSG
 WARNING: $FILE_PATH is not referenced by project.pbxproj and is not inside a synchronized folder,
 so Xcode will NOT compile it. Only these folders are auto-discovered:
-  - NaarsCars/NaarsCars/        (app target)
+  - NaarsCars/NaarsCars/        (app target; assets, plist and entitlements only, no Swift)
   - NaarsCars/NaarsCarsUITests/ (UI tests)
 NaarsCars/App, Core, Features, UI and NaarsCarsTests use explicit references.
 Add the file to the project in Xcode (do not hand-edit project.pbxproj), then confirm it
