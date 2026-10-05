@@ -86,6 +86,13 @@ enum NotificationCategory: String {
     case requestClaimed = "REQUEST_CLAIMED"
 }
 
+/// Narrow seam for the permission prompt so tests can stub it; production uses `UNUserNotificationCenter.current()`.
+protocol NotificationAuthorizationRequesting {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+}
+
+extension UNUserNotificationCenter: NotificationAuthorizationRequesting {}
+
 /// Service for push notification operations
 /// Handles permission requests, token registration, and notification handling
 final class PushNotificationService: NSObject, ObservableObject {
@@ -103,6 +110,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     
     private let supabase = SupabaseService.shared.client
     private let notificationCenter = UNUserNotificationCenter.current()
+    private let authorizationRequester: NotificationAuthorizationRequesting
     private let tokenStorageKey = "apns_device_token"
     private let lastRegisteredTokenKey = "apns_last_registered_token"
     private let tokenUserIdKey = "apns_device_token_user_id"
@@ -137,6 +145,14 @@ final class PushNotificationService: NSObject, ObservableObject {
     // MARK: - Initialization
     
     private override init() {
+        authorizationRequester = UNUserNotificationCenter.current()
+        super.init()
+        setupNotificationCategories()
+    }
+
+    /// Testing only: injects a stub for the permission prompt. Production code uses `shared`.
+    init(authorizationRequester: NotificationAuthorizationRequesting) {
+        self.authorizationRequester = authorizationRequester
         super.init()
         setupNotificationCategories()
     }
@@ -237,7 +253,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// - Returns: True if permission granted, false otherwise
     func requestPermission() async -> Bool {
         do {
-            let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound, .badge])
+            let granted = try await authorizationRequester.requestAuthorization(options: [.alert, .sound, .badge])
             AppLogger.info("push", "Notification permission request result: \(granted ? "granted" : "denied")")
             return granted
         } catch {
