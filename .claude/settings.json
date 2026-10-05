@@ -6,10 +6,24 @@
         "hooks": [
           {
             "type": "command",
-            "command": "scripts/verify-xcode-file-sync.sh"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/verify-xcode-file-sync.sh"
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild build:*)",
+      "Bash(xcodebuild test:*)",
+      "Bash(xcodebuild -project:*)",
+      "Bash(xcodebuild -showsdks:*)",
+      "Bash(xcodebuild -version:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(xcrun xcresulttool:*)",
+      "Bash(scripts/validate-notification-types.sh:*)",
+      "Bash(scripts/verify-apple-signin-config.sh:*)",
+      "Bash(scripts/VERIFY-ALL-FILES.sh:*)"
     ]
   }
 }

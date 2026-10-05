@@ -11,8 +11,6 @@
 
 # Build output
 build-output.log
-# Headless-lane DerivedData and result bundles (CLAUDE.md Lane B)
-build/
 *.log
 
 # Temporary files
@@ -53,3 +51,6 @@ supabase/.temp/
 
 # Stray lockfile from a one-off npm invocation; nothing in this repo uses npm
 package-lock.json
+
+# Local build output (Lane B headless builds, CI-style result bundles)
+build/
