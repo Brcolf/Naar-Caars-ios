@@ -67,11 +67,12 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         }
     }
 
+    /// Session teardown (sign-out): stop realtime and the send worker. The container-scoped
+    /// `modelContext` and `backgroundActor` are kept because nothing re-runs
+    /// `setup`/`setupBackgroundActor` on the next sign-in.
     func teardown() async {
         await cancelGracePeriodAndUnsubscribe()
         await MessageSendWorker.shared.stop()
-        modelContext = nil
-        backgroundActor = nil
     }
 
     // MARK: - Coordinator Entry Points

@@ -43,8 +43,10 @@ final class TownHallSyncEngine: SyncEngineProtocol {
         // Nothing to set up — this engine has no workers or subscriptions.
     }
 
+    /// Session teardown (sign-out). The container-scoped `backgroundActor` is kept
+    /// because nothing re-runs `setupBackgroundActor` on the next sign-in.
     func teardown() async {
-        backgroundActor = nil
+        // No session-scoped work to cancel here.
     }
 
     // MARK: - Coordinator Entry Points

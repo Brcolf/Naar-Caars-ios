@@ -60,6 +60,9 @@ struct MessageSearchResult: Identifiable {
     private var currentOffset = 0
     private var searchTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
+    /// Coalesced participant-profile hydration for conversations the local publisher
+    /// surfaced without `otherParticipants` (the coordinator path stores IDs only).
+    private var hydrationTask: Task<Void, Never>?
     private var lastRemoteSyncAt: Date = .distantPast
     /// Push-off fallback poll (see Constants.Timing.conversationsPushOffPollInterval).
     /// Owned here so the View never owns polling. Started/stopped by the View's appear/disappear
@@ -83,9 +86,23 @@ struct MessageSearchResult: Identifiable {
     private func setupLocalObservation() {
         repository.getConversationsPublisher()
             .sink { [weak self] updatedConversations in
-                self?.applyLocalConversations(updatedConversations, animated: false)
+                guard let self else { return }
+                self.applyLocalConversations(updatedConversations, animated: false)
+                self.hydrateMissingProfilesIfNeeded()
             }
             .store(in: &cancellables)
+    }
+
+    /// Hydrate profiles as soon as the data that needs them arrives, rather than on the
+    /// next poll tick. One tracked task at a time; a no-op when nothing is missing.
+    private func hydrateMissingProfilesIfNeeded() {
+        guard conversations.contains(where: { $0.otherParticipants.isEmpty }) else { return }
+        guard hydrationTask == nil else { return }
+        hydrationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.hydrateProfiles(for: self.conversations)
+            self.hydrationTask = nil
+        }
     }
 
     static func shouldShowLoading(conversations: [ConversationWithDetails]) -> Bool {
@@ -256,6 +273,8 @@ struct MessageSearchResult: Identifiable {
         searchTask = nil
         searchDebounceTask?.cancel()
         searchDebounceTask = nil
+        hydrationTask?.cancel()
+        hydrationTask = nil
         stopPushOffPoll()
     }
 
@@ -288,13 +307,10 @@ struct MessageSearchResult: Identifiable {
     }
 
     private func pushOffPollTick() async {
+        // The coordinator owns the decision, dedup and backoff. Conversations the refresh
+        // surfaces arrive through the repository publisher, which hydrates missing
+        // participant profiles itself (hydrateMissingProfilesIfNeeded).
         RefreshCoordinator.shared.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
-
-        // Parity with the former loadConversations()-based poll: the coordinator path stores
-        // participant IDs only, so a conversation first seen via the publisher has no
-        // otherParticipants until hydrated. Only pay for the fetch when something is missing.
-        guard conversations.contains(where: { $0.otherParticipants.isEmpty }) else { return }
-        await hydrateProfiles(for: conversations)
     }
 
     func loadConversations(trigger: String = "manualReload:conversations") async {

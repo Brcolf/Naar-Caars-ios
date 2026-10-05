@@ -42,9 +42,13 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         // Nothing to set up — this engine has no workers or subscriptions.
     }
 
+    /// Session teardown (sign-out). The ModelContainer outlives the session, so the
+    /// container-scoped `modelContext` and `backgroundActor` are kept: nothing re-runs
+    /// `setup`/`setupBackgroundActor` on the next sign-in, and dropping them would make
+    /// every later `performFullSync()` return `.empty` without saving.
     func teardown() async {
-        modelContext = nil
-        backgroundActor = nil
+        // No session-scoped work to cancel here; RefreshCoordinator.reset() cancels
+        // in-flight refreshes and AuthService wipes the SwiftData cache.
     }
 
     /// Sync all data from network to SwiftData

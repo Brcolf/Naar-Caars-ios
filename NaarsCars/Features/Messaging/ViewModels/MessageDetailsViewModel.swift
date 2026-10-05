@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import OSLog
 internal import Combine
 
 /// Owns all mutations behind MessageDetailsPopup
