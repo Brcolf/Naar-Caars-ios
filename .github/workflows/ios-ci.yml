@@ -135,6 +135,9 @@ jobs:
             -skip-testing:NaarsCarsUITests \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1 \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 60 \
+            -maximum-test-execution-time-allowance 120 \
             -resultBundlePath build/UnitTests.xcresult \
             2>&1 | tee build/test.log | grep -E 'Test (Case|Suite).*(passed|failed)|error:|\*\* TEST' || true
           grep -q 'TEST EXECUTE SUCCEEDED\|TEST SUCCEEDED' build/test.log

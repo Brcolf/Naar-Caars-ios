@@ -7,8 +7,8 @@ Run the unit tests in the lightest possible way for this resource-constrained Ma
 
 1. Build the filter: if `$ARGUMENTS` is non-empty use `-only-testing:$ARGUMENTS`, otherwise use `-skip-testing:NaarsCarsUITests`.
 2. Run:
-   `xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' <filter> -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -derivedDataPath build/DerivedData -resultBundlePath build/HeadlessTests.xcresult -quiet 2>&1 | tail -40`
+   `xcodebuild test -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -destination 'platform=iOS Simulator,name=iPhone 16' <filter> -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -test-timeouts-enabled YES -default-test-execution-time-allowance 60 -maximum-test-execution-time-allowance 120 -derivedDataPath build/DerivedData -resultBundlePath build/HeadlessTests.xcresult -quiet 2>&1 | tail -40`
    (delete `build/HeadlessTests.xcresult` first if it exists).
 3. Summarize with `xcrun xcresulttool get test-results summary --path build/HeadlessTests.xcresult`; for failures, `xcrun xcresulttool get test-results tests --path build/HeadlessTests.xcresult` and quote the failing assertion.
 4. `xcrun simctl shutdown all` so the simulator releases memory.
-5. Report passed / failed / skipped, each failing test with its message, and a reminder that 11 unit test files are not attached to the target and were not run (see CLAUDE.md Audit Notes).
+5. Report passed / failed / skipped, each failing test with its message, and a reminder that `ThrottlerTests.swift` (does not compile) and `PushNotificationServiceTests.swift` (hangs on the permission dialog) are not attached to the target (see CLAUDE.md Audit Notes) and were not run.
