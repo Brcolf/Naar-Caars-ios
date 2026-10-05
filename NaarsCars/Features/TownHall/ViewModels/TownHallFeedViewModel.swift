@@ -31,7 +31,7 @@ final class TownHallFeedViewModel: ObservableObject {
     private var voteCancellable: AnyCancellable?
     private var postVoteCache: [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] = [:]
     
-    private let pageSize = 20
+    let pageSize = 20
     private var currentOffset = 0
     
     init(

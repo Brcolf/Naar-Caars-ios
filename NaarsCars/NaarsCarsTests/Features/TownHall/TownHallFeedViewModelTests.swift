@@ -35,20 +35,26 @@ final class TownHallFeedViewModelTests: XCTestCase {
     }
     
     /// Test that loadMore loads additional posts
-    func testLoadMore_LoadsAdditionalPosts() async {
+    func testLoadMore_LoadsAdditionalPosts() async throws {
+        // The feed requires an authenticated session; without one there is nothing to page through.
+        guard AuthService.shared.currentUserId != nil else {
+            throw XCTSkip("testLoadMore requires an authenticated session (AuthService.shared.currentUserId is nil)")
+        }
+
         // Given: Initial posts loaded
         await viewModel.loadPosts()
         let initialCount = viewModel.posts.count
-        
+
         // When: Loading more
         await viewModel.loadMore()
-        
-        // Then: Should have more posts (or hasMore should be false)
-        // Note: This test requires a real Supabase connection
-        if viewModel.hasMore {
-            XCTAssertGreaterThanOrEqual(viewModel.posts.count, initialCount, "Should have more or equal posts")
-        } else {
-            XCTAssertEqual(viewModel.posts.count, initialCount, "Should have same count if no more posts")
+
+        // Then: loadMore never removes posts
+        XCTAssertGreaterThanOrEqual(viewModel.posts.count, initialCount, "loadMore should not remove posts")
+
+        // And: when paging is exhausted, the last page was short (fewer than a full page was added)
+        if !viewModel.hasMore {
+            let added = viewModel.posts.count - initialCount
+            XCTAssertLessThan(added, viewModel.pageSize, "When hasMore is false, the final page must contain fewer than pageSize posts")
         }
     }
     
@@ -67,13 +73,21 @@ final class TownHallFeedViewModelTests: XCTestCase {
     }
     
     /// Test that deletePost removes post from array
-    func testDeletePost_RemovesFromArray() async {
+    func testDeletePost_RemovesFromArray() async throws {
+        guard let userId = AuthService.shared.currentUserId else {
+            throw XCTSkip("testDeletePost requires an authenticated session (AuthService.shared.currentUserId is nil)")
+        }
+
         // Given: A post and view model with posts
         await viewModel.loadPosts()
         
         guard let firstPost = viewModel.posts.first else {
-            XCTSkip("No posts available for testing")
-            return
+            throw XCTSkip("No posts available for testing")
+        }
+
+        // RLS rejects deleting another user's post, so only run against a post the current user authored.
+        guard firstPost.userId == userId else {
+            throw XCTSkip("testDeletePost requires the first post to be authored by the current user")
         }
         
         let initialCount = viewModel.posts.count
