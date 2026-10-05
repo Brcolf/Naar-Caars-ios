@@ -361,7 +361,7 @@ final class TownHallCommentService {
         
         // Fetch all profiles in one query
         let response = try? await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select()
             .in("id", values: Array(userIds).map { $0.uuidString })
             .execute()

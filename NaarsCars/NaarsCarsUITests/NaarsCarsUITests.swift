@@ -388,11 +388,18 @@ final class NaarsCarsUITests: XCTestCase {
 
     @MainActor
     private func selectUser(app: XCUIApplication, email: String) {
+        // User search matches on name only (the public_profiles view exposes no email),
+        // and rows are identified by user id. Search on the local part of the test
+        // account's email, which the fixtures use as the display name, and tap the
+        // first matching row.
         let searchField = app.textFields["userSearch.searchField"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
         searchField.tap()
-        searchField.typeText(email)
-        let row = app.buttons["userSearch.row.\(email)"]
+        let nameQuery = email.split(separator: "@").first.map(String.init) ?? email
+        searchField.typeText(nameQuery)
+        let row = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "userSearch.row.")
+        ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
     }

@@ -190,7 +190,7 @@ struct UserSearchView: View {
         error = nil
         
         do {
-            // Search profiles by name or email
+            // Search public profiles by name (the public_profiles view has no email column)
             // PostgREST .or() syntax: "column.operator.value,column.operator.value"
             // Use * as wildcard for ilike (case-insensitive LIKE)
             // Escape special characters for PostgREST ilike pattern
@@ -202,12 +202,12 @@ struct UserSearchView: View {
             
             AppLogger.info("messaging", "UserSearchView searching for: '\(trimmedQuery)' (pattern: '\(searchPattern)')")
             
-            // Select all fields (Profile model requires all fields)
+            // Select all view columns (Profile's decoder defaults any column the view lacks)
             // Using .select() without arguments gets all columns, matching other services
             let response = try await SupabaseService.shared.client
-                .from("profiles")
+                .from("public_profiles")
                 .select()
-                .or("name.ilike.\(searchPattern),email.ilike.\(searchPattern)")
+                .or("name.ilike.\(searchPattern)")
                 .eq("approved", value: true)
                 .limit(20)
                 .execute()
@@ -284,10 +284,6 @@ private struct UserSearchRow: View {
                     Text(profile.name)
                         .font(.naarsHeadline)
                         .foregroundColor(.primary)
-                    
-                    Text(profile.email)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -310,7 +306,7 @@ private struct UserSearchRow: View {
         }
         .disabled(isExcluded)
         .opacity(isExcluded ? 0.5 : 1.0)
-        .accessibilityIdentifier("userSearch.row.\(profile.email)")
+        .accessibilityIdentifier("userSearch.row.\(profile.id.uuidString)")
     }
 }
 

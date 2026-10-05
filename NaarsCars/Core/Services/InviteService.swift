@@ -62,7 +62,7 @@ final class InviteService {
         var inviteeName: String? = nil
         if let usedById = code.usedBy {
             if let inviteeProfile: Profile = try? await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select()
                 .eq("id", value: usedById.uuidString)
                 .single()
@@ -347,7 +347,7 @@ final class InviteService {
                 .execute()
                 .value {
                 inviter = try? await supabase
-                    .from("profiles")
+                    .from("public_profiles")
                     .select()
                     .eq("id", value: bulkCode.createdBy.uuidString)
                     .single()
@@ -357,7 +357,7 @@ final class InviteService {
         } else {
             // Regular code: fetch creator
             inviter = try? await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select()
                 .eq("id", value: code.createdBy.uuidString)
                 .single()

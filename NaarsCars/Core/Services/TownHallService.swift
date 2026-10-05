@@ -349,7 +349,7 @@ final class TownHallService {
         
         // Fetch all profiles in one query
         let response = try? await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select()
             .in("id", values: Array(userIds).map { $0.uuidString })
             .execute()
@@ -508,7 +508,7 @@ final class TownHallService {
         let fulfillerIds = Set(reviews.map { $0.fulfillerId })
         if !fulfillerIds.isEmpty {
             let profileResponse = try? await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select("id, name")
                 .in("id", values: fulfillerIds.map { $0.uuidString })
                 .execute()

@@ -160,7 +160,7 @@ final class MessageService {
 
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
 
         // History visibility: only show messages from after participant joined
@@ -260,7 +260,7 @@ final class MessageService {
         let formatter = createISO8601Formatter()
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .gt("created_at", value: formatter.string(from: effectiveAfter))
             .order("created_at", ascending: true)
@@ -281,7 +281,7 @@ final class MessageService {
     func fetchMediaMessages(conversationId: UUID, type: String) async throws -> [Message] {
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .is("deleted_at", value: nil)
 
@@ -309,7 +309,7 @@ final class MessageService {
         // Fetch text messages and filter client-side for URLs
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("message_type", value: "text")
             .is("deleted_at", value: nil)
@@ -333,7 +333,7 @@ final class MessageService {
     func fetchReplies(conversationId: UUID, replyToId: UUID) async throws -> [Message] {
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("reply_to_id", value: replyToId.uuidString)
             .order("created_at", ascending: true)
@@ -378,7 +378,7 @@ final class MessageService {
     func fetchMessageById(_ messageId: UUID) async throws -> Message {
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("id", value: messageId.uuidString)
             .single()
             .execute()
@@ -442,7 +442,7 @@ final class MessageService {
         
         let response = try await supabase
             .from("messages")
-            .select("id, text, from_id, image_url, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("id, text, from_id, image_url, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .in("id", values: messageIds.map { $0.uuidString })
             .execute()
 
@@ -567,7 +567,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
             .single()
             .execute()
         
@@ -618,7 +618,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .single()
             .execute()
         
@@ -660,7 +660,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .single()
             .execute()
         
@@ -1044,7 +1044,7 @@ final class MessageService {
         // 2. Search messages in those conversations using ilike for case-insensitive match
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .in("conversation_id", values: conversationIds)
             .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
@@ -1082,7 +1082,7 @@ final class MessageService {
 
         var queryBuilder = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
@@ -1204,7 +1204,7 @@ final class MessageService {
             
             let userIds = rows.map { $0.userId.uuidString }
             let profilesResponse = try await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select("id, name, avatar_url")
                 .in("id", values: userIds)
                 .execute()

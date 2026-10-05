@@ -30,6 +30,9 @@ final class ProfileService {
     
     /// Fetch a profile by user ID
     /// Checks cache before making network request
+    /// The current user's own row is read from "profiles" (full columns);
+    /// any other member is read from the "public_profiles" view, which is the
+    /// only projection RLS allows a non-admin to see
     /// - Parameter userId: The user ID to fetch
     /// - Returns: Profile if found
     /// - Throws: AppError if fetch fails
@@ -39,9 +42,12 @@ final class ProfileService {
             return cached
         }
         
+        let currentUserId = await resolveCurrentUserId()
+        let table = userId == currentUserId ? "profiles" : "public_profiles"
+        
         // Fetch from network
         let profile: Profile = try await supabase
-            .from("profiles")
+            .from(table)
             .select()
             .eq("id", value: userId.uuidString)
             .single()
@@ -264,19 +270,34 @@ final class ProfileService {
         guard !missing.isEmpty else { return cached }
         
         // Batch fetch missing profiles in a single query
+        // Other members are only readable through the public_profiles view
         let fetched: [Profile] = try await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select()
             .in("id", values: missing.map { $0.uuidString })
             .execute()
             .value
         
-        // Cache all fetched profiles
-        for profile in fetched {
+        // Cache all fetched profiles except the current user's own row:
+        // the view projection lacks own-only fields (email, phone, is_admin,
+        // preferences) and must not shadow the full "profiles" row in cache
+        let currentUserId = await resolveCurrentUserId()
+        for profile in fetched where profile.id != currentUserId {
             await CacheManager.shared.cacheProfile(profile)
         }
         
         return cached + fetched
+    }
+    
+    /// Resolve the current user's ID for own-row vs. public_profiles decisions
+    /// Falls back to the live Supabase session because AuthService.currentUserId
+    /// is not yet assigned while a sign-in flow is still fetching its own profile;
+    /// a guest has no session and resolves to nil
+    private func resolveCurrentUserId() async -> UUID? {
+        if let userId = AuthService.shared.currentUserId {
+            return userId
+        }
+        return try? await supabase.auth.session.user.id
     }
     
     // MARK: - Reviews Operations

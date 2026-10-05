@@ -216,7 +216,7 @@ final class ConversationService {
         do {
             let response = try await supabase
                 .from("messages")
-                .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+                .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .neq("message_type", value: "system")
                 .is("deleted_at", value: nil)
@@ -281,7 +281,7 @@ final class ConversationService {
             // Step 2: Fetch profiles for those user IDs
             let userIdStrings = participantIds.map { $0.userId.uuidString }
             let profilesResponse = try await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select("*")
                 .in("id", values: userIdStrings)
                 .execute()
