@@ -14,12 +14,12 @@ final class ValidatorsTests: XCTestCase {
     
     func testIsValidPhoneNumber_ValidUS_ReturnsTrue() {
         // Test various valid US phone number formats
-        XCTAssertTrue(Validators.isValidPhoneNumber("1234567890")) // 10 digits
-        XCTAssertTrue(Validators.isValidPhoneNumber("(123) 456-7890")) // Formatted
-        XCTAssertTrue(Validators.isValidPhoneNumber("123-456-7890")) // Dashed
-        XCTAssertTrue(Validators.isValidPhoneNumber("123.456.7890")) // Dotted
-        XCTAssertTrue(Validators.isValidPhoneNumber("+1 123 456 7890")) // With country code
-        XCTAssertTrue(Validators.isValidPhoneNumber("11234567890")) // 11 digits with leading 1
+        XCTAssertTrue(Validators.isValidPhoneNumber("2015550123")) // 10 digits
+        XCTAssertTrue(Validators.isValidPhoneNumber("(201) 555-0123")) // Formatted
+        XCTAssertTrue(Validators.isValidPhoneNumber("201-555-0123")) // Dashed
+        XCTAssertTrue(Validators.isValidPhoneNumber("201.555.0123")) // Dotted
+        XCTAssertTrue(Validators.isValidPhoneNumber("+1 201 555 0123")) // With country code
+        XCTAssertTrue(Validators.isValidPhoneNumber("12015550123")) // 11 digits with leading 1
     }
     
     func testIsValidPhoneNumber_TooShort_ReturnsFalse() {
@@ -35,23 +35,23 @@ final class ValidatorsTests: XCTestCase {
     }
     
     func testIsValidPhoneNumber_International_ReturnsTrue() {
-        // Test international numbers (11-15 digits)
-        XCTAssertTrue(Validators.isValidPhoneNumber("441234567890")) // UK: 12 digits
-        XCTAssertTrue(Validators.isValidPhoneNumber("8613800138000")) // China: 13 digits
+        // International numbers must carry a "+" country code; digits-only input is parsed in the default region (US)
+        XCTAssertTrue(Validators.isValidPhoneNumber("+442079460958")) // UK: 12 digits, London
+        XCTAssertTrue(Validators.isValidPhoneNumber("+8613800138000")) // China: 13 digits
     }
     
     // MARK: - Phone Formatting Tests
     
     func testFormatPhoneForStorage_ReturnsE164() {
         // Test E.164 formatting
-        let result1 = Validators.formatPhoneForStorage("1234567890")
-        XCTAssertEqual(result1, "+11234567890", "10-digit US number should add +1")
+        let result1 = Validators.formatPhoneForStorage("2015550123")
+        XCTAssertEqual(result1, "+12015550123", "10-digit US number should add +1")
         
-        let result2 = Validators.formatPhoneForStorage("11234567890")
-        XCTAssertEqual(result2, "+11234567890", "11-digit US number should add +")
+        let result2 = Validators.formatPhoneForStorage("12015550123")
+        XCTAssertEqual(result2, "+12015550123", "11-digit US number should add +")
         
-        let result3 = Validators.formatPhoneForStorage("441234567890")
-        XCTAssertEqual(result3, "+441234567890", "International number should add +")
+        let result3 = Validators.formatPhoneForStorage("+442079460958")
+        XCTAssertEqual(result3, "+442079460958", "International number should add +")
     }
     
     func testFormatPhoneForStorage_Invalid_ReturnsNil() {
