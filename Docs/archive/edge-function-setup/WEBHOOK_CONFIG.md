@@ -70,7 +70,7 @@ Click **"+ Add Header"** twice to add 2 headers:
 
 ### Header 1:
 - **Key**: `Authorization`
-- **Value**: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhc2xwc2tzYnlseWNlcWlxZWNxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjEwNzIxOCwiZXhwIjoyMDUxNjgyODE4fQ.your-service-role-key-here`
+- **Value**: `Bearer <REDACTED_SERVICE_ROLE_KEY_ROTATE_ME>`
   - **Note**: This is a placeholder. You need to get your actual service role key from: https://supabase.com/dashboard/project/easlpsksbylyceqiqecq/settings/api
   - Replace the entire Bearer token with: `Bearer [YOUR_ACTUAL_SERVICE_ROLE_KEY]`
 
