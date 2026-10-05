@@ -1,5 +1,7 @@
 # Naars Cars Messaging Module — Full Review & Improvement Plan
 
+> **Status note (2026-10-05):** This review (February 2026) predates the March 2026 push-notify / pull-hydrate refactor (`Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md`). Plan items **2.1, 2.2, 2.5, 3.7, 5.2, 5.3 and 5.4** are superseded or completed by that refactor: realtime WebSockets are now scoped to the active conversation only (messages + reactions + typing), with the inbox and every other domain refreshed through `RefreshCoordinator`; the APNs JWT is cached; and the badge polling timers are gone (badges are push-triggered with a 5-minute safety poll). The remaining open items are still a reasonable backlog but should be re-triaged against the current architecture before being acted on. The body below is left as written.
+
 > **Date:** February 5, 2026
 > **Updated:** February 5, 2026 (post-commit `f767408` review)
 > **Scope:** Complete messaging module review from User, UX/UI Designer, and Developer perspectives

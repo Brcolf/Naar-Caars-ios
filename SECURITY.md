@@ -2,9 +2,8 @@
 
 ## Document Information
 - **Type**: Security Requirements
-- **Phase**: 0 (Must be completed alongside Foundation)
-- **Last Updated**: January 2025
-- **Status**: REQUIRED for all development phases
+- **Last Updated**: 2026-10-05
+- **Status**: Live app; reflects production RLS as of 2026-10-05
 
 ---
 
@@ -27,9 +26,9 @@ All Supabase tables MUST have RLS enabled. The following policies are REQUIRED b
 
 ### 2.1 profiles
 
-The `profiles` table contains PII (`email`, `phone_number`, `is_admin`, `is_banned`, `ban_reason`, `banned_by`, `heard_about`, `join_reason`, `application_submitted_at`, `application_complete`, `notify_*`). Direct SELECT on `profiles` is restricted to **self and admin only**. All cross-user profile reads — messaging sender hydration, town-hall author lookup, user search, invite flows, profile cards — go through the **`public_profiles` view** instead, which exposes only non-PII columns (`id`, `name`, `avatar_url`, `car`, `approved`, `created_at`, `updated_at`).
+The `profiles` table contains PII (`email`, `phone_number`, `is_admin`, `is_banned`, `ban_reason`, `banned_by`, `heard_about`, `join_reason`, `application_submitted_at`, `application_complete`, `notify_*`). Direct SELECT on `profiles` is restricted to **self and admin only**. As of the October 2026 client update, all cross-user profile reads — messaging sender hydration, town-hall author lookup, user search, invite flows, profile cards — go through the **`public_profiles` view**, which exposes only non-PII columns (`id`, `name`, `avatar_url`, `car`, `approved`, `created_at`, `updated_at`). Own-row and admin reads still SELECT from `profiles` directly. (Until 2026-10-05 the shipped client still joined `profiles` for cross-user reads; the view existed server-side but was not yet the client's read path.)
 
-This split was introduced by audit-CRIT-7 in `supabase/migrations/20260416_0002_security_profiles_projection_split.sql`. See [§2.1.1 The `public_profiles` view](#211-the-public_profiles-view) below for the design rationale.
+This split was introduced by audit-CRIT-7 in `supabase/migrations/20260417015221_security_profiles_projection_split.sql`. See [§2.1.1 The `public_profiles` view](#211-the-public_profiles-view) below for the design rationale.
 
 | Policy Name | Operation | Roles | SQL Check |
 |-------------|-----------|-------|-----------|
@@ -426,6 +425,18 @@ CREATE POLICY "admin_approve_users" ON public.profiles
 -- IMPORTANT: This should be an Edge Function for additional safety
 ```
 
+#### 2.26.1 Function EXECUTE lockdown (2026-10-05)
+
+RLS does not cover `/rest/v1/rpc`: any function with EXECUTE granted to `anon` or `authenticated` is callable by that role, and SECURITY DEFINER functions run with their owner's privileges. On 2026-10-05, `supabase/migrations/20261005_0001_security_lockdown_definer_functions.sql` applied the following to production:
+
+- EXECUTE revoked from `anon` and `authenticated` on **all trigger functions and internal helpers** (they are only invoked by triggers, cron, other SECURITY DEFINER functions, or edge functions via `service_role`).
+- `anon` EXECUTE revoked on **authenticated-only RPCs**. `anon` keeps EXECUTE only on what guest mode and signup genuinely need (`validate_invite_code`, leaderboard/stat getters, RLS helper predicates).
+- `upsert_profile_for_signup` **neutralised** — EXECUTE revoked from every API role. It was anon-callable and its `ON CONFLICT DO UPDATE` let any caller overwrite another user's name/email/car given their id. The client uses `create_signup_profile()`, which checks `auth.uid()`. **Pending manual step:** `DROP FUNCTION public.upsert_profile_for_signup(uuid, text, text, text, uuid);` from the SQL editor.
+
+**Pending manual step — not yet applied to production:** `supabase/migrations/20261005_0004_function_caller_guards.sql` (admin-only guard on `send_approval_notification`, self-only guards on `set_typing_status` / `clear_typing_status`) must be run from the Supabase SQL editor; the MCP tool holds `CREATE OR REPLACE` statements for interactive confirmation. Until it runs, those three RPCs are protected only by the `anon` EXECUTE revoke, not by caller checks.
+
+New RPCs must follow the same rule: grant EXECUTE only to the roles that need it, and verify `auth.uid()` inside any function that acts on behalf of a user.
+
 ### 2.27 content_moderation_events (audit log)
 
 Append-only audit log of moderation actions: which content (`message`, `town_hall_post`, `town_hall_comment`, `ride`, `favor`) was hidden / dismissed / restored / auto-hidden, by which admin, with what reason, linked to which report. Created by `supabase/migrations/20260403_0011_content_moderation_redesign.sql`. RLS enabled and a single admin-only SELECT policy added in `supabase/migrations/20260502_0001_enable_rls_content_moderation_events.sql` (audit ref: Supabase advisor `rls_disabled_in_public`).
@@ -500,6 +511,8 @@ If the anon key needs rotation:
 2. Update obfuscated bytes in Secrets.swift
 3. Release app update
 4. Revoke old key after 30 days (allow update propagation)
+
+**Credential rotation required (2026-10-05):** a production `service_role` key was committed to a markdown file in this repository. The file has been redacted, but the key remains in git history and must be treated as compromised and rotated. Recommended path: migrate the app to the `sb_publishable_...` key (and edge functions / webhooks to `sb_secret_...`), then disable the legacy JWT-based keys in the Supabase dashboard. Disabling the legacy keys also invalidates the legacy anon key embedded in the shipped app, so a client release following the steps above must be live before the legacy keys are turned off.
 
 ### 3.3 What NOT to Store Client-Side
 
@@ -721,9 +734,13 @@ if (apnsResponse.status === 410) {
 }
 ```
 
+### 7.4 Webhook Authentication
+
+Database webhooks that invoke the edge functions (`send-message-push`, `send-notification`) carry **no API key in the trigger definition**. The generic trigger function `public.invoke_edge_webhook()` reads a shared secret (`edge_webhook_secret`) from Supabase Vault at fire time and sends it in an `x-webhook-secret` header. On the receiving side, `supabase/functions/_shared/webhookAuth.ts` accepts a request only if it presents the service-role key as a bearer token (internal / cron callers) or an `x-webhook-secret` that the `service_role`-only RPC `verify_webhook_secret(p_secret)` confirms against Vault; anything else gets a 401. Because both sides read the secret from Vault, rotating it is a Vault update — no trigger or function redeploy. Introduced in `supabase/migrations/20261005_0002_webhook_shared_secret.sql`.
+
 ---
 
-## 9. Security Logging
+## 8. Security Logging
 
 ### 8.1 Log Categories
 
@@ -748,7 +765,7 @@ enum Log {
 
 ---
 
-## 10. Pre-Launch Security Checklist
+## 9. Pre-Launch Security Checklist
 
 ### 9.1 RLS Policies
 
@@ -775,7 +792,7 @@ enum Log {
 
 ---
 
-## 11. Incident Response
+## 10. Incident Response
 
 If a security issue is discovered:
 

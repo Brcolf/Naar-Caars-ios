@@ -27,7 +27,7 @@ These instructions apply to all work in this repository. Follow them unless the 
 ## Backend and database
 
 - **Supabase**: Use the shared client; credentials come from `Secrets` (obfuscated). Never commit `Secrets.swift`, hardcode keys, or share keys externally.
-- **Migrations**: SQL lives in `database/` with numeric prefix and description (e.g. `092_badge_counts_rpc.sql`). Do not modify existing migration files.
+- **Migrations**: New migrations go in `supabase/migrations/` (Supabase-managed, `YYYYMMDD_XXXX_description.sql`, or the 14-digit timestamp form the Supabase MCP `apply_migration` tool creates). `database/` holds the legacy numeric-prefix migrations (e.g. `092_badge_counts_rpc.sql`) and is frozen — do not add to it or modify existing files. Any migration applied through the Supabase MCP or dashboard MUST be committed to `supabase/migrations/` in the same change (the live database had 102 migrations the repo lacked until an export on 2026-10-05).
 - **RLS**: New tables or endpoints must consider RLS; see `SECURITY.md` and existing policies.
 
 ## UI and accessibility (App Store)
@@ -45,9 +45,10 @@ These instructions apply to all work in this repository. Follow them unless the 
 
 ## Xcode and new files
 
-- **Do not edit `project.pbxproj`** to add new Swift files. Xcode uses filesystem-synced groups (`PBXFileSystemSynchronizedRootGroup`), so new `.swift` files placed under `NaarsCars/NaarsCars/`, `NaarsCars/NaarsCarsTests/`, or `NaarsCars/NaarsCarsUITests/` are auto-discovered by Xcode — no manual add step needed.
+- **New Swift files must be referenced in `project.pbxproj`.** All Swift sources (`NaarsCars/App`, `Core`, `Features`, `UI` and `NaarsCars/NaarsCarsTests`) use classic Xcode groups, so a file dropped on disk is silently ignored by the build until it is added to the project (add it in Xcode, or convert the group with Xcode 16's "Convert to Folder"). The only filesystem-synced roots (`PBXFileSystemSynchronizedRootGroup`) are `NaarsCars/NaarsCars/` (asset catalog and entitlements only — no Swift sources) and `NaarsCars/NaarsCarsUITests/`. `scripts/verify-xcode-file-sync.sh` (a Claude Code `PostToolUse` hook wired in `.claude/settings.json`) warns when a written `.swift` file has no `project.pbxproj` reference.
 - When you create a **new file**, state the file path clearly (e.g. `NaarsCars/Features/Favors/Views/MyNewView.swift`).
 
 ## Secrets and build
 
 - `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `Scripts/obfuscate.swift` to generate obfuscated credential arrays. Never log or expose `Secrets.supabaseURL` or `Secrets.supabaseAnonKey`.
+- Install the git pre-commit hook with `scripts/install-hooks.sh`; it installs a thin wrapper that runs `scripts/pre-commit-secrets-check.sh` from the repo (secrets, signing files, localization-key check).

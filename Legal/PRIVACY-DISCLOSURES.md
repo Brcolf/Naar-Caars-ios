@@ -2,9 +2,8 @@
 
 ## Document Information
 - **Type**: Privacy Requirements & App Store Compliance
-- **Phase**: 0 (Must be completed before App Store submission)
-- **Last Updated**: January 2025
-- **Status**: REQUIRED for App Store submission
+- **Last Updated**: 2026-10-05 (content review date)
+- **Status**: Maintained; must be re-verified before each release that changes data collection
 
 ---
 
