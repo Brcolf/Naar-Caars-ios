@@ -225,21 +225,21 @@ final class PerformanceImprovementsTests: XCTestCase {
         let monitor = PerformanceMonitor.shared
         await monitor.reset(operation: "percentile_test")
         
-        // Record multiple operations with known durations
+        // Feed fixed durations (1ms...100ms) directly so the result does not depend on
+        // wall-clock sleeps or machine load.
         for i in 1...100 {
-            _ = try await monitor.measure(operation: "percentile_test") {
-                try await Task.sleep(nanoseconds: UInt64(i * 1_000_000)) // 1ms to 100ms
-                return i
-            }
+            await monitor.record(operation: "percentile_test", duration: Double(i) / 1000.0)
         }
         
         let stats = await monitor.getStats(for: "percentile_test")
         XCTAssertNotNil(stats)
         XCTAssertEqual(stats?.count, 100)
         
-        // P50 should be around 50ms, P95 around 95ms, P99 around 99ms
-        XCTAssertTrue((stats?.p50 ?? 0) > 0.045 && (stats?.p50 ?? 0) < 0.055, "P50 should be around 50ms")
-        XCTAssertTrue((stats?.p95 ?? 0) > 0.090 && (stats?.p95 ?? 0) < 0.100, "P95 should be around 95ms")
+        // Monitor uses sorted[count / 2], sorted[Int(count * 0.95)], sorted[Int(count * 0.99)]:
+        // indices 50, 95, 99 of 1...100ms => 51ms, 96ms, 100ms.
+        XCTAssertEqual(stats?.p50 ?? 0, 0.051, accuracy: 0.0005, "P50 of 1...100ms should be 51ms")
+        XCTAssertEqual(stats?.p95 ?? 0, 0.096, accuracy: 0.0005, "P95 of 1...100ms should be 96ms")
+        XCTAssertEqual(stats?.p99 ?? 0, 0.100, accuracy: 0.0005, "P99 of 1...100ms should be 100ms")
     }
     
     func testPerformanceMonitorSlowDetection() async throws {
