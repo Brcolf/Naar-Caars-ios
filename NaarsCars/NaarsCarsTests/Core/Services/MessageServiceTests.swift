@@ -126,12 +126,10 @@ final class ConversationDetailViewModelRealtimeTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
 
-        XCTExpectFailure("Known deviation — see CLAUDE.md Audit Notes: setupConversationUpdatedObserver drops the notification object, so .conversationUpdated events are ignored", strict: true) {
-            XCTAssertTrue(
-                viewModel.messages.contains(where: { $0.id == newMessage.id }),
-                "Realtime notification should append message to view model without full reload"
-            )
-        }
+        XCTAssertTrue(
+            viewModel.messages.contains(where: { $0.id == newMessage.id }),
+            "Realtime notification should append message to view model without full reload"
+        )
     }
 }
 
@@ -147,7 +145,8 @@ final class MessagingSyncEngineTests: XCTestCase {
 
         let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
             record: record,
-            oldRecord: oldRecord
+            oldRecord: oldRecord,
+            currentUserId: currentUserId
         )
 
         XCTAssertTrue(shouldIgnore)
@@ -162,7 +161,8 @@ final class MessagingSyncEngineTests: XCTestCase {
 
         let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
             record: record,
-            oldRecord: oldRecord
+            oldRecord: oldRecord,
+            currentUserId: currentUserId
         )
 
         XCTAssertFalse(shouldIgnore)
@@ -179,12 +179,63 @@ final class MessagingSyncEngineTests: XCTestCase {
 
         let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
             record: record,
-            oldRecord: oldRecord
+            oldRecord: oldRecord,
+            currentUserId: currentUserId
         )
 
-        XCTExpectFailure("Known deviation — see CLAUDE.md Audit Notes: shouldIgnoreReadByUpdate ignores every read_by-only update, so other members' read receipts are dropped", strict: true) {
-            XCTAssertFalse(shouldIgnore)
-        }
+        XCTAssertFalse(shouldIgnore)
+    }
+
+    func testShouldIgnoreReadByUpdate_ReturnsFalseWhenCurrentUserUnknown() {
+        let currentUserId = UUID()
+        let base = makeBaseRecord(text: "Hi")
+        var record = base
+        var oldRecord = base
+        record["read_by"] = .array([.string(currentUserId.uuidString)])
+        oldRecord["read_by"] = .array([])
+
+        let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
+            record: record,
+            oldRecord: oldRecord,
+            currentUserId: nil
+        )
+
+        XCTAssertFalse(shouldIgnore)
+    }
+
+    func testShouldIgnoreReadByUpdate_ReturnsFalseWhenAnotherMemberReadsAlongsideCurrentUser() {
+        let currentUserId = UUID()
+        let otherUserId = UUID()
+        let base = makeBaseRecord(text: "Hi")
+        var record = base
+        var oldRecord = base
+        record["read_by"] = .array([.string(currentUserId.uuidString), .string(otherUserId.uuidString)])
+        oldRecord["read_by"] = .array([])
+
+        let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
+            record: record,
+            oldRecord: oldRecord,
+            currentUserId: currentUserId
+        )
+
+        XCTAssertFalse(shouldIgnore, "another member's read receipt must not be dropped with the self-echo")
+    }
+
+    func testShouldIgnoreReadByUpdate_AcceptsRawStringArrayPayload() {
+        let currentUserId = UUID()
+        let base = makeBaseRecord(text: "Hi")
+        var record: [String: Any] = base
+        var oldRecord: [String: Any] = base
+        record["read_by"] = [currentUserId.uuidString]
+        oldRecord["read_by"] = [String]()
+
+        let shouldIgnore = MessagingSyncEngine.shouldIgnoreReadByUpdate(
+            record: record,
+            oldRecord: oldRecord,
+            currentUserId: currentUserId
+        )
+
+        XCTAssertTrue(shouldIgnore, "self-echo must be recognised in the raw-array payload shape too")
     }
 
     private func makeBaseRecord(text: String) -> [String: AnyJSON] {

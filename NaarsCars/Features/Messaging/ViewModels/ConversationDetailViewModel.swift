@@ -589,8 +589,12 @@ final class ConversationDetailViewModel {
         ) { [weak self] notification in
             let userInfo = notification.userInfo as? [String: Any]
             let notifName = notification.name
+            // Carry the conversation id (the notification's object) across the hop;
+            // without it, handleConversationUpdatedImmediate cannot match this conversation.
+            let conversationIdObject = notification.object as? UUID
+                ?? (notification.object as? NSUUID).map { $0 as UUID }
             Task { @MainActor [weak self] in
-                let safeNotification = Notification(name: notifName, userInfo: userInfo)
+                let safeNotification = Notification(name: notifName, object: conversationIdObject, userInfo: userInfo)
                 self?.handleConversationUpdatedImmediate(safeNotification)
             }
         }
