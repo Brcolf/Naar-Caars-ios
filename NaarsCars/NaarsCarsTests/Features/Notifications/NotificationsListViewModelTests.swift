@@ -82,8 +82,7 @@ final class NotificationsListViewModelTests: XCTestCase {
     func testMarkAsRead_UpdatesNotification() async throws {
         // Given: An authenticated user and a notification
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // Fetch notifications directly since the ViewModel no longer exposes a list
@@ -93,8 +92,7 @@ final class NotificationsListViewModelTests: XCTestCase {
         )
         
         guard let unreadNotification = notifications?.first(where: { !$0.read }) else {
-            XCTSkip("No unread notifications to test")
-            return
+            throw XCTSkip("No unread notifications to test")
         }
         
         // When: Marking as read

@@ -48,8 +48,7 @@ final class TownHallServiceTests: XCTestCase {
     func testCreatePost_RateLimited() async throws {
         // Given: An authenticated user
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Creating first post
@@ -86,8 +85,7 @@ final class TownHallServiceTests: XCTestCase {
     func testCreatePost_ContentTooLong() async throws {
         // Given: Content exceeding 500 characters
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         let longContent = String(repeating: "a", count: 501)
@@ -114,8 +112,7 @@ final class TownHallServiceTests: XCTestCase {
     func testCreatePost_EmptyContent() async throws {
         // Given: Empty content
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Attempting to create post
@@ -140,8 +137,7 @@ final class TownHallServiceTests: XCTestCase {
     func testDeletePost_OnlyAuthorCanDelete() async throws {
         // Given: A post and a user who is not the author
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // First, create a post
@@ -169,8 +165,7 @@ final class TownHallServiceTests: XCTestCase {
     func testCreateSystemPost_Success() async throws {
         // Given: A user ID and system post content
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("No authenticated user for testing")
         }
         
         // When: Creating system post
