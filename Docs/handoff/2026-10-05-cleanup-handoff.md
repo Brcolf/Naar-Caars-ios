@@ -91,17 +91,17 @@ was done on the Mac in commits `e804569`…`7e6c363`:
   items (migration `20261005_0004`, the trigger/function drops, leaked-password
   protection) were declined by the MCP confirmation gate twice and remain manual.
 - **Closing run** (clean DerivedData, Xcode 26.6, headless iPhone 16 / iOS 26.5):
-  349 cases, 314 passed, 0 failed, 2 expected failures (strict `XCTExpectFailure` on the
-  two documented messaging deviations), 33 skipped; `xcodebuild` exit 0; 0 compile errors;
-  no build warning is attributable to any line added after `c921f14`. The review fix wave
-  also made CI runnable (dynamic simulator pick, `Secrets.isConfigured` in the template,
-  credentials test skips on placeholder secrets); the first green CI run is still pending.
-- **Two confirmed production bugs are NOT fixed** (fix was blocked in the Mac session;
-  needs the owner): `ConversationDetailViewModel` drops the `.conversationUpdated`
-  object when re-posting on the main actor, and `MessagingSyncEngine.shouldIgnoreReadByUpdate`
-  suppresses every `read_by`-only realtime update instead of only the current user's
-  echo. Both are documented with file:line and fix sketches in CLAUDE.md Audit Notes;
-  their two tests stay red on purpose.
+  352 cases, 319 passed, 0 failed, 0 expected failures, 33 skipped; `xcodebuild` exit 0;
+  0 compile errors; no build warning is attributable to any line added after `c921f14`.
+  The review fix wave also made CI runnable (dynamic simulator pick, `Secrets.isConfigured`
+  in the template, credentials test skips on placeholder secrets); the first green CI run
+  is still pending.
+- **The two production bugs found by the hardening pass are fixed** (`ee140ab`
+  read_by self-echo-only suppression in `MessagingSyncEngine`; `75f02fd` conversation id
+  carried across the main-actor hop in `ConversationDetailViewModel`), with their tests
+  green and three new readBy cases. Both need on-device confirmation with two accounts:
+  read receipts updating live in an open conversation, and edits/unsends/moderation hides
+  applying while the conversation is open.
 - **Still manual:** dead-file deletion in Xcode; the simulator checklist with a
   non-admin account; the three dashboard items above.
 
