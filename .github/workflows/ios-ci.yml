@@ -20,7 +20,6 @@ permissions:
 env:
   PROJECT: NaarsCars/NaarsCars.xcodeproj
   SCHEME: NaarsCars
-  DESTINATION: platform=iOS Simulator,name=iPhone 16
   DERIVED_DATA: build/DerivedData
 
 jobs:
@@ -101,6 +100,15 @@ jobs:
           fi
           plutil -lint "$TARGET"
 
+      - name: Pick an available iPhone simulator
+        # The macos-26 image does not necessarily ship an iPhone 16 runtime pairing, so pick
+        # the last available iPhone (sorted by name) from the installed iOS runtimes.
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); names=[dev["name"] for rt,devs in d["devices"].items() if "iOS" in rt for dev in devs if dev["name"].startswith("iPhone")]; print(sorted(names)[-1])')
+          if [ -z "$DEVICE" ]; then echo "::error::No available iPhone simulator"; xcrun simctl list devices available; exit 1; fi
+          echo "Using simulator: $DEVICE"
+          echo "DESTINATION=platform=iOS Simulator,name=$DEVICE" >> "$GITHUB_ENV"
+
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project "$PROJECT" -scheme "$SCHEME" -derivedDataPath "$DERIVED_DATA"
 
@@ -109,7 +117,7 @@ jobs:
           set -o pipefail
           xcodebuild build-for-testing \
             -project "$PROJECT" -scheme "$SCHEME" \
-            -destination "$DESTINATION" \
+            -destination "${{ env.DESTINATION }}" \
             -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/build.log | grep -E 'error:|warning:|BUILD (SUCCEEDED|FAILED)' || true
@@ -130,7 +138,7 @@ jobs:
           set -o pipefail
           xcodebuild test-without-building \
             -project "$PROJECT" -scheme "$SCHEME" \
-            -destination "$DESTINATION" \
+            -destination "${{ env.DESTINATION }}" \
             -derivedDataPath "$DERIVED_DATA" \
             -skip-testing:NaarsCarsUITests \
             -parallel-testing-enabled NO \
