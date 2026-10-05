@@ -10,8 +10,12 @@ Visually verify the SwiftUI view `$ARGUMENTS`. Report only; do not edit code in 
 **Lane A — Xcode MCP (use when the `xcode` MCP tools are available):**
 1. `XcodeListWindows` → `tabIdentifier` for the NaarsCars window. If none, fall back to Lane B and say why.
 2. `BuildProject` with `scheme: "NaarsCars"`; `GetBuildLog` with `severity: "error"`. On errors, stop and list them. Never snapshot an unbuilt view.
-3. `RenderPreview` with `filePath` = the view's absolute path (and `previewName` if the file has several). Read `supportedPreviewVariantOverrides` from the result.
-4. Render again with `previewVariantOverrides` for: dark appearance; the largest accessibility type size offered; landscape only if the view is a full screen that rotates (not sheets, cards, rows). Use the group and variant names exactly as step 3 returned them.
+3. `RenderPreview` with `sourceFilePath` = the view's project-navigator path (e.g. `NaarsCars/UI/Components/Common/NotificationBadge.swift`; find it with `XcodeGlob`), `previewDefinitionIndexInFile` if the file has several previews, and `timeout: 600`. Read the PNG at `previewSnapshotPath`. If the first render fails with "Updating took more than 5 seconds", retry once; the preview host is cold after Xcode opens.
+4. Render again with `previewVariantOverrides` for dark appearance, then for the largest accessibility type size, and landscape only if the view is a full screen that rotates (not sheets, cards, rows). The exact group and value names (Xcode 26.6):
+   - `"Color Scheme"`: `"Light Appearance"` | `"Dark Appearance"`
+   - `"Dynamic Type"`: `"X Small"` | `"Small"` | `"Medium"` | `"Large"` | `"X Large"` | `"XX Large"` | `"XXX Large"` | `"AX 1"` | `"AX 2"` | `"AX 3"` | `"AX 4"` | `"AX 5"`
+   - `"Orientation"`: `"Portrait"` | `"Landscape Left"` | `"Landscape Right"`
+   Dark: `{"Color Scheme": "Dark Appearance"}`. Largest text: `{"Dynamic Type": "AX 5"}`. Landscape: `{"Orientation": "Landscape Left"}`. If the result's `supportedPreviewVariantOverrides` ever differs from this list, use what it returned and update this file.
 
 **Lane B — headless (Xcode closed; use when MCP is unavailable or the view is UIKit):**
 1. `xcodebuild -project NaarsCars/NaarsCars.xcodeproj -scheme NaarsCars -sdk iphonesimulator -configuration Debug -derivedDataPath build/DerivedData -quiet build`. On errors, stop and list them.
