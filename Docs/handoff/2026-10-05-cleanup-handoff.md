@@ -218,6 +218,17 @@ Do the merge in a scratch branch and leave it for a Mac build before merging to 
 
 ## Needs the Supabase dashboard
 
+> **Do not use `supabase db push` on this project.** The repo's migration files are named
+> `YYYYMMDD_XXXX_description.sql`; the CLI reads the version as the 8-digit date, while the
+> remote `schema_migrations` table holds 14-digit timestamps, so `supabase migration list
+> --linked` shows dozens of long-applied files as "local only" and `db push` would try to
+> re-run them. The Supabase MCP in a Code-tab session declines `CREATE OR REPLACE` / `DROP`
+> (its confirmation never surfaces there), so the remaining SQL goes through the dashboard
+> SQL editor or an interactive terminal `claude` session where the MCP confirmation appears.
+> Renaming the files to 14-digit timestamps (and reconciling the remote table) is a
+> separate, careful follow-up.
+
+
 - Run `supabase/migrations/20261005_0004_function_caller_guards.sql` in the SQL editor
   (admin guard on `send_approval_notification`, self-only typing RPCs). The MCP holds
   `CREATE OR REPLACE` for interactive confirmation, so it could not be applied here.
