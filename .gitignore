@@ -42,4 +42,12 @@ GoogleService-Info.plist
 # MCP config
 .mcp.json
 
+# Apple signing material (also blocked by scripts/pre-commit-secrets-check.sh)
+*.p12
+*.key
 
+# Supabase CLI scratch state (contains project ref and pooler URL)
+supabase/.temp/
+
+# Stray lockfile from a one-off npm invocation; nothing in this repo uses npm
+package-lock.json
