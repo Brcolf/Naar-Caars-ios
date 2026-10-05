@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
     } catch {
       pemString = privateKeyPem!;
     }
-    // Handle literal "\n" from env vars set via CLI
+    // Handle literal "\\n" from env vars set via CLI
     pemString = pemString.replace(/\\n/g, "\n");
     const pemClean = pemString
       .replace(/-----BEGIN PRIVATE KEY-----/, "")

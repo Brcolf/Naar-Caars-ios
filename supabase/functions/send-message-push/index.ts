@@ -5,6 +5,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { corsHeaders, sendAPNsPush, resolveEventType, resolveTableName, processBatch } from '../_shared/apns.ts'
+import { isAuthorizedWebhookRequest, unauthorizedResponse } from '../_shared/webhookAuth.ts'
 import { getBadgeCount, getBadgeCountsBatch } from '../_shared/badges.ts'
 import { NOTIFICATION_TYPES } from '../_shared/notificationTypes.ts'
 
@@ -35,12 +36,19 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase environment variables')
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Accept either the service-role key as a bearer token (manual / cron callers) or the
+    // Vault-backed shared secret that database webhooks send in x-webhook-secret.
+    // See _shared/webhookAuth.ts and migration 20261005_0002_webhook_shared_secret.sql.
+    if (!(await isAuthorizedWebhookRequest(req, supabase, supabaseServiceKey))) {
+      return unauthorizedResponse(corsHeaders)
+    }
 
     // Parse request body - handle both JSON and form data
     let payload: any
@@ -192,10 +200,19 @@ serve(async (req) => {
         )
       }
 
-      // Filter out users who are actively viewing
-      const activeRecipients = participants.filter(p => {
+      // Filter out users who muted this conversation (SEC-11) or are actively viewing it.
+      const now = Date.now()
+      const viewableParticipants = participants.filter(p => {
+        if (p.notifications_muted === true) {
+          console.log(`⏭️ Skipping push for user ${p.user_id} - conversation muted`)
+          return false
+        }
+        if (p.muted_until && new Date(p.muted_until).getTime() > now) {
+          console.log(`⏭️ Skipping push for user ${p.user_id} - muted until ${p.muted_until}`)
+          return false
+        }
         if (!p.last_seen) return true
-        const secondsSinceLastSeen = (Date.now() - new Date(p.last_seen).getTime()) / 1000
+        const secondsSinceLastSeen = (now - new Date(p.last_seen).getTime()) / 1000
         if (secondsSinceLastSeen < 60) {
           console.log(`⏭️ Skipping push for user ${p.user_id} - viewed ${secondsSinceLastSeen.toFixed(1)}s ago`)
           return false
@@ -203,19 +220,20 @@ serve(async (req) => {
         return true
       })
 
-      // Filter out muted recipients
-      const now = new Date().toISOString()
-      const eligibleParticipants = activeRecipients.filter(p => {
-        if (p.notifications_muted) {
-          console.log(`🔇 Skipping push for user ${p.user_id} - notifications muted`)
-          return false
+      // Drop recipients who have blocked the sender (SEC-12): the sender's name +
+      // message preview must not reach a blocking user's lock screen out-of-band.
+      let eligibleParticipants = viewableParticipants
+      if (viewableParticipants.length > 0) {
+        const { data: blockers } = await supabase
+          .from('blocked_users')
+          .select('blocker_id')
+          .eq('blocked_id', sender_id)
+          .in('blocker_id', viewableParticipants.map(p => p.user_id))
+        if (blockers && blockers.length > 0) {
+          const blockerSet = new Set(blockers.map(b => b.blocker_id))
+          eligibleParticipants = viewableParticipants.filter(p => !blockerSet.has(p.user_id))
         }
-        if (p.muted_until && p.muted_until > now) {
-          console.log(`🔇 Skipping push for user ${p.user_id} - muted until ${p.muted_until}`)
-          return false
-        }
-        return true
-      })
+      }
 
       // Pre-fetch badge counts and push tokens for all eligible recipients in batch
       const recipientIds = eligibleParticipants.map(p => p.user_id)
@@ -230,9 +248,7 @@ serve(async (req) => {
       // Add skipped users
       for (const p of participants) {
         if (!eligibleParticipants.find(e => e.user_id === p.user_id)) {
-          const isMuted = p.notifications_muted || (p.muted_until && p.muted_until > now)
-          const reason = isMuted ? 'muted' : 'user_viewing'
-          allPushResults.push({ recipient: p.user_id, skipped: true, reason })
+          allPushResults.push({ recipient: p.user_id, skipped: true, reason: 'user_viewing' })
         }
       }
 
@@ -273,6 +289,7 @@ serve(async (req) => {
     console.log(`📨 Processing push notification for user ${recipient_user_id}, conversation ${conversation_id}`)
 
     // Double-check if recipient is actively viewing or muted
+    // Check if recipient is actively viewing the conversation
     const { data: participant, error: participantError } = await supabase
       .from('conversation_participants')
       .select('last_seen, notifications_muted, muted_until')
@@ -282,25 +299,18 @@ serve(async (req) => {
 
     if (participantError) {
       console.error('Error checking participant:', participantError)
-    } else {
-      // Check mute status
-      if (participant?.notifications_muted) {
-        console.log(`🔇 Skipping push - user has notifications muted`)
+    } else if (participant) {
+      // Muted conversation (SEC-11)
+      if (participant.notifications_muted === true ||
+          (participant.muted_until && new Date(participant.muted_until).getTime() > Date.now())) {
+        console.log('⏭️ Skipping push - conversation muted')
         return new Response(
           JSON.stringify({ skipped: true, reason: 'muted' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-      if (participant?.muted_until && participant.muted_until > new Date().toISOString()) {
-        console.log(`🔇 Skipping push - user muted until ${participant.muted_until}`)
-        return new Response(
-          JSON.stringify({ skipped: true, reason: 'muted' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Check active viewing
-      if (participant?.last_seen) {
+      // Actively viewing
+      if (participant.last_seen) {
         const secondsSinceLastSeen = (Date.now() - new Date(participant.last_seen).getTime()) / 1000
         if (secondsSinceLastSeen < 60) {
           console.log(`⏭️ Skipping push - user viewed conversation ${secondsSinceLastSeen.toFixed(1)}s ago`)
@@ -310,6 +320,22 @@ serve(async (req) => {
           )
         }
       }
+    }
+
+    // Skip if the recipient has blocked the sender (SEC-12): don't deliver the
+    // sender's name/preview to a blocking user's lock screen.
+    const { data: blockRow } = await supabase
+      .from('blocked_users')
+      .select('blocker_id')
+      .eq('blocker_id', recipient_user_id)
+      .eq('blocked_id', sender_id)
+      .maybeSingle()
+    if (blockRow) {
+      console.log('⏭️ Skipping push - recipient has blocked the sender')
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'blocked' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Get badge count for this user
