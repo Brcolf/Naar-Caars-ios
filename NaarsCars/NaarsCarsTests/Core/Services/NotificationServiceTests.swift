@@ -24,8 +24,7 @@ final class NotificationServiceTests: XCTestCase {
         // In a real scenario, you'd mock the Supabase client
         
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("Requires an authenticated session: NotificationService calls the live Supabase backend")
         }
         
         // When: Fetching notifications
@@ -60,8 +59,7 @@ final class NotificationServiceTests: XCTestCase {
         // In a real scenario, you'd mock the Supabase client
         
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("Requires an authenticated session: NotificationService calls the live Supabase backend")
         }
         
         // First, fetch notifications to get a notification ID
@@ -69,8 +67,7 @@ final class NotificationServiceTests: XCTestCase {
             let notifications = try await notificationService.fetchNotifications(userId: userId)
             
             guard let unreadNotification = notifications.first(where: { !$0.read }) else {
-                XCTSkip("No unread notifications to test")
-                return
+                throw XCTSkip("No unread notifications to test")
             }
             
             // When: Marking as read
@@ -84,6 +81,8 @@ final class NotificationServiceTests: XCTestCase {
             } else {
                 XCTFail("Could not find updated notification")
             }
+        } catch let skip as XCTSkip {
+            throw skip
         } catch {
             // If this fails due to authentication or network, that's expected in unit tests
             XCTFail("Failed to mark notification as read: \(error.localizedDescription)")
@@ -94,8 +93,7 @@ final class NotificationServiceTests: XCTestCase {
     func testFetchUnreadCount_ReturnsCorrectCount() async throws {
         // Given: A user ID
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("Requires an authenticated session: NotificationService calls the live Supabase backend")
         }
         
         // When: Fetching unread count
@@ -118,8 +116,7 @@ final class NotificationServiceTests: XCTestCase {
     func testMarkAllAsRead_Success() async throws {
         // Given: A user ID
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("Requires an authenticated session: NotificationService calls the live Supabase backend")
         }
         
         // When: Marking all as read

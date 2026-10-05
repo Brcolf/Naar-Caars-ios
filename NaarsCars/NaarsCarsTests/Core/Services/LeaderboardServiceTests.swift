@@ -19,6 +19,9 @@ final class LeaderboardServiceTests: XCTestCase {
     
     /// Test that fetchLeaderboard returns entries ordered by XP
     func testFetchLeaderboard_OrderedByXP() async throws {
+        guard AuthService.shared.currentUserId != nil else {
+            throw XCTSkip("Requires an authenticated session: LeaderboardService calls the live Supabase backend")
+        }
         // Given: A request to fetch leaderboard
         // Note: This test requires a real Supabase connection and database function
 
@@ -43,6 +46,9 @@ final class LeaderboardServiceTests: XCTestCase {
 
     /// Test that fetchSpotlights returns valid, deduplicated spotlight entries
     func testFetchSpotlights() async throws {
+        guard AuthService.shared.currentUserId != nil else {
+            throw XCTSkip("Requires an authenticated session: LeaderboardService calls the live Supabase backend")
+        }
         do {
             let spotlights = try await leaderboardService.fetchSpotlights(period: .allTime)
 
@@ -68,8 +74,7 @@ final class LeaderboardServiceTests: XCTestCase {
     func testFindUserRank_NotInTop50() async throws {
         // Given: An authenticated user
         guard let userId = AuthService.shared.currentUserId else {
-            XCTSkip("No authenticated user for testing")
-            return
+            throw XCTSkip("Requires an authenticated session: LeaderboardService calls the live Supabase backend")
         }
         
         // When: Finding user rank
@@ -91,11 +96,13 @@ final class LeaderboardServiceTests: XCTestCase {
     
     /// Test that leaderboard badges and user badges are consistent
     func testBadgeConsistency() async throws {
+        guard AuthService.shared.currentUserId != nil else {
+            throw XCTSkip("Requires an authenticated session: LeaderboardService calls the live Supabase backend")
+        }
         do {
             let entries = try await leaderboardService.fetchLeaderboard(period: .allTime)
             guard let firstEntry = entries.first else {
-                XCTSkip("No leaderboard entries to test")
-                return
+                throw XCTSkip("No leaderboard entries to test")
             }
             let userBadges = try await leaderboardService.fetchUserBadges(userId: firstEntry.userId)
             // All-time leaderboard badges should be subset of all-time user badges
@@ -103,6 +110,8 @@ final class LeaderboardServiceTests: XCTestCase {
                 XCTAssertTrue(userBadges.contains(badge),
                               "Leaderboard badge \(badge.rawValue) not found in user badges")
             }
+        } catch let skip as XCTSkip {
+            throw skip
         } catch {
             XCTFail("Badge consistency test failed: \(error.localizedDescription)")
         }
