@@ -1,9 +1,9 @@
 -- 20261005_0004_function_caller_guards.sql
 --
--- STATUS: NOT YET APPLIED TO PRODUCTION (as of 2026-10-05).
--- Run this file from the Supabase SQL editor. The MCP execute_sql / apply_migration
--- tools hold CREATE OR REPLACE statements for interactive confirmation, which is not
--- available from a headless session, so these caller guards could not be applied there.
+-- STATUS: APPLIED TO PRODUCTION on 2026-10-05 from the Supabase SQL editor (recorded as
+-- version 20261005000400 by the insert at the bottom of this file). The MCP
+-- apply_migration tool declines CREATE OR REPLACE in Code-tab sessions, which is why it
+-- was run by hand.
 --
 -- What it does:
 --   * send_approval_notification(): only admins may call it (the iOS admin flow does).

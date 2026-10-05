@@ -229,12 +229,9 @@ Do the merge in a scratch branch and leave it for a Mac build before merging to 
 > separate, careful follow-up.
 
 
-- Run `supabase/migrations/20261005_0004_function_caller_guards.sql` in the SQL editor
-  (admin guard on `send_approval_notification`, self-only typing RPCs). The MCP holds
-  `CREATE OR REPLACE` for interactive confirmation, so it could not be applied here.
-- Drop the disabled key-embedding triggers once you have seen a push arrive:
-  `drop trigger "notifcation-queue-processor" on public.notification_queue;`
-  `drop trigger message_push_webhook on public.messages;` and
+- DONE 2026-10-05 (SQL editor, verified live): `20261005_0004_function_caller_guards.sql`
+  applied; `notifcation-queue-processor` and `message_push_webhook` dropped. Not dropped
+  (optional, already neutralised by `20261005_0001`):
   `drop function public.upsert_profile_for_signup(uuid, text, text, text, uuid);`
 - Auth → Password security: enable leaked-password protection.
 - **Rotate the service-role credential.** The legacy service_role JWT was committed in
