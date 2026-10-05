@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Supabase
 import SwiftData
 
 @MainActor
@@ -124,7 +125,14 @@ final class MessagingSyncEngine: SyncEngineProtocol {
 #endif
         if event.eventType == .update,
            let oldRecord = event.oldRecord,
-           Self.shouldIgnoreReadByUpdate(record: event.record, oldRecord: oldRecord) {
+           Self.shouldIgnoreReadByUpdate(
+               record: event.record,
+               oldRecord: oldRecord,
+               currentUserId: authService.currentUserId
+           ) {
+            // Only our own read receipt echoing back is dropped here. Another member's
+            // read_by-only update must reach the repository so it lands on the
+            // `.metadataOnly` path (metadata publisher, no full list rebuild).
             return
         }
         guard let message = MessagingMapper.parseMessage(from: event.record) else {
@@ -444,10 +452,18 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         )
     }
 
+    /// True only for the current user's own read receipt echoing back over realtime
+    /// (nothing but `read_by`/`updated_at` changed, and the only difference in `read_by`
+    /// is that `currentUserId` was added). Every other update, including another
+    /// member's read receipt, returns false so it reaches the repository and the
+    /// lightweight `.metadataOnly` path. A nil `currentUserId` never ignores.
     static func shouldIgnoreReadByUpdate(
         record: [String: Any],
-        oldRecord: [String: Any]
+        oldRecord: [String: Any],
+        currentUserId: UUID?
     ) -> Bool {
+        guard let currentUserId else { return false }
+
         var strippedRecord = record
         strippedRecord.removeValue(forKey: "read_by")
         strippedRecord.removeValue(forKey: "updated_at")
@@ -457,7 +473,36 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         strippedOldRecord.removeValue(forKey: "updated_at")
 
         let lhs = strippedRecord as NSDictionary
-        return lhs.isEqual(to: strippedOldRecord)
+        guard lhs.isEqual(to: strippedOldRecord) else { return false }
+
+        let oldReadBy = readBySet(oldRecord["read_by"])
+        let newReadBy = readBySet(record["read_by"])
+        let added = newReadBy.subtracting(oldReadBy)
+        let removed = oldReadBy.subtracting(newReadBy)
+        return removed.isEmpty && added == [currentUserId]
+    }
+
+    /// Defensive decode of a realtime `read_by` value: accepts an `AnyJSON` array of
+    /// strings or a raw `[Any]` of strings/UUIDs (payload shapes vary); anything else is empty.
+    private static func readBySet(_ value: Any?) -> Set<UUID> {
+        var ids = Set<UUID>()
+        func add(_ item: Any) {
+            switch item {
+            case let uuid as UUID: ids.insert(uuid)
+            case let raw as String: if let uuid = UUID(uuidString: raw) { ids.insert(uuid) }
+            case let json as AnyJSON: if case let .string(raw) = json, let uuid = UUID(uuidString: raw) { ids.insert(uuid) }
+            default: break
+            }
+        }
+        switch value {
+        case let json as AnyJSON:
+            if case let .array(items) = json { items.forEach { add($0) } }
+        case let items as [Any]:
+            items.forEach { add($0) }
+        default:
+            break
+        }
+        return ids
     }
 
     private func precacheMedia(url: String) {
