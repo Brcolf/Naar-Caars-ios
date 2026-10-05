@@ -19,6 +19,8 @@ final class InAppToastManagerTests: XCTestCase {
         )
 
         let currentUserId = UUID()
+        let previousUserId = AuthService.shared.currentUserId
+        addTeardownBlock { @MainActor in AuthService.shared.currentUserId = previousUserId }
         AuthService.shared.currentUserId = currentUserId
 
         let senderId = UUID()
