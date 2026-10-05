@@ -17,22 +17,20 @@ final class MyProfileViewModelTests: XCTestCase {
         viewModel = MyProfileViewModel()
     }
     
-    func testLoadProfile_Success_SetsAllProperties() async {
-        // This test requires a real Supabase connection or mocked service
-        // For now, we'll test the structure
-        
-        let testUserId = UUID()
-        
-        // Load profile (will attempt network call)
-        await viewModel.loadProfile(userId: testUserId)
-        
-        // Verify loading state changes
-        // In a successful case, isLoading should be false after loading
-        // Note: This test may need mocking for reliable results
-        
-        // Verify properties are accessible
+    func testLoadProfile_Success_SetsAllProperties() async throws {
+        // loadProfile fetches through the live ProfileService (`profiles` / `public_profiles`
+        // with `.single()`), so it can only succeed for a user that exists on the backend.
+        // A random UUID always makes fetchProfile throw and leaves `profile` nil.
+        guard let userId = AuthService.shared.currentUserId else {
+            throw XCTSkip("No authenticated user for testing: loadProfile needs a live Supabase session and an existing profile row")
+        }
+
+        await viewModel.loadProfile(userId: userId)
+
+        XCTAssertNil(viewModel.error, "loadProfile should not surface an error for the signed-in user")
         XCTAssertNotNil(viewModel.profile)
-        XCTAssertNotNil(viewModel.reviews)
+        XCTAssertEqual(viewModel.profile?.id, userId)
+        XCTAssertFalse(viewModel.isLoading)
     }
 }
 
