@@ -514,6 +514,8 @@ If the anon key needs rotation:
 
 **Credential rotation required (2026-10-05):** a production `service_role` key was committed to a markdown file in this repository. The file has been redacted, but the key remains in git history and must be treated as compromised and rotated. Recommended path: migrate the app to the `sb_publishable_...` key (and edge functions / webhooks to `sb_secret_...`), then disable the legacy JWT-based keys in the Supabase dashboard. Disabling the legacy keys also invalidates the legacy anon key embedded in the shipped app, so a client release following the steps above must be live before the legacy keys are turned off.
 
+**Update (2026-10-05):** the client moved to the publishable key (`sb_publishable_...`) on 2026-10-05. The legacy `service_role` JWT must be rotated by disabling the legacy keys in the Supabase API settings once the publishable-key build has shipped. Nothing server-side depends on it (webhooks use the Vault secret).
+
 ### 3.3 What NOT to Store Client-Side
 
 Never store in the iOS app:

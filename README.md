@@ -52,14 +52,16 @@ naars-cars-ios/
 ### Prerequisites
 - macOS 15.6+ (required by Xcode 26)
 - Xcode 26.6
-- Supabase project credentials (URL + anon key)
+- Supabase project credentials (URL + publishable key)
 - Apple Developer account (for signing real devices / TestFlight)
 
 ### Secrets Setup (required — the build will fail without it)
 
 1. Copy `NaarsCars/Core/Utilities/Secrets.swift.template` → `NaarsCars/Core/Utilities/Secrets.swift`.
-2. Run `swift NaarsCars/Scripts/obfuscate.swift` to generate obfuscated byte arrays for the Supabase URL and anon key.
+2. Run `swift NaarsCars/Scripts/obfuscate.swift` to generate obfuscated byte arrays for the Supabase URL and the publishable key. The value to obfuscate is the publishable key (`sb_publishable_...`) from Supabase → Project Settings → API keys. The property is still named `supabaseAnonKey` for source compatibility.
 3. Paste the generated arrays into `Secrets.swift`.
+
+Legacy JWT keys (anon and service_role) stay enabled until a build using the publishable key has shipped; the live App Store build still uses the legacy anon key.
 
 `Secrets.swift` is gitignored, and `scripts/pre-commit-secrets-check.sh` blocks commits that contain it (or `GoogleService-Info.plist`, or any `*.p8`/`*.p12`/`*.key`).
 

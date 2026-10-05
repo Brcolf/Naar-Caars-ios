@@ -5,7 +5,7 @@
 //
 //  Helper script to obfuscate Supabase credentials for Secrets.swift
 //  Usage: swift Scripts/obfuscate.swift "your-url" "your-publishable-key"
-//  Note: Supabase publishable key is the same as anon key
+//  The second argument is the Supabase publishable key (sb_publishable_...), not the legacy anon JWT.
 //
 
 import Foundation
@@ -35,8 +35,8 @@ func formatBytes(_ bytes: [UInt8]) -> String {
 
 guard CommandLine.arguments.count == 3 else {
     print("Usage: swift Scripts/obfuscate.swift \"<supabase-url>\" \"<publishable-key>\"")
-    print("Example: swift Scripts/obfuscate.swift \"https://xxxxx.supabase.co\" \"eyJhbGc...\"")
-    print("Note: Supabase publishable key is the same as anon key")
+    print("Example: swift Scripts/obfuscate.swift \"https://xxxxx.supabase.co\" \"sb_publishable_...\"")
+    print("The key is the Supabase publishable key (sb_publishable_...) from Project Settings > API keys.")
     exit(1)
 }
 
@@ -54,7 +54,7 @@ print("private static let urlBytes: [UInt8] = [")
 print("    \(formatBytes(obfuscatedURL))")
 print("]")
 print()
-print("// Obfuscated Supabase publishable key (same as anon key)")
+print("// Obfuscated Supabase publishable key (sb_publishable_...)")
 print("private static let publishableKeyBytes: [UInt8] = [")
 print("    \(formatBytes(obfuscatedPublishableKey))")
 print("]")
