@@ -33,7 +33,6 @@ struct ConversationDetailView: View {
     @State private var newMessageIds: Set<UUID> = []
     @State private var scrollProxy: ScrollViewProxy?
     @State private var isAtBottom = true
-    @State private var anchorMessageId: UUID? // Used to preserve scroll position during pagination
     
     // Reply state
     @State private var replyingToMessage: ReplyContext?
@@ -742,60 +741,6 @@ struct ConversationDetailView: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private var messagesHeaderView: some View {
-        // Pagination trigger at top of conversation
-        Color.clear
-            .frame(height: 2)
-            .onAppear {
-                if viewModel.hasMoreMessages && !viewModel.messages.isEmpty && !viewModel.isLoadingMore {
-                    // Save the first visible message ID so we can scroll back to it after loading
-                    anchorMessageId = viewModel.messages.first?.id
-                    AppLogger.info("messaging", "[ConversationDetail] Reached top, loading more messages")
-                    Task {
-                        await viewModel.loadMoreMessages()
-                    }
-                }
-            }
-
-        if viewModel.isLoadingMore {
-            ProgressView()
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
-        }
-
-        // No more messages indicator
-        if !viewModel.hasMoreMessages && !viewModel.messages.isEmpty {
-            VStack(spacing: Constants.Spacing.sm) {
-                Image(systemName: "lock.fill")
-                    .font(.naarsFootnote)
-                    .foregroundColor(.secondary)
-                Text("messaging_beginning_of_conversation".localized)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 20)
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    // messagesBodyView removed — replaced by native UIKit cells in MessagesCollectionView
-
-    
-
-    private var messagesBottomSpacerView: some View {
-        Color.clear
-            .frame(height: 1)
-            .id(threadBottomAnchorId)
-            .onAppear {
-                isAtBottom = true
-                showScrollToBottom = false
-            }
-            .onDisappear {
-                isAtBottom = false
-            }
     }
 
     // MARK: - Thread
