@@ -222,9 +222,10 @@ Do the merge in a scratch branch and leave it for a Mac build before merging to 
 > `YYYYMMDD_XXXX_description.sql`; the CLI reads the version as the 8-digit date, while the
 > remote `schema_migrations` table holds 14-digit timestamps, so `supabase migration list
 > --linked` shows dozens of long-applied files as "local only" and `db push` would try to
-> re-run them. The Supabase MCP in a Code-tab session declines `CREATE OR REPLACE` / `DROP`
-> (its confirmation never surfaces there), so the remaining SQL goes through the dashboard
-> SQL editor or an interactive terminal `claude` session where the MCP confirmation appears.
+> re-run them. The Supabase MCP in a Code-tab session applies `CREATE OR REPLACE FUNCTION`
+> (one function per call), `ALTER POLICY`, `REVOKE` / `GRANT` and triggers, and declines
+> `DROP POLICY`, bare `DELETE` statements and function bodies that delete from `auth.*` or
+> `storage.*`. The declined SQL goes through the dashboard SQL editor.
 > Renaming the files to 14-digit timestamps (and reconciling the remote table) is a
 > separate, careful follow-up.
 
@@ -233,6 +234,47 @@ Do the merge in a scratch branch and leave it for a Mac build before merging to 
   applied; `notifcation-queue-processor` and `message_push_webhook` dropped. Not dropped
   (optional, already neutralised by `20261005_0001`):
   `drop function public.upsert_profile_for_signup(uuid, text, text, text, uuid);`
+- DONE 2026-10-05 evening (Supabase MCP `apply_migration`, one function per call):
+  `20261005_0005` (participants INSERT policy without recursion), `0006` (reminder cap +
+  blocked-sender badge filter), `0007` (nightly `expire_past_open_requests()` 03:15),
+  `0009` (snooze parity for the cap), `0010` (time-less favors expire from midnight),
+  `0011` (`complete_request` RPC behind Mark as Complete).
+- DONE 2026-10-05 late evening (Supabase MCP, each change verified with a rolled-back probe
+  run as a signed-in user): `20261005_0012` (one thread per member set), `0013`
+  (`public_profiles` read-only, typing names for non-admins), `0014` (profile insert cannot
+  self-grant admin/approved), `0015` (conversation membership write lockdown), `0016`
+  (conversation list returns public profile fields only; preview follows message
+  visibility), `0017` (read-receipt and reply RPC membership/active gates), `0018`
+  (completion response validates the request; reminders read-only), `0019` (notification
+  RPC hardening), `0020` (RLS helpers answer only for the caller), `0021` (report
+  de-duplication, throttle, no direct inserts), `0023` (edit gate), `0024` (moderation log
+  accepts foreign-key clean-up, which had been blocking account deletion for some users).
+  What each one fixed is in `Docs/qa/2026-10-05-simulator-ux-performance-review.md` §8.3;
+  the resulting client contract is in `CLAUDE.md` under Audit Notes.
+- **UPDATE 2026-10-06: all four files below are live.** Each deployed function body is identical to its file and each was confirmed with a rolled-back probe (see the file headers). What remains is the real-device Sign in with Apple test and step 2 of `0026`, (`20261006_0006`, closing direct address reads from the tables, was applied the same day). The original list follows for the record.
+- **(Historical) Needed the SQL editor, in this order.** Paste each file as one statement, then
+  record it here.
+  1. `20261005_0008_account_deletion_fk_fixes.sql` — **account deletion fails for every user
+     today.** The deployed `delete_user_account()` deletes from `storage.objects` directly and
+     a storage platform trigger rejects that, so the whole RPC rolls back (it has since
+     `20260717213033`). The file sets the storage flag around its delete inside a sub-block
+     that can never abort deletion, matches objects by owner (the old name predicates never
+     matched: object names carry upper-case UUIDs), clears the two NO ACTION foreign keys
+     (`conversation_participants.added_by`, `profiles.banned_by`) and hands groups with two
+     or more remaining members to another member. Afterwards test with throwaway accounts,
+     including an admin who has moderated. Client follow-up: `ProfileService.deleteAccount`
+     revokes the Apple token before the RPC; reorder once deletion can be tested.
+  2. `20261005_0025_admin_reject_pending_user_null_safe.sql` — critical. A signed-in caller
+     with no profile row passes the admin check and can delete every pending applicant.
+  3. `20261005_0022_reports_reporter_privacy.sql` — drops the policy that lets a reported
+     user read the reporter's id and description.
+  4. `20261005_0026_link_apple_identity_interim_hardening.sql` — high. Needs a real-device
+     Sign in with Apple test before and after (link, sign out, sign in with Apple, unlink).
+- The `.claude/settings.local.json` on the Mac holds a plaintext legacy service_role JWT in
+  an allow rule — remove it; it is covered by the rotation below.
+- Test data to delete (SQL in the QA report, Parts 6 and 8.7): the duplicate Alice threads
+  if you want them merged, the evening's test messages, and four Town Hall posts created by
+  signed-in unit runs.
 - Auth → Password security: enable leaked-password protection.
 - **Rotate the service-role credential.** The legacy service_role JWT was committed in
   `WEBHOOK_CONFIG.md` (now redacted, still in history). Recommended path: move the app
