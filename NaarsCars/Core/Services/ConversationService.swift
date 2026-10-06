@@ -349,6 +349,7 @@ final class ConversationService {
             .from("conversation_participants")
             .select("conversation_id")
             .eq("user_id", value: userId.uuidString)
+            .is("left_at", value: nil)
             .execute()
         
         struct ParticipantRow: Codable {
@@ -383,6 +384,8 @@ final class ConversationService {
             .from("conversation_participants")
             .select("conversation_id, user_id")
             .in("conversation_id", values: candidateIds)
+            // Thread identity is the active member set, as in find_dm_conversation
+            .is("left_at", value: nil)
             .execute()
 
         if let allData = allParticipantsResponse?.data,
