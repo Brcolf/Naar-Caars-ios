@@ -332,7 +332,7 @@ final class ProfileService {
                 let destination: String
             }
             let rides: [RideTitle] = try await supabase
-                .from("rides")
+                .from(supabase.ridesReadSource)
                 .select("id, pickup, destination")
                 .in("id", values: rideIds.map(\.uuidString))
                 .execute()
@@ -351,7 +351,7 @@ final class ProfileService {
                 let title: String
             }
             let favors: [FavorTitle] = try await supabase
-                .from("favors")
+                .from(supabase.favorsReadSource)
                 .select("id, title")
                 .in("id", values: favorIds.map(\.uuidString))
                 .execute()
@@ -451,7 +451,7 @@ final class ProfileService {
     func fetchFulfilledCount(userId: UUID) async throws -> Int {
         // Count confirmed/completed rides
         let ridesResponse = try await supabase
-            .from("rides")
+            .from(supabase.ridesReadSource)
             .select("id", head: true, count: .exact)
             .eq("claimed_by", value: userId.uuidString)
             .in("status", values: ["confirmed", "completed"])
@@ -461,7 +461,7 @@ final class ProfileService {
         
         // Count confirmed/completed favors
         let favorsResponse = try await supabase
-            .from("favors")
+            .from(supabase.favorsReadSource)
             .select("id", head: true, count: .exact)
             .eq("claimed_by", value: userId.uuidString)
             .in("status", values: ["confirmed", "completed"])

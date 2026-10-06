@@ -41,7 +41,7 @@ final class FavorService {
     ) async throws -> [Favor] {
         // Build query
         var query = supabase
-            .from("favors")
+            .from(supabase.favorsReadSource)
             .select()
 
         // Apply filters
@@ -81,7 +81,7 @@ final class FavorService {
         // poster, comes back as zero rows; `.single()` turned that into a raw PostgREST error
         // that the detail screen showed with a Retry that could never succeed.
         let response = try await supabase
-            .from("favors")
+            .from(supabase.favorsReadSource)
             .select()
             .eq("id", value: id.uuidString)
             .limit(1)

@@ -227,3 +227,15 @@ final class SupabaseService: ObservableObject {
 
 }
 
+
+// MARK: - Guest read sources
+
+extension SupabaseClient {
+    /// Relation to read rides from. A guest has no session, so the request goes out as the
+    /// `anon` role and reads `guest_rides`: the same rows and columns with pickup and
+    /// destination blanked on the server (`20261006_0005`). Writes always use `rides`.
+    var ridesReadSource: String { auth.currentSession == nil ? "guest_rides" : "rides" }
+
+    /// Relation to read favors from. `guest_favors` blanks `location` for guests.
+    var favorsReadSource: String { auth.currentSession == nil ? "guest_favors" : "favors" }
+}

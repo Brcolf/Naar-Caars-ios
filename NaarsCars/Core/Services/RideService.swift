@@ -42,7 +42,7 @@ final class RideService {
     ) async throws -> [Ride] {
         // Build query
         var query = supabase
-            .from("rides")
+            .from(supabase.ridesReadSource)
             .select()
 
         // Apply filters
@@ -82,7 +82,7 @@ final class RideService {
         // comes back as zero rows; `.single()` turned that into a raw PostgREST error that the
         // detail screen showed with a Retry that could never succeed.
         let response = try await supabase
-            .from("rides")
+            .from(supabase.ridesReadSource)
             .select()
             .eq("id", value: id.uuidString)
             .limit(1)
