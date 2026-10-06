@@ -64,32 +64,70 @@ final class ClaimServiceTests: XCTestCase {
     }
     
     func testClaimRequest_NoPhone_ReturnsError() async {
-        // Given: User without phone number
-        // Note: This test requires a real user profile without phone
-        // In a real scenario, you'd mock the ProfileService
-        
+        // Given: a claimer whose profile has no phone number. The stub answers the profile read;
+        // with no handler installed this test went to the real network and took as long as the
+        // network took to fail (60 s on a CI runner whose requests timed out).
         let requestId = UUID()
         let claimerId = UUID()
-        
-        // When: Attempting to claim
-        // Note: This will fail if user has phone, succeed if they don't
-        // This test verifies the phone check happens
+        let profilePayload = """
+        {
+          "id": "\(claimerId.uuidString)",
+          "name": "Test User",
+          "email": "test@example.com",
+          "car": null,
+          "phone_number": null,
+          "avatar_url": null,
+          "is_admin": false,
+          "approved": true,
+          "invited_by": null,
+          "notify_ride_updates": true,
+          "notify_messages": true,
+          "notify_announcements": true,
+          "notify_new_requests": true,
+          "notify_qa_activity": true,
+          "notify_review_reminders": true,
+          "notify_town_hall": true,
+          "guidelines_accepted": true,
+          "guidelines_accepted_at": "2026-01-01T00:00:00Z",
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-01-01T00:00:00Z"
+        }
+        """
+
+        ClaimServiceURLProtocol.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.path.contains("/rest/v1/profiles") || url.path.contains("/rest/v1/public_profiles") {
+                let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data(profilePayload.utf8))
+            }
+
+            // The claim must be refused before anything else is requested.
+            throw URLError(.cannotConnectToHost)
+        }
+
+        // When: attempting to claim
         do {
-            _ = try await claimService.claimRequest(
+            try await claimService.claimRequest(
                 requestType: "ride",
                 requestId: requestId,
                 claimerId: claimerId
             )
-            // If successful, user has phone (acceptable)
-            XCTAssertTrue(true, "Claim succeeded (user has phone)")
+            XCTFail("Claim should be refused when the claimer has no phone number")
         } catch {
-            // If error, verify it's about phone number
-            if case AppError.invalidInput(let message) = error {
-                XCTAssertTrue(message.contains("Phone"), "Error should mention phone number")
-            } else {
-                // Other errors are acceptable (e.g., request doesn't exist)
-                XCTAssertTrue(true, "Claim failed with error: \(error)")
+            // Then: the refusal is about the phone number
+            guard case AppError.invalidInput(let message) = error else {
+                XCTFail("Expected invalidInput, got \(error)")
+                return
             }
+            XCTAssertTrue(message.contains("Phone"), "Error should mention phone number")
         }
     }
 
