@@ -50,6 +50,7 @@ struct MessageInputBar: View {
                             .background(Color(.systemBackground).clipShape(Circle()))
                     }
                     .offset(x: -20, y: -40)
+                    .accessibilityLabel("messaging_remove_photo_accessibility".localized)
 
                     Spacer()
                 }
@@ -61,8 +62,12 @@ struct MessageInputBar: View {
             HStack(spacing: 10) {
                 // Attachment menu (iMessage-style + button)
                 Menu {
-                    Button(action: { controller.onCameraRequested?() }) {
-                        Label("photo_source_camera".localized, systemImage: "camera.fill")
+                    // Only where the host can present a camera (the reply thread cannot): an
+                    // item that did nothing when chosen is not offered.
+                    if controller.onCameraRequested != nil {
+                        Button(action: { controller.onCameraRequested?() }) {
+                            Label("photo_source_camera".localized, systemImage: "camera.fill")
+                        }
                     }
 
                     Button(action: { controller.onImagePickerRequested?() }) {
@@ -85,7 +90,8 @@ struct MessageInputBar: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
-                        .foregroundColor(.naarsPrimary)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Color(.label), Color(.tertiarySystemFill))
                 }
                 .accessibilityLabel("messaging_menu_add".localized)
                 .accessibilityHint("messaging_menu_add_hint".localized)
@@ -98,7 +104,15 @@ struct MessageInputBar: View {
                     ),
                     axis: .vertical
                 )
-                .textFieldStyle(.roundedBorder)
+                // Same field as the main composer (MessageInputAccessoryView): 20-pt capsule
+                // with a hairline border, so the reply thread does not look like another app.
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color(.quaternaryLabel), lineWidth: 1)
+                )
                 .lineLimit(1...5)
                 .submitLabel(.return)
                 .focused($isTextFieldFocused)
@@ -106,28 +120,47 @@ struct MessageInputBar: View {
                 .accessibilityLabel("messaging_input_label".localized)
                 .accessibilityHint("messaging_input_hint".localized)
 
-                Button(action: {
-                    withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
-                        sendButtonScale = 0.8
+                VStack(spacing: 2) {
+                    // Characters left, shown near the length limit (red and negative when
+                    // over it; the send button is then disabled, see `isSendable`).
+                    if controller.showsCharacterCount {
+                        Text(verbatim: "\(controller.remainingCharacters)")
+                            .font(.naarsCaption2)
+                            .monospacedDigit()
+                            .foregroundColor(controller.isOverCharacterLimit ? .naarsError : .secondary)
+                            .accessibilityLabel(
+                                InputBarController.characterCountAccessibilityText(remaining: controller.remainingCharacters)
+                            )
+                            .accessibilityIdentifier("message.characterCount")
                     }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-                            sendButtonScale = 1.0
+
+                    Button(action: {
+                        withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
+                            sendButtonScale = 0.8
                         }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+                                sendButtonScale = 1.0
+                            }
+                        }
+                        controller.send()
+                    }) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(controller.isSendable && !isDisabled ? .naarsPrimary : .gray)
                     }
-                    controller.send()
-                }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(controller.isSendable && !isDisabled ? .naarsPrimary : .gray)
+                    .scaleEffect(sendButtonScale)
+                    .disabled(!controller.isSendable || isDisabled)
+                    .accessibilityIdentifier("message.send")
+                    .accessibilityLabel("messaging_send".localized)
+                    .accessibilityHint("messaging_send_hint".localized)
                 }
-                .scaleEffect(sendButtonScale)
-                .disabled(!controller.isSendable || isDisabled)
-                .accessibilityIdentifier("message.send")
-                .accessibilityLabel("messaging_send".localized)
-                .accessibilityHint("messaging_send_hint".localized)
             }
             .padding()
+        }
+        // Edit raises the keyboard in the composer the text was just placed in.
+        .onChange(of: controller.isEditing) { _, isEditing in
+            if isEditing { isTextFieldFocused = true }
         }
         .background(Color.naarsBackgroundSecondary)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
@@ -163,6 +196,7 @@ struct MessageInputBar: View {
                     .font(.title2)
                     .foregroundColor(.naarsPrimary)
             }
+            .accessibilityLabel("messaging_send".localized)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -212,6 +246,7 @@ struct MessageInputBar: View {
                     .font(.naarsTitle3)
                     .foregroundColor(.secondary)
             }
+            .accessibilityLabel("common_cancel".localized)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -261,6 +296,7 @@ struct MessageInputBar: View {
                     .font(.naarsTitle3)
                     .foregroundColor(.secondary)
             }
+            .accessibilityLabel("common_cancel".localized)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -332,6 +368,10 @@ struct LocationPickerSheet: View {
                     .frame(maxHeight: 180)
                 }
 
+                if viewModel.isLocationAccessDenied {
+                    locationAccessNotice
+                }
+
                 ZStack {
                     Map(position: $cameraPosition) {
                         if let coordinate = viewModel.selectedCoordinate {
@@ -344,12 +384,41 @@ struct LocationPickerSheet: View {
                         viewModel.updateCoordinateFromMap(context.region.center)
                     }
 
+                    // Brand colour: red is reserved for errors and destructive actions.
                     Image(systemName: "mappin.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(.red)
+                        .foregroundColor(.naarsPrimary)
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
+                        .accessibilityHidden(true)
+
+                    // Back to the member's own position after panning or searching. Not shown
+                    // when location access is off; the notice above covers that case.
+                    if !viewModel.isLocationAccessDenied {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button(action: recenterOnUserLocation) {
+                                    Image(systemName: "location.fill")
+                                        .font(.naarsBody)
+                                        .foregroundColor(.naarsPrimary)
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                        .glassEffect(.regular, in: .capsule)
+                                }
+                                .accessibilityLabel("messaging_location_current_accessibility".localized)
+                                .accessibilityIdentifier("locationPicker.currentLocation")
+                                // Lifted off the corner: MapKit draws its "Legal" link there
+                                // and the attribution has to stay visible and tappable.
+                                .padding(.trailing, Constants.Spacing.sm)
+                                .padding(.bottom, Constants.Spacing.xl)
+                            }
+                        }
+                    }
                 }
-                .frame(height: 300)
+                // 300 pt when there is room; gives way on a short screen so the notice above
+                // and the Send button below both stay on screen.
+                .frame(minHeight: 200, maxHeight: 300)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
 
@@ -410,6 +479,58 @@ struct LocationPickerSheet: View {
         onSelect(coordinate, name)
         dismiss()
     }
+
+    /// Centres the map on the member's last known position and asks for a fresh fix; the
+    /// camera follows a new fix through the `userCoordinate` observer above.
+    private func recenterOnUserLocation() {
+        if let coordinate = viewModel.userCoordinate {
+            cameraPosition = .region(
+                MKCoordinateRegion(
+                    center: coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                )
+            )
+        }
+        viewModel.requestUserLocation()
+    }
+
+    /// Shown when location access is denied or restricted. Without it the sheet silently stayed
+    /// on its default map position; a place can still be picked by search or by moving the map.
+    private var locationAccessNotice: some View {
+        HStack(alignment: .top, spacing: Constants.Spacing.sm) {
+            Image(systemName: "location.slash.fill")
+                .font(.naarsFootnote)
+                .foregroundColor(.secondary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("messaging_location_access_off_message".localized)
+                    .font(.naarsFootnote)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Text("messaging_open_settings".localized)
+                        .font(.naarsFootnote).fontWeight(.semibold)
+                        .foregroundColor(.naarsPrimary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("locationPicker.openSettings")
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Constants.Spacing.ms)
+        .padding(.top, Constants.Spacing.ms)
+        .background(Color.naarsInsetBackground)
+        .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.md, style: .continuous))
+        .padding(.horizontal)
+    }
 }
 
 @MainActor
@@ -419,6 +540,8 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
     @Published var selectedName: String?
     @Published var selectedAddress: String?
     @Published var userCoordinate: CLLocationCoordinate2D?
+    /// Location access is denied or restricted: the sheet says so and offers Settings.
+    @Published var isLocationAccessDenied = false
 
     private let locationManager = CLLocationManager()
     private let locationService = LocationService.shared
@@ -432,6 +555,7 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
 
     func requestUserLocation() {
         let status = locationManager.authorizationStatus
+        isLocationAccessDenied = status == .denied || status == .restricted
         if status == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         } else if status == .authorizedWhenInUse || status == .authorizedAlways {
@@ -500,7 +624,10 @@ final class LocationPickerViewModel: NSObject, ObservableObject, CLLocationManag
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // Non-fatal: location permission may be denied
+        // Non-fatal. A denial can surface here as well; show the notice for it.
+        if (error as? CLError)?.code == .denied {
+            isLocationAccessDenied = true
+        }
     }
 }
 

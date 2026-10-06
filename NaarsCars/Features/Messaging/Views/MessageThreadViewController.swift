@@ -114,7 +114,7 @@ private final class CenteredLabelCell: UICollectionViewCell {
     required init?(coder: NSCoder) { fatalError() }
 
     func configureAsEmpty() {
-        label.text = NSLocalizedString("messaging_no_replies_yet", comment: "")
+        label.text = "messaging_no_replies_yet".localized
         label.isHidden = false
         spinner.stopAnimating()
     }
@@ -148,6 +148,9 @@ final class MessageThreadViewController: UIViewController {
     private let totalParticipants: Int
     private let participantProfiles: [Profile]
     private let hasLeftConversation: Bool
+    /// Receives the text of a failed send / edit / unsend / reaction so the SwiftUI host can
+    /// show it (the conversation's own error banner is underneath this cover).
+    private let onActionFailure: ((String) -> Void)?
 
     private let threadViewModel: MessageThreadViewModel
 
@@ -165,6 +168,10 @@ final class MessageThreadViewController: UIViewController {
     private var messageObserverId: UUID?
 
     private var mergeRepliesTask: Task<Void, Never>?
+
+    /// What the last applied snapshot showed, so the next one reconfigures only rows that changed.
+    private var shownMessages: [String: Message] = [:]
+    private var shownReplyOrder: [UUID] = []
 
     deinit {
         mergeRepliesTask?.cancel()
@@ -185,7 +192,8 @@ final class MessageThreadViewController: UIViewController {
         isGroup: Bool,
         totalParticipants: Int,
         participantProfiles: [Profile] = [],
-        hasLeftConversation: Bool = false
+        hasLeftConversation: Bool = false,
+        onActionFailure: ((String) -> Void)? = nil
     ) {
         self.conversationId = conversationId
         self.parentMessageId = parentMessageId
@@ -194,6 +202,7 @@ final class MessageThreadViewController: UIViewController {
         self.totalParticipants = totalParticipants
         self.participantProfiles = participantProfiles
         self.hasLeftConversation = hasLeftConversation
+        self.onActionFailure = onActionFailure
         self.threadViewModel = MessageThreadViewModel(
             conversationId: conversationId,
             parentMessageId: parentMessageId
@@ -359,7 +368,9 @@ final class MessageThreadViewController: UIViewController {
             replySpine: nil,
             isHighlighted: false,
             shouldAnimate: false,
-            replyCount: 0
+            replyCount: 0,
+            // No nested replies here: the cell does not offer swipe-to-reply or View Thread.
+            isInThread: true
         )
 
         cell.messageCellView.delegate = self
@@ -412,6 +423,14 @@ final class MessageThreadViewController: UIViewController {
         inputBarController.onLocationPickerRequested = { [weak self] in
             self?.presentLocationPicker()
         }
+        inputBarController.onMicrophoneAccessDenied = { [weak self] in
+            self?.presentMicrophoneAccessAlert()
+        }
+        // A voice note recorded in the thread used to be dropped: nothing listened for it.
+        // `onCameraRequested` stays unset on purpose; the bar hides Camera when it is nil.
+        inputBarController.onAudioRecorded = { [weak self] url, duration in
+            self?.handleAudioRecorded(url: url, duration: duration)
+        }
         inputBarController.onTypingChanged = { [weak self] in
             self?.conversationViewModel.typingManager.userDidType()
         }
@@ -435,21 +454,82 @@ final class MessageThreadViewController: UIViewController {
         inputHostingController = hostingController
     }
 
+    // MARK: - Action Failures
+
+    /// Runs a conversation action and reports any failure it recorded, as
+    /// `ConversationDetailView.runMessageAction` does for the main thread. Inside this cover
+    /// a refused or failed send, edit, unsend or reaction used to be silent.
+    /// - Parameter processingFailureText: shown instead of the raw service text when the
+    ///   action fails with a plain `.processingError`
+    /// - Returns: the failure the action recorded, or nil when it finished without one
+    @discardableResult
+    private func runConversationAction(
+        processingFailureText: String? = nil,
+        _ action: @MainActor () async -> Void
+    ) async -> AppError? {
+        conversationViewModel.error = nil
+        await action()
+        guard let error = conversationViewModel.error else { return nil }
+        conversationViewModel.error = nil
+        onActionFailure?(error.messageActionText(processingFailureText: processingFailureText))
+        return error
+    }
+
     private func handleSend(_ payload: InputBarController.SendPayload) {
         guard let parentId = threadViewModel.parentMessage?.id else { return }
         Task {
             if let editId = payload.editMessageId {
-                conversationViewModel.editingMessage = conversationViewModel.messages.first { $0.id == editId }
-                await conversationViewModel.editMessage(newContent: payload.text)
-            } else if let attachment = payload.attachment {
-                await conversationViewModel.sendMessage(
-                    textOverride: payload.text.isEmpty ? nil : payload.text,
-                    image: attachment.image,
-                    replyToId: parentId
-                )
-            } else {
-                await conversationViewModel.sendMessage(
-                    textOverride: payload.text,
+                // The edited message may be a reply older than the conversation's loaded
+                // pages; fall back to the thread's own copy so the edit is not dropped.
+                guard let target = self.conversationViewModel.messages.first(where: { $0.id == editId })
+                        ?? self.threadMessage(withId: editId) else { return }
+                // Not through `conversationViewModel.editingMessage`: that also switched the main
+                // composer (under this cover) into edit mode and wiped a draft typed there.
+                let failure = await self.runConversationAction {
+                    await self.conversationViewModel.editMessage(target, newContent: payload.text)
+                }
+                if failure == nil {
+                    self.threadViewModel.applyConfirmedEdit(messageId: editId, text: payload.text)
+                }
+                return
+            }
+            let failure = await self.runConversationAction(processingFailureText: "messaging_send_failed".localized) {
+                if let attachment = payload.attachment {
+                    await self.conversationViewModel.sendMessage(
+                        textOverride: payload.text.isEmpty ? nil : payload.text,
+                        image: attachment.image,
+                        replyToId: parentId
+                    )
+                } else {
+                    await self.conversationViewModel.sendMessage(
+                        textOverride: payload.text,
+                        replyToId: parentId
+                    )
+                }
+            }
+            // Refused before a bubble existed (rate limit, over-long text): the composer has
+            // already cleared itself, so hand the text and photo back.
+            if let failure, failure.isSendRefusedBeforeBubble {
+                self.inputBarController.restoreDraft(text: payload.text, image: payload.attachment?.image)
+            }
+        }
+    }
+
+    /// The thread's copy of a message: the parent or one of its replies.
+    private func threadMessage(withId id: UUID) -> Message? {
+        if let parent = threadViewModel.parentMessage, parent.id == id { return parent }
+        return threadViewModel.replies.first { $0.id == id }
+    }
+
+    /// Sends a voice note recorded in the thread as a reply to the parent, through the same
+    /// view-model entry point the main conversation uses.
+    private func handleAudioRecorded(url: URL, duration: Double) {
+        let parentId = threadViewModel.parentMessage?.id ?? parentMessageId
+        Task {
+            await self.runConversationAction {
+                await self.conversationViewModel.sendAudioMessage(
+                    audioURL: url,
+                    duration: duration,
                     replyToId: parentId
                 )
             }
@@ -460,12 +540,14 @@ final class MessageThreadViewController: UIViewController {
         let picker = LocationPickerSheet { [weak self] coordinate, name in
             guard let self else { return }
             Task {
-                await self.conversationViewModel.sendLocationMessage(
-                    latitude: coordinate.latitude,
-                    longitude: coordinate.longitude,
-                    locationName: name,
-                    replyToId: self.threadViewModel.parentMessage?.id
-                )
+                await self.runConversationAction {
+                    await self.conversationViewModel.sendLocationMessage(
+                        latitude: coordinate.latitude,
+                        longitude: coordinate.longitude,
+                        locationName: name,
+                        replyToId: self.threadViewModel.parentMessage?.id
+                    )
+                }
             }
         }
         let host = UIHostingController(rootView: picker)
@@ -567,8 +649,37 @@ final class MessageThreadViewController: UIViewController {
             snapshot.appendItems(replyItems, toSection: kSectionReplies)
         }
 
+        // A row that stays in place keeps its identifier, so the diff alone never redraws it:
+        // an edit, unsend, reaction or send-status change made in the thread stayed invisible
+        // until the thread was reopened. Reconfigure the rows whose message changed (full
+        // struct compare, as the main transcript does), and every reply when a reply arrived
+        // or went, because a neighbour's place in its series changes with it.
+        var currentMessages: [String: Message] = [:]
+        if let parent = threadViewModel.parentMessage {
+            currentMessages[Self.parentKey(parentMessageId)] = parent
+        }
+        for reply in threadViewModel.replies {
+            currentMessages[Self.replyKey(reply.id)] = reply
+        }
+        let replyOrder = threadViewModel.replies.map { $0.id }
+        let repliesMoved = replyOrder != shownReplyOrder
+        let alreadyShown = Set(dataSource.snapshot().itemIdentifiers)
+        let changedItems = snapshot.itemIdentifiers.filter { key in
+            guard alreadyShown.contains(key), let message = currentMessages[key] else { return false }
+            if repliesMoved && key.hasPrefix(kReplyPrefix) { return true }
+            return shownMessages[key] != message
+        }
+        if !changedItems.isEmpty {
+            snapshot.reconfigureItems(changedItems)
+        }
+        // A sent reply swaps its local row for the server's copy under a new id: the same rows
+        // with one new identifier. Animated, the bubble fades out and back in; apply in place.
+        let isRowSwap = repliesMoved && replyOrder.count == shownReplyOrder.count
+        shownMessages = currentMessages
+        shownReplyOrder = replyOrder
+
         let wasAtBottom = isScrolledNearBottom()
-        dataSource.apply(snapshot, animatingDifferences: animated)
+        dataSource.apply(snapshot, animatingDifferences: animated && !isRowSwap)
 
         // Auto-scroll to bottom when new replies arrive
         if wasAtBottom && !threadViewModel.replies.isEmpty {
@@ -620,7 +731,8 @@ extension MessageThreadViewController: MessageCellDelegate {
             showDetails: !(message.individualReactions ?? []).isEmpty,
             individualReactions: message.individualReactions ?? [],
             reactionProfiles: profilesById,
-            currentUserId: AuthService.shared.currentUserId ?? UUID()
+            currentUserId: AuthService.shared.currentUserId ?? UUID(),
+            isInThread: true
         )
         present(overlay, animated: false)
     }
@@ -634,41 +746,15 @@ extension MessageThreadViewController: MessageCellDelegate {
     }
 
     func messageCellDidTapImage(_ cell: MessageCellView, url: URL) {
-        let imageVC = UIViewController()
-        imageVC.modalPresentationStyle = .fullScreen
-        imageVC.view.backgroundColor = .black
-
-        let iv = UIImageView()
-        iv.contentMode = .scaleAspectFit
-        iv.translatesAutoresizingMaskIntoConstraints = false
-        imageVC.view.addSubview(iv)
-        NSLayoutConstraint.activate([
-            iv.topAnchor.constraint(equalTo: imageVC.view.topAnchor),
-            iv.bottomAnchor.constraint(equalTo: imageVC.view.bottomAnchor),
-            iv.leadingAnchor.constraint(equalTo: imageVC.view.leadingAnchor),
-            iv.trailingAnchor.constraint(equalTo: imageVC.view.trailingAnchor),
-        ])
-
-        // Disk cache first: the bubble already stored this asset via PersistentImageService.
-        Task {
-            if let img = await PersistentImageService.shared.getImage(for: url.absoluteString) {
-                iv.image = img
-            }
-        }
-
-        let closeBtn = UIButton(type: .system)
-        closeBtn.setImage(UIImage(systemName: "xmark"), for: .normal)
-        closeBtn.tintColor = .white
-        closeBtn.accessibilityLabel = NSLocalizedString("accessibility_close", comment: "")
-        closeBtn.translatesAutoresizingMaskIntoConstraints = false
-        imageVC.view.addSubview(closeBtn)
-        NSLayoutConstraint.activate([
-            closeBtn.topAnchor.constraint(equalTo: imageVC.view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            closeBtn.trailingAnchor.constraint(equalTo: imageVC.view.trailingAnchor, constant: -16),
-        ])
-        closeBtn.addAction(UIAction { _ in imageVC.dismiss(animated: true) }, for: .touchUpInside)
-
-        present(imageVC, animated: true)
+        // The same viewer the main conversation uses (zoom, share, save, a failure state and a
+        // full-size close button) instead of a bare image controller. It loads through
+        // PersistentImageService, so the asset the bubble cached is not downloaded again.
+        let viewer = ImageViewerView(imageUrl: url, onDismiss: { [weak self] in
+            self?.presentedViewController?.dismiss(animated: true)
+        })
+        let host = UIHostingController(rootView: viewer)
+        host.modalPresentationStyle = .fullScreen
+        present(host, animated: true)
     }
 
     func messageCellDidTapReplyPreview(_ cell: MessageCellView, replyToId: UUID) {
@@ -676,7 +762,11 @@ extension MessageThreadViewController: MessageCellDelegate {
     }
 
     func messageCellDidTapRetry(_ cell: MessageCellView, message: Message) {
-        Task { await conversationViewModel.retryMessage(id: message.id) }
+        Task {
+            await self.runConversationAction(processingFailureText: "messaging_send_failed".localized) {
+                await self.conversationViewModel.retryMessage(id: message.id)
+            }
+        }
     }
 
     func messageCellDidTapViewThread(_ cell: MessageCellView, message: Message) {
@@ -707,7 +797,8 @@ extension MessageThreadViewController: MessageCellDelegate {
             showDetails: true,
             individualReactions: message.individualReactions ?? [],
             reactionProfiles: profilesById,
-            currentUserId: currentUserId
+            currentUserId: currentUserId,
+            isInThread: true
         )
         present(overlay, animated: false)
     }
@@ -717,26 +808,79 @@ extension MessageThreadViewController: MessageCellDelegate {
 
         switch action {
         case .react(let emoji):
-            Task { await conversationViewModel.addReaction(messageId: message.id, reaction: emoji) }
+            Task {
+                await self.runConversationAction(processingFailureText: "messaging_error_reaction".localized) {
+                    await self.conversationViewModel.addReaction(messageId: message.id, reaction: emoji)
+                }
+            }
         case .removeReaction:
-            Task { await conversationViewModel.removeReaction(messageId: message.id) }
+            Task {
+                await self.runConversationAction(processingFailureText: "messaging_error_reaction".localized) {
+                    await self.conversationViewModel.removeReaction(messageId: message.id)
+                }
+            }
         case .copy:
             UIPasteboard.general.string = message.text
         case .reply:
-            // Thread replies go to the parent; no separate reply-to handling needed
+            // Not offered here (the overlay is built with isInThread): every message in the
+            // thread already replies to the parent.
             break
         case .viewThread:
-            // Already in thread view
+            // Not offered here: already in the thread view
             break
         case .edit:
-            conversationViewModel.startEditing(message)
+            // Edit in this screen's own composer. `conversationViewModel.startEditing` only
+            // switched the main conversation's composer, hidden under this cover; handleSend
+            // routes the edit through `payload.editMessageId`.
+            inputBarController.startEditing(messageId: message.id, text: message.text)
         case .unsend:
-            Task { await conversationViewModel.unsendMessage(id: message.id) }
+            // Same confirmation as the main conversation: unsend removes it for everyone.
+            presentConfirmation(
+                title: "messaging_unsend_title".localized,
+                message: "messaging_unsend_confirmation_message".localized,
+                confirmTitle: "messaging_unsend_action".localized
+            ) { [weak self] in
+                guard let self else { return }
+                Task {
+                    await self.runConversationAction {
+                        await self.conversationViewModel.unsendMessage(id: message.id)
+                    }
+                }
+            }
         case .deleteForMe:
-            Task { await conversationViewModel.deleteMessageForMe(message) }
+            presentConfirmation(
+                title: "messaging_delete_for_me".localized,
+                message: MessageOverlayAvailability.deleteForMeConfirmationText(for: message),
+                confirmTitle: "common_delete".localized
+            ) { [weak self] in
+                guard let self else { return }
+                Task {
+                    await self.conversationViewModel.deleteMessageForMe(message)
+                    if message.id == self.parentMessageId {
+                        // The message this thread is about is hidden on this device now.
+                        self.dismiss(animated: true)
+                    } else {
+                        // The conversation no longer holds the row, so the merge would keep it.
+                        self.threadViewModel.removeReply(id: message.id)
+                    }
+                }
+            }
         case .report:
             presentReportSheet(for: message)
         }
+    }
+
+    /// A destructive confirmation shown before unsend and Delete for Me.
+    private func presentConfirmation(
+        title: String,
+        message: String,
+        confirmTitle: String,
+        onConfirm: @escaping @MainActor () -> Void
+    ) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "common_cancel".localized, style: .cancel))
+        alert.addAction(UIAlertAction(title: confirmTitle, style: .destructive) { _ in onConfirm() })
+        present(alert, animated: true)
     }
 
     private func presentReportSheet(for message: Message) {

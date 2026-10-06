@@ -88,7 +88,47 @@ final class ValidatorsTests: XCTestCase {
     }
 }
 
+// MARK: - Date.displayTime(fromDatabaseTime:)
 
+final class DatabaseTimeDisplayTests: XCTestCase {
+    func testFormatsPostgresTimeAsShortLocalizedTime() {
+        let expected = DateFormatters.timeFormatter.string(
+            from: Calendar.current.date(from: DateComponents(hour: 9, minute: 0))!
+        )
+        XCTAssertEqual(Date.displayTime(fromDatabaseTime: "09:00:00"), expected)
+        XCTAssertEqual(Date.displayTime(fromDatabaseTime: "09:00"), expected)
+    }
 
+    func testFallsBackToRawStringWhenUnparseable() {
+        XCTAssertEqual(Date.displayTime(fromDatabaseTime: "noon"), "noon")
+        XCTAssertEqual(Date.displayTime(fromDatabaseTime: "25:00:00"), "25:00:00")
+    }
+}
 
+/// Conversation-list timestamps follow iMessage: clock time today, "Yesterday", the weekday
+/// within the last week, then a short date.
+final class ConversationListTimestampTests: XCTestCase {
+    private func daysAgo(_ days: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: -days, to: Date())!
+    }
+
+    func testTodayShowsClockTime() {
+        let now = Date()
+        XCTAssertEqual(now.conversationListTimestampString, DateFormatters.timeFormatter.string(from: now))
+    }
+
+    func testYesterdayShowsYesterday() {
+        XCTAssertEqual(daysAgo(1).conversationListTimestampString, "messaging_yesterday".localized)
+    }
+
+    func testWithinLastWeekShowsWeekday() {
+        let date = daysAgo(3)
+        XCTAssertEqual(date.conversationListTimestampString, DateFormatters.dayOfWeekFormatter.string(from: date))
+    }
+
+    func testOlderShowsShortDate() {
+        let date = daysAgo(30)
+        XCTAssertEqual(date.conversationListTimestampString, DateFormatters.shortDateFormatter.string(from: date))
+    }
+}
 

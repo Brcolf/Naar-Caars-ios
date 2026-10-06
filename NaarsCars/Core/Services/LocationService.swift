@@ -109,6 +109,10 @@ final class LocationService: NSObject, ObservableObject {
     
     // Continuation for async search results
     private var searchContinuation: CheckedContinuation<[PlacePrediction], Error>?
+
+    /// The completer's latest results keyed by prediction id, so `getPlaceDetails` can resolve
+    /// the exact suggestion that was tapped.
+    private var latestCompletions: [String: MKLocalSearchCompletion] = [:]
     
     private override init() {
         #if DEBUG
@@ -160,13 +164,22 @@ final class LocationService: NSObject, ObservableObject {
     /// - Parameter placeID: Place ID from prediction (for MapKit, this is "title, subtitle" format)
     /// - Returns: Place details with coordinates
     /// - Throws: LocationError if fetch fails
+    @MainActor
     func getPlaceDetails(placeID: String) async throws -> PlaceDetails {
-        // For MapKit, placeID is in format "title, subtitle"
-        // Extract the title (first part) for the search query
-        let searchQuery = placeID.components(separatedBy: ", ").first ?? placeID
-        
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = searchQuery
+        // Resolve the exact suggestion the user tapped. Searching again by its title alone took
+        // the first hit for that text, so "Ballard Locks" could come back as a different
+        // business and two suggestions with the same title always resolved to the same place.
+        let request: MKLocalSearch.Request
+        let searchQuery: String
+        if let completion = latestCompletions[placeID] {
+            request = MKLocalSearch.Request(completion: completion)
+            searchQuery = completion.title
+        } else {
+            // A recent location, or a prediction from an earlier query: fall back to text.
+            request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = placeID
+            searchQuery = placeID.components(separatedBy: ", ").first ?? placeID
+        }
         request.region = seattleRegion
         
         let search = MKLocalSearch(request: request)
@@ -251,6 +264,13 @@ final class LocationService: NSObject, ObservableObject {
         guard let data = try? JSONEncoder().encode(recentLocations) else { return }
         UserDefaults.standard.set(data, forKey: "recent_locations")
     }
+
+    /// Drop the recent-address list, in memory and on disk. Called at sign-out: the list is
+    /// stored per device, so the next account used to be offered the previous member's addresses.
+    func forgetRecentLocations() {
+        recentLocations = []
+        UserDefaults.standard.removeObject(forKey: "recent_locations")
+    }
 }
 
 // MARK: - MKLocalSearchCompleterDelegate
@@ -261,14 +281,26 @@ extension LocationService: MKLocalSearchCompleterDelegate {
             #if DEBUG
             _locationPerfLog("completerDidUpdateResults received (count=\(completer.results.count))")
             #endif
-            let predictions = completer.results.map { completion in
-                PlacePrediction(
-                    placeID: completion.title, // Use title as ID for MapKit
-                    primaryText: completion.title,
-                    secondaryText: completion.subtitle,
-                    fullText: "\(completion.title), \(completion.subtitle)"
+            // "title, subtitle" identifies a suggestion. The title alone repeats (two "Green
+            // Lake Park" rows), which gave ForEach duplicate ids; exact repeats are dropped.
+            var completionsByID: [String: MKLocalSearchCompletion] = [:]
+            var predictions: [PlacePrediction] = []
+            for completion in completer.results {
+                let placeID = completion.subtitle.isEmpty
+                    ? completion.title
+                    : "\(completion.title), \(completion.subtitle)"
+                guard completionsByID[placeID] == nil else { continue }
+                completionsByID[placeID] = completion
+                predictions.append(
+                    PlacePrediction(
+                        placeID: placeID,
+                        primaryText: completion.title,
+                        secondaryText: completion.subtitle,
+                        fullText: placeID
+                    )
                 )
             }
+            latestCompletions = completionsByID
             #if DEBUG
             _locationPerfLog("completerDidUpdateResults resuming continuation")
             #endif

@@ -71,18 +71,36 @@ enum RequestItem: Identifiable, Equatable {
         case .ride(let ride):
             return combineDateAndTime(date: ride.date, time: ride.time, timeZone: ride.timeZone) ?? ride.date
         case .favor(let favor):
-            if let time = favor.time {
-                return combineDateAndTime(date: favor.date, time: time, timeZone: favor.timeZone) ?? favor.date
-            }
-            return favor.date
+            // A favor without a time starts at midnight in its own zone, the same rule the
+            // server's expiry job uses (20261005_0010).
+            return combineDateAndTime(date: favor.date, time: favor.time ?? "00:00:00", timeZone: favor.timeZone) ?? favor.date
         }
+    }
+
+    /// When the request's window closes: its event time, or for a favor with no time the end
+    /// of its day. The "12 hours past" visibility rule and upcoming/past ordering count from
+    /// here, so a favor posted for "today" is not treated as over at 12:01 AM (it used to drop
+    /// below tomorrow's requests and vanish from every list at noon). The server's expiry job
+    /// uses the same rule (20261006_0004).
+    var windowEnd: Date {
+        if case .favor(let favor) = self, favor.time == nil {
+            return eventTime.addingTimeInterval(24 * 60 * 60)
+        }
+        return eventTime
     }
 
     /// Combine date and time string into a Date using the request's timezone
     private func combineDateAndTime(date: Date, time: String, timeZone: TimeZone) -> Date? {
-        var calendar = Calendar.current
+        // The DATE column is decoded as midnight in the device's zone (DateDecoderFactory), so
+        // the calendar day has to be read back in that same zone. Reading it in the request's
+        // zone put the event a day early on a phone east of the request (New York phone,
+        // Pacific request). The instant is then built in the request's own zone.
+        var deviceCalendar = Calendar(identifier: .gregorian)
+        deviceCalendar.timeZone = .current
+        let dateComponents = deviceCalendar.dateComponents([.year, .month, .day], from: date)
+
+        var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
 
         // Parse time string (format: "HH:mm:ss" or "HH:mm")
         let timeParts = time.split(separator: ":")

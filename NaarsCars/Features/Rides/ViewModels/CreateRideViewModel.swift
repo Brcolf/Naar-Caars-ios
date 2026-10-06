@@ -33,6 +33,9 @@ final class CreateRideViewModel: ObservableObject {
     
     private let rideService: any RideServiceProtocol
     private let authService: any AuthServiceProtocol
+    /// The ride being edited (EditRideView). Lets `updateRide` tell a cleared field from an
+    /// untouched one and apply the past-date rule only when the date was changed.
+    private var editingOriginal: Ride?
 
     init(
         rideService: any RideServiceProtocol = RideService.shared,
@@ -44,6 +47,14 @@ final class CreateRideViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
+    /// True once the two fields a ride cannot exist without are filled in. The Post button
+    /// stays disabled until then, as it does on the New Post sheet; the remaining rules are
+    /// still checked by `validateForm()` on submit.
+    var hasRequiredFields: Bool {
+        !pickup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Validate form fields
     /// - Returns: Error message if validation fails, nil if valid
     func validateForm() -> String? {
@@ -67,10 +78,72 @@ final class CreateRideViewModel: ObservableObject {
         if seats < 1 || seats > 7 {
             return "ride_error_seats_range".localized
         }
-        
+
         return nil
     }
-    
+
+    /// True when the chosen date and time, read in the chosen time zone, have already passed.
+    /// Today's date with the default 9:00 AM left in place is the usual way to get here; the
+    /// create form asks before posting such a ride. Uses the same rule as the Requests list
+    /// (`RequestItem.eventTime`), which hides a ride 12 hours after this moment.
+    var isEventTimeInPast: Bool {
+        let draft = Ride(
+            userId: UUID(),
+            date: date,
+            time: formatTime(hour: hour, minute: minute, isAM: isAM),
+            timezone: timezone,
+            pickup: "",
+            destination: ""
+        )
+        return RequestItem.ride(draft).eventTime < Date()
+    }
+
+    /// Whether closing the form now would throw away something the person entered. On the
+    /// create form that is anything typed or picked; on the edit form, any difference from
+    /// the ride as it was opened.
+    var hasUnsavedChanges: Bool {
+        guard let original = editingOriginal else {
+            return !pickup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !selectedParticipantIds.isEmpty
+        }
+        let timeChanged: Bool
+        if let parsed = parseTime(original.time) {
+            timeChanged = parsed.hour != hour || parsed.minute != minute || parsed.isAM != isAM
+        } else {
+            timeChanged = false
+        }
+        return pickup != original.pickup
+            || destination != original.destination
+            || notes != (original.notes ?? "")
+            || gift != (original.gift ?? "")
+            || seats != original.seats
+            || timezone != original.timezone
+            || !Calendar.current.isDate(date, inSameDayAs: original.date)
+            || timeChanged
+    }
+
+    /// Fill the form from an existing ride (EditRideView). Runs once, so a second `onAppear`
+    /// cannot wipe what has been edited since.
+    func populate(from ride: Ride) {
+        guard editingOriginal == nil else { return }
+        editingOriginal = ride
+        date = ride.date
+        pickup = ride.pickup
+        destination = ride.destination
+        seats = ride.seats
+        notes = ride.notes ?? ""
+        gift = ride.gift ?? ""
+        if let parsedTime = parseTime(ride.time) {
+            hour = parsedTime.hour
+            minute = parsedTime.minute
+            isAM = parsedTime.isAM
+        }
+        timezone = ride.timezone
+    }
+
     /// Create the ride request
     /// - Returns: Created ride if successful
     /// - Throws: AppError if creation fails
@@ -121,35 +194,82 @@ final class CreateRideViewModel: ObservableObject {
                     addedBy: userId
                 )
             }
-            
+
+            RequestsDashboardRefresh.afterUserAction("createRide")
             return ride
         } catch {
             self.error = error.localizedDescription
             throw error
         }
     }
-    
+
+    /// Validation for the edit form: the same rules as `validateForm()`, except that the date
+    /// rule applies only when the date was changed. A confirmed ride whose day has passed stays
+    /// editable while it waits for "Mark as Complete", and must not be blocked by its own date.
+    private func validateEditForm() -> String? {
+        if pickup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "ride_error_pickup_required".localized
+        }
+
+        if destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "ride_error_destination_required".localized
+        }
+
+        let calendar = Calendar.current
+        let dateChanged = editingOriginal.map { !calendar.isDate($0.date, inSameDayAs: date) } ?? true
+        if dateChanged && calendar.startOfDay(for: date) < calendar.startOfDay(for: Date()) {
+            return "ride_error_date_in_past".localized
+        }
+
+        if seats < 1 || seats > 7 {
+            return "ride_error_seats_range".localized
+        }
+
+        return nil
+    }
+
     /// Update an existing ride with the current form values (EditRideView)
     /// - Parameter id: Ride ID
     /// - Returns: Updated ride
-    /// - Throws: Error if the update fails (also mirrored into `error`)
+    /// - Throws: Error if validation or the update fails (also mirrored into `error`)
     @discardableResult
     func updateRide(id: UUID) async throws -> Ride {
+        if let validationError = validateEditForm() {
+            self.error = validationError
+            throw AppError.invalidInput(validationError)
+        }
+
         // Format time from hour/minute/isAM
         let formattedTime = formatTime(hour: hour, minute: minute, isAM: isAM)
-        
+
+        // Optional text: an emptied field is sent as "" so the service clears it (it used to
+        // be sent as nil, which the service reads as "leave unchanged", and the old text
+        // stayed on the ride under a success checkmark). A field that was empty and still is
+        // goes as nil.
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGift = gift.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hadNotes = !(editingOriginal?.notes ?? "").isEmpty
+        let hadGift = !(editingOriginal?.gift ?? "").isEmpty
+
+        // Save is disabled while this is true (EditRideView), as Post is on the create form.
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+
         do {
-            return try await rideService.updateRide(
+            let ride = try await rideService.updateRide(
                 id: id,
                 date: date,
                 time: formattedTime,
-                pickup: pickup.isEmpty ? nil : pickup,
-                destination: destination.isEmpty ? nil : destination,
+                pickup: pickup.trimmingCharacters(in: .whitespacesAndNewlines),
+                destination: destination.trimmingCharacters(in: .whitespacesAndNewlines),
                 seats: seats,
-                notes: notes.isEmpty ? nil : notes,
-                gift: gift.isEmpty ? nil : gift,
+                notes: trimmedNotes.isEmpty && !hadNotes ? nil : trimmedNotes,
+                gift: trimmedGift.isEmpty && !hadGift ? nil : trimmedGift,
                 timezone: timezone
             )
+            RequestsDashboardRefresh.afterUserAction("updateRide")
+            return ride
         } catch {
             self.error = error.localizedDescription
             throw error

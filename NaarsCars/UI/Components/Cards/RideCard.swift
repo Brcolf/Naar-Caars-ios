@@ -13,6 +13,7 @@ struct RideCard: View {
     var unreadCount: Int = 0
 
     @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var showsHiddenPlaceholder: Bool {
         ride.isModerationHidden && AuthService.shared.currentUserId == ride.userId
@@ -43,12 +44,11 @@ struct RideCard: View {
                 .overlay(
                     Rectangle()
                         .fill(Color.rideAccent)
-                        .frame(width: 4)
-                        .cornerRadius(2),
+                        .frame(width: 4),
                     alignment: .leading
                 )
-                .cornerRadius(12)
-                .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
+                .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.card, style: .continuous))
+                .cardShadow()
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityHint("card_ride_details_hint".localized)
@@ -56,68 +56,78 @@ struct RideCard: View {
         }
     }
 
-    private var badgeText: String? {
-        guard unreadCount > 0 else { return nil }
-        return unreadCount > 9 ? "9+" : "\(unreadCount)"
-    }
-
     private var accessibilityLabel: String {
         if showsHiddenPlaceholder {
             return "requests_hidden_title".localized
         }
 
-        return appState.isGuest
-            ? "Ride on \(ride.date.dateString), \(ride.status.displayText)"
-            : "Ride from \(ride.pickup) to \(ride.destination) on \(ride.date.dateString), \(ride.status.displayText)"
+        // Everything the card shows, in reading order. The explicit label replaces the combined
+        // children (which would read the decorative symbols and never say "Ride"), so it has
+        // to carry the poster, time, seats, flight, claimer and unread count itself. Guests
+        // get no addresses, as on the card.
+        var parts: [String] = ["common_ride".localized]
+        if let poster = ride.poster {
+            parts.append("ride_detail_requested_by".localized(with: poster.name))
+        }
+        if !appState.isGuest {
+            parts.append("card_ride_route_accessibility".localized(with: ride.pickup, ride.destination))
+        }
+        parts.append(ride.date.dateString)
+        parts.append(Date.displayTime(fromDatabaseTime: ride.time))
+        parts.append(ride.seatsDisplayText)
+        if let flightInfo = FlightInfo.displayInfo(for: ride) {
+            parts.append("\("ride_detail_flight".localized) \(flightInfo.normalizedFlightNumber)")
+        }
+        parts.append(ride.statusDisplayText)
+        if ride.claimedBy != nil, let claimer = ride.claimer {
+            parts.append("\("card_claimed_by".localized) \(claimer.name)")
+        }
+        if unreadCount > 0 {
+            parts.append("common_unseen_notifications_accessibility".localized(with: unreadCount))
+        }
+        return parts.joined(separator: ", ")
     }
 
     @ViewBuilder
     private var headerContent: some View {
-        HStack {
-            if let poster = ride.poster {
-                UserAvatarLink(profile: poster, size: 40)
-            } else {
-                AvatarView(imageUrl: nil, name: "Unknown", size: 40)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
+        // At accessibility sizes the name hyphenates ("Bren-dan Col-ford") and the status
+        // badge wraps mid-word beside it; stack the badges under the poster row instead.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout())
+        layout {
+            HStack {
                 if let poster = ride.poster {
-                    Text(poster.name)
-                        .font(.naarsHeadline)
+                    UserAvatarLink(profile: poster, size: 40)
                 } else {
-                    Text("common_unknown_user".localized)
-                        .font(.naarsHeadline)
+                    AvatarView(imageUrl: nil, name: "Unknown", size: 40)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    if let poster = ride.poster {
+                        Text(poster.name)
+                            .font(.naarsHeadline)
+                            .lineLimit(2)
+                    } else {
+                        Text("common_unknown_user".localized)
+                            .font(.naarsHeadline)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text(ride.date.dateString)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
-
-                Text(ride.date.dateString)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
             }
 
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer()
+            }
 
             HStack(spacing: 8) {
-                if let badgeText {
-                    Text(badgeText)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                        .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
-                }
-
-                Text(ride.status.displayText)
-                    .font(.naarsCaption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(ride.status.color)
-                    .cornerRadius(8)
+                NotificationBadge(count: unreadCount, cap: 9)
+                    .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
+                NaarsChip(text: ride.statusDisplayText, tint: ride.status.color)
             }
         }
     }
@@ -146,7 +156,7 @@ struct RideCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "circle.fill")
-                    .foregroundColor(.green)
+                    .foregroundColor(.naarsSuccess)
                     .font(.naarsCaption)
                 AddressText(ride.pickup, isRedacted: appState.isGuest)
             }
@@ -168,11 +178,11 @@ struct RideCard: View {
         }
 
         HStack(spacing: 16) {
-            Label(ride.time, systemImage: "clock")
+            Label(Date.displayTime(fromDatabaseTime: ride.time), systemImage: "clock")
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
 
-            Label("\(ride.seats) seat\(ride.seats == 1 ? "" : "s")", systemImage: "person.2")
+            Label(ride.seatsDisplayText, systemImage: "person.2")
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
         }
@@ -196,6 +206,7 @@ struct RideCard: View {
                         .font(.naarsCaption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
+                        .lineLimit(1)
                 } else {
                     Image(systemName: "hand.raised.fill")
                         .foregroundColor(.naarsPrimary)

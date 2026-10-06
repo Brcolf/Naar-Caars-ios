@@ -37,10 +37,8 @@ struct CommunityTabView: View {
                     switch selectedView {
                     case .townHall:
                         TownHallFeedView()
-                            .id("townHall") // Force view recreation when switching
                     case .leaderboard:
                         LeaderboardView()
-                            .id("leaderboard") // Force view recreation when switching
                     }
                 }
             }

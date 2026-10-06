@@ -36,7 +36,9 @@ final class NotificationService {
     /// Unread notifications are always relevant, but we rely on the server
     /// returning recent rows plus any unread ones. 30 days is a generous
     /// window that keeps the payload small while covering all realistic cases.
-    static let fetchHorizonDays: Int = 30
+    static let fetchHorizonDays: Int = 90
+    /// Upper bound on rows per fetch now that the window is wider.
+    static let fetchLimit: Int = 200
 
     func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
         if let inFlightTask = inFlightFetchesByUser[userId] {
@@ -85,6 +87,7 @@ final class NotificationService {
             .or("read.eq.false,created_at.gte.\(horizonString)")
             .order("pinned", ascending: false)
             .order("created_at", ascending: false)
+            .limit(Self.fetchLimit)
             .execute()
         
 #if DEBUG

@@ -56,7 +56,7 @@ struct NotificationRow: View {
 
                         if let groupCount, groupCount > 1 {
                             Text("\(groupCount)")
-                                .font(.caption2)
+                                .font(.naarsCaption2)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.naarsPrimary)
                                 .padding(.horizontal, 6)
@@ -87,7 +87,7 @@ struct NotificationRow: View {
             }
             .padding()
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: Constants.Radius.card)
                     .fill(isRead ? Color.naarsBackgroundSecondary : Color.naarsPrimary.opacity(0.05))
             )
         }

@@ -70,11 +70,9 @@ actor LinkPreviewService {
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches = detector?.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text)) ?? []
         
-        return matches.compactMap { match -> URL? in
-            guard let range = Range(match.range, in: text) else { return nil }
-            let urlString = String(text[range])
-            return URL(string: urlString)
-        }
+        // Same rule as URLDetectionCache (one helper): the detector's URL, web links only, and
+        // https for a link typed without a scheme, so every card can be opened and previewed.
+        return matches.compactMap { URLDetectionCache.webURL(for: $0, in: text) }
     }
     
     /// Fetch link preview metadata

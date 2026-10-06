@@ -13,60 +13,55 @@ struct NoAccountFoundSheet: View {
     @Binding var didRequestCreateAccount: Bool
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Custom drag indicator (system one hidden for consistent styling)
-            Capsule()
-                .fill(Color.secondary.opacity(0.3))
-                .frame(width: 36, height: 5)
-                .padding(.top, 12)
+        // Scrollable, with a large detent to pull to, so nothing is cut off at larger text sizes
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .font(.system(size: 56))
+                    .foregroundColor(.naarsPrimary)
+                    .accessibilityHidden(true)
 
-            Image(systemName: "person.crop.circle.badge.plus")
-                .font(.system(size: 56))
-                .foregroundColor(.naarsPrimary)
-                .accessibilityHidden(true)
+                Text("auth_create_account_needed_title".localized)
+                    .font(.naarsTitle3)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text("auth_create_account_needed_title".localized)
-                .font(.naarsTitle3)
-                .multilineTextAlignment(.center)
+                Text("auth_create_account_needed_body".localized)
+                    .font(.naarsBody)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
 
-            Text("auth_create_account_needed_body".localized)
-                .font(.naarsBody)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                VStack(spacing: 12) {
+                    PrimaryButton(title: "auth_create_account_button".localized, action: {
+                        didRequestCreateAccount = true
+                        dismiss()
+                    })
+                    .accessibilityIdentifier("noAccount.createAccount")
 
-            VStack(spacing: 12) {
-                Button {
-                    didRequestCreateAccount = true
-                    dismiss()
-                } label: {
-                    Text("auth_create_account_button".localized)
-                        .frame(maxWidth: .infinity)
+                    SecondaryButton(title: "auth_use_email_instead_button".localized) {
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("noAccount.useEmail")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("noAccount.createAccount")
 
-                Button {
-                    dismiss()
-                } label: {
-                    Text("auth_use_email_instead_button".localized)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("noAccount.useEmail")
+                // Secondary, not tertiary: this is the line that helps someone who already
+                // has an email account, and tertiary grey is for placeholders only.
+                Text("auth_create_account_needed_footer".localized)
+                    .font(.naarsCaption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
-
-            Text("auth_create_account_needed_footer".localized)
-                .font(.naarsCaption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            Spacer()
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            // Clears the system drag indicator, which stays put while the content scrolls
+            .padding(.top, Constants.Spacing.lg)
+            .padding(.bottom, Constants.Spacing.lg)
         }
-        .padding(.horizontal, 24)
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .accessibilityIdentifier("noAccountFoundSheet")
     }
 }

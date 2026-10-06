@@ -44,6 +44,6 @@ struct BadgeListSection: View {
         }
         .padding()
         .background(Color.naarsCardBackground)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
     }
 }

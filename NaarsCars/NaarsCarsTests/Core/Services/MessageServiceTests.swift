@@ -107,6 +107,7 @@ final class ConversationDetailViewModelRealtimeTests: XCTestCase {
     func testRealtimeMessageInsertUpdatesViewModel() async throws {
         let conversationId = UUID()
         let viewModel = ConversationDetailViewModel(conversationId: conversationId)
+        viewModel.start()
 
         let newMessage = Message(
             id: UUID(),
@@ -370,3 +371,168 @@ final class RideCostEstimatorTests: XCTestCase {
         return calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
     }
 }
+
+// MARK: - Regression tests for the 2026-10-05 simulator review fixes
+
+/// `AnyCodable` used to stringify arrays and dictionaries (`String(describing:)`), so the
+/// `p_message_ids` parameter of `mark_messages_read_batch` reached PostgREST as the text
+/// `["A", "B"]` and the RPC answered HTTP 400; read receipts were never written.
+final class AnyCodableEncodingTests: XCTestCase {
+    private func encode(_ value: [String: AnyCodable]) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return String(decoding: try encoder.encode(value), as: UTF8.self)
+    }
+
+    func testStringArrayEncodesAsJSONArray() throws {
+        let json = try encode(["p_message_ids": AnyCodable(["A", "B"]), "p_user_id": AnyCodable("U")])
+        XCTAssertEqual(json, #"{"p_message_ids":["A","B"],"p_user_id":"U"}"#)
+    }
+
+    func testDictionaryAndNestedValuesEncodeAsJSONObjects() throws {
+        let json = try encode([
+            "payload": AnyCodable(["count": 2, "flag": true, "ids": [AnyCodable("x")]] as [String: Any])
+        ])
+        XCTAssertEqual(json, #"{"payload":{"count":2,"flag":true,"ids":["x"]}}"#)
+    }
+
+    func testScalarsAndNilStillEncodeAsBefore() throws {
+        let json = try encode([
+            "b": AnyCodable(false), "i": AnyCodable(3), "d": AnyCodable(1.5),
+            "s": AnyCodable("t"), "n": AnyCodable(nil as String? as Any)
+        ])
+        XCTAssertEqual(json, #"{"b":false,"d":1.5,"i":3,"n":null,"s":"t"}"#)
+    }
+
+    func testArrayRoundTripsThroughDecoder() throws {
+        let data = Data(#"{"ids":["A","B"],"meta":{"n":1}}"#.utf8)
+        let decoded = try JSONDecoder().decode([String: AnyCodable].self, from: data)
+        XCTAssertEqual(decoded["ids"]?.value as? [String], ["A", "B"])
+        XCTAssertEqual((decoded["meta"]?.value as? [String: Any])?["n"] as? Int, 1)
+    }
+}
+
+@MainActor
+final class MessagePaginationManagerTests: XCTestCase {
+    /// A realtime UPDATE payload carries no send status. Merging it over the local message used
+    /// to drop `sendStatus`, so an edited own message fell back to the "sending" clock.
+    func testApplyMessageUpdatePreservesLocalSendStatusAndEnrichment() {
+        let manager = MessagePaginationManager()
+        let conversationId = UUID()
+        let messageId = UUID()
+        let fromId = UUID()
+        let sender = Profile(id: fromId, name: "Sender", email: "sender@example.com")
+        let local = Message(
+            id: messageId, conversationId: conversationId, fromId: fromId, text: "Hi",
+            sendStatus: .sent, sender: sender
+        )
+        var realtime = Message(id: messageId, conversationId: conversationId, fromId: fromId, text: "Hi (edited)")
+        realtime.editedAt = Date()
+
+        let merged = manager.applyMessageUpdate(realtime, in: [local])
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].text, "Hi (edited)")
+        XCTAssertNotNil(merged[0].editedAt)
+        XCTAssertEqual(merged[0].sendStatus, .sent, "realtime update must not reset the durable send status")
+        XCTAssertEqual(merged[0].sender?.id, fromId, "sender enrichment is kept when the payload has none")
+    }
+
+    func testApplyMessageUpdateKeepsIncomingSendStatusWhenPresent() {
+        let manager = MessagePaginationManager()
+        let id = UUID()
+        let conversationId = UUID()
+        let local = Message(id: id, conversationId: conversationId, fromId: UUID(), text: "a", sendStatus: .sending)
+        let incoming = Message(id: id, conversationId: conversationId, fromId: local.fromId, text: "a", sendStatus: .failed)
+        XCTAssertEqual(manager.applyMessageUpdate(incoming, in: [local])[0].sendStatus, .failed)
+    }
+}
+
+@MainActor
+final class ConversationDetailViewModelLifecycleTests: XCTestCase {
+    /// `ConversationDetailView` runs `.onAppear` (which installs the conversationUpdated
+    /// observer via `conversationDidAppear()`) before the async `.task` body calls `start()`.
+    /// `start()` must still subscribe the repository publishers in that order.
+    func testStartSubscribesAfterConversationDidAppear() {
+        let viewModel = ConversationDetailViewModel(conversationId: UUID())
+        XCTAssertEqual(viewModel.debugObservationSinkCount, 0, "init must not subscribe")
+
+        viewModel.conversationDidAppear()
+        viewModel.start()
+        let afterStart = viewModel.debugObservationSinkCount
+        XCTAssertGreaterThan(afterStart, 0, "start() must install the publisher subscriptions even when the observer already exists")
+
+        viewModel.start()
+        XCTAssertEqual(viewModel.debugObservationSinkCount, afterStart, "start() is idempotent")
+
+        viewModel.stop()
+        XCTAssertEqual(viewModel.debugObservationSinkCount, 0, "stop() releases the subscriptions")
+
+        viewModel.start()
+        XCTAssertEqual(viewModel.debugObservationSinkCount, afterStart, "start() works again after stop() (view re-appear)")
+        viewModel.stop()
+    }
+}
+
+// MARK: - iMessage-style delivery status and time headers (2026-10-05)
+
+@MainActor
+final class ReadReceiptStatusTests: XCTestCase {
+    private let me = UUID()
+    private let other = UUID()
+    private let third = UUID()
+
+    private func message(readBy: [UUID], status: MessageSendStatus?) -> NaarsCars.Message {
+        Message(id: UUID(), conversationId: UUID(), fromId: me, text: "x", readBy: readBy, sendStatus: status)
+    }
+
+    /// Every stored message carries `sendStatus == .sent`; returning it unconditionally meant
+    /// the receipt never progressed to "Read".
+    func testStoredSentStatusDoesNotMaskReadReceipts() {
+        let status = ReadReceiptView.deriveStatus(
+            message: message(readBy: [other], status: .sent), isFailed: false, totalParticipants: 2
+        )
+        XCTAssertEqual(status, .read)
+    }
+
+    func testAcceptedMessageWithoutReadersIsSent() {
+        XCTAssertEqual(
+            ReadReceiptView.deriveStatus(message: message(readBy: [], status: .sent), isFailed: false, totalParticipants: 2),
+            .sent
+        )
+        XCTAssertEqual(
+            ReadReceiptView.deriveStatus(message: message(readBy: [me], status: nil), isFailed: false, totalParticipants: 2),
+            .sent,
+            "the sender's own id in read_by is not a read receipt"
+        )
+    }
+
+    func testInFlightAndFailedStatusesAreAuthoritative() {
+        XCTAssertEqual(
+            ReadReceiptView.deriveStatus(message: message(readBy: [other], status: .sending), isFailed: false, totalParticipants: 2),
+            .sending
+        )
+        XCTAssertEqual(
+            ReadReceiptView.deriveStatus(message: message(readBy: [], status: .failed), isFailed: true, totalParticipants: 2),
+            .failed
+        )
+    }
+
+    func testGroupIsDeliveredUntilEveryOtherMemberHasRead() {
+        XCTAssertEqual(
+            ReadReceiptView.deriveStatus(message: message(readBy: [other], status: .sent), isFailed: false, totalParticipants: 3),
+            .delivered
+        )
+        XCTAssertEqual(
+            ReadReceiptView.deriveStatus(message: message(readBy: [other, third], status: .sent), isFailed: false, totalParticipants: 3),
+            .read
+        )
+    }
+
+    func testTimeHeaderCombinesDayAndClockTime() {
+        let now = Date()
+        let header = DateSeparatorCell.attributedHeader(for: now).string
+        XCTAssertEqual(header, "\("messaging_today".localized) \(DateFormatters.timeFormatter.string(from: now))")
+    }
+}
+

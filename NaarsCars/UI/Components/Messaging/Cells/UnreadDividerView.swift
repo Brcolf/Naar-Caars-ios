@@ -55,10 +55,9 @@ final class UnreadDividerView: UICollectionViewCell {
 
     func configure(count: Int) {
         if count == 1 {
-            label.text = NSLocalizedString("messaging_unread_divider_one", comment: "")
+            label.text = "messaging_unread_divider_one".localized
         } else {
-            let format = NSLocalizedString("messaging_unread_divider_many", comment: "")
-            label.text = String(format: format, count)
+            label.text = "messaging_unread_divider_many".localized(with: count)
         }
 
         contentView.isAccessibilityElement = true

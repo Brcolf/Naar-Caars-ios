@@ -388,12 +388,31 @@ extension BadgeCountManager: BadgeCountManaging {}
         )
     }
 
+    // MARK: - Sign-out
+
+    /// Zero everything a signed-out device should not keep showing: the tab counts, the cached
+    /// fallback payload and the app icon badge. Called from the sign-out teardown, so a guest
+    /// or the next account starts from nothing instead of the previous member's numbers
+    /// (`lastKnownCounts` is the fallback when the badge RPC fails).
+    func resetForSignOut() {
+        counts = BadgeCounts()
+        isBadgeStale = false
+        lastKnownCounts = nil
+        lastRefreshTime = .distantPast
+        updateAppIconBadge(0)
+    }
+
     // MARK: - Testing Helpers
 
     /// Reset all badge counts to zero. Intended for test tearDown only.
     func resetCountsForTesting() {
         counts = BadgeCounts()
         isBadgeStale = false
+    }
+
+    /// Seed counts without a network refresh. Intended for tests only.
+    func setCountsForTesting(_ newCounts: BadgeCounts) {
+        counts = newCounts
     }
 
     // MARK: - Debug Helpers

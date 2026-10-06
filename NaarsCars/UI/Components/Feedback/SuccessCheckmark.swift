@@ -9,6 +9,7 @@ import SwiftUI
 
 /// Animated checkmark that draws itself when shown
 struct SuccessCheckmark: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var trimEnd: CGFloat = 0
     @State private var scale: CGFloat = 0.8
     @State private var opacity: Double = 0
@@ -42,19 +43,33 @@ struct SuccessCheckmark: View {
                 .scaleEffect(scale)
         }
         .opacity(opacity)
+        // Three unlabeled shapes otherwise; VoiceOver reads the mark as "Done".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("common_done".localized)
         .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+            if reduceMotion {
+                // Reduce Motion: fade the finished mark in instead of springing and drawing it.
                 scale = 1.0
-                opacity = 1
-            }
-            withAnimation(.easeInOut(duration: 0.3).delay(0.2)) {
                 trimEnd = 1.0
+                withAnimation(.naarsQuick) {
+                    opacity = 1
+                }
+            } else {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                    scale = 1.0
+                    opacity = 1
+                }
+                withAnimation(.easeInOut(duration: 0.3).delay(0.2)) {
+                    trimEnd = 1.0
+                }
             }
             HapticManager.success()
-            
+            // VoiceOver users otherwise get only the haptic.
+            AccessibilityAnnouncer.announce("common_done".localized)
+
             if let onComplete {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(.naarsQuick) {
                         opacity = 0
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

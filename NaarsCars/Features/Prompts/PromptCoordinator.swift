@@ -95,10 +95,25 @@ protocol PromptSideEffects {
     func handleCompletionResponse(completed: Bool) async throws {
         guard case .completion(let prompt) = activePrompt else { return }
         try await sideEffects.sendCompletionResponse(reminderId: prompt.reminderId, completed: completed)
+        // The answer is stored, so close the cover now; mark-read and the badge refresh follow
+        // without holding the screen for two more round trips. Clear only the prompt that was
+        // answered, so a repeated call cannot discard a prompt activated in the meantime.
+        if activePrompt?.id == prompt.id {
+            activePrompt = nil
+        }
         await sideEffects.markCompletionNotificationsRead(requestType: prompt.requestType, requestId: prompt.requestId)
         await sideEffects.refreshBadges(reason: "completionPromptAction")
-        activePrompt = nil
         await activateNextPromptIfNeeded()
+    }
+
+    /// Close the completion prompt without answering it. Nothing is sent to the server, so the
+    /// reminder stays open and the prompt comes back at the next launch or reminder push.
+    /// This is the way out when the answer cannot be sent (no signal right after the ride):
+    /// the prompt is a full-screen cover and used to stay up until the app was force-quit.
+    /// The next queued prompt is deliberately not shown straight away.
+    func dismissCompletionPromptWithoutAnswer() {
+        guard case .completion(_) = activePrompt else { return }
+        activePrompt = nil
     }
 
     func finishReviewPrompt() async {

@@ -98,13 +98,13 @@ struct AdminFulfilledOverlay: View {
         let formatter = DateFormatter()
         switch selectedPeriod {
         case "week":
-            formatter.dateFormat = "MMM d, yyyy"
+            formatter.setLocalizedDateFormatFromTemplate("yMMMd")
             return "admin_week_of".localized(with: formatter.string(from: date))
         case "year":
-            formatter.dateFormat = "yyyy"
+            formatter.setLocalizedDateFormatFromTemplate("y")
             return formatter.string(from: date)
         default:
-            formatter.dateFormat = "MMM yyyy"
+            formatter.setLocalizedDateFormatFromTemplate("yMMM")
             return formatter.string(from: date)
         }
     }

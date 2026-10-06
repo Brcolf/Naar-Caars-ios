@@ -12,6 +12,13 @@ struct SecondaryButton: View {
     let title: String
     let action: () -> Void
     var isDisabled: Bool = false
+    /// Draws the button in `naarsError` for an action that removes something
+    var isDestructive: Bool = false
+
+    private var contentColor: Color {
+        if isDisabled { return .naarsDisabledContent }
+        return isDestructive ? .naarsError : .naarsPrimary
+    }
     
     var body: some View {
         Button(action: {
@@ -22,22 +29,29 @@ struct SecondaryButton: View {
                 .font(.naarsHeadline)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.clear)
-                .foregroundColor(isDisabled ? Color.naarsDisabled : Color.naarsPrimary)
+                .foregroundColor(contentColor)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(isDisabled ? Color.naarsDisabled : Color.naarsPrimary, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous)
+                        .strokeBorder(contentColor, lineWidth: 1.5)
                 )
-                .cornerRadius(10)
+                .contentShape(RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous))
         }
         .buttonStyle(.scale)
         .disabled(isDisabled)
     }
 }
 
+extension SecondaryButton {
+    /// Trailing-closure form for an action that removes something.
+    init(title: String, isDestructive: Bool, action: @escaping () -> Void) {
+        self.init(title: title, action: action, isDisabled: false, isDestructive: isDestructive)
+    }
+}
+
 #Preview {
     VStack(spacing: 20) {
         SecondaryButton(title: "Cancel", action: {})
+        SecondaryButton(title: "Delete", isDestructive: true) {}
         SecondaryButton(title: "Disabled", action: {}, isDisabled: true)
     }
     .padding()

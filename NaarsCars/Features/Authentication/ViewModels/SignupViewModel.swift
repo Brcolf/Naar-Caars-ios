@@ -180,16 +180,14 @@ final class SignupViewModel: ObservableObject {
             )
             HapticManager.success()
         } catch {
-            if let appError = error as? AppError {
-                switch appError {
-                case .emailAlreadyExists:
-                    emailError = "signup_error_email_exists".localized
-                    errorMessage = appError.errorDescription
-                default:
-                    errorMessage = appError.errorDescription ?? "signup_error_failed".localized
-                }
+            // Localized text only: AppError's own descriptions are English and can carry raw
+            // server text ("An unexpected error occurred: Profile creation failed: …").
+            let appError = AuthErrorMessage.appError(from: error)
+            if case .emailAlreadyExists = appError {
+                emailError = "signup_error_email_exists".localized
+                errorMessage = "signup_error_email_exists_hint".localized
             } else {
-                errorMessage = "signup_error_failed".localized
+                errorMessage = AuthErrorMessage.text(for: appError, fallbackKey: "signup_error_failed")
             }
             throw error
         }

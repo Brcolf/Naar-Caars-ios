@@ -16,10 +16,13 @@ struct StarRatingView: View {
         HStack(spacing: 2) {
             ForEach(1...5, id: \.self) { index in
                 Image(systemName: starIcon(for: index))
-                    .foregroundColor(.yellow)
+                    .foregroundColor(.naarsRating)
                     .font(.system(size: size))
             }
         }
+        // One spoken value ("4.5 out of 5 stars") instead of five separate star images
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("review_rating_accessibility".localized(with: rating.formatted(.number.precision(.fractionLength(0...1)))))
     }
     
     private func starIcon(for index: Int) -> String {

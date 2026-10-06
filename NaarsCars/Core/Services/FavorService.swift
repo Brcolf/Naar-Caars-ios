@@ -77,16 +77,20 @@ final class FavorService {
     /// - Returns: Favor with poster, claimer, participants, and qaCount populated
     /// - Throws: AppError if fetch fails
     func fetchFavor(id: UUID) async throws -> Favor {
-        // Fetch favor
+        // Fetch favor. A deleted favor, or one hidden by moderators from everyone but its
+        // poster, comes back as zero rows; `.single()` turned that into a raw PostgREST error
+        // that the detail screen showed with a Retry that could never succeed.
         let response = try await supabase
             .from("favors")
             .select()
             .eq("id", value: id.uuidString)
-            .single()
+            .limit(1)
             .execute()
-        
-        let fetchedFavor: Favor = try createDecoder().decode(Favor.self, from: response.data)
-        
+
+        guard let fetchedFavor = try createDecoder().decode([Favor].self, from: response.data).first else {
+            throw AppError.notFound("Favor")
+        }
+
         // Enrich with profiles and fetch the Q&A count concurrently (independent requests)
         async let enrichedFavor = enrichFavorWithProfiles(fetchedFavor)
         async let qaCount = fetchQACount(requestId: id, requestType: "favor")
@@ -200,11 +204,16 @@ final class FavorService {
     ) async throws -> Favor {
         var updates: [String: AnyCodable] = [:]
         
+        // nil leaves an optional column unchanged; an empty string means the poster cleared it
+        // (description, requirements, gift, or the time with "Specify Time" switched off),
+        // which is stored as NULL so it reads as absent everywhere.
+        let cleared = AnyCodable(String?.none as Any)
+
         if let title = title {
             updates["title"] = AnyCodable(title)
         }
         if let description = description {
-            updates["description"] = AnyCodable(description)
+            updates["description"] = description.isEmpty ? cleared : AnyCodable(description)
         }
         if let location = location {
             updates["location"] = AnyCodable(location)
@@ -213,7 +222,7 @@ final class FavorService {
             updates["duration"] = AnyCodable(duration.rawValue)
         }
         if let requirements = requirements {
-            updates["requirements"] = AnyCodable(requirements)
+            updates["requirements"] = requirements.isEmpty ? cleared : AnyCodable(requirements)
         }
         if let date = date {
             // Use local timezone to match what the user selected in DatePicker
@@ -224,10 +233,10 @@ final class FavorService {
             updates["date"] = AnyCodable(dateFmt.string(from: date))
         }
         if let time = time {
-            updates["time"] = AnyCodable(time)
+            updates["time"] = time.isEmpty ? cleared : AnyCodable(time)
         }
         if let gift = gift {
-            updates["gift"] = AnyCodable(gift)
+            updates["gift"] = gift.isEmpty ? cleared : AnyCodable(gift)
         }
         if let timezone = timezone {
             updates["timezone"] = AnyCodable(timezone)
@@ -268,21 +277,19 @@ final class FavorService {
                                 (time != nil && original.time != favor.time)
             
             if detailsChanged {
-                // Create notification for claimer
+                // Tell the claimer through the server-side RPC. A direct insert into
+                // `notifications` for another user is rejected by RLS (service-only insert),
+                // so the claimer was never told. The RPC builds the text itself, respects
+                // blocks and keeps at most one unread notice per request.
                 do {
-                    let notificationData: [String: AnyCodable] = [
-                        "user_id": AnyCodable(claimedBy.uuidString),
-                        "type": AnyCodable("favor_update"),
-                        "title": AnyCodable("Favor Details Updated"),
-                        "body": AnyCodable("The favor you claimed has been updated. Check the details."),
-                        "favor_id": AnyCodable(id.uuidString),
-                        "read": AnyCodable(false),
-                        "pinned": AnyCodable(false)
+                    let params: [String: AnyCodable] = [
+                        "p_ride_id": AnyCodable(nil as String? as Any),
+                        "p_favor_id": AnyCodable(id.uuidString),
+                        "p_title": AnyCodable(""),
+                        "p_body": AnyCodable("")
                     ]
-                    
                     try await supabase
-                        .from("notifications")
-                        .insert(notificationData)
+                        .rpc("notify_claimer_of_request_update", params: params)
                         .execute()
                 } catch {
                     AppLogger.warning("favors", "Failed to create notification for claimer: \(error)")
@@ -299,12 +306,19 @@ final class FavorService {
     /// - Parameter id: Favor ID
     /// - Throws: AppError if deletion fails
     func deleteFavor(id: UUID) async throws {
-        try await supabase
+        let response = try await supabase
             .from("favors")
             .delete()
             .eq("id", value: id.uuidString)
+            .select("id")
             .execute()
-        
+
+        // The delete policy matches only the poster's own row. For anyone else PostgREST still
+        // answers 200 with an empty array, and the screen showed the success checkmark for a
+        // favor that was never deleted.
+        if let rows = try? JSONSerialization.jsonObject(with: response.data) as? [Any], rows.isEmpty {
+            throw AppError.permissionDenied("request_delete_not_allowed".localized)
+        }
     }
     
     // MARK: - Participants

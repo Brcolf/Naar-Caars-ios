@@ -12,6 +12,9 @@ import SwiftUI
 /// plus a sign-in link for returning users.
 struct WelcomeView: View {
     @StateObject private var appleSignInViewModel = AppleSignInViewModel()
+    // Owned here so the pushed sign-up form keeps what was typed: built inline in the
+    // destination, every re-evaluation of this body handed the form a new, empty model.
+    @StateObject private var signupViewModel = SignupViewModel()
     @Environment(AppState.self) var appState
     @State private var showError = false
     @State private var navigateToEmailSignup = false
@@ -71,22 +74,21 @@ struct WelcomeView: View {
                     Button(action: {
                         navigateToLogin = true
                     }) {
-                        HStack {
+                        HStack(spacing: Constants.Spacing.sm) {
                             Image(systemName: "envelope.fill")
-                            Text("welcome_login_with_email".localized)
-                            Spacer()
+                            Text("welcome_sign_in_with_email".localized)
                         }
-                        .font(.naarsBody)
+                        .font(.naarsHeadline)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.naarsBackgroundSecondary)
-                        .cornerRadius(10)
+                        .clipShape(Capsule())
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.naarsBorder, lineWidth: 1)
+                            Capsule()
+                                .strokeBorder(Color.naarsBorder, lineWidth: 1)
                         )
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .buttonStyle(.scale)
                     .accessibilityIdentifier("welcome.emailLogin")
 
                     if appleSignInViewModel.isLoading {
@@ -132,11 +134,19 @@ struct WelcomeView: View {
                 }
                 .padding(.horizontal)
 
+                // Says before any account exists that sign-up is open but approval is not
+                // instant; otherwise the application form and review screen come as a surprise.
+                Text("welcome_footer".localized)
+                    .font(.naarsFootnote)
+                    .foregroundColor(.naarsTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
                 // Legal links — visible before any account creation (Guideline 5.1.1)
                 VStack(spacing: 4) {
                     Text("signup_terms_agreement".localized)
                         .font(.naarsCaption)
-                        .foregroundColor(.naarsTextTertiary)
+                        .foregroundColor(.naarsTextSecondary)
 
                     HStack(spacing: 4) {
                         if let tosURL = URL(string: Constants.URLs.termsOfService) {
@@ -145,7 +155,7 @@ struct WelcomeView: View {
                         }
                         Text("signup_terms_and".localized)
                             .font(.naarsCaption)
-                            .foregroundColor(.naarsTextTertiary)
+                            .foregroundColor(.naarsTextSecondary)
                         if let privacyURL = URL(string: Constants.URLs.privacyPolicy) {
                             Link("signup_privacy_policy".localized, destination: privacyURL)
                                 .font(.naarsCaption)
@@ -161,7 +171,7 @@ struct WelcomeView: View {
         .navigationTitle("")
         .navigationBarHidden(true)
         .navigationDestination(isPresented: $navigateToEmailSignup) {
-            SignupDetailsView(viewModel: SignupViewModel())
+            SignupDetailsView(viewModel: signupViewModel)
                 .environment(appState)
         }
         .navigationDestination(isPresented: $navigateToLogin) {
@@ -171,10 +181,26 @@ struct WelcomeView: View {
         .alert("common_error".localized, isPresented: $showError) {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(appleSignInViewModel.error?.localizedDescription ?? "common_error_occurred".localized)
+            Text(appleSignInViewModel.errorMessage ?? "common_error_occurred".localized)
         }
         .trackScreen("Welcome")
+        .task {
+            // A guest who chose "Sign In" continues to the sign-in form instead of having
+            // to choose again here.
+            if WelcomeEntryRoute.opensSignIn {
+                WelcomeEntryRoute.opensSignIn = false
+                navigateToLogin = true
+            }
+        }
     }
+}
+
+/// One-shot hint for the Welcome screen. Leaving guest mode always lands on Welcome, which is
+/// the sign-up screen; a guest who tapped "Sign In" sets this so Welcome opens the sign-in
+/// form for them. Read and cleared once by `WelcomeView`.
+@MainActor
+enum WelcomeEntryRoute {
+    static var opensSignIn = false
 }
 
 #Preview {

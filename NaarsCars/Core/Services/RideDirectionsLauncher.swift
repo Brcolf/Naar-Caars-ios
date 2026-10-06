@@ -43,7 +43,7 @@ enum RideDirectionsLauncher {
 
         if let currentCoord = currentCoord {
             let startItem = MKMapItem(placemark: MKPlacemark(coordinate: currentCoord))
-            startItem.name = "Current Location"
+            startItem.name = "maps_stop_current_location".localized
             return [startItem, pickupItem, dropoffItem]
         }
         return [pickupItem, dropoffItem]
@@ -74,8 +74,8 @@ enum RideDirectionsLauncher {
             pickupCoord: pickupCoord,
             dropoffCoord: dropoffCoord,
             currentCoord: currentCoord,
-            pickupName: "Pickup: \(pickupAddress)",
-            dropoffName: "Dropoff: \(dropoffAddress)"
+            pickupName: "maps_stop_pickup".localized(with: pickupAddress),
+            dropoffName: "maps_stop_dropoff".localized(with: dropoffAddress)
         )
 
         if !items.isEmpty {
@@ -90,9 +90,16 @@ enum RideDirectionsLauncher {
 
         // Fallback: open with address query (directions)
         AppLogger.warning(logTag, "[RideMapTap] no coords; opening Maps with address query")
-        let saddr = pickupAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pickupAddress
-        let daddr = dropoffAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? dropoffAddress
-        if let url = URL(string: "https://maps.apple.com/?saddr=\(saddr)&daddr=\(daddr)") {
+        // Built from query items so "&" in an address ("5th Ave & Pine St") is escaped rather
+        // than read as the end of the value.
+        let addressURL = MapsLaunchCoordinator.makeURL(
+            base: "https://maps.apple.com/",
+            queryItems: [
+                URLQueryItem(name: "saddr", value: pickupAddress),
+                URLQueryItem(name: "daddr", value: dropoffAddress)
+            ]
+        )
+        if let url = addressURL {
             UIApplication.shared.open(url)
         }
     }

@@ -103,14 +103,24 @@ final class RequestFilterManager {
 
         allRequests = ridesConverted.map(RequestItem.ride) + favorsConverted.map(RequestItem.favor)
 
+        // The converted values carry no `participants` (the cache stores ids only), so
+        // `RequestItem.isParticipating` alone sees just the poster. A co-requester's shared
+        // ride was listed under Open Requests with "I Can Help!" and never under My Requests.
+        var participantIdsByRequest: [UUID: [UUID]] = [:]
+        for sdRide in rides { participantIdsByRequest[sdRide.id] = sdRide.participantIds }
+        for sdFavor in favors { participantIdsByRequest[sdFavor.id] = sdFavor.participantIds }
+        func isRequester(_ item: RequestItem, _ uid: UUID) -> Bool {
+            item.userId == uid || (participantIdsByRequest[item.id]?.contains(uid) ?? false)
+        }
+
         switch filter {
         case .open:
             // Guests (userId nil) see all unclaimed. Authenticated users also exclude requests they participate in.
             allRequests = allRequests.filter { item in
-                item.isUnclaimed && (userId == nil || !item.isParticipating(userId: userId!))
+                item.isUnclaimed && (userId == nil || !isRequester(item, userId!))
             }
         case .mine:
-            allRequests = allRequests.filter { $0.isParticipating(userId: userId!) }
+            allRequests = allRequests.filter { isRequester($0, userId!) }
         case .claimed:
             allRequests = allRequests.filter { $0.claimedBy == userId! }
         }
@@ -118,11 +128,29 @@ final class RequestFilterManager {
         let now = Date()
         allRequests = allRequests.filter { request in
             if request.isCompleted { return false }
-            let hoursSinceEvent = now.timeIntervalSince(request.eventTime) / 3600
-            return hoursSinceEvent <= 12
+            // Measured from the end of the request's window (RequestItem.windowEnd), not from
+            // `eventTime`: a favor with no time was hidden from every tile at noon of its day.
+            let hoursSinceEvent = now.timeIntervalSince(request.windowEnd) / 3600
+            if hoursSinceEvent <= 12 { return true }
+            // Past the 12 h window, a confirmed request the user is a party to still needs
+            // "Mark as Complete" on its detail screen, so keep it on the Mine / Claimed tiles.
+            guard filter != .open, let userId, request.status == .confirmed else { return false }
+            return request.claimedBy == userId || isRequester(request, userId)
         }
 
-        allRequests.sort { $0.eventTime < $1.eventTime }
+        if filter == .open {
+            allRequests.sort { $0.eventTime < $1.eventTime }
+        } else {
+            // Mine / Claimed: what is coming up first (soonest at the top), then anything
+            // already past, most recent first. Past requests are listed only because they
+            // still need "Mark as Complete", and used to push new requests to the bottom.
+            allRequests.sort { lhs, rhs in
+                let lhsUpcoming = lhs.windowEnd >= now
+                let rhsUpcoming = rhs.windowEnd >= now
+                if lhsUpcoming != rhsUpcoming { return lhsUpcoming }
+                return lhsUpcoming ? lhs.eventTime < rhs.eventTime : lhs.eventTime > rhs.eventTime
+            }
+        }
         return allRequests
     }
 
@@ -135,8 +163,9 @@ final class RequestFilterManager {
         case .open:
             predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
-            let uid = userId!
-            predicate = #Predicate { $0.status != "completed" && ($0.userId == uid || $0.claimedBy == uid) }
+            // Participant-only rows are matched by the `participantIds` check after the fetch.
+            // The predicate used to require poster or claimer, which dropped them first.
+            predicate = #Predicate { $0.status != "completed" }
         case .claimed:
             let uid = userId!
             predicate = #Predicate { $0.claimedBy == uid && $0.status != "completed" }
@@ -159,8 +188,9 @@ final class RequestFilterManager {
         case .open:
             predicate = #Predicate { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
-            let uid = userId!
-            predicate = #Predicate { $0.status != "completed" && ($0.userId == uid || $0.claimedBy == uid) }
+            // Participant-only rows are matched by the `participantIds` check after the fetch.
+            // The predicate used to require poster or claimer, which dropped them first.
+            predicate = #Predicate { $0.status != "completed" }
         case .claimed:
             let uid = userId!
             predicate = #Predicate { $0.claimedBy == uid && $0.status != "completed" }
@@ -217,11 +247,10 @@ final class RequestFilterManager {
             return rides.filter { $0.status == "open" && $0.claimedBy == nil }
         case .mine:
             let uid = userId!
-            // Matches the predicate (status != completed && (poster or claimer))
-            // then the post-fetch participantIds check.
+            // Matches the predicate (status != completed) then the post-fetch
+            // poster / claimer / participantIds check.
             return rides.filter {
                 $0.status != "completed"
-                    && ($0.userId == uid || $0.claimedBy == uid)
             }.filter {
                 $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid
             }
@@ -242,7 +271,6 @@ final class RequestFilterManager {
             let uid = userId!
             return favors.filter {
                 $0.status != "completed"
-                    && ($0.userId == uid || $0.claimedBy == uid)
             }.filter {
                 $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid
             }

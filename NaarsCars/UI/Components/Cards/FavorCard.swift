@@ -13,6 +13,7 @@ struct FavorCard: View {
     var unreadCount: Int = 0
 
     @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var showsHiddenPlaceholder: Bool {
         favor.isModerationHidden && AuthService.shared.currentUserId == favor.userId
@@ -43,12 +44,11 @@ struct FavorCard: View {
                 .overlay(
                     Rectangle()
                         .fill(Color.favorAccent)
-                        .frame(width: 4)
-                        .cornerRadius(2),
+                        .frame(width: 4),
                     alignment: .leading
                 )
-                .cornerRadius(12)
-                .shadow(color: Color.primary.opacity(0.08), radius: 4, x: 0, y: 2)
+                .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.card, style: .continuous))
+                .cardShadow()
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityHint("card_favor_details_hint".localized)
@@ -56,68 +56,77 @@ struct FavorCard: View {
         }
     }
 
-    private var badgeText: String? {
-        guard unreadCount > 0 else { return nil }
-        return unreadCount > 9 ? "9+" : "\(unreadCount)"
-    }
-
     private var accessibilityLabel: String {
         if showsHiddenPlaceholder {
             return "requests_hidden_title".localized
         }
 
-        return appState.isGuest
-            ? "Favor \(favor.title) on \(favor.date.dateString), \(favor.status.displayText)"
-            : "Favor \(favor.title) at \(favor.location) on \(favor.date.dateString), \(favor.status.displayText)"
+        // Everything the card shows, in reading order. The explicit label replaces the combined
+        // children (which would read the decorative symbols and never say "Favor"), so it has
+        // to carry the poster, time, duration, claimer and unread count itself. Guests get no
+        // address, as on the card.
+        var parts: [String] = ["common_favor".localized, favor.title]
+        if let poster = favor.poster {
+            parts.append("favor_detail_requested_by".localized(with: poster.name))
+        }
+        if !appState.isGuest {
+            parts.append("card_favor_location_accessibility".localized(with: favor.location))
+        }
+        parts.append(favor.date.dateString)
+        if let time = favor.time {
+            parts.append(Date.displayTime(fromDatabaseTime: time))
+        }
+        parts.append(favor.duration.displayText)
+        parts.append(favor.statusDisplayText)
+        if favor.claimedBy != nil, let claimer = favor.claimer {
+            parts.append("\("card_claimed_by".localized) \(claimer.name)")
+        }
+        if unreadCount > 0 {
+            parts.append("common_unseen_notifications_accessibility".localized(with: unreadCount))
+        }
+        return parts.joined(separator: ", ")
     }
 
     @ViewBuilder
     private var headerContent: some View {
-        HStack {
-            if let poster = favor.poster {
-                UserAvatarLink(profile: poster, size: 40)
-            } else {
-                AvatarView(imageUrl: nil, name: "Unknown", size: 40)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
+        // At accessibility sizes the name hyphenates ("Bren-dan Col-ford") and the status
+        // badge wraps mid-word beside it; stack the badges under the poster row instead.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout())
+        layout {
+            HStack {
                 if let poster = favor.poster {
-                    Text(poster.name)
-                        .font(.naarsHeadline)
+                    UserAvatarLink(profile: poster, size: 40)
                 } else {
-                    Text("common_unknown_user".localized)
-                        .font(.naarsHeadline)
+                    AvatarView(imageUrl: nil, name: "Unknown", size: 40)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    if let poster = favor.poster {
+                        Text(poster.name)
+                            .font(.naarsHeadline)
+                            .lineLimit(2)
+                    } else {
+                        Text("common_unknown_user".localized)
+                            .font(.naarsHeadline)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text(favor.date.dateString)
+                        .font(.naarsCaption)
                         .foregroundColor(.secondary)
                 }
-
-                Text(favor.date.dateString)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
             }
 
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer()
+            }
 
             HStack(spacing: 8) {
-                if let badgeText {
-                    Text(badgeText)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                        .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
-                }
-
-                Text(favor.status.displayText)
-                    .font(.naarsCaption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(favor.status.color)
-                    .cornerRadius(8)
+                NotificationBadge(count: unreadCount, cap: 9)
+                    .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
+                NaarsChip(text: favor.statusDisplayText, tint: favor.status.color)
             }
         }
     }
@@ -157,7 +166,7 @@ struct FavorCard: View {
 
             HStack(spacing: 8) {
                 Image(systemName: favor.duration.icon)
-                    .foregroundColor(.naarsAccent)
+                    .foregroundColor(.favorAccent)
                     .font(.naarsCallout)
                 Text(favor.duration.displayText)
                     .font(.naarsBody)
@@ -166,7 +175,7 @@ struct FavorCard: View {
 
         HStack(spacing: 16) {
             if let time = favor.time {
-                Label(time, systemImage: "clock")
+                Label(Date.displayTime(fromDatabaseTime: time), systemImage: "clock")
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -187,6 +196,7 @@ struct FavorCard: View {
                         .font(.naarsCaption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
+                        .lineLimit(1)
                 } else {
                     Image(systemName: "hand.raised.fill")
                         .foregroundColor(.naarsPrimary)

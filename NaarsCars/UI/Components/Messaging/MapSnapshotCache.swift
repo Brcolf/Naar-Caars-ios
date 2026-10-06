@@ -18,13 +18,19 @@ final class MapSnapshotCache {
         cache.totalCostLimit = 20 * 1024 * 1024  // ~20MB
     }
     
-    func snapshot(for coordinate: CLLocationCoordinate2D) async -> UIImage? {
-        let key = "\(coordinate.latitude),\(coordinate.longitude)" as NSString
+    /// - Parameter style: the appearance to render the map in. Part of the cache key: a
+    ///   snapshot is a bitmap, so one taken in light mode stayed light after a switch to dark
+    ///   (and the reverse) until the cache was evicted.
+    func snapshot(for coordinate: CLLocationCoordinate2D, style: UIUserInterfaceStyle = .unspecified) async -> UIImage? {
+        let key = "\(coordinate.latitude),\(coordinate.longitude),\(style.rawValue)" as NSString
         if let cached = cache.object(forKey: key) {
             return cached
         }
-        
+
         let options = MKMapSnapshotter.Options()
+        if style != .unspecified {
+            options.traitCollection = UITraitCollection(userInterfaceStyle: style)
+        }
         options.region = MKCoordinateRegion(
             center: coordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)

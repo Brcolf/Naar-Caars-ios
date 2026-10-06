@@ -25,7 +25,13 @@ final class NotificationNavigationRouter {
         markGroupAsRead: @escaping @MainActor (NotificationGroup) -> Void
     ) {
         if NotificationGrouping.announcementTypes.contains(notification.type) {
-            handleAnnouncementTap(notification, markAsRead: markAsRead)
+            // The inbox list handles announcement rows itself and shows the announcements list
+            // in place. A caller that comes through here has no such screen, so it keeps the
+            // deferred route.
+            if handleAnnouncementTap(notification, markAsRead: markAsRead) {
+                NavigationCoordinator.shared.deferNotificationIntent(.openAnnouncements(scrollToNotificationId: notification.id))
+                NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
+            }
             return
         }
 
@@ -48,26 +54,32 @@ final class NotificationNavigationRouter {
         NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
     }
 
+    /// Announcement row tap: one navigation per tap.
+    ///
+    /// A broadcast with a linked Town Hall post defers that intent and asks the inbox to close.
+    /// Any other announcement is shown by the caller inside the open sheet, so nothing is
+    /// deferred and nothing is dismissed. Deferring `.openAnnouncements` as well made the same
+    /// list open a second time, as a new sheet on the Community tab, while the inbox was closing.
+    /// - Returns: true when the caller should show the announcements list in place.
+    @discardableResult
     func handleAnnouncementTap(
         _ notification: AppNotification,
         markAsRead: @escaping @MainActor (AppNotification) -> Void
-    ) {
+    ) -> Bool {
         if !notification.read {
             Task { @MainActor in
                 markAsRead(notification)
             }
         }
-        // If broadcast has a linked town hall post, navigate there instead
-        let intent: NotificationIntent
-        if let postId = notification.townHallPostId {
-            intent = .openTownHallPost(postId: postId, mode: .highlightPost)
-            AppLogger.info("notifications", "[NotificationNavigationRouter] Broadcast tapped with town hall post: \(postId); deferring intent")
-        } else {
-            intent = .openAnnouncements(scrollToNotificationId: notification.id)
-            AppLogger.info("notifications", "[NotificationNavigationRouter] Announcement tapped: \(notification.id); deferring intent")
+        guard let postId = notification.townHallPostId else {
+            AppLogger.info("notifications", "[NotificationNavigationRouter] Announcement tapped: \(notification.id); showing announcements in place")
+            return true
         }
-        NavigationCoordinator.shared.deferNotificationIntent(intent)
+        // The broadcast has a linked town hall post: navigate there instead
+        AppLogger.info("notifications", "[NotificationNavigationRouter] Broadcast tapped with town hall post: \(postId); deferring intent")
+        NavigationCoordinator.shared.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost))
         NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
+        return false
     }
 
     /// Builds the unified NotificationIntent for a notification tap; applied after sheet dismisses.

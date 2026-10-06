@@ -9,29 +9,34 @@ import SwiftUI
 
 /// Base skeleton view with shimmer animation
 struct SkeletonView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isAnimating = false
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 // Base gray background
                 Color.gray.opacity(0.2)
-                
-                // Shimmer gradient
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.clear,
-                        Color.white.opacity(0.3),
-                        Color.clear
-                    ]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: geometry.size.width * 2)
-                .offset(x: isAnimating ? geometry.size.width : -geometry.size.width)
+
+                // Shimmer gradient. With Reduce Motion on, the static gray placeholder is the
+                // whole skeleton: no sweep.
+                if !reduceMotion {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.clear,
+                            Color.white.opacity(0.3),
+                            Color.clear
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: geometry.size.width * 2)
+                    .offset(x: isAnimating ? geometry.size.width : -geometry.size.width)
+                }
             }
         }
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(
                 Animation.linear(duration: 1.5)
                     .repeatForever(autoreverses: false)
@@ -81,7 +86,7 @@ struct SkeletonCircle: View {
         SkeletonRectangle(width: 200, height: 20)
         SkeletonRectangle(width: 150, height: 16)
         SkeletonCircle(size: 50)
-        SkeletonRectangle(width: nil, height: 100, cornerRadius: 12)
+        SkeletonRectangle(width: nil, height: 100, cornerRadius: Constants.Radius.card)
     }
     .padding()
 }

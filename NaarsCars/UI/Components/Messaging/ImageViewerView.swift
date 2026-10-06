@@ -186,8 +186,14 @@ struct ImageViewerView: View {
         let activityVC = UIActivityViewController(activityItems: [image], applicationActivities: nil)
 
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
-            rootViewController.present(activityVC, animated: true)
+           var presenter = windowScene.windows.first?.rootViewController {
+            // The viewer is itself a presented cover. Presenting from the root controller while
+            // it is already presenting fails silently, so Share did nothing.
+            while let presented = presenter.presentedViewController {
+                presenter = presented
+            }
+            activityVC.popoverPresentationController?.sourceView = presenter.view
+            presenter.present(activityVC, animated: true)
         }
     }
 

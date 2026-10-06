@@ -12,7 +12,7 @@ import Foundation
 /// A "series" is a consecutive run of messages from the same sender within a time window.
 /// Messages are grouped into the same series when:
 /// - They share the same sender (`fromId`)
-/// - They are sent within 5 minutes of each other
+/// - They are sent within one minute of each other (`Constants.Timing.messageSeriesWindow`)
 ///
 /// Used by ConversationDetailView and MessageThreadView to control bubble styling
 /// (e.g., avatar display, tail visibility, spacing).
@@ -20,7 +20,7 @@ enum MessageSeriesHelper {
 
     /// The maximum time interval (in seconds) between two messages
     /// for them to be considered part of the same series
-    static let seriesTimeThreshold: TimeInterval = 300 // 5 minutes
+    static let seriesTimeThreshold: TimeInterval = Constants.Timing.messageSeriesWindow
 
     /// Check if a message is the first in a consecutive series from the same sender
     /// - Parameters:

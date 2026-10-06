@@ -53,7 +53,7 @@ struct SignupInviteCodeView: View {
                 
                 // Error message
                 if let error = validationError {
-                    Text(error.localizedDescription)
+                    Text(AuthErrorMessage.text(for: error, fallbackKey: "signup_error_validation_failed_retry"))
                         .font(.naarsCaption)
                         .foregroundColor(.naarsError)
                         .padding(.horizontal)
@@ -74,6 +74,8 @@ struct SignupInviteCodeView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
                 .disabled(isValidating || inviteCode.isEmpty)
                 .padding(.horizontal)
                 .accessibilityIdentifier("signup.inviteNext")
@@ -97,7 +99,7 @@ struct SignupInviteCodeView: View {
         .alert("common_error".localized, isPresented: $showError) {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(appleSignInViewModel.error?.localizedDescription ?? "common_error_occurred".localized)
+            Text(appleSignInViewModel.errorMessage ?? "common_error_occurred".localized)
         }
         .onOpenURL { url in
             // Handle deep link: https://naarscars.com/signup?code=CODE

@@ -98,7 +98,7 @@ struct FlightRowView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     Image(systemName: "arrow.right")
-                        .font(.caption2)
+                        .font(.naarsCaption2)
                         .foregroundColor(.secondary)
                     Text(dest.name)
                         .font(.naarsCaption)

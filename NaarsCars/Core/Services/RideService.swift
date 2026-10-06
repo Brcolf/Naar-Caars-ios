@@ -78,16 +78,20 @@ final class RideService {
     /// - Returns: Ride with poster, claimer, participants, and qaCount populated
     /// - Throws: AppError if fetch fails
     func fetchRide(id: UUID) async throws -> Ride {
-        // Fetch ride
+        // Fetch ride. A deleted ride, or one hidden by moderators from everyone but its poster,
+        // comes back as zero rows; `.single()` turned that into a raw PostgREST error that the
+        // detail screen showed with a Retry that could never succeed.
         let response = try await supabase
             .from("rides")
             .select()
             .eq("id", value: id.uuidString)
-            .single()
+            .limit(1)
             .execute()
-        
-        let fetchedRide: Ride = try createDecoder().decode(Ride.self, from: response.data)
-        
+
+        guard let fetchedRide = try createDecoder().decode([Ride].self, from: response.data).first else {
+            throw AppError.notFound("Ride")
+        }
+
         // Enrich with profiles and fetch the Q&A count concurrently (independent requests)
         async let enrichedRide = enrichRideWithProfiles(fetchedRide)
         async let qaCount = fetchQACount(requestId: id, requestType: "ride")
@@ -325,11 +329,13 @@ final class RideService {
         if let seats = seats {
             updates["seats"] = AnyCodable(seats)
         }
+        // nil leaves an optional text column unchanged; an empty string means the poster
+        // cleared it, which is stored as NULL so it reads as absent everywhere.
         if let notes = notes {
-            updates["notes"] = AnyCodable(notes)
+            updates["notes"] = notes.isEmpty ? AnyCodable(String?.none as Any) : AnyCodable(notes)
         }
         if let gift = gift {
-            updates["gift"] = AnyCodable(gift)
+            updates["gift"] = gift.isEmpty ? AnyCodable(String?.none as Any) : AnyCodable(gift)
         }
         if let timezone = timezone {
             updates["timezone"] = AnyCodable(timezone)
@@ -370,24 +376,19 @@ final class RideService {
                                 (seats != nil && original.seats != ride.seats)
             
             if detailsChanged {
-                // Create notification for claimer
-                // Note: In production, this would typically be handled by a database trigger
-                // or backend function. For now, we'll create an in-app notification.
+                // Tell the claimer through the server-side RPC. A direct insert into
+                // `notifications` for another user is rejected by RLS (service-only insert),
+                // so the claimer was never told. The RPC builds the text itself, respects
+                // blocks and keeps at most one unread notice per request.
                 do {
-                    let notificationData: [String: AnyCodable] = [
-                        "user_id": AnyCodable(claimedBy.uuidString),
-                        "type": AnyCodable("ride_update"),
-                        "title": AnyCodable("Ride Details Updated"),
-                        "body": AnyCodable("The ride you claimed has been updated. Check the details."),
-                        "ride_id": AnyCodable(id.uuidString),
-                        "read": AnyCodable(false),
-                        "pinned": AnyCodable(false)
+                    let params: [String: AnyCodable] = [
+                        "p_ride_id": AnyCodable(id.uuidString),
+                        "p_favor_id": AnyCodable(nil as String? as Any),
+                        "p_title": AnyCodable(""),
+                        "p_body": AnyCodable("")
                     ]
-                    
-                    // Insert notification (if notifications table exists)
                     try await supabase
-                        .from("notifications")
-                        .insert(notificationData)
+                        .rpc("notify_claimer_of_request_update", params: params)
                         .execute()
                 } catch {
                     // Notification creation is optional - don't fail the update
@@ -405,12 +406,19 @@ final class RideService {
     /// - Parameter id: Ride ID
     /// - Throws: AppError if deletion fails
     func deleteRide(id: UUID) async throws {
-        try await supabase
+        let response = try await supabase
             .from("rides")
             .delete()
             .eq("id", value: id.uuidString)
+            .select("id")
             .execute()
-        
+
+        // The delete policy matches only the poster's own row. For anyone else PostgREST still
+        // answers 200 with an empty array, and the screen showed the success checkmark for a
+        // ride that was never deleted.
+        if let rows = try? JSONSerialization.jsonObject(with: response.data) as? [Any], rows.isEmpty {
+            throw AppError.permissionDenied("request_delete_not_allowed".localized)
+        }
     }
     
     // MARK: - Q&A Operations
@@ -499,6 +507,23 @@ final class RideService {
         return qa
     }
     
+    /// Delete a question. RLS allows this only for the person who asked it
+    /// (`Users can delete own Q&A`); for anyone else the delete matches no row.
+    /// - Parameter id: Q&A ID
+    /// - Throws: AppError if nothing was deleted or the request fails
+    func deleteQuestion(id: UUID) async throws {
+        let response = try await supabase
+            .from("request_qa")
+            .delete()
+            .eq("id", value: id.uuidString)
+            .select("id")
+            .execute()
+
+        if let rows = try? JSONSerialization.jsonObject(with: response.data) as? [Any], rows.isEmpty {
+            throw AppError.permissionDenied("qa_delete_question_failed".localized)
+        }
+    }
+
     /// Post an answer to a question
     /// - Parameters:
     ///   - qaId: Q&A ID

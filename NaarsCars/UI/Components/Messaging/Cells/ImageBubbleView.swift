@@ -8,7 +8,7 @@
 import UIKit
 
 /// Pure UIKit image bubble with generation-counter cell-reuse safety.
-final class ImageBubbleView: UIView {
+final class ImageBubbleView: MessageBubbleContentView {
 
     // MARK: - Subviews
 
@@ -199,9 +199,9 @@ final class ImageBubbleView: UIView {
         spinner.stopAnimating()
 
         isAccessibilityElement = true
-        accessibilityLabel = NSLocalizedString("messaging_photo", comment: "")
+        accessibilityLabel = "messaging_photo".localized
         accessibilityTraits = [.image, .button]
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_view", comment: "")
+        accessibilityHint = "accessibility_tap_to_view".localized
     }
 
     private func showError() {
@@ -211,9 +211,9 @@ final class ImageBubbleView: UIView {
         spinner.stopAnimating()
 
         isAccessibilityElement = true
-        accessibilityLabel = NSLocalizedString("messaging_image_failed", comment: "")
+        accessibilityLabel = "messaging_image_failed".localized
         accessibilityTraits = .button
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_retry", comment: "")
+        accessibilityHint = "accessibility_tap_to_retry".localized
     }
 
     // MARK: - Layout

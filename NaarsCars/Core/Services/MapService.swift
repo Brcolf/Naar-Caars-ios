@@ -26,8 +26,8 @@ struct MapRequest: Identifiable {
         
         var pinColor: Color {
             switch self {
-            case .ride: return .blue
-            case .favor: return .orange
+            case .ride: return .rideAccent
+            case .favor: return .favorAccent
             }
         }
         
@@ -256,7 +256,8 @@ final class MapService {
     ///   - from: Starting coordinate
     ///   - to: Destination coordinate
     /// - Returns: MKRoute if successful
-    /// - Throws: MapError if route calculation fails
+    /// - Throws: `MapError.routeNotFound` when no route exists; any other failure (offline,
+    ///   throttled, server error) is rethrown unchanged
     func calculateRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async throws -> MKRoute {
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
@@ -273,8 +274,14 @@ final class MapService {
             }
             
             return route
-        } catch {
+        } catch let error as MapError {
+            throw error
+        } catch let error as MKError where error.code == .directionsNotFound || error.code == .placemarkNotFound {
             throw MapError.routeNotFound
+        } catch {
+            // Offline, throttled or a server failure. Rethrown as it is, so the route card can
+            // offer Retry; folded into `routeNotFound` it read as "this ride has no route".
+            throw error
         }
     }
     

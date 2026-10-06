@@ -29,12 +29,16 @@ struct GuestProfileView: View {
                             .multilineTextAlignment(.center)
 
                         PrimaryButton(title: "guest_prompt_sign_up".localized) {
+                            WelcomeEntryRoute.opensSignIn = false
                             appState.isGuestMode = false
                             AppLaunchManager.shared.exitGuestMode()
                         }
                         .accessibilityIdentifier("guestProfile.signUp")
 
-                        SecondaryButton(title: "guest_prompt_log_in".localized) {
+                        // Both buttons leave guest mode for Welcome (the sign-up screen);
+                        // this one asks Welcome to continue to the sign-in form.
+                        SecondaryButton(title: "auth_sign_in_button".localized) {
+                            WelcomeEntryRoute.opensSignIn = true
                             appState.isGuestMode = false
                             AppLaunchManager.shared.exitGuestMode()
                         }
@@ -57,7 +61,7 @@ struct GuestProfileView: View {
                                     .foregroundColor(.primary)
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
@@ -72,7 +76,7 @@ struct GuestProfileView: View {
                                     .foregroundColor(.primary)
                                 Spacer()
                                 Image(systemName: "arrow.up.right.square")
-                                    .font(.caption)
+                                    .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
@@ -89,7 +93,7 @@ struct GuestProfileView: View {
                                         .foregroundColor(.primary)
                                     Spacer()
                                     Image(systemName: "arrow.up.right.square")
-                                        .font(.caption)
+                                        .font(.naarsCaption)
                                         .foregroundColor(.secondary)
                                 }
                             } icon: {

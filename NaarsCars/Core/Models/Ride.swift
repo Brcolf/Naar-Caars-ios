@@ -18,10 +18,10 @@ enum RideStatus: String, Codable {
     /// Human-readable display text
     var displayText: String {
         switch self {
-        case .open: return "Open"
-        case .pending: return "Pending"
-        case .confirmed: return "Claimed"
-        case .completed: return "Completed"
+        case .open: return "request_status_open".localized
+        case .pending: return "request_status_pending".localized
+        case .confirmed: return "request_status_claimed".localized
+        case .completed: return "request_status_completed".localized
         }
     }
     
@@ -31,7 +31,7 @@ enum RideStatus: String, Codable {
         case .open: return .naarsSuccess
         case .pending: return .naarsWarning
         case .confirmed: return .naarsPrimary
-        case .completed: return .gray
+        case .completed: return .naarsTextSecondary
         }
     }
 }
@@ -88,8 +88,25 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         hiddenAt != nil
     }
 
+    /// The nightly expiry job closes an open ride nobody claimed by marking it `completed`
+    /// with no claimer. It was never fulfilled, so it must not read "Completed".
+    var isExpiredUnclaimed: Bool {
+        status == .completed && claimedBy == nil && !reviewed
+    }
+
+    /// Text for the status chip on cards and in the detail header
+    var statusDisplayText: String {
+        isExpiredUnclaimed ? "request_status_expired".localized : status.displayText
+    }
+
+    /// "1 seat" / "3 seats". The string catalog has no plural variants, so the form is chosen
+    /// here; appending an English "s" produced "3석s" and "3 chỗs" in other languages.
+    var seatsDisplayText: String {
+        (seats == 1 ? "ride_seats_count_one" : "ride_seats_count_other").localized(with: seats)
+    }
+
     // MARK: - CodingKeys
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"

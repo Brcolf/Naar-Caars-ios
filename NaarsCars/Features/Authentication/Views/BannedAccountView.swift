@@ -12,163 +12,215 @@ import SwiftUI
 struct BannedAccountView: View {
     @StateObject private var viewModel = BannedAccountViewModel()
     @State private var showDeleteConfirmation = false
-    @State private var showDeleteSuccess = false
-    @State private var showDeleteError = false
-    @State private var deleteErrorMessage: String?
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        // Scrolls when the content is taller than the screen (a long reason, large text
+        // sizes), so Delete Account and Sign Out stay reachable; otherwise the stack is one
+        // screen tall and keeps the centred layout.
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: Constants.Spacing.lg) {
+                    Spacer(minLength: 0)
 
-            // Icon
-            Image(systemName: "exclamationmark.shield")
-                .font(.system(size: 64))
-                .foregroundColor(.naarsError)
+                    // Icon
+                    Image(systemName: "exclamationmark.shield")
+                        .font(.system(size: 64))
+                        .foregroundColor(.naarsError)
+                        .accessibilityHidden(true)
 
-            // Title
-            Text("banned_title".localized)
-                .font(.naarsTitle2)
-                .fontWeight(.semibold)
-                .multilineTextAlignment(.center)
-
-            // Reason section
-            VStack(spacing: 8) {
-                Text("banned_reason_label".localized)
-                    .font(.naarsHeadline)
-                    .foregroundColor(.secondary)
-
-                if viewModel.isLoadingReason {
-                    ProgressView()
-                } else {
-                    Text(viewModel.banReason?.isEmpty == false ? viewModel.banReason! : "banned_reason_fallback".localized)
-                        .font(.naarsBody)
-                        .foregroundColor(.primary)
+                    // Title
+                    Text("banned_title".localized)
+                        .font(.naarsTitle2)
+                        .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
-            .padding(.horizontal, 32)
+                        .padding(.horizontal, Constants.Spacing.xl)
+                        .accessibilityAddTraits(.isHeader)
 
-            // Body
-            Text("banned_body".localized)
-                .font(.naarsCaption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-
-            Spacer()
-
-            // Actions
-            VStack(spacing: 12) {
-                // Contact Support
-                Button(action: {
-                    if let url = URL(string: "mailto:naarscars@gmail.com") {
-                        UIApplication.shared.open(url)
-                    }
-                }) {
-                    Text("banned_contact_support".localized)
-                        .font(.naarsHeadline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.naarsPrimary)
-                        .cornerRadius(12)
-                }
-                .accessibilityIdentifier("banned.contactSupport")
-
-                // Delete Account
-                Button(action: {
-                    showDeleteConfirmation = true
-                }) {
-                    HStack {
-                        if viewModel.isDeletingAccount {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(0.8)
-                        }
-                        Text("banned_delete_account".localized)
+                    // Reason section
+                    VStack(spacing: 8) {
+                        Text("banned_reason_label".localized)
                             .font(.naarsHeadline)
-                            .foregroundColor(.naarsError)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Color.naarsBackgroundSecondary)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.separator), lineWidth: 1)
-                    )
-                }
-                .disabled(viewModel.isDeletingAccount)
-                .accessibilityIdentifier("banned.deleteAccount")
-
-                // Sign Out
-                Button(action: {
-                    signOut()
-                }) {
-                    HStack {
-                        if viewModel.isSigningOut {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(0.8)
-                        }
-                        Text("banned_sign_out".localized)
-                            .font(.naarsSubheadline)
                             .foregroundColor(.secondary)
+
+                        if viewModel.isLoadingReason {
+                            ProgressView()
+                        } else {
+                            Text(viewModel.banReason?.isEmpty == false ? viewModel.banReason! : "banned_reason_fallback".localized)
+                                .font(.naarsBody)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                        }
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(Constants.Radius.card)
+                    .padding(.horizontal, 32)
+
+                    // Body
+                    Text("banned_body".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    Spacer(minLength: 0)
+
+                    // Actions
+                    VStack(spacing: Constants.Spacing.ms) {
+                        // Contact Support
+                        PrimaryButton(title: "banned_contact_support".localized, action: {
+                            if let url = URL(string: "mailto:naarscars@gmail.com") {
+                                UIApplication.shared.open(url)
+                            }
+                        })
+                        .accessibilityIdentifier("banned.contactSupport")
+
+                        // Delete Account
+                        SecondaryButton(
+                            title: "banned_delete_account".localized,
+                            action: { showDeleteConfirmation = true },
+                            isDisabled: viewModel.isDeletingAccount || viewModel.isSigningOut,
+                            isDestructive: true
+                        )
+                        .accessibilityIdentifier("banned.deleteAccount")
+
+                        if viewModel.isDeletingAccount {
+                            HStack(spacing: Constants.Spacing.sm) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("profile_deleting_account".localized)
+                                    .font(.naarsCaption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        // Sign Out
+                        AccountTextAction(
+                            title: "banned_sign_out".localized,
+                            isBusy: viewModel.isSigningOut
+                        ) {
+                            Task { await viewModel.signOut() }
+                        }
+                        .disabled(viewModel.isDeletingAccount)
+                        .accessibilityIdentifier("banned.signOut")
+                    }
+                    .padding(.horizontal, Constants.Spacing.xl)
+                    .padding(.bottom, Constants.Spacing.lg)
                 }
-                .disabled(viewModel.isSigningOut)
-                .accessibilityIdentifier("banned.signOut")
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 40)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.naarsBackground)
         .task {
             await viewModel.loadBanReason()
         }
-        .alert("profile_delete_account".localized, isPresented: $showDeleteConfirmation) {
-            Button("common_cancel".localized, role: .cancel) {}
-            Button("profile_delete_account_confirm".localized, role: .destructive) {
-                Task { await deleteAccount() }
-            }
-        } message: {
-            Text("profile_delete_account_message".localized)
-        }
-        .alert("profile_account_deleted".localized, isPresented: $showDeleteSuccess) {
-            Button("common_ok".localized) {
-                signOut()
-            }
-        } message: {
-            Text("profile_account_deleted_message".localized)
-        }
-        .alert("common_error".localized, isPresented: $showDeleteError) {
-            Button("common_ok".localized, role: .cancel) {}
-        } message: {
-            Text(deleteErrorMessage ?? "common_error_occurred".localized)
-        }
+        .accountDeletionFlow(
+            isConfirming: $showDeleteConfirmation,
+            viewModel: viewModel,
+            message: "profile_delete_account_message".localized
+        )
         .trackScreen("BannedAccount")
     }
+}
 
-    // MARK: - Actions
+// MARK: - Shared account actions
+
+/// Low-emphasis text action (Sign Out, Delete Account) used on the application, pending-review
+/// and restricted screens. The label fills a 44-pt-tall row so the whole row is tappable.
+struct AccountTextAction: View {
+    let title: String
+    var isDestructive: Bool = false
+    var isBusy: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Constants.Spacing.sm) {
+                if isBusy {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+                Text(title)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(isDestructive ? Color.naarsError : Color.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .disabled(isBusy)
+    }
+}
+
+/// The delete-account confirmation, result and failure alerts. One implementation for every
+/// screen that holds a signed-in user outside the main app, so the flow cannot drift between
+/// them: confirm, delete through the view model, confirm the result, then sign out.
+private struct AccountDeletionFlowModifier: ViewModifier {
+    @Binding var isConfirming: Bool
+    @ObservedObject var viewModel: BannedAccountViewModel
+    let message: String
+
+    @State private var showSuccess = false
+    @State private var showFailure = false
+    @State private var failureMessage: String?
+
+    func body(content: Content) -> some View {
+        content
+            .alert("profile_delete_account".localized, isPresented: $isConfirming) {
+                Button("common_cancel".localized, role: .cancel) {}
+                Button("profile_delete_account_confirm".localized, role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+            } message: {
+                Text(message)
+            }
+            .alert("profile_account_deleted".localized, isPresented: $showSuccess) {
+                Button("common_ok".localized) {
+                    Task { await viewModel.signOut() }
+                }
+            } message: {
+                Text("profile_account_deleted_message".localized)
+            }
+            .alert("profile_deletion_failed".localized, isPresented: $showFailure) {
+                Button("common_ok".localized, role: .cancel) {}
+            } message: {
+                Text(failureMessage ?? "profile_deletion_failed_message".localized)
+            }
+    }
 
     private func deleteAccount() async {
         do {
-            guard try await viewModel.deleteAccount() else { return }
-            showDeleteSuccess = true
+            if try await viewModel.deleteAccount() {
+                showSuccess = true
+            } else {
+                // No session to act on: say so instead of silently doing nothing
+                failureMessage = "profile_deletion_failed_message".localized
+                showFailure = true
+            }
         } catch {
-            deleteErrorMessage = error.localizedDescription
-            showDeleteError = true
+            failureMessage = viewModel.deletionFailureMessage(for: error)
+            showFailure = true
         }
     }
+}
 
-    private func signOut() {
-        Task { await viewModel.signOut() }
+extension View {
+    /// Attaches the shared delete-account flow.
+    /// - Parameters:
+    ///   - isConfirming: Set to true to ask for confirmation
+    ///   - viewModel: Performs the deletion and the sign-out that follows it
+    ///   - message: What the confirmation says will be deleted
+    func accountDeletionFlow(
+        isConfirming: Binding<Bool>,
+        viewModel: BannedAccountViewModel,
+        message: String
+    ) -> some View {
+        modifier(AccountDeletionFlowModifier(
+            isConfirming: isConfirming,
+            viewModel: viewModel,
+            message: message
+        ))
     }
 }
 

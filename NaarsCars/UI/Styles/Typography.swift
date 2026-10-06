@@ -37,7 +37,10 @@ extension Font {
     /// Footnote style - for captions and metadata
     static let naarsFootnote = Font.footnote
     
-    /// Caption style - for smallest text
+    /// Caption style - for metadata
     static let naarsCaption = Font.caption
+
+    /// Caption 2 style - for count badges and other smallest text
+    static let naarsCaption2 = Font.caption2
 }
 

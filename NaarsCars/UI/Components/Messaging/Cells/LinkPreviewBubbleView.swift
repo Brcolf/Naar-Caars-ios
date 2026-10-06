@@ -98,7 +98,7 @@ final class LinkPreviewBubbleView: UIView {
 
         isAccessibilityElement = true
         accessibilityTraits = .link
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_open_link", comment: "Hint for tapping a link preview to open in browser")
+        accessibilityHint = "accessibility_tap_to_open_link".localized
         accessibilityIdentifier = "message.linkPreview"
 
         applyColors()
@@ -136,23 +136,18 @@ final class LinkPreviewBubbleView: UIView {
     }
 
     private func applyColors() {
-        if isFromCurrentUser {
-            cardBackground.backgroundColor = UIColor.white.withAlphaComponent(0.15)
-            titleLabel.textColor = .white
-            domainLabel.textColor = UIColor.white.withAlphaComponent(0.7)
-            chevronView.tintColor = UIColor.white.withAlphaComponent(0.5)
-            pillContainer.backgroundColor = UIColor.white.withAlphaComponent(0.2)
-            pillIcon.tintColor = UIColor.white.withAlphaComponent(0.9)
-            pillLabel.textColor = UIColor.white.withAlphaComponent(0.9)
-        } else {
-            cardBackground.backgroundColor = UIColor.naarsCardBackground
-            titleLabel.textColor = .label
-            domainLabel.textColor = .secondaryLabel
-            chevronView.tintColor = .secondaryLabel
-            pillContainer.backgroundColor = UIColor.naarsPrimary.withAlphaComponent(0.1)
-            pillIcon.tintColor = UIColor.naarsPrimary
-            pillLabel.textColor = UIColor.naarsPrimary
-        }
+        // One neutral card for both directions. The preview is its own view under the text
+        // bubble, on the transcript background, not inside the terracotta bubble: the former
+        // outgoing style (white text on a 15% white card) was invisible in light mode, and
+        // the incoming card had no edge. systemGray5 is the incoming-bubble fill, so the card
+        // reads in light and dark with label-coloured text.
+        cardBackground.backgroundColor = .systemGray5
+        titleLabel.textColor = .label
+        domainLabel.textColor = .secondaryLabel
+        chevronView.tintColor = .secondaryLabel
+        pillContainer.backgroundColor = UIColor.naarsPrimary.withAlphaComponent(0.1)
+        pillIcon.tintColor = UIColor.naarsPrimary
+        pillLabel.textColor = UIColor.naarsPrimary
     }
 
     // MARK: - Layout

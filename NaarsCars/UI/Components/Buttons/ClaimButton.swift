@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 /// Claim button states
 enum ClaimButtonState {
@@ -17,36 +16,49 @@ enum ClaimButtonState {
     case isPoster
 }
 
-/// Reusable claim button component
+/// Reusable claim button component.
+///
+/// One capsule, three looks: a filled primary action when the request can be claimed, an
+/// outlined secondary action to give it back, and a flat neutral label for the states where
+/// there is nothing to do.
 struct ClaimButton: View {
     let state: ClaimButtonState
     let action: () -> Void
     var isLoading: Bool = false
+
+    private var isInteractive: Bool {
+        state == .canClaim || state == .claimedByMe
+    }
     
     var body: some View {
         Button(action: {
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
+            HapticManager.lightImpact()
             action()
         }) {
-            HStack {
+            HStack(spacing: Constants.Spacing.sm) {
                 if isLoading {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: contentColor))
                         .scaleEffect(0.8)
                 }
                 
                 Text(buttonTitle)
-                    .fontWeight(.semibold)
+                    .font(.naarsHeadline)
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(buttonColor)
-            .foregroundColor(.white)
-            .cornerRadius(10)
+            .background(fillColor)
+            .foregroundColor(contentColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous)
+                    .strokeBorder(state == .claimedByMe ? Color.naarsPrimary : Color.clear, lineWidth: 1.5)
+            )
+            .opacity(isLoading ? 0.7 : 1)
+            .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous))
         }
-        .disabled(isLoading || state == .claimedByOther || state == .completed || state == .isPoster)
+        .buttonStyle(.scale)
+        .disabled(isLoading || !isInteractive)
         .accessibilityIdentifier("claim.button.\(accessibilityState)")
     }
     
@@ -65,21 +77,28 @@ struct ClaimButton: View {
         }
     }
     
-    private var buttonColor: Color {
+    private var fillColor: Color {
         switch state {
         case .canClaim:
             return .naarsPrimary
         case .claimedByMe:
-            return .naarsWarning
-        case .claimedByOther:
-            return .gray
-        case .completed:
-            return .gray
-        case .isPoster:
-            return .gray
+            return .clear
+        case .claimedByOther, .completed, .isPoster:
+            return .naarsDisabled
         }
     }
 
+    private var contentColor: Color {
+        switch state {
+        case .canClaim:
+            return .white
+        case .claimedByMe:
+            return .naarsPrimary
+        case .claimedByOther, .completed, .isPoster:
+            return .secondary
+        }
+    }
+    
     private var accessibilityState: String {
         switch state {
         case .canClaim:

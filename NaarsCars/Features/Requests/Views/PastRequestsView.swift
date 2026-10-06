@@ -11,7 +11,6 @@ import SwiftUI
 struct PastRequestsView: View {
     @StateObject private var viewModel = PastRequestsViewModel()
     @State private var selectedFilter: PastRequestFilter
-    @Environment(\.dismiss) private var dismiss
     @State private var selectedPastRideId: UUID?
     @State private var selectedPastFavorId: UUID?
     @State private var showReviewPrompt: PendingReviewPrompt?
@@ -34,88 +33,83 @@ struct PastRequestsView: View {
         _selectedFilter = State(initialValue: initialFilter)
     }
 
+    // No NavigationStack and no Close button here: the Profile tab pushes this screen onto its
+    // own stack, where the system Back button is the way out. The one place that shows it as a
+    // sheet (the Fulfilled stat on the profile) wraps it in a stack and adds Close there.
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Filter toggle
-                Picker("common_filter".localized, selection: $selectedFilter) {
-                    ForEach(PastRequestFilter.allCases, id: \.self) { filter in
-                        Text(filter.rawValue.localized).tag(filter)
-                    }
+        VStack(spacing: 0) {
+            // Filter toggle
+            Picker("common_filter".localized, selection: $selectedFilter) {
+                ForEach(PastRequestFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue.localized).tag(filter)
                 }
-                .pickerStyle(.segmented)
-                .padding()
-                
-                Divider()
-                
-                // Content
-                if viewModel.isLoading && viewModel.requests.isEmpty {
-                    // Loading state
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                SkeletonRequestCard()
-                            }
+            }
+            .pickerStyle(.segmented)
+            .padding()
+
+            Divider()
+
+            // Content
+            if viewModel.isLoading && viewModel.requests.isEmpty {
+                // Loading state
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            SkeletonRequestCard()
                         }
-                        .padding()
                     }
-                } else if let error = viewModel.error {
-                    ErrorView(
-                        error: error,
-                        retryAction: {
-                            Task {
-                                await viewModel.loadRequests(filter: selectedFilter)
-                            }
+                    .padding()
+                }
+            } else if let error = viewModel.error {
+                ErrorView(
+                    error: error,
+                    retryAction: {
+                        Task {
+                            await viewModel.loadRequests(filter: selectedFilter)
                         }
-                    )
-                } else if viewModel.requests.isEmpty {
-                    EmptyStateView(
-                        icon: "clock.fill",
-                        title: "ride_edit_no_past_requests".localized,
-                        message: filterEmptyMessage,
-                        actionTitle: nil,
-                        action: nil
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            ForEach(viewModel.requests) { request in
-                                NavigationLink(destination: destinationView(for: request)) {
-                                    RequestCardView(request: request, unreadCount: 0)
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                    }
+                )
+            } else if viewModel.requests.isEmpty {
+                EmptyStateView(
+                    icon: "clock.fill",
+                    title: "ride_edit_no_past_requests".localized,
+                    message: filterEmptyMessage,
+                    actionTitle: nil,
+                    action: nil
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(viewModel.requests) { request in
+                            NavigationLink(destination: destinationView(for: request)) {
+                                RequestCardView(request: request, unreadCount: 0)
                             }
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .padding()
                     }
-                    .refreshable {
-                        await viewModel.refreshRequests(filter: selectedFilter)
-                    }
+                    .padding()
+                }
+                .refreshable {
+                    await viewModel.refreshRequests(filter: selectedFilter)
                 }
             }
-            .navigationTitle("ride_edit_past_requests_title".localized)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("common_close".localized) {
-                        dismiss()
-                    }
-                }
+        }
+        .background(Color.naarsBackground)
+        .navigationTitle("ride_edit_past_requests_title".localized)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await viewModel.loadRequests(filter: selectedFilter)
+        }
+        .onChange(of: selectedFilter) { _, newFilter in
+            Task {
+                await viewModel.loadRequests(filter: newFilter)
             }
-            .task {
-                await viewModel.loadRequests(filter: selectedFilter)
-            }
-            .onChange(of: selectedFilter) { _, newFilter in
-                Task {
-                    await viewModel.loadRequests(filter: newFilter)
-                }
-            }
-            .navigationDestination(item: $selectedPastRideId) { rideId in
-                RideDetailView(rideId: rideId)
-            }
-            .navigationDestination(item: $selectedPastFavorId) { favorId in
-                FavorDetailView(favorId: favorId)
-            }
+        }
+        .navigationDestination(item: $selectedPastRideId) { rideId in
+            RideDetailView(rideId: rideId)
+        }
+        .navigationDestination(item: $selectedPastFavorId) { favorId in
+            FavorDetailView(favorId: favorId)
         }
     }
     

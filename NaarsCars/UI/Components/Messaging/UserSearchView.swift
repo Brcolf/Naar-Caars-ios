@@ -24,7 +24,7 @@ struct UserSearchView: View {
         selectedUserIds: Binding<Set<UUID>>,
         excludeUserIds: [UUID],
         showExistingParticipants: Bool = true,
-        actionButtonTitle: String = "Done",
+        actionButtonTitle: String = "common_done".localized,
         onDismiss: @escaping () -> Void
     ) {
         self._selectedUserIds = selectedUserIds
@@ -193,17 +193,21 @@ private struct UserSearchRow: View {
                 } else if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.naarsPrimary)
-                        .font(.title3)
+                        .font(.naarsTitle3)
+                        .accessibilityHidden(true)
                 } else {
                     Image(systemName: "circle")
                         .foregroundColor(.secondary)
-                        .font(.title3)
+                        .font(.naarsTitle3)
+                        .accessibilityHidden(true)
                 }
             }
             .padding(.vertical, 8)
         }
         .disabled(isExcluded)
         .opacity(isExcluded ? 0.5 : 1.0)
+        // The check mark is the only visual sign of selection; say it to VoiceOver as a trait.
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("userSearch.row.\(profile.id.uuidString)")
     }
 }
@@ -224,19 +228,25 @@ private struct SearchBar: View {
                 .focused(isFocused)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                .padding(.vertical, 8)
                 .accessibilityIdentifier("userSearch.searchField")
-            
+
             if !text.isEmpty {
                 Button {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("messaging_search_clear_accessibility".localized)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        // At least 44 pt tall, so the clear button gets a full-size target and the field
+        // does not change height when the button appears.
+        .frame(minHeight: 44)
         .background(Color.naarsCardBackground)
         .cornerRadius(10)
     }
@@ -272,12 +282,22 @@ private struct SelectedUserChip: View {
                 Button(action: onRemove) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
-                        .font(.caption)
+                        .font(.naarsCaption)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(
+                    profile.map { "messaging_remove_participant_accessibility".localized(with: $0.name) }
+                        ?? "common_remove".localized
+                )
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        // The remove button brings its own 44-pt target, so a removable chip takes its
+        // trailing and vertical room from the button; the chip stays 44 pt tall either way.
+        .padding(.leading, 8)
+        .padding(.trailing, isRemovable ? 0 : 8)
+        .padding(.vertical, isRemovable ? 0 : 6)
+        .frame(minHeight: 44)
         .background(isRemovable ? Color(.systemGray5) : Color.naarsCardBackground)
         .cornerRadius(16)
         .task {

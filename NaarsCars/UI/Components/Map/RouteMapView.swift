@@ -28,24 +28,33 @@ enum MapLoadingState: Equatable {
 struct RouteMapView: View {
     let pickup: String
     let destination: String
+    /// Reports whether a route exists between the two addresses: `true` once it is drawn,
+    /// `false` when an address cannot be found or no route connects them. Not called for
+    /// transient failures. The ride screen hides its savings estimate for a ride with no route.
+    var onRouteResolved: ((Bool) -> Void)?
     @State private var pickupCoordinate: CLLocationCoordinate2D?
     @State private var destinationCoordinate: CLLocationCoordinate2D?
     @State private var route: MKRoute?
     @State private var cameraPosition: MapCameraPosition
     @State private var loadingState: MapLoadingState = .loading
     @State private var retryCount = 0
-    @State private var loadId = UUID()  // Force task re-run on view appear
-    
+    /// The addresses the drawn route belongs to; nil until a route has been drawn.
+    @State private var drawnPickup: String?
+    @State private var drawnDestination: String?
+    /// True when the last failure was a connection or service problem, not a missing route.
+    @State private var lastFailureWasTransient = false
+
     // Default Seattle center
     private static let defaultCenter = CLLocationCoordinate2D(latitude: 47.6062, longitude: -122.3321)
     
     // Maximum retry attempts
     private static let maxRetries = 2
     
-    init(pickup: String, destination: String) {
+    init(pickup: String, destination: String, onRouteResolved: ((Bool) -> Void)? = nil) {
         self.pickup = pickup
         self.destination = destination
-        
+        self.onRouteResolved = onRouteResolved
+
         // Initial camera position (will be updated when coordinates are available)
         let initialRegion = MKCoordinateRegion(
             center: Self.defaultCenter,
@@ -56,19 +65,12 @@ struct RouteMapView: View {
     
     var body: some View {
         contentView
-            .task(id: loadId) {
+            // Keyed on the two addresses as well as the retry count. The task used to re-run
+            // only on Retry, so after the poster edited the pickup or destination the card
+            // showed the new addresses above the old route. It also runs again each time the
+            // view reappears; `loadRoute()` returns at once when this pair is already drawn.
+            .task(id: RouteLoadKey(pickup: pickup, destination: destination, attempt: retryCount)) {
                 await loadRoute()
-            }
-            .onAppear {
-                // Reset state and force reload when view appears
-                if loadingState != .loading && pickupCoordinate == nil {
-                    loadingState = .loading
-                    loadId = UUID()
-                }
-            }
-            .onChange(of: retryCount) { _, _ in
-                // Trigger reload on retry
-                loadId = UUID()
             }
     }
     
@@ -102,7 +104,7 @@ struct RouteMapView: View {
             }
         }
         .frame(height: 200)
-        .cornerRadius(8)
+        .cornerRadius(Constants.Radius.sm)
     }
     
     private func mapView(pickupCoord: CLLocationCoordinate2D, destCoord: CLLocationCoordinate2D) -> some View {
@@ -119,9 +121,9 @@ struct RouteMapView: View {
                     Circle()
                         .fill(Color.white)
                         .frame(width: 32, height: 32)
-                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        .floatingShadow()
                     Image(systemName: "circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(.naarsSuccess)
                         .font(.naarsFootnote)
                 }
             }
@@ -132,7 +134,7 @@ struct RouteMapView: View {
                     Circle()
                         .fill(Color.white)
                         .frame(width: 32, height: 32)
-                        .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        .floatingShadow()
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.rideAccent)
                         .font(.naarsTitle3)
@@ -140,7 +142,7 @@ struct RouteMapView: View {
             }
         }
         .frame(height: 200)
-        .cornerRadius(8)
+        .cornerRadius(Constants.Radius.sm)
         .allowsHitTesting(false) // Let taps pass through to the parent container
     }
     
@@ -157,10 +159,12 @@ struct RouteMapView: View {
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                 
-                if retryCount < Self.maxRetries {
+                // A connection or service failure can always be retried. The cap applies only
+                // when the addresses themselves could not be found or routed.
+                if lastFailureWasTransient || retryCount < Self.maxRetries {
                     Button {
+                        // The task is keyed on retryCount, so this starts a new attempt.
                         retryCount += 1
-                        // loadId change is handled by onChange
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
@@ -168,19 +172,29 @@ struct RouteMapView: View {
                         }
                         .font(.naarsCaption)
                         .foregroundColor(.naarsPrimary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                 }
             }
             .padding()
         }
-        .frame(height: 200)
-        .cornerRadius(8)
+        // At least as tall as the map, and taller when large text needs the room.
+        .frame(minHeight: 200)
+        .fixedSize(horizontal: false, vertical: true)
+        .cornerRadius(Constants.Radius.sm)
     }
-    
+
     private func loadRoute() async {
+        // Returning to the screen re-runs the task. The route for this pair is already on
+        // screen, so do not flash "Loading route..." or repeat the lookups (Apple rate-limits them).
+        if loadingState == .loaded, drawnPickup == pickup, drawnDestination == destination {
+            return
+        }
+
         // Reset to loading state at the start
         loadingState = .loading
-        
+
         do {
             // Check for cancellation before starting
             try Task.checkCancellation()
@@ -216,22 +230,60 @@ struct RouteMapView: View {
             // Use region instead of rect for more reliable rendering
             let region = MKCoordinateRegion(paddedRect)
             self.cameraPosition = .region(region)
-            
+
+            self.drawnPickup = pickup
+            self.drawnDestination = destination
+            self.lastFailureWasTransient = false
             self.loadingState = .loaded
-            
+            onRouteResolved?(true)
+
         } catch is CancellationError {
             // Task was cancelled (view disappeared) - don't update state
             return
         } catch let error as MapError {
+            // A lookup that failed because the task was cancelled says nothing about the route.
+            guard !Task.isCancelled else { return }
             // Handle specific map errors with more detail
             AppLogger.error("map", "RouteMapView MapError: \(error.errorDescription ?? "unknown") | Pickup: \(pickup) | Destination: \(destination)")
-            self.loadingState = .error(error.errorDescription ?? "route_unavailable".localized)
+            self.drawnPickup = nil
+            self.drawnDestination = nil
+            if NetworkMonitor.shared.isConnected {
+                // The address could not be found, or no road connects the two.
+                self.lastFailureWasTransient = false
+                self.loadingState = .error(Self.message(for: error))
+                onRouteResolved?(false)
+            } else {
+                // Offline, every lookup fails the way an unknown address does. That is a
+                // connection problem: keep Retry, and do not tell the ride screen there is no route.
+                self.lastFailureWasTransient = true
+                self.loadingState = .error("route_load_error".localized)
+            }
         } catch {
-            // Handle generic errors with details
+            guard !Task.isCancelled else { return }
+            // Throttling, a server failure or a dropped connection: retryable, and not "no route".
             AppLogger.error("map", "RouteMapView error: \(error.localizedDescription) | Pickup: \(pickup) | Destination: \(destination)")
+            self.drawnPickup = nil
+            self.drawnDestination = nil
+            self.lastFailureWasTransient = true
             self.loadingState = .error("route_load_error".localized)
         }
     }
+
+    /// Localized text for a definitive failure (`MapError.errorDescription` is English only).
+    private static func message(for error: MapError) -> String {
+        if case .routeNotFound = error {
+            return "route_not_found".localized
+        }
+        return "route_address_not_found".localized
+    }
+}
+
+/// What a route load depends on. `.task(id:)` restarts the load when any of it changes: an
+/// edited address redraws the route, and Retry starts a new attempt.
+private struct RouteLoadKey: Equatable {
+    let pickup: String
+    let destination: String
+    let attempt: Int
 }
 
 // MARK: - Preview

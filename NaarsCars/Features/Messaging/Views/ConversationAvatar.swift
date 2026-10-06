@@ -26,7 +26,7 @@ struct ConversationAvatar: View {
                 groupAvatarView
             } else {
                 // Default avatar
-                AvatarView(imageUrl: nil, name: "Unknown", size: 56)
+                AvatarView(imageUrl: nil, name: "common_unknown".localized, size: 56)
             }
         }
         .accessibilityElement(children: .ignore)

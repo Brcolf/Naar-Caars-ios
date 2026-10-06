@@ -23,6 +23,7 @@ struct SavingsSheet: View {
     private var formattedTotal: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
+        formatter.currencyCode = "USD" // estimates are US dollars; the region must not relabel them
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: total)) ?? "$0"
     }
@@ -67,7 +68,7 @@ struct SavingsSheet: View {
                 } else {
                     List(periods) { period in
                         HStack {
-                            Text(period.periodLabel)
+                            Text(DateFormatters.displayLabel(forSavingsPeriod: period.periodLabel))
                                 .font(.naarsBody)
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
@@ -112,6 +113,7 @@ struct SavingsSheet: View {
     private func formatCurrency(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
+        formatter.currencyCode = "USD" // estimates are US dollars; the region must not relabel them
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: value)) ?? "$0"
     }

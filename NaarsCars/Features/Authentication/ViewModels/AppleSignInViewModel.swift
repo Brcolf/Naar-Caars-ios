@@ -19,19 +19,31 @@ final class AppleSignInViewModel: ObservableObject {
     
     private(set) var currentNonce: String?
     private let authService: any AuthServiceProtocol
+    // Held only to start the path monitor when Welcome or Login appears. Nothing else creates
+    // NetworkMonitor.shared before the main tabs, and `isConnected` reads true until its first
+    // path update, so an offline check made at tap time (AuthErrorMessage, password reset)
+    // answered "online" the first time it was asked.
+    private let networkMonitor = NetworkMonitor.shared
 
     init(authService: any AuthServiceProtocol = AuthService.shared) {
         self.authService = authService
     }
-    
+
+    /// Friendly, localized text for `error`. Never the raw system description
+    /// ("The operation couldn't be completed. (com.apple.AuthenticationServices…error 1000.)").
+    var errorMessage: String? {
+        guard let error else { return nil }
+        return AuthErrorMessage.text(for: error, fallbackKey: "auth_error_apple_sign_in_incomplete")
+    }
+
     /// Configure the Apple Sign-In request with nonce for security
     /// - Parameter request: The ASAuthorizationAppleIDRequest to configure
     func handleSignInRequest(_ request: ASAuthorizationAppleIDRequest) {
         request.requestedScopes = [.fullName, .email]
-        
+
         // Generate nonce for security
         guard let nonce = AppleSignInHelper.randomNonceString() else {
-            error = .unknown("Unable to generate secure nonce. Please try again.")
+            error = .unknown("Unable to generate secure nonce")
             return
         }
         currentNonce = nonce
@@ -58,7 +70,7 @@ final class AppleSignInViewModel: ObservableObject {
                     rawNonce: currentNonce
                 )
             } catch let authError {
-                self.error = authError as? AppError ?? .unknown(authError.localizedDescription)
+                self.error = AuthErrorMessage.appError(from: authError)
                 isLoading = false
                 return
             }
@@ -71,7 +83,7 @@ final class AppleSignInViewModel: ObservableObject {
                 isLoading = false
                 return
             } else {
-                self.error = .unknown(error.localizedDescription)
+                self.error = AuthErrorMessage.appError(from: error)
             }
             isLoading = false
         }
@@ -102,7 +114,7 @@ final class AppleSignInViewModel: ObservableObject {
                     return
                 }
             } catch let authError {
-                self.error = authError as? AppError ?? .unknown(authError.localizedDescription)
+                self.error = AuthErrorMessage.appError(from: authError)
                 isLoading = false
                 return
             }
@@ -115,7 +127,7 @@ final class AppleSignInViewModel: ObservableObject {
                 isLoading = false
                 return
             } else {
-                self.error = .unknown(error.localizedDescription)
+                self.error = AuthErrorMessage.appError(from: error)
             }
             isLoading = false
         }

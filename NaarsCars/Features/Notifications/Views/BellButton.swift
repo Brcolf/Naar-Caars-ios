@@ -14,9 +14,7 @@ struct BellButton: View {
 
     var body: some View {
         Button(action: {
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
+            HapticManager.lightImpact()
             action()
         }) {
             ZStack(alignment: .topTrailing) {
@@ -24,30 +22,14 @@ struct BellButton: View {
                     .font(.naarsTitle3)
                     .id("app.chrome.bellIcon")
 
-                if badgeManager.counts.bell > 0 {
-                    Text(badgeText)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                        .offset(x: 6, y: -2)
-                        .id("app.chrome.bellBadge")
-                }
+                NotificationBadge(count: badgeManager.counts.bell)
+                    .offset(x: 8, y: -4)
+                    .id("app.chrome.bellBadge")
             }
         }
         .accessibilityLabel(badgeManager.counts.bell > 0 ? "notifications_bell_unread_accessibility".localized(with: badgeManager.counts.bell) : "notifications_title".localized)
         .accessibilityHint("notifications_bell_hint".localized)
         .accessibilityIdentifier("bell.button")
-    }
-
-    private var badgeText: String {
-        if badgeManager.counts.bell > 99 {
-            return "99+"
-        }
-        return "\(badgeManager.counts.bell)"
     }
 }
 

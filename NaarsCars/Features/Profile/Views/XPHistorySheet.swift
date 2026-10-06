@@ -20,7 +20,7 @@ struct XPHistorySheet: View {
     /// Group events by month for sectioned display
     private var groupedEvents: [(String, [XPEvent])] {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM yyyy"
+        formatter.setLocalizedDateFormatFromTemplate("yMMM")
 
         let grouped = Dictionary(grouping: events) { event in
             formatter.string(from: event.createdAt)

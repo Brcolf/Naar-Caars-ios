@@ -56,6 +56,10 @@ struct MessageSearchResult: Identifiable {
     private let muteService = ConversationMuteService.shared
     private let participantService = ConversationParticipantService.shared
     private var cancellables = Set<AnyCancellable>()
+#if DEBUG
+    /// Test hook: number of Combine subscriptions installed by `start()`.
+    var debugObservationSinkCount: Int { cancellables.count }
+#endif
     private let pageSize = 10
     private var currentOffset = 0
     private var searchTask: Task<Void, Never>?
@@ -79,6 +83,22 @@ struct MessageSearchResult: Identifiable {
         self.profileService = profileService
         self.messageService = messageService
         self.authService = authService
+    }
+
+    /// Whether `start()` has registered the repository / NotificationCenter observers.
+    private var hasStartedObservation = false
+
+    /// Register the local-store and unread-count observers. Idempotent.
+    ///
+    /// Deliberately NOT called from `init`: SwiftUI re-evaluates `@State` initial values on
+    /// every parent body pass, and subscribing to the repository's `CurrentValueSubject` here
+    /// delivered the current value synchronously and wrote `conversations` while
+    /// `MainTabView.body` was still being evaluated. Observation then invalidated the tab
+    /// view, which constructed another throwaway ViewModel, and the cycle ran continuously
+    /// (100 % CPU, taps delayed by seconds, eventual hang). Call this from the View's `.task`.
+    func start() {
+        guard !hasStartedObservation else { return }
+        hasStartedObservation = true
         setupUnreadCountObservers()
         setupLocalObservation()
     }
@@ -167,9 +187,69 @@ struct MessageSearchResult: Identifiable {
         }
     }
     
+    /// Hide conversations that have no other member and no message: shells left behind when the
+    /// participants insert failed (the pre-0005 RLS recursion) or a group everyone else has left.
+    /// They rendered as "Unknown — No messages yet" rows that open to an empty thread.
+    static func removingEmptyShells(
+        _ conversations: [ConversationWithDetails],
+        currentUserId: UUID
+    ) -> [ConversationWithDetails] {
+        conversations.filter { convo in
+            guard convo.lastMessage == nil, convo.otherParticipants.isEmpty else { return true }
+            // Participant ids may be known before profiles are hydrated; keep those rows.
+            if let participants = convo.conversation.participants,
+               participants.contains(where: { $0.userId != currentUserId }) {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// One row per member set for threads that carry no messages (iMessage has exactly one
+    /// thread per set of people). Duplicate untitled threads were created by "Message
+    /// Participants" before the 20261005_0012 lookup existed; an empty one is hidden when a
+    /// thread with the same members already has messages, and only the first of several empty
+    /// ones is kept. Threads with messages and named groups are never hidden.
+    static func removingEmptyDuplicates(
+        _ conversations: [ConversationWithDetails],
+        currentUserId: UUID
+    ) -> [ConversationWithDetails] {
+        func memberKey(_ convo: ConversationWithDetails) -> Set<UUID>? {
+            guard (convo.conversation.title ?? "").isEmpty else { return nil }
+            if let participants = convo.conversation.participants, !participants.isEmpty {
+                return Set(participants.map(\.userId)).union([currentUserId])
+            }
+            if !convo.otherParticipants.isEmpty {
+                return Set(convo.otherParticipants.map(\.id)).union([currentUserId])
+            }
+            return nil
+        }
+
+        var keysWithMessages = Set<Set<UUID>>()
+        for convo in conversations where convo.lastMessage != nil {
+            if let key = memberKey(convo) { keysWithMessages.insert(key) }
+        }
+        var seenEmptyKeys = Set<Set<UUID>>()
+        return conversations.filter { convo in
+            guard convo.lastMessage == nil, let key = memberKey(convo) else { return true }
+            if keysWithMessages.contains(key) { return false }
+            return seenEmptyKeys.insert(key).inserted
+        }
+    }
+
+    /// The rows the list shows: blocked-user threads, empty shells and empty duplicates removed.
+    private func visibleConversations() -> [ConversationWithDetails] {
+        let unblocked = filterBlockedConversations(conversations)
+        guard let currentUserId = authService.currentUserId else { return unblocked }
+        return Self.removingEmptyDuplicates(
+            Self.removingEmptyShells(unblocked, currentUserId: currentUserId),
+            currentUserId: currentUserId
+        )
+    }
+
     private func recomputeFilteredConversations() {
-        // Always apply blocked filter on the output the view reads
-        let blockedFiltered = filterBlockedConversations(conversations)
+        // Always apply the blocked / empty-shell / empty-duplicate filters on the output the view reads
+        let blockedFiltered = visibleConversations()
         let newFiltered: [ConversationWithDetails]
         if searchText.isEmpty {
             newFiltered = blockedFiltered
@@ -314,10 +394,19 @@ struct MessageSearchResult: Identifiable {
     }
 
     func loadConversations(trigger: String = "manualReload:conversations") async {
-        let showLoading = Self.shouldShowLoading(conversations: conversations)
+        // Skeleton rows only for the first load of a session. Someone with no conversations at
+        // all would otherwise see the skeleton flash on every later reload.
+        let showLoading = Self.shouldShowLoading(conversations: conversations) && lastRemoteSyncAt == .distantPast
         if showLoading {
             isLoading = true
-            defer { isLoading = false }
+        }
+        // The defer used to sit inside the `if`, where it ran at once: the first load cleared
+        // `isLoading` before anything was fetched, so the skeleton rows never showed and a
+        // fresh sign-in saw "no conversations" until the first sync landed. When a remote sync
+        // is started below, its task clears the flag instead.
+        var remoteSyncOwnsLoadingFlag = false
+        defer {
+            if showLoading && !remoteSyncOwnsLoadingFlag { isLoading = false }
         }
 
         guard let userId = authService.currentUserId else {
@@ -351,8 +440,12 @@ struct MessageSearchResult: Identifiable {
         //    → BackgroundSyncActor; the repository publisher re-emits after that save. The task is stored
         //    so stop() can cancel *our* wait — the coordinator's task itself is never cancelled here.
         loadTask?.cancel()
+        remoteSyncOwnsLoadingFlag = showLoading
         loadTask = Task { @MainActor in
-            defer { loadTask = nil }
+            defer {
+                loadTask = nil
+                if showLoading { isLoading = false }
+            }
             let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.conversations, trigger: trigger)
             guard !Task.isCancelled else { return }
             if case .failed(let error, _)? = result {
@@ -575,6 +668,10 @@ struct MessageSearchResult: Identifiable {
                 }
             }
             
+            // Composing to these people again brings back a thread the user had hidden with
+            // Delete; otherwise it stays out of the list until someone else writes in it.
+            conversationService.unhideConversationForUser(conversationId: conversation.id, userId: currentUserId)
+
             AppLogger.info("messaging", "[ConversationsListVM] Navigating to conversation: \(conversation.id)")
             return conversation.id
         } catch {
@@ -596,7 +693,7 @@ struct MessageSearchResult: Identifiable {
         )
         guard !conversations.isEmpty else { return nil }
         
-        // All participant rows (including users who left — the same set the old loop compared) in one query
+        // Active participant rows (left_at IS NULL) in one query: a group matches on its current member set
         let participantsByConversation = (try? await participantService.fetchParticipantIdsByConversation(
             conversationIds: conversations.map { $0.conversation.id }
         )) ?? [:]
@@ -681,7 +778,7 @@ struct MessageSearchResult: Identifiable {
                 return detail.otherParticipants.map { $0.name }.joined(separator: ", ")
             }
         }
-        return "Conversation"
+        return "messaging_chat_fallback".localized
     }
     
     // MARK: - Debug Support

@@ -35,19 +35,21 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
+	<string>Naar's Cars adds a confirmed ride or favor to your calendar, with a reminder one hour before, when you choose Add to Calendar.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Naar's Cars adds confirmed requests to your calendar with a reminder so you don't forget.</string>
+	<string>Naar's Cars adds a confirmed ride or favor to your calendar, with a reminder one hour before, when you choose Add to Calendar.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Naar's Cars uses your camera to take photos for reviews and posts.</string>
+	<string>Naar's Cars uses your camera so you can take a photo to send in a message or add to a Town Hall post or a review.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
+	<string>Naar's Cars uses Face ID to unlock the app when you turn on Face ID in the app's settings.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Naar's Cars allows you to share your location at a point in time with others via messages </string>
+	<string>Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, and to share your location in a message when you choose to.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Naar's Cars uses your microphone to record audio messages in conversations.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Naar's Cars saves a photo from a conversation to your library when you tap Save.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
+	<string>Naar's Cars lets you choose photos from your library for your profile picture, conversations, Town Hall posts and reviews.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -63,9 +65,9 @@
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
-		<string>AccentColor</string>
+		<string>LaunchBackground</string>
 		<key>UIImageName</key>
-		<string>NaarsLogo</string>
+		<string>LaunchLogo</string>
 		<key>UIImageRespectsSafeAreaInsets</key>
 		<true/>
 	</dict>

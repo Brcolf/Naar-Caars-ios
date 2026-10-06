@@ -15,7 +15,10 @@ struct EditProfileView: View {
     @State private var showPhoneDisclosure = false
     @State private var showPhotoPermissionAlert = false
     @State private var showSuccess = false
-    
+    @State private var showDiscardConfirmation = false
+    /// Set once a save has gone through, so the sheet may close while the checkmark plays
+    @State private var didSave = false
+
     init(profile: Profile) {
         _viewModel = StateObject(wrappedValue: EditProfileViewModel(profile: profile))
     }
@@ -58,8 +61,14 @@ struct EditProfileView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common_cancel".localized) {
-                        dismiss()
+                        // Ask before throwing away edits; with nothing changed, just close.
+                        if viewModel.hasUnsavedChanges && !didSave {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
                     }
+                    .disabled(viewModel.isSaving)
                     .accessibilityIdentifier("profile.edit.cancel")
                 }
                 
@@ -90,7 +99,7 @@ struct EditProfileView: View {
                     }
                     .padding()
                     .background(Color.naarsBackgroundSecondary)
-                    .cornerRadius(12)
+                    .cornerRadius(Constants.Radius.card)
                 }
             }
             .alert("edit_profile_phone_visibility".localized, isPresented: $showPhoneDisclosure) {
@@ -99,6 +108,7 @@ struct EditProfileView: View {
                     Task {
                         let success = await viewModel.confirmAndSave()
                         if success {
+                            didSave = true
                             showSuccess = true
                             HapticManager.success()
                             try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -107,7 +117,19 @@ struct EditProfileView: View {
                     }
                 }
             } message: {
-                Text("edit_profile_phone_disclosure".localized)
+                Text("profile_phone_privacy_notice".localized)
+            }
+            .confirmationDialog(
+                "common_discard_changes_title".localized,
+                isPresented: $showDiscardConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("common_discard".localized, role: .destructive) {
+                    dismiss()
+                }
+                Button("common_keep_editing".localized, role: .cancel) {}
+            } message: {
+                Text("edit_profile_discard_message".localized)
             }
             .alert("edit_profile_photo_access_required".localized, isPresented: $showPhotoPermissionAlert) {
                 Button("common_cancel".localized, role: .cancel) {}
@@ -122,6 +144,9 @@ struct EditProfileView: View {
                 Text("edit_profile_photo_access_message".localized)
             }
         }
+        // A stray downward swipe must not discard edits or abandon a save in flight; Cancel
+        // asks first. An untouched form can still be swiped away.
+        .interactiveDismissDisabled((viewModel.hasUnsavedChanges && !didSave) || viewModel.isSaving)
         .successCheckmark(isShowing: $showSuccess)
     }
     
@@ -167,17 +192,23 @@ struct EditProfileView: View {
     // MARK: - Name Field
     
     private func nameField() -> some View {
-        TextField("edit_profile_name".localized, text: $viewModel.name)
-            .textInputAutocapitalization(.words)
-            .accessibilityIdentifier("profile.edit.name")
+        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+            fieldLabel("edit_profile_name".localized)
+            TextField("edit_profile_name".localized, text: $viewModel.name)
+                .textInputAutocapitalization(.words)
+                .textContentType(.name)
+                .accessibilityIdentifier("profile.edit.name")
+        }
     }
     
     // MARK: - Phone Field
     
     private func phoneField() -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            fieldLabel("edit_profile_phone_number".localized)
             TextField("edit_profile_phone_number".localized, text: $viewModel.phoneNumber)
                 .keyboardType(.phonePad)
+                .textContentType(.telephoneNumber)
                 .accessibilityIdentifier("profile.edit.phone")
                 .onChange(of: viewModel.phoneNumber) { oldValue, newValue in
                     // Real-time phone formatting
@@ -192,9 +223,12 @@ struct EditProfileView: View {
                 Image(systemName: "info.circle")
                     .foregroundColor(.secondary)
                     .font(.naarsCaption)
-                Text("edit_profile_phone_info".localized)
+                // The same sentence as the save alert and the "phone required" sheet. The old
+                // ones said other members could see the number; no screen shows it to them.
+                Text("profile_phone_privacy_notice".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -202,9 +236,21 @@ struct EditProfileView: View {
     // MARK: - Car Field
     
     private func carField() -> some View {
-        TextField("edit_profile_car_description".localized, text: $viewModel.car, axis: .vertical)
-            .lineLimit(3...6)
-            .accessibilityIdentifier("profile.edit.car")
+        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+            fieldLabel("edit_profile_car_description".localized)
+            TextField("edit_profile_car_description".localized, text: $viewModel.car, axis: .vertical)
+                .lineLimit(1...4)
+                .accessibilityIdentifier("profile.edit.car")
+        }
+    }
+
+    /// Caption shown above a field. A placeholder disappears once the field has a value, which
+    /// left three unlabeled lines of text.
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.naarsCaption)
+            .foregroundColor(.secondary)
+            .accessibilityHidden(true)
     }
     
     // MARK: - Helper Methods
@@ -242,6 +288,7 @@ struct EditProfileView: View {
                 showPhoneDisclosure = true
             }
         } else {
+            didSave = true
             showSuccess = true
             HapticManager.success()
             try? await Task.sleep(nanoseconds: 1_500_000_000)

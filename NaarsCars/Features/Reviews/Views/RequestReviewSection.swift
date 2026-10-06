@@ -15,6 +15,9 @@ struct RequestReviewSection: View {
     let claimerId: UUID?
     let isCompleted: Bool
     let requestTitle: String
+    /// Name of the person who fulfilled the request (the one being reviewed). The detail screens
+    /// already hold the claimer's profile, so it is passed in rather than fetched again.
+    var claimerName: String? = nil
     var onReviewSubmitted: (() -> Void)?
 
     @State private var review: Review?
@@ -33,7 +36,7 @@ struct RequestReviewSection: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.naarsCardBackground)
-                    .cornerRadius(12)
+                    .cornerRadius(Constants.Radius.card)
             } else if let review = review {
                 reviewDisplay(review)
             } else if isCurrentUserPoster && isCompleted && claimerId != nil {
@@ -50,7 +53,9 @@ struct RequestReviewSection: View {
                     requestId: requestId,
                     requestTitle: requestTitle,
                     fulfillerId: claimerId,
-                    fulfillerName: reviewerProfile?.name ?? "common_someone".localized,
+                    // reviewerProfile is the reviewer (the poster) and is only loaded once a review
+                    // exists, so it can never name the person being reviewed here.
+                    fulfillerName: claimerName ?? "common_someone".localized,
                     onReviewSubmitted: {
                         Task {
                             await loadReview()
@@ -91,12 +96,12 @@ struct RequestReviewSection: View {
                     .font(.naarsHeadline)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
             .padding()
             .background(Color.naarsCardBackground)
-            .cornerRadius(12)
+            .cornerRadius(Constants.Radius.card)
         }
         .buttonStyle(PlainButtonStyle())
     }

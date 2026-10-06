@@ -8,9 +8,6 @@
 import Foundation
 import CoreLocation
 import MapKit
-#if canImport(WeatherKit)
-import WeatherKit
-#endif
 
 /// Utility for estimating ride share costs
 /// Uses a dynamic pricing algorithm with configurable multipliers
@@ -143,9 +140,14 @@ enum RideCostEstimator {
     // MARK: - Public Methods
     
     /// Estimate ride share cost between two addresses using route calculation.
-    /// If route calculation fails, the minimum fare is returned.
+    /// Returns nil when no route could be calculated. The minimum fare used to be returned
+    /// (and saved on the ride) in that case, so a ride whose map reads "Route unavailable"
+    /// still showed an "Estimated Rideshare Savings" figure. With nil the caller retries and,
+    /// if the route still cannot be found, saves nothing and the row is hidden.
     static func estimateCost(pickup: String, destination: String) async -> Double? {
         let estimate = await estimateCostDetails(pickup: pickup, destination: destination)
+        // `fallbackEstimate()` is the only path that reports no distance and no travel time.
+        guard estimate.distanceMiles > 0 || estimate.estimatedTimeMinutes > 0 else { return nil }
         return estimate.finalPrice
     }
     
@@ -205,12 +207,14 @@ enum RideCostEstimator {
             
             let timeMultiplier = timeOfDayMultiplier(date: date, calendar: calendar)
             async let locationMultiplierValue = locationMultiplier(pickup: pickupCoord, destination: destCoord)
-            async let weatherMultiplierValue = weatherMultiplier(for: pickupCoord)
-            
+
+            // No live-weather term. It priced the ride by the weather at the minute it was
+            // posted, not on the day of the ride, and WeatherKit data may not feed a figure
+            // shown to members without the Apple Weather attribution, which the app does not show.
             let multipliers = MultiplierBreakdown(
                 timeOfDay: timeMultiplier,
                 location: await locationMultiplierValue,
-                weather: await weatherMultiplierValue
+                weather: 1.0
             )
             
             return estimateCostDetails(
@@ -437,31 +441,11 @@ enum RideCostEstimator {
         return isInside
     }
     
-    // MARK: - Weather
-    
-    private static func weatherMultiplier(for coordinate: CLLocationCoordinate2D) async -> Double {
-        #if canImport(WeatherKit)
-        if #available(iOS 16.0, *) {
-            let result = await withTimeout(seconds: pricing.weatherTimeoutSeconds) {
-                let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-                let weather = try await WeatherService.shared.weather(for: location)
-                let category = weatherCategory(for: weather.currentWeather.condition)
-                return weatherMultiplier(for: category)
-            }
-            
-            if let result {
-                return result
-            }
-            
-            AppLogger.warning("rideCost", "Weather lookup timed out. Defaulting to 1.0.")
-        } else {
-            AppLogger.warning("rideCost", "WeatherKit unavailable on this OS. Defaulting to 1.0.")
-        }
-        #endif
-        
-        return 1.0
-    }
-    
+    // MARK: - Timeout
+    // The WeatherKit lookup that lived here is gone (see `estimateCostDetails(pickup:destination:)`);
+    // nothing in the app calls WeatherKit now. The entitlement is left in place on purpose:
+    // removing it changes signing and needs its own archive check.
+
     static func withTimeout<T>(
         seconds: Double,
         operation: @escaping () async throws -> T
@@ -486,23 +470,6 @@ enum RideCostEstimator {
             return result
         }
     }
-    
-    #if canImport(WeatherKit)
-    @available(iOS 16.0, *)
-    private static func weatherCategory(for condition: WeatherCondition) -> WeatherCategory {
-        let conditionName = String(describing: condition).lowercased()
-        
-        if conditionName.contains("heavy") || conditionName.contains("thunder") || conditionName.contains("hurricane") {
-            return .heavyPrecipitation
-        }
-        
-        if conditionName.contains("rain") || conditionName.contains("drizzle") || conditionName.contains("snow") {
-            return .lightPrecipitation
-        }
-        
-        return .clear
-    }
-    #endif
     
     /// Format cost for display
     /// - Parameter cost: Cost in USD

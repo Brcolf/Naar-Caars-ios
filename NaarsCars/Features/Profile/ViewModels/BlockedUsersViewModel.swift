@@ -13,7 +13,10 @@ internal import Combine
 final class BlockedUsersViewModel: ObservableObject {
     @Published var blockedUsers: [BlockedUser] = []
     @Published var isLoading = true
+    /// Set when the list could not be loaded, so the screen does not claim nobody is blocked
     @Published var error: String?
+    /// A failed unblock, for the error banner
+    @Published var unblockErrorMessage: String?
 
     private let messageService: any MessageServiceProtocol
     private let authService: any AuthServiceProtocol
@@ -32,17 +35,25 @@ final class BlockedUsersViewModel: ObservableObject {
             return
         }
 
+        // Show the spinner again on a retry; a reload with rows on screen stays quiet.
+        if blockedUsers.isEmpty {
+            isLoading = true
+        }
+        error = nil
+
         do {
             blockedUsers = try await messageService.getBlockedUsers(userId: userId)
             isLoading = false
         } catch {
-            self.error = error.localizedDescription
+            self.error = "settings_blocked_users_load_failed".localized
             isLoading = false
+            AppLogger.error("profile", "Failed to load blocked users: \(error.localizedDescription)")
         }
     }
 
     func unblockUser(_ blockedUser: BlockedUser) async {
         guard let userId = authService.currentUserId else { return }
+        unblockErrorMessage = nil
 
         do {
             try await messageService.unblockUser(blockerId: userId, blockedId: blockedUser.blockedId)
@@ -50,7 +61,10 @@ final class BlockedUsersViewModel: ObservableObject {
             // Remove from local list
             blockedUsers.removeAll { $0.blockedId == blockedUser.blockedId }
         } catch {
-            self.error = error.localizedDescription
+            // The row stays, so say why: this screen is the only place to unblock someone.
+            unblockErrorMessage = "settings_unblock_failed".localized(with: blockedUser.blockedName)
+            HapticManager.error()
+            AppLogger.error("profile", "Failed to unblock user: \(error.localizedDescription)")
         }
     }
 }

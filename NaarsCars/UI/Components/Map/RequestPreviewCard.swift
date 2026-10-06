@@ -37,12 +37,12 @@ struct RequestPreviewCard: View {
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(request.title)
-                        .font(.headline)
+                        .font(.naarsHeadline)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     
                     Text(request.subtitle)
-                        .font(.subheadline)
+                        .font(.naarsSubheadline)
                         .foregroundColor(.secondary)
                 }
                 
@@ -60,12 +60,12 @@ struct RequestPreviewCard: View {
             // View details button
             Button(action: onViewDetails) {
                 Text("common_view_details".localized)
-                    .font(.headline)
+                    .font(.naarsHeadline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color.accentColor)
-                    .cornerRadius(10)
+                    .background(Color.naarsPrimary)
+                    .clipShape(Capsule())
             }
             .padding(.horizontal)
         }

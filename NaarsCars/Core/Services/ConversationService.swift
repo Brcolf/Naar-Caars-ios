@@ -476,16 +476,12 @@ final class ConversationService {
                 .execute()
             AppLogger.database.info("Created conversation with \(userIds.count) participant(s)")
         } catch {
-            // Handle RLS recursion error - check multiple error formats
-            let errorString = String(describing: error).lowercased()
-            if errorString.contains("infinite recursion") || errorString.contains("recursion") {
-                AppLogger.database.warning("RLS policy recursion when creating participants.")
-                // Still return the conversation - it was created successfully
-                // Participants will need to be added after RLS policy is fixed
-            } else {
-                // For other errors, log but don't throw - conversation was created
-                AppLogger.database.warning("Error adding participants: \(error.localizedDescription)")
-            }
+            // A conversation without its participant rows is an orphan nobody else can see and
+            // that no later lookup can match (the 2026-10-05 "Unknown" rows). The RLS recursion
+            // this used to tolerate is fixed server-side (20261005_0005); surface the failure
+            // instead of navigating the user into an empty thread.
+            AppLogger.database.error("Error adding participants to \(conversation.id): \(error.localizedDescription)")
+            throw AppError.processingError("messaging_error_create_conversation".localized)
         }
 
         let allUserIds = Array(Set(userIds + [createdBy]))
@@ -500,7 +496,9 @@ final class ConversationService {
             .execute()
 
         struct NameRow: Codable { let name: String }
-        if let data = creatorProfile?.data,
+        // iMessage has no "created by" line in a one-to-one thread; keep it for groups only.
+        if totalParticipants > 2,
+           let data = creatorProfile?.data,
            let profile = try? JSONDecoder().decode(NameRow.self, from: data) {
             _ = try? await sendSystemMessage(
                 conversationId: conversation.id,
@@ -814,6 +812,23 @@ final class ConversationService {
 
         let decoder = createDateDecoder()
         return try decoder.decode(Conversation.self, from: response.data)
+    }
+
+    /// One thread per participant set (iMessage semantics): the most recently updated untitled
+    /// conversation whose active members are exactly `userIds`, or nil. Backed by the
+    /// `find_conversation_for_participants` RPC (20261005_0012); the caller must be a member.
+    func findConversation(forParticipants userIds: [UUID]) async -> UUID? {
+        guard Set(userIds).count >= 2 else { return nil }
+        do {
+            let response = try await supabase.rpc(
+                "find_conversation_for_participants",
+                params: ["p_user_ids": AnyCodable(userIds.map { $0.uuidString })]
+            ).execute()
+            return decodeSingleUuid(from: response.data)
+        } catch {
+            AppLogger.warning("messaging", "find_conversation_for_participants failed: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func findDirectConversationId(userId: UUID, otherUserId: UUID) async -> UUID? {

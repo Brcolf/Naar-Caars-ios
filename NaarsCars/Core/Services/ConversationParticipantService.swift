@@ -459,9 +459,11 @@ final class ConversationParticipantService {
         return countResp.count ?? 0
     }
 
-    /// Participant user IDs per conversation for many conversations in ONE query.
-    /// Returns every participant row, including users who have left — the same set
-    /// the former per-conversation lookup compared — keyed by conversation ID.
+    /// Active (not left) participant user IDs per conversation for many conversations in ONE
+    /// query, keyed by conversation ID. A conversation with no active rows has no entry.
+    /// Thread identity is the current member set: counting people who had left meant that
+    /// composing to the remaining members created a duplicate group, and composing to the
+    /// original set reopened a thread the person who left would never see.
     func fetchParticipantIdsByConversation(conversationIds: [UUID]) async throws -> [UUID: Set<UUID>] {
         guard !conversationIds.isEmpty else { return [:] }
 
@@ -478,6 +480,7 @@ final class ConversationParticipantService {
             .from("conversation_participants")
             .select("conversation_id, user_id")
             .in("conversation_id", values: conversationIds.map { $0.uuidString })
+            .is("left_at", value: nil)
             .execute()
 
         let rows = try JSONDecoder().decode([AllParticipantRow].self, from: response.data)

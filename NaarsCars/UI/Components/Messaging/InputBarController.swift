@@ -84,10 +84,36 @@ final class InputBarController {
     // MARK: - Computed
 
     var isSendable: Bool {
-        !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        || attachmentState.isReady
-        || audioCoordinator.hasRecordedFile
+        guard !isOverCharacterLimit else { return false }
+        return !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || attachmentState.isReady
+            || audioCoordinator.hasRecordedFile
     }
+
+    // MARK: - Length limit
+
+    /// The counter appears once this many characters (or fewer) are left.
+    static let characterCountThreshold = 200
+
+    /// Characters left before the send path refuses the message as too long; negative when
+    /// over. Counts the trimmed text, exactly as `MessageSendManager.sendMessage` does, so the
+    /// composer stops an over-long message before it is sent (and the draft lost) rather than
+    /// after.
+    static func remainingCharacters(for text: String) -> Int {
+        let length = text.trimmingCharacters(in: .whitespacesAndNewlines).count
+        return Constants.Limits.messageTextMaxLength - length
+    }
+
+    /// VoiceOver text for the counter.
+    static func characterCountAccessibilityText(remaining: Int) -> String {
+        remaining >= 0
+            ? "messaging_characters_remaining".localized(with: remaining)
+            : "messaging_characters_over_limit".localized(with: -remaining)
+    }
+
+    var remainingCharacters: Int { Self.remainingCharacters(for: currentText) }
+    var isOverCharacterLimit: Bool { remainingCharacters < 0 }
+    var showsCharacterCount: Bool { remainingCharacters <= Self.characterCountThreshold }
 
     var isEditing: Bool {
         if case .editing = mode { return true }
@@ -110,6 +136,8 @@ final class InputBarController {
     var onImagePickerRequested: (() -> Void)?
     var onCameraRequested: (() -> Void)?
     var onLocationPickerRequested: (() -> Void)?
+    /// Microphone access was denied when a voice note was requested.
+    var onMicrophoneAccessDenied: (() -> Void)?
     var onTypingChanged: (() -> Void)?
     /// Fired when the user dismisses the attachment (not after a send), so a host
     /// that mirrors the image in its own state can drop it too.
@@ -135,6 +163,9 @@ final class InputBarController {
             editMessageId: mode.editMessageId
         )
         guard !payload.text.isEmpty || payload.attachment != nil else { return }
+        // Backstop for the disabled send button: an over-long message is never handed to the
+        // send path (it would be refused there) and the draft stays in the bar.
+        guard Self.remainingCharacters(for: payload.text) >= 0 else { return }
         onSend?(payload)
         reset()
     }
@@ -159,6 +190,20 @@ final class InputBarController {
         }
     }
 
+    /// Hands back a draft whose send was refused before a bubble existed (rate limit,
+    /// over-long text). `send()` has already cleared the bar by then, so without this the
+    /// typed text and picked photo were lost. A newer draft or an edit in progress is left
+    /// alone, and no typing signal is sent (nothing was typed).
+    func restoreDraft(text: String, image: UIImage?) {
+        guard !isEditing else { return }
+        if currentText.isEmpty {
+            currentText = text
+        }
+        if let image, attachmentState == .none {
+            attachmentState = .ready(InputAttachment(image: image))
+        }
+    }
+
     func setImage(_ image: UIImage) {
         // Skip if already ready with the same image instance
         if let existing = attachmentState.previewImage, existing === image { return }
@@ -171,11 +216,20 @@ final class InputBarController {
         onAttachmentCleared?()
     }
 
-    func startRecording() { audioCoordinator.start() }
+    func startRecording() {
+        audioCoordinator.onPermissionDenied = { [weak self] in
+            self?.onMicrophoneAccessDenied?()
+        }
+        audioCoordinator.start()
+    }
 
     func stopRecording() {
         if let result = audioCoordinator.stop() {
             onAudioRecorded?(result.url, result.duration)
+            // The recording has been handed off. Nothing else cleared this flag, so after one
+            // voice note `isSendable` stayed true and the SwiftUI bar's send arrow stayed
+            // tinted and enabled with nothing to send.
+            audioCoordinator.clearRecordedFile()
         }
     }
 

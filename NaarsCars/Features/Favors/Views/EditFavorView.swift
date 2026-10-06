@@ -15,7 +15,8 @@ struct EditFavorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
     @State private var showSuccess = false
-    
+    @State private var showDiscardConfirmation = false
+
     init(favor: Favor, onSaved: (() -> Void)? = nil) {
         self.favor = favor
         self.onSaved = onSaved
@@ -58,7 +59,8 @@ struct EditFavorView: View {
                         TimePickerView(
                             hour: $viewModel.hour,
                             minute: $viewModel.minute,
-                            isAM: $viewModel.isAM
+                            isAM: $viewModel.isAM,
+                            accessibilityTitle: "favor_create_time_accessibility".localized
                         )
                     }
 
@@ -86,13 +88,23 @@ struct EditFavorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common_cancel".localized) {
-                        dismiss()
+                        // Ask before throwing away edits.
+                        if viewModel.hasUnsavedChanges {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
                     }
+                    .disabled(viewModel.isLoading)
                 }
-                
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common_save".localized) {
                         Task {
+                            // A second tap that was already queued when the first one started;
+                            // Save used to send the update once per tap.
+                            guard !viewModel.isLoading else { return }
+                            error = nil
                             do {
                                 try await viewModel.updateFavor(id: favor.id)
                                 // Notify parent to refresh before dismissing
@@ -111,29 +123,24 @@ struct EditFavorView: View {
             }
             .onAppear {
                 // Pre-populate form with existing favor data
-                viewModel.title = favor.title
-                viewModel.description = favor.description ?? ""
-                viewModel.location = favor.location
-                viewModel.duration = favor.duration
-                viewModel.requirements = favor.requirements ?? ""
-                viewModel.date = favor.date
-                viewModel.gift = favor.gift ?? ""
-                
-                viewModel.timezone = favor.timezone
-
-                // Parse existing time if available
-                if let timeString = favor.time,
-                   let parsedTime = viewModel.parseTime(timeString) {
-                    viewModel.hasTime = true
-                    viewModel.hour = parsedTime.hour
-                    viewModel.minute = parsedTime.minute
-                    viewModel.isAM = parsedTime.isAM
-                } else {
-                    viewModel.hasTime = false
+                viewModel.populate(from: favor)
+            }
+            .confirmationDialog(
+                "common_discard_changes_title".localized,
+                isPresented: $showDiscardConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("common_discard".localized, role: .destructive) {
+                    dismiss()
                 }
+                Button("common_keep_editing".localized, role: .cancel) {}
+            } message: {
+                Text("request_form_discard_message".localized)
             }
         }
         .successCheckmark(isShowing: $showSuccess)
+        // No swipe-to-dismiss with unsaved edits (Cancel asks first) or while saving.
+        .interactiveDismissDisabled(viewModel.isLoading || viewModel.hasUnsavedChanges)
     }
 }
 

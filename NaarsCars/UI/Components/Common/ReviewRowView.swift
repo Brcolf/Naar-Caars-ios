@@ -19,25 +19,30 @@ struct ReviewRowView: View {
                 HStack(spacing: 2) {
                     ForEach(1...5, id: \.self) { index in
                         Image(systemName: index <= review.rating ? "star.fill" : "star")
-                            .foregroundColor(.yellow)
-                            .font(.caption)
+                            .foregroundColor(.naarsRating)
+                            .font(.naarsCaption)
                     }
                 }
+                // One spoken value instead of five separate star images
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("review_rating_accessibility".localized(with: "\(review.rating)"))
 
                 Spacer()
 
                 Text(review.createdAt.timeAgo)
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
+
+                ReviewReportButton(review: review)
             }
 
             if let comment = review.comment, !comment.isEmpty {
                 Text(comment)
-                    .font(.subheadline)
+                    .font(.naarsSubheadline)
             }
         }
         .padding()
         .background(Color.naarsBackgroundSecondary)
-        .cornerRadius(8)
+        .cornerRadius(Constants.Radius.sm)
     }
 }

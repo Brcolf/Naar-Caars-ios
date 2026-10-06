@@ -71,8 +71,9 @@ final class PastRequestsViewModel: ObservableObject {
                 
                 // Filter to only include requests that are more than 12 hours past their event time
                 allRequests = allRequests.filter { request in
-                    let eventTime = request.eventTime
-                    let hoursSinceEvent = now.timeIntervalSince(eventTime) / 3600
+                    // Same window as the Requests tiles (RequestItem.windowEnd), so a request is
+                    // never listed there and here at once.
+                    let hoursSinceEvent = now.timeIntervalSince(request.windowEnd) / 3600
                     return hoursSinceEvent > 12
                 }
                 
@@ -96,8 +97,9 @@ final class PastRequestsViewModel: ObservableObject {
                 
                 // Filter to only include requests that are more than 12 hours past their event time
                 allRequests = allRequests.filter { request in
-                    let eventTime = request.eventTime
-                    let hoursSinceEvent = now.timeIntervalSince(eventTime) / 3600
+                    // Same window as the Requests tiles (RequestItem.windowEnd), so a request is
+                    // never listed there and here at once.
+                    let hoursSinceEvent = now.timeIntervalSince(request.windowEnd) / 3600
                     return hoursSinceEvent > 12
                 }
             }

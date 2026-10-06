@@ -37,7 +37,8 @@ struct SpotlightEntry: Codable, Identifiable, Equatable, Sendable {
     var iconName: String {
         switch category {
         case "longest_streak": return "flame.fill"
-        case "rising_star": return "rocket.fill"
+        // "rocket.fill" is not an SF Symbol; the row drew an empty icon slot.
+        case "rising_star": return "chart.line.uptrend.xyaxis"
         case "top_requester": return "hand.raised.fill"
         default: return "star.fill"
         }

@@ -31,6 +31,12 @@ extension Date {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = LocalizationManager.shared.currentLocale
         formatter.unitsStyle = .full
+        // Within a minute either way reads "now". A server timestamp a moment ahead of the
+        // device clock otherwise produced "in 0 seconds" on a comment just posted.
+        if abs(timeIntervalSinceNow) < 60 {
+            formatter.dateTimeStyle = .named
+            return formatter.localizedString(fromTimeInterval: 0)
+        }
         return formatter.localizedString(for: self, relativeTo: Date())
     }
     

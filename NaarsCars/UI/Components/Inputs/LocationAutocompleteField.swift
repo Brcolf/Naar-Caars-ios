@@ -32,6 +32,10 @@ struct LocationAutocompleteField: View {
     @Binding var text: String
     let icon: String
     var accessibilityId: String? = nil
+    /// VoiceOver hint for the text field only. A label or hint set on the whole component from
+    /// outside lands on the clear button and on every suggestion as well, so they all read
+    /// "Pickup Location".
+    var accessibilityHintText: String? = nil
     var onSelect: ((PlaceDetails) -> Void)?
     
     @State private var predictions: [PlacePrediction] = []
@@ -49,7 +53,7 @@ struct LocationAutocompleteField: View {
             // Label
             if !label.isEmpty {
                 Text(label)
-                    .font(.subheadline)
+                    .font(.naarsSubheadline)
                     .foregroundColor(.secondary)
             }
             
@@ -58,14 +62,16 @@ struct LocationAutocompleteField: View {
                 Image(systemName: icon)
                     .foregroundColor(.secondary)
                     .frame(width: 20)
-                
+                    .accessibilityHidden(true)
+
                 TextField(placeholder, text: $text)
                     .focused($isFocused)
                     .onChange(of: text) { _, newValue in
                         performSearch(query: newValue)
                     }
                     .accessibilityIdentifier(accessibilityId ?? "")
-                
+                    .accessibilityHint(accessibilityHintText ?? "")
+
                 if isSearching {
                     ProgressView()
                         .scaleEffect(0.8)
@@ -76,13 +82,22 @@ struct LocationAutocompleteField: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                             .font(.naarsCallout)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("location_clear_accessibility".localized)
                 }
             }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(10)
+            // The row is as tall as the 44 pt clear button, so the field does not grow when
+            // the first character is typed and the button appears.
+            .frame(minHeight: 44)
+            .padding(.horizontal)
+            .padding(.vertical, 6)
+            // Inset fill: this sits on a Form row or a card, and the plain secondary system
+            // background is the same color as the row in dark mode (the field had no edge).
+            .background(Color.naarsInsetBackground)
+            .cornerRadius(Constants.Radius.sm)
             
             // Dropdown suggestions (uses snapshot so body does not read LocationService.recentLocations on main)
             if showDropdown && isFocused {
@@ -91,7 +106,7 @@ struct LocationAutocompleteField: View {
                     if text.isEmpty && !recentLocationsSnapshot.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
                             Text("location_recent_header".localized)
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 12)
@@ -111,7 +126,7 @@ struct LocationAutocompleteField: View {
                     if !predictions.isEmpty {
                         if !text.isEmpty {
                             Text("location_suggestions_header".localized)
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 12)
@@ -128,14 +143,14 @@ struct LocationAutocompleteField: View {
                         }
                     } else if !text.isEmpty && !isSearching && text.count >= 2 {
                         Text("location_no_results".localized)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                             .padding()
                     }
                 }
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(10)
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .cornerRadius(Constants.Radius.md)
+                .cardShadow()
                 .padding(.top, 4)
             }
         }
@@ -269,8 +284,8 @@ struct LocationAutocompleteField: View {
             
             await MainActor.run {
                 // Update text field with selected location
-                text = details.name.isEmpty ? details.address : details.name
-                
+                text = Self.fieldText(name: details.name, address: details.address)
+
                 // Save to recents
                 let saved = SavedLocation(
                     placeID: details.placeID,
@@ -292,8 +307,9 @@ struct LocationAutocompleteField: View {
             }
         } catch {
             await MainActor.run {
-                // Fallback to prediction text
-                text = prediction.primaryText
+                // Fallback to prediction text: the title with its subtitle (the street or
+                // city line), since the title alone can name several places.
+                text = prediction.fullText
                 predictions = []
                 isFocused = false
                 showDropdown = false
@@ -303,7 +319,7 @@ struct LocationAutocompleteField: View {
     }
     
     private func selectRecent(_ location: SavedLocation) {
-        text = location.name.isEmpty ? location.address : location.name
+        text = Self.fieldText(name: location.name, address: location.address)
         isFocused = false
         showDropdown = false
         
@@ -316,7 +332,30 @@ struct LocationAutocompleteField: View {
         )
         onSelect?(details)
     }
-    
+
+    /// The text saved for a chosen place: its name followed by its formatted address. The name
+    /// alone ("Starbucks", "Safeway") was searched again by the route map, the savings estimate
+    /// and the directions hand-off, and each took the first branch that search returned.
+    private static func fieldText(name: String, address: String) -> String {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return trimmedAddress }
+        guard !trimmedAddress.isEmpty else { return trimmedName }
+        // A street-address result is named after its own street line ("123 Main St"), which
+        // the address already starts with. Repeating it would read "123 Main St, 123 Main St…".
+        if trimmedAddress.range(of: trimmedName, options: [.caseInsensitive, .anchored]) != nil {
+            return trimmedAddress
+        }
+        // Same street number, different spelling ("123 Main Street" / "123 Main St Seattle…").
+        if let nameFirstWord = trimmedName.split(separator: " ").first,
+           let addressFirstWord = trimmedAddress.split(separator: " ").first,
+           nameFirstWord.first?.isNumber == true,
+           nameFirstWord == addressFirstWord {
+            return trimmedAddress
+        }
+        return "\(trimmedName), \(trimmedAddress)"
+    }
+
     private func clearField() {
         text = ""
         predictions = []
@@ -337,17 +376,18 @@ struct PredictionRow: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 Image(systemName: "mappin.circle.fill")
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.naarsPrimary)
                     .font(.system(size: 18))
-                
+                    .accessibilityHidden(true)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(prediction.primaryText)
-                        .font(.body)
+                        .font(.naarsBody)
                         .foregroundColor(.primary)
                     
                     if !prediction.secondaryText.isEmpty {
                         Text(prediction.secondaryText)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -372,15 +412,16 @@ struct RecentLocationRow: View {
                 Image(systemName: "clock.fill")
                     .foregroundColor(.secondary)
                     .font(.system(size: 18))
-                
+                    .accessibilityHidden(true)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(location.name.isEmpty ? location.address : location.name)
-                        .font(.body)
+                        .font(.naarsBody)
                         .foregroundColor(.primary)
                     
                     if !location.name.isEmpty {
                         Text(location.address)
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                 }

@@ -12,7 +12,11 @@ struct TimePickerView: View {
     @Binding var hour: Int
     @Binding var minute: Int
     @Binding var isAM: Bool
-    
+    /// What this time is for ("Ride time"), spoken before each control's own name. Passed in
+    /// here because a label set on the whole picker from outside replaced the name and value
+    /// of all three menus, which were then announced identically.
+    var accessibilityTitle: String? = nil
+
     // Pre-computed arrays to avoid recalculation on each render
     private let hours = Array(1...12)
     private let minutes = Array(stride(from: 0, to: 60, by: 5))
@@ -23,7 +27,13 @@ struct TimePickerView: View {
         let period = isAM ? "time_picker_am".localized : "time_picker_pm".localized
         return "\(hour):\(minuteStr) \(period)"
     }
-    
+
+    /// "Ride time, Hour" when a title was passed, otherwise just "Hour".
+    private func controlLabel(_ key: String) -> String {
+        guard let accessibilityTitle, !accessibilityTitle.isEmpty else { return key.localized }
+        return "\(accessibilityTitle), \(key.localized)"
+    }
+
     var body: some View {
         HStack {
             Text("time_picker_label".localized)
@@ -47,10 +57,13 @@ struct TimePickerView: View {
                         .frame(minWidth: 28)
                 }
                 .buttonStyle(.bordered)
-                
+                .accessibilityLabel(controlLabel("time_picker_hour_accessibility"))
+                .accessibilityValue("\(hour)")
+
                 Text(":")
                     .foregroundColor(.secondary)
-                
+                    .accessibilityHidden(true)
+
                 // Minute picker
                 Menu {
                     ForEach(minutes, id: \.self) { m in
@@ -67,7 +80,9 @@ struct TimePickerView: View {
                         .frame(minWidth: 28)
                 }
                 .buttonStyle(.bordered)
-                
+                .accessibilityLabel(controlLabel("time_picker_minute_accessibility"))
+                .accessibilityValue(String(format: "%02d", minute))
+
                 // AM/PM picker
                 Menu {
                     Button(action: { isAM = true }) {
@@ -89,6 +104,8 @@ struct TimePickerView: View {
                         .frame(minWidth: 36)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityLabel(controlLabel("time_picker_period_accessibility"))
+                .accessibilityValue(isAM ? "time_picker_am".localized : "time_picker_pm".localized)
             }
         }
     }

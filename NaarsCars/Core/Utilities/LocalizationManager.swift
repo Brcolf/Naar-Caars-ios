@@ -26,30 +26,42 @@ final class LocalizationManager: ObservableObject {
         AppLanguage(code: "ko", name: "Korean", localizedName: "한국어")
     ]
     
+    /// The language preference the app launched with (this singleton is first created during
+    /// app init). The strings on screen come from the bundle chosen at launch, so dates and
+    /// numbers keep following this until the restart; switching them at once left dates in
+    /// the new language beside text in the old one.
+    private let launchLanguage: String
+
     /// Current locale to use for formatting
     var currentLocale: Locale {
-        if appLanguage == "system" {
+        if launchLanguage == "system" {
             return Locale.current
         }
-        return Locale(identifier: appLanguage)
+        return Locale(identifier: launchLanguage)
     }
-    
+
     /// Current language code
     var currentLanguageCode: String {
-        if appLanguage == "system" {
+        if launchLanguage == "system" {
             return Locale.current.language.languageCode?.identifier ?? "en"
         }
-        return appLanguage
+        return launchLanguage
     }
-    
-    private init() {}
-    
+
+    private init() {
+        // Same key and default as the `appLanguage` storage above
+        launchLanguage = UserDefaults.standard.string(forKey: "app_language") ?? "system"
+    }
+
     /// Apply language change (requires app restart for full effect)
     func setLanguage(_ code: String) {
         appLanguage = code
-        
+
         // Set AppleLanguages to override system language
         if code == "system" {
+            // The one place the override is removed: the person chose System Default here.
+            // iOS then falls back to the device language, or to a per-app language picked
+            // afterwards in the Settings app.
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
         } else {
             // Set the language preference
@@ -80,9 +92,10 @@ final class LocalizationManager: ObservableObject {
                 AppLogger.info("localization", "AppleLanguages set to: \(languages)")
             }
         } else {
-            // Use system language - remove custom override
-            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-
+            // System Default: leave AppleLanguages alone. iOS stores the per-app language
+            // chosen in the Settings app under this same key, so removing it on every launch
+            // erased that choice. An in-app override is removed in setLanguage("system"),
+            // when the person switches back.
             AppLogger.info("localization", "Using system language")
         }
     }

@@ -36,7 +36,7 @@ struct SettingsView: View {
                                 }
                             } icon: {
                                 Image(systemName: biometricService.biometricType.iconName)
-                                    .foregroundColor(.accentColor)
+                                    .foregroundColor(.naarsPrimary)
                             }
                         }
                         .onChange(of: viewModel.biometricsEnabled) { _, newValue in
@@ -99,13 +99,13 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                                 Text("settings_language".localized)
                                     .font(.naarsBody)
-                                Text(LocalizationManager.supportedLanguages.first(where: { $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "settings_system_default".localized)
+                                Text(LocalizationManager.supportedLanguages.first(where: { $0.code != "system" && $0.code == LocalizationManager.shared.appLanguage })?.localizedName ?? "settings_system_default".localized)
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
                             Image(systemName: "globe")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
                 } header: {
@@ -130,7 +130,7 @@ struct SettingsView: View {
                                 .foregroundColor(.primary)
                         } icon: {
                             Image(systemName: "bell.badge")
-                                .foregroundColor(.blue)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
                     
@@ -139,10 +139,10 @@ struct SettingsView: View {
                     }) {
                         Label {
                             Text("Test Crash")
-                                .foregroundColor(.red)
+                                .foregroundColor(.naarsError)
                         } icon: {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
+                                .foregroundColor(.naarsError)
                         }
                     }
                     
@@ -176,7 +176,7 @@ struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "speedometer")
-                                .foregroundColor(.orange)
+                                .foregroundColor(.naarsWarning)
                         }
                     }
                     .onChange(of: viewModel.performanceInstrumentationEnabled) { _, enabled in
@@ -194,7 +194,7 @@ struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "waveform.path.ecg")
-                                .foregroundColor(.red)
+                                .foregroundColor(.naarsError)
                         }
                     }
                     .onChange(of: viewModel.metricKitEnabled) { _, enabled in
@@ -212,7 +212,7 @@ struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "list.bullet.rectangle.portrait")
-                                .foregroundColor(.indigo)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
                     .onChange(of: viewModel.verbosePerformanceLogsEnabled) { _, enabled in
@@ -250,7 +250,7 @@ struct SettingsView: View {
                         
                         // Version
                         Text(String(format: "settings_version_format".localized, Bundle.main.appVersion))
-                            .font(.caption2)
+                            .font(.naarsCaption2)
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -263,7 +263,7 @@ struct SettingsView: View {
                                 .font(.naarsBody)
                         } icon: {
                             Image(systemName: "doc.text")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
                     
@@ -281,7 +281,7 @@ struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "hand.raised")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
                     
@@ -299,7 +299,7 @@ struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "doc.plaintext")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
 
@@ -319,7 +319,7 @@ struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "envelope")
-                                .foregroundColor(.accentColor)
+                                .foregroundColor(.naarsPrimary)
                         }
                     }
                 } header: {
@@ -400,7 +400,11 @@ struct SettingsView: View {
 final class SettingsViewModel: ObservableObject {
     @Published var biometricsEnabled = false
     @Published var requireBiometricsOnLaunch = false
+    /// Mirrors the iOS notification permission for this app. It is never set by a control in
+    /// the app: only iOS can turn notifications on or off once the first prompt was answered.
     @Published var pushNotificationsEnabled = false
+    /// True when the permission was refused, so the only route left is the Settings app
+    @Published var pushPermissionDenied = false
     @Published var notifyRideUpdates = true
     @Published var notifyMessages = true
     @Published var notifyAnnouncements = true
@@ -428,6 +432,12 @@ final class SettingsViewModel: ObservableObject {
     @Published var verbosePerformanceLogsEnabled = false
 #endif
     
+    /// The value the server last confirmed for each notification switch. The switches write
+    /// through onChange, which also fires when a value is loaded or reverted; comparing with
+    /// this keeps those from re-sending a save (a failed save used to flip the switch back,
+    /// which re-fired the save, indefinitely).
+    private var confirmedNotificationPreferences: [NotificationPreferenceType: Bool] = [:]
+
     private let biometricService = BiometricService.shared
     private let biometricPreferences = BiometricPreferences.shared
     private let pushNotificationService = PushNotificationService.shared
@@ -440,9 +450,8 @@ final class SettingsViewModel: ObservableObject {
         requireBiometricsOnLaunch = biometricPreferences.requireBiometricsOnLaunch
         
         // Load push notification status
-        let authStatus = await pushNotificationService.checkAuthorizationStatus()
-        pushNotificationsEnabled = authStatus == .authorized
-        
+        await refreshPushAuthorizationStatus()
+
         // Check if Apple ID is linked
         isAppleLinked = await AuthService.shared.checkAppleIdentityLinked()
         
@@ -455,6 +464,13 @@ final class SettingsViewModel: ObservableObject {
         // Load notification preferences from profile
         if let userId = AuthService.shared.currentUserId,
            let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
+            confirmedNotificationPreferences = [
+                .rideUpdates: profile.notifyRideUpdates,
+                .messages: profile.notifyMessages,
+                .qaActivity: profile.notifyQaActivity,
+                .reviewReminders: profile.notifyReviewReminders,
+                .townHall: profile.notifyTownHall
+            ]
             notifyRideUpdates = profile.notifyRideUpdates
             notifyMessages = profile.notifyMessages
             notifyAnnouncements = true
@@ -532,6 +548,10 @@ final class SettingsViewModel: ObservableObject {
     #endif
     
     func handleBiometricsToggle(_ enabled: Bool) async {
+        // The view's onChange also fires when loadSettings() assigns the stored value and when
+        // a cancelled prompt sets the switch back. Acting on those showed a Face ID prompt every
+        // time Settings opened, and cancelling it turned app lock off. Only act on a real change.
+        guard enabled != biometricPreferences.isBiometricsEnabled else { return }
         if enabled {
             // Verify biometrics before enabling
             do {
@@ -567,26 +587,34 @@ final class SettingsViewModel: ObservableObject {
         biometricPreferences.requireBiometricsOnLaunch = enabled
     }
     
-    func handlePushNotificationToggle(_ enabled: Bool) async {
-        if enabled {
-            let granted = await pushNotificationService.requestPermission()
-            if granted {
-                pushNotificationsEnabled = true
-                // Device token registration is handled automatically by AppDelegate
-                // when didRegisterForRemoteNotificationsWithDeviceToken is called
-            } else {
-                pushNotificationsEnabled = false
-                errorMessage = "settings_push_denied".localized
-                showError = true
-            }
-        } else {
-            pushNotificationsEnabled = false
-            // Note: We can't revoke system permission, but we can stop registering tokens
-            // The user would need to disable in iOS Settings
+    /// Re-read the iOS notification permission. Called when Settings loads and each time the
+    /// app becomes active again, so the row is right after a trip to the Settings app.
+    func refreshPushAuthorizationStatus() async {
+        let authStatus = await pushNotificationService.checkAuthorizationStatus()
+        pushNotificationsEnabled = authStatus == .authorized || authStatus == .provisional
+        pushPermissionDenied = authStatus == .denied
+    }
+
+    /// The button on the Push Notifications row. The app can ask iOS for permission once;
+    /// after that (allowed or refused) the only place to change it is the Settings app, so
+    /// the button goes there instead of pretending to switch notifications off or on.
+    func handlePushPermissionAction() async {
+        if pushNotificationsEnabled || pushPermissionDenied {
+            guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+            _ = await UIApplication.shared.open(url)
+            return
         }
+
+        // Never asked: show the system prompt. Device token registration is handled by
+        // AppDelegate when didRegisterForRemoteNotificationsWithDeviceToken is called.
+        _ = await pushNotificationService.requestPermission()
+        await refreshPushAuthorizationStatus()
     }
     
     func updateNotificationPreference(_ type: NotificationPreferenceType, enabled: Bool) async {
+        // Nothing to save when the switch only moved to the value the server already has
+        // (settings loading, or a failed save being reverted).
+        if let confirmed = confirmedNotificationPreferences[type], confirmed == enabled { return }
         guard let userId = AuthService.shared.currentUserId else {
             errorMessage = "settings_user_not_logged_in".localized
             showError = true
@@ -631,11 +659,14 @@ final class SettingsViewModel: ObservableObject {
                 notifyTownHall = enabled
             }
             
+            confirmedNotificationPreferences[type] = enabled
+
             // Refresh profile cache
             await CacheManager.shared.invalidateProfile(id: userId)
         } catch {
             errorMessage = String(format: "settings_notification_update_failed".localized, error.localizedDescription)
             showError = true
+            confirmedNotificationPreferences[type] = !enabled
             // Revert toggle
             switch type {
             case .rideUpdates: notifyRideUpdates = !enabled
@@ -762,6 +793,14 @@ struct BlockedUsersView: View {
         Group {
             if viewModel.isLoading {
                 ProgressView("common_loading".localized)
+            } else if let loadError = viewModel.error, viewModel.blockedUsers.isEmpty {
+                // A failed load is not "nobody is blocked".
+                ErrorView(
+                    error: loadError,
+                    retryAction: {
+                        Task { await viewModel.loadBlockedUsers() }
+                    }
+                )
             } else if viewModel.blockedUsers.isEmpty {
                 VStack(spacing: Constants.Spacing.md) {
                     Image(systemName: "person.crop.circle.badge.checkmark")
@@ -837,6 +876,7 @@ struct BlockedUsersView: View {
                 Text(String(format: "settings_unblock_confirmation".localized, user.blockedName))
             }
         }
+        .errorBanner(message: $viewModel.unblockErrorMessage)
     }
 }
 

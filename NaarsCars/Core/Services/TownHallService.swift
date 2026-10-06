@@ -34,17 +34,25 @@ final class TownHallService {
     /// - Returns: Array of posts ordered by createdAt descending
     /// - Throws: AppError if fetch fails
     func fetchPosts(limit: Int = 20, offset: Int = 0) async throws -> [TownHallPost] {
+        try await fetchPostsPage(limit: limit, offset: offset).posts
+    }
+
+    /// Same fetch as `fetchPosts`, plus the number of rows the server returned before posts by
+    /// blocked authors were filtered out. Paging has to advance and stop on `serverCount`: a page
+    /// that lost one post to the block filter is short, but it is not the last page.
+    func fetchPostsPage(limit: Int = 20, offset: Int = 0) async throws -> (posts: [TownHallPost], serverCount: Int) {
         let response = try await supabase
             .from("town_hall_posts")
             .select()
             .order("created_at", ascending: false)
             .range(from: offset, to: offset + limit - 1)
             .execute()
-        
+
         // Decode posts with custom date decoder
         let decoder = createDateDecoder()
         var posts: [TownHallPost] = try decoder.decode([TownHallPost].self, from: response.data)
-        
+        let serverCount = posts.count
+
         // Enrich with author profiles, vote counts, comment counts, and review data.
         // The lookups only depend on this page of posts, so they run concurrently.
         posts = await enrichPosts(posts, userId: AuthService.shared.currentUserId)
@@ -56,7 +64,7 @@ final class TownHallService {
         }
 
         AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
-        return posts
+        return (posts, serverCount)
     }
 
     /// Fetch the town hall post ID associated with a review

@@ -70,24 +70,9 @@ struct SignupMethodChoiceView: View {
                 .padding(.vertical, 8)
                 
                 // Continue with Email button
-                Button(action: {
+                SecondaryButton(title: "signup_continue_with_email".localized) {
                     navigateToEmailSignup = true
-                }) {
-                    HStack {
-                        Image(systemName: "envelope.fill")
-                        Text("signup_continue_with_email".localized)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.naarsBackgroundSecondary)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.separator), lineWidth: 1)
-                    )
                 }
-                .buttonStyle(PlainButtonStyle())
                 .padding(.horizontal)
                 .accessibilityIdentifier("signup.method.email")
                 
@@ -106,7 +91,7 @@ struct SignupMethodChoiceView: View {
         .alert("common_error".localized, isPresented: $showError) {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
-            Text(appleSignInViewModel.error?.localizedDescription ?? "common_error_occurred".localized)
+            Text(appleSignInViewModel.errorMessage ?? "common_error_occurred".localized)
         }
     }
 }

@@ -22,8 +22,16 @@ struct TimeZonePicker: View {
     var body: some View {
         Picker("timezone_picker_label".localized, selection: $selectedTimezone) {
             ForEach(Self.timezones, id: \.id) { tz in
-                Text(tz.label).tag(tz.id)
+                Text(Self.displayName(for: tz)).tag(tz.id)
             }
         }
+    }
+
+    /// The system's name for the zone in the app's language ("Pacific Time", "太平洋时间"),
+    /// falling back to the English label above.
+    private static func displayName(for tz: (id: String, label: String)) -> String {
+        TimeZone(identifier: tz.id)?
+            .localizedName(for: .generic, locale: LocalizationManager.shared.currentLocale)
+            ?? tz.label
     }
 }

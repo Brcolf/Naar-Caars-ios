@@ -9,8 +9,9 @@ import SwiftUI
 
 /// Non-dismissible sheet requiring user to accept community guidelines
 struct GuidelinesAcceptanceSheet: View {
-    let onAccept: () async -> Void
-    
+    /// Saves the acceptance and closes the cover. Returns false when the save failed.
+    let onAccept: () async -> Bool
+
     @State private var isAccepting = false
     @State private var showError = false
     @State private var errorMessage: String?
@@ -41,68 +42,10 @@ struct GuidelinesAcceptanceSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.bottom, 8)
                             
-                            // Guidelines (same as CommunityGuidelinesView but inline)
-                            GuidelineSection(
-                                number: "1",
-                                title: "This is a safe, respectful, and supportive community",
-                                content: """
-                                Naar's Cars is a place to ask for and offer help—whether that's a ride to the airport, borrowing a tool, help moving something heavy, running an errand, or similar neighborly favors.
-                                Requests are welcome, and no judgment will be passed for asking.
-                                """
-                            )
-                            
-                            Divider()
-                            
-                            GuidelineSection(
-                                number: "2",
-                                title: "Be flexible and considerate",
-                                content: """
-                                When possible, flexibility helps everyone. You're encouraged to suggest or accept reasonable alternatives—such as meeting at a nearby location, adjusting timing, or breaking a request into smaller parts.
-                                There's no shame in asking, and no obligation for others to say yes.
-                                """
-                            )
-                            
-                            Divider()
-                            
-                            GuidelineSection(
-                                number: "3",
-                                title: "Participation is always optional",
-                                content: """
-                                No one is required to respond or help. If your request doesn't get a response, please don't take it personally—people may be busy, unavailable, or simply unable to help at that time.
-                                """
-                            )
-                            
-                            Divider()
-                            
-                            GuidelineSection(
-                                number: "4",
-                                title: "Reciprocity is encouraged, not enforced",
-                                content: """
-                                You are not required to give help in order to receive it. That said, Naar's Cars works best when members contribute when they're able.
-                                If you consistently receive help without offering it when possible, others may be less inclined to respond—so please pay it forward when you can.
-                                """
-                            )
-                            
-                            Divider()
-                            
-                            GuidelineSection(
-                                number: "5",
-                                title: "Keep requests reasonable and lawful",
-                                content: """
-                                Requests should be legal, safe, and appropriate for a community setting. Members should never feel pressured to take on work, risk, or responsibility they're uncomfortable with.
-                                """
-                            )
-                            
-                            Divider()
-                            
-                            GuidelineSection(
-                                number: "6",
-                                title: "Communicate clearly and respectfully",
-                                content: """
-                                Be clear about what you're asking for, when you need help, and any relevant details. Treat others with kindness and respect—gratitude goes a long way in building trust.
-                                """
-                            )
-                            
+                            // The same six guidelines as CommunityGuidelinesView, from the one
+                            // localized list, so members accept them in their own language.
+                            CommunityGuidelinesList()
+
                             // Bottom detection view with GeometryReader
                             GeometryReader { geo in
                                 Color.clear
@@ -157,6 +100,8 @@ struct GuidelinesAcceptanceSheet: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
                     .disabled(!hasScrolledToBottom || isAccepting)
                     .accessibilityIdentifier("guidelines.accept")
                 }
@@ -167,25 +112,38 @@ struct GuidelinesAcceptanceSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled() // Prevent swipe to dismiss
         }
-        .alert("common_error".localized, isPresented: $showError) {
-            Button("common_ok".localized, role: .cancel) {}
+        .alert("guidelines_accept_failed".localized, isPresented: $showError) {
+            Button("common_retry".localized) {
+                Task {
+                    await acceptGuidelines()
+                }
+            }
+            Button("common_cancel".localized, role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "guidelines_accept_failed".localized)
+            Text(errorMessage ?? "guidelines_accept_failed_message".localized)
         }
     }
-    
+
     private func acceptGuidelines() async {
+        guard !isAccepting else { return }
         isAccepting = true
         defer { isAccepting = false }
-        
-        await onAccept()
+
+        // On success the caller closes this cover. On failure the button used to blink and
+        // leave the member here with no explanation, so say what happened and offer a retry.
+        let accepted = await onAccept()
+        if !accepted {
+            errorMessage = "guidelines_accept_failed_message".localized
+            showError = true
+        }
     }
-    
+
 }
 
 #Preview {
     GuidelinesAcceptanceSheet {
         AppLogger.info("profile", "Guidelines accepted")
+        return true
     }
 }
 

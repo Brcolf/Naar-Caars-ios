@@ -14,6 +14,9 @@ protocol ConversationServiceProtocol: AnyObject {
     // Creation
     func getOrCreateDirectConversation(userId: UUID, otherUserId: UUID) async throws -> Conversation
     func createConversationWithUsers(userIds: [UUID], createdBy: UUID, title: String?) async throws -> Conversation
+    /// The existing untitled conversation whose active members are exactly `userIds`, if any
+    /// (one thread per participant set). Returns nil on lookup failure so callers can create.
+    func findConversation(forParticipants userIds: [UUID]) async -> UUID?
 
     // Group details
     func updateConversationTitle(conversationId: UUID, title: String?, userId: UUID) async throws

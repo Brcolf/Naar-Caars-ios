@@ -15,6 +15,9 @@ final class CurrentLocationProvider: NSObject, @unchecked Sendable {
     private let manager = CLLocationManager()
     private var completion: ((CLLocationCoordinate2D?) -> Void)?
     private var timeoutWorkItem: DispatchWorkItem?
+    /// The timeout of a request that is waiting for the person to answer the system location
+    /// prompt. Non-nil only between asking for permission and the answer.
+    private var timeoutAwaitingAuthorization: TimeInterval?
     private let lock = NSLock()
 
     override init() {
@@ -41,14 +44,29 @@ final class CurrentLocationProvider: NSObject, @unchecked Sendable {
             return
         }
         if status == .notDetermined {
+            // First use: the system prompt is about to appear. The timeout starts when the
+            // person answers it (`locationManagerDidChangeAuthorization`). Started here, it
+            // ran out two seconds later with the prompt still on screen, and Maps opened over
+            // the unanswered question without the location being used.
+            lock.lock()
+            timeoutAwaitingAuthorization = timeout
+            lock.unlock()
             manager.requestWhenInUseAuthorization()
+            return
         }
+        startLocationRequest(timeout: timeout)
+    }
+
+    /// Ask for one fix and arm the timeout. Called once permission is known to be granted.
+    private func startLocationRequest(timeout: TimeInterval) {
         manager.requestLocation()
 
         let workItem = DispatchWorkItem { [weak self] in
             self?.finish(with: nil)
         }
+        lock.lock()
         timeoutWorkItem = workItem
+        lock.unlock()
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: workItem)
     }
 
@@ -67,6 +85,7 @@ final class CurrentLocationProvider: NSObject, @unchecked Sendable {
         completion = nil
         timeoutWorkItem?.cancel()
         timeoutWorkItem = nil
+        timeoutAwaitingAuthorization = nil
         lock.unlock()
         manager.stopUpdatingLocation()
         if let block = block {
@@ -96,7 +115,16 @@ extension CurrentLocationProvider: CLLocationManagerDelegate {
             return
         }
         if status == .authorizedWhenInUse || status == .authorizedAlways {
-            manager.requestLocation()
+            // Only a request that was waiting for this answer starts here. This callback also
+            // fires when the manager is created, and a request made with permission already
+            // granted starts itself in `requestCurrentLocation`.
+            lock.lock()
+            let pendingTimeout = timeoutAwaitingAuthorization
+            timeoutAwaitingAuthorization = nil
+            lock.unlock()
+            if let pendingTimeout = pendingTimeout {
+                startLocationRequest(timeout: pendingTimeout)
+            }
         }
     }
 }

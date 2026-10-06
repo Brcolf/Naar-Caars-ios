@@ -25,7 +25,8 @@ final class RideDirectionsLauncherTests: XCTestCase {
             dropoffName: "Dropoff"
         )
         XCTAssertEqual(items.count, 3, "Should be current, pickup, dropoff")
-        XCTAssertEqual(items[0].name, "Current Location")
+        // The start stop is named in the app's language ("Current Location" in English).
+        XCTAssertEqual(items[0].name, "maps_stop_current_location".localized)
         XCTAssertEqual(items[1].name, "Pickup")
         XCTAssertEqual(items[2].name, "Dropoff")
     }

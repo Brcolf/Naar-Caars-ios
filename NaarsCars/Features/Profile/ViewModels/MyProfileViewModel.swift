@@ -45,10 +45,13 @@ final class MyProfileViewModel: ObservableObject {
     /// On subsequent calls for the same user, returns cached data immediately.
     /// Use `refreshProfile(userId:)` for pull-to-refresh.
     /// - Parameter userId: The current user's ID
-    func loadProfile(userId: UUID) async {
+    /// - Parameter force: Reload even when data for this user is already loaded. Used after the
+    ///   user's own change (pull-to-refresh, profile edit, new photo); without it those paths
+    ///   hit the tab-switch guard and showed stale data.
+    func loadProfile(userId: UUID, force: Bool = false) async {
         // If we already have data for this user, skip the network fetch.
         // This prevents 6 concurrent RPCs on every tab switch.
-        if profile?.id == userId && !reviews.isEmpty {
+        if !force && profile?.id == userId && !reviews.isEmpty {
             return
         }
 
@@ -95,7 +98,7 @@ final class MyProfileViewModel: ObservableObject {
         }
         
         // Reload data
-        await loadProfile(userId: userId)
+        await loadProfile(userId: userId, force: true)
     }
     
     // MARK: - Account Actions
@@ -103,7 +106,17 @@ final class MyProfileViewModel: ObservableObject {
     /// Upload a new avatar for the current user
     /// - Throws: Error from the upload (caller logs and decides UI feedback)
     func uploadAvatar(imageData: Data, userId: UUID) async throws {
-        _ = try await profileService.uploadAvatar(imageData: imageData, userId: userId)
+        // The upload only stores the file. The profile row has to point at the returned URL
+        // (it carries a cache-buster), or the new photo never appears anywhere.
+        let avatarUrl = try await profileService.uploadAvatar(imageData: imageData, userId: userId)
+        try await profileService.updateProfile(
+            userId: userId,
+            name: nil,
+            phoneNumber: nil,
+            car: nil,
+            avatarUrl: avatarUrl,
+            shouldUpdateAvatar: true
+        )
     }
     
     /// Delete the current user's account (App Store requirement — keep reachable).

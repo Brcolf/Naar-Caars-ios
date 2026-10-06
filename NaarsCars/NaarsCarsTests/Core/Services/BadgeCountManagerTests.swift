@@ -64,4 +64,22 @@ final class BadgeCountManagerTests: XCTestCase {
 
         XCTAssertEqual(counts.totalUnread, expectedTotal)
     }
+
+    /// Sign-out invariant: badges zero. The teardown calls `resetForSignOut()` so a guest or
+    /// the next account on the device does not inherit the previous member's counts.
+    func testResetForSignOutZeroesCounts() {
+        var seeded = BadgeCountManager.BadgeCounts()
+        seeded.requests = 2
+        seeded.messages = 5
+        seeded.community = 3
+        seeded.bell = 7
+        seeded.totalUnread = 10
+        BadgeCountManager.shared.setCountsForTesting(seeded)
+        XCTAssertEqual(BadgeCountManager.shared.counts, seeded)
+
+        BadgeCountManager.shared.resetForSignOut()
+
+        XCTAssertEqual(BadgeCountManager.shared.counts, BadgeCountManager.BadgeCounts())
+        XCTAssertFalse(BadgeCountManager.shared.isBadgeStale)
+    }
 }

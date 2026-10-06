@@ -29,7 +29,7 @@ struct AppLockView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 80, height: 80)
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.naarsPrimary)
                     .accessibilityLabel("app_logo_accessibility".localized)
 
                 Text("app_lock_title".localized)
@@ -51,16 +51,16 @@ struct AppLockView: View {
                     VStack(spacing: 12) {
                         Image(systemName: biometricService.biometricType.iconName)
                             .font(.system(size: 48))
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.naarsPrimary)
 
                         Text(String(format: "app_lock_unlock_with".localized, biometricService.biometricType.displayName))
                             .font(.naarsHeadline)
                     }
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.naarsPrimary)
                     .padding()
                     .frame(maxWidth: .infinity)
                     .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
+                    .cornerRadius(Constants.Radius.card)
                 }
                 .disabled(lockManager.state == .authenticating)
                 .accessibilityLabel("app_lock_unlock_with".localized(with: biometricService.biometricType.displayName))

@@ -14,13 +14,19 @@ struct TownHallPostCard: View {
     let onDelete: (() -> Void)?
     let onComment: ((UUID) -> Void)? // Post ID
     let onVote: ((UUID, VoteType?) -> Void)? // Post ID, Vote type (nil = remove vote)
+    /// Post ID. Called when the comments sheet closes after a comment was added or deleted.
+    let onCommentsChanged: ((UUID) -> Void)?
+    /// Author ID. Called after the user blocked this post's author from the report sheet.
+    let onAuthorBlocked: ((UUID) -> Void)?
     let isHighlighted: Bool
     
     @Environment(AppState.self) private var appState
     @State private var showDeleteAlert = false
     @State private var showComments = false
+    @State private var commentsChanged = false
     @State private var showReportSheet = false
     @State private var showGuestPrompt = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var hasReported = false
     
     init(
@@ -29,6 +35,8 @@ struct TownHallPostCard: View {
         onDelete: (() -> Void)? = nil,
         onComment: ((UUID) -> Void)? = nil,
         onVote: ((UUID, VoteType?) -> Void)? = nil,
+        onCommentsChanged: ((UUID) -> Void)? = nil,
+        onAuthorBlocked: ((UUID) -> Void)? = nil,
         isHighlighted: Bool = false
     ) {
         self.post = post
@@ -36,6 +44,8 @@ struct TownHallPostCard: View {
         self.onDelete = onDelete
         self.onComment = onComment
         self.onVote = onVote
+        self.onCommentsChanged = onCommentsChanged
+        self.onAuthorBlocked = onAuthorBlocked
         self.isHighlighted = isHighlighted
     }
     
@@ -59,6 +69,14 @@ struct TownHallPostCard: View {
         return PostTitleExtractor.extractTitle(from: post.content)
     }
     
+    /// False when the post has no explicit title and the derived title is the entire content,
+    /// which would otherwise render the same text twice (title + body).
+    private var showsBody: Bool {
+        // Posts created in-app store the first line as `title`, so an explicit title can still
+        // equal the whole content; compare the rendered title against the content either way.
+        displayTitle != post.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var isAnnouncement: Bool {
         post.type == .announcement
     }
@@ -71,6 +89,14 @@ struct TownHallPostCard: View {
     private var starRating: Int? {
         guard isReview, let review = post.review else { return nil }
         return review.rating
+    }
+
+    /// The server writes a review post as "⭐⭐⭐⭐⭐ comment". When the card already draws the
+    /// rating as its own star row, drop that prefix so the rating is not shown twice.
+    private var bodyText: String {
+        guard starRating != nil else { return post.content }
+        let rest = post.content.drop(while: { $0.isWhitespace || $0.unicodeScalars.first?.value == 0x2B50 })
+        return String(rest)
     }
 
     /// "Brendan reviewed Jane Doe for a ride"
@@ -110,10 +136,10 @@ struct TownHallPostCard: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                .cornerRadius(Constants.Radius.card)
+                .cardShadow()
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(
                             isAnnouncement ? Color.naarsPrimary.opacity(0.6) :
                             isHighlighted ? Color.naarsPrimary.opacity(0.6) : Color.clear,
@@ -122,8 +148,15 @@ struct TownHallPostCard: View {
                 )
             }
         }
-        .sheet(isPresented: $showComments) {
-            PostCommentsView(postId: post.id)
+        .sheet(isPresented: $showComments, onDismiss: {
+            // The card's count comes from the feed; without this it stayed at the old number
+            // after a comment was deleted until the next pull-to-refresh.
+            if commentsChanged {
+                commentsChanged = false
+                onCommentsChanged?(post.id)
+            }
+        }) {
+            PostCommentsView(postId: post.id, onChanged: { commentsChanged = true })
         }
         .sheet(isPresented: $showReportSheet) {
             ReportContentSheet(
@@ -132,7 +165,8 @@ struct TownHallPostCard: View {
                     authorId: post.userId,
                     preview: post.content.prefix(100) + (post.content.count > 100 ? "..." : "")
                 ),
-                onReported: { hasReported = true }
+                onReported: { hasReported = true },
+                onBlocked: { authorId in onAuthorBlocked?(authorId) }
             )
         }
         .sheet(isPresented: $showGuestPrompt) {
@@ -167,7 +201,10 @@ struct TownHallPostCard: View {
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.leading)
-                .lineLimit(2)
+                // When the title is the whole post (single-line posts), it is the only rendering
+                // of the text, so it must not be truncated.
+                .lineLimit(showsBody ? 2 : nil)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
@@ -176,40 +213,21 @@ struct TownHallPostCard: View {
                 HStack(spacing: 2) {
                     ForEach(1...5, id: \.self) { star in
                         Image(systemName: star <= rating ? "star.fill" : "star")
-                            .font(.caption2)
-                            .foregroundColor(star <= rating ? .yellow : .secondary.opacity(0.3))
+                            .font(.naarsCaption2)
+                            .foregroundColor(star <= rating ? .naarsRating : .secondary.opacity(0.3))
                     }
                 }
+                // One spoken value instead of five separate star images
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("review_rating_accessibility".localized(with: "\(rating)"))
             }
         }
 
         // Type badge row
         if isAnnouncement {
-            HStack(spacing: 6) {
-                Image(systemName: "megaphone.fill")
-                    .font(.caption2)
-                Text("townhall_badge_announcement".localized)
-                    .font(.naarsCaption)
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(.naarsPrimary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.naarsPrimary.opacity(0.1))
-            .cornerRadius(6)
+            NaarsChip(text: "townhall_badge_announcement".localized, systemImage: "megaphone.fill")
         } else if isReview {
-            HStack(spacing: 6) {
-                Image(systemName: "star.fill")
-                    .font(.caption2)
-                Text("townhall_badge_review".localized)
-                    .font(.naarsCaption)
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(.orange)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.orange.opacity(0.1))
-            .cornerRadius(6)
+            NaarsChip(text: "townhall_badge_review".localized, systemImage: "star.fill", tint: .naarsWarning)
         }
 
         authorRow
@@ -224,11 +242,13 @@ struct TownHallPostCard: View {
 
         Divider()
 
-        // Post content
-        Text(post.content)
-            .font(.naarsBody)
-            .foregroundColor(.primary)
-            .fixedSize(horizontal: false, vertical: true)
+        // Post content — skipped when the whole content already appears as the derived title
+        if showsBody && !bodyText.isEmpty {
+            Text(bodyText)
+                .font(.naarsBody)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
 
         // Image if present
         if let imageUrl = post.imageUrl, !imageUrl.isEmpty {
@@ -245,16 +265,20 @@ struct TownHallPostCard: View {
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 200)
-                        .background(Color.naarsCardBackground)
-                        .cornerRadius(8)
+                        .background(Color.naarsInsetBackground)
+                        .cornerRadius(Constants.Radius.sm)
                 }
             )
             .aspectRatio(contentMode: .fit)
             .frame(maxWidth: .infinity)
-            .cornerRadius(8)
+            .cornerRadius(Constants.Radius.sm)
         }
 
-        Divider()
+        // With no body and no image the divider above already separates the header from the
+        // actions; a second one drew an empty band between two rules.
+        if showsBody || post.imageUrl?.isEmpty == false {
+            Divider()
+        }
 
         actionRow
     }
@@ -282,8 +306,8 @@ struct TownHallPostCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color.naarsCardBackground)
-        .cornerRadius(10)
+        .background(Color.naarsInsetBackground)
+        .cornerRadius(Constants.Radius.sm)
 
         if isOwnPost, onDelete != nil {
             Divider()
@@ -296,9 +320,12 @@ struct TownHallPostCard: View {
                 }) {
                     Image(systemName: "trash")
                         .font(.naarsCaption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.naarsError)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("townhall_delete_post".localized)
             }
             .padding(.top, Constants.Spacing.xs)
         }
@@ -306,22 +333,39 @@ struct TownHallPostCard: View {
 
     @ViewBuilder
     private var authorRow: some View {
-        HStack(alignment: .center, spacing: 8) {
+        // At accessibility text sizes the name and timestamp no longer fit on one line;
+        // stack them instead of breaking words mid-syllable.
+        let rowLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 8))
+        rowLayout {
             if let author = post.author {
-                AvatarView(
-                    imageUrl: author.avatarUrl,
-                    name: author.name,
-                    size: 24
-                )
+                // The author opens their profile, which has Report and Block.
+                NavigationLink(destination: PublicProfileView(userId: post.userId)) {
+                    HStack(spacing: 8) {
+                        AvatarView(
+                            imageUrl: author.avatarUrl,
+                            name: author.name,
+                            size: 24
+                        )
+                        Text(author.name)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    // 44-pt tap target around the 24-pt avatar without making the row taller.
+                    // Not at accessibility sizes, where the name itself can be taller than that.
+                    .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 0 : -10)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel(author.name)
+                .accessibilityHint("townhall_author_profile_hint".localized)
             } else {
                 AvatarView(imageUrl: nil, name: "townhall_unknown".localized, size: 24)
-            }
 
-            if let author = post.author {
-                Text(author.name)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
-            } else {
                 Text("townhall_unknown_user".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
@@ -331,7 +375,7 @@ struct TownHallPostCard: View {
 
             if !showsHiddenPlaceholder && post.pinned == true {
                 Image(systemName: "pin.fill")
-                    .font(.caption2)
+                    .font(.naarsCaption2)
                     .foregroundColor(.naarsPrimary)
             }
 
@@ -344,7 +388,9 @@ struct TownHallPostCard: View {
 
     @ViewBuilder
     private var actionRow: some View {
-        HStack(alignment: .center, spacing: 16) {
+        // Spacing is 0 because every control carries its own 44-pt tap target (the glyphs are
+        // about 12 pt); the frames keep them apart.
+        HStack(alignment: .center, spacing: 0) {
             Button(action: {
                 showComments = true
                 onComment?(post.id)
@@ -359,8 +405,13 @@ struct TownHallPostCard: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                // Leading-aligned so the glyph stays on the card's text edge
+                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("townhall_comments".localized)
+            .accessibilityValue(String(post.commentCount))
 
             if !isOwnPost {
                 if hasReported {
@@ -371,6 +422,7 @@ struct TownHallPostCard: View {
                             .font(.naarsCaption)
                     }
                     .foregroundColor(.secondary.opacity(0.5))
+                    .padding(.leading, Constants.Spacing.sm)
                 } else {
                     Button(action: {
                         if appState.isGuest {
@@ -382,6 +434,8 @@ struct TownHallPostCard: View {
                         Image(systemName: "flag")
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
                     .accessibilityLabel("townhall_report_post_accessibility".localized)
@@ -396,9 +450,12 @@ struct TownHallPostCard: View {
                 }) {
                     Image(systemName: "trash")
                         .font(.naarsCaption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.naarsError)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("townhall_delete_post".localized)
             }
 
             HStack(spacing: 8) {
@@ -410,9 +467,10 @@ struct TownHallPostCard: View {
                     }
                 }) {
                     HStack(spacing: Constants.Spacing.xs) {
-                        Image(systemName: "arrow.down")
+                        // Filled when it is the user's vote, so the state does not rest on colour alone
+                        Image(systemName: post.userVote == .downvote ? "arrowshape.down.fill" : "arrowshape.down")
                             .font(.naarsCaption)
-                            .foregroundColor(post.userVote == .downvote ? .blue : .secondary)
+                            .foregroundColor(post.userVote == .downvote ? .naarsPrimary : .secondary)
                         if post.downvotes > 0 {
                             Text("\(post.downvotes)")
                                 .font(.naarsCaption)
@@ -424,7 +482,10 @@ struct TownHallPostCard: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .accessibilityLabel(post.userVote == .downvote ? "townhall_remove_downvote_accessibility".localized : "townhall_downvote_post_accessibility".localized)
+                // The explicit label replaces the count text, so say it as the value
+                .accessibilityValue(String(post.downvotes))
                 .accessibilityHint(post.userVote == .downvote ? "townhall_remove_downvote_hint".localized : "townhall_downvote_post_hint".localized)
+                .accessibilityAddTraits(post.userVote == .downvote ? .isSelected : [])
 
                 Button(action: {
                     if post.userVote == .upvote {
@@ -434,9 +495,9 @@ struct TownHallPostCard: View {
                     }
                 }) {
                     HStack(spacing: Constants.Spacing.xs) {
-                        Image(systemName: "arrow.up")
+                        Image(systemName: post.userVote == .upvote ? "arrowshape.up.fill" : "arrowshape.up")
                             .font(.naarsCaption)
-                            .foregroundColor(post.userVote == .upvote ? .orange : .secondary)
+                            .foregroundColor(post.userVote == .upvote ? .naarsPrimary : .secondary)
                         if post.upvotes > 0 {
                             Text("\(post.upvotes)")
                                 .font(.naarsCaption)
@@ -448,7 +509,9 @@ struct TownHallPostCard: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .accessibilityLabel(post.userVote == .upvote ? "townhall_remove_upvote_accessibility".localized : "townhall_upvote_post_accessibility".localized)
+                .accessibilityValue(String(post.upvotes))
                 .accessibilityHint(post.userVote == .upvote ? "townhall_remove_upvote_hint".localized : "townhall_upvote_post_hint".localized)
+                .accessibilityAddTraits(post.userVote == .upvote ? .isSelected : [])
             }
         }
         .padding(.top, Constants.Spacing.xs)

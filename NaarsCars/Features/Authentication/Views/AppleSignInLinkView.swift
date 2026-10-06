@@ -57,10 +57,11 @@ struct AppleSignInLinkView: View {
                         .padding(.top, 8)
                 }
                 
-                if let error = viewModel.error {
-                    Text(error.localizedDescription)
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
                         .font(.naarsCaption)
                         .foregroundColor(.naarsError)
+                        .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
             }

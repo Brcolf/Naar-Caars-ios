@@ -13,13 +13,15 @@ struct ErrorBanner: View {
     let style: BannerStyle
     var retryAction: (() -> Void)?
     var dismissAction: (() -> Void)?
-    
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     enum BannerStyle {
         case error
         case warning
         case info
         
-        var backgroundColor: Color {
+        /// Color of the icon. The banner itself is neutral glass.
+        var tintColor: Color {
             switch self {
             case .error: return Color.naarsError
             case .warning: return Color.naarsWarning
@@ -52,10 +54,14 @@ struct ErrorBanner: View {
         HStack(spacing: Constants.Spacing.sm) {
             Image(systemName: style.iconName)
                 .font(.naarsBody)
+                .foregroundColor(style.tintColor)
+                .accessibilityHidden(true)
             
             Text(message)
                 .font(.naarsSubheadline)
-                .lineLimit(2)
+                .foregroundColor(.primary)
+                // At accessibility text sizes two lines hold only a few words: show all of it.
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             
             Spacer()
             
@@ -64,7 +70,8 @@ struct ErrorBanner: View {
                     Text("common_retry".localized)
                         .font(.naarsSubheadline)
                         .fontWeight(.semibold)
-                        .underline()
+                        .foregroundColor(.naarsPrimary)
+                        .frame(minHeight: 44)
                 }
             }
             
@@ -72,16 +79,20 @@ struct ErrorBanner: View {
                 Button(action: dismissAction) {
                     Image(systemName: "xmark")
                         .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                        .frame(minWidth: 32, minHeight: 44)
                 }
+                .accessibilityLabel("common_close".localized)
             }
         }
-        .foregroundColor(.white)
         .padding(.horizontal, Constants.Spacing.md)
-        .padding(.vertical, Constants.Spacing.sm)
-        .background(style.backgroundColor)
-        .cornerRadius(Constants.Spacing.sm)
+        .padding(.vertical, Constants.Spacing.xs)
+        .glassEffect(.regular, in: .rect(cornerRadius: Constants.Radius.card))
         .padding(.horizontal, Constants.Spacing.md)
-        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+        // A failure that only appears on screen is silent for VoiceOver users. Announced here,
+        // not in the modifier, so a banner placed directly in a view is spoken too.
+        .onAppear { AccessibilityAnnouncer.announce(message) }
+        .onChange(of: message) { _, newMessage in AccessibilityAnnouncer.announce(newMessage) }
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
@@ -101,7 +112,7 @@ struct ErrorBannerModifier: ViewModifier {
                         style: style,
                         retryAction: retryAction,
                         dismissAction: { 
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(.naarsStandard) {
                                 errorMessage = nil
                             }
                         }
@@ -109,7 +120,7 @@ struct ErrorBannerModifier: ViewModifier {
                     .padding(.top, Constants.Spacing.sm)
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: errorMessage != nil)
+            .animation(.naarsStandard, value: errorMessage != nil)
     }
 }
 

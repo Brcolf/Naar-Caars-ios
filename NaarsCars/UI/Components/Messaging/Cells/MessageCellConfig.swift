@@ -16,6 +16,12 @@ struct MessageCellConfig {
     let isHighlighted: Bool
     let shouldAnimate: Bool
     let replyCount: Int
+    /// iMessage shows the delivery status ("Delivered" / "Read") under the newest outgoing
+    /// message only. Set by MessagesViewController; defaults to false for other call sites.
+    var isLastOutgoingMessage: Bool = false
+    /// True in the reply-thread screen, which has no nested replies: swipe-to-reply and
+    /// View Thread are not offered there. Defaults to false for the main transcript.
+    var isInThread: Bool = false
 
     /// Derived: whether this message failed to send
     var isFailed: Bool { message.sendStatus == .failed }

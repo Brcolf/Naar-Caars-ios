@@ -21,11 +21,21 @@ struct StarRatingInput: View {
                 }) {
                     Image(systemName: star <= rating ? "star.fill" : "star")
                         .font(.system(size: size))
-                        .foregroundColor(star <= rating ? .yellow : .gray)
+                        // .secondary keeps the empty outline above 3:1 against the form row
+                        .foregroundColor(star <= rating ? .naarsRating : .secondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+                // Each star says which rating it sets; the chosen one reads as selected. Separate
+                // buttons (rather than one adjustable element) keep direct selection for Voice
+                // Control and Switch Control.
+                .accessibilityLabel("review_rating_accessibility".localized(with: "\(star)"))
+                .accessibilityAddTraits(star == rating ? .isSelected : [])
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("review_section_rating".localized)
     }
 }
 
@@ -36,7 +46,7 @@ struct StarRatingInput: View {
         var body: some View {
             VStack(spacing: 20) {
                 Text("Rating: \(rating)")
-                    .font(.headline)
+                    .font(.naarsHeadline)
                 
                 StarRatingInput(rating: $rating)
                 

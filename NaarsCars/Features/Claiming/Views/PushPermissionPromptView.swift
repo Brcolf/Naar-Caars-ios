@@ -11,8 +11,12 @@ import SwiftUI
 struct PushPermissionPromptView: View {
     let onAllow: () -> Void
     let onNotNow: () -> Void
+    /// Notifications are already denied in iOS Settings. iOS shows its permission dialog only
+    /// once, so the primary button opens the app's notification settings instead of calling
+    /// `onAllow` (which could no longer do anything).
+    var isPermissionDenied: Bool = false
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "bell.badge.fill")
@@ -44,13 +48,20 @@ struct PushPermissionPromptView: View {
             }
             .padding(.horizontal)
             
-            Text("claiming_push_change_later".localized)
+            Text((isPermissionDenied ? "settings_push_denied" : "claiming_push_change_later").localized)
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
-            
+                .multilineTextAlignment(.center)
+
             VStack(spacing: 12) {
-                PrimaryButton(title: "claiming_push_enable".localized) {
-                    onAllow()
+                PrimaryButton(title: (isPermissionDenied ? "messaging_open_settings" : "claiming_push_enable").localized) {
+                    if isPermissionDenied {
+                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } else {
+                        onAllow()
+                    }
                     dismiss()
                 }
                 

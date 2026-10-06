@@ -21,7 +21,15 @@ final class ClaimViewModel: ObservableObject {
     @Published var showPushPermissionPrompt: Bool = false
     /// Set by claim sheet onConfirm, read by detail view onDismiss to trigger calendar offer.
     var lastClaimSucceeded: Bool = false
-    
+    /// The signed-in user's profile as last read by `checkCanClaim()`.
+    private var fetchedProfile: Profile?
+
+    /// Profile handed to the Edit Profile sheet when a phone number is needed before claiming.
+    /// Falls back to the session's cached profile if the fetch in `checkCanClaim()` failed.
+    var profileForEditing: Profile? {
+        fetchedProfile ?? authService.currentProfile
+    }
+
     // MARK: - Private Properties
     
     private let claimService: any ClaimServiceProtocol
@@ -49,6 +57,7 @@ final class ClaimViewModel: ObservableObject {
         
         do {
             let profile = try await profileService.fetchProfile(userId: userId)
+            fetchedProfile = profile
             return !(profile.phoneNumber?.isEmpty ?? true)
         } catch {
             return false
@@ -92,6 +101,7 @@ final class ClaimViewModel: ObservableObject {
             )
             
             HapticManager.success()
+            RequestsDashboardRefresh.afterUserAction("claim")
 
             // Request push notification permission after first successful claim
             await requestPushPermissionIfNeeded()
@@ -133,8 +143,9 @@ final class ClaimViewModel: ObservableObject {
                 requestId: requestId,
                 claimerId: claimerId
             )
-            
+
             HapticManager.mediumImpact()
+            RequestsDashboardRefresh.afterUserAction("unclaim")
         } catch {
             CrashReportingService.shared.recordClaimingError(
                 error,
@@ -172,8 +183,9 @@ final class ClaimViewModel: ObservableObject {
                 requestId: requestId,
                 posterId: posterId
             )
-            
+
             HapticManager.success()
+            RequestsDashboardRefresh.afterUserAction("complete")
         } catch {
             CrashReportingService.shared.recordClaimingError(
                 error,

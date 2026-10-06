@@ -11,108 +11,66 @@ import UserNotifications
 /// View displayed when user account is pending admin approval
 struct PendingApprovalView: View {
     @StateObject private var launchManager = AppLaunchManager.shared
-    @State private var isSigningOut = false
+    // Sign-out and delete-account actions, shared with the restricted and application screens
+    @StateObject private var accountViewModel = BannedAccountViewModel()
     @State private var hasRequestedNotifications = false
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @State private var showNotificationPrompt = false
-    
+    @State private var isCheckingStatus = false
+    @State private var statusMessage: String?
+    @State private var showDeleteConfirmation = false
+
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        // Scrolls when the content is taller than the screen (small phones, large text sizes)
+        // and otherwise keeps the centred layout: the stack is at least one screen tall.
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: Constants.Spacing.xl) {
+                    Spacer(minLength: 0)
 
-            // Icon
-            Image(systemName: "hourglass")
-                .font(.system(size: 80))
-                .foregroundColor(.naarsPrimary)
-
-            // Title — reviewer-safe copy
-            Text("pending_review_title".localized)
-                .font(.naarsTitle)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
-                .multilineTextAlignment(.center)
-
-            // Description — reviewer-safe copy
-            Text("pending_review_body".localized)
-                .font(.naarsBody)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-
-            // Notification permission prompt
-            if notificationStatus == .notDetermined && !hasRequestedNotifications {
-                notificationPromptCard
-            } else if notificationStatus == .authorized {
-                notificationEnabledBadge
-            }
-
-            Spacer()
-
-            // Action buttons
-            VStack(spacing: 12) {
-                // Refresh Status
-                Button(action: {
-                    Task {
-                        let isApproved = await checkApprovalDirectly()
-                        if isApproved {
-                            launchManager.state = .ready(.authenticated)
-                        }
-                    }
-                }) {
-                    Text("pending_review_refresh".localized)
-                        .font(.naarsHeadline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.naarsPrimary)
-                        .cornerRadius(12)
-                }
-                .accessibilityIdentifier("pendingApproval.refresh")
-
-                // Contact Support
-                Button(action: {
-                    if let url = URL(string: "mailto:naarscars@gmail.com") {
-                        UIApplication.shared.open(url)
-                    }
-                }) {
-                    Text("pending_review_contact_support".localized)
-                        .font(.naarsHeadline)
+                    // Icon
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 80))
                         .foregroundColor(.naarsPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.naarsBackgroundSecondary)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(.separator), lineWidth: 1)
-                        )
-                }
-                .accessibilityIdentifier("pendingApproval.contactSupport")
+                        .accessibilityHidden(true)
 
-                // Sign Out
-                Button(action: {
-                    signOutAndReturnToLogin()
-                }) {
-                    HStack {
-                        if isSigningOut {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(0.8)
-                        }
-                        Text("pending_review_sign_out".localized)
-                            .font(.naarsSubheadline)
-                            .foregroundColor(.secondary)
+                    // Title — reviewer-safe copy
+                    Text("pending_review_title".localized)
+                        .font(.naarsTitle)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Constants.Spacing.xl)
+                        .accessibilityAddTraits(.isHeader)
+
+                    // Description — reviewer-safe copy
+                    Text("pending_review_body".localized)
+                        .font(.naarsBody)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Constants.Spacing.xl)
+
+                    // Notification permission prompt
+                    if notificationStatus == .notDetermined && !hasRequestedNotifications {
+                        notificationPromptCard
+                    } else if notificationStatus == .authorized {
+                        notificationEnabledBadge
                     }
+
+                    Spacer(minLength: 0)
+
+                    actionButtons
                 }
-                .disabled(isSigningOut)
-                .accessibilityIdentifier("pendingApproval.signOut")
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 40)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.naarsBackground)
         .accessibilityIdentifier("pendingApproval.screen")
+        .accountDeletionFlow(
+            isConfirming: $showDeleteConfirmation,
+            viewModel: accountViewModel,
+            message: "account_delete_pre_approval_message".localized
+        )
         .task {
             // Check notification status on appear
             await checkNotificationStatus()
@@ -129,8 +87,89 @@ struct PendingApprovalView: View {
         }
     }
     
+    // MARK: - Actions
+
+    private var actionButtons: some View {
+        VStack(spacing: Constants.Spacing.ms) {
+            // Refresh Status
+            PrimaryButton(
+                title: "pending_review_refresh".localized,
+                action: { refreshStatus() },
+                isLoading: isCheckingStatus,
+                isDisabled: isCheckingStatus
+            )
+            .accessibilityIdentifier("pendingApproval.refresh")
+
+            // Outcome of the last manual check; without it the button appeared to do nothing
+            if let statusMessage {
+                Text(statusMessage)
+                    .font(.naarsFootnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("pendingApproval.statusMessage")
+            }
+
+            // Contact Support
+            SecondaryButton(title: "pending_review_contact_support".localized) {
+                if let url = URL(string: "mailto:naarscars@gmail.com") {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .accessibilityIdentifier("pendingApproval.contactSupport")
+
+            // Sign Out
+            AccountTextAction(
+                title: "pending_review_sign_out".localized,
+                isBusy: accountViewModel.isSigningOut
+            ) {
+                Task { await accountViewModel.signOut() }
+            }
+            .disabled(accountViewModel.isDeletingAccount)
+            .accessibilityIdentifier("pendingApproval.signOut")
+
+            // Delete Account. Low emphasis, but it has to be here: a pending user cannot
+            // reach Settings, and the account already exists (Guideline 5.1.1(v)).
+            AccountTextAction(
+                title: "profile_delete_account".localized,
+                isDestructive: true,
+                isBusy: accountViewModel.isDeletingAccount
+            ) {
+                showDeleteConfirmation = true
+            }
+            .disabled(accountViewModel.isSigningOut)
+            .accessibilityIdentifier("pendingApproval.deleteAccount")
+        }
+        .padding(.horizontal, Constants.Spacing.xl)
+        .padding(.bottom, Constants.Spacing.lg)
+    }
+
+    /// Manual status check with visible feedback
+    private func refreshStatus() {
+        guard !isCheckingStatus else { return }
+        Task {
+            isCheckingStatus = true
+            statusMessage = nil
+            let isApproved = await checkApprovalDirectly()
+            isCheckingStatus = false
+
+            if isApproved {
+                launchManager.state = .ready(.authenticated)
+                return
+            }
+
+            // The check answers "not approved" for a failed request too; connectivity is the
+            // only signal available here to tell the two apart. Read through the view model,
+            // which has had the path monitor running since this screen appeared.
+            let message = accountViewModel.isOnline
+                ? "pending_review_status_still_pending".localized
+                : "pending_review_status_check_failed".localized
+            statusMessage = message
+            UIAccessibility.post(notification: .announcement, argument: message)
+        }
+    }
+
     // MARK: - Notification UI Components
-    
+
     private var notificationPromptCard: some View {
         VStack(spacing: 16) {
             HStack(spacing: 12) {
@@ -163,13 +202,13 @@ struct PendingApprovalView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(Color.naarsPrimary)
-                    .cornerRadius(8)
+                    .cornerRadius(Constants.Radius.sm)
             }
             .accessibilityIdentifier("pendingApproval.enableNotifications")
         }
         .padding(16)
         .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
         .padding(.horizontal, 32)
         .opacity(showNotificationPrompt ? 1 : 0)
         .animation(.easeIn(duration: 0.3), value: showNotificationPrompt)
@@ -178,7 +217,7 @@ struct PendingApprovalView: View {
     private var notificationEnabledBadge: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
+                .foregroundColor(.naarsSuccess)
             
             Text("pending_approval_notifications_enabled".localized)
                 .font(.naarsCaption)
@@ -240,23 +279,6 @@ struct PendingApprovalView: View {
     private func checkApprovalDirectly() async -> Bool {
         // Use AppLaunchManager's lightweight check (doesn't change state)
         return await launchManager.checkApprovalStatusOnly()
-    }
-    
-    /// Sign out and return to login screen
-    private func signOutAndReturnToLogin() {
-        Task {
-            isSigningOut = true
-            do {
-                try await AuthService.shared.signOut()
-                // Trigger launch manager to re-check auth state
-                await launchManager.performCriticalLaunch()
-            } catch {
-                AppLogger.warning("auth", "Error signing out: \(error.localizedDescription)")
-                // Still try to update launch state to unauthenticated
-                launchManager.state = .ready(.unauthenticated)
-            }
-            isSigningOut = false
-        }
     }
 }
 

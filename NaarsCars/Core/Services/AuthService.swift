@@ -8,6 +8,7 @@
 import Foundation
 import Supabase
 import OSLog
+import UserNotifications
 internal import Combine
 
 /// Service for managing user authentication and session state
@@ -360,6 +361,13 @@ final class AuthService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // Remove this device's push token while the session is still valid. The push_tokens
+        // DELETE policy needs auth.uid(); doing this after auth.signOut() matched zero rows and
+        // a signed-out device kept receiving the previous user's pushes (2026-10-05).
+        if let userId = currentUserId {
+            try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
+        }
+        
         do {
             // Call Supabase auth.signOut()
             // This will trigger .signedOut event in setupAuthStateListener
@@ -564,7 +572,6 @@ final class AuthService: ObservableObject {
         isSigningOut = true
 
         AppLogger.auth.info("handleSignOut() started — barrier active")
-        let userIdToRemove = currentUserId
 
         // Log action for crash context
         CrashReportingService.shared.logAction("sign_out")
@@ -602,6 +609,11 @@ final class AuthService: ObservableObject {
         // Reset in-memory publisher caches so new session starts clean
         await MessagingRepository.shared.resetPublishers()
 
+        // Per-account state kept outside SwiftData. It used to outlive sign-out, so a guest or
+        // the next account on this device saw the previous member's recent addresses, pinned
+        // threads, delivered notifications and badge counts. Local only; cannot hang.
+        await clearPerAccountLocalState()
+
         // --- Phase 3: Post notification for immediate UI transition ---
         // This MUST fire before the potentially-hanging teardown below.
         // The barrier (isSigningOut) remains true to block startAll() and late subscriptions.
@@ -629,14 +641,36 @@ final class AuthService: ObservableObject {
         await CacheManager.shared.clearAll()
         AppLogger.cache.debug("Cache cleared on sign out")
 
-        if let userId = userIdToRemove {
-            try? await PushNotificationService.shared.removeDeviceToken(userId: userId)
-        }
+        // The push token row is deleted in signOut() before the session ends (the DELETE policy
+        // needs auth.uid()); only the local registration state is cleared here.
         PushNotificationService.shared.clearRegisteredTokenState()
 
         AppLogger.auth.info("Sign out cleanup completed")
     }
     
+    /// Local-only part of the sign-out wipe: no network, safe before the UI transition.
+    private func clearPerAccountLocalState() async {
+        // Keys owned by ConversationsListView (pinned threads), RecentReactionsStore,
+        // CalendarOfferTracker and PushNotificationService (last push payload).
+        let defaults = UserDefaults.standard
+        for key in ["pinnedConversations", "com.naarscars.recentReactions", "calendarOfferState", "apns_last_push_payload"] {
+            defaults.removeObject(forKey: key)
+        }
+
+        // Attachments of sends that were still pending; their queue rows went with SwiftData.
+        LocalAttachmentStorage.deleteAll()
+
+        // Banners and local reminders that belong to the account that just left.
+        let center = UNUserNotificationCenter.current()
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+
+        await MainActor.run {
+            LocationService.shared.forgetRecentLocations()
+            BadgeCountManager.shared.resetForSignOut()
+        }
+    }
+
     /// Poll for profile creation after signup with exponential backoff
     /// The database trigger (handle_new_user) creates the profile asynchronously,
     /// so we poll instead of using a fixed delay.

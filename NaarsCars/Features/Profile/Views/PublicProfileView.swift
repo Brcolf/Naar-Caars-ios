@@ -16,8 +16,7 @@ struct PublicProfileView: View {
     @State private var badges: [LeaderboardBadge] = []
     @State private var showBlockConfirmation = false
     @State private var blockError: String?
-    @State private var showGuestPrompt = false
-    @State private var guestRestrictionReason: GuestRestrictionReason = .sendMessage
+    @State private var guestPromptReason: GuestRestrictionReason?
     @State private var showReportSheet = false
 
     var body: some View {
@@ -44,13 +43,14 @@ struct PublicProfileView: View {
                     }
                     
                     // Badges Section
+                    // No extra horizontal padding: the screen's own padding already insets
+                    // every card, and a second one left this card narrower than the rest.
                     BadgeListSection(earnedBadges: badges)
-                        .padding(.horizontal)
 
                     // Reviews Section
                     reviewsSection()
                 } else if viewModel.isLoading {
-                    LoadingView(message: "profile_loading".localized)
+                    LoadingView(message: "profile_loading".localized, isEmbedded: true)
                 } else {
                     ErrorView(
                         error: (viewModel.error ?? AppError.unknown("Failed to load profile")).localizedDescription,
@@ -64,6 +64,7 @@ struct PublicProfileView: View {
             }
             .padding()
         }
+        .background(Color.naarsBackground)
         .navigationTitle(viewModel.profile?.name ?? "nav_tab_profile".localized)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -92,9 +93,9 @@ struct PublicProfileView: View {
                 }
             }
         }
-        .sheet(isPresented: $showGuestPrompt) {
+        .sheet(item: $guestPromptReason) { reason in
             GuestSignInPromptView(
-                reason: guestRestrictionReason,
+                reason: reason,
                 onSignUp: {
                     appState.isGuestMode = false
                     AppLaunchManager.shared.exitGuestMode()
@@ -213,7 +214,7 @@ struct PublicProfileView: View {
         }
         .padding()
         .background(Color.naarsCardBackground)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
         .onAppear {
             if shouldAutoReveal {
                 isPhoneRevealed = true
@@ -228,8 +229,7 @@ struct PublicProfileView: View {
     private func sendMessageButton(userId: UUID) -> some View {
         Button {
             if appState.isGuest {
-                guestRestrictionReason = .sendMessage
-                showGuestPrompt = true
+                guestPromptReason = .sendMessage
             } else {
                 Task {
                     guard let currentUserId = appState.currentUser?.id else { return }
@@ -249,8 +249,10 @@ struct PublicProfileView: View {
             .frame(maxWidth: .infinity)
             .background(Color.naarsPrimary)
             .foregroundColor(.white)
-            .cornerRadius(12)
+            .cornerRadius(Constants.Radius.card)
         }
+        .disabled(viewModel.didBlock)
+        .opacity(viewModel.didBlock ? 0.5 : 1)
         .accessibilityLabel("profile_send_message".localized)
         .accessibilityHint("profile_send_message_hint".localized)
         .navigationDestination(item: $selectedConversationId) { conversationId in
@@ -279,7 +281,7 @@ struct PublicProfileView: View {
         }
         .padding()
         .background(Color.naarsCardBackground)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
     }
     
     // MARK: - Block User

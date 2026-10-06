@@ -28,7 +28,11 @@ struct MyProfileView: View {
     @State private var showAdminPanel = false
     @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
+    @State private var photoUploadError: String? = nil
     @State private var activeProfileSheet: ProfileSheet?
+    /// A `.profile` intent (a "review received" tap) arrived before the profile had loaded;
+    /// the scroll to the reviews is done once the sections are on screen.
+    @State private var scrollToReviewsWhenLoaded = false
 
     enum ProfileSheet: Identifiable {
         case reviews
@@ -75,7 +79,6 @@ struct MyProfileView: View {
 
                             // Badges Section
                             BadgeListSection(earnedBadges: badges)
-                                .padding(.horizontal)
 
                             // Reviews Section
                             reviewsSection()
@@ -86,7 +89,7 @@ struct MyProfileView: View {
                             // Delete Account Section
                             deleteAccountSection()
                         } else if viewModel.isLoading {
-                            LoadingView(message: "profile_loading".localized)
+                            LoadingView(message: "profile_loading".localized, isEmbedded: true)
                         } else {
                             // Check if we have a user ID to retry with
                             if let userId = AuthService.shared.currentUserId {
@@ -137,10 +140,28 @@ struct MyProfileView: View {
                     applyProfileIntent(intent, proxy: proxy)
                 }
                 .onAppear {
-                    // Handle any intent set before this view appeared (e.g., during tab switch)
-                    if let intent = navigationCoordinator.pendingIntent,
-                       intent == .pendingUsers || intent == .adminPanel || intent == .adminReports {
-                        applyProfileIntent(intent, proxy: proxy)
+                    // Handle any intent set before this view appeared (e.g., during tab switch).
+                    // `.profile` included: a "review received" tap on a first visit to this tab
+                    // used to switch here without being applied, and the intent stayed set.
+                    if let intent = navigationCoordinator.pendingIntent {
+                        switch intent {
+                        case .pendingUsers, .adminPanel, .adminReports, .profile:
+                            applyProfileIntent(intent, proxy: proxy)
+                        default:
+                            break
+                        }
+                    }
+                }
+                .onChange(of: viewModel.profile?.id) { _, loadedProfileId in
+                    // Finishes a `.profile` intent that arrived before the profile had loaded
+                    // (see applyProfileIntent).
+                    guard scrollToReviewsWhenLoaded, loadedProfileId != nil else { return }
+                    scrollToReviewsWhenLoaded = false
+                    // One main-actor turn later, so the sections have been laid out.
+                    Task { @MainActor in
+                        withAnimation(.easeInOut) {
+                            proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
+                        }
                     }
                 }
             }
@@ -191,7 +212,13 @@ struct MyProfileView: View {
                     BadgeCache.shared.store(badges: badges, for: userId)
                 }
             }
-            .sheet(isPresented: $showEditProfile) {
+            .sheet(isPresented: $showEditProfile, onDismiss: {
+                // Show what was just saved; the tab-switch guard would otherwise keep the old values.
+                Task {
+                    guard let userId = AuthService.shared.currentUserId else { return }
+                    await viewModel.refreshProfile(userId: userId)
+                }
+            }) {
                 if let profile = viewModel.profile {
                     EditProfileView(profile: profile)
                 }
@@ -256,7 +283,18 @@ struct MyProfileView: View {
                 case .savings:
                     SavingsSheet()
                 case .pastRequests:
-                    PastRequestsView(initialFilter: .helpedWith)
+                    // PastRequestsView is plain content (it is also pushed from the Past
+                    // Requests row), so as a sheet it gets its stack and Close button here.
+                    NavigationStack {
+                        PastRequestsView(initialFilter: .helpedWith)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button("common_close".localized) {
+                                        activeProfileSheet = nil
+                                    }
+                                }
+                            }
+                    }
                 case .xpHistory:
                     XPHistorySheet(totalXP: viewModel.totalXP)
                 }
@@ -270,15 +308,18 @@ struct MyProfileView: View {
                             try await viewModel.uploadAvatar(imageData: data, userId: userId)
                             HapticManager.success()
                             toastMessage = "profile_photo_updated_toast".localized
-                            await viewModel.loadProfile(userId: userId)
+                            await viewModel.refreshProfile(userId: userId)
                         } catch {
                             AppLogger.error("profile", "Avatar upload failed: \(error.localizedDescription)")
+                            HapticManager.error()
+                            photoUploadError = error.localizedDescription
                         }
                     }
                     selectedPhoto = nil
                 }
             }
             .toast(message: $toastMessage)
+            .errorBanner(message: $photoUploadError)
             .trackScreen("MyProfile")
         }
     }
@@ -316,9 +357,12 @@ struct MyProfileView: View {
             Button {
                 showLogoutAlert = true
             } label: {
+                // The frame sits inside the label so the whole 44-pt area is tappable
                 Text("profile_sign_out".localized)
                     .font(.naarsSubheadline)
-                    .foregroundColor(.red)
+                    .foregroundColor(.naarsError)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityIdentifier("profile.signout")
             .accessibilityLabel("profile_sign_out".localized)
@@ -372,12 +416,9 @@ struct MyProfileView: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(.separator), lineWidth: 1)
-                )
+                // A block inside a card takes the inset fill; the card's own color disappeared.
+                .background(Color.naarsInsetBackground)
+                .cornerRadius(Constants.Radius.sm)
             }
             .buttonStyle(PlainButtonStyle())
             .sheet(isPresented: $showShareSheet) {
@@ -389,7 +430,7 @@ struct MyProfileView: View {
         }
         .padding()
         .background(Color.naarsCardBackground)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
     }
     
     // MARK: - Reviews Section
@@ -404,10 +445,11 @@ struct MyProfileView: View {
                 HStack {
                     Text("profile_reviews".localized)
                         .font(.naarsHeadline)
+                        .foregroundColor(.primary)
                     Spacer()
                     if !viewModel.reviews.isEmpty {
                         Image(systemName: "chevron.right")
-                            .font(.caption)
+                            .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -429,7 +471,7 @@ struct MyProfileView: View {
         }
         .padding()
         .background(Color.naarsCardBackground)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
         .id("profile.myProfile.reviewsSection")
     }
     
@@ -442,6 +484,7 @@ struct MyProfileView: View {
                     .foregroundColor(.naarsPrimary)
                 Text("profile_past_requests".localized)
                     .font(.naarsHeadline)
+                    .foregroundColor(.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
@@ -449,7 +492,7 @@ struct MyProfileView: View {
             }
             .padding()
             .background(Color.naarsCardBackground)
-            .cornerRadius(12)
+            .cornerRadius(Constants.Radius.card)
         }
     }
     
@@ -462,15 +505,15 @@ struct MyProfileView: View {
             }) {
                 HStack {
                     Image(systemName: "trash.fill")
-                        .foregroundColor(.red)
+                        .foregroundColor(.naarsError)
                     Text("profile_delete_account".localized)
-                        .foregroundColor(.red)
+                        .foregroundColor(.naarsError)
                     Spacer()
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color.naarsCardBackground)
-                .cornerRadius(12)
+                .background(Color.naarsInsetBackground)
+                .cornerRadius(Constants.Radius.sm)
             }
             .buttonStyle(PlainButtonStyle())
             .disabled(viewModel.isDeletingAccount)
@@ -488,7 +531,7 @@ struct MyProfileView: View {
         }
         .padding()
         .background(Color.naarsCardBackground)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
     }
     
     private func deleteAccount() async {
@@ -511,6 +554,7 @@ struct MyProfileView: View {
                     .foregroundColor(.naarsPrimary)
                 Text("profile_admin_panel".localized)
                     .font(.naarsHeadline)
+                    .foregroundColor(.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
@@ -518,7 +562,7 @@ struct MyProfileView: View {
             }
             .padding()
             .background(Color.naarsCardBackground)
-            .cornerRadius(12)
+            .cornerRadius(Constants.Radius.card)
         }
         .accessibilityIdentifier("profile.adminPanel")
     }
@@ -541,7 +585,7 @@ struct MyProfileView: View {
             }
             .padding()
             .background(Color.naarsCardBackground)
-            .cornerRadius(12)
+            .cornerRadius(Constants.Radius.card)
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("profile.settings")
@@ -561,8 +605,15 @@ struct MyProfileView: View {
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):
             if userId == AuthService.shared.currentUserId {
-                withAnimation(.easeInOut) {
-                    proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
+                if viewModel.profile == nil {
+                    // The sections are not on screen until the profile has loaded (first visit
+                    // to the tab); a scroll requested now would do nothing. The onChange on the
+                    // loaded profile does it instead. The intent is still cleared below.
+                    scrollToReviewsWhenLoaded = true
+                } else {
+                    withAnimation(.easeInOut) {
+                        proxy.scrollTo("profile.myProfile.reviewsSection", anchor: .top)
+                    }
                 }
             }
             navigationCoordinator.pendingIntent = nil

@@ -680,18 +680,15 @@ final class MessageService {
     ///   - newContent: The new text content
     /// - Throws: AppError if the update fails
     func updateMessageContent(messageId: UUID, newContent: String) async throws {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = formatter.string(from: Date())
-        
-        try await supabase
-            .from("messages")
-            .update([
-                "text": newContent,
-                "edited_at": now
-            ])
-            .eq("id", value: messageId.uuidString)
-            .execute()
+        // `messages` has no UPDATE policy (by design: read_by / edits / unsends go through
+        // SECURITY DEFINER RPCs). A direct PATCH returned 200 with 0 rows and the edit was lost.
+        try await supabase.rpc(
+            "edit_message",
+            params: [
+                "p_message_id": AnyCodable(messageId.uuidString),
+                "p_new_content": AnyCodable(newContent)
+            ]
+        ).execute()
         
         AppLogger.database.info("Edited message: \(messageId)")
     }
@@ -700,18 +697,12 @@ final class MessageService {
     /// - Parameter messageId: The ID of the message to unsend
     /// - Throws: AppError if the update fails
     func unsendMessage(messageId: UUID) async throws {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = formatter.string(from: Date())
-        
-        try await supabase
-            .from("messages")
-            .update([
-                "text": "",
-                "deleted_at": now
-            ])
-            .eq("id", value: messageId.uuidString)
-            .execute()
+        // See updateMessageContent: direct updates to `messages` are silently ignored by RLS.
+        // unsend_message also enforces the 15-minute window server-side.
+        try await supabase.rpc(
+            "unsend_message",
+            params: ["p_message_id": AnyCodable(messageId.uuidString)]
+        ).execute()
         
         AppLogger.database.info("Unsent message: \(messageId)")
     }
@@ -751,18 +742,17 @@ final class MessageService {
                     ]
                 ).execute()
             } catch {
-                for message in unreadMessages {
-                    var updatedReadBy = message.readBy
-                    if !updatedReadBy.contains(userId) {
-                        updatedReadBy.append(userId)
-                    }
-                    
-                    try await supabase
-                        .from("messages")
-                        .update(["read_by": updatedReadBy.map { $0.uuidString }])
-                        .eq("id", value: message.id.uuidString)
-                        .execute()
-                }
+                // The batch RPC failed (2026-10-05: HTTP 400 with the previous direct-UPDATE
+                // fallback, which RLS silently ignored while this method logged success).
+                // Fall back to the per-conversation RPC; if that fails too, surface it.
+                AppLogger.error("messaging", "mark_messages_read_batch failed for \(conversationId): \(error)")
+                try await supabase.rpc(
+                    "mark_messages_read",
+                    params: [
+                        "p_conversation_id": AnyCodable(conversationId.uuidString),
+                        "p_user_id": AnyCodable(userId.uuidString)
+                    ]
+                ).execute()
             }
 
         }

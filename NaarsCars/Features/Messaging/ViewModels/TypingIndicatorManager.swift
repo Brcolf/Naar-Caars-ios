@@ -21,6 +21,8 @@ final class TypingIndicatorManager {
     nonisolated(unsafe) private var typingDebounceTask: Task<Void, Never>?
     nonisolated(unsafe) private var typingSignalTask: Task<Void, Never>?
     nonisolated(unsafe) private var typingRefreshTask: Task<Void, Never>?
+    /// Main-actor state (not touched from deinit: the task holds `self` weakly and exits on its own).
+    @ObservationIgnored private var typingExpiryTask: Task<Void, Never>?
     private var isObservingTyping = false
     private var lastTypingSignal: Date = .distantPast
 
@@ -85,6 +87,8 @@ final class TypingIndicatorManager {
         isObservingTyping = false
         typingRefreshTask?.cancel()
         typingRefreshTask = nil
+        typingExpiryTask?.cancel()
+        typingExpiryTask = nil
         typingUsers = []
 
         Task { [weak self] in
@@ -150,8 +154,25 @@ final class TypingIndicatorManager {
 
     private func refreshTypingUsers() async {
         let users = await messageService.fetchTypingUsers(conversationId: conversationId)
+        guard isObservingTyping else { return }
         if users != typingUsers {
             typingUsers = users
+        }
+        scheduleTypingExpiryCheck(hasTypers: !users.isEmpty)
+    }
+
+    /// The server reports only typers whose last signal is younger than 5 s, but this client
+    /// re-queries only on realtime events. If the typer's app is killed or loses its
+    /// connection there is no DELETE event and the bubble stayed until the user left the
+    /// thread. Re-check shortly after the server window while anyone is shown as typing.
+    private func scheduleTypingExpiryCheck(hasTypers: Bool) {
+        typingExpiryTask?.cancel()
+        typingExpiryTask = nil
+        guard hasTypers else { return }
+        typingExpiryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Constants.Timing.typingAutoClearNanoseconds + 500_000_000)
+            guard let self, !Task.isCancelled else { return }
+            await self.refreshTypingUsers()
         }
     }
 }

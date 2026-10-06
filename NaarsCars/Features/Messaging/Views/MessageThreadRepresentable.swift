@@ -15,6 +15,8 @@ struct MessageThreadRepresentable: UIViewControllerRepresentable {
     let totalParticipants: Int
     let participantProfiles: [Profile]
     var hasLeftConversation: Bool = false
+    /// Receives the text of a failed send / edit / unsend / reaction made in the thread.
+    var onActionFailure: ((String) -> Void)? = nil
 
     func makeUIViewController(context: Context) -> UINavigationController {
         let threadVC = MessageThreadViewController(
@@ -24,7 +26,8 @@ struct MessageThreadRepresentable: UIViewControllerRepresentable {
             isGroup: isGroup,
             totalParticipants: totalParticipants,
             participantProfiles: participantProfiles,
-            hasLeftConversation: hasLeftConversation
+            hasLeftConversation: hasLeftConversation,
+            onActionFailure: onActionFailure
         )
         let nav = UINavigationController(rootViewController: threadVC)
         return nav

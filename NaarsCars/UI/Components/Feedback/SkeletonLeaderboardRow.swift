@@ -25,16 +25,16 @@ struct SkeletonLeaderboardRow: View {
             
             VStack(alignment: .leading, spacing: 6) {
                 // Name skeleton
-                SkeletonRectangle(width: 120, height: 18, cornerRadius: 6)
+                SkeletonRectangle(width: 120, height: 18, cornerRadius: Constants.Radius.xs)
                 
                 // Stats skeleton
-                SkeletonRectangle(width: 100, height: 14, cornerRadius: 6)
+                SkeletonRectangle(width: 100, height: 14, cornerRadius: Constants.Radius.xs)
             }
             
             Spacer()
             
             // Points skeleton
-            SkeletonRectangle(width: 60, height: 20, cornerRadius: 8)
+            SkeletonRectangle(width: 60, height: 20, cornerRadius: Constants.Radius.sm)
         }
         .padding()
     }

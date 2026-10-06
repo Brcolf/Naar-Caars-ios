@@ -67,9 +67,9 @@ private enum ModerationAction: String, Identifiable, CaseIterable {
     var tintColor: Color? {
         switch self {
         case .hide:
-            return .red
+            return .naarsError
         case .restore:
-            return .green
+            return .naarsSuccess
         case .dismiss:
             return nil
         }
@@ -93,6 +93,7 @@ struct AdminReportsView: View {
     @StateObject private var viewModel = AdminReportsViewModel()
     @State private var selectedFilter: String? = "pending"
     @State private var pendingAction: PendingModerationAction?
+    @State private var profileUserId: UUID?
 
     private let filters: [(labelKey: String, value: String?)] = [
         ("admin_reports_filter_all", nil),
@@ -143,7 +144,8 @@ struct AdminReportsView: View {
                             isActionDisabled: viewModel.isSubmittingAction,
                             onAction: { action in
                                 pendingAction = PendingModerationAction(report: report, action: action)
-                            }
+                            },
+                            onViewProfile: { profileUserId = report.reportedUserId }
                         )
                     }
                 }
@@ -152,6 +154,9 @@ struct AdminReportsView: View {
             }
         }
         .navigationTitle("admin_reports_title".localized)
+        .navigationDestination(item: $profileUserId) { userId in
+            PublicProfileView(userId: userId)
+        }
         .task { await viewModel.loadReports(status: selectedFilter) }
         .sheet(item: $pendingAction) { action in
             NavigationStack {
@@ -192,18 +197,31 @@ struct AdminReportsView: View {
                         )
                     }
                 }
+                // A failed action has to be reported here: an alert on the screen underneath
+                // cannot present while this sheet is up.
+                .alert("common_error".localized, isPresented: errorAlertBinding(sheetPresented: true)) {
+                    Button("common_ok".localized, role: .cancel) {}
+                } message: {
+                    Text(viewModel.errorAlertMessage ?? "")
+                }
             }
             .interactiveDismissDisabled(viewModel.isSubmittingAction)
             .presentationDetents([.medium])
         }
-        .alert("common_error".localized, isPresented: Binding(
-            get: { viewModel.errorAlertMessage != nil },
-            set: { if !$0 { viewModel.errorAlertMessage = nil } }
-        )) {
+        .alert("common_error".localized, isPresented: errorAlertBinding(sheetPresented: false)) {
             Button("common_ok".localized, role: .cancel) {}
         } message: {
             Text(viewModel.errorAlertMessage ?? "")
         }
+    }
+
+    /// One error message, two places it can be shown: inside the action sheet while it is up,
+    /// on the list otherwise. Only the matching alert presents, so it is never shown twice.
+    private func errorAlertBinding(sheetPresented: Bool) -> Binding<Bool> {
+        Binding(
+            get: { viewModel.errorAlertMessage != nil && (pendingAction != nil) == sheetPresented },
+            set: { if !$0 { viewModel.errorAlertMessage = nil } }
+        )
     }
 
     private func submitPendingAction() async {
@@ -224,6 +242,12 @@ struct AdminReportsView: View {
     }
 
     private func availableActions(for report: AdminReport) -> [ModerationAction] {
+        // A report about a member has no content to hide or restore, and the server rejects
+        // everything except Dismiss for it. Restricting the member is done from their profile
+        // in All Members.
+        if report.targetType == "user" {
+            return report.status == "pending" ? [.dismiss] : []
+        }
         switch report.status {
         case "pending":
             return report.contentHidden ? [.hide, .restore] : [.hide, .dismiss]
@@ -259,6 +283,14 @@ private struct ReportCardView: View {
     let actions: [ModerationAction]
     let isActionDisabled: Bool
     let onAction: (ModerationAction) -> Void
+    let onViewProfile: () -> Void
+
+    /// What the reporter wrote, when they wrote anything
+    private var reporterNote: String? {
+        guard let note = report.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !note.isEmpty else { return nil }
+        return note
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -284,17 +316,60 @@ private struct ReportCardView: View {
                         .fontWeight(.bold)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color.red.opacity(0.15))
-                        .foregroundColor(.red)
+                        .background(Color.naarsError.opacity(0.15))
+                        .foregroundColor(.naarsError)
                         .clipShape(Capsule())
                 }
             }
 
-            if let preview = report.contentPreview {
-                Text(preview)
-                    .font(.naarsBody)
-                    .foregroundColor(.secondary)
-                    .lineLimit(3)
+            if report.targetType == "user" {
+                // The server sends the member's name as the "preview" of a member report;
+                // label it so it does not read as a stray grey name.
+                Text("admin_reports_reported_member".localized(
+                    with: report.reportedUserName ?? report.contentPreview ?? "common_unknown".localized
+                ))
+                .font(.naarsBody)
+                .foregroundColor(.primary)
+            } else {
+                if let preview = report.contentPreview {
+                    Text(preview)
+                        .font(.naarsBody)
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
+                }
+                if let author = report.reportedUserName, !author.isEmpty {
+                    Text("admin_reports_content_author".localized(with: author))
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if let reporterNote {
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text("admin_reports_reporter_note".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                    Text(reporterNote)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(Constants.Spacing.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.naarsInsetBackground)
+                .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.sm))
+                .accessibilityElement(children: .combine)
+            }
+
+            if report.reportedUserId != nil {
+                Button(action: onViewProfile) {
+                    Label("admin_view_profile".localized, systemImage: "person.crop.circle")
+                        .font(.naarsSubheadline)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .tint(Color.naarsPrimary)
             }
 
             HStack {
@@ -304,7 +379,7 @@ private struct ReportCardView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text(report.createdAt, style: .relative)
+                Text(report.createdAt.timeAgo)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -312,7 +387,7 @@ private struct ReportCardView: View {
             if report.contentHidden && report.status == "pending" {
                 Label("admin_reports_auto_hidden".localized, systemImage: "eye.slash")
                     .font(.naarsCaption)
-                    .foregroundColor(.orange)
+                    .foregroundColor(.naarsWarning)
             }
 
             if !actions.isEmpty {
@@ -325,7 +400,7 @@ private struct ReportCardView: View {
             } else {
                 Text(report.status == "action_taken" ? "admin_reports_action_taken".localized : "admin_reports_dismissed".localized)
                     .font(.naarsCaption)
-                    .foregroundColor(report.status == "action_taken" ? .red : .green)
+                    .foregroundColor(report.status == "action_taken" ? .naarsError : .naarsSuccess)
             }
         }
         .padding(.vertical, 6)
@@ -333,10 +408,10 @@ private struct ReportCardView: View {
 
     private var reportTypeBadgeColor: Color {
         switch report.reportType {
-        case "harassment": return .red
-        case "spam": return .orange
+        case "harassment": return .naarsError
+        case "spam": return .naarsWarning
         case "inappropriate_content": return .purple
-        case "scam": return .red
+        case "scam": return .naarsError
         default: return .secondary
         }
     }
@@ -347,8 +422,9 @@ private struct ReportCardView: View {
             Button(action: { onAction(action) }) {
                 Label(action.localizedTitle, systemImage: action.systemImageName)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(action.tintColor ?? .accentColor)
+            .buttonStyle(.bordered)
+            .tint(action.tintColor ?? .naarsPrimary)
+            .fontWeight(.semibold)
             .controlSize(.small)
             .disabled(isActionDisabled)
         } else {

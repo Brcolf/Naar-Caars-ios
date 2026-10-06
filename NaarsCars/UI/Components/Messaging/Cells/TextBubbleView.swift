@@ -8,7 +8,7 @@
 import UIKit
 
 /// Pure UIKit text bubble with iMessage-style BubblePath background.
-final class TextBubbleView: UIView {
+final class TextBubbleView: MessageBubbleContentView {
 
     // MARK: - Subviews
 

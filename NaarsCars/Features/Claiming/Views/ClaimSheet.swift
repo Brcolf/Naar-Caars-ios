@@ -24,19 +24,22 @@ struct ClaimSheet: View {
                     .font(.system(size: 60))
                     .foregroundColor(.naarsPrimary)
                 
-                Text("claim_title".localized(with: requestType.capitalized))
+                // A whole sentence per type. Inserting the raw "ride" / "favor" identifier into
+                // one translated sentence read "¿Reclamar este Ride?" outside English.
+                Text((requestType == "ride" ? "claim_title_ride" : "claim_title_favor").localized)
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
-                
+                    .multilineTextAlignment(.center)
+
                 Text("claim_volunteering".localized)
                     .foregroundColor(.secondary)
-                
+
                 Text(requestTitle)
                     .font(.naarsHeadline)
                     .multilineTextAlignment(.center)
                     .padding()
-                    .background(Color.naarsCardBackground)
-                    .cornerRadius(8)
+                    .background(Color.naarsInsetBackground)
+                    .cornerRadius(Constants.Radius.sm)
                 
                 Text("claim_message_hint".localized)
                     .font(.naarsCaption)
@@ -77,7 +80,9 @@ struct ClaimSheet: View {
             .padding()
             .navigationTitle("claim_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
-            .toast(message: $errorMessage, style: .warning)
+            // Stays until dismissed. The toast vanished after two seconds with a success
+            // haptic, which is the wrong signal for "someone else already claimed this".
+            .errorBanner(message: $errorMessage)
         }
         .successCheckmark(isShowing: $showSuccess)
         .onChange(of: showSuccess) { _, newValue in

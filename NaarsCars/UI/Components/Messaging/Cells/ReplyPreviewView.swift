@@ -69,7 +69,7 @@ final class ReplyPreviewUIView: UIView {
         self.onTap = onTap
 
         senderLabel.text = reply.senderName
-        previewLabel.text = reply.text.isEmpty ? NSLocalizedString("messaging_photo", comment: "") : reply.text
+        previewLabel.text = reply.text.isEmpty ? "messaging_photo".localized : reply.text
         photoIcon.isHidden = reply.imageUrl == nil
 
         backgroundColor = isFromCurrentUser
@@ -79,7 +79,7 @@ final class ReplyPreviewUIView: UIView {
         isAccessibilityElement = true
         accessibilityLabel = "\(senderLabel.text ?? ""), \(previewLabel.text ?? "")"
         accessibilityTraits = .button
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_scroll_to_reply", comment: "")
+        accessibilityHint = "accessibility_tap_to_scroll_to_reply".localized
 
         setNeedsLayout()
     }

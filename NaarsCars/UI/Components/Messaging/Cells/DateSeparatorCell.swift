@@ -31,7 +31,8 @@ final class DateSeparatorCell: UICollectionViewCell {
     }
 
     private func setup() {
-        pillView.backgroundColor = UIColor.naarsCardBackground
+        // iMessage draws the time header as plain centred text, no pill.
+        pillView.backgroundColor = .clear
         contentView.addSubview(pillView)
 
         dateLabel.font = .preferredFont(forTextStyle: .caption1)
@@ -43,10 +44,10 @@ final class DateSeparatorCell: UICollectionViewCell {
     // MARK: - Configure
 
     func configure(date: Date) {
-        dateLabel.text = Self.formatDate(date)
+        dateLabel.attributedText = Self.attributedHeader(for: date)
 
         contentView.isAccessibilityElement = true
-        contentView.accessibilityLabel = dateLabel.text
+        contentView.accessibilityLabel = dateLabel.attributedText?.string
         contentView.accessibilityTraits = .header
 
         setNeedsLayout()
@@ -73,7 +74,7 @@ final class DateSeparatorCell: UICollectionViewCell {
 
     override func prepareForReuse() {
         super.prepareForReuse()
-        dateLabel.text = nil
+        dateLabel.attributedText = nil
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -82,15 +83,31 @@ final class DateSeparatorCell: UICollectionViewCell {
 
     // MARK: - Date formatting
 
+    /// "Today 3:45 PM" with the day part emphasised, as in iMessage.
+    static func attributedHeader(for date: Date) -> NSAttributedString {
+        let base = UIFont.preferredFont(forTextStyle: .caption1)
+        let boldDescriptor = base.fontDescriptor.withSymbolicTraits(.traitBold) ?? base.fontDescriptor
+        let bold = UIFont(descriptor: boldDescriptor, size: 0)
+        let result = NSMutableAttributedString(
+            string: formatDate(date),
+            attributes: [.font: bold, .foregroundColor: UIColor.secondaryLabel]
+        )
+        result.append(NSAttributedString(
+            string: " " + DateFormatters.timeFormatter.string(from: date),
+            attributes: [.font: base, .foregroundColor: UIColor.secondaryLabel]
+        ))
+        return result
+    }
+
     private static func formatDate(_ date: Date) -> String {
         let calendar = Calendar.current
         let now = Date()
 
         if calendar.isDateInToday(date) {
-            return NSLocalizedString("messaging_today", comment: "")
+            return "messaging_today".localized
         }
         if calendar.isDateInYesterday(date) {
-            return NSLocalizedString("messaging_yesterday", comment: "")
+            return "messaging_yesterday".localized
         }
         // Same week: day name
         if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {

@@ -23,8 +23,12 @@ struct AppleSignInButton: View {
         .signInWithAppleButtonStyle(
             colorScheme == .dark ? .white : .black
         )
-        .frame(height: 50)
-        .cornerRadius(12)
+        // SignInWithAppleButton does not restyle on a trait change; rebuild it instead of
+        // showing a black button on a black background.
+        .id(colorScheme)
+        // Same height and capsule shape as PrimaryButton and SecondaryButton.
+        .frame(height: 54)
+        .clipShape(Capsule())
     }
 }
 

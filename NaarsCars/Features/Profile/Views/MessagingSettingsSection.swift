@@ -7,51 +7,16 @@
 
 import SwiftUI
 
-/// Section for configuring messaging preferences (read receipts, typing indicators, etc.)
+/// Section for configuring messaging preferences (link previews, blocked users)
 struct MessagingSettingsSection: View {
     @ObservedObject var viewModel: SettingsViewModel
 
     var body: some View {
         Section {
-            // Send Read Receipts
-            Toggle(isOn: $viewModel.sendReadReceipts) {
-                Label {
-                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                        Text("settings_send_read_receipts".localized)
-                            .font(.naarsBody)
-                        Text("settings_read_receipts_description".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "checkmark.message.fill")
-                        .foregroundColor(.accentColor)
-                }
-            }
-            .onChange(of: viewModel.sendReadReceipts) { _, newValue in
-                HapticManager.selectionChanged()
-                viewModel.updateMessagingPreference(.sendReadReceipts, enabled: newValue)
-            }
-
-            // Show Typing Indicators
-            Toggle(isOn: $viewModel.showTypingIndicators) {
-                Label {
-                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                        Text("settings_typing_indicators".localized)
-                            .font(.naarsBody)
-                        Text("settings_typing_indicators_description".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "ellipsis.message.fill")
-                        .foregroundColor(.accentColor)
-                }
-            }
-            .onChange(of: viewModel.showTypingIndicators) { _, newValue in
-                HapticManager.selectionChanged()
-                viewModel.updateMessagingPreference(.showTypingIndicators, enabled: newValue)
-            }
+            // Read receipts, typing indicators and auto-download are not offered here: their
+            // switches saved a preference that nothing read, so turning read receipts off still
+            // sent them. Bring a row back only together with the code that honours it (read
+            // receipts are already a real per-conversation setting in conversation details).
 
             // Link Previews
             Toggle(isOn: $viewModel.showLinkPreviews) {
@@ -65,32 +30,12 @@ struct MessagingSettingsSection: View {
                     }
                 } icon: {
                     Image(systemName: "link.circle.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.naarsPrimary)
                 }
             }
             .onChange(of: viewModel.showLinkPreviews) { _, newValue in
                 HapticManager.selectionChanged()
                 viewModel.updateMessagingPreference(.showLinkPreviews, enabled: newValue)
-            }
-
-            // Auto-download Media
-            Toggle(isOn: $viewModel.autoDownloadMedia) {
-                Label {
-                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                        Text("settings_auto_download_media".localized)
-                            .font(.naarsBody)
-                        Text("settings_auto_download_description".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.accentColor)
-                }
-            }
-            .onChange(of: viewModel.autoDownloadMedia) { _, newValue in
-                HapticManager.selectionChanged()
-                viewModel.updateMessagingPreference(.autoDownloadMedia, enabled: newValue)
             }
 
             // Blocked Users
@@ -105,7 +50,7 @@ struct MessagingSettingsSection: View {
                     }
                 } icon: {
                     Image(systemName: "person.crop.circle.badge.xmark")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.naarsPrimary)
                 }
             }
         } header: {

@@ -17,7 +17,11 @@ struct MessageDetailsPopup: View {
     let currentTitle: String?
     let currentGroupImageUrl: String?
     let initialParticipants: [Profile]
-    
+    /// The conversation's creator, when the caller has loaded it.
+    let createdBy: UUID?
+    /// Called after the user has left the group, before the sheet closes.
+    let onLeftConversation: (() -> Void)?
+
     @StateObject private var viewModel: MessageDetailsViewModel
     @State private var editedTitle: String
     @State private var showAddParticipants = false
@@ -32,12 +36,54 @@ struct MessageDetailsPopup: View {
     @State private var showLeaveConfirmation = false
     @State private var showRemoveConfirmation = false
     @State private var participantToRemove: Profile?
-    
-    init(conversationId: UUID, currentTitle: String?, currentGroupImageUrl: String? = nil, participants: [Profile]) {
+
+    // Report / block: the other member of a one-to-one thread (its own section), or a group
+    // member picked from that member's row menu
+    @State private var userToReport: Profile?
+    @State private var userToBlock: Profile?
+    @State private var showBlockConfirmation = false
+    @State private var toastMessage: String?
+
+    /// Group management (photo, name, add/remove, leave) applies to threads of three or more;
+    /// a one-to-one thread shows the participants, the mute control and report / block.
+    /// Same rule as `ConversationDetailView.isGroup`.
+    private var isGroup: Bool { initialParticipants.count > 2 }
+
+    /// Only the creator's insert passes the participants INSERT policy, so only the creator
+    /// is offered Add Participants. `nil` means the caller has not loaded the conversation
+    /// yet: the row stays available and a rejected add is explained by the view model.
+    private var canAddParticipants: Bool {
+        guard let createdBy else { return true }
+        return createdBy == AuthService.shared.currentUserId
+    }
+
+    /// Someone who can be reported or blocked: another member whose account still exists.
+    private func isReportable(_ participant: Profile) -> Bool {
+        participant.id != AuthService.shared.currentUserId
+            && !participant.name.isEmpty
+            && participant.name != "messaging_deleted_user".localized
+    }
+
+    /// The other member of a one-to-one thread (nil for groups and for a deleted account).
+    private var otherParticipant: Profile? {
+        guard !isGroup else { return nil }
+        return viewModel.participants.first { isReportable($0) }
+    }
+
+    init(
+        conversationId: UUID,
+        currentTitle: String?,
+        currentGroupImageUrl: String? = nil,
+        participants: [Profile],
+        createdBy: UUID? = nil,
+        onLeftConversation: (() -> Void)? = nil
+    ) {
         self.conversationId = conversationId
         self.currentTitle = currentTitle
         self.currentGroupImageUrl = currentGroupImageUrl
         self.initialParticipants = participants
+        self.createdBy = createdBy
+        self.onLeftConversation = onLeftConversation
         _viewModel = StateObject(wrappedValue: MessageDetailsViewModel(conversationId: conversationId, participants: participants))
         _editedTitle = State(initialValue: currentTitle ?? "")
     }
@@ -45,6 +91,7 @@ struct MessageDetailsPopup: View {
     var body: some View {
         NavigationStack {
             Form {
+                if isGroup {
                 // Group Image Section
                 Section {
                     HStack {
@@ -89,6 +136,7 @@ struct MessageDetailsPopup: View {
                                     .clipShape(Circle())
                             }
                             .offset(x: 4, y: 4)
+                            .accessibilityLabel("messaging_change_group_photo".localized)
                         }
                         
                         Spacer()
@@ -107,12 +155,13 @@ struct MessageDetailsPopup: View {
                         }
                     Text("\(editedTitle.count)/50")
                         .font(.naarsCaption)
-                        .foregroundColor(editedTitle.count >= 45 ? .orange : .secondary)
+                        .foregroundColor(editedTitle.count >= 45 ? .naarsWarning : .secondary)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                
+                } // isGroup
+
                 // Participants Section
-                Section("messaging_participants_section_count".localized(with: viewModel.activeParticipantCount > 0 ? viewModel.activeParticipantCount : viewModel.participants.count)) {
+                Section((isGroup ? "messaging_participants_section_count" : "messaging_participants_count").localized(with: viewModel.activeParticipantCount > 0 ? viewModel.activeParticipantCount : viewModel.participants.count)) {
                     if viewModel.isLoadingParticipants {
                         HStack {
                             Spacer()
@@ -157,37 +206,62 @@ struct MessageDetailsPopup: View {
 
                             Spacer()
 
-                            // Remove button (only for non-current user)
-                            if participant.id != AuthService.shared.currentUserId {
+                            // Report / block a group member. Without this, someone who has not
+                            // sent a message yet could not be reported or blocked from Messages
+                            // (a one-to-one thread has its own section below).
+                            if isGroup && isReportable(participant) {
+                                memberSafetyMenu(for: participant)
+                            }
+
+                            // Remove button (groups only, and never for the current user)
+                            if isGroup && participant.id != AuthService.shared.currentUserId {
                                 Button(role: .destructive) {
                                     participantToRemove = participant
                                     showRemoveConfirmation = true
                                 } label: {
-                                    if viewModel.isRemovingParticipant && participantToRemove?.id == participant.id {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
-                                    } else {
-                                        Image(systemName: "minus.circle.fill")
-                                            .foregroundColor(.red)
+                                    Group {
+                                        if viewModel.isRemovingParticipant && participantToRemove?.id == participant.id {
+                                            ProgressView()
+                                                .scaleEffect(0.8)
+                                        } else {
+                                            Image(systemName: "minus.circle.fill")
+                                                .foregroundColor(.naarsError)
+                                        }
                                     }
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
                                 }
+                                // Borderless: the row now holds two controls, and a Form row
+                                // otherwise fires its default-style button for a tap anywhere.
+                                .buttonStyle(.borderless)
                                 .disabled(viewModel.isRemovingParticipant)
+                                .accessibilityLabel("messaging_remove_participant_accessibility".localized(
+                                    with: participant.name.isEmpty ? "messaging_deleted_user".localized : participant.name
+                                ))
                             }
                         }
                     }
-                    
-                    // Add Participants Button
-                    Button {
-                        showAddParticipants = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "person.badge.plus")
-                            Text("messaging_add_participants".localized)
+
+                    // Add Participants Button (the group's creator only; see canAddParticipants)
+                    if isGroup {
+                        if canAddParticipants {
+                            Button {
+                                showAddParticipants = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.badge.plus")
+                                    Text("messaging_add_participants".localized)
+                                }
+                            }
+                            .disabled(viewModel.activeParticipantCount >= 50)
+                        } else {
+                            Text("messaging_add_participants_creator_only".localized)
+                                .font(.naarsCaption)
+                                .foregroundColor(.secondary)
                         }
                     }
-                    .disabled(viewModel.activeParticipantCount >= 50)
                 }
-                
+
                 // Notifications Section
                 Section("messaging_notifications_section".localized) {
                     if viewModel.isConversationMuted {
@@ -214,18 +288,26 @@ struct MessageDetailsPopup: View {
                         }
                     }
 
-                    Toggle(isOn: $viewModel.showReadReceiptsForConversation) {
-                        HStack {
-                            Image(systemName: "checkmark.message")
-                            Text("messaging_show_read_receipts".localized)
+                    if isGroup {
+                        Toggle(isOn: $viewModel.showReadReceiptsForConversation) {
+                            HStack {
+                                Image(systemName: "checkmark.message")
+                                Text("messaging_show_read_receipts".localized)
+                            }
                         }
-                    }
-                    .onChange(of: viewModel.showReadReceiptsForConversation) { _, newValue in
-                        Task { await viewModel.updateShowReadReceipts(newValue) }
+                        .onChange(of: viewModel.showReadReceiptsForConversation) { _, newValue in
+                            Task { await viewModel.updateShowReadReceipts(newValue) }
+                        }
                     }
                 }
 
+                // Report / Block (one-to-one)
+                if let other = otherParticipant {
+                    safetySection(for: other)
+                }
+
                 // Leave Group Section
+                if isGroup {
                 Section {
                     if viewModel.activeParticipantCount > 0 && viewModel.activeParticipantCount <= 3 {
                         HStack {
@@ -246,42 +328,55 @@ struct MessageDetailsPopup: View {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
                                 Text("messaging_leave_conversation".localized)
                             }
-                            .foregroundColor(.red)
+                            .foregroundColor(.naarsError)
                         }
                     }
                 }
-                
+                } // isGroup
+
                 // Error Display
                 if let error = viewModel.error {
                     Section {
                         Text(error)
-                            .foregroundColor(.red)
+                            .foregroundColor(.naarsError)
                             .font(.naarsCaption)
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .task { await viewModel.loadInitialState() }
+            .task {
+                viewModel.refreshBlockedStatus()
+                await viewModel.loadInitialState()
+            }
             .navigationTitle("messaging_conversation_details_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("messaging_cancel".localized) {
-                        dismiss()
+                if isGroup {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("messaging_cancel".localized) {
+                            dismiss()
+                        }
+                        .disabled(viewModel.isSaving || viewModel.isUploadingImage)
                     }
-                    .disabled(viewModel.isSaving || viewModel.isUploadingImage)
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    if viewModel.isSaving || viewModel.isUploadingImage {
-                        ProgressView()
-                    } else {
-                        Button("messaging_save".localized) {
-                            Task {
-                                if await viewModel.saveChanges(groupImage: groupImage, editedTitle: editedTitle, currentTitle: currentTitle) {
-                                    dismiss()
+
+                    ToolbarItem(placement: .confirmationAction) {
+                        if viewModel.isSaving || viewModel.isUploadingImage {
+                            ProgressView()
+                        } else {
+                            Button("messaging_save".localized) {
+                                Task {
+                                    if await viewModel.saveChanges(groupImage: groupImage, editedTitle: editedTitle, currentTitle: currentTitle) {
+                                        dismiss()
+                                    }
                                 }
                             }
+                        }
+                    }
+                } else {
+                    // Nothing to save in a one-to-one thread: mute applies immediately.
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("common_done".localized) {
+                            dismiss()
                         }
                     }
                 }
@@ -300,11 +395,13 @@ struct MessageDetailsPopup: View {
                     }
                 }
             }
-            .sheet(isPresented: $showAddParticipants) {
+            // A swipe-down calls neither Cancel nor Add; drop the selection so it is not
+            // still there the next time the picker opens.
+            .sheet(isPresented: $showAddParticipants, onDismiss: { selectedUserIds = [] }) {
                 UserSearchView(
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: viewModel.participants.map { $0.id },
-                    actionButtonTitle: "Add",
+                    actionButtonTitle: "messaging_add_action".localized,
                     onDismiss: {
                         AppLogger.info("messaging", "[MessageDetailsPopup] UserSearchView dismissed with \(selectedUserIds.count) selected user(s)")
                         let idsToAdd = Array(selectedUserIds)
@@ -327,6 +424,7 @@ struct MessageDetailsPopup: View {
                 Button("messaging_leave".localized, role: .destructive) {
                     Task {
                         if await viewModel.leaveConversation() {
+                            onLeftConversation?()
                             dismiss()
                         }
                     }
@@ -353,11 +451,113 @@ struct MessageDetailsPopup: View {
                     Text("messaging_remove_participant_generic_confirmation".localized)
                 }
             }
+            .toast(message: $toastMessage)
+        }
+        .sheet(item: $userToReport) { user in
+            ReportContentSheet(
+                context: .user(id: user.id, name: user.name),
+                onReported: { toastMessage = "messaging_report_submitted".localized },
+                // The report sheet has its own "Block this user"; keep this sheet's rows in step.
+                onBlocked: { viewModel.markBlocked($0) }
+            )
+        }
+        .alert("profile_block_user".localized, isPresented: $showBlockConfirmation) {
+            Button("profile_block_confirm".localized, role: .destructive) {
+                guard let user = userToBlock else { return }
+                Task {
+                    if await viewModel.blockUser(user.id) {
+                        toastMessage = "profile_user_blocked".localized
+                    }
+                }
+            }
+            Button("common_cancel".localized, role: .cancel) {}
+        } message: {
+            Text("profile_block_confirmation_message".localized)
+        }
+        .alert("messaging_block_failed".localized, isPresented: Binding(
+            get: { viewModel.blockError != nil },
+            set: { if !$0 { viewModel.blockError = nil } }
+        )) {
+            Button("common_ok".localized, role: .cancel) {}
+        } message: {
+            Text(viewModel.blockError ?? "")
         }
     }
     
     // MARK: - Views
-    
+
+    /// Report / Block rows for the other member of a one-to-one thread. Without them, someone
+    /// who has not sent a message yet could not be reported or blocked from Messages at all.
+    /// Both reuse existing flows: `ReportContentSheet` and the `block_user` RPC.
+    private func safetySection(for other: Profile) -> some View {
+        Section {
+            Button {
+                userToReport = other
+            } label: {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text("profile_report_user".localized)
+                }
+            }
+
+            if viewModel.blockedUserIds.contains(other.id) {
+                HStack {
+                    Image(systemName: "hand.raised.fill")
+                    Text("profile_user_blocked".localized)
+                }
+                .foregroundColor(.secondary)
+            } else {
+                Button(role: .destructive) {
+                    userToBlock = other
+                    showBlockConfirmation = true
+                } label: {
+                    HStack {
+                        Image(systemName: "hand.raised")
+                        Text("profile_block_user".localized)
+                    }
+                    .foregroundColor(.naarsError)
+                }
+                .disabled(viewModel.isBlocking)
+            }
+        }
+    }
+
+    /// Report / Block for one member of a group, on that member's row. Same flows as the
+    /// one-to-one section above.
+    private func memberSafetyMenu(for participant: Profile) -> some View {
+        Menu {
+            Button {
+                userToReport = participant
+            } label: {
+                Label("profile_report_user".localized, systemImage: "exclamationmark.triangle")
+            }
+
+            if viewModel.blockedUserIds.contains(participant.id) {
+                // Already blocked: shown, not tappable.
+                Button {} label: {
+                    Label("profile_user_blocked".localized, systemImage: "hand.raised.fill")
+                }
+                .disabled(true)
+            } else {
+                Button(role: .destructive) {
+                    userToBlock = participant
+                    showBlockConfirmation = true
+                } label: {
+                    Label("profile_block_user".localized, systemImage: "hand.raised")
+                }
+                .disabled(viewModel.isBlocking)
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .foregroundColor(.naarsPrimary)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        // Borderless for the same reason as the remove button beside it.
+        .buttonStyle(.borderless)
+        .accessibilityLabel("messaging_member_options_accessibility".localized(with: participant.name))
+    }
+
     private var defaultGroupAvatar: some View {
         ZStack {
             Circle()
@@ -371,14 +571,27 @@ struct MessageDetailsPopup: View {
     }
 }
 
-#Preview {
+#Preview("One-to-one") {
+    MessageDetailsPopup(
+        conversationId: UUID(),
+        currentTitle: nil,
+        currentGroupImageUrl: nil,
+        participants: [
+            Profile(id: UUID(), name: "John Doe", email: "john@example.com"),
+            Profile(id: UUID(), name: "Jane Smith", email: "jane@example.com")
+        ]
+    )
+}
+
+#Preview("Group") {
     MessageDetailsPopup(
         conversationId: UUID(),
         currentTitle: "Group Chat",
         currentGroupImageUrl: nil,
         participants: [
             Profile(id: UUID(), name: "John Doe", email: "john@example.com"),
-            Profile(id: UUID(), name: "Jane Smith", email: "jane@example.com")
+            Profile(id: UUID(), name: "Jane Smith", email: "jane@example.com"),
+            Profile(id: UUID(), name: "Sam Lee", email: "sam@example.com")
         ]
     )
 }

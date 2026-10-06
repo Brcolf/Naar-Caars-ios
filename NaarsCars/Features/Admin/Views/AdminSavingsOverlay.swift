@@ -23,6 +23,7 @@ struct AdminSavingsOverlay: View {
     private var formattedTotal: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
+        formatter.currencyCode = "USD" // estimates are US dollars; the region must not relabel them
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: total)) ?? "$0"
     }
@@ -105,13 +106,13 @@ struct AdminSavingsOverlay: View {
         let formatter = DateFormatter()
         switch selectedPeriod {
         case "week":
-            formatter.dateFormat = "MMM d, yyyy"
+            formatter.setLocalizedDateFormatFromTemplate("yMMMd")
             return "admin_week_of".localized(with: formatter.string(from: date))
         case "year":
-            formatter.dateFormat = "yyyy"
+            formatter.setLocalizedDateFormatFromTemplate("y")
             return formatter.string(from: date)
         default:
-            formatter.dateFormat = "MMM yyyy"
+            formatter.setLocalizedDateFormatFromTemplate("yMMM")
             return formatter.string(from: date)
         }
     }
@@ -119,6 +120,7 @@ struct AdminSavingsOverlay: View {
     private func formatCurrency(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
+        formatter.currencyCode = "USD" // estimates are US dollars; the region must not relabel them
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: value)) ?? "$0"
     }

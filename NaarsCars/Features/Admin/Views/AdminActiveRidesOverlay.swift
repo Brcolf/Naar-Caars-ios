@@ -41,14 +41,12 @@ struct AdminActiveRidesOverlay: View {
                     List(requests) { request in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                // Type badge
-                                Text(request.isRide ? "common_ride".localized : "common_favor".localized)
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(request.isRide ? Color.naarsPrimary : Color.orange)
-                                    .cornerRadius(4)
+                                // Type badge. A tinted chip, not white text on the accent: the
+                                // accents turn light in dark mode and white text on them was unreadable.
+                                NaarsChip(
+                                    text: request.isRide ? "common_ride".localized : "common_favor".localized,
+                                    tint: request.isRide ? Color.rideAccent : Color.favorAccent
+                                )
 
                                 Text(request.posterName ?? "common_unknown".localized)
                                     .font(.naarsHeadline)
@@ -68,7 +66,7 @@ struct AdminActiveRidesOverlay: View {
                                 HStack(spacing: 4) {
                                     Text(request.title)
                                     Image(systemName: "arrow.right")
-                                        .font(.caption2)
+                                        .font(.naarsCaption2)
                                     Text(request.subtitle ?? "")
                                 }
                                 .font(.naarsBody)
@@ -120,16 +118,10 @@ struct AdminActiveRidesOverlay: View {
         case "open": ("admin_status_open".localized, .naarsSuccess)
         case "pending": ("admin_status_pending".localized, .naarsWarning)
         case "confirmed": ("admin_status_claimed".localized, .naarsPrimary)
-        default: (status.capitalized, .gray)
+        default: (status.capitalized, .naarsTextSecondary)
         }
 
-        Text(text)
-            .font(.naarsCaption)
-            .foregroundColor(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .cornerRadius(6)
+        NaarsChip(text: text, tint: color)
     }
 
     private func formatDate(_ date: Date) -> String {

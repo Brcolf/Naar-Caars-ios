@@ -50,13 +50,16 @@ final class CalendarService {
     }
 
     /// Create a calendar event for a ride request
+    /// - Parameter isAllDay: `true` for a request with a day but no time. An all-day event gets
+    ///   no reminder.
     /// - Returns: The event identifier if created successfully
     func createEvent(
         title: String,
         location: String?,
         startDate: Date,
         endDate: Date?,
-        notes: String?
+        notes: String?,
+        isAllDay: Bool = false
     ) async -> String? {
         // Request access if not already granted
         let granted = hasAccess ? true : await requestAccess()
@@ -75,12 +78,16 @@ final class CalendarService {
         event.location = location
         event.startDate = startDate
         event.endDate = endDate ?? startDate.addingTimeInterval(3600) // Default 1 hour
+        event.isAllDay = isAllDay
         event.notes = notes
         event.calendar = calendar
 
-        // Add 1-hour reminder
-        let alarm = EKAlarm(relativeOffset: -3600)
-        event.addAlarm(alarm)
+        // Add 1-hour reminder. Not on an all-day event: its start is midnight, so the same
+        // offset rang at 11 PM the evening before.
+        if !isAllDay {
+            let alarm = EKAlarm(relativeOffset: -3600)
+            event.addAlarm(alarm)
+        }
 
         do {
             try eventStore.save(event, span: .thisEvent)
@@ -96,7 +103,7 @@ final class CalendarService {
     func createEventForRide(_ ride: Ride) async -> String? {
         let eventTime = RequestItem.ride(ride).eventTime
         return await createEvent(
-            title: "Ride: \(ride.pickup) → \(ride.destination)",
+            title: "calendar_event_ride_title".localized(with: ride.pickup, ride.destination),
             location: ride.pickup,
             startDate: eventTime,
             endDate: nil,
@@ -106,6 +113,29 @@ final class CalendarService {
 
     /// Create a calendar event from a Favor
     func createEventForFavor(_ favor: Favor) async -> String? {
+        let title = "calendar_event_favor_title".localized(with: favor.title)
+
+        // A favor posted for a day with no time is an all-day event. It used to be saved at
+        // 12:00 AM (the midnight `eventTime` uses for sorting) with a reminder at 11 PM the
+        // night before.
+        if (favor.time ?? "").isEmpty {
+            // `favor.date` is the calendar day at midnight in the device's zone, which is the
+            // day an all-day event is filed under.
+            let calendar = Calendar.current
+            let firstDay = calendar.startOfDay(for: favor.date)
+            let lastDay = favor.duration == .coupleDays
+                ? (calendar.date(byAdding: .day, value: 1, to: firstDay) ?? firstDay)
+                : firstDay
+            return await createEvent(
+                title: title,
+                location: favor.location,
+                startDate: firstDay,
+                endDate: lastDay,
+                notes: favor.description,
+                isAllDay: true
+            )
+        }
+
         let eventTime = RequestItem.favor(favor).eventTime
         let durationInterval: TimeInterval = {
             switch favor.duration {
@@ -116,7 +146,7 @@ final class CalendarService {
             }
         }()
         return await createEvent(
-            title: "Favor: \(favor.title)",
+            title: title,
             location: favor.location,
             startDate: eventTime,
             endDate: eventTime.addingTimeInterval(durationInterval),

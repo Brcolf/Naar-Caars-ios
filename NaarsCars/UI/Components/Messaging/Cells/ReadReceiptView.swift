@@ -28,6 +28,9 @@ final class ReadReceiptView: UIView {
     private let doubleCheck2 = UIImageView()
     private let clockIcon = UIImageView()
     private let failedIcon = UIImageView()
+    /// iMessage-style status text ("Delivered" / "Read") used for one-to-one threads and for
+    /// groups until someone has read the message. The checkmark icons are kept for group mode.
+    private let statusLabel = UILabel()
     private var avatarViews: [AvatarUIView] = []
 
     // MARK: - State
@@ -71,6 +74,27 @@ final class ReadReceiptView: UIView {
         failedIcon.image = UIImage(systemName: "exclamationmark.circle.fill", withConfiguration: failConfig)
         failedIcon.tintColor = .systemRed
         statusContainer.addSubview(failedIcon)
+
+        statusLabel.font = .preferredFont(forTextStyle: .caption1)
+        statusLabel.adjustsFontForContentSizeCategory = true
+        statusLabel.textColor = .secondaryLabel
+        addSubview(statusLabel)
+    }
+
+    /// Localized footer text for a status, iMessage wording.
+    private static func statusText(for status: ReadStatus) -> String {
+        switch status {
+        case .failed: return "messaging_status_not_delivered".localized
+        case .sending: return "messaging_status_sending".localized
+        case .sent, .delivered: return "messaging_status_delivered".localized
+        case .read: return "messaging_status_read".localized
+        }
+    }
+
+    private func showStatusText(_ status: ReadStatus) {
+        statusLabel.text = Self.statusText(for: status)
+        statusLabel.textColor = status == .failed ? .systemRed : .secondaryLabel
+        statusLabel.isHidden = false
     }
 
     // MARK: - Configure (DM mode)
@@ -81,39 +105,22 @@ final class ReadReceiptView: UIView {
         self.isGroupMode = false
 
         hideAll()
-        switch status {
-        case .failed:
-            failedIcon.isHidden = false
-        case .sending:
-            clockIcon.isHidden = false
-        case .sent:
-            singleCheck.isHidden = false
-        case .delivered:
-            doubleCheck1.isHidden = false
-            doubleCheck2.isHidden = false
-            doubleCheck1.tintColor = .secondaryLabel
-            doubleCheck2.tintColor = .secondaryLabel
-        case .read:
-            doubleCheck1.isHidden = false
-            doubleCheck2.isHidden = false
-            doubleCheck1.tintColor = UIColor.naarsPrimary
-            doubleCheck2.tintColor = UIColor.naarsPrimary
-        }
+        showStatusText(status)
 
         isAccessibilityElement = true
         accessibilityTraits = .staticText
         accessibilityIdentifier = "message.readReceipt"
         switch status {
         case .failed:
-            accessibilityLabel = NSLocalizedString("accessibility_status_failed", comment: "Message delivery status: failed to send")
+            accessibilityLabel = "accessibility_status_failed".localized
         case .sending:
-            accessibilityLabel = NSLocalizedString("accessibility_status_sending", comment: "Message delivery status: currently sending")
+            accessibilityLabel = "accessibility_status_sending".localized
         case .sent:
-            accessibilityLabel = NSLocalizedString("accessibility_status_sent", comment: "Message delivery status: sent to server")
+            accessibilityLabel = "accessibility_status_sent".localized
         case .delivered:
-            accessibilityLabel = NSLocalizedString("accessibility_status_delivered", comment: "Message delivery status: delivered to recipient")
+            accessibilityLabel = "accessibility_status_delivered".localized
         case .read:
-            accessibilityLabel = NSLocalizedString("accessibility_status_read", comment: "Message delivery status: read by recipient")
+            accessibilityLabel = "accessibility_status_read".localized
         }
 
         setNeedsLayout()
@@ -139,43 +146,26 @@ final class ReadReceiptView: UIView {
             }
         } else {
             isGroupMode = false
-            switch status {
-            case .failed:
-                failedIcon.isHidden = false
-            case .sending:
-                clockIcon.isHidden = false
-            case .sent:
-                singleCheck.isHidden = false
-            case .delivered:
-                doubleCheck1.isHidden = false
-                doubleCheck2.isHidden = false
-                doubleCheck1.tintColor = .secondaryLabel
-                doubleCheck2.tintColor = .secondaryLabel
-            case .read:
-                doubleCheck1.isHidden = false
-                doubleCheck2.isHidden = false
-                doubleCheck1.tintColor = UIColor.naarsPrimary
-                doubleCheck2.tintColor = UIColor.naarsPrimary
-            }
+            showStatusText(status)
         }
 
         isAccessibilityElement = true
         accessibilityTraits = .staticText
         if isGroupMode && !readByProfiles.isEmpty {
             let names = readByProfiles.prefix(3).map { $0.name }.joined(separator: ", ")
-            accessibilityLabel = String(format: NSLocalizedString("accessibility_read_by", comment: ""), names)
+            accessibilityLabel = "accessibility_read_by".localized(with: names)
         } else {
             switch status {
             case .failed:
-                accessibilityLabel = NSLocalizedString("accessibility_status_failed", comment: "")
+                accessibilityLabel = "accessibility_status_failed".localized
             case .sending:
-                accessibilityLabel = NSLocalizedString("accessibility_status_sending", comment: "")
+                accessibilityLabel = "accessibility_status_sending".localized
             case .sent:
-                accessibilityLabel = NSLocalizedString("accessibility_status_sent", comment: "")
+                accessibilityLabel = "accessibility_status_sent".localized
             case .delivered:
-                accessibilityLabel = NSLocalizedString("accessibility_status_delivered", comment: "")
+                accessibilityLabel = "accessibility_status_delivered".localized
             case .read:
-                accessibilityLabel = NSLocalizedString("accessibility_status_read", comment: "")
+                accessibilityLabel = "accessibility_status_read".localized
             }
         }
 
@@ -197,6 +187,7 @@ final class ReadReceiptView: UIView {
             }
         } else {
             statusContainer.frame = b
+            statusLabel.frame = b
             let iconSize: CGFloat = 14
             let midY = b.height / 2
 
@@ -214,12 +205,8 @@ final class ReadReceiptView: UIView {
             let w = visibleCount > 0 ? CGFloat(visibleCount - 1) * 12 + 16 : 0
             return CGSize(width: w, height: 16)
         }
-        switch currentStatus {
-        case .delivered, .read:
-            return CGSize(width: 24, height: 14) // double check
-        default:
-            return CGSize(width: 14, height: 14) // single icon
-        }
+        let text = statusLabel.sizeThatFits(CGSize(width: size.width, height: .greatestFiniteMagnitude))
+        return CGSize(width: ceil(text.width), height: max(ceil(text.height), 14))
     }
 
     // MARK: - Reuse
@@ -236,6 +223,7 @@ final class ReadReceiptView: UIView {
     // MARK: - Helpers
 
     private func hideAll() {
+        statusLabel.isHidden = true
         clockIcon.isHidden = true
         failedIcon.isHidden = true
         singleCheck.isHidden = true
@@ -253,26 +241,24 @@ final class ReadReceiptView: UIView {
     }
 
     static func deriveStatus(message: Message, isFailed: Bool, totalParticipants: Int) -> ReadStatus {
-        // Use the durable sendStatus first
-        if let status = message.sendStatus {
-            switch status {
-            case .failed: return .failed
-            case .sending: return .sending
-            case .sent: return .sent
-            case .delivered: return .delivered
-            case .read: return .read
-            }
+        // The durable sendStatus is authoritative only while the send is in flight or failed.
+        // Every stored message carries "sent" (MessagingMapper default), so returning it here
+        // meant read receipts never progressed past the single checkmark (2026-10-05).
+        switch message.sendStatus {
+        case .failed?: return .failed
+        case .sending?: return .sending
+        case .delivered?: return .delivered
+        case .read?: return .read
+        case .sent?, nil: break
         }
 
         if isFailed { return .failed }
 
-        // Fallback: derive from readBy array
+        // Server-accepted: derive delivered/read from who has read it.
         let readByOthers = message.readBy.filter { $0 != message.fromId }
         let otherParticipants = max(totalParticipants - 1, 0)
 
-        if message.readBy.isEmpty {
-            return .sending
-        } else if readByOthers.isEmpty {
+        if readByOthers.isEmpty {
             return .sent
         } else if otherParticipants > 0 && readByOthers.count >= otherParticipants {
             return .read

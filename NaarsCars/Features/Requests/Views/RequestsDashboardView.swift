@@ -19,6 +19,8 @@ struct RequestsDashboardView: View {
     @State private var showCreateFavor = false
     @State private var selectedRideId: UUID?
     @State private var selectedFavorId: UUID?
+    /// Set once the pending-intent handler's `initial: true` pass has run (see that handler).
+    @State private var didReplayInitialIntent = false
     @State private var pendingRideNavigation: UUID?
     @State private var pendingFavorNavigation: UUID?
     @State private var highlightedRequestKey: String?
@@ -84,30 +86,42 @@ struct RequestsDashboardView: View {
             .navigationDestination(item: $selectedFavorId) { favorId in
                 FavorDetailView(favorId: favorId)
             }
-            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
-                guard let intent else { return }
-                switch intent {
-                case .ride(let rideId, let anchor):
-                    selectedRideId = rideId
-                    if anchor == nil {
-                        navigationCoordinator.pendingIntent = nil
-                    }
-                case .favor(let favorId, let anchor):
-                    selectedFavorId = favorId
-                    if anchor == nil {
-                        navigationCoordinator.pendingIntent = nil
-                    }
-                default:
-                    break
+            // initial: true also opens a ride or favor whose intent was set before this view
+            // existed (a push tapped while the app was not running); onChange alone never fires
+            // for a value that is already there.
+            .onChange(of: navigationCoordinator.pendingIntent, initial: true) { oldIntent, intent in
+                // Old and new are the same value only on the pass that initial: true adds. That
+                // pass is tied to the list appearing, so it comes round again on Back from a
+                // detail and on return to the tab; it is honoured once per view lifetime.
+                let isInitialPass = oldIntent == intent
+                if isInitialPass {
+                    guard !didReplayInitialIntent else { return }
+                    didReplayInitialIntent = true
                 }
+                guard let intent else { return }
+                if isInitialPass {
+                    // One main-actor turn later: a push requested in the same update as the
+                    // stack's first render can be dropped. Skipped if the intent was consumed or
+                    // replaced meanwhile, so it is never applied twice.
+                    Task { @MainActor in
+                        guard navigationCoordinator.pendingIntent == intent else { return }
+                        openRequest(from: intent)
+                    }
+                    return
+                }
+                openRequest(from: intent)
             }
             .task {
                 // ViewModel now uses SwiftData for its source of truth
                 viewModel.setup(modelContext: modelContext)
-                await viewModel.loadRequests()
+                // Observe the sync notifications before the first await. A dashboard sync
+                // started by the person's own claim / edit / delete on the detail screen can
+                // finish while this screen is reappearing; registering after the load left a
+                // gap in which that sync's notification was missed and the list stayed stale.
                 if !appState.isGuest {
                     viewModel.setupRealtimeSubscription()
                 }
+                await viewModel.loadRequests()
             }
             .onDisappear { viewModel.stop() }
             .trackScreen("RequestsDashboard")
@@ -133,12 +147,15 @@ struct RequestsDashboardView: View {
                             }
                             .padding(.horizontal)
                             .padding(.top, 16)
-                        } else if let error = viewModel.error {
+                        } else if let error = viewModel.error, filteredRequests.isEmpty {
+                            // Full error panel only when there is nothing to show. With cached
+                            // rows on screen the failure is reported by the banner in the
+                            // header and the list stays (it used to be replaced by this panel).
                             ErrorView(
                                 error: error,
                                 retryAction: {
                                     Task {
-                                        await viewModel.loadRequests()
+                                        await viewModel.refreshRequests()
                                     }
                                 }
                             )
@@ -152,7 +169,8 @@ struct RequestsDashboardView: View {
                                 message: filterEmptyMessage,
                                 actionTitle: nil,
                                 action: nil,
-                                customImage: "naars_requests_icon"
+                                customImage: "naars_requests_icon",
+                                isCard: true
                             )
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal)
@@ -180,9 +198,9 @@ struct RequestsDashboardView: View {
                 .padding(.horizontal)
                                 .id(request.notificationKey)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                                         .stroke(
-                                            Color.accentColor.opacity(0.6),
+                                            Color.naarsPrimary.opacity(0.6),
                                             lineWidth: isHighlighted ? 2 : 0
                                         )
                                 )
@@ -211,6 +229,8 @@ struct RequestsDashboardView: View {
             // Filter tiles (Open Requests, My Requests, Claimed Requests)
             FilterTilesView(
                 selectedFilter: $viewModel.filter,
+                // Guests have no "mine" / "claimed" data; the tiles were always empty for them.
+                filters: appState.isGuest ? [.open] : RequestFilter.allCases,
                 badgeCounts: viewModel.filterBadgeCounts
             ) { newFilter in
                 viewModel.filterRequests(newFilter)
@@ -219,9 +239,31 @@ struct RequestsDashboardView: View {
             .padding(.vertical, 12)
             .background(Color.naarsBackgroundSecondary)
 
+            // A failed refresh over a list that is still showing its cached rows. Sits in the
+            // pinned header so it neither covers the filter tiles nor scrolls away.
+            if showsRefreshFailureBanner {
+                ErrorBanner(
+                    message: "requests_refresh_failed_banner".localized,
+                    retryAction: {
+                        Task {
+                            await viewModel.refreshRequests()
+                        }
+                    },
+                    dismissAction: {
+                        viewModel.error = nil
+                    }
+                )
+                .padding(.bottom, Constants.Spacing.sm)
+            }
+
             Divider()
         }
         .background(Color.naarsBackgroundSecondary)
+        .animation(.naarsStandard, value: showsRefreshFailureBanner)
+    }
+
+    private var showsRefreshFailureBanner: Bool {
+        viewModel.error != nil && !viewModel.filteredRequests.isEmpty
     }
     
     // MARK: - Helper Methods
@@ -244,6 +286,26 @@ struct RequestsDashboardView: View {
             return "requests_empty_mine".localized
         case .claimed:
             return "requests_empty_claimed".localized
+        }
+    }
+
+    /// Opens the ride or favor a pending intent points at; any other intent is left alone.
+    /// The intent is cleared here only when it carries no anchor: with one, the detail view
+    /// consumes it (`consumeRequestNavigationTarget`).
+    private func openRequest(from intent: NavigationIntent) {
+        switch intent {
+        case .ride(let rideId, let anchor):
+            selectedRideId = rideId
+            if anchor == nil {
+                navigationCoordinator.pendingIntent = nil
+            }
+        case .favor(let favorId, let anchor):
+            selectedFavorId = favorId
+            if anchor == nil {
+                navigationCoordinator.pendingIntent = nil
+            }
+        default:
+            break
         }
     }
 
@@ -282,19 +344,27 @@ private struct TileHeightKey: PreferenceKey {
 
 struct FilterTilesView: View {
     @Binding var selectedFilter: RequestFilter
+    let filters: [RequestFilter]
     let badgeCounts: [RequestFilter: Int]
     let onFilterChanged: (RequestFilter) -> Void
     @State private var uniformHeight: CGFloat?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: Constants.Spacing.sm) {
-            ForEach(RequestFilter.allCases, id: \.self) { filter in
+        // Three tiles side by side truncate to "O…" / "M…" / "Cl…" at accessibility sizes.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Constants.Spacing.sm))
+            : AnyLayout(HStackLayout(spacing: Constants.Spacing.sm))
+        layout {
+            ForEach(filters, id: \.self) { filter in
                 FilterTile(
                     title: filter.localizedKey.localized,
                     identifier: filter.rawValue,
                     isSelected: selectedFilter == filter,
                     badgeCount: badgeCounts[filter] ?? 0,
-                    uniformHeight: uniformHeight
+                    // Stacked full-width tiles need no shared height; forcing the side-by-side
+                    // measurement truncated "Claimed Requests" to one line at accessibility sizes.
+                    uniformHeight: dynamicTypeSize.isAccessibilitySize ? nil : uniformHeight
                 ) {
                     selectedFilter = filter
                     onFilterChanged(filter)
@@ -335,41 +405,31 @@ struct FilterTile: View {
                     // Apply uniform height once measured — forces all
                     // text blocks to the same height so wrapping is consistent
                     .frame(height: uniformHeight)
-
-                HStack {
-                    Spacer()
-                    if let badgeText {
-                        Text(badgeText)
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red)
-                            .clipShape(Capsule())
-                            .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: badgeCount))
-                    }
-                }
             }
             .frame(maxWidth: .infinity, minHeight: 56)
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
-            .background(isSelected ? Color.accentColor : Color(.systemGray5))
-            .cornerRadius(12)
+            .background(isSelected ? Color.naarsPrimary : Color.naarsInsetBackground)
+            .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.md, style: .continuous))
+            // The count sits on the tile's top trailing corner. It used to be centred on the
+            // trailing edge, on top of the label ("My Reques(1)").
+            .overlay(alignment: .topTrailing) {
+                NotificationBadge(count: badgeCount, cap: 9)
+                    .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: badgeCount))
+                    .offset(x: Constants.Spacing.xs, y: -Constants.Spacing.xs)
+            }
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("requests.filter.\(identifier)")
         .accessibilityLabel(isSelected ? "requests_filter_tile_selected_accessibility".localized(with: title) : "requests_filter_tile_accessibility".localized(with: title))
+        // The explicit label above replaces the badge's own label, so the count is spoken as
+        // the tile's value; without it VoiceOver never said which filter has new activity.
+        .accessibilityValue(badgeCount > 0 ? "common_unseen_notifications_accessibility".localized(with: badgeCount) : "")
         .accessibilityHint("requests_filter_tile_hint".localized(with: title.lowercased()))
         .simultaneousGesture(TapGesture().onEnded {
             HapticManager.selectionChanged()
         })
-    }
-
-    private var badgeText: String? {
-        guard badgeCount > 0 else { return nil }
-        return badgeCount > 9 ? "9+" : "\(badgeCount)"
     }
 }
 
@@ -402,10 +462,10 @@ struct SkeletonRequestCard: View {
                     .frame(width: 40, height: 40)
                 
                 VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: Constants.Radius.xs)
                         .fill(Color(.systemGray4))
                         .frame(width: 120, height: 16)
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: Constants.Radius.xs)
                         .fill(Color(.systemGray4))
                         .frame(width: 80, height: 12)
                 }
@@ -415,18 +475,18 @@ struct SkeletonRequestCard: View {
             
             Divider()
             
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: Constants.Radius.xs)
                 .fill(Color(.systemGray4))
                 .frame(height: 20)
             
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: Constants.Radius.xs)
                 .fill(Color(.systemGray4))
                 .frame(height: 16)
         }
         .padding()
         .background(Color.naarsBackgroundSecondary)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .cornerRadius(Constants.Radius.card)
+        .cardShadow()
         .redacted(reason: .placeholder)
     }
 }

@@ -42,20 +42,42 @@ struct OfflineBannerModifier: ViewModifier {
         content
             .overlay(alignment: .top) {
                 if !networkMonitor.isConnected {
-                    HStack(spacing: Constants.Spacing.sm) {
-                        Image(systemName: "wifi.slash")
-                            .font(.naarsSubheadline)
-                        Text("network_no_connection".localized)
-                            .font(.naarsSubheadline)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Constants.Spacing.sm)
-                    .background(Color.naarsError.opacity(0.9))
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    offlineNotice
+                        .padding(.horizontal, Constants.Spacing.md)
+                        .padding(.top, Constants.Spacing.sm)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: networkMonitor.isConnected)
+            .animation(.naarsStandard, value: networkMonitor.isConnected)
+            .onChange(of: networkMonitor.isConnected) { _, isConnected in
+                // The notice coming and going is silent for VoiceOver users otherwise.
+                AccessibilityAnnouncer.announce(
+                    isConnected ? "network_connection_restored".localized : "network_no_connection".localized
+                )
+            }
+    }
+
+    private var offlineNotice: some View {
+        HStack(spacing: Constants.Spacing.sm) {
+            Image(systemName: "wifi.slash")
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsError)
+                .accessibilityHidden(true)
+            Text("network_no_connection".localized)
+                .font(.naarsSubheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, Constants.Spacing.md)
+        .padding(.vertical, 10)
+        // Same shape as the toast: a capsule at one or two lines, a rounded box once large
+        // text wraps further, so the glass never cuts into the message.
+        .glassEffect(.regular, in: .rect(cornerRadius: Constants.Radius.button))
+        .accessibilityElement(children: .combine)
+        // Display only. The notice sits over the navigation bar row for as long as the device
+        // is offline, so taps must go through to the title and toolbar buttons underneath.
+        .allowsHitTesting(false)
     }
 }
 

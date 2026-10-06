@@ -153,9 +153,9 @@ final class ReactionBarView: UIView {
         if isSelected {
             button.backgroundColor = .systemBlue
             button.accessibilityTraits = [.button, .selected]
-            button.accessibilityHint = NSLocalizedString("accessibility_reaction_remove_hint", comment: "")
+            button.accessibilityHint = "accessibility_reaction_remove_hint".localized
         } else {
-            button.accessibilityHint = NSLocalizedString("accessibility_reaction_add_hint", comment: "")
+            button.accessibilityHint = "accessibility_reaction_add_hint".localized
         }
         button.accessibilityIdentifier = "overlay.reaction.\(emoji)"
 
@@ -183,7 +183,7 @@ final class ReactionBarView: UIView {
         button.backgroundColor = UIColor.white.withAlphaComponent(0.12)
         button.layer.cornerRadius = buttonSize / 2
         button.clipsToBounds = true
-        button.accessibilityLabel = NSLocalizedString("accessibility_emoji_picker", comment: "Open emoji picker")
+        button.accessibilityLabel = "accessibility_emoji_picker".localized
 
         NSLayoutConstraint.activate([
             button.widthAnchor.constraint(equalToConstant: buttonSize),

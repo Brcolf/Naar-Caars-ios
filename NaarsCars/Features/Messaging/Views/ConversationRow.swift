@@ -11,7 +11,39 @@ import SwiftUI
 struct ConversationRow: View {
     let conversationDetail: ConversationWithDetails
     var isMuted: Bool = false
-    
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Name plus the muted bell. One line with a trailing ellipsis at standard sizes; two lines
+    /// at accessibility sizes. Sized by its text, so it follows Dynamic Type (the previous
+    /// fixed 20-pt row clipped the name at larger sizes).
+    private var titleLabel: some View {
+        HStack(spacing: Constants.Spacing.xs) {
+            Text(conversationTitle)
+                .font(.naarsBody)
+                .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
+                .foregroundColor(.primary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .truncationMode(.tail)
+
+            if isMuted {
+                Image(systemName: "bell.slash.fill")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var timeLabel: some View {
+        if let lastMessage = conversationDetail.lastMessage {
+            Text(lastMessage.createdAt.conversationListTimestampString)
+                .font(.naarsCaption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             // Avatar on left
@@ -20,41 +52,22 @@ struct ConversationRow: View {
             
             // Main content: Title, preview, and time
             VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                // Title and time row
-                HStack(alignment: .top, spacing: Constants.Spacing.sm) {
-                    // Title with fade effect for long names
-                    // Use geometry reader to calculate available width
-                    GeometryReader { geometry in
-                        HStack(spacing: Constants.Spacing.xs) {
-                            FadingTitleText(
-                                text: conversationTitle,
-                                maxWidth: geometry.size.width - (isMuted ? 80 : 60) // Reserve space for mute icon
-                            )
-                            .font(.naarsBody)
-                            .fontWeight(conversationDetail.unreadCount > 0 ? .semibold : .regular)
-                            .foregroundColor(.primary)
-                            
-                            // Muted indicator
-                            if isMuted {
-                                Image(systemName: "bell.slash.fill")
-                                    .font(.naarsCaption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer(minLength: 8)
-                        }
+                // Title and time row. At accessibility text sizes the name gets the full width
+                // and the time moves under it: side by side, the time (which never truncates)
+                // squeezed the name down to "…".
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 2) {
+                        titleLabel
+                        timeLabel
                     }
-                    .frame(height: 20)
-                    
-                    // Time on right
-                    if let lastMessage = conversationDetail.lastMessage {
-                        Text(lastMessage.createdAt.timeAgoString)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: Constants.Spacing.sm) {
+                        titleLabel
+                        Spacer(minLength: 8)
+                        timeLabel
                     }
                 }
-                
+
                 // Message preview (up to 2 lines)
                 HStack(alignment: .top, spacing: Constants.Spacing.sm) {
                     // Preview text with icon for media messages
@@ -92,15 +105,7 @@ struct ConversationRow: View {
                     
                     // Unread badge (if any)
                     if conversationDetail.unreadCount > 0 {
-                        Text("\(conversationDetail.unreadCount)")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(isMuted ? Color.secondary : Color.naarsPrimary)
-                            .clipShape(Capsule())
-                            .fixedSize(horizontal: true, vertical: false)
+                        NotificationBadge(count: conversationDetail.unreadCount, style: isMuted ? .muted : .alert)
                     }
                 }
             }
@@ -109,8 +114,10 @@ struct ConversationRow: View {
         .contentShape(Rectangle()) // Make entire row tappable
         .accessibilityElement(children: .combine)
         .accessibilityLabel(conversationRowAccessibilityLabel)
-        .accessibilityHint(conversationDetail.unreadCount > 0
-            ? "\(conversationDetail.unreadCount) " + "messaging_unread".localized
+        // The unread count is state, not a usage hint: as the value it is still spoken when
+        // VoiceOver hints are turned off.
+        .accessibilityValue(conversationDetail.unreadCount > 0
+            ? "messaging_unread_count_accessibility".localized(with: conversationDetail.unreadCount)
             : "")
     }
     
@@ -143,7 +150,7 @@ struct ConversationRow: View {
         }
 
         // Fallback
-        return "Unknown"
+        return "common_unknown".localized
     }
 
     private var conversationRowAccessibilityLabel: String {
@@ -154,34 +161,5 @@ struct ConversationRow: View {
             parts.append(lastMessage.createdAt.timeAgoString)
         }
         return parts.joined(separator: ", ")
-    }
-}
-
-/// Text view with fade effect for long content (iMessage-style)
-/// Ensures text aligns left and fades to the right
-struct FadingTitleText: View {
-    let text: String
-    let maxWidth: CGFloat
-
-    var body: some View {
-        Text(text)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(width: maxWidth, alignment: .leading)
-            .clipped()
-            .mask(
-                HStack(spacing: 0) {
-                    Rectangle().fill(Color.black)
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .clear, location: 1.0)
-                        ]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: 40)
-                }
-            )
     }
 }

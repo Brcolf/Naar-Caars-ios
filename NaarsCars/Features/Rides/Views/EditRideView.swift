@@ -15,7 +15,8 @@ struct EditRideView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var error: String?
     @State private var showSuccess = false
-    
+    @State private var showDiscardConfirmation = false
+
     init(ride: Ride, onSaved: (() -> Void)? = nil) {
         self.ride = ride
         self.onSaved = onSaved
@@ -31,7 +32,8 @@ struct EditRideView: View {
                     TimePickerView(
                         hour: $viewModel.hour,
                         minute: $viewModel.minute,
-                        isAM: $viewModel.isAM
+                        isAM: $viewModel.isAM,
+                        accessibilityTitle: "ride_create_time_accessibility".localized
                     )
 
                     TimeZonePicker(selectedTimezone: $viewModel.timezone)
@@ -82,13 +84,23 @@ struct EditRideView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common_cancel".localized) {
-                        dismiss()
+                        // Ask before throwing away edits.
+                        if viewModel.hasUnsavedChanges {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
                     }
+                    .disabled(viewModel.isLoading)
                 }
-                
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("common_save".localized) {
                         Task {
+                            // A second tap that was already queued when the first one started;
+                            // Save used to send the update once per tap.
+                            guard !viewModel.isLoading else { return }
+                            error = nil
                             do {
                                 try await viewModel.updateRide(id: ride.id)
                                 // Notify parent to refresh before dismissing
@@ -107,23 +119,24 @@ struct EditRideView: View {
             }
             .onAppear {
                 // Pre-populate form with existing ride data
-                viewModel.date = ride.date
-                viewModel.pickup = ride.pickup
-                viewModel.destination = ride.destination
-                viewModel.seats = ride.seats
-                viewModel.notes = ride.notes ?? ""
-                viewModel.gift = ride.gift ?? ""
-                
-                // Parse existing time
-                if let parsedTime = viewModel.parseTime(ride.time) {
-                    viewModel.hour = parsedTime.hour
-                    viewModel.minute = parsedTime.minute
-                    viewModel.isAM = parsedTime.isAM
+                viewModel.populate(from: ride)
+            }
+            .confirmationDialog(
+                "common_discard_changes_title".localized,
+                isPresented: $showDiscardConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("common_discard".localized, role: .destructive) {
+                    dismiss()
                 }
-                viewModel.timezone = ride.timezone
+                Button("common_keep_editing".localized, role: .cancel) {}
+            } message: {
+                Text("request_form_discard_message".localized)
             }
         }
         .successCheckmark(isShowing: $showSuccess)
+        // No swipe-to-dismiss with unsaved edits (Cancel asks first) or while saving.
+        .interactiveDismissDisabled(viewModel.isLoading || viewModel.hasUnsavedChanges)
     }
 }
 

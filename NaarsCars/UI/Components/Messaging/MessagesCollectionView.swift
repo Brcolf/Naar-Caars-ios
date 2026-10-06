@@ -133,6 +133,146 @@ final class FlippedUnreadDividerCell: UICollectionViewCell {
     }
 }
 
+/// iMessage-style typing bubble, shown as the newest item of the transcript: a grey bubble
+/// with three pulsing dots on the incoming side (with the typer's avatar in group threads).
+/// Flipped like the other cells because the list uses scaleY: -1.
+final class FlippedTypingIndicatorCell: UICollectionViewCell {
+
+    /// Diffable item identifier for the single typing item.
+    static let itemIdentifier = "typing"
+    static let fixedHeight: CGFloat = 44
+
+    private let bubble = UIView()
+    private let dots = CAReplicatorLayer()
+    private let dot = CALayer()
+    private let avatarView = AvatarUIView()
+    private var showsAvatar = false
+
+    private let dotSize: CGFloat = 8
+    private let dotSpacing: CGFloat = 5
+    private let bubbleSize = CGSize(width: 62, height: 36)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        contentView.transform = CGAffineTransform(scaleX: 1, y: -1)
+
+        avatarView.isHidden = true
+        contentView.addSubview(avatarView)
+
+        bubble.layer.cornerRadius = 18
+        bubble.layer.cornerCurve = .continuous
+        contentView.addSubview(bubble)
+
+        dot.cornerRadius = dotSize / 2
+        dots.instanceCount = 3
+        dots.instanceTransform = CATransform3DMakeTranslation(dotSize + dotSpacing, 0, 0)
+        dots.instanceDelay = 0.2
+        dots.addSublayer(dot)
+        bubble.layer.addSublayer(dots)
+        applyColors()
+
+        isAccessibilityElement = true
+        accessibilityTraits = .updatesFrequently
+        accessibilityIdentifier = "messages.thread.typingIndicator"
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(typingUsers: [TypingUser], showsAvatar: Bool) {
+        self.showsAvatar = showsAvatar && !typingUsers.isEmpty
+        avatarView.isHidden = !self.showsAvatar
+        if self.showsAvatar, let first = typingUsers.first {
+            avatarView.configure(imageUrl: first.avatarUrl, name: first.name, size: 28)
+        }
+        accessibilityLabel = Self.accessibilityText(for: typingUsers)
+        setNeedsLayout()
+        startAnimatingIfNeeded()
+    }
+
+    static func accessibilityText(for typingUsers: [TypingUser]) -> String {
+        switch typingUsers.count {
+        case 0:
+            return ""
+        case 1:
+            return "messaging_typing_single".localized(with: typingUsers[0].name)
+        case 2:
+            return "messaging_typing_two".localized(with: typingUsers[0].name, typingUsers[1].name)
+        case 3:
+            return "messaging_typing_three".localized(with: typingUsers[0].name, typingUsers[1].name)
+        default:
+            return "messaging_typing_many".localized(with: typingUsers[0].name, typingUsers[1].name, typingUsers.count - 2)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let b = contentView.bounds
+        let bubbleY = (b.height - bubbleSize.height) / 2
+        let bubbleX: CGFloat = showsAvatar ? 28 + 8 : 0
+        avatarView.frame = CGRect(x: 0, y: bubbleY + bubbleSize.height - 28, width: 28, height: 28)
+        bubble.frame = CGRect(origin: CGPoint(x: bubbleX, y: bubbleY), size: bubbleSize)
+
+        let dotsWidth = dotSize * 3 + dotSpacing * 2
+        dots.frame = CGRect(
+            x: (bubbleSize.width - dotsWidth) / 2,
+            y: (bubbleSize.height - dotSize) / 2,
+            width: dotsWidth,
+            height: dotSize
+        )
+        dot.frame = CGRect(x: 0, y: 0, width: dotSize, height: dotSize)
+    }
+
+    override func preferredLayoutAttributesFitting(
+        _ layoutAttributes: UICollectionViewLayoutAttributes
+    ) -> UICollectionViewLayoutAttributes {
+        let attributes = super.preferredLayoutAttributesFitting(layoutAttributes)
+        attributes.size.height = Self.fixedHeight
+        return attributes
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // Core Animation drops running animations when a layer leaves the window.
+        if window != nil { startAnimatingIfNeeded() }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        avatarView.prepareForReuse()
+        dot.removeAnimation(forKey: Self.pulseKey)
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        applyColors() // CALayer colours do not follow dynamic UIColors on their own
+    }
+
+    private static let pulseKey = "typingPulse"
+
+    private func applyColors() {
+        bubble.backgroundColor = .systemGray5
+        dot.backgroundColor = UIColor.systemGray.cgColor
+    }
+
+    private func startAnimatingIfNeeded() {
+        guard dot.animation(forKey: Self.pulseKey) == nil else { return }
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            dot.opacity = 0.6
+            return
+        }
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 0.3
+        pulse.toValue = 1.0
+        pulse.duration = 0.6
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        pulse.isRemovedOnCompletion = false
+        dot.opacity = 0.3
+        dot.add(pulse, forKey: Self.pulseKey)
+    }
+}
+
 /// UIViewRepresentable wrapping UICollectionView for the messages list
 struct MessagesCollectionView: UIViewRepresentable {
     let messages: [Message]

@@ -23,7 +23,9 @@ struct LanguageSettingsView: View {
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(language.localizedName)
+                                // Every other row is a language's own name; "System Default"
+                                // is app text and follows the current language.
+                                Text(language.code == "system" ? "settings_system_default".localized : language.localizedName)
                                     .foregroundColor(.primary)
                                     .font(.naarsBody)
                                 if language.code != "system" && language.localizedName != language.name {
@@ -37,7 +39,7 @@ struct LanguageSettingsView: View {
                             
                             if language.code == localizationManager.appLanguage {
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(.accentColor)
+                                    .foregroundColor(.naarsPrimary)
                                     .font(.naarsBody)
                             }
                         }
@@ -64,7 +66,8 @@ struct LanguageSettingsView: View {
                 pendingLanguage = nil
             }
         } message: {
-            Text("language_restart_alert_message".localized)
+            // Says how to restart: nothing on screen changes until the app is reopened.
+            Text("language_restart_alert_instructions".localized)
         }
     }
     

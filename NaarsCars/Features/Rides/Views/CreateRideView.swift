@@ -16,11 +16,12 @@ struct CreateRideView: View {
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
-    @State private var showGuestPrompt = false
-    @State private var guestRestrictionReason: GuestRestrictionReason = .postRide
+    @State private var guestPromptReason: GuestRestrictionReason?
     /// Deferred so LocationService init runs off the first frame while user sets date/time.
     @State private var locationServiceReady = false
-    
+    @State private var showDiscardConfirmation = false
+    @State private var showPastTimeConfirmation = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -48,7 +49,9 @@ struct CreateRideView: View {
                                     appState.isGuestMode = false
                                     AppLaunchManager.shared.exitGuestMode()
                                 }
-                                SecondaryButton(title: "guest_prompt_log_in".localized) {
+                                SecondaryButton(title: "auth_sign_in_button".localized) {
+                                    // Welcome continues to the sign-in form for this choice
+                                    WelcomeEntryRoute.opensSignIn = true
                                     appState.isGuestMode = false
                                     AppLaunchManager.shared.exitGuestMode()
                                 }
@@ -64,17 +67,24 @@ struct CreateRideView: View {
                 } else {
 
                 Section("ride_create_section_date_time".localized) {
-                    DatePicker("ride_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
+                    // Past days are not offered; they used to be selectable and rejected on Post.
+                    DatePicker(
+                        "ride_create_date".localized,
+                        selection: $viewModel.date,
+                        in: Calendar.current.startOfDay(for: Date())...,
+                        displayedComponents: .date
+                    )
                         .datePickerStyle(.compact)
                         .accessibilityHint("ride_create_date_hint".localized)
-                    
+
+                    // The time label goes into the picker, which names each of its three menus.
+                    // Set on the picker from here it replaced all three names and values.
                     TimePickerView(
                         hour: $viewModel.hour,
                         minute: $viewModel.minute,
-                        isAM: $viewModel.isAM
+                        isAM: $viewModel.isAM,
+                        accessibilityTitle: "ride_create_time_accessibility".localized
                     )
-                    .accessibilityLabel("ride_create_time_accessibility".localized)
-                    .accessibilityHint("ride_create_time_hint".localized)
 
                     TimeZonePicker(selectedTimezone: $viewModel.timezone)
                 }
@@ -86,32 +96,30 @@ struct CreateRideView: View {
                             placeholder: "ride_create_pickup_placeholder".localized,
                             text: $viewModel.pickup,
                             icon: "location.circle.fill",
-                            accessibilityId: "createRide.pickup"
+                            accessibilityId: "createRide.pickup",
+                            accessibilityHintText: "ride_create_pickup_hint".localized
                         ) { details in
                             // Optional: Store coordinates for future map integration
                             // viewModel.pickupCoordinate = details.coordinate
                         }
-                        .accessibilityLabel("ride_create_pickup_placeholder".localized)
-                        .accessibilityHint("ride_create_pickup_hint".localized)
-                        
+
                         LocationAutocompleteField(
                             label: "",
                             placeholder: "ride_create_destination_placeholder".localized,
                             text: $viewModel.destination,
                             icon: "mappin.circle.fill",
-                            accessibilityId: "createRide.destination"
+                            accessibilityId: "createRide.destination",
+                            accessibilityHintText: "ride_create_destination_hint".localized
                         ) { details in
                             // Optional: Store coordinates for future map integration
                             // viewModel.destinationCoordinate = details.coordinate
                         }
-                        .accessibilityLabel("ride_create_destination_placeholder".localized)
-                        .accessibilityHint("ride_create_destination_hint".localized)
                     } else {
                         HStack(spacing: 12) {
                             ProgressView()
                                 .scaleEffect(0.9)
                             Text("ride_create_route_loading".localized)
-                                .font(.body)
+                                .font(.naarsBody)
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -140,20 +148,19 @@ struct CreateRideView: View {
                 Section("ride_create_section_participants".localized) {
                     Button {
                         if appState.isGuest {
-                            guestRestrictionReason = .addParticipants
-                            showGuestPrompt = true
+                            guestPromptReason = .addParticipants
                         } else {
                             showAddParticipants = true
                         }
                     } label: {
                         HStack {
-                            Text(viewModel.selectedParticipantIds.isEmpty ? "ride_create_add_participants".localized : "ride_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
+                            Text(participantsButtonTitle)
                             Spacer()
                             Image(systemName: "chevron.right")
                         }
                     }
                     .accessibilityIdentifier("createRide.participants")
-                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "ride_create_add_participants".localized : "ride_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
+                    .accessibilityLabel(participantsButtonTitle)
                     .accessibilityHint("ride_create_participants_hint".localized)
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
@@ -185,35 +192,31 @@ struct CreateRideView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("ride_create_cancel".localized) {
-                        dismiss()
+                        // Ask before throwing away a filled-in form.
+                        if viewModel.hasUnsavedChanges {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
                     }
+                    .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createRide.cancel")
                     .accessibilityLabel("ride_create_cancel".localized)
                     .accessibilityHint("ride_create_cancel_hint".localized)
                 }
-                
+
                 if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("ride_create_post".localized) {
-                            Task {
-                                do {
-                                    AppLogger.info("rides", "[CreateRideView] Starting ride creation...")
-                                    let ride = try await viewModel.createRide()
-                                    AppLogger.info("rides", "[CreateRideView] Ride created successfully: \(ride.id)")
-                                    // Call callback with created ride ID before dismissing
-                                    onRideCreated?(ride.id)
-                                    showSuccess = true
-                                    HapticManager.success()
-                                    try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
-                                    dismiss()
-                                } catch {
-                                    AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
-                                    AppLogger.error("rides", "[CreateRideView] Error details: \(error)")
-                                    showErrorAlert = true
-                                }
-                            }
+                        // A time earlier today is usually a slip (AM left in place of PM), but
+                        // it can be meant, so ask instead of refusing.
+                        if viewModel.isEventTimeInPast {
+                            showPastTimeConfirmation = true
+                        } else {
+                            submitRide()
+                        }
                     }
-                    .disabled(viewModel.isLoading)
+                    .disabled(viewModel.isLoading || !viewModel.hasRequiredFields)
                     .accessibilityIdentifier("createRide.post")
                     .accessibilityLabel("ride_create_post_accessibility".localized)
                     .accessibilityHint("ride_create_post_hint".localized)
@@ -237,8 +240,64 @@ struct CreateRideView: View {
             } message: {
                 Text(viewModel.error ?? "common_unexpected_error".localized)
             }
+            .alert("request_time_passed_title".localized, isPresented: $showPastTimeConfirmation) {
+                Button("request_time_passed_post_anyway".localized) {
+                    submitRide()
+                }
+                Button("request_time_passed_change".localized, role: .cancel) {}
+            } message: {
+                Text("request_time_passed_message".localized)
+            }
+            .confirmationDialog(
+                "common_discard_changes_title".localized,
+                isPresented: $showDiscardConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("common_discard".localized, role: .destructive) {
+                    dismiss()
+                }
+                Button("common_keep_editing".localized, role: .cancel) {}
+            } message: {
+                Text("request_form_discard_message".localized)
+            }
         }
         .successCheckmark(isShowing: $showSuccess)
+        // No swipe-to-dismiss with something typed (Cancel asks first) or while the request is
+        // in flight: a swipe mid-request still created the ride, and its id was then consumed
+        // by the next, unrelated dismissal of this sheet.
+        .interactiveDismissDisabled(viewModel.isLoading || viewModel.hasUnsavedChanges)
+    }
+
+    private var participantsButtonTitle: String {
+        let count = viewModel.selectedParticipantIds.count
+        if count == 0 {
+            return "ride_create_add_participants".localized
+        }
+        // Two keys chosen here; the catalog has no plural variants ("1 Participant(s) Selected").
+        return (count == 1 ? "request_participants_selected_one" : "request_participants_selected_other")
+            .localized(with: count)
+    }
+
+    private func submitRide() {
+        Task {
+            // A second tap that was already queued when the first one started.
+            guard !viewModel.isLoading else { return }
+            do {
+                AppLogger.info("rides", "[CreateRideView] Starting ride creation...")
+                let ride = try await viewModel.createRide()
+                AppLogger.info("rides", "[CreateRideView] Ride created successfully: \(ride.id)")
+                // Call callback with created ride ID before dismissing
+                onRideCreated?(ride.id)
+                showSuccess = true
+                HapticManager.success()
+                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                dismiss()
+            } catch {
+                AppLogger.error("rides", "[CreateRideView] Error creating ride: \(error.localizedDescription)")
+                AppLogger.error("rides", "[CreateRideView] Error details: \(error)")
+                showErrorAlert = true
+            }
+        }
     }
 }
 

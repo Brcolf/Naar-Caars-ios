@@ -24,10 +24,10 @@ struct SkeletonMessageRow: View {
             
             VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
                 // Message text skeleton
-                SkeletonRectangle(width: CGFloat.random(in: 100...200), height: 40, cornerRadius: 12)
+                SkeletonRectangle(width: CGFloat.random(in: 100...200), height: 40, cornerRadius: Constants.Radius.card)
                 
                 // Timestamp skeleton
-                SkeletonRectangle(width: 60, height: 12, cornerRadius: 4)
+                SkeletonRectangle(width: 60, height: 12, cornerRadius: Constants.Radius.xs)
             }
             
             if isFromCurrentUser {

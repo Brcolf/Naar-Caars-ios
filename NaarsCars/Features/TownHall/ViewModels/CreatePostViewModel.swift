@@ -104,19 +104,11 @@ final class CreatePostViewModel: ObservableObject {
     /// - Returns: Image URL if successful
     /// - Throws: AppError if upload fails
     private func uploadImage(_ image: UIImage) async throws -> String {
-        // Check image size before compression
-        let imageSize = image.size
-        let maxDimension: CGFloat = ImagePreset.messageImage.maxDimension
-        let imageMaxDimension = max(imageSize.width, imageSize.height)
-        
-        if imageMaxDimension > maxDimension * 2 {
-            let maxAllowed = Int(maxDimension * 2)
-            throw AppError.invalidInput("Image is too large. Please select a smaller image (max \(maxAllowed)px on longest side).")
-        }
-        
+        // No size check here: the compressor scales any photo down to the preset's 2048 px, so a
+        // 24 or 48 MP camera photo is resized, not refused.
         // Compress image using messageImage preset (2.5MB max, 2048px max dimension)
         guard let imageData = await ImageCompressor.compressAsync(image, preset: .messageImage) else {
-            throw AppError.invalidInput("Image is too large to compress. Please select a smaller image or try a different photo.")
+            throw AppError.invalidInput("profile_image_too_large".localized)
         }
         
         // Generate unique filename

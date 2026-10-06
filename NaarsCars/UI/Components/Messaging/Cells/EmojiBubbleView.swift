@@ -10,7 +10,7 @@ import UIKit
 
 /// Displays 1-3 emoji at an enlarged size without a bubble background.
 /// Tiered font sizing matches iMessage: 42pt for 1 emoji, 36pt for 2, 30pt for 3.
-final class EmojiBubbleView: UIView {
+final class EmojiBubbleView: MessageBubbleContentView {
 
     // MARK: - Subviews
 

@@ -16,17 +16,17 @@ struct SkeletonConversationRow: View {
             
             VStack(alignment: .leading, spacing: 8) {
                 // Name skeleton
-                SkeletonRectangle(width: 120, height: 18, cornerRadius: 6)
+                SkeletonRectangle(width: 120, height: 18, cornerRadius: Constants.Radius.xs)
                 
                 // Last message preview skeleton
-                SkeletonRectangle(width: 200, height: 14, cornerRadius: 6)
+                SkeletonRectangle(width: 200, height: 14, cornerRadius: Constants.Radius.xs)
             }
             
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
                 // Timestamp skeleton
-                SkeletonRectangle(width: 50, height: 12, cornerRadius: 4)
+                SkeletonRectangle(width: 50, height: 12, cornerRadius: Constants.Radius.xs)
                 
                 // Unread badge skeleton (optional)
                 SkeletonCircle(size: 20)

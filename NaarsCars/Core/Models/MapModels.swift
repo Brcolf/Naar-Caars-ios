@@ -32,8 +32,8 @@ enum MapRequestType: String, CaseIterable {
     
     var color: Color {
         switch self {
-        case .ride: return .blue
-        case .favor: return .orange
+        case .ride: return .rideAccent
+        case .favor: return .favorAccent
         }
     }
 }

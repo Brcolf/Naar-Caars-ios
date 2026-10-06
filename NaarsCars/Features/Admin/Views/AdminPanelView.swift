@@ -17,7 +17,10 @@ struct AdminPanelView: View {
     @State private var showActiveRidesOverlay = false
     @State private var showReports = false
     var autoOpenReports: Bool = false
-    
+
+    /// Shown in a stat tile until the figures have loaded, so a failed load does not read as 0
+    private static let statPlaceholder = "—"
+
     var body: some View {
         Group {
             if viewModel.isVerifyingAdmin {
@@ -25,6 +28,15 @@ struct AdminPanelView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if viewModel.isAdmin {
                 adminContent
+            } else if let message = viewModel.verificationErrorMessage {
+                // The check itself failed (offline, server error): offer a retry rather than
+                // telling an admin they have no access.
+                ErrorView(
+                    error: message,
+                    retryAction: {
+                        Task { await viewModel.verifyAdminAccess() }
+                    }
+                )
             } else {
                 // Unauthorized - show nothing useful
                 VStack(spacing: 16) {
@@ -66,6 +78,12 @@ struct AdminPanelView: View {
                 showReports = true
             }
         }
+        .errorBanner(
+            message: $viewModel.statsErrorMessage,
+            retryAction: {
+                Task { await viewModel.loadStats() }
+            }
+        )
         .trackScreen("AdminPanel")
     }
     
@@ -97,7 +115,7 @@ struct AdminPanelView: View {
                 Button { showFulfilledOverlay = true } label: {
                     StatCard(
                         title: "Fulfilled",
-                        value: "\(viewModel.fulfilledCount)",
+                        value: viewModel.hasLoadedStats ? "\(viewModel.fulfilledCount)" : Self.statPlaceholder,
                         icon: "checkmark.circle.fill",
                         color: .naarsSuccess
                     )
@@ -107,7 +125,7 @@ struct AdminPanelView: View {
                 Button { showSavingsOverlay = true } label: {
                     StatCard(
                         title: "Savings",
-                        value: viewModel.formattedSavings,
+                        value: viewModel.hasLoadedStats ? viewModel.formattedSavings : Self.statPlaceholder,
                         icon: "dollarsign.circle.fill",
                         color: .naarsSuccess
                     )
@@ -117,7 +135,7 @@ struct AdminPanelView: View {
                 Button { showActiveRidesOverlay = true } label: {
                     StatCard(
                         title: "Active",
-                        value: "\(viewModel.activeRidesCount)",
+                        value: viewModel.hasLoadedStats ? "\(viewModel.activeRidesCount)" : Self.statPlaceholder,
                         icon: "clock.fill",
                         color: .naarsWarning
                     )
@@ -147,6 +165,7 @@ struct AdminPanelView: View {
                     Image(systemName: "megaphone.fill")
                         .foregroundColor(.naarsPrimary)
                     Text("admin_send_announcement".localized)
+                        .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -154,9 +173,9 @@ struct AdminPanelView: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
@@ -186,9 +205,9 @@ struct AdminPanelView: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
@@ -210,6 +229,7 @@ struct AdminPanelView: View {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.naarsWarning)
                     Text("admin_pending_approvals".localized)
+                        .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -217,9 +237,9 @@ struct AdminPanelView: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
@@ -232,6 +252,7 @@ struct AdminPanelView: View {
                     Image(systemName: "person.3.fill")
                         .foregroundColor(.naarsPrimary)
                     Text("admin_all_members".localized)
+                        .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -239,9 +260,9 @@ struct AdminPanelView: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
@@ -252,8 +273,9 @@ struct AdminPanelView: View {
             NavigationLink(destination: AdminReportsView()) {
                 HStack {
                     Image(systemName: "flag.fill")
-                        .foregroundColor(.red)
+                        .foregroundColor(.naarsError)
                     Text("admin_reports_title".localized)
+                        .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -261,9 +283,9 @@ struct AdminPanelView: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(Color(.separator), lineWidth: 1)
                 )
             }
@@ -298,9 +320,9 @@ private struct StatCard: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(Color.naarsBackgroundSecondary)
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: Constants.Radius.card)
                 .stroke(Color(.separator), lineWidth: 1)
         )
         .accessibilityElement(children: .combine)

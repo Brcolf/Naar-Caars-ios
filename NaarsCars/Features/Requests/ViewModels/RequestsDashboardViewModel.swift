@@ -22,6 +22,8 @@ final class RequestsDashboardViewModel: ObservableObject {
     // MARK: - Published Properties
 
     @Published var filter: RequestFilter = .open
+    /// Set after the first coordinator-backed load; see loadRequests(forceRefresh:).
+    private var hasPerformedInitialLoad = false
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published var filterBadgeCounts: [RequestFilter: Int] = [:]
@@ -143,6 +145,15 @@ final class RequestsDashboardViewModel: ObservableObject {
             if showLoadingIndicator && !hasCachedData { isLoading = true }
             defer { if !Task.isCancelled { isLoading = false } }
 
+            // Network refresh is forced only for the first load of this ViewModel and for an
+            // explicit pull-to-refresh. Every later `.task` re-entry (tab switch, pop back)
+            // re-reads SwiftData; staleness-gated refreshes stay with MainTabView's tab-change
+            // trigger and app-foreground, as the coordinator contract requires.
+            guard forceRefresh || !hasPerformedInitialLoad else {
+                await refreshUnseenRequestKeys()
+                return
+            }
+
             let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(
                 .dashboard,
                 trigger: forceRefresh ? "pullToRefresh:requests" : "manualReload:requests"
@@ -151,10 +162,16 @@ final class RequestsDashboardViewModel: ObservableObject {
             if case .failed(let error, _)? = result {
                 // URLSession cancellation is not a user-facing error (parity with previous handling)
                 guard (error as NSError).code != NSURLErrorCancelled else { return }
-                self.error = error.localizedDescription
+                // The raw system text goes to the log; the screen gets a sentence a person can
+                // act on. The cached rows stay on screen (the view shows this as a banner over
+                // them and as a full panel only when there is nothing to list).
+                self.error = "requests_load_failed".localized
                 AppLogger.error("requests", "Error loading requests: \(error.localizedDescription)")
                 return
             }
+            // Only a completed (or joined) refresh counts as the initial load, so the ErrorView
+            // retry after a failed first fetch reaches the network again.
+            hasPerformedInitialLoad = true
             refreshFilteredRequests()
             await refreshUnseenRequestKeys()
         }
@@ -207,8 +224,8 @@ final class RequestsDashboardViewModel: ObservableObject {
         // to a network fetch — which this path must never do.
         guard modelContext != nil else { return }
         // A completed sync supersedes any earlier load error. This preserves the previous
-        // observable behaviour (the network reload cleared `error` on every sync); the view hides
-        // the list while `error` is non-nil.
+        // observable behaviour (the network reload cleared `error` on every sync) and takes the
+        // "couldn't refresh" banner down once fresh rows have landed.
         error = nil
         refreshFilteredRequests()
         await refreshUnseenRequestKeys()
@@ -231,5 +248,33 @@ final class RequestsDashboardViewModel: ObservableObject {
             in: context,
             requestNotificationSummaries: summaryManager.requestNotificationSummaries
         )
+    }
+}
+
+// MARK: - Refresh after the user's own action
+
+/// Brings the Requests list up to date after the signed-in user's own claim, unclaim, complete,
+/// create, edit, delete or add-participants. The person who acts gets no push for their own
+/// action, so the list used to stay stale (a ride just claimed still read "Open") until
+/// pull-to-refresh, a tab switch past the staleness window or the safety poll.
+///
+/// Called by the request view models once the mutation has succeeded. It goes through the one
+/// coordinator call a view model may make (`forceFullRefreshAndWait`), so in-flight dedup is
+/// untouched and no engine is called from here. Callers do not wait for it: a dashboard sync
+/// fetches every ride, favor and notification, and the success checkmark must not hang on
+/// that. The list re-reads SwiftData when it reappears and again on `.ridesDidSync` /
+/// `.favorsDidSync`, whichever comes last.
+@MainActor
+enum RequestsDashboardRefresh {
+    private static var refreshTask: Task<Void, Never>?
+
+    /// - Parameter action: Short name for the log trigger, such as "claim" or "deleteRide".
+    static func afterUserAction(_ action: String) {
+        refreshTask = Task { @MainActor in
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(
+                .dashboard,
+                trigger: "userAction:\(action)"
+            )
+        }
     }
 }

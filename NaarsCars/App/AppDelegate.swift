@@ -172,6 +172,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let userInfo = response.notification.request.content.userInfo
         let notificationType = userInfo["type"] as? String
         PushNotificationService.shared.recordLastPushPayload(userInfo)
+
+        // A swipe-away is reported here because the completion-reminder category asks for
+        // dismiss callbacks. It is not a tap: it used to fall through to the tap path below,
+        // marking the row read, queueing navigation and raising the completion prompt.
+        if response.actionIdentifier == UNNotificationDismissActionIdentifier {
+            completionHandler()
+            return
+        }
         
         // Handle actionable responses without opening the app
         if response.actionIdentifier != UNNotificationDefaultActionIdentifier &&
@@ -201,7 +209,19 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                         return nil
                     }()
 
-                    let eventId = await CalendarService.shared.createEventFromPushData(userInfo)
+                    var eventId = await CalendarService.shared.createEventFromPushData(userInfo)
+                    // The claim push is queued by the database trigger and carries only the
+                    // request id (no event_title / event_date), so the call above has nothing
+                    // to add and the action did nothing. Build the event from the request.
+                    if eventId == nil, let requestId {
+                        if userInfo["ride_id"] != nil {
+                            if let ride = try? await RideService.shared.fetchRide(id: requestId) {
+                                eventId = await CalendarService.shared.createEventForRide(ride)
+                            }
+                        } else if let favor = try? await FavorService.shared.fetchFavor(id: requestId) {
+                            eventId = await CalendarService.shared.createEventForFavor(favor)
+                        }
+                    }
                     if eventId != nil, let requestId {
                         let rType = userInfo["ride_id"] != nil ? "ride" : "favor"
                         CalendarOfferTracker.shared.recordEventCreated(requestType: rType, requestId: requestId)
@@ -419,12 +439,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
 
     private func postCompletionPrompt(from userInfo: [AnyHashable: Any]) {
+        // Same deferred-intent route as postReviewPrompt: NavigationCoordinator queues the
+        // prompt and MainTabView enqueues it once any presented sheet is gone.
+        let coordinator = NavigationCoordinator.shared
         if let rideIdString = userInfo["ride_id"] as? String,
            let rideId = UUID(uuidString: rideIdString) {
-            NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["rideId": rideId])
+            coordinator.applyNotificationIntent(.showRequestCompletion(requestId: rideId, requestType: .ride))
         } else if let favorIdString = userInfo["favor_id"] as? String,
                   let favorId = UUID(uuidString: favorIdString) {
-            NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["favorId": favorId])
+            coordinator.applyNotificationIntent(.showRequestCompletion(requestId: favorId, requestType: .favor))
         }
     }
 

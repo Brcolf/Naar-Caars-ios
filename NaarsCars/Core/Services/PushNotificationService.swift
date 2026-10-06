@@ -162,10 +162,12 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// Configure notification categories with actions
     private func setupNotificationCategories() {
         // Completion Reminder category with Yes/No actions
+        // Completing a request changes someone else's request and awards XP, so it asks for
+        // Face ID / passcode when the phone is locked. "Not yet" only snoozes and stays open.
         let yesAction = UNNotificationAction(
             identifier: NotificationAction.yesCompleted.rawValue,
             title: "notifications_action_yes_completed".localized,
-            options: []
+            options: [.authenticationRequired]
         )
         
         let noAction = UNNotificationAction(
@@ -434,6 +436,9 @@ final class PushNotificationService: NSObject, ObservableObject {
 
     /// Persist the last push payload for diagnostics
     func recordLastPushPayload(_ userInfo: [AnyHashable: Any]) {
+        // Debug builds only. The payload carries names and message previews, and release
+        // builds were writing each one to UserDefaults, unencrypted and past sign-out.
+        #if DEBUG
         let payload: [String: Any] = userInfo.reduce(into: [:]) { result, entry in
             result[String(describing: entry.key)] = entry.value
         }
@@ -444,6 +449,9 @@ final class PushNotificationService: NSObject, ObservableObject {
         } else {
             UserDefaults.standard.set(String(describing: payload), forKey: lastPushPayloadKey)
         }
+        #else
+        UserDefaults.standard.removeObject(forKey: lastPushPayloadKey)
+        #endif
     }
 
     /// Read the last push payload for diagnostics

@@ -35,6 +35,9 @@ final class CreateFavorViewModel: ObservableObject {
     
     private let favorService: any FavorServiceProtocol
     private let authService: any AuthServiceProtocol
+    /// The favor being edited (EditFavorView). Lets `updateFavor` tell a cleared field from an
+    /// untouched one and apply the past-date rule only when the date was changed.
+    private var editingOriginal: Favor?
 
     init(
         favorService: any FavorServiceProtocol = FavorService.shared,
@@ -46,6 +49,14 @@ final class CreateFavorViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
+    /// True once the two fields a favor cannot exist without are filled in. The Post button
+    /// stays disabled until then, as it does on the New Post sheet; the remaining rules are
+    /// still checked by `validateForm()` on submit.
+    var hasRequiredFields: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Validate form fields
     /// - Returns: Error message if validation fails, nil if valid
     func validateForm() -> String? {
@@ -65,10 +76,79 @@ final class CreateFavorViewModel: ObservableObject {
         if selectedDate < today {
             return "favor_error_date_in_past".localized
         }
-        
+
         return nil
     }
-    
+
+    /// True when a time is set and the chosen date and time, read in the chosen time zone,
+    /// have already passed. The create form asks before posting such a favor. Uses the same
+    /// rule as the Requests list (`RequestItem.eventTime`). A favor without a time is covered
+    /// by the date rule in `validateForm()`.
+    var isEventTimeInPast: Bool {
+        guard hasTime else { return false }
+        let draft = Favor(
+            userId: UUID(),
+            title: "",
+            location: "",
+            date: date,
+            time: formatTime(hour: hour, minute: minute, isAM: isAM),
+            timezone: timezone
+        )
+        return RequestItem.favor(draft).eventTime < Date()
+    }
+
+    /// Whether closing the form now would throw away something the person entered. On the
+    /// create form that is anything typed or picked; on the edit form, any difference from
+    /// the favor as it was opened.
+    var hasUnsavedChanges: Bool {
+        guard let original = editingOriginal else {
+            return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !requirements.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !selectedParticipantIds.isEmpty
+        }
+        let timeChanged: Bool
+        if let originalTime = original.time, let parsed = parseTime(originalTime) {
+            timeChanged = !hasTime || parsed.hour != hour || parsed.minute != minute || parsed.isAM != isAM
+        } else {
+            timeChanged = hasTime
+        }
+        return title != original.title
+            || description != (original.description ?? "")
+            || location != original.location
+            || duration != original.duration
+            || requirements != (original.requirements ?? "")
+            || gift != (original.gift ?? "")
+            || timezone != original.timezone
+            || !Calendar.current.isDate(date, inSameDayAs: original.date)
+            || timeChanged
+    }
+
+    /// Fill the form from an existing favor (EditFavorView). Runs once, so a second `onAppear`
+    /// cannot wipe what has been edited since.
+    func populate(from favor: Favor) {
+        guard editingOriginal == nil else { return }
+        editingOriginal = favor
+        title = favor.title
+        description = favor.description ?? ""
+        location = favor.location
+        duration = favor.duration
+        requirements = favor.requirements ?? ""
+        date = favor.date
+        gift = favor.gift ?? ""
+        timezone = favor.timezone
+        if let timeString = favor.time, let parsedTime = parseTime(timeString) {
+            hasTime = true
+            hour = parsedTime.hour
+            minute = parsedTime.minute
+            isAM = parsedTime.isAM
+        } else {
+            hasTime = false
+        }
+    }
+
     /// Create the favor request
     /// - Returns: Created favor if successful
     /// - Throws: AppError if creation fails
@@ -120,36 +200,85 @@ final class CreateFavorViewModel: ObservableObject {
                     addedBy: userId
                 )
             }
-            
+
+            RequestsDashboardRefresh.afterUserAction("createFavor")
             return favor
         } catch {
             self.error = error.localizedDescription
             throw error
         }
     }
-    
+
+    /// Validation for the edit form: the same rules as `validateForm()`, except that the date
+    /// rule applies only when the date was changed. A confirmed favor whose day has passed
+    /// stays editable while it waits for "Mark as Complete", and must not be blocked by its
+    /// own date.
+    private func validateEditForm() -> String? {
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "favor_error_title_required".localized
+        }
+
+        if location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "favor_error_location_required".localized
+        }
+
+        let calendar = Calendar.current
+        let dateChanged = editingOriginal.map { !calendar.isDate($0.date, inSameDayAs: date) } ?? true
+        if dateChanged && calendar.startOfDay(for: date) < calendar.startOfDay(for: Date()) {
+            return "favor_error_date_in_past".localized
+        }
+
+        return nil
+    }
+
     /// Update an existing favor with the current form values (EditFavorView)
     /// - Parameter id: Favor ID
     /// - Returns: Updated favor
-    /// - Throws: Error if the update fails (also mirrored into `error`)
+    /// - Throws: Error if validation or the update fails (also mirrored into `error`)
     @discardableResult
     func updateFavor(id: UUID) async throws -> Favor {
+        if let validationError = validateEditForm() {
+            self.error = validationError
+            throw AppError.invalidInput(validationError)
+        }
+
+        // Optional values: something the poster emptied (text, or the time with "Specify
+        // Time" switched off) is sent as "" so the service clears it. It used to be sent as
+        // nil, which the service reads as "leave unchanged", and the old value stayed on the
+        // favor under a success checkmark. A value that was empty and still is goes as nil.
+        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedRequirements = requirements.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGift = gift.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hadDescription = !(editingOriginal?.description ?? "").isEmpty
+        let hadRequirements = !(editingOriginal?.requirements ?? "").isEmpty
+        let hadGift = !(editingOriginal?.gift ?? "").isEmpty
+        let hadTime = editingOriginal?.time != nil
+
         // Format time from hour/minute/isAM if time is specified
-        let formattedTime = hasTime ? formatTime(hour: hour, minute: minute, isAM: isAM) : nil
-        
+        let formattedTime: String? = hasTime
+            ? formatTime(hour: hour, minute: minute, isAM: isAM)
+            : (hadTime ? "" : nil)
+
+        // Save is disabled while this is true (EditFavorView), as Post is on the create form.
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+
         do {
-            return try await favorService.updateFavor(
+            let favor = try await favorService.updateFavor(
                 id: id,
-                title: title.isEmpty ? nil : title,
-                description: description.isEmpty ? nil : description,
-                location: location.isEmpty ? nil : location,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                description: trimmedDescription.isEmpty && !hadDescription ? nil : trimmedDescription,
+                location: location.trimmingCharacters(in: .whitespacesAndNewlines),
                 duration: duration,
-                requirements: requirements.isEmpty ? nil : requirements,
+                requirements: trimmedRequirements.isEmpty && !hadRequirements ? nil : trimmedRequirements,
                 date: date,
                 time: formattedTime,
-                gift: gift.isEmpty ? nil : gift,
+                gift: trimmedGift.isEmpty && !hadGift ? nil : trimmedGift,
                 timezone: timezone
             )
+            RequestsDashboardRefresh.afterUserAction("updateFavor")
+            return favor
         } catch {
             self.error = error.localizedDescription
             throw error

@@ -65,13 +65,44 @@ final class MessagesViewController: UIViewController {
     private(set) lazy var inputBar: MessageInputAccessoryView = {
         let bar = MessageInputAccessoryView(controller: inputBarController)
         bar.delegate = inputDelegate
+        bar.onGeometryChange = { [weak self] in
+            self?.updateComposerOverlapInset()
+        }
         return bar
     }()
 
     // MARK: UIViewController inputAccessoryView
 
     override var inputAccessoryView: UIView? { inputBar }
-    override var canBecomeFirstResponder: Bool { true }
+    override var canBecomeFirstResponder: Bool { !isComposerSuppressed }
+
+    /// True while a full-screen cover (reply thread, image viewer) sits on top of this
+    /// conversation. The composer is an inputAccessoryView: it lives in the keyboard window, so
+    /// while this controller stays first responder it remains docked on top of the cover (the
+    /// reply thread then showed two composers). Suppressing gives up first responder; clearing
+    /// it takes first responder back, which brings the composer back.
+    private(set) var isComposerSuppressed = false
+
+    func setComposerSuppressed(_ suppressed: Bool) {
+        guard suppressed != isComposerSuppressed else { return }
+        isComposerSuppressed = suppressed
+        if suppressed {
+            inputBar.endEditing(true)
+            resignFirstResponder()
+        } else if viewIfLoaded?.window != nil, !becomeFirstResponder() {
+            // A dismissal still in flight (the photo picker, the in-thread search field) can
+            // refuse the request, and nothing else asks again: the thread would be left
+            // without a composer. Try once more when the transition has had time to finish.
+            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.Animation.long) { [weak self] in
+                guard let self,
+                      !self.isComposerSuppressed,
+                      !self.isFirstResponder,
+                      !self.inputBar.isEditingText,
+                      self.viewIfLoaded?.window != nil else { return }
+                self.becomeFirstResponder()
+            }
+        }
+    }
 
     // MARK: Collection View
 
@@ -99,7 +130,17 @@ final class MessagesViewController: UIViewController {
     /// Whether we already performed the initial scroll-to-unread on first load.
     private var didScrollToFirstUnread = false
 
+    /// Members currently typing; drives the typing bubble item. Set through `setTypingUsers`.
+    private(set) var typingUsers: [TypingUser] = []
+    private var isTypingItemVisible: Bool {
+        !typingUsers.isEmpty && !configuration.isConversationFrozen
+    }
+
     private var lastAppliedFingerprint: UpdateFingerprint?
+    /// The newest message from the current user; only its cell shows the delivery status.
+    private var lastOutgoingMessageId: UUID?
+    /// The participant count the delivery status was last drawn with (see applyConfiguration).
+    private var lastAppliedTotalParticipants: Int?
     /// Central height cache: avoids repeated sizeThatFits in preferredLayoutAttributesFitting.
     /// Key: "messageId:width:contentHash". Invalidated on structural snapshot changes.
     private var heightCache: [String: CGFloat] = [:]
@@ -132,11 +173,87 @@ final class MessagesViewController: UIViewController {
         setupDataSource()
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
+        observeKeyboardTransitions()
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
+        updateComposerOverlapInset()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateComposerOverlapInset()
+    }
+
+    // MARK: Composer overlap
+
+    /// True between a keyboard will-change and did-change notification. While the keyboard
+    /// animates, the list frame and the bar frame are not updated together, so the overlap is
+    /// only allowed to shrink during a transition and is re-measured when it ends.
+    private var isKeyboardTransitioning = false
+
+    private func observeKeyboardTransitions() {
+        // Selector-based observers are unregistered automatically when the controller deallocates.
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(keyboardWillChangeFrame),
+                           name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        center.addObserver(self, selector: #selector(keyboardDidChangeFrame),
+                           name: UIResponder.keyboardDidChangeFrameNotification, object: nil)
+    }
+
+    @objc private func keyboardWillChangeFrame() {
+        isKeyboardTransitioning = true
+        // Safety net: never stay "transitioning" if the matching did-change is not delivered.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, self.isKeyboardTransitioning else { return }
+            self.isKeyboardTransitioning = false
+            self.updateComposerOverlapInset()
+        }
+    }
+
+    @objc private func keyboardDidChangeFrame() {
+        isKeyboardTransitioning = false
+        updateComposerOverlapInset()
+    }
+
+    /// Keep the newest message clear of the docked input bar.
+    ///
+    /// SwiftUI's keyboard avoidance normally ends this controller's view at the top of the bar
+    /// (the accessory view counts as keyboard height). On the first presentation after launch
+    /// it is not told about the accessory, the list keeps running underneath the composer, and
+    /// the newest message stayed hidden until the user touched the list (2026-10-05 trace:
+    /// list frame 113…818, bar top 764, zero insets). Measure the real overlap in screen
+    /// coordinates and reserve it as content inset; it is zero whenever SwiftUI has already
+    /// resized the view, so the two mechanisms never add up.
+    private func updateComposerOverlapInset() {
+        guard isViewLoaded, let window = view.window, inputBar.window != nil else { return }
+        let screenSpace = window.screen.coordinateSpace
+        let listFrame = view.convert(collectionView.frame, to: screenSpace)
+        let barFrame = inputBar.convert(inputBar.bounds, to: screenSpace)
+        // Right after attachment UIKit has not sized or positioned the bar yet (a zero-size
+        // frame at the centre of the screen); measuring then produced a one-frame 392 pt inset.
+        guard barFrame.width > 1, barFrame.height > 1 else { return }
+        let overlap = max(0, min(listFrame.maxY - barFrame.minY, listFrame.height))
+
+        // The list is flipped (scaleY: -1): its content-inset *top* is the visual bottom.
+        let current = collectionView.contentInset.top
+        guard abs(current - overlap) > 0.5 else { return }
+        if overlap > current && isKeyboardTransitioning { return }
+        // A modal on top (alert, bubble overlay, sheet) or a full-screen cover takes the bar
+        // away only for as long as it is up. Shrinking the inset then made the transcript drop
+        // by the bar's height and jump back on dismissal; keep it until the bar is back.
+        if overlap < current && (presentedViewController != nil || isComposerSuppressed) { return }
+
+        let wasAtNewest = collectionView.contentOffset.y <= -collectionView.adjustedContentInset.top + 1
+        collectionView.contentInset.top = overlap
+        collectionView.verticalScrollIndicatorInsets.top = overlap
+        if wasAtNewest {
+            let restOffsetY = -collectionView.adjustedContentInset.top
+            collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: restOffsetY), animated: false)
+        }
+        debugLogGeometry("composerOverlap=\(Int(overlap)) bar=(\(Int(barFrame.minX)),\(Int(barFrame.minY)),\(Int(barFrame.width)),\(Int(barFrame.height))) barSuperview=\(type(of: inputBar.superview as Any)) kbTransition=\(isKeyboardTransitioning)")
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -187,11 +304,14 @@ final class MessagesViewController: UIViewController {
                 replySpine: self.replyChainContext(for: message),
                 isHighlighted: self.configuration.scrollToMessageId == messageId,
                 shouldAnimate: false,
-                replyCount: self.configuration.replyCountMap[messageId] ?? 0
+                replyCount: self.configuration.replyCountMap[messageId] ?? 0,
+                isLastOutgoingMessage: messageId == self.lastOutgoingMessageId
             )
 
             // Wire height cache — avoids duplicate sizeThatFits in preferredLayoutAttributesFitting
+            let isLastOutgoing = messageId == self.lastOutgoingMessageId
             cell.heightCacheKey = self.heightCacheKey(messageId: messageId, width: self.collectionView.bounds.width, message: message)
+                + (isLastOutgoing ? ":lo" : "")
             cell.heightCacheLookup = { [weak self] key in self?.cachedHeight(for: key) }
             cell.heightCacheStore = { [weak self] h, key in self?.storeHeight(h, for: key) }
 
@@ -210,10 +330,17 @@ final class MessagesViewController: UIViewController {
             cell.dividerView.configure(count: count)
         }
 
+        let typingRegistration = UICollectionView.CellRegistration<FlippedTypingIndicatorCell, String> { [weak self] cell, _, _ in
+            guard let self else { return }
+            cell.configure(typingUsers: self.typingUsers, showsAvatar: self.configuration.isGroupConversation)
+        }
+
         dataSource = UICollectionViewDiffableDataSource<Int, String>(
             collectionView: collectionView
         ) { (collectionView, indexPath, itemId) -> UICollectionViewCell? in
-            if itemId.hasPrefix("date:") {
+            if itemId == FlippedTypingIndicatorCell.itemIdentifier {
+                return collectionView.dequeueConfiguredReusableCell(using: typingRegistration, for: indexPath, item: itemId)
+            } else if itemId.hasPrefix("date:") {
                 return collectionView.dequeueConfiguredReusableCell(using: dateSeparatorRegistration, for: indexPath, item: itemId)
             } else if itemId.hasPrefix("unread:") {
                 return collectionView.dequeueConfiguredReusableCell(using: unreadDividerRegistration, for: indexPath, item: itemId)
@@ -231,6 +358,13 @@ final class MessagesViewController: UIViewController {
         // Always update content lookups — cell provider reads from these
         messagesById = Dictionary(uniqueKeysWithValues: config.messages.map { ($0.id, $0) })
         cellConfigurations = config.cellConfigurations
+        let currentUserId = AuthService.shared.currentUserId
+        let previousLastOutgoingId = lastOutgoingMessageId
+        // The delivery status belongs under the newest message the user actually sent: an unsent
+        // tombstone or a system line recorded under their id does not carry it.
+        lastOutgoingMessageId = config.messages.last(where: {
+            $0.fromId == currentUserId && !$0.isUnsent && $0.messageType != .system
+        })?.id
 
         let currentFingerprint = UpdateFingerprint(
             messageIds: config.messages.map(\.id),
@@ -255,17 +389,19 @@ final class MessagesViewController: UIViewController {
             for (index, message) in reversed.enumerated() {
                 items.append(message.id.uuidString)
 
+                // Time header (iMessage): above the oldest loaded message, on a day change, and
+                // whenever more than an hour passed since the previous message. Keyed by the
+                // message it precedes so several headers can exist within one day.
+                let needsTimeHeader: Bool
                 if index < reversed.count - 1 {
-                    let nextMessage = reversed[index + 1]
-                    if !calendar.isDate(message.createdAt, inSameDayAs: nextMessage.createdAt) {
-                        let dayKey = calendar.startOfDay(for: message.createdAt).timeIntervalSinceReferenceDate
-                        let separatorId = "date:\(dayKey)"
-                        items.append(separatorId)
-                        dateSeparatorDates[separatorId] = message.createdAt
-                    }
+                    let olderMessage = reversed[index + 1]
+                    needsTimeHeader = !calendar.isDate(message.createdAt, inSameDayAs: olderMessage.createdAt)
+                        || message.createdAt.timeIntervalSince(olderMessage.createdAt) >= Constants.Timing.messageTimeHeaderGap
                 } else {
-                    let dayKey = calendar.startOfDay(for: message.createdAt).timeIntervalSinceReferenceDate
-                    let separatorId = "date:\(dayKey)"
+                    needsTimeHeader = true
+                }
+                if needsTimeHeader {
+                    let separatorId = "date:\(message.id.uuidString)"
                     items.append(separatorId)
                     dateSeparatorDates[separatorId] = message.createdAt
                 }
@@ -314,6 +450,12 @@ final class MessagesViewController: UIViewController {
             }
             self.unreadDividerItemId = unreadItemId
 
+            // The typing bubble is the newest item of the transcript (index 0 in this
+            // reversed list). Added last so the index arithmetic above is unaffected.
+            if isTypingItemVisible {
+                items.insert(FlippedTypingIndicatorCell.itemIdentifier, at: 0)
+            }
+
             snapshot.appendItems(items, toSection: 0)
 
             let isInitialLoad = lastSnapshotCount == 0 && !config.messages.isEmpty
@@ -327,16 +469,20 @@ final class MessagesViewController: UIViewController {
                 dataSource?.apply(snapshot, animatingDifferences: true)
             }
 
-            // On initial load with unread messages, scroll to the first unread
+            // On initial load with unread messages, scroll to the first unread — but only when
+            // there really are unread messages (the first-unread id is computed once from the
+            // local cache and can be stale after the server marked them read).
             if isInitialLoad && !didScrollToFirstUnread,
                let firstUnreadId = config.firstUnreadMessageId,
                config.showUnreadDivider {
                 didScrollToFirstUnread = true
-                let scrollTarget = firstUnreadId.uuidString
-                if let indexPath = dataSource?.indexPath(for: scrollTarget) {
+                if config.unreadCount > 0 {
+                    // The divider sits visually above the first unread message; target it so
+                    // "N New Messages" is on screen rather than just above the fold.
+                    let scrollTarget = unreadItemId ?? firstUnreadId.uuidString
                     // Slight delay to let the layout settle after initial snapshot apply
                     DispatchQueue.main.async { [weak self] in
-                        self?.collectionView.scrollToItem(at: indexPath, at: .bottom, animated: false)
+                        self?.scrollToFirstUnread(itemId: scrollTarget)
                     }
                 }
             }
@@ -369,6 +515,35 @@ final class MessagesViewController: UIViewController {
                 dataSource.apply(snap, animatingDifferences: false)
             }
         }
+        // The delivery status moves to the newest outgoing message (iMessage); reconfigure the
+        // cell that showed it before so "Delivered" does not linger under two bubbles.
+        // It can also move back to an older bubble (the newest one was unsent), so the cell that
+        // gains it is reconfigured as well.
+        if previousLastOutgoingId != lastOutgoingMessageId, let dataSource {
+            let affected = [previousLastOutgoingId, lastOutgoingMessageId]
+                .compactMap { $0?.uuidString }
+                .filter { dataSource.indexPath(for: $0) != nil }
+            if !affected.isEmpty {
+                var snap = dataSource.snapshot()
+                snap.reconfigureItems(affected)
+                dataSource.apply(snap, animatingDifferences: false)
+            }
+        }
+        // "Delivered" / "Read" is derived from the participant count, which loads after the first
+        // messages are drawn. The cell kept the status it was given while the count was still
+        // short, so a message the other person had read showed "Delivered" after the thread was
+        // reopened, until some other update happened to touch that cell.
+        if config.totalParticipants != lastAppliedTotalParticipants {
+            let isFirstValue = lastAppliedTotalParticipants == nil
+            lastAppliedTotalParticipants = config.totalParticipants
+            if !isFirstValue, let dataSource,
+               let itemId = lastOutgoingMessageId?.uuidString,
+               dataSource.indexPath(for: itemId) != nil {
+                var snap = dataSource.snapshot()
+                snap.reconfigureItems([itemId])
+                dataSource.apply(snap, animatingDifferences: false)
+            }
+        }
         previousMessages = messagesById
 
         // Handle scroll-to-message — once per target. A target not yet in the
@@ -385,7 +560,8 @@ final class MessagesViewController: UIViewController {
         }
 
         // Handle scroll-to-bottom
-        if config.scrollToBottom && !config.messages.isEmpty {
+        if config.scrollToBottom && !config.messages.isEmpty,
+           collectionView.numberOfSections > 0, collectionView.numberOfItems(inSection: 0) > 0 {
             collectionView.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: true)
         }
     }
@@ -400,6 +576,93 @@ final class MessagesViewController: UIViewController {
         let hasPrevious = index > 0 && messages[index - 1].replyToId == replyToId
         let hasNext = index < messages.count - 1 && messages[index + 1].replyToId == replyToId
         return (showTop: hasPrevious, showBottom: hasNext)
+    }
+
+    // MARK: - Typing bubble
+
+    /// Show, update or remove the typing bubble (the newest item of the transcript, as in
+    /// iMessage). Independent of the message configuration so typing ticks never rebuild
+    /// message cells.
+    func setTypingUsers(_ users: [TypingUser]) {
+        guard users != typingUsers else { return }
+        typingUsers = users
+        guard let dataSource else { return }
+        var snapshot = dataSource.snapshot()
+        // Nothing to attach to until the first message snapshot exists; the full rebuild in
+        // applyConfiguration() adds the item then.
+        guard snapshot.numberOfSections > 0 else { return }
+
+        let itemId = FlippedTypingIndicatorCell.itemIdentifier
+        let isShown = snapshot.itemIdentifiers.contains(itemId)
+
+        if isTypingItemVisible && !isShown {
+            let stickToNewest = isAtBottom
+            if let newest = snapshot.itemIdentifiers.first {
+                snapshot.insertItems([itemId], beforeItem: newest)
+            } else {
+                snapshot.appendItems([itemId], toSection: 0)
+            }
+            dataSource.apply(snapshot, animatingDifferences: true)
+            if stickToNewest {
+                // Keep the bubble in view when the user is reading the newest messages.
+                let restOffsetY = -collectionView.adjustedContentInset.top
+                collectionView.setContentOffset(
+                    CGPoint(x: collectionView.contentOffset.x, y: restOffsetY), animated: true
+                )
+            }
+        } else if !isTypingItemVisible && isShown {
+            snapshot.deleteItems([itemId])
+            dataSource.apply(snapshot, animatingDifferences: true)
+        } else if isShown {
+            snapshot.reconfigureItems([itemId])
+            dataSource.apply(snapshot, animatingDifferences: false)
+        }
+    }
+
+    // MARK: - Unread positioning
+
+    /// Position the list for a thread opened with unread messages (iMessage behaviour): when
+    /// everything from the newest message up to the unread divider fits on screen, stay at the
+    /// bottom; otherwise put the divider at the top of the visible area. The result is clamped
+    /// to the valid scroll range — an unclamped `scrollToItem` in this flipped list left the
+    /// newest message hidden behind the composer until the user touched the list.
+    private func scrollToFirstUnread(itemId: String) {
+        guard let dataSource, let indexPath = dataSource.indexPath(for: itemId) else { return }
+        collectionView.layoutIfNeeded()
+        let inset = collectionView.adjustedContentInset
+        let restOffsetY = -inset.top
+        let visibleHeight = collectionView.bounds.height - inset.top - inset.bottom
+        debugLogGeometry("firstUnread:before")
+
+        // Flipped list: content y grows toward older messages, so the target's maxY is the
+        // distance from the newest message to the top edge of the unread block.
+        if let attributes = collectionView.layoutAttributesForItem(at: indexPath),
+           attributes.frame.maxY <= visibleHeight {
+            setContentOffsetY(restOffsetY)
+            debugLogGeometry("firstUnread:fits")
+            return
+        }
+
+        collectionView.scrollToItem(at: indexPath, at: .bottom, animated: false)
+        collectionView.layoutIfNeeded()
+        let maxOffsetY = max(restOffsetY, collectionView.contentSize.height - collectionView.bounds.height + inset.bottom)
+        setContentOffsetY(min(max(collectionView.contentOffset.y, restOffsetY), maxOffsetY))
+        debugLogGeometry("firstUnread:scrolled")
+    }
+
+    private func setContentOffsetY(_ y: CGFloat) {
+        guard abs(collectionView.contentOffset.y - y) > 0.5 else { return }
+        collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: y), animated: false)
+    }
+
+    /// DEBUG-only geometry trace for scroll-position investigations.
+    private func debugLogGeometry(_ tag: String) {
+#if DEBUG
+        let cv = collectionView
+        let inset = cv.adjustedContentInset
+        let frameInWindow = cv.superview?.convert(cv.frame, to: nil) ?? cv.frame
+        AppLogger.info("messaging", "[MessagesVC:geom] \(tag) offsetY=\(Int(cv.contentOffset.y)) contentH=\(Int(cv.contentSize.height)) boundsH=\(Int(cv.bounds.height)) insetTop=\(Int(inset.top)) insetBottom=\(Int(inset.bottom)) safeTop=\(Int(cv.safeAreaInsets.top)) safeBottom=\(Int(cv.safeAreaInsets.bottom)) frameY=\(Int(frameInWindow.minY)) frameMaxY=\(Int(frameInWindow.maxY)) items=\(cv.numberOfSections > 0 ? cv.numberOfItems(inSection: 0) : 0))")
+#endif
     }
 
     // MARK: - Height Cache
@@ -477,6 +740,7 @@ extension MessagesViewController: UICollectionViewDelegate {
 extension MessagesViewController: UICollectionViewDataSourcePrefetching {
 
     func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        guard collectionView.numberOfSections > 0 else { return }
         let itemCount = collectionView.numberOfItems(inSection: 0)
         let maxIndex = indexPaths.map { $0.item }.max() ?? 0
         if itemCount > 0 && maxIndex >= itemCount - 2 {
@@ -490,30 +754,14 @@ extension MessagesViewController: UICollectionViewDataSourcePrefetching {
 extension MessagesViewController: MessageCellDelegate {
 
     func messageCellDidLongPress(_ cell: MessageCellView, message: Message) {
-        let cellFrame = cell.convert(cell.bounds, to: nil)
-        guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
-
-        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
-        let currentReaction = message.reactions?.currentUserReaction(
-            userId: AuthService.shared.currentUserId ?? UUID()
-        )
-
-        let overlay = MessageOverlayController(
-            snapshot: snapshot,
-            sourceFrame: cellFrame,
-            message: message,
-            isFromCurrentUser: isFromCurrentUser,
-            currentUserReaction: currentReaction,
-            isConversationFrozen: configuration.isConversationFrozen,
-            onAction: { [weak self] action in
-                self?.configuration.onOverlayAction?(action, message)
-            },
-            showDetails: !(message.individualReactions ?? []).isEmpty,
-            individualReactions: message.individualReactions ?? [],
-            reactionProfiles: Dictionary(uniqueKeysWithValues: configuration.participantProfiles.map { ($0.id, $0) }),
-            currentUserId: AuthService.shared.currentUserId ?? UUID()
-        )
-        present(overlay, animated: false)
+        afterDismissingKeyboard { [weak self, weak cell] in
+            guard let self, let cell, cell.window != nil else { return }
+            self.presentOverlay(
+                for: cell,
+                message: message,
+                showDetails: !(message.individualReactions ?? []).isEmpty
+            )
+        }
     }
 
     func messageCellDidTapReaction(_ cell: MessageCellView, message: Message, reaction: String?) {
@@ -521,14 +769,39 @@ extension MessagesViewController: MessageCellDelegate {
     }
 
     func messageCellDidTapReactionBadge(_ cell: MessageCellView, message: Message) {
+        afterDismissingKeyboard { [weak self, weak cell] in
+            guard let self, let cell, cell.window != nil else { return }
+            self.presentOverlay(for: cell, message: message, showDetails: true)
+        }
+    }
+
+    /// Puts the keyboard away before a bubble overlay, as iMessage does. While the composer's
+    /// text view is first responder the accessory bar stays above any modal presented
+    /// overFullScreen, and it covered the bottom of the overlay's action menu. Once the text
+    /// view has resigned, this controller takes first responder back so the bar returns when
+    /// the overlay goes away. `work` runs immediately when no text was focused.
+    private func afterDismissingKeyboard(_ work: @escaping () -> Void) {
+        guard inputBar.isEditingText else {
+            work()
+            return
+        }
+        inputBar.endEditing(true)
+        becomeFirstResponder()
+        // The keyboard needs one transition to leave and the flipped list moves with it. The
+        // cell is measured after that, or the overlay would lift a snapshot from where the
+        // bubble used to be.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Constants.Animation.medium) {
+            work()
+        }
+    }
+
+    private func presentOverlay(for cell: MessageCellView, message: Message, showDetails: Bool) {
         let cellFrame = cell.convert(cell.bounds, to: nil)
         guard let snapshot = cell.snapshotView(afterScreenUpdates: false) else { return }
 
-        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
-        let currentReaction = message.reactions?.currentUserReaction(
-            userId: AuthService.shared.currentUserId ?? UUID()
-        )
         let currentUserId = AuthService.shared.currentUserId ?? UUID()
+        let isFromCurrentUser = message.fromId == AuthService.shared.currentUserId
+        let currentReaction = message.reactions?.currentUserReaction(userId: currentUserId)
 
         let overlay = MessageOverlayController(
             snapshot: snapshot,
@@ -538,14 +811,34 @@ extension MessagesViewController: MessageCellDelegate {
             currentUserReaction: currentReaction,
             isConversationFrozen: configuration.isConversationFrozen,
             onAction: { [weak self] action in
-                self?.configuration.onOverlayAction?(action, message)
+                self?.routeOverlayAction(action, for: message)
             },
-            showDetails: true,
+            showDetails: showDetails,
             individualReactions: message.individualReactions ?? [],
             reactionProfiles: Dictionary(uniqueKeysWithValues: configuration.participantProfiles.map { ($0.id, $0) }),
             currentUserId: currentUserId
         )
         present(overlay, animated: false)
+    }
+
+    /// Hands an overlay action to the host. Delete for Me asks first: it sits next to Unsend in
+    /// the same red and took the message out of the transcript on one tap, with no way back
+    /// in the app (Unsend is confirmed by the host).
+    private func routeOverlayAction(_ action: OverlayAction, for message: Message) {
+        guard case .deleteForMe = action else {
+            configuration.onOverlayAction?(action, message)
+            return
+        }
+        let alert = UIAlertController(
+            title: "messaging_delete_for_me".localized,
+            message: MessageOverlayAvailability.deleteForMeConfirmationText(for: message),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "common_cancel".localized, style: .cancel))
+        alert.addAction(UIAlertAction(title: "common_delete".localized, style: .destructive) { [weak self] _ in
+            self?.configuration.onOverlayAction?(.deleteForMe, message)
+        })
+        present(alert, animated: true)
     }
 
     func messageCellDidSwipeToReply(_ cell: MessageCellView, message: Message) {

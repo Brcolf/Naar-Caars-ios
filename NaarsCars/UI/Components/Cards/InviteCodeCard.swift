@@ -20,7 +20,7 @@ struct InviteCodeCard: View {
                     .fontWeight(.semibold)
                 
                 Text("invite_created_ago".localized(with: code.createdAt.timeAgo))
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
             
@@ -29,22 +29,22 @@ struct InviteCodeCard: View {
             // Status Badge
             if code.isUsed {
                 Text("invite_status_used".localized)
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .fontWeight(.medium)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Color.gray.opacity(0.2))
                     .foregroundColor(.secondary)
-                    .cornerRadius(8)
+                    .cornerRadius(Constants.Radius.sm)
             } else {
                 Text("invite_status_available".localized)
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .fontWeight(.medium)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Color.green.opacity(0.2))
-                    .foregroundColor(.green)
-                    .cornerRadius(8)
+                    .foregroundColor(.naarsSuccess)
+                    .cornerRadius(Constants.Radius.sm)
             }
             
             // Actions Menu
@@ -65,8 +65,8 @@ struct InviteCodeCard: View {
         }
         .padding()
         .background(Color.naarsBackgroundSecondary)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        .cornerRadius(Constants.Radius.card)
+        .cardShadow()
     }
     
     private func formatCode(_ code: String) -> String {

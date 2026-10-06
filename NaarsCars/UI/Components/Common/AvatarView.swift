@@ -86,8 +86,11 @@ struct AvatarView: View {
                     )
             }
         }
+        // The width never changes, so a member with badges lines up with one without in a list
+        // (the wider frame used to push that row's name to the right). The badges sit on the
+        // lower arc, so only the height grows to make room for them.
         .frame(
-            width: resolvedBadges.isEmpty ? size : size + badgeContainerSize,
+            width: size,
             height: resolvedBadges.isEmpty ? size : size + badgeContainerSize
         )
         .accessibilityLabel("common_avatar_accessibility".localized(with: name))
@@ -109,7 +112,7 @@ struct AvatarView: View {
             .frame(width: badgeContainerSize, height: badgeContainerSize)
             .background(Color(uiColor: .systemBackground))
             .clipShape(Circle())
-            .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+            .floatingShadow()
     }
 
     /// Compute offset for a badge given a clock angle (degrees clockwise from 12 o'clock)

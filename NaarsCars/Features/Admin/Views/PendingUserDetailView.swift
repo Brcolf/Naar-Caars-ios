@@ -47,7 +47,7 @@ struct PendingUserDetailView: View {
                 .padding()
                 .frame(maxWidth: .infinity)
                 .background(Color.naarsCardBackground)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 
                 // Application Information Section
                 VStack(alignment: .leading, spacing: 16) {
@@ -64,8 +64,9 @@ struct PendingUserDetailView: View {
                             .font(.naarsBody)
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.naarsCardBackground)
-                            .cornerRadius(8)
+                            // Inset fill: the card's own color made the answer block invisible.
+                            .background(Color.naarsInsetBackground)
+                            .cornerRadius(Constants.Radius.sm)
                     }
 
                     // Why they want to join
@@ -78,8 +79,8 @@ struct PendingUserDetailView: View {
                             .font(.naarsBody)
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.naarsCardBackground)
-                            .cornerRadius(8)
+                            .background(Color.naarsInsetBackground)
+                            .cornerRadius(Constants.Radius.sm)
                     }
 
                     // Submitted at
@@ -108,39 +109,33 @@ struct PendingUserDetailView: View {
                 }
                 .padding()
                 .background(Color.naarsBackgroundSecondary)
-                .cornerRadius(12)
+                .cornerRadius(Constants.Radius.card)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
                         .stroke(Color(.separator), lineWidth: 1)
                 )
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    Button(action: {
-                        showingRejectConfirmation = true
-                    }) {
-                        Text("admin_reject".localized)
-                            .font(.naarsBody)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.naarsError)
-                            .cornerRadius(10)
+                    if viewModel.isRejecting {
+                        ProgressView()
+                            .accessibilityLabel("common_loading".localized)
                     }
-                    
-                    Button(action: {
-                        showingApproveConfirmation = true
-                    }) {
-                        Text("admin_approve".localized)
-                            .font(.naarsBody)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.naarsPrimary)
-                            .cornerRadius(10)
-                    }
+
+                    // Both stay disabled while either request runs, so neither can be sent twice.
+                    SecondaryButton(
+                        title: "admin_reject".localized,
+                        action: { showingRejectConfirmation = true },
+                        isDisabled: viewModel.isApproving || viewModel.isRejecting,
+                        isDestructive: true
+                    )
+
+                    PrimaryButton(
+                        title: "admin_approve".localized,
+                        action: { showingApproveConfirmation = true },
+                        isLoading: viewModel.isApproving,
+                        isDisabled: viewModel.isRejecting
+                    )
                 }
                 .padding(.horizontal)
             }
@@ -158,8 +153,7 @@ struct PendingUserDetailView: View {
             Button("admin_approve".localized, role: .none) {
                 showingApproveConfirmation = false
                 Task {
-                    await viewModel.approveUser(userId: user.id)
-                    if viewModel.error == nil {
+                    if await viewModel.approveUser(userId: user.id) {
                         showSuccess = true
                     }
                 }
@@ -174,8 +168,7 @@ struct PendingUserDetailView: View {
             Button("admin_reject".localized, role: .destructive) {
                 showingRejectConfirmation = false
                 Task {
-                    await viewModel.rejectUser(userId: user.id)
-                    if viewModel.error == nil {
+                    if await viewModel.rejectUser(userId: user.id) {
                         showSuccess = true
                     }
                 }
@@ -189,6 +182,7 @@ struct PendingUserDetailView: View {
                 dismiss()
             }
         }
+        .errorBanner(message: $viewModel.actionErrorMessage)
     }
 }
 
@@ -198,7 +192,11 @@ final class PendingUserDetailViewModel: ObservableObject {
     @Published var inviteInfo: (inviter: Profile?, statement: String?)?
     @Published var isLoading: Bool = false
     @Published var error: AppError?
-    
+    /// A failed approve or reject, shown in the error banner
+    @Published var actionErrorMessage: String?
+    @Published var isApproving: Bool = false
+    @Published var isRejecting: Bool = false
+
     private let inviteService = InviteService.shared
     private let adminService = AdminService.shared
     
@@ -219,21 +217,45 @@ final class PendingUserDetailViewModel: ObservableObject {
         }
     }
     
-    func approveUser(userId: UUID) async {
+    /// Approve the applicant. Returns false, with `actionErrorMessage` set, when it fails.
+    func approveUser(userId: UUID) async -> Bool {
+        guard !isApproving, !isRejecting else { return false }
         error = nil
+        actionErrorMessage = nil
+        isApproving = true
+        defer { isApproving = false }
         do {
             try await adminService.approveUser(userId: userId)
+            // Same as approving from the list: the pending-approvals badge must drop now,
+            // not at the next push or safety poll.
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "adminApproveUser")
+            return true
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+            actionErrorMessage = "admin_approve_failed".localized
+            HapticManager.error()
+            AppLogger.error("admin", "Error approving user: \(error.localizedDescription)")
+            return false
         }
     }
-    
-    func rejectUser(userId: UUID) async {
+
+    /// Reject the applicant. Returns false, with `actionErrorMessage` set, when it fails.
+    func rejectUser(userId: UUID) async -> Bool {
+        guard !isApproving, !isRejecting else { return false }
         error = nil
+        actionErrorMessage = nil
+        isRejecting = true
+        defer { isRejecting = false }
         do {
             try await adminService.rejectUser(userId: userId)
+            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "adminRejectUser")
+            return true
         } catch {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+            actionErrorMessage = "admin_reject_failed".localized
+            HapticManager.error()
+            AppLogger.error("admin", "Error rejecting user: \(error.localizedDescription)")
+            return false
         }
     }
 }

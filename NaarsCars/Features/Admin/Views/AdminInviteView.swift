@@ -68,9 +68,9 @@ struct AdminInviteView: View {
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.naarsBackgroundSecondary)
-                            .cornerRadius(12)
+                            .cornerRadius(Constants.Radius.card)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: Constants.Radius.card)
                                     .stroke(Color(.separator), lineWidth: 1)
                             )
                         }
@@ -105,9 +105,9 @@ struct AdminInviteView: View {
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color.naarsBackgroundSecondary)
-                            .cornerRadius(12)
+                            .cornerRadius(Constants.Radius.card)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: Constants.Radius.card)
                                     .stroke(Color(.separator), lineWidth: 1)
                             )
                         }
@@ -166,7 +166,7 @@ struct AdminInviteView: View {
                             }
                             .padding()
                             .background(Color.naarsCardBackground)
-                            .cornerRadius(12)
+                            .cornerRadius(Constants.Radius.card)
                         }
                         .padding(.horizontal)
                     }

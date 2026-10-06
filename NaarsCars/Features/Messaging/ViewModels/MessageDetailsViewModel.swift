@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 import OSLog
+import PostgREST
 internal import Combine
 
 /// Owns all mutations behind MessageDetailsPopup
@@ -25,6 +26,11 @@ final class MessageDetailsViewModel: ObservableObject {
     @Published var isConversationMuted = false
     @Published var showReadReceiptsForConversation = true
     @Published var activeParticipantCount: Int = 0
+    /// Members the current user has blocked (seeded from the local blocked-user cache, added to
+    /// when a block from this sheet succeeds), and the block request's progress / failure
+    @Published var blockedUserIds: Set<UUID> = []
+    @Published var isBlocking = false
+    @Published var blockError: String?
 
     // MARK: - Private Properties
 
@@ -32,6 +38,7 @@ final class MessageDetailsViewModel: ObservableObject {
     private let conversationService: any ConversationServiceProtocol
     private let profileService: any ProfileServiceProtocol
     private let authService: any AuthServiceProtocol
+    private let messageService: any MessageServiceProtocol
     private let participantService = ConversationParticipantService.shared
     private let muteService = ConversationMuteService.shared
 
@@ -40,13 +47,15 @@ final class MessageDetailsViewModel: ObservableObject {
         participants: [Profile],
         conversationService: any ConversationServiceProtocol = ConversationService.shared,
         profileService: any ProfileServiceProtocol = ProfileService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        messageService: any MessageServiceProtocol = MessageService.shared
     ) {
         self.conversationId = conversationId
         self.participants = participants
         self.conversationService = conversationService
         self.profileService = profileService
         self.authService = authService
+        self.messageService = messageService
     }
 
     // MARK: - Initial State
@@ -178,7 +187,49 @@ final class MessageDetailsViewModel: ObservableObject {
             await loadParticipants()
         } catch {
             AppLogger.error("messaging", "[MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
-            self.error = "\("messaging_failed_to_add_participants".localized): \(error.localizedDescription)"
+            // The participants INSERT policy admits the conversation's creator only (42501 for
+            // everyone else); say so instead of showing the raw row-level-security text.
+            if (error as? PostgrestError)?.code == "42501"
+                || error.localizedDescription.localizedCaseInsensitiveContains("row-level security") {
+                self.error = "messaging_add_participants_creator_only".localized
+            } else {
+                self.error = "\("messaging_failed_to_add_participants".localized): \(error.localizedDescription)"
+            }
+        }
+    }
+
+    // MARK: - Block
+
+    /// Seed `blockedUserIds` from the locally cached blocked-user set
+    func refreshBlockedStatus() {
+        blockedUserIds.formUnion(participants.map(\.id).filter { messageService.isBlocked($0) })
+    }
+
+    /// Record a block made outside this view model (the report sheet's own "Block this user")
+    func markBlocked(_ userId: UUID) {
+        blockedUserIds.insert(userId)
+    }
+
+    /// Block `userId` (the same `block_user` RPC the report sheet and the public profile use).
+    /// - Returns: true on success; on failure `blockError` is set (localized)
+    func blockUser(_ userId: UUID) async -> Bool {
+        guard let currentUserId = authService.currentUserId else {
+            blockError = "messaging_must_be_signed_in_to_block".localized
+            return false
+        }
+        isBlocking = true
+        defer { isBlocking = false }
+        do {
+            try await messageService.blockUser(
+                blockerId: currentUserId,
+                blockedId: userId,
+                reason: "Blocked from conversation details"
+            )
+            blockedUserIds.insert(userId)
+            return true
+        } catch {
+            blockError = "messaging_unable_to_block_user".localized
+            return false
         }
     }
 
@@ -202,6 +253,8 @@ final class MessageDetailsViewModel: ObservableObject {
             }
             
             self.participants = profiles
+            // A member added from this sheet may be someone the user blocked earlier.
+            refreshBlockedStatus()
             AppLogger.info("messaging", "[MessageDetailsPopup] Reloaded \(profiles.count) active participants")
 #if DEBUG
             AppLogger.database.debug("[Membership] [MessageDetailsPopup] loadParticipants returned: \(profiles.map { $0.id }.map(\.uuidString))")

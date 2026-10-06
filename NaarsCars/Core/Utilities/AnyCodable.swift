@@ -27,6 +27,10 @@ struct AnyCodable: Codable, @unchecked Sendable {
             value = double
         } else if let string = try? container.decode(String.self) {
             value = string
+        } else if let array = try? container.decode([AnyCodable].self) {
+            value = array.map { $0.value }
+        } else if let dictionary = try? container.decode([String: AnyCodable].self) {
+            value = dictionary.mapValues { $0.value }
         } else if container.decodeNil() {
             value = Optional<Any>.none as Any
         } else {
@@ -65,6 +69,12 @@ struct AnyCodable: Codable, @unchecked Sendable {
             try container.encode(float)
         case let string as String:
             try container.encode(string)
+        case let nested as AnyCodable:
+            try nested.encode(to: encoder)
+        case let array as [Any]:
+            try container.encode(array.map { AnyCodable($0) })
+        case let dictionary as [String: Any]:
+            try container.encode(dictionary.mapValues { AnyCodable($0) })
         default:
             // For other types, try to encode as string
             try container.encode(String(describing: value))

@@ -17,6 +17,7 @@ struct ReportMessageSheet: View {
     @State private var description = ""
     @State private var isSubmitting = false
     @State private var showBlockConfirmation = false
+    @State private var toastMessage: String?
     @StateObject private var viewModel = ReportMessageViewModel()
     
     private var reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] {[
@@ -71,9 +72,11 @@ struct ReportMessageSheet: View {
                                 if selectedReportType == reportType.type {
                                     Image(systemName: "checkmark")
                                         .foregroundColor(.naarsPrimary)
+                                        .accessibilityHidden(true)
                                 }
                             }
                         }
+                        .accessibilityAddTraits(selectedReportType == reportType.type ? .isSelected : [])
                     }
                 } header: {
                     Text("messaging_reason".localized)
@@ -91,15 +94,25 @@ struct ReportMessageSheet: View {
                 
                 // Block user option
                 Section {
-                    Button {
-                        showBlockConfirmation = true
-                    } label: {
+                    if viewModel.didBlock {
+                        // Confirms the block took effect; there is nothing left to tap.
                         HStack {
-                            Image(systemName: "person.crop.circle.badge.xmark")
-                                .foregroundColor(.red)
-                            Text("messaging_block_this_user".localized)
-                                .foregroundColor(.red)
+                            Image(systemName: "hand.raised.fill")
+                            Text("profile_user_blocked".localized)
                         }
+                        .foregroundColor(.secondary)
+                    } else {
+                        Button {
+                            showBlockConfirmation = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "person.crop.circle.badge.xmark")
+                                    .foregroundColor(.naarsError)
+                                Text("messaging_block_this_user".localized)
+                                    .foregroundColor(.naarsError)
+                            }
+                        }
+                        .disabled(viewModel.isBlocking)
                     }
                 } footer: {
                     Text("messaging_block_user_footer".localized)
@@ -124,14 +137,23 @@ struct ReportMessageSheet: View {
                     .disabled(isSubmitting)
                 }
             }
+            .toast(message: $toastMessage)
         }
         .alert("messaging_block_user".localized, isPresented: $showBlockConfirmation) {
             Button("messaging_block".localized, role: .destructive) {
-                Task { await viewModel.blockUser(message.fromId) }
+                Task {
+                    await viewModel.blockUser(message.fromId)
+                    if viewModel.didBlock {
+                        toastMessage = "profile_user_blocked".localized
+                    }
+                }
             }
             Button("messaging_cancel".localized, role: .cancel) {}
         } message: {
             Text("messaging_block_user_footer".localized)
+        }
+        .task {
+            viewModel.refreshBlockedStatus(userId: message.fromId)
         }
         .alert("messaging_block_failed".localized, isPresented: Binding(
             get: { viewModel.blockError != nil },

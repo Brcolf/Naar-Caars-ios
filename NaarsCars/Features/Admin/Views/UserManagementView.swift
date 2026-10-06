@@ -12,40 +12,48 @@ struct UserManagementView: View {
     @StateObject private var viewModel = UserManagementViewModel()
     @State private var toastMessage: String? = nil
     
+    // No NavigationStack here: the admin panel pushes this screen onto the Profile tab's
+    // stack. A stack of its own drew a second navigation bar and pushed member detail inside it.
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading && viewModel.members.isEmpty {
-                    ProgressView("admin_loading_members".localized)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.members.isEmpty {
-                    EmptyStateView(
-                        icon: "person.3.fill",
-                        title: "admin_no_members".localized,
-                        message: "admin_no_members_found".localized
-                    )
-                } else {
-                    List {
-                        ForEach(viewModel.members) { member in
-                            NavigationLink(destination: MemberDetailView(member: member, viewModel: viewModel)) {
-                                MemberRow(member: member)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
+        Group {
+            if viewModel.isLoading && viewModel.members.isEmpty {
+                ProgressView("admin_loading_members".localized)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = viewModel.error, viewModel.members.isEmpty {
+                // A failed load is not "there are no members".
+                ErrorView(
+                    error: error.localizedDescription,
+                    retryAction: {
+                        Task { await viewModel.loadAllMembers() }
                     }
-                    .listStyle(.plain)
+                )
+            } else if viewModel.members.isEmpty {
+                EmptyStateView(
+                    icon: "person.3.fill",
+                    title: "admin_no_members".localized,
+                    message: "admin_no_members_found".localized
+                )
+            } else {
+                List {
+                    ForEach(viewModel.members) { member in
+                        NavigationLink(destination: MemberDetailView(member: member, viewModel: viewModel)) {
+                            MemberRow(member: member)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
+                .listStyle(.plain)
             }
-            .navigationTitle("admin_all_members".localized)
-            .navigationBarTitleDisplayMode(.large)
-            .task {
-                await viewModel.loadAllMembers()
-            }
-            .refreshable {
-                await viewModel.loadAllMembers()
-            }
-            .toast(message: $toastMessage)
         }
+        .navigationTitle("admin_all_members".localized)
+        .navigationBarTitleDisplayMode(.large)
+        .task {
+            await viewModel.loadAllMembers()
+        }
+        .refreshable {
+            await viewModel.loadAllMembers()
+        }
+        .toast(message: $toastMessage)
     }
 }
 
@@ -68,25 +76,11 @@ private struct MemberRow: View {
                         .font(.naarsHeadline)
 
                     if member.isAdmin {
-                        Text("admin_badge".localized)
-                            .font(.naarsCaption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.naarsPrimary)
-                            .cornerRadius(8)
+                        NaarsChip(text: "admin_badge".localized)
                     }
 
                     if member.isBanned {
-                        Text("admin_user_restricted_badge".localized)
-                            .font(.naarsCaption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.naarsError)
-                            .cornerRadius(8)
+                        NaarsChip(text: "admin_user_restricted_badge".localized, tint: .naarsError)
                     }
                 }
 
@@ -104,6 +98,8 @@ private struct MemberRow: View {
 }
 
 #Preview {
-    UserManagementView()
+    NavigationStack {
+        UserManagementView()
+    }
 }
 

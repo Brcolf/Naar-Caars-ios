@@ -31,6 +31,7 @@ struct SpotlightCard: View {
                 Text(spotlight.name)
                     .font(.naarsHeadline)
                     .foregroundColor(.primary)
+                    .lineLimit(2)
             }
 
             Spacer()
@@ -42,7 +43,7 @@ struct SpotlightCard: View {
         }
         .padding(12)
         .background(Color.naarsCardBackground)
-        .cornerRadius(10)
+        .cornerRadius(Constants.Radius.card)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(spotlight.displayCategory): \(spotlight.name), \(spotlight.formattedValue)")
     }

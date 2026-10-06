@@ -9,7 +9,7 @@ import UIKit
 internal import Combine
 
 /// Pure UIKit audio bubble with waveform visualization and play/pause.
-final class AudioBubbleView: UIView {
+final class AudioBubbleView: MessageBubbleContentView {
 
     // MARK: - Subviews
 
@@ -89,8 +89,13 @@ final class AudioBubbleView: UIView {
             ? UIColor.white.withAlphaComponent(0.8)
             : UIColor.secondaryLabel
 
+        // No playable URL (the local recording could not be saved): show the bubble, but
+        // without a control that does nothing.
+        playButton.isEnabled = !audioUrl.isEmpty
+
         isAccessibilityElement = true
-        accessibilityTraits = .button
+        // .startsMediaSession keeps VoiceOver from talking over the note it has just started.
+        accessibilityTraits = audioUrl.isEmpty ? [.button, .notEnabled] : [.button, .startsMediaSession]
 
         subscribeToPlayer()
         updateUI(isPlaying: false, progress: 0)
@@ -118,11 +123,21 @@ final class AudioBubbleView: UIView {
         let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         playButton.setImage(UIImage(systemName: iconName, withConfiguration: config), for: .normal)
 
+        // Duration label. Set before the accessibility label is built from it: the label used
+        // to read an empty duration on a fresh cell and the previous note's on a reused one.
+        let dur = totalDuration > 0 ? totalDuration : 0
+        if progress > 0 && dur > 0 {
+            let elapsed = dur * progress
+            durationLabel.text = "\(Self.fmt(elapsed)) / \(Self.fmt(dur))"
+        } else {
+            durationLabel.text = Self.fmt(dur)
+        }
+
         let statusText = isPlaying
-            ? NSLocalizedString("accessibility_audio_playing", comment: "")
-            : NSLocalizedString("accessibility_audio_paused", comment: "")
+            ? "accessibility_audio_playing".localized
+            : "accessibility_audio_paused".localized
         accessibilityLabel = "\(statusText), \(durationLabel.text ?? "")"
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_toggle", comment: "")
+        accessibilityHint = audioUrl.isEmpty ? nil : "accessibility_tap_to_toggle".localized
 
         // Waveform fill
         let filledCount = Int(progress * Double(barCount))
@@ -133,15 +148,6 @@ final class AudioBubbleView: UIView {
             } else {
                 bar.fillColor = UIColor.naarsPrimary.withAlphaComponent(played ? 1.0 : 0.3).cgColor
             }
-        }
-
-        // Duration label
-        let dur = totalDuration > 0 ? totalDuration : 0
-        if progress > 0 && dur > 0 {
-            let elapsed = dur * progress
-            durationLabel.text = "\(Self.fmt(elapsed)) / \(Self.fmt(dur))"
-        } else {
-            durationLabel.text = Self.fmt(dur)
         }
     }
 
@@ -188,6 +194,9 @@ final class AudioBubbleView: UIView {
         cancellable?.cancel()
         cancellable = nil
         audioUrl = ""
+        totalDuration = 0
+        durationLabel.text = nil
+        accessibilityLabel = nil
         for bar in barLayers {
             bar.fillColor = UIColor.clear.cgColor
         }
@@ -196,7 +205,16 @@ final class AudioBubbleView: UIView {
     // MARK: - Actions
 
     @objc private func togglePlayback() {
+        guard !audioUrl.isEmpty else { return }
         MessageAudioPlayer.shared.togglePlayback(urlString: audioUrl)
+    }
+
+    /// VoiceOver activates an element at its centre, which is the waveform, not the 40-pt play
+    /// button: the double-tap fell through to the cell and never played the note.
+    override func accessibilityActivate() -> Bool {
+        guard !audioUrl.isEmpty else { return false }
+        togglePlayback()
+        return true
     }
 
     // MARK: - Helpers

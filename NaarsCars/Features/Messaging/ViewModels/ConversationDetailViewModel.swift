@@ -63,7 +63,8 @@ final class ConversationDetailViewModel {
     var replyCountMap: [UUID: Int] = [:]
     /// Set when the current user has left this conversation. The group messaging plan
     /// (Docs/plans/2026-03-07-group-messaging-enhancement-plan.md) specifies a frozen
-    /// UI state, but the view layer does not yet read this property. See plan Task 18.
+    /// UI state. ConversationDetailView reads it (with its own didLeaveFromDetails flag) to
+    /// suppress the composer and show FrozenConversationBanner.
     private(set) var hasLeftConversation: Bool = false
 
     /// Tracks whether the unread divider has been shown for this session.
@@ -84,6 +85,10 @@ final class ConversationDetailViewModel {
     @ObservationIgnored private let repository = MessagingRepository.shared
     @ObservationIgnored private let throttler = Throttler.shared
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+#if DEBUG
+    /// Test hook: number of Combine subscriptions installed by `start()`.
+    var debugObservationSinkCount: Int { cancellables.count }
+#endif
     @ObservationIgnored private var conversationUpdatedObserver: NSObjectProtocol?
     /// In-flight guards: prevent overlapping reaction/reply fetches that cause request storms.
     /// Boolean flags are set synchronously BEFORE creating Tasks to close TOCTOU race.
@@ -98,6 +103,7 @@ final class ConversationDetailViewModel {
     /// One-shot: allows exactly one publisher-triggered reaction fetch (for hydrated messages),
     /// then disarms permanently. Prevents the publisher→fetch→timeout storm that causes OOM.
     @ObservationIgnored private var allowPublisherReactionFetch = true
+    @ObservationIgnored private var hasStartedObservation = false
     
     init(
         conversationId: UUID,
@@ -111,6 +117,25 @@ final class ConversationDetailViewModel {
         self.typingManager = TypingIndicatorManager(conversationId: conversationId)
         self.paginationManager = MessagePaginationManager()
         self.sendManager = MessageSendManager()
+    }
+
+    /// Register the repository publishers and NotificationCenter observers. Idempotent, and
+    /// safe to call again after `stop()` (which clears `cancellables` and the observer).
+    ///
+    /// Deliberately NOT called from `init`: `ConversationDetailView` builds this ViewModel in
+    /// its own `init`, which SwiftUI runs on every parent body pass. Subscribing here delivered
+    /// the repository's current value synchronously, wrote `messages` during the parent's body
+    /// evaluation, and Observation re-invalidated the parent — a continuous render loop whose
+    /// throwaway ViewModels each fired the one-shot reaction fetch (≈2,000 requests/min) and
+    /// whose deinit-time cancellations crashed in `MessagingRepository.releaseMessageSubjects`.
+    /// The View calls this from `.task`, outside body evaluation.
+    func start() {
+        // Guarded by an explicit flag, not by `conversationUpdatedObserver`: the View's
+        // `.onAppear` (`conversationDidAppear()`) installs that observer synchronously before
+        // the async `.task` body runs, which previously short-circuited this method and left
+        // the repository, metadata and reaction publishers unsubscribed for the open thread.
+        guard !hasStartedObservation else { return }
+        hasStartedObservation = true
         setupLocalObservation()
         setupMetadataObservation()
         setupConversationUpdatedObserver()
@@ -273,6 +298,7 @@ final class ConversationDetailViewModel {
         isLoadingReactions = false
         isLoadingReplyCounts = false
         cancellables.removeAll()
+        hasStartedObservation = false
         typingManager.stopTypingObservation()
         searchManager.stop()
         // Start grace period for conversation WebSocket (5s before teardown)
@@ -324,6 +350,16 @@ final class ConversationDetailViewModel {
                     let previousMessageCount = self.messages.count
                     self.messages = pending
                     self.scheduleReplyContextHydration()
+                    // loadMessages() marks read against the local cache only (often just the
+                    // conversation list's last message). Messages that REST hydration adds
+                    // afterwards land here, so mark them read now.
+                    if pending.count > previousMessageCount,
+                       let userId = self.authService.currentUserId,
+                       pending.contains(where: { $0.fromId != userId && !$0.readBy.contains(userId) }) {
+                        Task { [weak self] in
+                            await self?.markConversationReadImmediately(userId: userId)
+                        }
+                    }
                     // One-shot reaction fetch for hydrated messages. Fires at most once per
                     // conversation open to cover messages added by REST hydration after the
                     // initial loadMessages() fetch. Disarms permanently to prevent the
@@ -427,6 +463,9 @@ final class ConversationDetailViewModel {
         lastReplyCountFetchFailure = .distantPast
         await checkLeftStatus()
         error = nil
+        // A quick back-out cancels the View's `.task` while this is suspended; do not
+        // re-subscribe the conversation's WebSocket channels after stop() began the grace period.
+        guard !Task.isCancelled else { return }
         await paginationManager.loadMessages(
             conversationId: conversationId,
             repository: repository,
@@ -444,6 +483,7 @@ final class ConversationDetailViewModel {
         }
         // Subscribe to conversation-scoped WebSocket (messages + reactions)
         // This also triggers subscribe-then-fetch hydration
+        guard !Task.isCancelled else { return }
         MessagingSyncEngine.shared.subscribeToConversation(conversationId)
 
         // Fetch reactions and reply counts once per conversation open.
@@ -582,6 +622,7 @@ final class ConversationDetailViewModel {
     }
     
     private func setupConversationUpdatedObserver() {
+        guard conversationUpdatedObserver == nil else { return }
         conversationUpdatedObserver = NotificationCenter.default.addObserver(
             forName: .conversationUpdated,
             object: nil,
@@ -703,7 +744,26 @@ final class ConversationDetailViewModel {
         editingMessage = nil
         messageText = ""
     }
-    
+
+    /// Submit an edit for a given message without going through `editingMessage`.
+    /// The reply thread edits in its own composer; setting `editingMessage` from there put the
+    /// main composer (under the thread) into edit mode and wiped a draft typed in it.
+    func editMessage(_ message: Message, newContent: String) async {
+        guard !hasLeftConversation else {
+            AppLogger.warning("messaging", "Blocked \(#function): user has left conversation \(conversationId)")
+            error = .conversationFrozen
+            return
+        }
+        await sendManager.editMessage(
+            newContent: newContent,
+            editingMessage: message,
+            getMessages: { [weak self] in self?.messages ?? [] },
+            setMessages: { [weak self] updated in self?.messages = updated }
+        ) { [weak self] appError in
+            self?.error = appError
+        }
+    }
+
     /// Unsend a message (soft delete — clears content and sets deleted_at)
     func unsendMessage(id: UUID) async {
         guard !hasLeftConversation else {
@@ -724,6 +784,14 @@ final class ConversationDetailViewModel {
 
     /// Hide a message locally ("Delete for Me") — does NOT delete from server.
     func deleteMessageForMe(_ message: Message) async {
+        // A failed send exists only on this device: discard the row and its attachment file
+        // instead of hiding it behind a deleted-for-me record that would keep both forever.
+        // Checked against the live row, not the copy the menu was opened with, so a message
+        // that has gone back to sending (retry) is never taken out of the send queue.
+        if messages.first(where: { $0.id == message.id })?.sendStatus == .failed {
+            dismissFailedMessage(id: message.id)
+            return
+        }
         repository.deleteMessageForMe(messageId: message.id, conversationId: conversationId)
         messages.removeAll { $0.id == message.id }
     }

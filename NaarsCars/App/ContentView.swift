@@ -24,6 +24,14 @@ struct ContentView: View {
         return false
     }
 
+    /// Same gate the lock uses (AppLockManager.handleScenePhase): signed in, lock turned on.
+    private var showsPrivacyCover: Bool {
+        scenePhase != .active
+            && isAuthenticated
+            && BiometricPreferences.shared.isBiometricsEnabled
+            && BiometricPreferences.shared.requireBiometricsOnLaunch
+    }
+
     var body: some View {
         ZStack {
             Group {
@@ -78,6 +86,23 @@ struct ContentView: View {
                 AppLockView(lockManager: lockManager)
                     .transition(.opacity)
                     .zIndex(1000)
+            }
+
+            // With app lock on, cover the content the moment the scene stops being active. The
+            // lock itself only engages on the next foreground after its timeout, so the app
+            // switcher snapshot (and the first frame on return) used to show the last screen.
+            if showsPrivacyCover {
+                Color.naarsBackground
+                    .ignoresSafeArea()
+                    .overlay {
+                        Image("NaarsLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 96, height: 96)
+                            .accessibilityHidden(true)
+                    }
+                    .transition(.identity)
+                    .zIndex(1001)
             }
         }
         // Note: Removed .id() modifier that was causing view recreation loops

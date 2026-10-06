@@ -24,19 +24,21 @@ struct UnclaimSheet: View {
                     .font(.system(size: 60))
                     .foregroundColor(.naarsWarning)
                 
-                Text("claiming_unclaim_title".localized(with: requestType.capitalized))
+                // A whole sentence per type (see ClaimSheet).
+                Text((requestType == "ride" ? "claiming_unclaim_title_ride" : "claiming_unclaim_title_favor").localized)
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
-                
+                    .multilineTextAlignment(.center)
+
                 Text("claiming_unclaim_subtitle".localized)
                     .foregroundColor(.secondary)
-                
+
                 Text(requestTitle)
                     .font(.naarsHeadline)
                     .multilineTextAlignment(.center)
                     .padding()
-                    .background(Color.naarsCardBackground)
-                    .cornerRadius(8)
+                    .background(Color.naarsInsetBackground)
+                    .cornerRadius(Constants.Radius.sm)
                 
                 Text("claiming_unclaim_message".localized)
                     .font(.naarsCaption)
@@ -77,7 +79,8 @@ struct UnclaimSheet: View {
             .padding()
             .navigationTitle("claiming_unclaim_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
-            .toast(message: $errorMessage, style: .warning)
+            // Stays until dismissed (see ClaimSheet).
+            .errorBanner(message: $errorMessage)
         }
         .successCheckmark(isShowing: $showSuccess)
         .onChange(of: showSuccess) { _, newValue in

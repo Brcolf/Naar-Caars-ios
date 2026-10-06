@@ -42,25 +42,11 @@ struct MemberDetailView: View {
                                 .fontWeight(.semibold)
 
                             if member.isAdmin {
-                                Text("admin_badge".localized)
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.naarsPrimary)
-                                    .cornerRadius(6)
+                                NaarsChip(text: "admin_badge".localized)
                             }
 
                             if member.isBanned {
-                                Text("admin_user_restricted_badge".localized)
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.naarsError)
-                                    .cornerRadius(6)
+                                NaarsChip(text: "admin_user_restricted_badge".localized, tint: .naarsError)
                             }
                         }
 
@@ -99,7 +85,7 @@ struct MemberDetailView: View {
                         }) {
                             HStack {
                                 Image(systemName: "checkmark.shield")
-                                    .foregroundColor(.green)
+                                    .foregroundColor(.naarsSuccess)
                                 Text("admin_remove_restriction".localized)
                                     .foregroundColor(.primary)
                                 Spacer()
@@ -120,6 +106,8 @@ struct MemberDetailView: View {
                         }
                     }
                 }
+                // One request at a time; the toolbar shows a spinner while it runs.
+                .disabled(viewModel.isPerformingAction)
             }
 
             // View public profile link
@@ -145,8 +133,7 @@ struct MemberDetailView: View {
                 role: member.isAdmin ? .destructive : .none
             ) {
                 Task {
-                    await viewModel.toggleAdminStatus(userId: member.id, isAdmin: !member.isAdmin)
-                    if viewModel.error == nil {
+                    if await viewModel.toggleAdminStatus(userId: member.id, isAdmin: !member.isAdmin) {
                         toastMessage = "toast_admin_status_updated".localized
                     }
                 }
@@ -159,9 +146,8 @@ struct MemberDetailView: View {
             Button("common_cancel".localized, role: .cancel) {}
             Button("admin_remove_restriction".localized) {
                 Task {
-                    await viewModel.unbanUser(userId: member.id)
-                    if viewModel.error == nil {
-                        toastMessage = "admin_remove_restriction".localized
+                    if await viewModel.unbanUser(userId: member.id) {
+                        toastMessage = "admin_restriction_removed_toast".localized
                     }
                 }
             }
@@ -199,9 +185,8 @@ struct MemberDetailView: View {
                         Button("admin_restrict_confirm".localized) {
                             showBanSheet = false
                             Task {
-                                await viewModel.banUser(userId: member.id, reason: banReason)
-                                if viewModel.error == nil {
-                                    toastMessage = "admin_restrict_user".localized
+                                if await viewModel.banUser(userId: member.id, reason: banReason) {
+                                    toastMessage = "admin_user_restricted_toast".localized
                                 }
                             }
                         }
@@ -211,6 +196,17 @@ struct MemberDetailView: View {
             }
             .presentationDetents([.medium])
         }
+        .toolbar {
+            if viewModel.isPerformingAction {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ProgressView()
+                }
+            }
+        }
         .toast(message: $toastMessage)
+        .errorBanner(message: $viewModel.actionErrorMessage)
+        // Every member's detail screen shares this view model and the banner stays until
+        // dismissed, so clear it on leaving or it shows up on the next member opened.
+        .onDisappear { viewModel.actionErrorMessage = nil }
     }
 }

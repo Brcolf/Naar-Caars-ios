@@ -13,21 +13,21 @@ struct TownHallFeedView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(AppState.self) private var appState
     @State private var showCreatePost = false
-    @State private var showGuestPrompt = false
-    @State private var guestRestrictionReason: GuestRestrictionReason = .createPost
+    @State private var guestPromptReason: GuestRestrictionReason?
     @State private var highlightedPostId: UUID?
     @State private var highlightTask: Task<Void, Never>?
     @State private var openCommentsTarget: PostCommentsTarget?
+    /// A comment was added or deleted in the sheet opened from a notification or deep link.
+    @State private var openedCommentsChanged = false
     @State private var toastMessage: String? = nil
-    
+
     var body: some View {
         mainContent
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         if appState.isGuest {
-                            guestRestrictionReason = .createPost
-                            showGuestPrompt = true
+                            guestPromptReason = .createPost
                         } else {
                             showCreatePost = true
                         }
@@ -35,14 +35,19 @@ struct TownHallFeedView: View {
                         Image(systemName: "plus")
                             .font(.naarsTitle3)
                     }
+                    .accessibilityLabel("townhall_new_post".localized)
                 }
             }
             .sheet(isPresented: $showCreatePost) {
-                CreatePostView()
+                // CreatePostView writes straight to the network; pull the new post into the feed
+                // only when one was actually created (a cancelled sheet triggers nothing).
+                CreatePostView(onPosted: {
+                    Task { await viewModel.refreshAfterPostCreated() }
+                })
             }
-            .sheet(isPresented: $showGuestPrompt) {
+            .sheet(item: $guestPromptReason) { reason in
                 GuestSignInPromptView(
-                    reason: guestRestrictionReason,
+                    reason: reason,
                     onSignUp: {
                         appState.isGuestMode = false
                         AppLaunchManager.shared.exitGuestMode()
@@ -57,9 +62,17 @@ struct TownHallFeedView: View {
                 await viewModel.loadPosts()
             }
             .toast(message: $toastMessage)
+            // A failed vote, delete, next page or refresh keeps the loaded posts on screen.
+            .errorBanner(message: $viewModel.bannerMessage)
             .trackScreen("TownHallFeed")
-            .sheet(item: $openCommentsTarget) { target in
-                PostCommentsView(postId: target.id)
+            .sheet(item: $openCommentsTarget, onDismiss: {
+                // Same as the sheet a post card opens: refresh the card's comment count.
+                if openedCommentsChanged {
+                    openedCommentsChanged = false
+                    Task { await viewModel.refreshAfterCommentsChanged() }
+                }
+            }) { target in
+                PostCommentsView(postId: target.id, onChanged: { openedCommentsChanged = true })
                     .id("community.townHall.postCommentsSheet(\(target.id))")
             }
     }
@@ -74,7 +87,9 @@ struct TownHallFeedView: View {
     private var postsFeedContent: some View {
         if viewModel.isLoading && viewModel.posts.isEmpty {
             skeletonLoadingView
-        } else if let error = viewModel.error {
+        } else if let error = viewModel.error, viewModel.posts.isEmpty {
+            // Full-screen error only when there is nothing to show; with posts loaded a failure
+            // is reported by the banner instead.
             errorView(error)
         } else if viewModel.posts.isEmpty {
             emptyStateView
@@ -114,8 +129,7 @@ struct TownHallFeedView: View {
             actionTitle: "townhall_create_post".localized,
             action: {
                 if appState.isGuest {
-                    guestRestrictionReason = .createPost
-                    showGuestPrompt = true
+                    guestPromptReason = .createPost
                 } else {
                     showCreatePost = true
                 }
@@ -153,11 +167,18 @@ struct TownHallFeedView: View {
                 await viewModel.refreshPosts()
             }
             .background(Color.naarsBackground)
-            .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
+            // initial: true also consumes a target that was set before this list existed (cold-start
+            // push tap, first visit to the tab, Leaderboard segment showing, feed still loading);
+            // onChange alone never fires for a value that is already there.
+            .onChange(of: navigationCoordinator.pendingIntent, initial: true) { _, intent in
                 guard case .townHallPost(let postId, let mode) = intent else { return }
                 let anchorId = "community.townHall.postCard(\(postId))"
-                withAnimation(.easeInOut) {
-                    proxy.scrollTo(anchorId, anchor: .top)
+                // One main-actor turn later: on the initial pass the list has not been laid out
+                // yet and a scroll requested now can be dropped.
+                Task { @MainActor in
+                    withAnimation(.easeInOut) {
+                        proxy.scrollTo(anchorId, anchor: .top)
+                    }
                 }
 
                 switch mode {
@@ -190,11 +211,17 @@ struct TownHallFeedView: View {
             },
             onVote: { postId, voteType in
                 if appState.isGuest {
-                    guestRestrictionReason = .voteOnPost
-                    showGuestPrompt = true
+                    guestPromptReason = .voteOnPost
                 } else {
                     Task { await viewModel.votePost(postId: postId, voteType: voteType) }
                 }
+            },
+            onCommentsChanged: { _ in
+                Task { await viewModel.refreshAfterCommentsChanged() }
+            },
+            onAuthorBlocked: { authorId in
+                toastMessage = "profile_user_blocked".localized
+                Task { await viewModel.handleAuthorBlocked(authorId) }
             },
             isHighlighted: highlightedPostId == post.id
         )

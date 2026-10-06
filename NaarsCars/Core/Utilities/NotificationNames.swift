@@ -16,7 +16,6 @@ extension Notification.Name {
     static let messageReactionChanged = Notification.Name("messageReactionChanged")
 
     // MARK: - Prompts
-    static let showCompletionPrompt = Notification.Name("showCompletionPrompt")
     static let dismissNotificationsSurface = Notification.Name("dismissNotificationsSurface")
     static let conversationUnreadCountsUpdated = Notification.Name("conversationUnreadCountsUpdated")
 

@@ -9,7 +9,7 @@ import UIKit
 import MapKit
 
 /// Pure UIKit location bubble with MapSnapshotCache and generation counter.
-final class LocationBubbleView: UIView {
+final class LocationBubbleView: MessageBubbleContentView {
 
     // MARK: - Subviews
 
@@ -25,6 +25,8 @@ final class LocationBubbleView: UIView {
     private var loadGeneration: UInt64 = 0
     private var latitude: Double = 0
     private var longitude: Double = 0
+    /// True between configure() and prepareForReuse(), i.e. while the coordinate is real.
+    private var isConfigured = false
 
     // MARK: - Constants
 
@@ -89,28 +91,35 @@ final class LocationBubbleView: UIView {
     func configure(latitude: Double, longitude: Double, name: String?) {
         self.latitude = latitude
         self.longitude = longitude
-        nameLabel.text = name ?? NSLocalizedString("messaging_shared_location", comment: "")
+        nameLabel.text = name ?? "messaging_shared_location".localized
+        isConfigured = true
 
         isAccessibilityElement = true
         accessibilityLabel = nameLabel.text
         accessibilityTraits = .button
-        accessibilityHint = NSLocalizedString("accessibility_tap_to_open_maps", comment: "")
+        accessibilityHint = "accessibility_tap_to_open_maps".localized
 
         mapImageView.image = nil
         spinner.startAnimating()
+        loadSnapshot()
 
+        setNeedsLayout()
+    }
+
+    /// Loads the map image for the current coordinate in the current appearance. The cache is
+    /// keyed by interface style, so a map rendered in light mode is not reused in dark mode.
+    private func loadSnapshot() {
         loadGeneration &+= 1
         let gen = loadGeneration
         let coord = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let style = traitCollection.userInterfaceStyle
 
         Task { [weak self] in
-            let img = await MapSnapshotCache.shared.snapshot(for: coord)
+            let img = await MapSnapshotCache.shared.snapshot(for: coord, style: style)
             guard let self, self.loadGeneration == gen else { return }
             self.mapImageView.image = img
             self.spinner.stopAnimating()
         }
-
-        setNeedsLayout()
     }
 
     // MARK: - Layout
@@ -144,12 +153,22 @@ final class LocationBubbleView: UIView {
         mapImageView.image = nil
         spinner.stopAnimating()
         nameLabel.text = nil
+        isConfigured = false
     }
 
     // MARK: - Actions
 
     @objc private func openInMaps() {
-        guard let url = URL(string: "https://maps.apple.com/?ll=\(latitude),\(longitude)") else { return }
+        // `ll` alone only centres the map. With `q` Maps drops a pin labelled with the shared
+        // place, so directions to the pickup point are one tap away.
+        var components = URLComponents(string: "https://maps.apple.com/")
+        let name = nameLabel.text ?? ""
+        let label = name.isEmpty ? "messaging_shared_location".localized : name
+        components?.queryItems = [
+            URLQueryItem(name: "ll", value: "\(latitude),\(longitude)"),
+            URLQueryItem(name: "q", value: label)
+        ]
+        guard let url = components?.url else { return }
         if UIApplication.shared.canOpenURL(url) {
             Task { @MainActor in
                 await UIApplication.shared.open(url)
@@ -163,6 +182,11 @@ final class LocationBubbleView: UIView {
         super.traitCollectionDidChange(previousTraitCollection)
         if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
             layer.borderColor = UIColor.systemGray4.cgColor
+        }
+        // Light / dark switch while the bubble is on screen: fetch the map for the new style.
+        if isConfigured, let previous = previousTraitCollection,
+           previous.userInterfaceStyle != traitCollection.userInterfaceStyle {
+            loadSnapshot()
         }
     }
 }

@@ -23,7 +23,9 @@ struct PhoneRequiredSheet: View {
                     .font(.naarsTitle2)
                     .fontWeight(.semibold)
                 
-                Text("claiming_phone_required_message".localized)
+                // States the requirement only. The older sentence ended "so the poster can
+                // coordinate with you", which the notice below contradicts: no member sees the number.
+                Text("claiming_phone_required_message_plain".localized)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)
@@ -32,13 +34,15 @@ struct PhoneRequiredSheet: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundColor(.secondary)
-                    Text("claiming_phone_required_privacy".localized)
+                    // The same sentence Edit Profile shows. The previous one said the number
+                    // would be visible to other members, which no screen in the app does.
+                    Text("profile_phone_privacy_notice".localized)
                 }
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
                 .padding()
                 .background(Color.naarsCardBackground)
-                .cornerRadius(8)
+                .cornerRadius(Constants.Radius.sm)
                 .padding(.horizontal)
                 
                 VStack(spacing: 12) {

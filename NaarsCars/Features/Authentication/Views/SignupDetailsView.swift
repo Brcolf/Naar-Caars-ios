@@ -19,38 +19,56 @@ struct SignupDetailsView: View {
     @FocusState private var focusedField: SignupField?
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            VStack(spacing: 8) {
-                Text("signup_create_account_title".localized)
-                    .font(.naarsTitle2)
-                    .fontWeight(.semibold)
-                
-                Text("signup_details_subtitle".localized)
-                    .font(.naarsSubheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.top, 20)
-            
-            // Form fields
-            ScrollView {
+        // One scroll view for the whole form. When only the fields scrolled, the header, terms
+        // and button kept their height and the keyboard squeezed the fields to a sliver.
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("signup_create_account_title".localized)
+                        .font(.naarsTitle2)
+                        .fontWeight(.semibold)
+                        .multilineTextAlignment(.center)
+
+                    Text("signup_details_subtitle".localized)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    // Said before the account exists: new accounts wait for approval
+                    Text("welcome_footer".localized)
+                        .font(.naarsFootnote)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 4)
+                }
+                .padding(.top, 20)
+                .padding(.horizontal)
+
+                // Form fields. Each has a visible label: a placeholder disappears on the first
+                // keystroke and was the only thing naming the field, on screen and in VoiceOver.
                 VStack(spacing: 20) {
                     // Name field
                     NaarsTextField(
+                        label: "signup_full_name_label".localized,
                         placeholder: "signup_name_placeholder".localized,
                         text: $viewModel.name,
+                        textContentType: .name,
                         autocapitalization: .words,
                         errorMessage: viewModel.nameError,
                         isFocused: focusedField == .name,
                         accessibilityId: "signup.name"
                     )
                     .focused($focusedField, equals: .name)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .email }
                     .onChange(of: viewModel.name) { _, _ in
                         if viewModel.nameError != nil { viewModel.nameError = nil }
                     }
 
                     // Email field
                     NaarsTextField(
+                        label: "signup_email_label".localized,
                         placeholder: "signup_email_placeholder".localized,
                         text: $viewModel.email,
                         keyboardType: .emailAddress,
@@ -60,6 +78,8 @@ struct SignupDetailsView: View {
                         accessibilityId: "signup.email"
                     )
                     .focused($focusedField, equals: .email)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .password }
                     .onChange(of: viewModel.email) { _, _ in
                         if viewModel.emailError != nil { viewModel.emailError = nil }
                     }
@@ -67,6 +87,7 @@ struct SignupDetailsView: View {
                     // Password field
                     VStack(alignment: .leading, spacing: 4) {
                         NaarsTextField(
+                            label: "signup_password_label".localized,
                             placeholder: "signup_password_placeholder".localized,
                             text: $viewModel.password,
                             isSecure: true,
@@ -76,6 +97,8 @@ struct SignupDetailsView: View {
                             accessibilityId: "signup.password"
                         )
                         .focused($focusedField, equals: .password)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .confirmPassword }
                         .onChange(of: viewModel.password) { _, _ in
                             if viewModel.passwordError != nil { viewModel.passwordError = nil }
                             if viewModel.confirmPasswordError != nil { viewModel.confirmPasswordError = nil }
@@ -91,6 +114,7 @@ struct SignupDetailsView: View {
 
                     // Confirm password field
                     NaarsTextField(
+                        label: "signup_confirm_password_label".localized,
                         placeholder: "signup_confirm_password_placeholder".localized,
                         text: $viewModel.confirmPassword,
                         isSecure: true,
@@ -100,12 +124,15 @@ struct SignupDetailsView: View {
                         accessibilityId: "signup.confirmPassword"
                     )
                     .focused($focusedField, equals: .confirmPassword)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .car }
                     .onChange(of: viewModel.confirmPassword) { _, _ in
                         if viewModel.confirmPasswordError != nil { viewModel.confirmPasswordError = nil }
                     }
 
                     // Car field (optional)
                     NaarsTextField(
+                        label: "signup_car_label".localized,
                         placeholder: "signup_car_placeholder".localized,
                         text: $viewModel.car,
                         autocapitalization: .words,
@@ -113,76 +140,77 @@ struct SignupDetailsView: View {
                         accessibilityId: "signup.car"
                     )
                     .focused($focusedField, equals: .car)
+                    .submitLabel(.done)
+                    .onSubmit { focusedField = nil }
                 }
                 .padding(.horizontal)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            
-            // Error message
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.naarsCaption)
-                    .foregroundColor(.naarsError)
-                    .padding(.horizontal)
-                    .multilineTextAlignment(.center)
-                    .accessibilityLabel("app_error_format".localized(with: errorMessage))
-            }
-            
-            // Terms and Privacy notice
-            VStack(spacing: 4) {
-                Text("signup_terms_agreement".localized)
-                    .font(.naarsCaption)
-                    .foregroundColor(.secondary)
-                HStack(spacing: 4) {
-                    if let tosURL = URL(string: Constants.URLs.termsOfService) {
-                        Link("signup_terms_of_service".localized, destination: tosURL)
-                            .font(.naarsCaption)
-                    }
-                    Text("signup_terms_and".localized)
+
+                // Error message
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .font(.naarsCaption)
+                        .foregroundColor(.naarsError)
+                        .padding(.horizontal)
+                        .multilineTextAlignment(.center)
+                        .accessibilityLabel("app_error_format".localized(with: errorMessage))
+                }
+
+                // Terms and Privacy notice
+                VStack(spacing: 4) {
+                    Text("signup_terms_agreement".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
-                    if let privacyURL = URL(string: Constants.URLs.privacyPolicy) {
-                        Link("signup_privacy_policy".localized, destination: privacyURL)
-                            .font(.naarsCaption)
-                    }
-                }
-            }
-            .padding(.horizontal)
-            
-            // Sign up button
-            VStack(spacing: 12) {
-                PrimaryButton(
-                    title: "signup_create_account_button".localized,
-                    action: {
-                        Task {
-                            do {
-                                try await viewModel.signUp()
-                                
-                                // Success! Account was created with application_complete = false.
-                                // Route to application fields to collect heardAbout + joinReason.
-                                AppLaunchManager.shared.state = .ready(.needsApplication)
-                                
-                                let generator = UINotificationFeedbackGenerator()
-                                generator.notificationOccurred(.success)
-                            } catch {
-                                // Error handled by viewModel.errorMessage
-                                let generator = UINotificationFeedbackGenerator()
-                                generator.notificationOccurred(.error)
-                            }
+                    HStack(spacing: 4) {
+                        if let tosURL = URL(string: Constants.URLs.termsOfService) {
+                            Link("signup_terms_of_service".localized, destination: tosURL)
+                                .font(.naarsCaption)
                         }
-                    },
-                    isLoading: viewModel.isLoading,
-                    isDisabled: viewModel.isLoading
-                )
-                .accessibilityIdentifier("signup.createAccount")
-                if viewModel.isLoading {
-                    Text("signup_creating_account".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
+                        Text("signup_terms_and".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                        if let privacyURL = URL(string: Constants.URLs.privacyPolicy) {
+                            Link("signup_privacy_policy".localized, destination: privacyURL)
+                                .font(.naarsCaption)
+                        }
+                    }
                 }
+                .padding(.horizontal)
+
+                // Sign up button
+                VStack(spacing: 12) {
+                    PrimaryButton(
+                        title: "signup_create_account_button".localized,
+                        action: {
+                            Task {
+                                do {
+                                    try await viewModel.signUp()
+
+                                    // Success! Account was created with application_complete = false.
+                                    // Route to application fields to collect heardAbout + joinReason.
+                                    AppLaunchManager.shared.state = .ready(.needsApplication)
+
+                                    let generator = UINotificationFeedbackGenerator()
+                                    generator.notificationOccurred(.success)
+                                } catch {
+                                    // Error handled by viewModel.errorMessage
+                                    let generator = UINotificationFeedbackGenerator()
+                                    generator.notificationOccurred(.error)
+                                }
+                            }
+                        },
+                        isLoading: viewModel.isLoading,
+                        isDisabled: viewModel.isLoading
+                    )
+                    .accessibilityIdentifier("signup.createAccount")
+                    if viewModel.isLoading {
+                        Text("signup_creating_account".localized)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 32)
         }
         .navigationTitle("signup_title".localized)
         .navigationBarTitleDisplayMode(.inline)
@@ -191,8 +219,10 @@ struct SignupDetailsView: View {
             ToolbarItemGroup(placement: .keyboard) {
                 Button { moveFocus(forward: false) } label: { Image(systemName: "chevron.up") }
                     .disabled(focusedField == .name)
+                    .accessibilityLabel("auth_keyboard_previous_field".localized)
                 Button { moveFocus(forward: true) } label: { Image(systemName: "chevron.down") }
                     .disabled(focusedField == .car)
+                    .accessibilityLabel("auth_keyboard_next_field".localized)
                 Spacer()
                 Button("common_done".localized) { focusedField = nil }
             }

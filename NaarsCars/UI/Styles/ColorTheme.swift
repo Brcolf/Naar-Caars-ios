@@ -22,7 +22,7 @@ extension Color {
         case .dark:
             return UIColor(hex: "C97A64") // Lighter terracotta for dark mode
         default:
-            return UIColor(hex: "B5634B") // Original terracotta
+            return UIColor(hex: "A35944") // Terracotta, 5.2:1 against white (was B5634B, 4.3:1)
         }
     })
     
@@ -45,7 +45,7 @@ extension Color {
         case .dark:
             return UIColor(hex: "34D669") // Brighter green for dark mode
         default:
-            return UIColor(hex: "22C55E") // Standard green
+            return UIColor(hex: "137A39") // 5.4:1 on white (was 22C55E, 2.3:1)
         }
     })
     
@@ -55,139 +55,110 @@ extension Color {
         case .dark:
             return UIColor(hex: "FBBF24") // Brighter amber for dark mode
         default:
-            return UIColor(hex: "F59E0B") // Standard amber
+            return UIColor(hex: "A35200") // 5.6:1 on white (was F59E0B, 2.2:1)
         }
     })
     
-    /// Error color - Red
+    /// Error and destructive color - Red. The only red in the app besides `naarsBadge`.
     static let naarsError = Color(UIColor { traitCollection in
         switch traitCollection.userInterfaceStyle {
         case .dark:
             return UIColor(hex: "F87171") // Softer red for dark mode (less harsh)
         default:
-            return UIColor(hex: "EF4444") // Standard red
+            return UIColor(hex: "C62828") // 5.6:1 on white (was EF4444, 3.8:1)
+        }
+    })
+
+    /// Unread-count badge fill. Fixed in both appearances so white text stays at 5:1.
+    static let naarsBadge = Color(UIColor(hex: "D32F2F"))
+
+    /// Fill of a muted (silenced) count badge. A fixed gray for the same reason as `naarsBadge`:
+    /// white text stays at 5:1 in both appearances (`Color.secondary` gave 3.4:1 and 3.3:1).
+    static let naarsBadgeMuted = Color(UIColor(hex: "6E6E73"))
+
+    /// Rating stars. Dark enough in light mode to read as a shape on white (3.5:1).
+    static let naarsRating = Color(UIColor { traitCollection in
+        switch traitCollection.userInterfaceStyle {
+        case .dark:
+            return UIColor(hex: "FBBF24")
+        default:
+            return UIColor(hex: "C2780A")
         }
     })
     
     // MARK: - Card Accent Colors
     
-    /// Favor card accent color - Teal/Cyan
+    /// Favor accent color - Teal. Used for favor cards, detail headers and map pins.
     static let favorAccent = Color(UIColor { traitCollection in
         switch traitCollection.userInterfaceStyle {
         case .dark:
-            return UIColor(hex: "38C9DE") // Brighter teal for dark mode
+            return UIColor(hex: "2DD4BF")
         default:
-            return UIColor(hex: "2DB3C8") // Original teal
+            return UIColor(hex: "0F766E") // 5.5:1 on white (was 2DB3C8, 2.5:1)
         }
     })
     
-    /// Ride card accent color - Red
+    /// Ride accent color - Blue. Used for ride cards, detail headers and map pins.
+    /// Was the same red as `naarsError`, which made every ride read as a failure.
     static let rideAccent = Color(UIColor { traitCollection in
         switch traitCollection.userInterfaceStyle {
         case .dark:
-            return UIColor(hex: "F87171") // Softer red for dark mode
+            return UIColor(hex: "6EA8FF")
         default:
-            return UIColor(hex: "EF4444") // Standard red
+            return UIColor(hex: "1D5FD6") // 5.7:1 on white
         }
     })
     
     // MARK: - Background Colors
     
     /// Primary background - main app background
-    static let naarsBackground = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "121212") // Material Design dark background
-        default:
-            return UIColor(hex: "F2F2F7") // iOS system grouped background
-        }
-    })
+    // System grouped background: #F2F2F7 light / #000000 dark. The former custom #121212 sat
+    // between pure-black system surfaces (Profile, pickers) and #1E1E1E cards, so dark mode
+    // showed three different blacks on one screen.
+    static let naarsBackground = Color(UIColor.systemGroupedBackground)
     
     /// Secondary background - for grouped content
-    static let naarsBackgroundSecondary = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "1E1E1E") // Slightly lighter dark
-        default:
-            return UIColor(hex: "FFFFFF") // Pure white
-        }
-    })
+    // Secondary grouped background: #FFFFFF light / #1C1C1E dark (matches system cards).
+    static let naarsBackgroundSecondary = Color(UIColor.secondarySystemGroupedBackground)
     
     /// Card/Surface background
-    static let naarsCardBackground = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "2C2C2C") // Elevated surface in dark mode
-        default:
-            return UIColor(hex: "FFFFFF") // White card
-        }
-    })
+    // Same surface as naarsBackgroundSecondary. The two used to differ only in dark mode
+    // (#2C2C2C against #1C1C1E), so cards on one screen showed two grays.
+    static let naarsCardBackground = Color(UIColor.secondarySystemGroupedBackground)
+
+    /// Fill for a block nested inside a card (placeholders, inset rows, quoted content):
+    /// #F2F2F7 light / #2C2C2E dark.
+    static let naarsInsetBackground = Color(UIColor.tertiarySystemGroupedBackground)
     
     // MARK: - Text Colors
     
-    /// Primary text color
-    static let naarsTextPrimary = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "F5F5F5") // Off-white (easier on eyes than pure white)
-        default:
-            return UIColor(hex: "1A1A1A") // Near-black
-        }
-    })
+    // Text tokens are the system label colors. Views use `.primary` / `.secondary` in most
+    // places; these resolve to the same values so both spellings draw the same gray.
+
+    /// Primary text color (`.primary`)
+    static let naarsTextPrimary = Color(UIColor.label)
     
-    /// Secondary text color - for less prominent text
-    static let naarsTextSecondary = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "A0A0A0") // Medium gray
-        default:
-            return UIColor(hex: "6B7280") // Gray 500
-        }
-    })
+    /// Secondary text color - for less prominent text (`.secondary`)
+    static let naarsTextSecondary = Color(UIColor.secondaryLabel)
     
-    /// Tertiary text color - for hints and placeholders
-    static let naarsTextTertiary = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "707070") // Darker gray
-        default:
-            return UIColor(hex: "9CA3AF") // Gray 400
-        }
-    })
+    /// Tertiary text color - placeholders and disabled content only; too faint for reading text
+    static let naarsTextTertiary = Color(UIColor.tertiaryLabel)
     
     // MARK: - Border & Divider Colors
     
-    /// Divider/separator color
-    static let naarsDivider = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "3A3A3A") // Subtle dark divider
-        default:
-            return UIColor(hex: "E5E7EB") // Light gray divider
-        }
-    })
+    /// Divider/separator color (matches `Divider()`)
+    static let naarsDivider = Color(UIColor.separator)
     
     /// Border color for inputs and cards
-    static let naarsBorder = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "404040") // Dark mode border
-        default:
-            return UIColor(hex: "D1D5DB") // Light gray border
-        }
-    })
+    static let naarsBorder = Color(UIColor.separator)
     
     // MARK: - Interactive Colors
     
-    /// Button disabled state
-    static let naarsDisabled = Color(UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "4A4A4A") // Dark disabled
-        default:
-            return UIColor(hex: "D1D5DB") // Light disabled
-        }
-    })
+    /// Fill of a disabled or non-interactive control. Pair with `naarsDisabledContent`.
+    static let naarsDisabled = Color(UIColor.systemGray5)
+
+    /// Label and stroke on a disabled control
+    static let naarsDisabledContent = Color(UIColor.tertiaryLabel)
     
     /// Overlay/scrim color for modals
     static let naarsOverlay = Color(UIColor { traitCollection in
@@ -212,31 +183,18 @@ extension UIColor {
         case .dark:
             return UIColor(hex: "C97A64") // Lighter terracotta for dark mode
         default:
-            return UIColor(hex: "B5634B") // Original terracotta
+            return UIColor(hex: "A35944") // Terracotta, 5.2:1 against white (was B5634B, 4.3:1)
         }
     }
 
     // MARK: - Background Colors
 
     /// Secondary background - for grouped content (UIKit equivalent of Color.naarsBackgroundSecondary)
-    static let naarsBackgroundSecondary = UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "1E1E1E") // Slightly lighter dark
-        default:
-            return UIColor(hex: "FFFFFF") // Pure white
-        }
-    }
+    // Mirrors Color.naarsBackgroundSecondary (system secondary grouped background).
+    static let naarsBackgroundSecondary = UIColor.secondarySystemGroupedBackground
 
     /// Card/Surface background (UIKit equivalent of Color.naarsCardBackground)
-    static let naarsCardBackground = UIColor { traitCollection in
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return UIColor(hex: "2C2C2C") // Elevated surface in dark mode
-        default:
-            return UIColor(hex: "FFFFFF") // White card
-        }
-    }
+    static let naarsCardBackground = UIColor.secondarySystemGroupedBackground
 
     static let naarsAccent = UIColor { traitCollection in
         traitCollection.userInterfaceStyle == .dark

@@ -19,10 +19,10 @@ enum FavorStatus: String, Codable {
     /// Human-readable display text
     var displayText: String {
         switch self {
-        case .open: return "Open"
-        case .pending: return "Pending"
-        case .confirmed: return "Claimed"
-        case .completed: return "Completed"
+        case .open: return "request_status_open".localized
+        case .pending: return "request_status_pending".localized
+        case .confirmed: return "request_status_claimed".localized
+        case .completed: return "request_status_completed".localized
         }
     }
     
@@ -32,7 +32,7 @@ enum FavorStatus: String, Codable {
         case .open: return .naarsSuccess
         case .pending: return .naarsWarning
         case .confirmed: return .naarsPrimary
-        case .completed: return .gray
+        case .completed: return .naarsTextSecondary
         }
     }
 }
@@ -47,10 +47,10 @@ enum FavorDuration: String, Codable, CaseIterable {
     /// Human-readable display text
     var displayText: String {
         switch self {
-        case .underHour: return "Under an hour"
-        case .coupleHours: return "A couple of hours"
-        case .coupleDays: return "A couple of days"
-        case .notSure: return "Not sure"
+        case .underHour: return "favor_duration_under_hour".localized
+        case .coupleHours: return "favor_duration_couple_hours".localized
+        case .coupleDays: return "favor_duration_couple_days".localized
+        case .notSure: return "favor_duration_not_sure".localized
         }
     }
     
@@ -114,8 +114,19 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         hiddenAt != nil
     }
 
+    /// The nightly expiry job closes an open favor nobody claimed by marking it `completed`
+    /// with no claimer. It was never fulfilled, so it must not read "Completed".
+    var isExpiredUnclaimed: Bool {
+        status == .completed && claimedBy == nil && !reviewed
+    }
+
+    /// Text for the status chip on cards and in the detail header
+    var statusDisplayText: String {
+        isExpiredUnclaimed ? "request_status_expired".localized : status.displayText
+    }
+
     // MARK: - CodingKeys
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"

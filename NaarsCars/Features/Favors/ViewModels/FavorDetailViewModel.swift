@@ -19,26 +19,37 @@ final class FavorDetailViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published var showCalendarOffer: Bool = false
-    
+    /// The favor was deleted, or moderators hid it from everyone but its poster. Retrying
+    /// cannot bring it back, so the screen shows a "no longer available" state instead of
+    /// an error with a Retry button.
+    @Published var isUnavailable: Bool = false
+    /// True while "Message Participants" is finding or creating the group thread.
+    @Published var isOpeningConversation: Bool = false
+
     // MARK: - Private Properties
-    
+
     private let favorService: any FavorServiceProtocol
     private let rideService: any RideServiceProtocol // Reuse RideService for Q&A
     private let authService: any AuthServiceProtocol
     /// Messaging seam used only to open a group chat for this favor (narrow protocol, not the concrete service)
     private let conversationService: any ConversationServiceProtocol
+    /// Block list only: questions from someone the viewer has blocked are not shown, as in
+    /// Town Hall (narrow protocol, not the concrete service)
+    private let messageService: any MessageServiceProtocol
     private let notificationRepository = NotificationRepository.shared
 
     init(
         favorService: any FavorServiceProtocol = FavorService.shared,
         rideService: any RideServiceProtocol = RideService.shared,
         authService: any AuthServiceProtocol = AuthService.shared,
-        conversationService: any ConversationServiceProtocol = ConversationService.shared
+        conversationService: any ConversationServiceProtocol = ConversationService.shared,
+        messageService: any MessageServiceProtocol = MessageService.shared
     ) {
         self.favorService = favorService
         self.rideService = rideService
         self.authService = authService
         self.conversationService = conversationService
+        self.messageService = messageService
     }
     
     // MARK: - Public Methods
@@ -64,8 +75,15 @@ final class FavorDetailViewModel: ObservableObject {
             let (fetchedFavor, fetchedQA) = try await (favorTask, qaTask)
             
             favor = fetchedFavor
-            qaItems = fetchedQA
+            qaItems = fetchedQA.filter { !messageService.isBlocked($0.userId) }
+            isUnavailable = false
         } catch {
+            if let appError = error as? AppError, case .notFound = appError {
+                favor = nil
+                qaItems = []
+                isUnavailable = true
+                return
+            }
             self.error = error.localizedDescription
             AppLogger.error("favors", "Error loading favor: \(error.localizedDescription)")
         }
@@ -107,13 +125,41 @@ final class FavorDetailViewModel: ObservableObject {
         }
         
         try await favorService.deleteFavor(id: favorId)
+        RequestsDashboardRefresh.afterUserAction("deleteFavor")
     }
-    
+
+    /// Delete a question the signed-in user asked (RLS allows nobody else to).
+    /// - Returns: true once the row is gone; false on failure (logged)
+    func deleteQuestion(_ qa: RequestQA) async -> Bool {
+        guard qa.userId == authService.currentUserId else { return false }
+        do {
+            try await rideService.deleteQuestion(id: qa.id)
+            qaItems.removeAll { $0.id == qa.id }
+            return true
+        } catch {
+            AppLogger.error("favors", "Error deleting question: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Drop the questions of anyone the viewer has blocked since the list was loaded. Block is
+    /// on the asker's profile, reached from their avatar in the Q&A list, so this runs when the
+    /// list comes back on screen.
+    func removeBlockedQuestions() {
+        guard qaItems.contains(where: { messageService.isBlocked($0.userId) }) else { return }
+        qaItems.removeAll { messageService.isBlocked($0.userId) }
+    }
+
     /// Create a group conversation with the poster, claimer, participants and the current user.
     /// - Returns: The conversation ID to navigate to, or nil on failure (logged)
     func createConversationWithParticipants() async -> UUID? {
+        // Lookup then create is not atomic; a second tap inside one round trip could miss the
+        // lookup too and create a duplicate thread. The view checks this flag before calling.
+        guard !isOpeningConversation else { return nil }
         guard let favor = favor, let currentUserId = authService.currentUserId else { return nil }
-        
+        isOpeningConversation = true
+        defer { isOpeningConversation = false }
+
         do {
             var participantIds: Set<UUID> = [favor.userId]
             if let claimedBy = favor.claimedBy { participantIds.insert(claimedBy) }
@@ -121,6 +167,12 @@ final class FavorDetailViewModel: ObservableObject {
                 participantIds.formUnion(participants.map { $0.id })
             }
             participantIds.insert(currentUserId)
+
+            // iMessage semantics: reuse the thread for this exact member set instead of creating
+            // another one on every tap (six duplicate threads existed on 2026-10-05).
+            if let existing = await conversationService.findConversation(forParticipants: Array(participantIds)) {
+                return existing
+            }
             
             let conversation = try await conversationService.createConversationWithUsers(
                 userIds: Array(participantIds),
@@ -135,20 +187,26 @@ final class FavorDetailViewModel: ObservableObject {
         }
     }
     
-    /// Add participants to this favor and reload it. Failures are logged (unchanged behaviour).
-    func addParticipants(_ userIds: [UUID]) async {
+    /// Add participants to this favor and reload it.
+    /// - Returns: false when the participants could not be added (also logged), so the screen
+    ///   can say so; this used to fail silently.
+    @discardableResult
+    func addParticipants(_ userIds: [UUID]) async -> Bool {
         guard let currentUserId = authService.currentUserId,
-              let favor = favor else { return }
-        
+              let favor = favor else { return false }
+
         do {
             try await favorService.addFavorParticipants(
                 favorId: favor.id,
                 userIds: userIds,
                 addedBy: currentUserId
             )
+            RequestsDashboardRefresh.afterUserAction("addFavorParticipants")
             await loadFavor(id: favor.id)
+            return true
         } catch {
             AppLogger.error("favors", "Error adding participants to favor: \(error.localizedDescription)")
+            return false
         }
     }
     
@@ -170,9 +228,25 @@ final class FavorDetailViewModel: ObservableObject {
         return favor.participants?.contains(where: { $0.id == currentUserId }) ?? false
     }
     
-    /// Check if current user can edit/delete (poster or participant)
+    /// Whether the current user may change this favor (add participants, and with the two
+    /// checks below, edit or delete). Poster only: RLS rejects a participant's delete and
+    /// participant insert, and a participant's Delete used to show the success checkmark for
+    /// a favor that was still there.
     var canEdit: Bool {
-        return isPoster || isParticipant
+        return isPoster
+    }
+
+    /// Edit is offered until the favor is completed.
+    var canEditDetails: Bool {
+        guard let favor = favor else { return false }
+        return canEdit && favor.status != .completed
+    }
+
+    /// Delete is offered until the favor has been fulfilled. A completed favor somebody helped
+    /// with (and may have been reviewed for) stays; an expired, never-claimed one can go.
+    var canDelete: Bool {
+        guard let favor = favor else { return false }
+        return canEdit && !(favor.status == .completed && favor.claimedBy != nil)
     }
 
     /// Whether Q&A submissions are allowed for this favor
@@ -196,8 +270,9 @@ final class FavorDetailViewModel: ObservableObject {
 
         guard CalendarOfferTracker.shared.shouldOffer(requestType: "favor", requestId: favor.id) else { return }
 
-        let eventTime = RequestItem.favor(favor).eventTime
-        guard eventTime > Date() else { return }
+        // `windowEnd`, not `eventTime`: a favor with no time starts at midnight, so one dated
+        // today was already "past" and its all-day calendar event was never offered.
+        guard RequestItem.favor(favor).windowEnd > Date() else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + Constants.Timing.calendarOfferPresentationDelay) { [weak self] in
             self?.showCalendarOffer = true

@@ -39,8 +39,11 @@ final class ConversationMuteService {
     }
 
     func muteConversation(conversationId: UUID, userId: UUID, duration: MuteDuration) async throws {
+        // The flag means "muted until turned back on". A timed mute relies on `muted_until`
+        // alone; every reader (here and in send-message-push) checks the flag first, so setting
+        // it for timed mutes made "For 1 Hour" last forever.
         var updates: [String: AnyCodable] = [
-            "notifications_muted": AnyCodable(true)
+            "notifications_muted": AnyCodable(duration.interval == nil)
         ]
         if let interval = duration.interval {
             let until = Date().addingTimeInterval(interval)

@@ -33,14 +33,16 @@ struct AddressText: View {
 
     var body: some View {
         if isRedacted {
+            // This line stands in for the address on every card a guest sees, so it is reading
+            // text, not a placeholder: tertiary measured about 1.7:1 on the card (4.5:1 needed).
             Label {
                 Text("guest_address_hidden".localized)
                     .font(font)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.primary)
             } icon: {
                 Image(systemName: "lock.fill")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.naarsCaption)
+                    .foregroundStyle(.secondary)
             }
             .accessibilityLabel("guest_address_hidden_accessibility".localized)
         } else {
@@ -103,29 +105,34 @@ struct AddressText: View {
     }
     
     private func openInAppleMaps() {
-        // Encode the address for URL
-        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            return
-        }
-        
         // Use the 'address' parameter for better geocoding results in Apple Maps
-        // The 'q' parameter is for general search, 'address' is more specific
-        if let mapsURL = URL(string: "https://maps.apple.com/?address=\(encodedAddress)") {
+        // The 'q' parameter is for general search, 'address' is more specific.
+        // Built from a query item: `.urlQueryAllowed` left "&" unescaped, so
+        // "5th Ave & Pine St" opened Maps searching for "5th Ave ".
+        if let mapsURL = MapsLaunchCoordinator.makeURL(
+            base: "https://maps.apple.com/",
+            queryItems: [URLQueryItem(name: "address", value: address)]
+        ) {
             openURL(mapsURL)
         }
     }
-    
+
     private func openInGoogleMaps() {
-        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            return
-        }
-        
         // Try Google Maps app URL scheme first
-        let googleMapsAppURL = URL(string: "comgooglemaps://?q=\(encodedAddress)")
-        
+        let googleMapsAppURL = MapsLaunchCoordinator.makeURL(
+            base: "comgooglemaps://",
+            queryItems: [URLQueryItem(name: "q", value: address)]
+        )
+
         // Fallback to Google Maps web URL (works even if app not installed)
-        let googleMapsWebURL = URL(string: "\(Constants.URLs.googleMapsSearch)?api=1&query=\(encodedAddress)")
-        
+        let googleMapsWebURL = MapsLaunchCoordinator.makeURL(
+            base: Constants.URLs.googleMapsSearch,
+            queryItems: [
+                URLQueryItem(name: "api", value: "1"),
+                URLQueryItem(name: "query", value: address)
+            ]
+        )
+
         if let appURL = googleMapsAppURL, UIApplication.shared.canOpenURL(appURL) {
             // Google Maps app is installed - open it
             openURL(appURL)
@@ -142,17 +149,15 @@ private struct CopiedToast: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.white)
+                .foregroundColor(.naarsSuccess)
             Text("address_copied_toast".localized)
                 .font(.naarsCaption)
                 .fontWeight(.medium)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.black.opacity(0.8))
-        .cornerRadius(20)
-        .shadow(radius: 4)
+        .glassEffect(.regular, in: .capsule)
     }
 }
 

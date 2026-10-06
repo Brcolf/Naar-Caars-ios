@@ -19,6 +19,8 @@ final class EditProfileViewModel: ObservableObject {
     @Published var name: String = ""
     @Published var phoneNumber: String = ""
     @Published var car: String = ""
+    /// A photo picked in this session, waiting to be uploaded on save. Nil means "keep the
+    /// current photo": the existing one is shown from `existingAvatarUrl` and is not re-uploaded.
     @Published var avatarImage: UIImage?
     @Published var isSaving: Bool = false
     @Published var isUploadingAvatar: Bool = false
@@ -29,13 +31,26 @@ final class EditProfileViewModel: ObservableObject {
     
     private let profileService: any ProfileServiceProtocol
     let userId: UUID
+    private let originalName: String
     private let originalPhoneNumber: String?
-    
+    private let originalCar: String?
+
+    /// True when something on the form differs from the saved profile, so leaving would lose it.
+    /// The phone number is compared by digits: the field reformats what was loaded as it is typed in.
+    var hasUnsavedChanges: Bool {
+        if avatarImage != nil { return true }
+        if name.trimmingCharacters(in: .whitespaces) != originalName.trimmingCharacters(in: .whitespaces) { return true }
+        if car.trimmingCharacters(in: .whitespaces) != (originalCar ?? "").trimmingCharacters(in: .whitespaces) { return true }
+        return phoneNumber.filter(\.isNumber) != (originalPhoneNumber ?? "").filter(\.isNumber)
+    }
+
     /// The existing avatar URL from the profile (used as fallback while no new photo is selected)
     let existingAvatarUrl: String?
     
     // Phone visibility disclosure tracking
-    private let phoneDisclosureKey = "hasShownPhoneDisclosure"
+    // Remembered per account: with a per-device flag, a second account on the same phone was
+    // never shown who can see its number.
+    private var phoneDisclosureKey: String { "hasShownPhoneDisclosure_\(userId.uuidString)" }
     private var hasShownPhoneDisclosure: Bool {
         get {
             UserDefaults.standard.bool(forKey: phoneDisclosureKey)
@@ -54,17 +69,17 @@ final class EditProfileViewModel: ObservableObject {
         self.profileService = profileService
         self.userId = profile.id
         self.name = profile.name
+        self.originalName = profile.name
         self.phoneNumber = profile.phoneNumber ?? ""
         self.originalPhoneNumber = profile.phoneNumber
         self.car = profile.car ?? ""
+        self.originalCar = profile.car
         self.existingAvatarUrl = profile.avatarUrl
-        
-        // Load avatar if URL exists
-        if let avatarUrl = profile.avatarUrl, let url = URL(string: avatarUrl) {
-            Task {
-                await loadAvatar(from: url)
-            }
-        }
+
+        // The current photo is not downloaded into `avatarImage`. It used to be, and every
+        // save then re-compressed and re-uploaded it (so it degraded with each edit, and a
+        // storage error blocked a name or phone change); a slow download could also replace
+        // a photo the member had just picked. The view shows the current photo from its URL.
     }
     
     // MARK: - Public Methods
@@ -117,14 +132,25 @@ final class EditProfileViewModel: ObservableObject {
         defer { isSaving = false }
         
         do {
-            // Format phone number for storage
+            // Format phone number for storage.
+            // nil leaves the saved value alone and an empty string clears it (see
+            // ProfileService.updateProfile). Emptying a field that had a value used to send
+            // nil, so the old value stayed while the success checkmark played.
             var formattedPhone: String? = nil
             let trimmedPhone = phoneNumber.trimmingCharacters(in: .whitespaces)
             if !trimmedPhone.isEmpty {
                 formattedPhone = Validators.formatPhoneForStorage(trimmedPhone)
+            } else if !(originalPhoneNumber ?? "").isEmpty {
+                formattedPhone = ""
+            }
+
+            let trimmedCar = car.trimmingCharacters(in: .whitespaces)
+            var carValue: String? = trimmedCar.isEmpty ? nil : trimmedCar
+            if trimmedCar.isEmpty, !(originalCar ?? "").isEmpty {
+                carValue = ""
             }
             
-            // Upload avatar if selected
+            // Upload the avatar only when a new photo was picked in this session
             var avatarUrl: String? = nil
             if let avatarImage = avatarImage {
                 isUploadingAvatar = true
@@ -146,7 +172,7 @@ final class EditProfileViewModel: ObservableObject {
                 userId: userId,
                 name: name.trimmingCharacters(in: .whitespaces),
                 phoneNumber: formattedPhone,
-                car: car.trimmingCharacters(in: .whitespaces).isEmpty ? nil : car.trimmingCharacters(in: .whitespaces),
+                car: carValue,
                 avatarUrl: avatarUrl,
                 shouldUpdateAvatar: avatarUrl != nil
             )
@@ -197,17 +223,6 @@ final class EditProfileViewModel: ObservableObject {
             avatarImage = compressedImage
         } catch {
             self.error = error as? AppError ?? AppError.unknown(error.localizedDescription)
-        }
-    }
-    
-    // MARK: - Private Methods
-    
-    private func loadAvatar(from url: URL) async {
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            avatarImage = UIImage(data: data)
-        } catch {
-            // Silently fail - avatar will just not show
         }
     }
 }

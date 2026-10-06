@@ -84,12 +84,14 @@ final class ProfileService {
         ]
         
         // Only include phone_number and car when explicitly provided
-        // to avoid nullifying them on every profile update
+        // to avoid nullifying them on every profile update.
+        // nil leaves the column alone; an empty string clears it. Without the second case a
+        // member could never remove a phone number or car description once saved.
         if let phoneNumber = phoneNumber {
-            update["phone_number"] = AnyCodable(phoneNumber)
+            update["phone_number"] = phoneNumber.isEmpty ? AnyCodable(Optional<String>.none as Any) : AnyCodable(phoneNumber)
         }
         if let car = car {
-            update["car"] = AnyCodable(car)
+            update["car"] = car.isEmpty ? AnyCodable(Optional<String>.none as Any) : AnyCodable(car)
         }
 
         if let name = name {

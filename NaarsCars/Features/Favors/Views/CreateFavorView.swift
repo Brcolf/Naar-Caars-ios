@@ -16,11 +16,12 @@ struct CreateFavorView: View {
     @State private var showAddParticipants = false
     @State private var showSuccess = false
     @State private var showErrorAlert = false
-    @State private var showGuestPrompt = false
-    @State private var guestRestrictionReason: GuestRestrictionReason = .postFavor
+    @State private var guestPromptReason: GuestRestrictionReason?
     /// Deferred so LocationService init runs off the first frame while user fills title/description.
     @State private var locationServiceReady = false
-    
+    @State private var showDiscardConfirmation = false
+    @State private var showPastTimeConfirmation = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -48,7 +49,9 @@ struct CreateFavorView: View {
                                     appState.isGuestMode = false
                                     AppLaunchManager.shared.exitGuestMode()
                                 }
-                                SecondaryButton(title: "guest_prompt_log_in".localized) {
+                                SecondaryButton(title: "auth_sign_in_button".localized) {
+                                    // Welcome continues to the sign-in form for this choice
+                                    WelcomeEntryRoute.opensSignIn = true
                                     appState.isGuestMode = false
                                     AppLaunchManager.shared.exitGuestMode()
                                 }
@@ -82,19 +85,18 @@ struct CreateFavorView: View {
                             placeholder: "favor_create_location_placeholder".localized,
                             text: $viewModel.location,
                             icon: "mappin.circle.fill",
-                            accessibilityId: "createFavor.location"
+                            accessibilityId: "createFavor.location",
+                            accessibilityHintText: "favor_create_location_hint".localized
                         ) { details in
                             // Optional: Store coordinates for future map integration
                             // viewModel.locationCoordinate = details.coordinate
                         }
-                        .accessibilityLabel("favor_create_location_placeholder".localized)
-                        .accessibilityHint("favor_create_location_hint".localized)
                     } else {
                         HStack(spacing: 12) {
                             ProgressView()
                                 .scaleEffect(0.9)
                             Text("favor_create_location_loading".localized)
-                                .font(.body)
+                                .font(.naarsBody)
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 4)
@@ -112,22 +114,29 @@ struct CreateFavorView: View {
                 }
                 
                 Section("favor_create_section_date_time".localized) {
-                    DatePicker("favor_create_date".localized, selection: $viewModel.date, displayedComponents: .date)
+                    // Past days are not offered; they used to be selectable and rejected on Post.
+                    DatePicker(
+                        "favor_create_date".localized,
+                        selection: $viewModel.date,
+                        in: Calendar.current.startOfDay(for: Date())...,
+                        displayedComponents: .date
+                    )
                         .datePickerStyle(.compact)
                         .accessibilityHint("favor_create_date_hint".localized)
-                    
+
                     Toggle("favor_create_specify_time".localized, isOn: $viewModel.hasTime)
                         .accessibilityIdentifier("createFavor.hasTime")
                         .accessibilityHint("favor_create_time_toggle_hint".localized)
-                    
+
                     if viewModel.hasTime {
+                        // The time label goes into the picker, which names each of its three
+                        // menus. Set on the picker from here it replaced all three names and values.
                         TimePickerView(
                             hour: $viewModel.hour,
                             minute: $viewModel.minute,
-                            isAM: $viewModel.isAM
+                            isAM: $viewModel.isAM,
+                            accessibilityTitle: "favor_create_time_accessibility".localized
                         )
-                        .accessibilityLabel("favor_create_time_accessibility".localized)
-                        .accessibilityHint("favor_create_time_hint".localized)
                     }
 
                     TimeZonePicker(selectedTimezone: $viewModel.timezone)
@@ -149,20 +158,19 @@ struct CreateFavorView: View {
                 Section("favor_create_section_participants".localized) {
                     Button {
                         if appState.isGuest {
-                            guestRestrictionReason = .addParticipants
-                            showGuestPrompt = true
+                            guestPromptReason = .addParticipants
                         } else {
                             showAddParticipants = true
                         }
                     } label: {
                         HStack {
-                            Text(viewModel.selectedParticipantIds.isEmpty ? "favor_create_add_participants".localized : "favor_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
+                            Text(participantsButtonTitle)
                             Spacer()
                             Image(systemName: "chevron.right")
                         }
                     }
                     .accessibilityIdentifier("createFavor.participants")
-                    .accessibilityLabel(viewModel.selectedParticipantIds.isEmpty ? "favor_create_add_participants".localized : "favor_create_participants_selected".localized(with: viewModel.selectedParticipantIds.count))
+                    .accessibilityLabel(participantsButtonTitle)
                     .accessibilityHint("favor_create_participants_hint".localized)
                     
                     if viewModel.selectedParticipantIds.count >= 5 {
@@ -194,30 +202,31 @@ struct CreateFavorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("favor_create_cancel".localized) {
-                        dismiss()
+                        // Ask before throwing away a filled-in form.
+                        if viewModel.hasUnsavedChanges {
+                            showDiscardConfirmation = true
+                        } else {
+                            dismiss()
+                        }
                     }
+                    .disabled(viewModel.isLoading)
                     .accessibilityIdentifier("createFavor.cancel")
                     .accessibilityLabel("favor_create_cancel".localized)
                     .accessibilityHint("favor_create_cancel_hint".localized)
                 }
-                
+
                 if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("favor_create_post".localized) {
-                            Task {
-                                do {
-                                    let favor = try await viewModel.createFavor()
-                                    onFavorCreated?(favor.id)
-                                    showSuccess = true
-                                    HapticManager.success()
-                                    try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
-                                    dismiss()
-                                } catch {
-                                    showErrorAlert = true
-                                }
-                            }
+                        // A time earlier today is usually a slip (AM left in place of PM), but
+                        // it can be meant, so ask instead of refusing.
+                        if viewModel.isEventTimeInPast {
+                            showPastTimeConfirmation = true
+                        } else {
+                            submitFavor()
+                        }
                     }
-                    .disabled(viewModel.isLoading)
+                    .disabled(viewModel.isLoading || !viewModel.hasRequiredFields)
                     .accessibilityIdentifier("createFavor.post")
                     .accessibilityLabel("favor_create_post_accessibility".localized)
                     .accessibilityHint("favor_create_post_hint".localized)
@@ -241,8 +250,59 @@ struct CreateFavorView: View {
             } message: {
                 Text(viewModel.error ?? "common_unexpected_error".localized)
             }
+            .alert("request_time_passed_title".localized, isPresented: $showPastTimeConfirmation) {
+                Button("request_time_passed_post_anyway".localized) {
+                    submitFavor()
+                }
+                Button("request_time_passed_change".localized, role: .cancel) {}
+            } message: {
+                Text("request_time_passed_message".localized)
+            }
+            .confirmationDialog(
+                "common_discard_changes_title".localized,
+                isPresented: $showDiscardConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("common_discard".localized, role: .destructive) {
+                    dismiss()
+                }
+                Button("common_keep_editing".localized, role: .cancel) {}
+            } message: {
+                Text("request_form_discard_message".localized)
+            }
         }
         .successCheckmark(isShowing: $showSuccess)
+        // No swipe-to-dismiss with something typed (Cancel asks first) or while the request is
+        // in flight: a swipe mid-request still created the favor, and its id was then consumed
+        // by the next, unrelated dismissal of this sheet.
+        .interactiveDismissDisabled(viewModel.isLoading || viewModel.hasUnsavedChanges)
+    }
+
+    private var participantsButtonTitle: String {
+        let count = viewModel.selectedParticipantIds.count
+        if count == 0 {
+            return "favor_create_add_participants".localized
+        }
+        // Two keys chosen here; the catalog has no plural variants ("1 Participant(s) Selected").
+        return (count == 1 ? "request_participants_selected_one" : "request_participants_selected_other")
+            .localized(with: count)
+    }
+
+    private func submitFavor() {
+        Task {
+            // A second tap that was already queued when the first one started.
+            guard !viewModel.isLoading else { return }
+            do {
+                let favor = try await viewModel.createFavor()
+                onFavorCreated?(favor.id)
+                showSuccess = true
+                HapticManager.success()
+                try? await Task.sleep(nanoseconds: Constants.Timing.successDismissNanoseconds)
+                dismiss()
+            } catch {
+                showErrorAlert = true
+            }
+        }
     }
 }
 

@@ -29,7 +29,7 @@ struct AppearanceSettingsSection: View {
                     }
                 } icon: {
                     Image(systemName: viewModel.selectedTheme.iconName)
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.naarsPrimary)
                 }
             }
             .onChange(of: viewModel.selectedTheme) { _, newValue in

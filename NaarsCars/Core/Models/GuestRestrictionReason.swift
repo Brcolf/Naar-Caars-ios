@@ -6,7 +6,12 @@
 import Foundation
 
 /// Contextual reasons shown in the guest sign-in prompt sheet.
-enum GuestRestrictionReason {
+/// Identifiable so views can present it with `.sheet(item:)`; an `isPresented` sheet paired
+/// with a separate reason state showed the previous reason ("Sign In to Create a Post" on a
+/// vote) because both state changes landed in the same transaction.
+enum GuestRestrictionReason: Identifiable {
+    var id: String { String(describing: self) }
+
     case claimRide
     case claimFavor
     case postRide

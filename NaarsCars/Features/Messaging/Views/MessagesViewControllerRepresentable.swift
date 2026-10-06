@@ -60,6 +60,21 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
     /// should suppress send-oriented actions.
     var isConversationFrozen: Bool = false
 
+    /// Members currently typing. Rendered by the controller as the newest item of the
+    /// transcript (iMessage's typing bubble), so it does not go through the message config.
+    var typingUsers: [TypingUser] = []
+
+    /// True while a full-screen cover (reply thread, image viewer) is presented over the
+    /// conversation, so the keyboard-accessory composer does not stay docked on top of it.
+    /// Also true while the in-thread search field is up and when the user has left the
+    /// conversation (the read-only banner replaces the composer).
+    var isComposerSuppressed: Bool = false
+
+    /// A draft to hand back to the composer: its send was refused before a bubble existed
+    /// (rate limit, over-long text) after the bar had already cleared itself. Applied once
+    /// per `ComposerDraft.id`.
+    var draftToRestore: ComposerDraft? = nil
+
     // MARK: UIViewControllerRepresentable
 
     func makeCoordinator() -> Coordinator {
@@ -90,6 +105,9 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         vc.inputBarController.onLocationPickerRequested = { [weak coordinator = context.coordinator] in
             coordinator?.parent.onLocationRequested()
         }
+        vc.inputBarController.onMicrophoneAccessDenied = { [weak coordinator = context.coordinator] in
+            coordinator?.viewController?.presentMicrophoneAccessAlert()
+        }
         vc.inputBarController.onTypingChanged = { [weak coordinator = context.coordinator] in
             coordinator?.parent.onTypingChanged()
         }
@@ -113,6 +131,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
             || firstUnreadMessageId != coord.lastFirstUnreadId
             || showUnreadDivider != coord.lastShowUnreadDivider
             || participantProfiles.count != coord.lastProfileCount
+            || totalParticipants != coord.lastTotalParticipants
             || isConversationFrozen != coord.lastIsFrozen
 
         if needsConfigUpdate {
@@ -153,14 +172,31 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
             coord.lastFirstUnreadId = firstUnreadMessageId
             coord.lastShowUnreadDivider = showUnreadDivider
             coord.lastProfileCount = participantProfiles.count
+            coord.lastTotalParticipants = totalParticipants
             coord.lastIsFrozen = isConversationFrozen
         }
+
+        // Typing bubble — cheap equality inside; no-op unless the typers changed.
+        vc.setTypingUsers(typingUsers)
+
+        // Composer visibility under full-screen covers — no-op unless the flag changed.
+        vc.setComposerSuppressed(isComposerSuppressed)
 
         // Input bar state — apply only on actual transitions. This runs on every
         // body evaluation (typing ticks, receipts, reactions); re-applying the same
         // context re-animated the banner, overwrote in-progress edit text and
         // forced an accessory relayout each time.
         let bar = vc.inputBar
+
+        // A refused send: put the text and photo back, once per draft. Forgetting the last
+        // applied reply id makes the gate below show the reply banner again as well (the bar
+        // dropped it when Send was tapped, while SwiftUI still holds the reply context).
+        if let draft = draftToRestore, draft.id != coord.lastRestoredDraftId {
+            coord.lastRestoredDraftId = draft.id
+            bar.restoreDraft(text: draft.text, image: draft.image)
+            coord.lastReplyId = nil
+        }
+
         let prevMode = coord.lastInputMode
         if let edit = editingMessage {
             if prevMode != .editing || coord.lastEditId != edit.id {
@@ -206,6 +242,8 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         var lastEditId: UUID?
         var lastReplyId: UUID?
         var lastImageToSend: UIImage?
+        /// The last `draftToRestore` handed to the bar, so it is applied once.
+        var lastRestoredDraftId: UUID?
 
         // O(1) tracking for message-collection config gating
         var lastMessagesVersion: Int = -1
@@ -214,6 +252,7 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
         var lastFirstUnreadId: UUID?
         var lastShowUnreadDivider: Bool = false
         var lastProfileCount: Int = -1
+        var lastTotalParticipants: Int = -1
         var lastIsFrozen: Bool = false
 
         init(parent: MessagesViewControllerRepresentable) {
@@ -274,4 +313,12 @@ struct MessagesViewControllerRepresentable: UIViewControllerRepresentable {
             parent.onTypingChanged()
         }
     }
+}
+
+/// Text and photo of a send that was refused before a bubble existed, handed back to the
+/// composer through `MessagesViewControllerRepresentable.draftToRestore`.
+struct ComposerDraft {
+    let id = UUID()
+    let text: String
+    let image: UIImage?
 }

@@ -137,7 +137,7 @@ final class LeaveReviewViewModel: ObservableObject {
                 defer { isUploadingImage = false }
                 
                 guard let compressedData = await ImageCompressor.compressAsync(reviewImage, preset: .messageImage) else {
-                    throw AppError.processingError("Failed to compress image")
+                    throw AppError.invalidInput("profile_image_too_large".localized)
                 }
                 imageData = compressedData
             }
@@ -210,11 +210,14 @@ final class LeaveReviewViewModel: ObservableObject {
         // Load image data
         guard let data = try? await item.loadTransferable(type: Data.self),
               let uiImage = UIImage(data: data) else {
-            error = AppError.unknown("Failed to load image")
+            // Clear the selection so picking the same photo again is seen as a change
+            selectedPhoto = nil
+            error = AppError.invalidInput("profile_image_load_failed".localized)
             return
         }
-        
+
         // Store image (will be compressed on submit)
+        error = nil
         reviewImage = uiImage
     }
 }

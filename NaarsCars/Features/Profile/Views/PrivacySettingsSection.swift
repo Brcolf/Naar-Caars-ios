@@ -24,7 +24,7 @@ struct PrivacySettingsSection: View {
                     }
                 } icon: {
                     Image(systemName: "ant.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.naarsPrimary)
                 }
             }
             .onChange(of: viewModel.crashReportingEnabled) { _, newValue in

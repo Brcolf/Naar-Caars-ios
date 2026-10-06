@@ -16,15 +16,23 @@ struct FavorDetailView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
-    @State private var showGuestPrompt = false
-    @State private var guestRestrictionReason: GuestRestrictionReason = .claimFavor
+    @State private var guestPromptReason: GuestRestrictionReason?
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
     @State private var showUnclaimSheet = false
+    @State private var showCompleteSheet = false
     @State private var showReviewSheet = false
     @State private var showPhoneRequired = false
+    /// Set by PhoneRequiredSheet's "Add Phone Number"; read when that sheet has dismissed.
     @State private var showProfileFromPhoneRequired = false
+    @State private var showEditProfileForPhone = false
+    /// A question someone else asked, being reported.
+    @State private var questionToReport: RequestQA?
+    @State private var reportedQuestionIds: Set<UUID> = []
+    /// Same stored choice as the ride screen (Apple Maps or Google Maps).
+    @AppStorage("preferredMapsApp") private var preferredMapsApp: String = ""
+    @State private var showMapsChoiceDialog = false
     @State private var selectedConversationId: UUID?
     @State private var showAddParticipants = false
     @State private var selectedUserIds: Set<UUID> = []
@@ -32,9 +40,13 @@ struct FavorDetailView: View {
     @State private var highlightTask: Task<Void, Never>?
     @State private var clearedAnchors: Set<RequestDetailAnchor> = []
     @State private var toastMessage: String? = nil
+    /// A failed action (delete, for one). Shown as an error banner; these used to go through
+    /// the success toast with its checkmark and success haptic.
+    @State private var actionErrorMessage: String?
     @State private var showSuccess = false
     @State private var showReportSheet = false
     @State private var hasReported = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -42,8 +54,18 @@ struct FavorDetailView: View {
                 LazyVStack(alignment: .leading, spacing: Constants.Spacing.lg) {
                     if let favor = viewModel.favor {
                         favorDetails(favor: favor)
+                    } else if viewModel.isUnavailable {
+                        // Deleted, or hidden by moderators. Reached from a stale card, an old
+                        // notification or a link; there is nothing to retry, only a way back.
+                        EmptyStateView(
+                            icon: "questionmark.folder",
+                            title: "request_unavailable_title".localized,
+                            message: "request_unavailable_message".localized,
+                            actionTitle: "request_unavailable_back".localized,
+                            action: { dismiss() }
+                        )
                     } else if viewModel.isLoading {
-                        LoadingView(message: "favor_detail_loading".localized)
+                        LoadingView(message: "favor_detail_loading".localized, isEmbedded: true)
                     } else if let error = viewModel.error {
                         ErrorView(
                             error: error,
@@ -62,6 +84,8 @@ struct FavorDetailView: View {
                 }
             }
         }
+        // Grouped ground, like Requests and Profile, so the cards read as cards.
+        .background(Color.naarsBackground)
         .navigationTitle("favor_detail_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -71,9 +95,12 @@ struct FavorDetailView: View {
                !favor.isModerationHidden {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if hasReported {
+                        // The only sign that the report went through, so it has to be legible
+                        // (half-opacity secondary was about 1.7:1) and spoken.
                         Image(systemName: "flag.fill")
                             .font(.naarsCaption)
-                            .foregroundColor(.secondary.opacity(0.5))
+                            .foregroundColor(.secondary)
+                            .accessibilityLabel("townhall_reported".localized)
                     } else {
                         Button {
                             showReportSheet = true
@@ -86,9 +113,9 @@ struct FavorDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showGuestPrompt) {
+        .sheet(item: $guestPromptReason) { reason in
             GuestSignInPromptView(
-                reason: guestRestrictionReason,
+                reason: reason,
                 onSignUp: {
                     appState.isGuestMode = false
                     AppLaunchManager.shared.exitGuestMode()
@@ -110,6 +137,20 @@ struct FavorDetailView: View {
                     onReported: { hasReported = true }
                 )
             }
+        }
+        .sheet(item: $questionToReport) { qa in
+            // The server has no report target for a question, so the report is filed against
+            // the person who asked it, with the question and the favor id sent along for the
+            // moderators. (Filing it against the favor would be dropped as a duplicate after
+            // the first report, and acting on it would hide the poster's favor.)
+            ReportContentSheet(
+                context: .user(
+                    id: qa.userId,
+                    name: "\(qa.asker?.name ?? "common_someone".localized): \(qa.question)"
+                ),
+                onReported: { reportedQuestionIds.insert(qa.id) },
+                contextNote: "Question on favor \(favorId.uuidString): \(qa.question)"
+            )
         }
         .refreshable { await viewModel.loadFavor(id: favorId) }
         .task {
@@ -133,12 +174,17 @@ struct FavorDetailView: View {
                         try await viewModel.deleteFavor()
                         showSuccess = true
                     } catch {
-                        toastMessage = error.localizedDescription
+                        actionErrorMessage = error.localizedDescription
                     }
                 }
             }
         } message: {
-            Text("favor_detail_delete_confirmation".localized)
+            // Someone has committed to this favor: say who, and that nothing tells them.
+            if let favor = viewModel.favor, favor.claimedBy != nil {
+                Text("favor_detail_delete_claimed_confirmation".localized(with: favor.claimer?.name ?? "common_someone".localized))
+            } else {
+                Text("favor_detail_delete_confirmation".localized)
+            }
         }
         .alert("calendar_offer_title".localized, isPresented: $viewModel.showCalendarOffer) {
             Button("calendar_offer_add".localized) {
@@ -148,7 +194,10 @@ struct FavorDetailView: View {
                 viewModel.dismissCalendarOffer()
             }
         } message: {
-            Text("calendar_offer_favor_message".localized)
+            // A favor with no time is added as an all-day event, which gets no 1-hour reminder.
+            Text((viewModel.favor?.time ?? "").isEmpty
+                 ? "calendar_offer_favor_message_all_day".localized
+                 : "calendar_offer_favor_message".localized)
         }
         .sheet(isPresented: $showClaimSheet, onDismiss: {
             // Check calendar offer after sheet is fully dismissed so the alert can present
@@ -168,6 +217,19 @@ struct FavorDetailView: View {
                     }
                 )
                 .id(RequestDetailAnchor.claimSheet.anchorId(for: .favor))
+            }
+        }
+        .sheet(isPresented: $showCompleteSheet) {
+            if let favor = viewModel.favor {
+                CompleteSheet(
+                    requestType: "favor",
+                    requestTitle: favor.title,
+                    onConfirm: {
+                        try await claimViewModel.complete(requestType: "favor", requestId: favor.id)
+                        await viewModel.loadFavor(id: favorId)
+                    },
+                    isPoster: viewModel.isPoster
+                )
             }
         }
         .sheet(isPresented: $showUnclaimSheet) {
@@ -202,8 +264,23 @@ struct FavorDetailView: View {
                 .id(RequestDetailAnchor.reviewSheet.anchorId(for: .favor))
             }
         }
-        .sheet(isPresented: $showPhoneRequired) {
+        .sheet(isPresented: $showPhoneRequired, onDismiss: {
+            // Open Edit Profile once this sheet has finished dismissing; two sheets cannot be
+            // up at the same time.
+            if showProfileFromPhoneRequired {
+                showProfileFromPhoneRequired = false
+                showEditProfileForPhone = true
+            }
+        }) {
             PhoneRequiredSheet(showProfileScreen: $showProfileFromPhoneRequired)
+        }
+        // Edit Profile as a sheet, where the phone field is. This used to push the whole
+        // Profile tab (its own navigation stack, bell, Sign Out and Delete Account) into the
+        // Requests stack.
+        .sheet(isPresented: $showEditProfileForPhone) {
+            if let profile = claimViewModel.profileForEditing {
+                EditProfileView(profile: profile)
+            }
         }
         .sheet(isPresented: $claimViewModel.showPushPermissionPrompt) {
             PushPermissionPromptView(
@@ -217,9 +294,6 @@ struct FavorDetailView: View {
                 }
             )
         }
-        .navigationDestination(isPresented: $showProfileFromPhoneRequired) {
-            MyProfileView()
-        }
         .navigationDestination(item: $selectedConversationId) { conversationId in
             ConversationDetailView(conversationId: conversationId)
         }
@@ -229,8 +303,16 @@ struct FavorDetailView: View {
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: getExistingParticipantIds(favor: favor),
                     onDismiss: {
-                        if !selectedUserIds.isEmpty {
-                            Task { await viewModel.addParticipants(Array(selectedUserIds)) }
+                        // Copy the selection before it is cleared below; the task runs after
+                        // this closure returns and used to read an already-empty set.
+                        let userIds = Array(selectedUserIds)
+                        if !userIds.isEmpty {
+                            Task {
+                                let added = await viewModel.addParticipants(userIds)
+                                if !added {
+                                    actionErrorMessage = "request_add_participants_failed".localized
+                                }
+                            }
                         }
                         showAddParticipants = false
                         selectedUserIds = []
@@ -239,6 +321,7 @@ struct FavorDetailView: View {
             }
         }
         .toast(message: $toastMessage)
+        .errorBanner(message: $actionErrorMessage)
         .successCheckmark(isShowing: $showSuccess)
         .onChange(of: showSuccess) { _, newValue in
             if !newValue {
@@ -264,13 +347,7 @@ struct FavorDetailView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                        Text(favor.status.displayText)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(favor.status.color)
-                            .cornerRadius(8)
+                        NaarsChip(text: favor.statusDisplayText, tint: favor.status.color, size: .large)
                             .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
                             .requestHighlight(highlightedAnchor == .statusBadge)
                         
@@ -303,31 +380,37 @@ struct FavorDetailView: View {
                 .cardStyle()
                 
                 VStack(alignment: .leading, spacing: Constants.Spacing.md) {
-                    HStack {
+                    AdaptiveRow {
                         Label("favor_detail_details".localized, systemImage: "info.circle.fill")
                             .font(.naarsTitle3)
                             .foregroundColor(.favorAccent)
-                        Spacer()
+                            .accessibilityAddTraits(.isHeader)
+                        AdaptiveRowSpacer()
                         Text("favor_detail_hold_to_copy".localized)
                             .font(.naarsCaption)
                             .foregroundColor(.secondary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .top, spacing: 12) {
                             Image(systemName: "mappin.circle.fill")
                                 .foregroundColor(.favorAccent)
                                 .font(.naarsTitle3)
+                                .accessibilityHidden(true)
                             AddressText(favor.location, isRedacted: appState.isGuest)
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            openInExternalMaps(favor: favor)
+                            handleLocationTap(favor: favor)
                         }
-                        
+                        // The row opens Maps, so say so. Guests get the sign-in prompt instead
+                        // and the redacted line keeps its own "address hidden" label.
+                        .accessibilityAddTraits(appState.isGuest ? [] : .isButton)
+                        .accessibilityHint(appState.isGuest ? "" : "accessibility_tap_to_open_maps".localized)
+
                         Divider()
                         
-                        HStack(spacing: Constants.Spacing.md) {
+                        AdaptiveRow(alignment: .top, spacing: Constants.Spacing.md, stackedSpacing: 12) {
                             Label {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(favor.date.dateString)
@@ -345,8 +428,8 @@ struct FavorDetailView: View {
                             if let time = favor.time {
                                 Label {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        HStack(spacing: 4) {
-                                            Text(time)
+                                        AdaptiveRow(spacing: 4, stackedSpacing: 0) {
+                                            Text(Date.displayTime(fromDatabaseTime: time))
                                                 .font(.naarsHeadline)
                                             let abbrev = favor.timeZone.abbreviation(for: RequestItem.favor(favor).eventTime) ?? favor.timeZone.abbreviation() ?? "PT"
                                             Text(abbrev)
@@ -380,12 +463,27 @@ struct FavorDetailView: View {
                     }
                 }
                 .cardStyle()
-                
+                // The same chooser, and the same stored choice, as the ride screen's map.
+                .confirmationDialog("ride_detail_open_in_maps_title".localized, isPresented: $showMapsChoiceDialog, titleVisibility: .visible) {
+                    Button("ride_detail_maps_apple".localized) {
+                        preferredMapsApp = PreferredMapsApp.apple.rawValue
+                        openInExternalMaps(favor: favor, provider: .apple)
+                    }
+                    Button("ride_detail_maps_google".localized) {
+                        preferredMapsApp = PreferredMapsApp.google.rawValue
+                        openInExternalMaps(favor: favor, provider: .google)
+                    }
+                    Button("favor_detail_cancel".localized, role: .cancel) {}
+                } message: {
+                    Text("ride_detail_open_in_maps_message".localized)
+                }
+
                 if let participants = favor.participants, !participants.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("favor_detail_participants".localized)
                             .font(.naarsTitle3)
-                        
+                            .accessibilityAddTraits(.isHeader)
+
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: Constants.Spacing.md) {
                                 ForEach(participants) { participant in
@@ -394,7 +492,9 @@ struct FavorDetailView: View {
                                         Text(participant.name)
                                             .font(.naarsCaption)
                                             .lineLimit(1)
-                                            .frame(width: 60)
+                                            // 60 pt holds a letter or two at accessibility text sizes;
+                                            // this row scrolls sideways, so the name runs its full width there.
+                                            .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 60)
                                     }
                                 }
                             }
@@ -408,7 +508,8 @@ struct FavorDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("favor_detail_claimed_by".localized)
                             .font(.naarsTitle3)
-                        
+                            .accessibilityAddTraits(.isHeader)
+
                         HStack(spacing: 12) {
                             UserAvatarLink(profile: claimer, size: 50)
                             
@@ -433,6 +534,7 @@ struct FavorDetailView: View {
                         claimerId: favor.claimedBy,
                         isCompleted: favor.status == .completed,
                         requestTitle: favor.title,
+                        claimerName: favor.claimer?.name,
                         onReviewSubmitted: {
                             Task { await viewModel.loadFavor(id: favorId) }
                         }
@@ -466,6 +568,7 @@ struct FavorDetailView: View {
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .cardStyle()
                 }
                 
@@ -475,50 +578,89 @@ struct FavorDetailView: View {
                     requestType: "favor",
                     onPostQuestion: { question in
                         if appState.isGuest {
-                            guestRestrictionReason = .askQuestion
-                            showGuestPrompt = true
-                            return
+                            guestPromptReason = .askQuestion
+                            return false
                         }
                         let countBefore = viewModel.qaItems.count
+                        viewModel.error = nil
                         await viewModel.postQuestion(question)
-                        if viewModel.qaItems.count > countBefore {
-                            toastMessage = "toast_question_posted".localized
+                        guard viewModel.qaItems.count > countBefore else {
+                            // The request is on screen, so the view model's error is not shown
+                            // anywhere else; surface it here and keep the typed question.
+                            actionErrorMessage = viewModel.error ?? "common_error".localized
+                            viewModel.error = nil
+                            return false
                         }
+                        toastMessage = "toast_question_posted".localized
+                        return true
                     },
                     isClaimed: favor.claimedBy != nil,
                     onMessageParticipants: favor.claimedBy == nil ? nil : {
                         if appState.isGuest {
-                            guestRestrictionReason = .sendMessage
-                            showGuestPrompt = true
+                            guestPromptReason = .sendMessage
                             return
                         }
                         Task {
+                            // One lookup-or-create at a time (a second tap could create a
+                            // second thread); the button shows progress meanwhile.
+                            guard !viewModel.isOpeningConversation else { return }
                             if let conversationId = await viewModel.createConversationWithParticipants() {
                                 selectedConversationId = conversationId
+                            } else {
+                                actionErrorMessage = "messaging_error_create_conversation".localized
                             }
                         }
-                    }
+                    },
+                    isOpeningConversation: viewModel.isOpeningConversation,
+                    currentUserId: appState.isGuest ? nil : AuthService.shared.currentUserId,
+                    onReportQuestion: { qa in
+                        if appState.isGuest {
+                            guestPromptReason = .reportContent
+                        } else {
+                            questionToReport = qa
+                        }
+                    },
+                    onDeleteQuestion: { qa in
+                        let deleted = await viewModel.deleteQuestion(qa)
+                        if deleted {
+                            toastMessage = "toast_question_deleted".localized
+                        } else {
+                            actionErrorMessage = "qa_delete_question_failed".localized
+                        }
+                        return deleted
+                    },
+                    reportedQuestionIds: reportedQuestionIds
                 )
                 .id(RequestDetailAnchor.qaSection.anchorId(for: .favor))
                 .requestHighlight(highlightedAnchor == .qaSection)
-                .onAppear { handleSectionAppeared(.qaSection) }
+                .onAppear {
+                    handleSectionAppeared(.qaSection)
+                    // Back from an asker's profile, where they may just have been blocked.
+                    viewModel.removeBlockedQuestions()
+                }
                 
                 claimButtonSection(favor: favor)
                     .id(RequestDetailAnchor.claimAction.anchorId(for: .favor))
                     .requestHighlight(highlightedAnchor == .claimAction)
                     .onAppear { handleSectionAppeared(.claimAction) }
                 
-                if viewModel.canEdit {
+                if viewModel.canEditDetails {
                     addParticipantsButton(favor: favor)
                         .accessibilityIdentifier("favor.addParticipants")
                 }
-                
-                if viewModel.canEdit {
+
+                // Poster only, and not on a favor that is finished: Edit goes once the favor is
+                // completed, Delete once it has been fulfilled (see the view model).
+                if viewModel.canEditDetails || viewModel.canDelete {
                     HStack(spacing: Constants.Spacing.md) {
-                        SecondaryButton(title: "favor_detail_edit".localized) { showEditFavor = true }
-                            .accessibilityIdentifier("favor.edit")
-                        SecondaryButton(title: "favor_detail_delete".localized) { showDeleteAlert = true }
-                            .accessibilityIdentifier("favor.delete")
+                        if viewModel.canEditDetails {
+                            SecondaryButton(title: "favor_detail_edit".localized) { showEditFavor = true }
+                                .accessibilityIdentifier("favor.edit")
+                        }
+                        if viewModel.canDelete {
+                            SecondaryButton(title: "favor_detail_delete".localized, isDestructive: true) { showDeleteAlert = true }
+                                .accessibilityIdentifier("favor.delete")
+                        }
                     }
                 }
             }
@@ -610,7 +752,7 @@ struct FavorDetailView: View {
             .frame(maxWidth: .infinity)
             .background(Color.naarsCardBackground)
             .foregroundColor(.primary)
-            .cornerRadius(12)
+            .cornerRadius(Constants.Radius.card)
         }
     }
     
@@ -625,9 +767,26 @@ struct FavorDetailView: View {
         return ids
     }
     
-    private func openInExternalMaps(favor: Favor) {
+    private func handleLocationTap(favor: Favor) {
+        // A guest sees "Sign in to view address" on this row. The tap used to hand the real
+        // address to Maps anyway; it now asks them to sign in, as the ride map does.
+        guard !appState.isGuest else {
+            guestPromptReason = .viewMap
+            return
+        }
+        // Same stored choice and first-time chooser as the ride screen. This used to open
+        // Google Maps whenever it was installed, whatever had been chosen there.
+        if let preferred = PreferredMapsApp(rawValue: preferredMapsApp) {
+            openInExternalMaps(favor: favor, provider: preferred)
+        } else {
+            showMapsChoiceDialog = true
+        }
+    }
+
+    private func openInExternalMaps(favor: Favor, provider: PreferredMapsApp) {
         AppLogger.info("favors", "Opening external maps for favor: \(favor.id)")
-        let location = favor.location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        // Escapes "&" and "+" too; `.urlQueryAllowed` left them in and cut "5th Ave & Pine St" short.
+        let location = MapsLaunchCoordinator.escapedQueryValue(favor.location)
         
         // Google Maps URL Scheme
         let googleMapsUrl = URL(string: "comgooglemaps://?q=\(location)&directionsmode=driving")
@@ -659,16 +818,21 @@ struct FavorDetailView: View {
             }
         }
         
-        if let url = googleMapsUrl, UIApplication.shared.canOpenURL(url) {
-            AppLogger.info("favors", "Opening Google Maps App")
-            Task { @MainActor in
-                await UIApplication.shared.open(url)
+        switch provider {
+        case .google:
+            // The app when it is installed, otherwise Google Maps on the web.
+            if let url = googleMapsUrl, UIApplication.shared.canOpenURL(url) {
+                AppLogger.info("favors", "Opening Google Maps App")
+                Task { @MainActor in
+                    await UIApplication.shared.open(url)
+                }
+            } else if let url = googleMapsWebUrl {
+                AppLogger.info("favors", "Opening Google Maps on the web")
+                Task { @MainActor in
+                    await UIApplication.shared.open(url)
+                }
             }
-        } else if let url = googleMapsWebUrl, let schemeURL = URL(string: "comgooglemaps://"), UIApplication.shared.canOpenURL(schemeURL) {
-            Task { @MainActor in
-                await UIApplication.shared.open(url)
-            }
-        } else {
+        case .apple:
             AppLogger.info("favors", "Attempting Apple Maps")
             appleMapsOpen()
         }
@@ -683,13 +847,7 @@ struct FavorDetailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                    Text(favor.status.displayText)
-                        .font(.naarsHeadline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(favor.status.color)
-                        .cornerRadius(8)
+                    NaarsChip(text: favor.statusDisplayText, tint: favor.status.color, size: .large)
 
                     if let poster = favor.poster {
                         Text("favor_detail_requested_by".localized(with: poster.name))
@@ -719,8 +877,8 @@ struct FavorDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .cardStyle()
 
-            if viewModel.canEdit {
-                SecondaryButton(title: "favor_detail_delete".localized) {
+            if viewModel.canDelete {
+                SecondaryButton(title: "favor_detail_delete".localized, isDestructive: true) {
                     showDeleteAlert = true
                 }
                 .accessibilityIdentifier("favor.delete")
@@ -732,8 +890,7 @@ struct FavorDetailView: View {
     private func claimButtonSection(favor: Favor) -> some View {
         if appState.isGuest {
             PrimaryButton(title: "guest_prompt_title_claim_favor".localized) {
-                guestRestrictionReason = .claimFavor
-                showGuestPrompt = true
+                guestPromptReason = .claimFavor
             }
             .accessibilityIdentifier("favor.guestClaimPrompt")
         } else {
@@ -752,27 +909,62 @@ struct FavorDetailView: View {
                 }
             }()
 
-            ClaimButton(
-                state: buttonState,
-                action: {
-                    switch buttonState {
-                    case .canClaim:
-                        Task {
-                            let canClaim = await claimViewModel.checkCanClaim()
-                            if canClaim {
-                                showClaimSheet = true
-                            } else {
-                                showPhoneRequired = true
+            // Poster or claimer of a confirmed request (the complete_request RPC accepts both).
+            // Drawn first: it is the filled primary action, and the outlined Unclaim follows it.
+            let canMarkComplete = favor.status == .confirmed && favor.claimedBy != nil
+                && (buttonState == .claimedByMe || buttonState == .isPoster)
+            if canMarkComplete, RequestItem.favor(favor).eventTime < Date() {
+                PrimaryButton(title: "favor_detail_mark_complete".localized) {
+                    showCompleteSheet = true
+                }
+                .accessibilityIdentifier("favor.markComplete")
+            }
+
+            // Two states the shared button has no wording for get a plain note instead. A
+            // co-requester is on the asking side of this favor, so "I Can Help!" on their own
+            // shared favor made no sense. A favor nobody claimed before it was closed must not
+            // read "Completed" here any more than on its status chip.
+            let neutralNote: String? = {
+                if buttonState == .canClaim && viewModel.isParticipant {
+                    return "request_detail_participant_notice".localized
+                }
+                if buttonState == .completed && favor.isExpiredUnclaimed {
+                    return "request_status_expired".localized
+                }
+                return nil
+            }()
+            if let neutralNote {
+                Text(neutralNote)
+                    .font(.naarsHeadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.naarsDisabled)
+                    .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous))
+            } else {
+                ClaimButton(
+                    state: buttonState,
+                    action: {
+                        switch buttonState {
+                        case .canClaim:
+                            Task {
+                                let canClaim = await claimViewModel.checkCanClaim()
+                                if canClaim {
+                                    showClaimSheet = true
+                                } else {
+                                    showPhoneRequired = true
+                                }
                             }
+                        case .claimedByMe:
+                            showUnclaimSheet = true
+                        default:
+                            break
                         }
-                    case .claimedByMe:
-                        showUnclaimSheet = true
-                    default:
-                        break
-                    }
-                },
-                isLoading: claimViewModel.isLoading
-            )
+                    },
+                    isLoading: claimViewModel.isLoading
+                )
+            }
         }
     }
 }

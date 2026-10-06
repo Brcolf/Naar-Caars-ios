@@ -30,9 +30,10 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(isDisabled || isLoading ? Color.naarsDisabled : Color.naarsPrimary)
-            .foregroundColor(.white)
-            .cornerRadius(10)
+            .background(isDisabled && !isLoading ? Color.naarsDisabled : Color.naarsPrimary)
+            .foregroundColor(isDisabled && !isLoading ? Color.naarsDisabledContent : .white)
+            .opacity(isLoading ? 0.7 : 1)
+            .clipShape(RoundedRectangle(cornerRadius: Constants.Radius.button, style: .continuous))
         }
         .buttonStyle(.scale)
         .disabled(isDisabled || isLoading)

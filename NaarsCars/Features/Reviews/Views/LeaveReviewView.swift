@@ -26,7 +26,8 @@ struct LeaveReviewView: View {
     @State private var showSuccess = false
     @State private var showPhotoSource = false
     @State private var showCameraPicker = false
-    
+    @State private var showPhotoLibrary = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -72,6 +73,7 @@ struct LeaveReviewView: View {
                     TextEditor(text: $viewModel.comment)
                         .frame(minHeight: 100)
                         .font(.naarsBody)
+                        .accessibilityLabel("review_section_comment".localized)
                 } header: {
                     Text("review_section_comment".localized)
                 }
@@ -84,7 +86,7 @@ struct LeaveReviewView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(maxHeight: 200)
-                                .cornerRadius(8)
+                                .cornerRadius(Constants.Radius.sm)
                                 .overlay(alignment: .topTrailing) {
                                     Button(action: {
                                         viewModel.reviewImage = nil
@@ -94,13 +96,26 @@ struct LeaveReviewView: View {
                                             .foregroundColor(.white)
                                             .background(Color.black.opacity(0.6))
                                             .clipShape(Circle())
+                                            // 44-pt target with the glyph kept in the photo's corner
+                                            .padding(8)
+                                            .frame(minWidth: 44, minHeight: 44, alignment: .topTrailing)
+                                            .contentShape(Rectangle())
                                     }
-                                    .padding(8)
+                                    // Inside a Form row the default style makes the whole row the
+                                    // button; plain keeps the tap on the control itself.
+                                    .buttonStyle(PlainButtonStyle())
+                                    .accessibilityLabel("townhall_remove_image".localized)
                                 }
                         }
-                        
+
                         Button {
-                            showPhotoSource = true
+                            // With no camera (Simulator, restricted device) the library is the only
+                            // source, so skip the one-option menu.
+                            if CameraImagePicker.isCameraAvailable {
+                                showPhotoSource = true
+                            } else {
+                                showPhotoLibrary = true
+                            }
                         } label: {
                             HStack {
                                 Image(systemName: "photo")
@@ -112,17 +127,14 @@ struct LeaveReviewView: View {
                 } header: {
                     Text("review_section_photo".localized)
                 }
-                
-                // Error Display
-                if let error = viewModel.error {
-                    Section {
-                        Text(error.localizedDescription)
-                            .foregroundColor(.naarsError)
-                            .font(.naarsCaption)
-                    }
-                }
             }
             .scrollDismissesKeyboard(.interactively)
+            // A banner at the top instead of caption text in the last form row, which is off
+            // screen on most phones when submitting, skipping or loading a photo fails.
+            .errorBanner(message: Binding(
+                get: { viewModel.error?.localizedDescription },
+                set: { if $0 == nil { viewModel.error = nil } }
+            ))
             .navigationTitle("review_leave_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -159,7 +171,7 @@ struct LeaveReviewView: View {
                     }
                     .padding()
                     .background(Color.naarsBackgroundSecondary)
-                    .cornerRadius(12)
+                    .cornerRadius(Constants.Radius.card)
                 }
             }
             .alert("review_skip_title".localized, isPresented: $showSkipConfirmation) {
@@ -178,23 +190,28 @@ struct LeaveReviewView: View {
             Button("photo_source_camera".localized) {
                 showCameraPicker = true
             }
-            PhotosPicker(
-                selection: Binding(
-                    get: { viewModel.selectedPhoto },
-                    set: { item in
-                        viewModel.selectedPhoto = item
-                        Task { await viewModel.handlePhotoSelection(item) }
-                    }
-                ),
-                matching: .images
-            ) {
-                Text("photo_source_library".localized)
+            // A dialog takes plain buttons only; a PhotosPicker placed here has no live view to
+            // present from once the dialog closes. The picker is attached to the view below.
+            Button("photo_source_library".localized) {
+                showPhotoLibrary = true
             }
         }
-        .sheet(isPresented: $showCameraPicker) {
+        .photosPicker(
+            isPresented: $showPhotoLibrary,
+            selection: Binding(
+                get: { viewModel.selectedPhoto },
+                set: { item in
+                    viewModel.selectedPhoto = item
+                    Task { await viewModel.handlePhotoSelection(item) }
+                }
+            ),
+            matching: .images
+        )
+        .fullScreenCover(isPresented: $showCameraPicker) {
             CameraImagePicker { image in
                 viewModel.reviewImage = image
             }
+            .ignoresSafeArea()
         }
     }
 

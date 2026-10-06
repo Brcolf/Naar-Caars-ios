@@ -84,32 +84,27 @@ final class ClaimService {
                 "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
             ]
             
-            try await supabase
+            let claimResponse = try await supabase
                 .from(tableName)
                 .update(updates)
                 .eq("id", value: requestId.uuidString)
+                .select("id")
                 .execute()
-            
-            // One read of the request row serves both the in-app notification (poster id)
-            // and the calendar event data in the push payload
-            let requestRow = try await fetchClaimedRequestRow(requestType: requestType, requestId: requestId)
-            
-            // Create notification for poster
-            try await createClaimNotification(
-                requestType: requestType,
-                requestId: requestId,
-                posterId: requestRow.posterId,
-                claimerId: claimerId
-            )
 
-            // Queue push notification for poster (with calendar event data)
-            await queueClaimPushNotification(
-                requestType: requestType,
-                requestId: requestId,
-                posterId: requestRow.posterId,
-                claimerName: profile.name,
-                requestData: requestRow.data
-            )
+            // The claim policy only matches an open, unclaimed request. When someone else got
+            // there first the update touches no row and PostgREST still answers 200 with an
+            // empty array. Without this check the second claimer saw the success checkmark and
+            // the poster was notified of a claim that never happened.
+            if let rows = try? JSONSerialization.jsonObject(with: claimResponse.data) as? [Any], rows.isEmpty {
+                throw AppError.invalidInput("Someone else has already claimed this request.")
+            }
+            
+            // The poster's in-app notification and push are both created by the database trigger
+            // notify_ride_status_change / notify_favor_status_change (checked live 2026-10-06:
+            // one "claimed" row per claim). The client used to follow the claim with a read of
+            // the request, a read of the claimer's profile and its own insert into
+            // `notifications`; RLS rejects a row for another user, so the insert never landed,
+            // and a failure in either read made a claim that had succeeded look failed.
 
             // Completion reminders are server-scheduled via database triggers.
             await PerformanceMonitor.shared.record(
@@ -217,12 +212,8 @@ final class ClaimService {
                 .eq("id", value: requestId.uuidString)
                 .execute()
             
-            // Create notification for poster
-            try await createUnclaimNotification(
-                requestType: requestType,
-                requestId: requestId,
-                posterId: try await getPosterId(requestType: requestType, requestId: requestId)
-            )
+            // The poster's "unclaimed" notification comes from the same database trigger as the
+            // claim (see claimRequest); nothing more to send from here.
             await PerformanceMonitor.shared.record(
                 operation: "claim.unclaim.success",
                 duration: Date().timeIntervalSince(operationStart),
@@ -248,65 +239,49 @@ final class ClaimService {
     
     // MARK: - Complete Request
     
-    /// Mark a request as completed (only poster can do this)
+    /// Mark a confirmed request as completed through the `complete_request` RPC. The server
+    /// accepts the poster or the claimer, closes the open completion reminders in the same
+    /// transaction and sends the poster the review request. (This used to be a poster-only
+    /// client guard in front of a direct UPDATE, so the claimer the completion reminder is
+    /// addressed to could never complete a request from the app.)
     /// - Parameters:
     ///   - requestType: "ride" or "favor"
     ///   - requestId: Request ID
-    ///   - posterId: User ID of the poster (for verification)
-    /// - Throws: AppError if complete fails
+    ///   - posterId: Kept for call-site compatibility; the server checks the caller's role.
+    /// - Throws: AppError if the request is not confirmed or the caller is not a party to it
     func completeRequest(
         requestType: String,
         requestId: UUID,
         posterId: UUID
     ) async throws {
         let operationStart = Date()
-        // Determine table name
-        let tableName = requestType == "ride" ? "rides" : "favors"
-        
-        // Verify the poster is the one who created it
-        let response = try await supabase
-            .from(tableName)
-            .select("user_id")
-            .eq("id", value: requestId.uuidString)
-            .single()
-            .execute()
-        
-        struct UserId: Codable {
-            let userId: UUID
-            
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-            }
+
+        struct RPCResult: Decodable {
+            let success: Bool
+            let error: String?
         }
-        
-        let userId: UserId = try JSONDecoder().decode(UserId.self, from: response.data)
-        
-        guard userId.userId == posterId else {
-            await PerformanceMonitor.shared.record(
-                operation: "claim.complete.rejected",
-                duration: Date().timeIntervalSince(operationStart),
-                metadata: [
-                    "requestType": requestType,
-                    "requestId": requestId.uuidString,
-                    "reason": "not_poster"
-                ]
-            )
-            throw AppError.permissionDenied("Only the poster can mark a request as complete")
-        }
-        
+
         do {
-            // Update status to "completed"
-            let updates: [String: AnyCodable] = [
-                "status": AnyCodable("completed"),
-                "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-            ]
-            
-            try await supabase
-                .from(tableName)
-                .update(updates)
-                .eq("id", value: requestId.uuidString)
+            let response = try await supabase
+                .rpc("complete_request", params: [
+                    "p_request_type": AnyCodable(requestType),
+                    "p_request_id": AnyCodable(requestId.uuidString)
+                ])
                 .execute()
-            
+            let result = try JSONDecoder().decode(RPCResult.self, from: response.data)
+            guard result.success else {
+                await PerformanceMonitor.shared.record(
+                    operation: "claim.complete.rejected",
+                    duration: Date().timeIntervalSince(operationStart),
+                    metadata: [
+                        "requestType": requestType,
+                        "requestId": requestId.uuidString,
+                        "reason": result.error ?? "unknown"
+                    ]
+                )
+                throw AppError.processingError("claim_complete_error_state".localized)
+            }
+
             // Note: Review prompt will be handled by the UI layer
             await PerformanceMonitor.shared.record(
                 operation: "claim.complete.success",
@@ -331,201 +306,6 @@ final class ClaimService {
         }
     }
     
-    // MARK: - Private Helpers
-    
-    /// Get the poster ID for a request
-    private func getPosterId(requestType: String, requestId: UUID) async throws -> UUID {
-        let tableName = requestType == "ride" ? "rides" : "favors"
-        
-        let response = try await supabase
-            .from(tableName)
-            .select("user_id")
-            .eq("id", value: requestId.uuidString)
-            .single()
-            .execute()
-        
-        struct UserId: Codable {
-            let userId: UUID
-            
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-            }
-        }
-        
-        let userId: UserId = try JSONDecoder().decode(UserId.self, from: response.data)
-        return userId.userId
-    }
-    
-    /// Fetch the poster ID together with the fields needed for the claim push payload in one query
-    private func fetchClaimedRequestRow(requestType: String, requestId: UUID) async throws -> (posterId: UUID, data: Data) {
-        let tableName = requestType == "ride" ? "rides" : "favors"
-        
-        let response = try await supabase
-            .from(tableName)
-            .select("user_id, " + claimPushSelectFields(requestType: requestType))
-            .eq("id", value: requestId.uuidString)
-            .single()
-            .execute()
-        
-        struct UserId: Codable {
-            let userId: UUID
-            
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-            }
-        }
-        
-        let userId: UserId = try JSONDecoder().decode(UserId.self, from: response.data)
-        return (posterId: userId.userId, data: response.data)
-    }
-    
-    /// Request columns used to build the calendar event data in the claim push payload
-    private func claimPushSelectFields(requestType: String) -> String {
-        requestType == "ride"
-            ? "date, time, pickup, destination, notes, timezone"
-            : "date, time, location, title, description, duration, timezone"
-    }
-    
-    /// Create notification when request is claimed
-    private func createClaimNotification(
-        requestType: String,
-        requestId: UUID,
-        posterId: UUID,
-        claimerId: UUID
-    ) async throws {
-        // Get claimer profile for notification
-        let claimerProfile = try await ProfileService.shared.fetchProfile(userId: claimerId)
-        
-        let notificationType = requestType == "ride" ? "ride_claimed" : "favor_claimed"
-        let title = requestType == "ride" ? "Ride Claimed!" : "Favor Claimed!"
-        let body = "\(claimerProfile.name) is helping with your \(requestType) request"
-        
-        let notificationData: [String: AnyCodable] = [
-            "user_id": AnyCodable(posterId.uuidString),
-            "type": AnyCodable(notificationType),
-            "title": AnyCodable(title),
-            "body": AnyCodable(body),
-            "ride_id": AnyCodable((requestType == "ride" ? requestId.uuidString : nil) as Any),
-            "favor_id": AnyCodable((requestType == "favor" ? requestId.uuidString : nil) as Any),
-            "read": AnyCodable(false),
-            "pinned": AnyCodable(false)
-        ]
-        
-        _ = try? await supabase
-            .from("notifications")
-            .insert(notificationData)
-            .execute()
-    }
-    
-    /// Create notification when request is unclaimed
-    private func createUnclaimNotification(
-        requestType: String,
-        requestId: UUID,
-        posterId: UUID
-    ) async throws {
-        let notificationType = requestType == "ride" ? "ride_unclaimed" : "favor_unclaimed"
-        let title = requestType == "ride" ? "Ride Unclaimed" : "Favor Unclaimed"
-        let body = "Your \(requestType) request is open again"
-        
-        let notificationData: [String: AnyCodable] = [
-            "user_id": AnyCodable(posterId.uuidString),
-            "type": AnyCodable(notificationType),
-            "title": AnyCodable(title),
-            "body": AnyCodable(body),
-            "ride_id": AnyCodable((requestType == "ride" ? requestId.uuidString : nil) as Any),
-            "favor_id": AnyCodable((requestType == "favor" ? requestId.uuidString : nil) as Any),
-            "read": AnyCodable(false),
-            "pinned": AnyCodable(false)
-        ]
-        
-        _ = try? await supabase
-            .from("notifications")
-            .insert(notificationData)
-            .execute()
-    }
-
-    /// Queue a push notification with calendar event data when request is claimed
-    /// - Parameter requestData: The request row (see `fetchClaimedRequestRow`) used for the calendar event data
-    private func queueClaimPushNotification(
-        requestType: String,
-        requestId: UUID,
-        posterId: UUID,
-        claimerName: String,
-        requestData: Data
-    ) async {
-        do {
-            let title = requestType == "ride" ? "Ride Claimed!" : "Favor Claimed!"
-            let body = "\(claimerName) is helping with your \(requestType) request"
-
-            var eventData: [String: Any] = [
-                "\(requestType)_id": requestId.uuidString
-            ]
-
-            // Parse the request row and build event data for calendar creation on the client
-            if let json = try? JSONSerialization.jsonObject(with: requestData) as? [String: Any] {
-                let storedTimezone = json["timezone"] as? String ?? "America/Los_Angeles"
-                let tz = TimeZone(identifier: storedTimezone) ?? TimeZone(identifier: "America/Los_Angeles") ?? .current
-
-                if let dateStr = json["date"] as? String,
-                   let timeStr = json["time"] as? String {
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "yyyy-MM-dd"
-                    if let date = dateFormatter.date(from: dateStr) {
-                        let timeParts = timeStr.split(separator: ":")
-                        if timeParts.count >= 2,
-                           let hour = Int(timeParts[0]),
-                           let minute = Int(timeParts[1]) {
-                            var calendar = Calendar.current
-                            calendar.timeZone = tz
-                            var components = calendar.dateComponents([.year, .month, .day], from: date)
-                            components.hour = hour
-                            components.minute = minute
-                            components.timeZone = tz
-                            if let eventDate = calendar.date(from: components) {
-                                let isoFormatter = ISO8601DateFormatter()
-                                eventData["event_date"] = isoFormatter.string(from: eventDate)
-                            }
-                        }
-                    }
-                }
-
-                eventData["event_timezone"] = storedTimezone
-
-                if requestType == "ride" {
-                    let pickup = json["pickup"] as? String ?? ""
-                    let destination = json["destination"] as? String ?? ""
-                    eventData["event_title"] = "Ride: \(pickup) → \(destination)"
-                    eventData["event_location"] = pickup
-                    if let notes = json["notes"] as? String {
-                        eventData["event_notes"] = notes
-                    }
-                } else {
-                    eventData["event_title"] = "Favor: \(json["title"] as? String ?? "")"
-                    if let location = json["location"] as? String {
-                        eventData["event_location"] = location
-                    }
-                    if let desc = json["description"] as? String {
-                        eventData["event_notes"] = desc
-                    }
-                }
-            }
-
-            // Call queue_push_notification RPC
-            try await supabase.rpc("queue_push_notification", params: [
-                "p_recipient_user_id": AnyCodable(posterId.uuidString),
-                "p_notification_type": AnyCodable(requestType == "ride" ? "ride_claimed" : "favor_claimed"),
-                "p_title": AnyCodable(title),
-                "p_body": AnyCodable(body),
-                "p_data": AnyCodable(eventData)
-            ]).execute()
-
-            AppLogger.info("claims", "Queued claim push notification for poster \(posterId)")
-        } catch {
-            // Non-fatal: push notification failure shouldn't break the claim flow
-            AppLogger.error("claims", "Failed to queue claim push notification: \(error)")
-        }
-    }
-
 }
 
 extension ClaimService: ClaimServiceProtocol {}

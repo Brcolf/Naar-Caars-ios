@@ -22,7 +22,7 @@ struct ScrollToBottomButton: View {
                 Circle()
                     .fill(Color.naarsBackgroundSecondary)
                     .frame(width: 44, height: 44)
-                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    .floatingShadow()
                     .overlay(
                         Image(systemName: "chevron.down")
                             .font(.naarsCallout).fontWeight(.semibold)

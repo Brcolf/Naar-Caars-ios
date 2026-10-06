@@ -34,6 +34,10 @@ final class AudioRecordingCoordinator {
 
     private let minimumDuration: TimeInterval = 1.0
 
+    /// Called when microphone access is denied, so the UI can say why nothing happened and
+    /// offer Settings. Without it, choosing Voice Note after a denial silently did nothing.
+    @ObservationIgnored var onPermissionDenied: (() -> Void)?
+
     // MARK: - Actions
 
     func start() {
@@ -48,7 +52,10 @@ final class AudioRecordingCoordinator {
                     }
                 }
             }
-            guard granted else { return }
+            guard granted else {
+                onPermissionDenied?()
+                return
+            }
             beginRecording()
         }
     }

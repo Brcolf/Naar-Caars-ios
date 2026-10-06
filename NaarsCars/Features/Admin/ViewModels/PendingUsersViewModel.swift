@@ -18,8 +18,14 @@ final class PendingUsersViewModel: ObservableObject {
     @Published var pendingUsers: [Profile] = []
     @Published var inviterProfiles: [UUID: Profile] = [:]
     @Published var isLoading: Bool = false
+    /// The last load failure. Cleared whenever a load starts.
     @Published var error: AppError?
-    
+    /// A failed approve or reject, for the error banner. Kept apart from `error` because the
+    /// reload that follows a failed action clears `error` before any view can show it.
+    @Published var actionErrorMessage: String?
+    /// True while an approve or reject request is running
+    @Published var isPerformingAction: Bool = false
+
     // MARK: - Private Properties
     
     private let adminService = AdminService.shared
@@ -91,8 +97,12 @@ final class PendingUsersViewModel: ObservableObject {
     /// Approve a pending user
     /// - Parameter userId: ID of user to approve
     func approveUser(userId: UUID) async {
+        guard !isPerformingAction else { return }
         error = nil
-        
+        actionErrorMessage = nil
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+
         do {
             try await adminService.approveUser(userId: userId)
             HapticManager.success()
@@ -109,7 +119,8 @@ final class PendingUsersViewModel: ObservableObject {
             // Refresh badge counts after approving user
             _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "adminApproveUser")
         } catch {
-            self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+            actionErrorMessage = "admin_approve_failed".localized
+            HapticManager.error()
             AppLogger.error("admin", "Error approving user: \(error.localizedDescription)")
             AppLogger.error("admin", "Error approving user details: \(error)")
             // Reload list to ensure UI is in sync
@@ -120,8 +131,12 @@ final class PendingUsersViewModel: ObservableObject {
     /// Reject a pending user
     /// - Parameter userId: ID of user to reject
     func rejectUser(userId: UUID) async {
+        guard !isPerformingAction else { return }
         error = nil
-        
+        actionErrorMessage = nil
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+
         do {
             AppLogger.info("admin", "Admin rejected user: \(userId)")
             try await adminService.rejectUser(userId: userId)
@@ -137,7 +152,8 @@ final class PendingUsersViewModel: ObservableObject {
             // Refresh badge counts after rejecting user
             _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "adminRejectUser")
         } catch {
-            self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
+            actionErrorMessage = "admin_reject_failed".localized
+            HapticManager.error()
             AppLogger.error("admin", "Error rejecting user: \(error.localizedDescription)")
             // Reload list to ensure UI is in sync
             await loadPendingUsers()

@@ -217,7 +217,14 @@ final class MessagingRepository {
                     self?.retainMessageSubjects(for: conversationId)
                 },
                 receiveCancel: { [weak self] in
-                    self?.releaseMessageSubjects(for: conversationId)
+                    // A cancel can arrive from a ViewModel's deinit on a Task executor (seen in
+                    // the 2026-10-05 SIGSEGV in releaseMessageSubjects). Mutate the subject
+                    // dictionaries only on the main actor.
+                    if Thread.isMainThread {
+                        MainActor.assumeIsolated { self?.releaseMessageSubjects(for: conversationId) }
+                    } else {
+                        Task { @MainActor [weak self] in self?.releaseMessageSubjects(for: conversationId) }
+                    }
                 }
             )
             .eraseToAnyPublisher()

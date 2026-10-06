@@ -53,7 +53,8 @@ final class MessageOverlayController: UIViewController {
         showDetails: Bool = false,
         individualReactions: [MessageReaction] = [],
         reactionProfiles: [UUID: Profile] = [:],
-        currentUserId: UUID = UUID()
+        currentUserId: UUID = UUID(),
+        isInThread: Bool = false
     ) {
         self.snapshot = snapshot
         self.sourceFrame = sourceFrame
@@ -68,7 +69,12 @@ final class MessageOverlayController: UIViewController {
         self.currentUserId = currentUserId
 
         self.reactionBar = ReactionBarView(currentUserReaction: currentUserReaction)
-        self.actionList = OverlayActionListView(message: message, isFromCurrentUser: isFromCurrentUser, isConversationFrozen: isConversationFrozen)
+        self.actionList = OverlayActionListView(
+            message: message,
+            isFromCurrentUser: isFromCurrentUser,
+            isConversationFrozen: isConversationFrozen,
+            isInThread: isInThread
+        )
         self.detailsRow = ReactionDetailsRowView()
 
         super.init(nibName: nil, bundle: nil)
@@ -87,6 +93,8 @@ final class MessageOverlayController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        // VoiceOver: keep focus inside the overlay while it is up.
+        view.accessibilityViewIsModal = true
         setupBackdrop()
         setupSnapshot()
         setupReactionBar()
@@ -114,7 +122,7 @@ final class MessageOverlayController: UIViewController {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(backdropTapped))
         backdropBlur.addGestureRecognizer(tapGesture)
         backdropBlur.isAccessibilityElement = true
-        backdropBlur.accessibilityLabel = NSLocalizedString("accessibility_close", comment: "Close overlay")
+        backdropBlur.accessibilityLabel = "accessibility_close".localized
         backdropBlur.accessibilityTraits = .button
         backdropBlur.accessibilityIdentifier = "overlay.backdrop.dismiss"
     }
@@ -128,7 +136,9 @@ final class MessageOverlayController: UIViewController {
     private func setupReactionBar() {
         view.addSubview(reactionBar)
 
-        if isConversationFrozen {
+        // No reactions in a conversation the user has left, nor on a row that is not on the
+        // server yet (still sending, or failed): the reaction would be refused.
+        if isConversationFrozen || !MessageOverlayAvailability.allowsServerActions(for: message) {
             reactionBar.isHidden = true
             reactionBar.alpha = 0
         }
@@ -227,10 +237,27 @@ final class MessageOverlayController: UIViewController {
             actionListTopY = snapshot.frame.minY - spacing - fittingSize.height
         }
 
-        // Ensure it doesn't go off screen bottom
+        // Ensure it doesn't go off screen bottom. Instead of clamping the list over the message
+        // (which hid the bubble and overlapped the reaction bar for the newest messages), move
+        // the message, reaction bar and details row up by the overflow.
         let maxBottomY = view.bounds.height - safeBottom
-        if actionListTopY + fittingSize.height > maxBottomY {
-            actionListTopY = maxBottomY - fittingSize.height
+        let overflow = actionListTopY + fittingSize.height - maxBottomY
+        if overflow > 0 {
+            // Only shift as far as the room above the topmost element allows (tall image
+            // bubbles, small screens); whatever remains is clamped the old way so the list
+            // stays on screen rather than the reaction bar leaving it.
+            let safeTop = view.safeAreaInsets.top > 0 ? view.safeAreaInsets.top : 54
+            var topMost = min(snapshot.frame.minY, reactionBar.frame.minY)
+            if !detailsRow.isHidden {
+                topMost = min(topMost, detailsRow.frame.minY)
+            }
+            let shift = min(overflow, max(0, topMost - safeTop))
+            snapshot.frame.origin.y -= shift
+            reactionBar.frame.origin.y -= shift
+            if !detailsRow.isHidden {
+                detailsRow.frame.origin.y -= shift
+            }
+            actionListTopY = min(actionListTopY - shift, maxBottomY - fittingSize.height)
         }
 
         // Align horizontally with the message bubble
@@ -333,5 +360,11 @@ final class MessageOverlayController: UIViewController {
 
     @objc private func backdropTapped() {
         dismissOverlay()
+    }
+
+    /// VoiceOver's two-finger scrub closes the overlay, like tapping the backdrop.
+    override func accessibilityPerformEscape() -> Bool {
+        dismissOverlay()
+        return true
     }
 }

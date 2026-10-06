@@ -9,14 +9,27 @@ import SwiftUI
 import UIKit
 
 /// Presents the device camera for taking a photo.
-/// Usage: `.sheet(isPresented: $showCamera) { CameraImagePicker { image in ... } }`
+/// Usage: offer the Camera option only when `CameraImagePicker.isCameraAvailable`, then
+/// `.fullScreenCover(isPresented: $showCamera) { CameraImagePicker { image in ... }.ignoresSafeArea() }`
+/// (as a page sheet the camera is letterboxed and can be swiped away mid-capture).
 struct CameraImagePicker: UIViewControllerRepresentable {
     let onImageCaptured: (UIImage) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    /// False in the Simulator and on devices where the camera is restricted (Screen Time, device
+    /// management).
+    static var isCameraAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
+
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = .camera
+        // Setting .camera while it is unavailable raises NSInvalidArgumentException. Callers hide
+        // the Camera option then; if one does not, the picker stays on its default source (the
+        // photo library) rather than crashing.
+        if Self.isCameraAvailable {
+            picker.sourceType = .camera
+        }
         picker.allowsEditing = false
         picker.delegate = context.coordinator
         return picker

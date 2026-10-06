@@ -28,13 +28,13 @@ struct AccountSettingsSection: View {
                         }
                     } icon: {
                         Image(systemName: "apple.logo")
-                            .foregroundColor(.accentColor)
+                            .foregroundColor(.naarsPrimary)
                     }
                 }
             } else {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(.naarsSuccess)
                     Text("settings_apple_id_linked".localized)
                         .font(.naarsBody)
                     Spacer()

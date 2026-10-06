@@ -41,7 +41,12 @@ struct FlightInfo: Sendable {
     static func fromPersisted(normalized: String) -> FlightInfo? {
         let t = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return nil }
-        let code = String(t.prefix(while: { $0.isLetter }))
+        var code = String(t.prefix(while: { $0.isLetter }))
+        // Some airline codes contain a digit (B6, F9, G4): "B6123" is JetBlue 123, not airline "B".
+        let twoCharacterCode = String(t.prefix(2))
+        if code.count < 2, AirlineDatabase.name(iata: twoCharacterCode) != nil {
+            code = twoCharacterCode
+        }
         let numPart = t.dropFirst(code.count)
         let flightNumberInt = Int(numPart) ?? 0
         let airlineCode = code.uppercased()

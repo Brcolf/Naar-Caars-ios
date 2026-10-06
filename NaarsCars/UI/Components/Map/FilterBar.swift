@@ -20,7 +20,7 @@ struct FilterBar: View {
                 title: "Rides",
                 icon: "car.fill",
                 isSelected: showRides,
-                color: .blue
+                color: .rideAccent
             ) {
                 showRides.toggle()
             }
@@ -30,7 +30,7 @@ struct FilterBar: View {
                 title: "Favors",
                 icon: "wrench.fill",
                 isSelected: showFavors,
-                color: .orange
+                color: .favorAccent
             ) {
                 showFavors.toggle()
             }
@@ -40,13 +40,12 @@ struct FilterBar: View {
             // Request count badge
             if requestCount > 0 {
                 Text(requestCount == 1 ? "requests_count_singular".localized(with: requestCount) : "requests_count_plural".localized(with: requestCount))
-                    .font(.caption)
+                    .font(.naarsCaption)
                     .fontWeight(.medium)
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(16)
+                    .glassEffect(.regular, in: .capsule)
             }
         }
     }
@@ -66,14 +65,14 @@ struct FilterChip: View {
                 Image(systemName: icon)
                     .font(.naarsSubheadline)
                 Text(title)
-                    .font(.subheadline)
+                    .font(.naarsSubheadline)
                     .fontWeight(.medium)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(isSelected ? color : Color(.systemGray5))
+            .background(isSelected ? color : Color.naarsInsetBackground)
             .foregroundColor(isSelected ? .white : .primary)
-            .cornerRadius(20)
+            .clipShape(Capsule())
         }
         .buttonStyle(PlainButtonStyle())
     }

@@ -11,34 +11,66 @@ import SwiftUI
 struct NotificationSettingsSection: View {
     @ObservedObject var viewModel: SettingsViewModel
 
+    /// What iOS currently allows, in words
+    private var pushStatusText: String {
+        if viewModel.pushNotificationsEnabled {
+            return "settings_push_status_on".localized
+        }
+        return viewModel.pushPermissionDenied
+            ? "settings_push_status_denied".localized
+            : "settings_push_status_off".localized
+    }
+
+    /// Asking is only possible before the first answer; afterwards the Settings app decides.
+    private var pushActionTitle: String {
+        if viewModel.pushNotificationsEnabled {
+            return "settings_push_manage_in_settings".localized
+        }
+        return viewModel.pushPermissionDenied
+            ? "edit_profile_open_settings".localized
+            : "settings_push_turn_on".localized
+    }
+
     var body: some View {
         Section {
-            // Push Notification Toggle
-            Toggle(isOn: $viewModel.pushNotificationsEnabled) {
-                Label {
-                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                        Text("settings_push_notifications".localized)
-                            .font(.naarsBody)
-                        Text("settings_push_notifications_description".localized)
-                            .font(.naarsCaption)
-                            .foregroundColor(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "bell.badge")
-                        .foregroundColor(.accentColor)
+            // Push notification status. This used to be a switch, but an app cannot turn its
+            // own notification permission off: the switch changed nothing and was back on the
+            // next time Settings opened. The row now shows what iOS reports and the button
+            // goes to the place that can change it.
+            Label {
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text("settings_push_notifications".localized)
+                        .font(.naarsBody)
+                    Text(pushStatusText)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } icon: {
+                Image(systemName: viewModel.pushNotificationsEnabled ? "bell.badge" : "bell.slash")
+                    .foregroundColor(.naarsPrimary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("settings.push.status")
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                // Back from the Settings app: show what was chosen there.
+                Task {
+                    await viewModel.refreshPushAuthorizationStatus()
                 }
             }
-            .onChange(of: viewModel.pushNotificationsEnabled) { _, newValue in
+
+            Button {
                 HapticManager.selectionChanged()
                 Task {
-                    await viewModel.handlePushNotificationToggle(newValue)
+                    await viewModel.handlePushPermissionAction()
                 }
+            } label: {
+                Text(pushActionTitle)
+                    .font(.naarsBody)
             }
+            .accessibilityIdentifier("settings.push.action")
 
             if viewModel.pushNotificationsEnabled {
-                Divider()
-                    .padding(.vertical, 4)
-
                 // Notification Type Preferences
                 VStack(alignment: .leading, spacing: 12) {
                     Text("settings_notification_types".localized)
@@ -72,7 +104,7 @@ struct NotificationSettingsSection: View {
                             Text("settings_announcements".localized)
                                 .font(.naarsBody)
                             Text("settings_always_enabled".localized)
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -83,7 +115,7 @@ struct NotificationSettingsSection: View {
                             Text("settings_new_requests".localized)
                                 .font(.naarsBody)
                             Text("settings_always_enabled".localized)
-                                .font(.caption)
+                                .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                         }
                     }

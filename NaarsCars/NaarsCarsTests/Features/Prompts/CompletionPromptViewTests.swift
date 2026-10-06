@@ -10,7 +10,8 @@ final class CompletionPromptViewTests: XCTestCase {
                 requestId: UUID(), requestTitle: "Ride", dueAt: Date()
             ),
             onConfirm: {},
-            onSnooze: {}
+            onSnooze: {},
+            onClose: {}
         )
         _ = view.body
         XCTAssertTrue(true)

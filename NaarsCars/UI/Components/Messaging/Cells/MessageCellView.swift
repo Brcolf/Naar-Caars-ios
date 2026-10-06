@@ -121,22 +121,113 @@ final class MessageCellView: UIView {
 
         // Highlight flash (scroll-to-reply)
         if config.isHighlighted {
-            backgroundColor = UIColor.naarsPrimary.withAlphaComponent(0.12)
-            UIView.animate(withDuration: 1.5, delay: 0.3, options: .curveEaseOut) {
+            // Search / reply-jump target: strong enough to be seen, held long enough to be read.
+            backgroundColor = UIColor.naarsPrimary.withAlphaComponent(0.28)
+            UIView.animate(withDuration: 2.0, delay: 1.2, options: .curveEaseOut) {
                 self.backgroundColor = .clear
             }
         } else {
             backgroundColor = .clear
         }
 
-        // Accessibility — container exposes child elements
-        isAccessibilityElement = false
-        accessibilityElements = visibleContentViews()
-            + [moderationHiddenMessage, systemMessage, unsentMessage, reactionStickerBadge, timestampLabel, readReceipt, failedRetryLabel, replyPreview]
-                .compactMap { $0 }
-                .filter { !$0.isHidden }
+        updateAccessibility(config: config)
 
         setNeedsLayout()
+    }
+
+    // MARK: - Accessibility
+
+    /// The cell is a container: its children stay separate elements because image, audio,
+    /// link preview and retry each have their own action and identifier. The first content
+    /// bubble also says who wrote the message, when, and whether it was edited or has replies
+    /// (alignment and colour were the only cues), and carries the actions that are otherwise
+    /// gesture-only. The time is part of that label, so the tap-revealed time label is not
+    /// listed as an element.
+    private func updateAccessibility(config: MessageCellConfig) {
+        isAccessibilityElement = false
+        let contentViews = visibleContentViews()
+        let message = config.message
+        let isRegular = !MessageOverlayAvailability.isPlaceholder(message)
+
+        for (index, view) in contentViews.enumerated() {
+            let isPrimary = isRegular && index == 0
+            if let bubble = view as? MessageBubbleContentView {
+                bubble.accessibilityContextPrefix = isPrimary ? accessibilitySenderText(config: config) : nil
+                bubble.accessibilityContextSuffix = isPrimary ? accessibilityDetailText(config: config) : nil
+            }
+            view.accessibilityCustomActions = isPrimary ? accessibilityActions(config: config) : nil
+        }
+
+        // Another member's system line offers Report through the long press; give VoiceOver
+        // the same route. (Own lines and every other placeholder offer nothing.)
+        if message.messageType == .system,
+           MessageOverlayAvailability.canPresentOverlay(for: message, isFromCurrentUser: config.isFromCurrentUser) {
+            systemMessage?.accessibilityCustomActions = [
+                UIAccessibilityCustomAction(name: "messaging_report_message".localized) { [weak self] _ in
+                    guard let self, let config = self.config else { return false }
+                    self.delegate?.messageCellDidLongPress(self, message: config.message)
+                    return true
+                }
+            ]
+        } else {
+            systemMessage?.accessibilityCustomActions = nil
+        }
+
+        accessibilityElements = contentViews
+            + [moderationHiddenMessage, systemMessage, unsentMessage, reactionStickerBadge, readReceipt, failedRetryLabel, replyPreview]
+                .compactMap { $0 }
+                .filter { !$0.isHidden }
+    }
+
+    /// "You" for own messages, otherwise the sender's name.
+    private func accessibilitySenderText(config: MessageCellConfig) -> String {
+        if config.isFromCurrentUser { return "messaging_you".localized }
+        let senderProfile = config.message.sender ?? config.participantProfiles.first { $0.id == config.message.fromId }
+        return senderProfile?.name ?? "messaging_deleted_user".localized
+    }
+
+    /// Time, "Edited" and the reply count, spoken after the bubble's own content.
+    private func accessibilityDetailText(config: MessageCellConfig) -> String {
+        var parts = [config.message.createdAt.messageTimestampString]
+        if config.message.isEdited { parts.append("messaging_edited".localized) }
+        if config.replyCount > 0 { parts.append(Self.replyCountText(config.replyCount)) }
+        return parts.joined(separator: ", ")
+    }
+
+    /// VoiceOver equivalents of the swipe, long-press and tap gestures. They call the same
+    /// delegate methods the gestures do; reactions, copy, edit, unsend, delete and report are
+    /// reached through the overlay the second action opens.
+    private func accessibilityActions(config: MessageCellConfig) -> [UIAccessibilityCustomAction] {
+        var actions: [UIAccessibilityCustomAction] = []
+        if allowsReply(config) {
+            actions.append(UIAccessibilityCustomAction(name: "Reply".localized) { [weak self] _ in
+                guard let self, let config = self.config else { return false }
+                self.delegate?.messageCellDidSwipeToReply(self, message: config.message)
+                return true
+            })
+        }
+        if MessageOverlayAvailability.canPresentOverlay(for: config.message, isFromCurrentUser: config.isFromCurrentUser) {
+            actions.append(UIAccessibilityCustomAction(name: "messaging_accessibility_react_and_more".localized) { [weak self] _ in
+                guard let self, let config = self.config else { return false }
+                self.delegate?.messageCellDidLongPress(self, message: config.message)
+                return true
+            })
+        }
+        if !config.isInThread, config.message.replyToId != nil || config.replyCount > 0 {
+            actions.append(UIAccessibilityCustomAction(name: "messaging_view_thread".localized) { [weak self] _ in
+                guard let self, let config = self.config else { return false }
+                self.delegate?.messageCellDidTapViewThread(self, message: config.message)
+                return true
+            })
+        }
+        return actions
+    }
+
+    /// Reply is offered for a real message that has reached the server, and not inside the
+    /// reply thread (no nested replies). A system line, a placeholder or a message that is
+    /// still sending or failed has nothing to reply to.
+    private func allowsReply(_ config: MessageCellConfig) -> Bool {
+        !config.isInThread && MessageOverlayAvailability.allowsServerActions(for: config.message)
     }
 
     // MARK: - Content Display
@@ -232,7 +323,14 @@ final class MessageCellView: UIView {
         }
 
         // Content
-        if msg.isAudioMessage, let audioUrl = msg.audioUrl {
+        if msg.isAudioMessage {
+            // A voice note is an audio bubble from the moment it is recorded. While it uploads,
+            // and if the send fails, there is no server URL yet: play the local recording. (The
+            // row used to fall through to the image branch, which drew the .m4a as a failed
+            // image.) With neither URL the bubble is shown with playback disabled.
+            let audioUrl = msg.audioUrl
+                ?? msg.localAttachmentPath.map { LocalAttachmentStorage.fileURL(for: $0).absoluteString }
+                ?? ""
             let view = audioBubble ?? {
                 let v = AudioBubbleView()
                 addSubview(v)
@@ -329,9 +427,11 @@ final class MessageCellView: UIView {
             reactionStickerBadge?.isHidden = true
         }
 
-        // Timestamp + read receipt (last in series)
-        if config.isLastInSeries || timestampLabel?.isHidden == false {
-            showTimestamp(config: config)
+        // Footer row (iMessage): "Edited" whenever edited, the delivery status under the
+        // newest outgoing message only, and the time only while revealed by a tap. There is
+        // no per-series timestamp any more; time headers come from the date separators.
+        if config.message.isEdited || (config.isFromCurrentUser && config.isLastOutgoingMessage && !config.isFailed) {
+            showFooter(config: config, revealTime: false)
         }
 
         // Failed retry
@@ -361,25 +461,50 @@ final class MessageCellView: UIView {
                 return l
             }()
             label.isHidden = false
-            label.text = config.replyCount == 1
-                ? NSLocalizedString("messaging_1_reply", comment: "")
-                : String(format: NSLocalizedString("messaging_n_replies", comment: ""), config.replyCount)
+            label.text = Self.replyCountText(config.replyCount)
         } else {
             replyCountLabel?.isHidden = true
         }
     }
 
-    private func showTimestamp(config: MessageCellConfig) {
-        let lbl = timestampLabel ?? {
-            let l = UILabel()
-            l.font = .preferredFont(forTextStyle: .caption1)
-            l.textColor = .secondaryLabel
-            addSubview(l)
-            timestampLabel = l
-            return l
-        }()
-        lbl.isHidden = false
-        lbl.text = config.message.createdAt.messageTimestampString
+    private static func replyCountText(_ count: Int) -> String {
+        count == 1
+            ? "messaging_1_reply".localized
+            : "messaging_n_replies".localized(with: count)
+    }
+
+    /// Height of a one-line caption row (sender name, "Not sent. Tap to retry", reply count).
+    /// Derived from the label's own font so the row grows with Dynamic Type (18 pt at the
+    /// default size, as before). Used by both sizeThatFits and layoutSubviews so the measured
+    /// cell height and the laid-out content cannot diverge.
+    private func captionRowHeight(for label: UILabel?) -> CGFloat {
+        let font = label?.font ?? UIFont.preferredFont(forTextStyle: .caption1)
+        return ceil(font.lineHeight) + 3
+    }
+
+    /// Whether the footer row (time / edited / delivery status) occupies a line.
+    private var isFooterRowVisible: Bool {
+        timestampLabel?.isHidden == false || editedLabel?.isHidden == false || readReceipt?.isHidden == false
+    }
+
+    /// Footer row height; follows Dynamic Type so the caption is never clipped.
+    private var footerRowHeight: CGFloat {
+        ceil(UIFont.preferredFont(forTextStyle: .caption1).lineHeight) + 2
+    }
+
+    private func showFooter(config: MessageCellConfig, revealTime: Bool) {
+        if revealTime {
+            let lbl = timestampLabel ?? {
+                let l = UILabel()
+                l.font = .preferredFont(forTextStyle: .caption1)
+                l.textColor = .secondaryLabel
+                addSubview(l)
+                timestampLabel = l
+                return l
+            }()
+            lbl.isHidden = false
+            lbl.text = config.message.createdAt.messageTimestampString
+        }
 
         if config.message.isEdited {
             let el = editedLabel ?? {
@@ -394,7 +519,7 @@ final class MessageCellView: UIView {
             el.isHidden = false
         }
 
-        if config.isFromCurrentUser {
+        if config.isFromCurrentUser && config.isLastOutgoingMessage && !config.isFailed {
             let rr = readReceipt ?? {
                 let v = ReadReceiptView()
                 addSubview(v)
@@ -518,8 +643,9 @@ final class MessageCellView: UIView {
         // Sender name
         if let lbl = senderNameLabel, !lbl.isHidden {
             let x = avatarSize + avatarSpacing + 12
-            lbl.frame = CGRect(x: x, y: y, width: maxBubbleWidth, height: 16)
-            y += 18
+            let rowHeight = captionRowHeight(for: lbl)
+            lbl.frame = CGRect(x: x, y: y, width: maxBubbleWidth, height: rowHeight - 2)
+            y += rowHeight
         }
 
         // Reply preview — use cached size or fall back to measurement
@@ -561,50 +687,55 @@ final class MessageCellView: UIView {
         if let cv = primaryContentView {
             let arrowSize: CGFloat = 24
             let arrowY = cv.frame.midY - arrowSize / 2
+            // The content slides right, so the arrow sits in the space it vacates: just left of
+            // an outgoing bubble, and at the leading edge for an incoming one (it used to sit to
+            // the right of incoming bubbles, where the sliding bubble covered it).
             if config.isFromCurrentUser {
                 replyArrowIcon.frame = CGRect(x: cv.frame.minX - arrowSize - 8, y: arrowY, width: arrowSize, height: arrowSize)
             } else {
-                replyArrowIcon.frame = CGRect(x: cv.frame.maxX + 8, y: arrowY, width: arrowSize, height: arrowSize)
+                replyArrowIcon.frame = CGRect(x: 8, y: arrowY, width: arrowSize, height: arrowSize)
             }
         }
 
-        // Timestamp row — these are fixed-height labels, sizeToFit is cheap
-        if let ts = timestampLabel, !ts.isHidden {
-            ts.sizeToFit()
-            let rowX = config.isFromCurrentUser
-                ? bounds.width - ts.frame.width - 4
-                : avatarSize + avatarSpacing + 4
-            ts.frame.origin = CGPoint(x: rowX, y: y)
-
-            if let el = editedLabel, !el.isHidden {
-                el.sizeToFit()
-                el.frame.origin = CGPoint(x: ts.frame.maxX + 4, y: y)
-            }
-
+        // Footer row ("3:45 PM" · "Edited" · "Delivered") — fixed-height labels, sizeToFit is
+        // cheap. The whole group is right-aligned for outgoing messages, left-aligned otherwise.
+        if isFooterRowVisible {
+            var items: [UIView] = []
+            if let ts = timestampLabel, !ts.isHidden { ts.sizeToFit(); items.append(ts) }
+            if let el = editedLabel, !el.isHidden { el.sizeToFit(); items.append(el) }
             if let rr = readReceipt, !rr.isHidden {
-                let rrSize = rr.sizeThatFits(CGSize(width: 100, height: 20))
-                let lastX = (editedLabel?.isHidden == false ? editedLabel!.frame.maxX : ts.frame.maxX) + 4
-                rr.frame = CGRect(x: lastX, y: y, width: rrSize.width, height: rrSize.height)
+                rr.frame.size = rr.sizeThatFits(CGSize(width: 160, height: footerRowHeight))
+                items.append(rr)
             }
-            y += ts.frame.height
+            let gap: CGFloat = 4
+            let totalWidth = items.reduce(0) { $0 + $1.frame.width } + gap * CGFloat(max(items.count - 1, 0))
+            var x = config.isFromCurrentUser
+                ? bounds.width - totalWidth - 4
+                : avatarSize + avatarSpacing + 4
+            let rowHeight = footerRowHeight
+            for item in items {
+                item.frame = CGRect(x: x, y: y + (rowHeight - item.frame.height) / 2, width: item.frame.width, height: item.frame.height)
+                x += item.frame.width + gap
+            }
+            y += rowHeight
         }
 
-        // Failed retry
+        // Failed retry — advances by the same row height sizeThatFits reserved for it
         if let fr = failedRetryLabel, !fr.isHidden {
             fr.sizeToFit()
             let x = config.isFromCurrentUser ? bounds.width - fr.frame.width - 4 : avatarSize + avatarSpacing + 4
             fr.frame.origin = CGPoint(x: x, y: y)
-            y += fr.frame.height
+            y += captionRowHeight(for: fr)
         }
 
-        // Reply count label
+        // Reply count label — same rule
         if let rcl = replyCountLabel, !rcl.isHidden {
             rcl.sizeToFit()
             let rclX = config.isFromCurrentUser
                 ? bounds.width - rcl.frame.width - 4
                 : avatarSize + avatarSpacing + 4
             rcl.frame.origin = CGPoint(x: rclX, y: y)
-            y += rcl.frame.height + 4
+            y += captionRowHeight(for: rcl)
         }
 
         // Avatar (bottom-aligned with last content view)
@@ -668,7 +799,7 @@ final class MessageCellView: UIView {
         var height: CGFloat = 0
 
         // Sender name
-        if senderNameLabel?.isHidden == false { height += 18 }
+        if let lbl = senderNameLabel, !lbl.isHidden { height += captionRowHeight(for: lbl) }
         // Reply preview
         if let rp = replyPreview, !rp.isHidden {
             let rpSize = rp.sizeThatFits(CGSize(width: maxBubbleWidth, height: .greatestFiniteMagnitude))
@@ -684,12 +815,12 @@ final class MessageCellView: UIView {
             height += cvSize.height + 2
         }
         if !cvs.isEmpty { height += 2 }
-        // Timestamp
-        if timestampLabel?.isHidden == false { height += 18 }
+        // Footer row (time / edited / delivery status)
+        if isFooterRowVisible { height += footerRowHeight }
         // Failed
-        if failedRetryLabel?.isHidden == false { height += 18 }
+        if let fr = failedRetryLabel, !fr.isHidden { height += captionRowHeight(for: fr) }
         // Reply count
-        if replyCountLabel?.isHidden == false { height += 18 }
+        if let rcl = replyCountLabel, !rcl.isHidden { height += captionRowHeight(for: rcl) }
         // Padding
         let topPadding: CGFloat = config.isFirstInSeries ? 8 : 2
         let bottomPadding: CGFloat = 2
@@ -732,11 +863,10 @@ final class MessageCellView: UIView {
             guard horizontal > vertical * 2 else { return }
             let raw = translation.x
 
-            if !config.isFromCurrentUser && raw > 0 {
-                swipeOffset = min(raw * 0.6, swipeThreshold * 1.2)
-            } else if config.isFromCurrentUser && raw < 0 {
-                swipeOffset = max(raw * 0.6, -swipeThreshold * 1.2)
-            }
+            // Swipe right to reply for both senders, as in iMessage. Own bubbles used to need a
+            // swipe left, so the familiar gesture did nothing on them. A leftward drag clamps
+            // to zero, which also clears the offset if the finger comes back past its start.
+            swipeOffset = min(max(raw, 0) * 0.6, swipeThreshold * 1.2)
 
             if abs(swipeOffset) >= swipeThreshold && !isSwipingToReply {
                 isSwipingToReply = true
@@ -776,7 +906,10 @@ final class MessageCellView: UIView {
     }
 
     @objc private func handleLongPress(_ gr: UILongPressGestureRecognizer) {
-        guard gr.state == .began, let config, !config.message.isModerationHidden else { return }
+        // No overlay for rows it has nothing to offer: the user's own system lines and unsent
+        // or hidden placeholders (see gestureRecognizerShouldBegin).
+        guard gr.state == .began, let config,
+              MessageOverlayAvailability.canPresentOverlay(for: config.message, isFromCurrentUser: config.isFromCurrentUser) else { return }
         HapticManager.heavyImpact()
         delegate?.messageCellDidLongPress(self, message: config.message)
     }
@@ -793,24 +926,24 @@ final class MessageCellView: UIView {
             return
         }
 
-        // If this message is part of a thread, open the thread view
-        if config.message.replyToId != nil || config.replyCount > 0 {
+        // If this message is part of a thread, open the thread view (inside the thread itself
+        // there is nothing to open, so the tap reveals the time like any other bubble)
+        if !config.isInThread, config.message.replyToId != nil || config.replyCount > 0 {
             delegate?.messageCellDidTapViewThread(self, message: config.message)
             return
         }
 
-        // Toggle timestamp for 2 seconds
+        // Reveal the time for 2 seconds (iMessage reveals on drag; tap is the equivalent here).
+        // Only the time label is temporary — "Edited" and the delivery status keep their own rules.
         timestampHideWorkItem?.cancel()
-        if timestampLabel?.isHidden == true {
-            showTimestamp(config: config)
+        if timestampLabel?.isHidden != false {
+            showFooter(config: config, revealTime: true)
             setNeedsLayout()
             onIntrinsicSizeChanged?()
         }
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self, let config = self.config, !config.isLastInSeries else { return }
+            guard let self else { return }
             self.timestampLabel?.isHidden = true
-            self.editedLabel?.isHidden = true
-            self.readReceipt?.isHidden = true
             self.setNeedsLayout()
             self.onIntrinsicSizeChanged?()
         }
@@ -856,6 +989,18 @@ extension MessageCellView: UIGestureRecognizerDelegate {
         if config?.message.isModerationHidden == true,
            (gestureRecognizer === panGesture || gestureRecognizer === longPressGesture) {
             return false
+        }
+        if let config {
+            // Nothing can be done to an unsent placeholder or the user's own system line
+            // (another member's keeps Report), and a message that is not on the server yet
+            // cannot be replied to: no menu, no reply swipe.
+            if gestureRecognizer === longPressGesture,
+               !MessageOverlayAvailability.canPresentOverlay(for: config.message, isFromCurrentUser: config.isFromCurrentUser) {
+                return false
+            }
+            if gestureRecognizer === panGesture, !allowsReply(config) {
+                return false
+            }
         }
         if gestureRecognizer === panGesture {
             let velocity = panGesture.velocity(in: self)
@@ -1021,5 +1166,32 @@ private extension UIFont {
             .traits: [UIFontDescriptor.TraitKey.weight: weight]
         ])
         return UIFont(descriptor: descriptor, size: pointSize)
+    }
+}
+
+// MARK: - Bubble accessibility context
+
+/// Base class of the content bubbles (text, emoji, image, audio, location).
+///
+/// Each bubble owns its accessibility label (the text, "Photo", "Voice message, paused, 0:07").
+/// `MessageCellView` adds who sent the message before it and the time, "Edited" and reply count
+/// after it, so VoiceOver reads one complete element. The label is composed in the getter
+/// because the image and audio bubbles update their own label later (load finished, playback
+/// state), which would overwrite a label composed once at configure time.
+class MessageBubbleContentView: UIView {
+
+    /// Spoken before the bubble's own label: "You" or the sender's name.
+    var accessibilityContextPrefix: String?
+    /// Spoken after the bubble's own label: time, "Edited", reply count.
+    var accessibilityContextSuffix: String?
+
+    override var accessibilityLabel: String? {
+        get {
+            let parts = [accessibilityContextPrefix, super.accessibilityLabel, accessibilityContextSuffix]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+            return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        }
+        set { super.accessibilityLabel = newValue }
     }
 }

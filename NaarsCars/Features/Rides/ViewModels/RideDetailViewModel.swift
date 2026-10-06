@@ -19,23 +19,34 @@ final class RideDetailViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published var showCalendarOffer: Bool = false
-    
+    /// The ride was deleted, or moderators hid it from everyone but its poster. Retrying
+    /// cannot bring it back, so the screen shows a "no longer available" state instead of
+    /// an error with a Retry button.
+    @Published var isUnavailable: Bool = false
+    /// True while "Message Participants" is finding or creating the group thread.
+    @Published var isOpeningConversation: Bool = false
+
     // MARK: - Private Properties
-    
+
     private let rideService: any RideServiceProtocol
     private let authService: any AuthServiceProtocol
     /// Messaging seam used only to open a group chat for this ride (narrow protocol, not the concrete service)
     private let conversationService: any ConversationServiceProtocol
+    /// Block list only: questions from someone the viewer has blocked are not shown, as in
+    /// Town Hall (narrow protocol, not the concrete service)
+    private let messageService: any MessageServiceProtocol
     private let notificationRepository = NotificationRepository.shared
 
     init(
         rideService: any RideServiceProtocol = RideService.shared,
         authService: any AuthServiceProtocol = AuthService.shared,
-        conversationService: any ConversationServiceProtocol = ConversationService.shared
+        conversationService: any ConversationServiceProtocol = ConversationService.shared,
+        messageService: any MessageServiceProtocol = MessageService.shared
     ) {
         self.rideService = rideService
         self.authService = authService
         self.conversationService = conversationService
+        self.messageService = messageService
     }
     
     // MARK: - Public Methods
@@ -61,10 +72,17 @@ final class RideDetailViewModel: ObservableObject {
             let (fetchedRide, fetchedQA) = try await (rideTask, qaTask)
             
             ride = fetchedRide
-            qaItems = fetchedQA
+            qaItems = fetchedQA.filter { !messageService.isBlocked($0.userId) }
+            isUnavailable = false
         } catch {
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                return
+            }
+            if let appError = error as? AppError, case .notFound = appError {
+                ride = nil
+                qaItems = []
+                isUnavailable = true
                 return
             }
             self.error = error.localizedDescription
@@ -108,13 +126,41 @@ final class RideDetailViewModel: ObservableObject {
         }
         
         try await rideService.deleteRide(id: rideId)
+        RequestsDashboardRefresh.afterUserAction("deleteRide")
     }
-    
+
+    /// Delete a question the signed-in user asked (RLS allows nobody else to).
+    /// - Returns: true once the row is gone; false on failure (logged)
+    func deleteQuestion(_ qa: RequestQA) async -> Bool {
+        guard qa.userId == authService.currentUserId else { return false }
+        do {
+            try await rideService.deleteQuestion(id: qa.id)
+            qaItems.removeAll { $0.id == qa.id }
+            return true
+        } catch {
+            AppLogger.error("rides", "Error deleting question: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Drop the questions of anyone the viewer has blocked since the list was loaded. Block is
+    /// on the asker's profile, reached from their avatar in the Q&A list, so this runs when the
+    /// list comes back on screen.
+    func removeBlockedQuestions() {
+        guard qaItems.contains(where: { messageService.isBlocked($0.userId) }) else { return }
+        qaItems.removeAll { messageService.isBlocked($0.userId) }
+    }
+
     /// Create a group conversation with the poster, claimer, participants and the current user.
     /// - Returns: The conversation ID to navigate to, or nil on failure (logged)
     func createConversationWithParticipants() async -> UUID? {
+        // Lookup then create is not atomic; a second tap inside one round trip could miss the
+        // lookup too and create a duplicate thread. The view checks this flag before calling.
+        guard !isOpeningConversation else { return nil }
         guard let ride = ride, let currentUserId = authService.currentUserId else { return nil }
-        
+        isOpeningConversation = true
+        defer { isOpeningConversation = false }
+
         do {
             var participantIds: Set<UUID> = [ride.userId]
             if let claimedBy = ride.claimedBy { participantIds.insert(claimedBy) }
@@ -122,6 +168,12 @@ final class RideDetailViewModel: ObservableObject {
                 participantIds.formUnion(participants.map { $0.id })
             }
             participantIds.insert(currentUserId)
+
+            // iMessage semantics: reuse the thread for this exact member set instead of creating
+            // another one on every tap (six duplicate threads existed on 2026-10-05).
+            if let existing = await conversationService.findConversation(forParticipants: Array(participantIds)) {
+                return existing
+            }
             
             let conversation = try await conversationService.createConversationWithUsers(
                 userIds: Array(participantIds),
@@ -135,20 +187,26 @@ final class RideDetailViewModel: ObservableObject {
         }
     }
     
-    /// Add participants to this ride and reload it. Failures are logged (unchanged behaviour).
-    func addParticipants(_ userIds: [UUID]) async {
+    /// Add participants to this ride and reload it.
+    /// - Returns: false when the participants could not be added (also logged), so the screen
+    ///   can say so; this used to fail silently.
+    @discardableResult
+    func addParticipants(_ userIds: [UUID]) async -> Bool {
         guard let currentUserId = authService.currentUserId,
-              let ride = ride else { return }
-        
+              let ride = ride else { return false }
+
         do {
             try await rideService.addRideParticipants(
                 rideId: ride.id,
                 userIds: userIds,
                 addedBy: currentUserId
             )
+            RequestsDashboardRefresh.afterUserAction("addRideParticipants")
             await loadRide(id: ride.id)
+            return true
         } catch {
             AppLogger.error("rides", "Error adding participants to ride: \(error.localizedDescription)")
+            return false
         }
     }
     
@@ -170,9 +228,25 @@ final class RideDetailViewModel: ObservableObject {
         return ride.participants?.contains(where: { $0.id == currentUserId }) ?? false
     }
     
-    /// Check if current user can edit/delete (poster or participant)
+    /// Whether the current user may change this ride (add participants, and with the two
+    /// checks below, edit or delete). Poster only: RLS rejects a participant's delete and
+    /// participant insert, and a participant's Delete used to show the success checkmark for
+    /// a ride that was still there.
     var canEdit: Bool {
-        return isPoster || isParticipant
+        return isPoster
+    }
+
+    /// Edit is offered until the ride is completed.
+    var canEditDetails: Bool {
+        guard let ride = ride else { return false }
+        return canEdit && ride.status != .completed
+    }
+
+    /// Delete is offered until the ride has been fulfilled. A completed ride somebody helped
+    /// with (and may have been reviewed for) stays; an expired, never-claimed one can go.
+    var canDelete: Bool {
+        guard let ride = ride else { return false }
+        return canEdit && !(ride.status == .completed && ride.claimedBy != nil)
     }
 
     /// Whether Q&A submissions are allowed for this ride
@@ -189,11 +263,10 @@ final class RideDetailViewModel: ObservableObject {
               ride.status == .confirmed,
               let currentUserId = authService.currentUserId else { return }
 
-        // Offer to claimer or participants (anyone involved)
-        let isClaimer = ride.claimedBy == currentUserId
-        let isParticipant = ride.participants?.contains(where: { $0.id == currentUserId }) ?? false
-        let isPoster = ride.userId == currentUserId
-        guard isClaimer || isParticipant || isPoster else { return }
+        // Offer only to the claimer — the person who committed to be there. Posters and
+        // participants were re-prompted on every open (and on every push-tap) until the
+        // dismissal cap was reached.
+        guard ride.claimedBy == currentUserId else { return }
 
         // Check tracker
         guard CalendarOfferTracker.shared.shouldOffer(requestType: "ride", requestId: ride.id) else { return }

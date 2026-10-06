@@ -16,6 +16,8 @@ struct EmptyStateView: View {
     var action: (() -> Void)? = nil
     /// Optional custom image name from assets (uses SF Symbol if nil)
     var customImage: String? = nil
+    /// Render as an inset rounded card (dashboard, profile) instead of a full-bleed panel.
+    var isCard: Bool = false
     
     var body: some View {
         VStack(spacing: 16) {
@@ -39,6 +41,7 @@ struct EmptyStateView: View {
                 .font(.naarsBody)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal)
             
             if let actionTitle = actionTitle, let action = action {
@@ -46,8 +49,12 @@ struct EmptyStateView: View {
                     .padding(.horizontal)
             }
         }
+        .padding(.vertical, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.naarsBackgroundSecondary)
+        // Only the card variant draws a surface. Full-screen and nested uses take the ground
+        // they sit on; the old opaque card color showed as a gray slab under the nav bar.
+        .background(isCard ? Color.naarsCardBackground : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: isCard ? Constants.Radius.card : 0))
     }
 }
 

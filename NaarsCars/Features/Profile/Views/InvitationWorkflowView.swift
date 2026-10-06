@@ -17,7 +17,7 @@ struct InvitationWorkflowView: View {
     @State private var isGenerating: Bool = false
     @State private var errorMessage: String?
     @State private var generatedCode: InviteCode?
-    @State private var showCopiedToast = false
+    @State private var toastMessage: String?
     @State private var showShareSheet = false
     @State private var showSuccess = false
     
@@ -47,6 +47,7 @@ struct InvitationWorkflowView: View {
                     .accessibilityIdentifier("invite.done")
                 }
             }
+            .toast(message: $toastMessage)
         }
         .successCheckmark(isShowing: $showSuccess)
     }
@@ -81,9 +82,9 @@ struct InvitationWorkflowView: View {
                     .frame(minHeight: 120)
                     .padding(8)
                     .background(Color.naarsCardBackground)
-                    .cornerRadius(8)
+                    .cornerRadius(Constants.Radius.sm)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: Constants.Radius.sm)
                             .stroke(inviteStatement.isEmpty ? Color.clear : Color.naarsPrimary, lineWidth: 1)
                     )
                     .accessibilityIdentifier("invite.statement")
@@ -135,7 +136,7 @@ struct InvitationWorkflowView: View {
             VStack(spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 48))
-                    .foregroundColor(.green)
+                    .foregroundColor(.naarsSuccess)
                 
                 Text("invite_code_generated".localized)
                     .font(.naarsTitle2)
@@ -158,8 +159,9 @@ struct InvitationWorkflowView: View {
                     .fontWeight(.bold)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.naarsCardBackground)
-                    .cornerRadius(12)
+                    // Inset fill: the card's own color made this block invisible inside the card.
+                    .background(Color.naarsInsetBackground)
+                    .cornerRadius(Constants.Radius.sm)
                     .accessibilityIdentifier("invite.generatedCode")
                 
                 // Action buttons
@@ -173,9 +175,9 @@ struct InvitationWorkflowView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.naarsCardBackground)
+                        .background(Color.naarsInsetBackground)
                         .foregroundColor(.naarsPrimary)
-                        .cornerRadius(12)
+                        .clipShape(Capsule())
                     }
                     .accessibilityIdentifier("invite.copy")
                     
@@ -190,45 +192,18 @@ struct InvitationWorkflowView: View {
                         .padding()
                         .background(Color.naarsPrimary)
                         .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .clipShape(Capsule())
                     }
                     .accessibilityIdentifier("invite.share")
                 }
             }
             .padding()
             .background(Color.naarsBackgroundSecondary)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+            .cornerRadius(Constants.Radius.card)
+            .cardShadow()
         }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: [generateShareMessage(code.code)])
-        }
-        .overlay(
-            Group {
-                if showCopiedToast {
-                    VStack {
-                        Text("invite_copied".localized)
-                            .font(.naarsCaption)
-                            .padding(12)
-                            .background(Color(.systemGray))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                        Spacer()
-                    }
-                    .padding()
-                    .transition(.opacity)
-                }
-            },
-            alignment: .top
-        )
-        .onChange(of: showCopiedToast) { _, newValue in
-            if newValue {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation {
-                        showCopiedToast = false
-                    }
-                }
-            }
         }
     }
     
@@ -274,11 +249,8 @@ struct InvitationWorkflowView: View {
     
     private func copyCode(_ code: String) {
         UIPasteboard.general.string = code
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-        withAnimation {
-            showCopiedToast = true
-        }
+        // The shared toast plays the success haptic and dismisses itself.
+        toastMessage = "invite_copied".localized
     }
     
     private func generateShareMessage(_ code: String) -> String {

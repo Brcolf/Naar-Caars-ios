@@ -14,17 +14,26 @@ enum ReportContext {
     case ride(id: UUID, authorId: UUID, preview: String)
     case favor(id: UUID, authorId: UUID, preview: String)
     case user(id: UUID, name: String)
+    /// A review. `authorId` is the reviewer.
+    case review(id: UUID, authorId: UUID, preview: String)
 }
 
 /// Sheet for reporting user-generated content
 struct ReportContentSheet: View {
     let context: ReportContext
     var onReported: (() -> Void)?
+    /// Called with the author's ID as the sheet closes, when the user blocked them from here.
+    var onBlocked: ((UUID) -> Void)?
+    /// Sent to the moderators after the typed description, for a report whose target the server
+    /// has no column for (a request question is filed against the person who asked it, and
+    /// this carries the question). Not shown in the sheet.
+    var contextNote: String? = nil
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ReportContentViewModel()
     @State private var selectedReportType: MessageService.ReportType = .other
     @State private var description = ""
+    @State private var showBlockConfirmation = false
 
     private var reportTypes: [(type: MessageService.ReportType, title: String, icon: String)] {[
         (.spam, "messaging_report_spam".localized, "exclamationmark.bubble"),
@@ -41,6 +50,7 @@ struct ReportContentSheet: View {
         case .ride(_, _, let preview): return preview
         case .favor(_, _, let preview): return preview
         case .user(_, let name): return name
+        case .review(_, _, let preview): return preview
         }
     }
 
@@ -51,6 +61,7 @@ struct ReportContentSheet: View {
         case .ride: return "report_content_type_ride".localized
         case .favor: return "report_content_type_favor".localized
         case .user: return "report_content_type_user".localized
+        case .review: return "townhall_badge_review".localized
         }
     }
 
@@ -113,9 +124,31 @@ struct ReportContentSheet: View {
                 } header: {
                     Text("messaging_description".localized)
                 }
+
+                // Block the author (same option as the message report sheet)
+                if let authorId = viewModel.blockableAuthorId(for: context) {
+                    Section {
+                        if viewModel.blockedAuthorId == authorId {
+                            Label("profile_user_blocked".localized, systemImage: "hand.raised.fill")
+                                .foregroundColor(.secondary)
+                        } else {
+                            Button {
+                                showBlockConfirmation = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.crop.circle.badge.xmark")
+                                        .foregroundColor(.naarsError)
+                                    Text("messaging_block_this_user".localized)
+                                        .foregroundColor(.naarsError)
+                                }
+                            }
+                            .disabled(viewModel.isBlocking)
+                        }
+                    }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("messaging_report_title".localized)
+            .navigationTitle("report_content_title".localized(with: contentTypeLabel))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -140,11 +173,39 @@ struct ReportContentSheet: View {
                 Text(viewModel.submitError ?? "")
             }
         }
+        .alert("profile_block_user".localized, isPresented: $showBlockConfirmation) {
+            Button("profile_block_confirm".localized, role: .destructive) {
+                guard let authorId = viewModel.blockableAuthorId(for: context) else { return }
+                Task { await viewModel.blockAuthor(authorId) }
+            }
+            Button("common_cancel".localized, role: .cancel) {}
+        } message: {
+            Text("profile_block_confirmation_message".localized)
+        }
+        .alert("messaging_block_failed".localized, isPresented: Binding(
+            get: { viewModel.blockError != nil },
+            set: { if !$0 { viewModel.blockError = nil } }
+        )) {
+            Button("messaging_ok".localized, role: .cancel) {}
+        } message: {
+            Text(viewModel.blockError ?? "")
+        }
         .presentationDetents([.medium, .large])
+        .onDisappear {
+            // Tell the presenter only as the sheet closes: removing the blocked author's content
+            // removes the card or row that presents this sheet, which would dismiss it mid-use.
+            if let blockedAuthorId = viewModel.blockedAuthorId {
+                onBlocked?(blockedAuthorId)
+            }
+        }
     }
 
     private func submitReport() async {
-        guard await viewModel.submitReport(context: context, type: selectedReportType, description: description) else { return }
+        var details = description
+        if let contextNote, !contextNote.isEmpty {
+            details = details.isEmpty ? contextNote : "\(details)\n\n\(contextNote)"
+        }
+        guard await viewModel.submitReport(context: context, type: selectedReportType, description: details) else { return }
         onReported?()
         dismiss()
     }

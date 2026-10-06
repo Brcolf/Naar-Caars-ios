@@ -27,72 +27,8 @@ struct CommunityGuidelinesView: View {
                 }
                 .padding(.bottom, 8)
                 
-                // Guideline 1
-                GuidelineSection(
-                    number: "1",
-                    title: "This is a safe, respectful, and supportive community",
-                    content: """
-                    Naar's Cars is a place to ask for and offer help—whether that's a ride to the airport, borrowing a tool, help moving something heavy, running an errand, or similar neighborly favors.
-                    Requests are welcome, and no judgment will be passed for asking.
-                    """
-                )
-                
-                Divider()
-                
-                // Guideline 2
-                GuidelineSection(
-                    number: "2",
-                    title: "Be flexible and considerate",
-                    content: """
-                    When possible, flexibility helps everyone. You're encouraged to suggest or accept reasonable alternatives—such as meeting at a nearby location, adjusting timing, or breaking a request into smaller parts.
-                    There's no shame in asking, and no obligation for others to say yes.
-                    """
-                )
-                
-                Divider()
-                
-                // Guideline 3
-                GuidelineSection(
-                    number: "3",
-                    title: "Participation is always optional",
-                    content: """
-                    No one is required to respond or help. If your request doesn't get a response, please don't take it personally—people may be busy, unavailable, or simply unable to help at that time.
-                    """
-                )
-                
-                Divider()
-                
-                // Guideline 4
-                GuidelineSection(
-                    number: "4",
-                    title: "Reciprocity is encouraged, not enforced",
-                    content: """
-                    You are not required to give help in order to receive it. That said, Naar's Cars works best when members contribute when they're able.
-                    If you consistently receive help without offering it when possible, others may be less inclined to respond—so please pay it forward when you can.
-                    """
-                )
-                
-                Divider()
-                
-                // Guideline 5
-                GuidelineSection(
-                    number: "5",
-                    title: "Keep requests reasonable and lawful",
-                    content: """
-                    Requests should be legal, safe, and appropriate for a community setting. Members should never feel pressured to take on work, risk, or responsibility they're uncomfortable with.
-                    """
-                )
-                
-                Divider()
-                
-                // Guideline 6
-                GuidelineSection(
-                    number: "6",
-                    title: "Communicate clearly and respectfully",
-                    content: """
-                    Be clear about what you're asking for, when you need help, and any relevant details. Treat others with kindness and respect—gratitude goes a long way in building trust.
-                    """
-                )
+                // The six guidelines, from the localized list shared with the acceptance screen
+                CommunityGuidelinesList()
             }
             .padding()
         }
@@ -137,6 +73,47 @@ struct GuidelineSection: View {
                 .font(.naarsBody)
                 .foregroundColor(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Guideline Text
+
+/// One community guideline: its number and the string-catalog keys for its title and body
+struct CommunityGuideline: Identifiable {
+    let number: Int
+    let titleKey: String
+    let bodyKey: String
+
+    var id: Int { number }
+
+    /// The guidelines members accept on first use and can re-read in Settings. Both screens
+    /// render this one list, so their wording cannot drift apart, and the text comes from the
+    /// string catalog instead of English literals.
+    static let all: [CommunityGuideline] = [
+        CommunityGuideline(number: 1, titleKey: "guidelines_1_title", bodyKey: "guidelines_1_body"),
+        CommunityGuideline(number: 2, titleKey: "guidelines_2_title", bodyKey: "guidelines_2_body"),
+        CommunityGuideline(number: 3, titleKey: "guidelines_3_title", bodyKey: "guidelines_3_body"),
+        CommunityGuideline(number: 4, titleKey: "guidelines_4_title", bodyKey: "guidelines_4_body"),
+        CommunityGuideline(number: 5, titleKey: "guidelines_5_title", bodyKey: "guidelines_5_body"),
+        CommunityGuideline(number: 6, titleKey: "guidelines_6_title", bodyKey: "guidelines_6_body")
+    ]
+}
+
+/// The numbered guideline sections with a divider between each pair.
+/// Place it inside a leading-aligned VStack; it adds its rows to that stack.
+struct CommunityGuidelinesList: View {
+    var body: some View {
+        ForEach(CommunityGuideline.all) { guideline in
+            GuidelineSection(
+                number: "\(guideline.number)",
+                title: guideline.titleKey.localized,
+                content: guideline.bodyKey.localized
+            )
+
+            if guideline.number != CommunityGuideline.all.last?.number {
+                Divider()
+            }
         }
     }
 }

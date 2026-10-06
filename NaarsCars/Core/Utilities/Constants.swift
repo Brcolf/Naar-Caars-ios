@@ -16,13 +16,34 @@ enum Constants {
         static let long: Double = 0.5
     }
     
-    /// Spacing values (in points)
+    /// Spacing values (in points). Everything sits on a 4-pt grid; `xxs` is the one half step.
     enum Spacing {
+        /// Between a value and its unit, or two lines of one label
+        static let xxs: CGFloat = 2
         static let xs: CGFloat = 4
         static let sm: CGFloat = 8
+        /// The default gap between groups inside a card or row
+        static let ms: CGFloat = 12
         static let md: CGFloat = 16
         static let lg: CGFloat = 24
         static let xl: CGFloat = 32
+    }
+
+    /// Corner radii (in points). Buttons, text fields, chips and badges are capsules and
+    /// do not take a radius from here.
+    enum Radius {
+        /// Skeleton lines and other hairline shapes
+        static let xs: CGFloat = 4
+        /// Elements nested inside a card: images, inset blocks, list-row highlights
+        static let sm: CGFloat = 8
+        /// Tiles and compact panels
+        static let md: CGFloat = 12
+        /// Cards and any other free-standing container
+        static let card: CGFloat = 16
+        /// Full-width buttons. Half the height of a one-line button, so it draws as a capsule;
+        /// a title that wraps at large text sizes becomes a rounded box instead of a capsule
+        /// that cuts into the text.
+        static let button: CGFloat = 27
     }
     
     /// API and network timeouts (in seconds)
@@ -84,6 +105,15 @@ enum Constants {
         static let successDismissNanoseconds: UInt64 = 1_500_000_000
         /// Toast display duration (4s)
         static let toastDurationNanoseconds: UInt64 = 4_000_000_000
+        /// Shortest time a `.toast(message:)` stays on screen (2s)
+        static let toastMinimumDuration: TimeInterval = 2.0
+        /// Reading time a `.toast(message:)` gets per character, so a long message outlasts the 2s floor
+        static let toastDurationPerCharacter: TimeInterval = 0.06
+        /// Longest time a `.toast(message:)` stays on screen without VoiceOver (8s)
+        static let toastMaximumDuration: TimeInterval = 8.0
+        /// While VoiceOver is running a `.toast(message:)` stays this many times longer, so the
+        /// spoken announcement is not outrun by the dismissal
+        static let toastVoiceOverDurationMultiplier: Double = 3.0
         /// Typing signal threshold (2s)
         static let typingSignalThreshold: TimeInterval = 2.0
         /// Auto-clear typing indicator when no new typing signal is sent (5s)
@@ -108,6 +138,12 @@ enum Constants {
         /// and the messages tab is visible (push-off fallback, commit 7dd1494). Ticks route through
         /// RefreshCoordinator.refreshIfNeeded, so the 30s staleness window and failure backoff still apply.
         static let conversationsPushOffPollInterval: TimeInterval = 60.0
+        /// Gap between consecutive messages after which the thread shows a time header
+        /// ("Today 3:45 PM"), as iMessage does (1 hour). Day changes always get one.
+        static let messageTimeHeaderGap: TimeInterval = 3600
+        /// Maximum gap between two consecutive messages from the same sender for them to share
+        /// one bubble group (tail on the last bubble only), as iMessage does (about one minute).
+        static let messageSeriesWindow: TimeInterval = 60
         /// Badge refresh debounce (5s)
         static let badgeRefreshDebounce: TimeInterval = 5.0
         /// Conversation WebSocket grace period before teardown (5s)

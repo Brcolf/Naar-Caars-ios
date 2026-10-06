@@ -18,6 +18,7 @@ struct ReviewPromptSheet: View {
     let fulfillerName: String
     
     @State private var showLeaveReview = false
+    @State private var isSkipping = false
     @StateObject private var viewModel = ReviewPromptViewModel()
     
     var onReviewSubmitted: (() -> Void)?
@@ -28,7 +29,7 @@ struct ReviewPromptSheet: View {
             VStack(spacing: 24) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 60))
-                    .foregroundColor(.yellow)
+                    .foregroundColor(.naarsRating)
                 
                 Text("review_prompt_heading".localized)
                     .font(.naarsTitle2)
@@ -57,28 +58,57 @@ struct ReviewPromptSheet: View {
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.naarsCardBackground)
-                .cornerRadius(8)
+                .cornerRadius(Constants.Radius.sm)
                 .padding(.horizontal)
                 
                 VStack(spacing: 12) {
-                    PrimaryButton(title: "review_prompt_leave_review".localized) {
-                        showLeaveReview = true
-                    }
-                    
-                    SecondaryButton(title: "review_prompt_skip".localized) {
-                        Task {
-                            await skipReview()
-                        }
+                    PrimaryButton(
+                        title: "review_prompt_leave_review".localized,
+                        action: { showLeaveReview = true },
+                        isDisabled: isSkipping
+                    )
+
+                    SecondaryButton(
+                        title: "review_prompt_skip".localized,
+                        action: {
+                            Task {
+                                await skipReview()
+                            }
+                        },
+                        isDisabled: isSkipping
+                    )
+
+                    if isSkipping {
+                        ProgressView()
                     }
                 }
                 .padding(.horizontal)
-                
+
                 Spacer()
             }
             .padding()
             .navigationTitle("review_prompt_nav_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(true)
+            // This prompt covers the whole app and cannot be swiped away, so a skip that fails
+            // (offline, timeout) must say so and still offer a way out.
+            .alert("review_prompt_skip_failed_title".localized, isPresented: Binding(
+                get: { viewModel.error != nil },
+                set: { if !$0 { viewModel.error = nil } }
+            )) {
+                Button("common_retry".localized) {
+                    Task { await skipReview() }
+                }
+                Button("common_not_now".localized, role: .cancel) {
+                    // Close without recording the skip, through the same callback as a recorded
+                    // one so the prompt queue advances. The server still has the review pending,
+                    // so the prompt comes back on a later launch.
+                    onReviewSkipped?()
+                    dismiss()
+                }
+            } message: {
+                Text("review_prompt_skip_failed_message".localized)
+            }
             .sheet(isPresented: $showLeaveReview) {
                 LeaveReviewView(
                     requestType: requestType,
@@ -102,6 +132,10 @@ struct ReviewPromptSheet: View {
     // MARK: - Private Methods
     
     private func skipReview() async {
+        // The skip is a network write; ignore further taps until it returns.
+        guard !isSkipping else { return }
+        isSkipping = true
+        defer { isSkipping = false }
         guard await viewModel.skipReview(requestType: requestType, requestId: requestId) else { return }
         onReviewSkipped?()
         dismiss()

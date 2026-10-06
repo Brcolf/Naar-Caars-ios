@@ -51,7 +51,7 @@ struct AllReviewsView: View {
                                 if let requestTitle = review.requestTitle {
                                     HStack(spacing: 4) {
                                         Image(systemName: review.rideId != nil ? "car.fill" : "hand.raised.fill")
-                                            .font(.caption2)
+                                            .font(.naarsCaption2)
                                             .foregroundColor(.secondary)
                                         Text(requestTitle)
                                             .font(.naarsCaption)
@@ -99,21 +99,21 @@ private struct SkeletonReviewCard: View {
                     .fill(Color.naarsBackgroundSecondary)
                     .frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 4) {
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: Constants.Radius.xs)
                         .fill(Color.naarsBackgroundSecondary)
                         .frame(width: 100, height: 14)
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: Constants.Radius.xs)
                         .fill(Color.naarsBackgroundSecondary)
                         .frame(width: 80, height: 12)
                 }
                 Spacer()
             }
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: Constants.Radius.xs)
                 .fill(Color.naarsBackgroundSecondary)
                 .frame(height: 40)
         }
         .padding()
         .background(Color.naarsBackgroundSecondary.opacity(0.5))
-        .cornerRadius(12)
+        .cornerRadius(Constants.Radius.card)
     }
 }

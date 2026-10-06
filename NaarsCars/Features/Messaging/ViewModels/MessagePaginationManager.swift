@@ -235,6 +235,11 @@ final class MessagePaginationManager {
             if merged.replyToMessage == nil {
                 merged.replyToMessage = existing.replyToMessage
             }
+            // Realtime payloads carry no send status; keep the durable local one so an
+            // edited or updated own message does not fall back to the "sending" clock.
+            if merged.sendStatus == nil {
+                merged.sendStatus = existing.sendStatus
+            }
             updated[index] = merged
         }
         return updated
