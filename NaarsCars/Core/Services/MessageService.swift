@@ -37,6 +37,12 @@ final class MessageService {
         }
     }
 
+    /// Forget the blocked-user set. Called on sign-out so a block list cannot leak into the
+    /// next account that signs in on the same device; the next fetch repopulates it.
+    func clearBlockedUsersCache() {
+        cachedBlockedUserIds = []
+    }
+
     /// Check if a user ID is in the blocked set
     func isBlocked(_ userId: UUID) -> Bool {
         cachedBlockedUserIds.contains(userId)

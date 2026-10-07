@@ -69,8 +69,8 @@ final class NotificationTypeDomainMappingTests: XCTestCase {
         XCTAssertEqual(NotificationType.newRide.entityIdKey, "ride_id")
         XCTAssertEqual(NotificationType.favorUpdate.entityIdKey, "favor_id")
         XCTAssertEqual(NotificationType.favorClaimed.entityIdKey, "favor_id")
-        XCTAssertEqual(NotificationType.townHallPost.entityIdKey, "post_id")
-        XCTAssertEqual(NotificationType.townHallComment.entityIdKey, "post_id")
+        XCTAssertEqual(NotificationType.townHallPost.entityIdKey, "town_hall_post_id")
+        XCTAssertEqual(NotificationType.townHallComment.entityIdKey, "town_hall_post_id")
         XCTAssertEqual(NotificationType.message.entityIdKey, "conversation_id")
         XCTAssertEqual(NotificationType.addedToConversation.entityIdKey, "conversation_id")
     }
