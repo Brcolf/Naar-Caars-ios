@@ -43,9 +43,11 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Naar's Cars allows you to share your location at a point in time with others via messages </string>
+	<string>Naar's Cars uses your location while the app is open to show nearby requests, open directions, and let you share a one-time location in messages.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Naar's Cars uses your microphone to record audio messages in conversations.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Naar's Cars saves photos you choose to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
 	<key>UIApplicationSceneManifest</key>

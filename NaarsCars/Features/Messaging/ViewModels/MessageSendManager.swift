@@ -132,6 +132,7 @@ final class MessageSendManager {
 
         do {
             let sentMessage = try await messageService.sendMessage(
+                messageId: localId,
                 conversationId: conversationId,
                 fromId: fromId,
                 text: text,
@@ -492,9 +493,15 @@ final class MessageSendManager {
 
     private func replaceOptimisticMessage(localId: UUID, conversationId: UUID, with serverMessage: Message) {
         do {
-            repository.deleteMessage(id: localId)
             var confirmed = serverMessage
             confirmed.sendStatus = .sent
+            // With idempotent send (MSG-6) the server id equals the local id, so the upsert
+            // updates the optimistic row in place. Only delete when the ids differ (a legacy
+            // server-assigned id) — deleting and re-inserting the same primary key in one save
+            // is an avoidable SwiftData edge case.
+            if serverMessage.id != localId {
+                repository.deleteMessage(id: localId)
+            }
             try repository.upsertMessage(confirmed)
             try repository.save(changedConversationIds: Set([conversationId]))
         } catch {

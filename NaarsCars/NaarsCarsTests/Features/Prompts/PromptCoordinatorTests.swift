@@ -41,7 +41,7 @@ final class PromptCoordinatorTests: XCTestCase {
         XCTAssertEqual(sideEffects.reviewReads.count, 1)
     }
 
-    func testCompletionPromptMarksNotificationsAfterAction() async throws {
+    func testCompletionPromptMarksNotificationsOnShowAndAction() async throws {
         let completion = CompletionPrompt(
             id: UUID(), reminderId: UUID(), requestType: .ride,
             requestId: UUID(), requestTitle: "Ride", dueAt: Date()
@@ -53,10 +53,33 @@ final class PromptCoordinatorTests: XCTestCase {
             sideEffects: sideEffects
         )
 
+        // Activation now marks completion notifications read so the bell badge
+        // clears as soon as the prompt is on screen (mirror of review path).
         await coordinator.checkForPendingPrompts(userId: UUID())
-        XCTAssertEqual(sideEffects.completionReads.count, 0)
-        try await coordinator.handleCompletionResponse(completed: true)
         XCTAssertEqual(sideEffects.completionReads.count, 1)
+        // The yes/no action also marks read; idempotent.
+        try await coordinator.handleCompletionResponse(completed: true)
+        XCTAssertEqual(sideEffects.completionReads.count, 2)
+    }
+
+    func testEnqueueCompletionPromptClearsStaleNotificationWhenNoReminder() async {
+        let sideEffects = StubPromptSideEffects()
+        let coordinator = PromptCoordinator(
+            completionProvider: StubCompletionProvider(prompts: []),
+            reviewProvider: StubReviewProvider(prompts: []),
+            sideEffects: sideEffects
+        )
+        let staleId = UUID()
+
+        await coordinator.enqueueCompletionPrompt(
+            requestType: .favor, requestId: staleId, userId: UUID()
+        )
+
+        // No prompt was queued (provider returned nil), but the stale notification
+        // is marked read so the bell stops re-firing the same intent.
+        XCTAssertNil(coordinator.activePrompt)
+        XCTAssertEqual(sideEffects.completionReads.count, 1)
+        XCTAssertEqual(sideEffects.completionReads.first?.1, staleId)
     }
 
     func testEnqueueCompletionPromptDoesNotRequeueActivePrompt() async throws {

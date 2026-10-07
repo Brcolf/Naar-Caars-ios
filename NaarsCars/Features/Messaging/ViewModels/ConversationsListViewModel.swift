@@ -54,6 +54,12 @@ struct MessageSearchResult: Identifiable {
     private var cancellables = Set<AnyCancellable>()
     private let pageSize = 10
     private var currentOffset = 0
+    /// Page 2+ conversations loaded via pagination that are NOT persisted to
+    /// SwiftData. The repository publisher is backed by SwiftData and omits these
+    /// rows, so they must be retained here and re-merged on every publisher update;
+    /// otherwise an incoming message (which triggers a publisher emission) would
+    /// snap the list back to the first page and the paginated tail would vanish.
+    private var paginatedTail: [ConversationWithDetails] = []
     private var searchTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var lastRemoteSyncAt: Date = .distantPast
@@ -88,7 +94,19 @@ struct MessageSearchResult: Identifiable {
         // Filter out conversations the user has soft-deleted, then filter blocked
         let visible = filterBlockedConversations(filterHiddenConversations(updatedConversations))
 
-        let mergedConversations = visible.map { updated in
+        // Merge in the retained paginated tail (page 2+ rows not backed by SwiftData).
+        // Publisher rows are authoritative for any id they contain (freshest data),
+        // so the tail only contributes older conversations the publisher omits.
+        // The same hidden/blocked filters are applied to the tail, then it is
+        // de-duplicated by id and the union is re-sorted by updatedAt descending
+        // to match the repository's ordering (SortDescriptor(\.updatedAt, .reverse)).
+        let visibleIds = Set(visible.map { $0.id })
+        let retainedTail = filterBlockedConversations(filterHiddenConversations(paginatedTail))
+            .filter { !visibleIds.contains($0.id) }
+        let combined = (visible + retainedTail)
+            .sorted { $0.conversation.updatedAt > $1.conversation.updatedAt }
+
+        let mergedConversations = combined.map { updated in
             guard updated.otherParticipants.isEmpty,
                   let existing = conversations.first(where: { $0.id == updated.id }),
                   !existing.otherParticipants.isEmpty else {
@@ -377,6 +395,9 @@ struct MessageSearchResult: Identifiable {
 
             if !newConversations.isEmpty {
                 self.conversations.append(contentsOf: newConversations)
+                // Retain these page 2+ rows so publisher-driven updates (backed by
+                // SwiftData, which does not contain them) re-merge instead of dropping them.
+                mergeIntoPaginatedTail(newConversations)
                 AppLogger.info("messaging", "[ConversationsListVM] Loaded \(newConversations.count) more conversations")
             }
 
@@ -401,24 +422,41 @@ struct MessageSearchResult: Identifiable {
         
         isLoadingMore = false
     }
-    
+
+    /// Union the given rows into the retained paginated tail, de-duplicating by id
+    /// (later entries win). Order is irrelevant here — `applyLocalConversations`
+    /// re-sorts the merged result by updatedAt descending.
+    private func mergeIntoPaginatedTail(_ newItems: [ConversationWithDetails]) {
+        var byId = Dictionary(paginatedTail.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        for item in newItems {
+            byId[item.id] = item
+        }
+        paginatedTail = Array(byId.values)
+    }
+
     func refreshConversations() async {
         guard let _ = authService.currentUserId else { return }
         // Reset pagination state so loadMore works correctly after refresh
         currentOffset = 0
         hasMoreConversations = true
         lastRemoteSyncAt = .distantPast
+        // Discard the retained tail — refresh restarts pagination from the top page.
+        paginatedTail = []
         await loadConversations()
     }
 
     func deleteConversation(_ conversation: Conversation) async {
         // Optimistically remove from the list for responsive UI
         let snapshot = conversations
-        
+        let tailSnapshot = paginatedTail
+
         withAnimation {
             conversations.removeAll { $0.conversation.id == conversation.id }
         }
-        
+        // Also drop it from the retained tail so a later publisher-driven merge
+        // does not resurrect the just-deleted conversation.
+        paginatedTail.removeAll { $0.conversation.id == conversation.id }
+
         do {
             try await repository.deleteConversation(id: conversation.id)
             AppLogger.info("messaging", "[ConversationsListVM] Soft-deleted conversation \(conversation.id)")
@@ -427,6 +465,7 @@ struct MessageSearchResult: Identifiable {
             withAnimation {
                 conversations = snapshot
             }
+            paginatedTail = tailSnapshot
             self.error = AppError.processingError("Failed to delete conversation: \(error.localizedDescription)")
             AppLogger.error("messaging", "[ConversationsListVM] Failed to delete conversation: \(error.localizedDescription)")
         }

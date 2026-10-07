@@ -69,9 +69,18 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase environment variables')
+    }
+
+    // Require service_role authorization (webhook triggers send this token)
+    const authHeader = req.headers.get('authorization') ?? ''
+    if (authHeader !== `Bearer ${supabaseServiceKey}`) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -134,7 +143,16 @@ serve(async (req) => {
         }
       }
 
-      // Process notification queue
+      // For INSERT events, process just the inserted record to prevent
+      // duplicate pushes from concurrent per-row webhook invocations
+      if (eventType === 'INSERT') {
+        const record = resolveRecord(requestData)
+        if (record?.id && record?.recipient_user_id) {
+          return await processSingleNotification(supabase, record)
+        }
+      }
+
+      // Fallback: process entire queue (cron, manual, or missing record)
       return await processNotificationQueue(supabase)
     }
   } catch (error) {
@@ -197,6 +215,44 @@ async function handleCompletionResponse(supabase: any, data: any) {
   )
 }
 
+async function processSingleNotification(supabase: any, record: any) {
+  // Atomically claim the notification by setting sent_at — prevents
+  // duplicate sends when multiple per-row webhook invocations race
+  const { data: claimed, error: claimError } = await supabase
+    .from('notification_queue')
+    .update({ sent_at: new Date().toISOString() })
+    .eq('id', record.id)
+    .is('sent_at', null)
+    .select()
+
+  if (claimError || !claimed || claimed.length === 0) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'already_processed' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const notification = claimed[0] as QueuedNotification
+  const payload = notification.payload as NotificationPayload
+  const result = await sendPushToUser(
+    supabase, notification.recipient_user_id, notification.notification_type,
+    payload.title, payload.body, payload.data || {}
+  )
+
+  // If push failed (not skipped), reset sent_at so the queue sweep can retry
+  if (!result.sent && !result.skipped) {
+    await supabase
+      .from('notification_queue')
+      .update({ sent_at: null })
+      .eq('id', notification.id)
+  }
+
+  return new Response(
+    JSON.stringify({ processed: 1, results: [{ id: notification.id, ...result }] }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 async function processNotificationQueue(supabase: any) {
   // Queue any due completion reminders
   const { error: reminderError } = await supabase.rpc('process_completion_reminders')
@@ -232,18 +288,28 @@ async function processNotificationQueue(supabase: any) {
     notifications as QueuedNotification[],
     10,
     async (notification) => {
+      // Atomically claim before sending to prevent races with per-row webhook handlers
+      const { data: claimed, error: claimError } = await supabase
+        .from('notification_queue')
+        .update({ sent_at: new Date().toISOString() })
+        .eq('id', notification.id)
+        .is('sent_at', null)
+        .select()
+
+      if (claimError || !claimed || claimed.length === 0) {
+        return { id: notification.id, skipped: true, reason: 'already_processed' }
+      }
+
       const payload = notification.payload as NotificationPayload
       const result = await sendPushToUser(
         supabase, notification.recipient_user_id, notification.notification_type,
         payload.title, payload.body, payload.data || {}
       )
-      // Mark as sent only if APNs delivery succeeded or the notification was
-      // intentionally skipped (for example no active token). Keep failed sends
-      // pending so they can be retried on the next processing pass.
-      if (result.sent || result.skipped) {
+      // If push failed (not skipped), reset sent_at so it can be retried
+      if (!result.sent && !result.skipped) {
         await supabase
           .from('notification_queue')
-          .update({ sent_at: new Date().toISOString() })
+          .update({ sent_at: null })
           .eq('id', notification.id)
       }
       return { id: notification.id, ...result }

@@ -206,6 +206,7 @@ actor MessageSendWorker {
                 }
             }
             sentMessage = try await messageService.sendMessage(
+                messageId: messageInfo.id,
                 conversationId: conversationId,
                 fromId: fromId,
                 text: messageInfo.text,
@@ -283,10 +284,13 @@ actor MessageSendWorker {
     private func replaceOptimisticMessage(localId: UUID, with serverMessage: Message, conversationId: UUID) {
         do {
             let repository = MessagingRepository.shared
-            repository.deleteMessage(id: localId)
-            
             var confirmed = serverMessage
             confirmed.sendStatus = .sent
+            // Idempotent send (MSG-6): server id == local id, so upsert updates the row in
+            // place. Only delete on a differing (legacy) server id.
+            if serverMessage.id != localId {
+                repository.deleteMessage(id: localId)
+            }
             try repository.upsertMessage(confirmed)
             try repository.save(changedConversationIds: Set([conversationId]))
         } catch {

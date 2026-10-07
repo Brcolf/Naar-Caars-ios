@@ -319,6 +319,9 @@ struct CommentRow: View {
     private var authorAndTimeRow: some View {
         HStack(alignment: .center, spacing: 6) {
             if let author = comment.author {
+                UserAvatarLink(profile: author, size: 20)
+                    .accessibilityLabel("View \(author.name)'s profile")
+                    .accessibilityHint("Opens profile where you can report or block this user")
                 Text(author.name)
                     .font(.naarsCaption)
                     .fontWeight(.semibold)

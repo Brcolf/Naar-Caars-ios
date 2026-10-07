@@ -104,3 +104,4 @@ struct AnnouncementsView: View {
     AnnouncementsView(scrollToNotificationId: nil)
         .environment(AppState())
 }
+

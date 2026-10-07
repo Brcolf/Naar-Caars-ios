@@ -308,11 +308,9 @@ struct TownHallPostCard: View {
     private var authorRow: some View {
         HStack(alignment: .center, spacing: 8) {
             if let author = post.author {
-                AvatarView(
-                    imageUrl: author.avatarUrl,
-                    name: author.name,
-                    size: 24
-                )
+                UserAvatarLink(profile: author, size: 24)
+                    .accessibilityLabel("View \(author.name)'s profile")
+                    .accessibilityHint("Opens profile where you can report or block this user")
             } else {
                 AvatarView(imageUrl: nil, name: "townhall_unknown".localized, size: 24)
             }

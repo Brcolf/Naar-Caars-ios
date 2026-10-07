@@ -249,8 +249,6 @@ actor BackgroundSyncActor {
         let allLocalMsgs = (try? modelContext.fetch(FetchDescriptor<SDMessage>())) ?? []
         let existingMsgById = Dictionary(uniqueKeysWithValues: allLocalMsgs.map { ($0.id, $0) })
 
-        let serverConvIds = Set(payloads.map { $0.conversationId })
-
         for payload in payloads {
             changedIds.insert(payload.conversationId)
 
@@ -285,11 +283,12 @@ actor BackgroundSyncActor {
             }
         }
 
-        // Delete stale conversations not on server
-        for local in allLocalConvs where !serverConvIds.contains(local.id) {
-            modelContext.delete(local)
-            changedIds.insert(local.id)
-        }
+        // Upsert-only: do NOT delete local conversations missing from this payload.
+        // `payloads` is a single page (default limit 10, from ConversationService.fetchConversations),
+        // so a conversation's absence here does not mean it was removed server-side. Because
+        // SDConversation.messages uses deleteRule: .cascade, a blanket delete would also destroy
+        // cached message history for conversations 11+ on every Messages-tab refresh. Conversations
+        // are removed only via the explicit soft-delete flow, matching MessagingRepository.syncConversations.
 
         try modelContext.save()
         return changedIds

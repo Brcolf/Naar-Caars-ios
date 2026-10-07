@@ -58,11 +58,12 @@ final class InviteService {
             return nil
         }
         
-        // Enrich with invitee information if used (shouldn't happen for active codes, but handle it)
+        // Enrich with invitee information if used (shouldn't happen for active codes, but handle it).
+        // Cross-user lookup — use public projection.
         var inviteeName: String? = nil
         if let usedById = code.usedBy {
             if let inviteeProfile: Profile = try? await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select()
                 .eq("id", value: usedById.uuidString)
                 .single()
@@ -338,7 +339,7 @@ final class InviteService {
         // Fetch inviter profile (the one who created the code)
         var inviter: Profile? = nil
         if let inviterId = code.bulkCodeId {
-            // For bulk codes, fetch the bulk code creator
+            // For bulk codes, fetch the bulk code creator (cross-user display).
             if let bulkCode: InviteCode = try? await supabase
                 .from("invite_codes")
                 .select()
@@ -347,7 +348,7 @@ final class InviteService {
                 .execute()
                 .value {
                 inviter = try? await supabase
-                    .from("profiles")
+                    .from("public_profiles")
                     .select()
                     .eq("id", value: bulkCode.createdBy.uuidString)
                     .single()
@@ -355,9 +356,9 @@ final class InviteService {
                     .value
             }
         } else {
-            // Regular code: fetch creator
+            // Regular code: fetch creator (cross-user display).
             inviter = try? await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select()
                 .eq("id", value: code.createdBy.uuidString)
                 .single()

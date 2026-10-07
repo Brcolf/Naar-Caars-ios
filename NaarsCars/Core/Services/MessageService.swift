@@ -9,6 +9,7 @@ import Foundation
 import Supabase
 import UIKit
 import OSLog
+import os
 
 /// Service for core message operations
 /// Handles sending, fetching, pagination, and managing individual messages
@@ -23,29 +24,42 @@ final class MessageService {
     private let supabase = SupabaseService.shared.client
     private let rateLimiter = RateLimiter.shared
 
-    /// Cached set of blocked user IDs, refreshed on fetch
-    private(set) var cachedBlockedUserIds: Set<UUID> = []
+    /// Thread-safe backing store for the blocked user IDs cache. Accessed from
+    /// the main actor (repositories, town-hall services) and from background
+    /// realtime callbacks, so it must be synchronized (SEC-9 / MSG-M5).
+    private let blockedLock = OSAllocatedUnfairLock(initialState: Set<UUID>())
+
+    /// Cached set of blocked user IDs, refreshed on fetch (thread-safe snapshot)
+    var cachedBlockedUserIds: Set<UUID> { blockedLock.withLock { $0 } }
 
     /// Refresh the blocked user IDs cache
     func refreshBlockedUsers() async {
         guard let userId = AuthService.shared.currentUserId else { return }
         do {
             let blocked = try await getBlockedUsers(userId: userId)
-            cachedBlockedUserIds = Set(blocked.map { $0.blockedId })
+            let ids = Set(blocked.map { $0.blockedId })
+            blockedLock.withLock { $0 = ids }
         } catch {
             AppLogger.error("messaging", "Failed to refresh blocked users: \(error)")
         }
     }
 
+    /// Clear the blocked-user cache. Must be called on sign-out so one account's
+    /// block list never filters the next account's content on the same device (SEC-9).
+    func clearBlockedUsersCache() {
+        blockedLock.withLock { $0.removeAll() }
+    }
+
     /// Check if a user ID is in the blocked set
     func isBlocked(_ userId: UUID) -> Bool {
-        cachedBlockedUserIds.contains(userId)
+        blockedLock.withLock { $0.contains(userId) }
     }
 
     /// Filter an array of messages, removing any from blocked users
     private func filterBlocked(_ messages: [Message]) -> [Message] {
-        guard !cachedBlockedUserIds.isEmpty else { return messages }
-        return messages.filter { !cachedBlockedUserIds.contains($0.fromId) }
+        let blocked = cachedBlockedUserIds
+        guard !blocked.isEmpty else { return messages }
+        return messages.filter { !blocked.contains($0.fromId) }
     }
     
     // MARK: - Initialization
@@ -63,6 +77,19 @@ final class MessageService {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
+    }
+
+    /// Fetch a single already-sent message by id, with the joined sender profile.
+    /// Used for idempotent send reconciliation (MSG-6): when an insert reports failure
+    /// but the row already exists, return the server's copy.
+    private func fetchServerMessage(id: UUID) async throws -> Message {
+        let response = try await supabase
+            .from("messages")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute()
+        return try createDateDecoder().decode(Message.self, from: response.data)
     }
 
     @MainActor
@@ -160,7 +187,7 @@ final class MessageService {
 
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
 
         // History visibility: only show messages from after participant joined
@@ -260,7 +287,7 @@ final class MessageService {
         let formatter = createISO8601Formatter()
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .gt("created_at", value: formatter.string(from: effectiveAfter))
             .order("created_at", ascending: true)
@@ -281,7 +308,7 @@ final class MessageService {
     func fetchMediaMessages(conversationId: UUID, type: String) async throws -> [Message] {
         var query = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .is("deleted_at", value: nil)
 
@@ -309,7 +336,7 @@ final class MessageService {
         // Fetch text messages and filter client-side for URLs
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("message_type", value: "text")
             .is("deleted_at", value: nil)
@@ -333,7 +360,7 @@ final class MessageService {
     func fetchReplies(conversationId: UUID, replyToId: UUID) async throws -> [Message] {
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .eq("reply_to_id", value: replyToId.uuidString)
             .order("created_at", ascending: true)
@@ -378,7 +405,7 @@ final class MessageService {
     func fetchMessageById(_ messageId: UUID) async throws -> Message {
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("id", value: messageId.uuidString)
             .single()
             .execute()
@@ -442,7 +469,7 @@ final class MessageService {
         
         let response = try await supabase
             .from("messages")
-            .select("id, text, from_id, image_url, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("id, text, from_id, image_url, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .in("id", values: messageIds.map { $0.uuidString })
             .execute()
 
@@ -498,7 +525,7 @@ final class MessageService {
     ///   - replyToId: Optional message ID being replied to
     /// - Returns: The created message
     /// - Throws: AppError if send fails
-    func sendMessage(conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, replyToId: UUID? = nil) async throws -> Message {
+    func sendMessage(messageId: UUID? = nil, conversationId: UUID, fromId: UUID, text: String, imageUrl: String? = nil, imageWidth: Int? = nil, imageHeight: Int? = nil, replyToId: UUID? = nil) async throws -> Message {
         // Security check: Verify user is an active participant (left_at IS NULL) or conversation creator
         let participantCheck = try? await supabase
             .from("conversation_participants")
@@ -553,7 +580,11 @@ final class MessageService {
             throw AppError.rateLimitExceeded("Please wait before sending another message")
         }
         
+        // Reuse the optimistic local id as the server primary key so this send is
+        // idempotent: the durable worker and the inline path (or a retry after a lost
+        // response) converge on ONE row instead of inserting duplicates (MSG-6).
         let newMessage = Message(
+            id: messageId ?? UUID(),
             conversationId: conversationId,
             fromId: fromId,
             text: text,
@@ -563,25 +594,37 @@ final class MessageService {
             imageWidth: imageWidth,
             imageHeight: imageHeight
         )
-        
-        let response = try await supabase
-            .from("messages")
-            .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
-            .single()
-            .execute()
-        
-        // Decode message with joined sender profile
+
         let decoder = createDateDecoder()
         let message: Message
         do {
-            message = try decoder.decode(Message.self, from: response.data)
-        } catch {
-            // Log the raw response for debugging
-            if let jsonString = String(data: response.data, encoding: .utf8) {
-                AppLogger.database.error("Failed to decode message. Raw JSON: \(jsonString.prefix(200))")
+            let response = try await supabase
+                .from("messages")
+                .insert(newMessage)
+                .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url), reply_to_id")
+                .single()
+                .execute()
+
+            // Decode message with joined sender profile
+            do {
+                message = try decoder.decode(Message.self, from: response.data)
+            } catch {
+                // Log the raw response for debugging
+                if let jsonString = String(data: response.data, encoding: .utf8) {
+                    AppLogger.database.error("Failed to decode message. Raw JSON: \(jsonString.prefix(200))")
+                }
+                AppLogger.database.error("Decoding error: \(error)")
+                throw error
             }
-            AppLogger.database.error("Decoding error: \(error)")
+        } catch {
+            // Idempotent send (MSG-6): a row with this id may already exist — inserted by
+            // the other send path, or by a first attempt whose response was lost. If so, the
+            // message is already on the server; return it rather than surfacing a failure or
+            // creating a duplicate. Any other failure (network, RLS) re-throws.
+            if let existing = try? await fetchServerMessage(id: newMessage.id) {
+                AppLogger.database.info("Send is idempotent: message \(newMessage.id) already on server; returning existing")
+                return existing
+            }
             throw error
         }
         
@@ -618,7 +661,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .single()
             .execute()
         
@@ -660,7 +703,7 @@ final class MessageService {
         let response = try await supabase
             .from("messages")
             .insert(newMessage)
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .single()
             .execute()
         
@@ -686,40 +729,29 @@ final class MessageService {
     ///   - newContent: The new text content
     /// - Throws: AppError if the update fails
     func updateMessageContent(messageId: UUID, newContent: String) async throws {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = formatter.string(from: Date())
-        
+        let params: [String: AnyCodable] = [
+            "p_message_id": AnyCodable(messageId.uuidString),
+            "p_new_content": AnyCodable(newContent)
+        ]
         try await supabase
-            .from("messages")
-            .update([
-                "text": newContent,
-                "edited_at": now
-            ])
-            .eq("id", value: messageId.uuidString)
+            .rpc("edit_message", params: params)
             .execute()
-        
-        AppLogger.database.info("Edited message: \(messageId)")
+
+        AppLogger.database.info("Edited message via RPC: \(messageId)")
     }
     
     /// Unsend a message (soft delete — clears content and sets deleted_at)
     /// - Parameter messageId: The ID of the message to unsend
     /// - Throws: AppError if the update fails
     func unsendMessage(messageId: UUID) async throws {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = formatter.string(from: Date())
-        
+        let params: [String: AnyCodable] = [
+            "p_message_id": AnyCodable(messageId.uuidString)
+        ]
         try await supabase
-            .from("messages")
-            .update([
-                "text": "",
-                "deleted_at": now
-            ])
-            .eq("id", value: messageId.uuidString)
+            .rpc("unsend_message", params: params)
             .execute()
-        
-        AppLogger.database.info("Unsent message: \(messageId)")
+
+        AppLogger.database.info("Unsent message via RPC: \(messageId)")
     }
     
     // MARK: - Read Status
@@ -747,27 +779,28 @@ final class MessageService {
         let unreadMessages = try Self.decodeUnreadMessages(from: unreadResponse.data)
         
         if !unreadMessages.isEmpty {
-            let messageIds = unreadMessages.map { $0.id.uuidString }
+            // Format as PostgreSQL uuid[] literal: "{uuid1,uuid2,...}"
+            let pgArray = "{" + unreadMessages.map { $0.id.uuidString }.joined(separator: ",") + "}"
             do {
                 try await supabase.rpc(
                     "mark_messages_read_batch",
                     params: [
-                        "p_message_ids": AnyCodable(messageIds),
+                        "p_message_ids": AnyCodable(pgArray),
                         "p_user_id": AnyCodable(userId.uuidString)
                     ]
                 ).execute()
             } catch {
+                // Fallback: try one at a time with same format
                 for message in unreadMessages {
-                    var updatedReadBy = message.readBy
-                    if !updatedReadBy.contains(userId) {
-                        updatedReadBy.append(userId)
+                    if !message.readBy.contains(userId) {
+                        try? await supabase.rpc(
+                            "mark_messages_read_batch",
+                            params: [
+                                "p_message_ids": AnyCodable("{\(message.id.uuidString)}"),
+                                "p_user_id": AnyCodable(userId.uuidString)
+                            ]
+                        ).execute()
                     }
-                    
-                    try await supabase
-                        .from("messages")
-                        .update(["read_by": updatedReadBy.map { $0.uuidString }])
-                        .eq("id", value: message.id.uuidString)
-                        .execute()
                 }
             }
 
@@ -1044,7 +1077,7 @@ final class MessageService {
         // 2. Search messages in those conversations using ilike for case-insensitive match
         let response = try await supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .in("conversation_id", values: conversationIds)
             .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
@@ -1082,7 +1115,7 @@ final class MessageService {
 
         var queryBuilder = supabase
             .from("messages")
-            .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+            .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
             .eq("conversation_id", value: conversationId.uuidString)
             .ilike("text", pattern: "%\(escapeILIKE(query))%")
             .is("deleted_at", value: nil)
@@ -1204,7 +1237,7 @@ final class MessageService {
             
             let userIds = rows.map { $0.userId.uuidString }
             let profilesResponse = try await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select("id, name, avatar_url")
                 .in("id", values: userIds)
                 .execute()

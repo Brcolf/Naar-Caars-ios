@@ -369,28 +369,19 @@ final class RideService {
                                 (seats != nil && original.seats != ride.seats)
             
             if detailsChanged {
-                // Create notification for claimer
-                // Note: In production, this would typically be handled by a database trigger
-                // or backend function. For now, we'll create an in-app notification.
+                // Routed through notify_claimer_of_request_update wrapper, which
+                // validates auth.uid() = ride.user_id before calling create_notification.
                 do {
-                    let notificationData: [String: AnyCodable] = [
-                        "user_id": AnyCodable(claimedBy.uuidString),
-                        "type": AnyCodable("ride_update"),
-                        "title": AnyCodable("Ride Details Updated"),
-                        "body": AnyCodable("The ride you claimed has been updated. Check the details."),
-                        "ride_id": AnyCodable(id.uuidString),
-                        "read": AnyCodable(false),
-                        "pinned": AnyCodable(false)
-                    ]
-                    
-                    // Insert notification (if notifications table exists)
                     try await supabase
-                        .from("notifications")
-                        .insert(notificationData)
+                        .rpc("notify_claimer_of_request_update", params: [
+                            "p_ride_id": AnyCodable(id.uuidString),
+                            "p_favor_id": AnyCodable(nil as String?),
+                            "p_title": AnyCodable("Ride Details Updated"),
+                            "p_body": AnyCodable("The ride you claimed has been updated. Check the details.")
+                        ])
                         .execute()
                 } catch {
-                    // Notification creation is optional - don't fail the update
-                    AppLogger.warning("rides", "Failed to create notification for claimer: \(error)")
+                    AppLogger.warning("rides", "Failed to notify claimer of ride update: \(error)")
                 }
             }
         }
@@ -440,13 +431,16 @@ final class RideService {
         
         var qaItems: [RequestQA] = try createDecoder().decode([RequestQA].self, from: response.data)
         
-        // Enrich with asker profiles
-        for (index, qa) in qaItems.enumerated() {
-            if let asker = try? await ProfileService.shared.fetchProfile(userId: qa.userId) {
-                qaItems[index].asker = asker
-            }
+        // Enrich with asker profiles using a single batched profile fetch (avoids
+        // the previous per-asker N+1 loop). Best-effort like the original: if the
+        // batch fails, askers stay nil but no Q&A items are dropped.
+        let askerIds = Array(Set(qaItems.map { $0.userId }))
+        let askerProfiles = (try? await ProfileService.shared.fetchProfiles(userIds: askerIds)) ?? []
+        let askerLookup = Dictionary(uniqueKeysWithValues: askerProfiles.map { ($0.id, $0) })
+        for index in qaItems.indices {
+            qaItems[index].asker = askerLookup[qaItems[index].userId]
         }
-        
+
         return qaItems
     }
     
@@ -617,17 +611,24 @@ final class RideService {
             return []
         }
         
-        // Fetch rides by IDs - fetch individually to avoid .in() syntax issues
-        var allRides: [Ride] = []
-        for rideId in rideIds {
-            if let ride = try? await fetchRide(id: rideId) {
-                allRides.append(ride)
-            }
-        }
-        
+        // Batch fetch all rides in a single query, then enrich via the shared
+        // batched profile helper (the same path fetchRides uses). This replaces the
+        // previous N+1 pattern that called fetchRide per id (~5 requests each) and
+        // silently dropped rides on transient errors via try?. If the batch fails,
+        // throw so the caller can surface an error rather than returning a partial list.
+        let ridesResponse = try await supabase
+            .from("rides")
+            .select()
+            .in("id", values: rideIds.map { $0.uuidString })
+            .execute()
+
+        let rides: [Ride] = try createDecoder().decode([Ride].self, from: ridesResponse.data)
+
+        var allRides = await enrichRidesWithProfiles(rides)
+
         // Sort by date
         allRides.sort { $0.date < $1.date }
-        
+
         return allRides
     }
     

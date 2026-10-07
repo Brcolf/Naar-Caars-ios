@@ -30,6 +30,9 @@ final class ImageBubbleView: UIView {
 
     private let maxSize: CGFloat = 220
     private let cornerRad: CGFloat = 18
+    /// Largest bubble dimension in points (matches the 300pt height cap in `sizeThatFits`).
+    /// Used to bound the display-size decode so a full-res photo is never decoded into this bubble.
+    private let maxDisplayDimension: CGFloat = 300
 
     // MARK: - Init
 
@@ -91,9 +94,10 @@ final class ImageBubbleView: UIView {
 
         loadGeneration &+= 1
         let gen = loadGeneration
+        let targetPixels = targetPixelSize()
 
         Task { [weak self] in
-            let img = await PersistentImageService.shared.getImage(for: remoteUrl)
+            let img = await PersistentImageService.shared.getImage(for: remoteUrl, maxPixelSize: targetPixels)
             guard let self, self.loadGeneration == gen else { return }
             if let img {
                 self.showImage(img)
@@ -128,21 +132,26 @@ final class ImageBubbleView: UIView {
 
         loadGeneration &+= 1
         let gen = loadGeneration
+        let targetPixels = targetPixelSize()
 
-        Task.detached(priority: .userInitiated) { [weak self] in
-            let img: UIImage? = {
-                guard let data = try? Data(contentsOf: fileURL) else { return nil }
-                return UIImage(data: data)
-            }()
-            await MainActor.run {
-                guard let self, self.loadGeneration == gen else { return }
-                if let img {
-                    self.showImage(img)
-                } else {
-                    self.showError()
-                }
+        // Route the local (optimistic, awaiting-upload) original through the same service so it
+        // is downsampled to display size rather than decoded at full resolution into the bubble.
+        Task { [weak self] in
+            let img = await PersistentImageService.shared.getImage(for: fileURL.absoluteString, maxPixelSize: targetPixels)
+            guard let self, self.loadGeneration == gen else { return }
+            if let img {
+                self.showImage(img)
+            } else {
+                self.showError()
             }
         }
+    }
+
+    /// Target decode size in pixels for this bubble: the largest bubble dimension scaled to the
+    /// display's pixel density. Bounds the decode so full-res photos never fill memory.
+    private func targetPixelSize() -> CGFloat {
+        let scale = max(traitCollection.displayScale, 1)
+        return maxDisplayDimension * scale
     }
 
     // MARK: - States

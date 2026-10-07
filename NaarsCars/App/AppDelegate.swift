@@ -443,12 +443,21 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
 
     private func postCompletionPrompt(from userInfo: [AnyHashable: Any]) {
+        guard let userId = AuthService.shared.currentUserId else { return }
         if let rideIdString = userInfo["ride_id"] as? String,
            let rideId = UUID(uuidString: rideIdString) {
-            NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["rideId": rideId])
+            Task { @MainActor in
+                await PromptCoordinator.shared.enqueueCompletionPrompt(
+                    requestType: .ride, requestId: rideId, userId: userId
+                )
+            }
         } else if let favorIdString = userInfo["favor_id"] as? String,
                   let favorId = UUID(uuidString: favorIdString) {
-            NotificationCenter.default.post(name: .showCompletionPrompt, object: nil, userInfo: ["favorId": favorId])
+            Task { @MainActor in
+                await PromptCoordinator.shared.enqueueCompletionPrompt(
+                    requestType: .favor, requestId: favorId, userId: userId
+                )
+            }
         }
     }
 

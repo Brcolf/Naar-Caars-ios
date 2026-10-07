@@ -38,19 +38,24 @@ final class ProfileService {
         if let cached = await CacheManager.shared.getCachedProfile(id: userId) {
             return cached
         }
-        
-        // Fetch from network
+
+        // Self-lookup reads the full row from `profiles`; cross-user reads
+        // route through `public_profiles` (non-PII projection — email, phone,
+        // is_admin, is_banned, notification prefs, application data stay hidden).
+        let isSelf = AuthService.shared.currentUserId == userId
+        let tableName = isSelf ? "profiles" : "public_profiles"
+
         let profile: Profile = try await supabase
-            .from("profiles")
+            .from(tableName)
             .select()
             .eq("id", value: userId.uuidString)
             .single()
             .execute()
             .value
-        
+
         // Cache the profile
         await CacheManager.shared.cacheProfile(profile)
-        
+
         return profile
     }
     
@@ -263,9 +268,10 @@ final class ProfileService {
         
         guard !missing.isEmpty else { return cached }
         
-        // Batch fetch missing profiles in a single query
+        // Batch fetch missing profiles from the non-PII projection view.
+        // Callers needing full-row self/admin data must use a separate path.
         let fetched: [Profile] = try await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select()
             .in("id", values: missing.map { $0.uuidString })
             .execute()

@@ -63,10 +63,10 @@ final class RequestsDashboardViewModel: ObservableObject {
             modelContextProvider: { [weak self] in self?.modelContext },
             authUserIdProvider: { [weak self] in self?.authService.currentUserId },
             syncRidesToSwiftData: { [weak self] rides, context in
-                self?.syncRidesToSwiftData(rides, in: context)
+                _ = self?.syncRidesToSwiftData(rides, in: context)
             },
             syncFavorsToSwiftData: { [weak self] favors, context in
-                self?.syncFavorsToSwiftData(favors, in: context)
+                _ = self?.syncFavorsToSwiftData(favors, in: context)
             },
             refreshFilteredRequests: { [weak self] in
                 self?.refreshFilteredRequests()
@@ -109,6 +109,11 @@ final class RequestsDashboardViewModel: ObservableObject {
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
         refreshFilteredRequests()
+    }
+
+    func refreshLocalState() async {
+        refreshFilteredRequests()
+        await refreshUnseenRequestKeys()
     }
 
     /// Get filtered requests from SwiftData models
@@ -157,9 +162,12 @@ final class RequestsDashboardViewModel: ObservableObject {
                 let favors = try await favorsTask
                 guard !Task.isCancelled else { return }
                 if let context = modelContext {
-                    syncRidesToSwiftData(rides, in: context)
-                    syncFavorsToSwiftData(favors, in: context)
-                    try? context.save()
+                    // Compare-before-write: only persist if a synced row actually changed.
+                    let ridesChanged = syncRidesToSwiftData(rides, in: context)
+                    let favorsChanged = syncFavorsToSwiftData(favors, in: context)
+                    if ridesChanged || favorsChanged {
+                        try? context.save()
+                    }
                 }
                 refreshFilteredRequests()
                 await refreshUnseenRequestKeys()
@@ -177,39 +185,45 @@ final class RequestsDashboardViewModel: ObservableObject {
         await loadTask?.value
     }
 
-    private func syncRidesToSwiftData(_ rides: [Ride], in context: ModelContext) {
+    /// Upserts rides into SwiftData with field-level change detection.
+    /// Returns `true` if at least one row was inserted or actually mutated, so the caller can skip `save()` when nothing changed.
+    @discardableResult
+    private func syncRidesToSwiftData(_ rides: [Ride], in context: ModelContext) -> Bool {
+        var didChange = false
         for ride in rides {
             let id = ride.id
             let fetchDescriptor = FetchDescriptor<SDRide>(predicate: #Predicate { $0.id == id })
             if let existing = try? context.fetch(fetchDescriptor).first {
-                // Update existing
-                existing.status = ride.status.rawValue
-                existing.claimedBy = ride.claimedBy
-                existing.updatedAt = ride.updatedAt
-                existing.qaCount = ride.qaCount ?? 0
-                existing.date = ride.date
-                existing.time = ride.time
-                existing.timezone = ride.timezone
-                existing.pickup = ride.pickup
-                existing.destination = ride.destination
-                existing.seats = ride.seats
-                existing.notes = ride.notes
-                existing.gift = ride.gift
-                existing.reviewed = ride.reviewed
-                existing.reviewSkipped = ride.reviewSkipped
-                existing.reviewSkippedAt = ride.reviewSkippedAt
-                existing.estimatedCost = ride.estimatedCost
-                existing.flightNormalized = ride.flightNormalized
-                existing.hiddenAt = ride.hiddenAt
-                existing.hiddenBy = ride.hiddenBy
-                existing.hiddenReason = ride.hiddenReason
-                existing.posterName = ride.poster?.name
-                existing.posterAvatarUrl = ride.poster?.avatarUrl
-                existing.claimerName = ride.claimer?.name
-                existing.claimerAvatarUrl = ride.claimer?.avatarUrl
-                existing.participantIds = ride.participants?.map { $0.id } ?? []
+                // Update existing — only assign fields whose value actually differs.
+                if existing.status != ride.status.rawValue { existing.status = ride.status.rawValue; didChange = true }
+                if existing.claimedBy != ride.claimedBy { existing.claimedBy = ride.claimedBy; didChange = true }
+                if existing.updatedAt != ride.updatedAt { existing.updatedAt = ride.updatedAt; didChange = true }
+                if existing.qaCount != (ride.qaCount ?? 0) { existing.qaCount = ride.qaCount ?? 0; didChange = true }
+                if existing.date != ride.date { existing.date = ride.date; didChange = true }
+                if existing.time != ride.time { existing.time = ride.time; didChange = true }
+                if existing.timezone != ride.timezone { existing.timezone = ride.timezone; didChange = true }
+                if existing.pickup != ride.pickup { existing.pickup = ride.pickup; didChange = true }
+                if existing.destination != ride.destination { existing.destination = ride.destination; didChange = true }
+                if existing.seats != ride.seats { existing.seats = ride.seats; didChange = true }
+                if existing.notes != ride.notes { existing.notes = ride.notes; didChange = true }
+                if existing.gift != ride.gift { existing.gift = ride.gift; didChange = true }
+                if existing.reviewed != ride.reviewed { existing.reviewed = ride.reviewed; didChange = true }
+                if existing.reviewSkipped != ride.reviewSkipped { existing.reviewSkipped = ride.reviewSkipped; didChange = true }
+                if existing.reviewSkippedAt != ride.reviewSkippedAt { existing.reviewSkippedAt = ride.reviewSkippedAt; didChange = true }
+                if existing.estimatedCost != ride.estimatedCost { existing.estimatedCost = ride.estimatedCost; didChange = true }
+                if existing.flightNormalized != ride.flightNormalized { existing.flightNormalized = ride.flightNormalized; didChange = true }
+                if existing.hiddenAt != ride.hiddenAt { existing.hiddenAt = ride.hiddenAt; didChange = true }
+                if existing.hiddenBy != ride.hiddenBy { existing.hiddenBy = ride.hiddenBy; didChange = true }
+                if existing.hiddenReason != ride.hiddenReason { existing.hiddenReason = ride.hiddenReason; didChange = true }
+                if existing.posterName != ride.poster?.name { existing.posterName = ride.poster?.name; didChange = true }
+                if existing.posterAvatarUrl != ride.poster?.avatarUrl { existing.posterAvatarUrl = ride.poster?.avatarUrl; didChange = true }
+                if existing.claimerName != ride.claimer?.name { existing.claimerName = ride.claimer?.name; didChange = true }
+                if existing.claimerAvatarUrl != ride.claimer?.avatarUrl { existing.claimerAvatarUrl = ride.claimer?.avatarUrl; didChange = true }
+                let newParticipantIds = ride.participants?.map { $0.id } ?? []
+                if existing.participantIds != newParticipantIds { existing.participantIds = newParticipantIds; didChange = true }
             } else {
                 // Insert new
+                didChange = true
                 let sdRide = SDRide(
                     id: ride.id,
                     userId: ride.userId,
@@ -244,41 +258,47 @@ final class RequestsDashboardViewModel: ObservableObject {
                 context.insert(sdRide)
             }
         }
-        refreshFilteredRequests()
+        return didChange
     }
 
-    private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) {
+    /// Upserts favors into SwiftData with field-level change detection.
+    /// Returns `true` if at least one row was inserted or actually mutated, so the caller can skip `save()` when nothing changed.
+    @discardableResult
+    private func syncFavorsToSwiftData(_ favors: [Favor], in context: ModelContext) -> Bool {
+        var didChange = false
         for favor in favors {
             let id = favor.id
             let fetchDescriptor = FetchDescriptor<SDFavor>(predicate: #Predicate { $0.id == id })
             if let existing = try? context.fetch(fetchDescriptor).first {
-                // Update existing
-                existing.status = favor.status.rawValue
-                existing.claimedBy = favor.claimedBy
-                existing.updatedAt = favor.updatedAt
-                existing.qaCount = favor.qaCount ?? 0
-                existing.title = favor.title
-                existing.favorDescription = favor.description
-                existing.location = favor.location
-                existing.duration = favor.duration.rawValue
-                existing.requirements = favor.requirements
-                existing.date = favor.date
-                existing.time = favor.time
-                existing.timezone = favor.timezone
-                existing.gift = favor.gift
-                existing.reviewed = favor.reviewed
-                existing.reviewSkipped = favor.reviewSkipped
-                existing.reviewSkippedAt = favor.reviewSkippedAt
-                existing.hiddenAt = favor.hiddenAt
-                existing.hiddenBy = favor.hiddenBy
-                existing.hiddenReason = favor.hiddenReason
-                existing.posterName = favor.poster?.name
-                existing.posterAvatarUrl = favor.poster?.avatarUrl
-                existing.claimerName = favor.claimer?.name
-                existing.claimerAvatarUrl = favor.claimer?.avatarUrl
-                existing.participantIds = favor.participants?.map { $0.id } ?? []
+                // Update existing — only assign fields whose value actually differs.
+                if existing.status != favor.status.rawValue { existing.status = favor.status.rawValue; didChange = true }
+                if existing.claimedBy != favor.claimedBy { existing.claimedBy = favor.claimedBy; didChange = true }
+                if existing.updatedAt != favor.updatedAt { existing.updatedAt = favor.updatedAt; didChange = true }
+                if existing.qaCount != (favor.qaCount ?? 0) { existing.qaCount = favor.qaCount ?? 0; didChange = true }
+                if existing.title != favor.title { existing.title = favor.title; didChange = true }
+                if existing.favorDescription != favor.description { existing.favorDescription = favor.description; didChange = true }
+                if existing.location != favor.location { existing.location = favor.location; didChange = true }
+                if existing.duration != favor.duration.rawValue { existing.duration = favor.duration.rawValue; didChange = true }
+                if existing.requirements != favor.requirements { existing.requirements = favor.requirements; didChange = true }
+                if existing.date != favor.date { existing.date = favor.date; didChange = true }
+                if existing.time != favor.time { existing.time = favor.time; didChange = true }
+                if existing.timezone != favor.timezone { existing.timezone = favor.timezone; didChange = true }
+                if existing.gift != favor.gift { existing.gift = favor.gift; didChange = true }
+                if existing.reviewed != favor.reviewed { existing.reviewed = favor.reviewed; didChange = true }
+                if existing.reviewSkipped != favor.reviewSkipped { existing.reviewSkipped = favor.reviewSkipped; didChange = true }
+                if existing.reviewSkippedAt != favor.reviewSkippedAt { existing.reviewSkippedAt = favor.reviewSkippedAt; didChange = true }
+                if existing.hiddenAt != favor.hiddenAt { existing.hiddenAt = favor.hiddenAt; didChange = true }
+                if existing.hiddenBy != favor.hiddenBy { existing.hiddenBy = favor.hiddenBy; didChange = true }
+                if existing.hiddenReason != favor.hiddenReason { existing.hiddenReason = favor.hiddenReason; didChange = true }
+                if existing.posterName != favor.poster?.name { existing.posterName = favor.poster?.name; didChange = true }
+                if existing.posterAvatarUrl != favor.poster?.avatarUrl { existing.posterAvatarUrl = favor.poster?.avatarUrl; didChange = true }
+                if existing.claimerName != favor.claimer?.name { existing.claimerName = favor.claimer?.name; didChange = true }
+                if existing.claimerAvatarUrl != favor.claimer?.avatarUrl { existing.claimerAvatarUrl = favor.claimer?.avatarUrl; didChange = true }
+                let newParticipantIds = favor.participants?.map { $0.id } ?? []
+                if existing.participantIds != newParticipantIds { existing.participantIds = newParticipantIds; didChange = true }
             } else {
                 // Insert new
+                didChange = true
                 let sdFavor = SDFavor(
                     id: favor.id,
                     userId: favor.userId,
@@ -311,7 +331,7 @@ final class RequestsDashboardViewModel: ObservableObject {
                 context.insert(sdFavor)
             }
         }
-        refreshFilteredRequests()
+        return didChange
     }
 
     /// Update filter and reload requests

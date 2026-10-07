@@ -13,6 +13,14 @@ struct AllReviewsView: View {
     @State private var isLoading = true
     @State private var error: Error?
 
+    /// Display-layer filter: hide reviews authored by users the viewer has blocked.
+    /// Mirrors the Town Hall block-filtering pattern; RLS remains the security boundary.
+    private var visibleReviews: [Review] {
+        let blockedIds = MessageService.shared.cachedBlockedUserIds
+        guard !blockedIds.isEmpty else { return reviews }
+        return reviews.filter { !blockedIds.contains($0.reviewerId) }
+    }
+
     var body: some View {
         Group {
             if isLoading && reviews.isEmpty {
@@ -39,12 +47,13 @@ struct AllReviewsView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        ForEach(reviews) { review in
+                        ForEach(visibleReviews) { review in
                             VStack(alignment: .leading, spacing: 8) {
                                 ReviewCard(
                                     review: review,
                                     reviewerName: review.reviewerName,
-                                    reviewerAvatarUrl: review.reviewerAvatarUrl
+                                    reviewerAvatarUrl: review.reviewerAvatarUrl,
+                                    reviewerId: review.reviewerId
                                 )
 
                                 // Request context

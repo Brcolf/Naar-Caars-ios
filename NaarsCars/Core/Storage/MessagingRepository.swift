@@ -36,14 +36,9 @@ final class MessagingRepository {
     private init() {}
 
     /// Set up the model context for SwiftData operations.
-    /// The conversations publisher is populated asynchronously to avoid blocking
-    /// the main thread during app init (was taking 1.3s+ for O(n) SwiftData fetches).
+    /// Conversation publishers are populated lazily by the conversations UI or sync notifications.
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
-        Task { @MainActor in
-            await Task.yield()
-            refreshConversationsPublisher()
-        }
     }
 
     /// Reset all in-memory publisher caches on sign-out.
@@ -187,8 +182,9 @@ final class MessagingRepository {
         )
         let sdMessages = try modelContext.fetch(fetchDescriptor)
         let deletedIds = fetchLocallyDeletedMessageIds(for: conversationId)
+        let blockedIds = messageService.cachedBlockedUserIds
         return sdMessages
-            .filter { !deletedIds.contains($0.id) }
+            .filter { !deletedIds.contains($0.id) && !blockedIds.contains($0.fromId) }
             .map { MessagingMapper.mapToMessage($0) }
     }
     

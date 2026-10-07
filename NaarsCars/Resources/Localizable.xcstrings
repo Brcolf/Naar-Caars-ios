@@ -17354,6 +17354,88 @@
         }
       }
     },
+    "invite_share_message_bulk" : {
+      "comment" : "Share sheet message for a bulk invite. The first argument is the App Store URL, and the second argument is the invite code.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join Naar's Cars! 🚗\n\nDownload the app:\n%1$@\n\nInvite code: %2$@\n\nThis code can be used by multiple people and expires in 48 hours."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡Únete a Naar's Cars! 🚗\n\nDescarga la app:\n%1$@\n\nCódigo de invitación: %2$@\n\nEste código puede ser usado por varias personas y vence en 48 horas."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naar's Cars에 참여하세요! 🚗\n\n앱 다운로드:\n%1$@\n\n초대 코드: %2$@\n\n이 코드는 여러 사람이 사용할 수 있으며 48시간 후 만료됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tham gia Naar's Cars! 🚗\n\nTải ứng dụng:\n%1$@\n\nMã mời: %2$@\n\nMã này có thể được nhiều người sử dụng và sẽ hết hạn sau 48 giờ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 Naar's Cars！🚗\n\n下载应用：\n%1$@\n\n邀请码：%2$@\n\n此代码可供多人使用，并将在 48 小时后过期。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 Naar's Cars！🚗\n\n下載 App：\n%1$@\n\n邀請碼：%2$@\n\n此代碼可供多人使用，並會在 48 小時後到期。"
+          }
+        }
+      }
+    },
+    "invite_share_message_regular" : {
+      "comment" : "Share sheet message for a single-use invite. The first argument is the App Store URL, and the second argument is the invite code.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join me on Naar's Cars! 🚗\n\nDownload the app:\n%1$@\n\nInvite code: %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡Únete a mí en Naar's Cars! 🚗\n\nDescarga la app:\n%1$@\n\nCódigo de invitación: %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naar's Cars에 함께해요! 🚗\n\n앱 다운로드:\n%1$@\n\n초대 코드: %2$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tham gia Naar's Cars cùng tôi! 🚗\n\nTải ứng dụng:\n%1$@\n\nMã mời: %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和我一起加入 Naar's Cars！🚗\n\n下载应用：\n%1$@\n\n邀请码：%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與我一起加入 Naar's Cars！🚗\n\n下載 App：\n%1$@\n\n邀請碼：%2$@"
+          }
+        }
+      }
+    },
     "invite_share_prompt" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -31691,6 +31773,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在上傳圖片..."
+          }
+        }
+      }
+    },
+    "review_view_reviewer_profile" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View %@'s profile"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver el perfil de %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@님의 프로필 보기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xem hồ sơ của %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看 %@ 的个人资料"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看 %@ 的個人資料"
           }
         }
       }

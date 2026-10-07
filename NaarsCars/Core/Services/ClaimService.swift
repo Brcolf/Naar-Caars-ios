@@ -84,12 +84,24 @@ final class ClaimService {
                 "updated_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
             ]
             
-            try await supabase
+            // Only claim a still-open, unclaimed request, and confirm a row actually changed.
+            // RLS enforces the same predicate, so a second claimer's UPDATE matches 0 rows —
+            // without this check that silently reads as success (SVC-1).
+            let claimResponse = try await supabase
                 .from(tableName)
                 .update(updates)
                 .eq("id", value: requestId.uuidString)
+                .eq("status", value: "open")
+                .is("claimed_by", value: nil)
+                .select("id")
                 .execute()
-            
+
+            struct ClaimedRow: Decodable { let id: UUID }
+            let claimedRows = (try? JSONDecoder().decode([ClaimedRow].self, from: claimResponse.data)) ?? []
+            guard !claimedRows.isEmpty else {
+                throw AppError.permissionDenied("This request was just claimed by someone else.")
+            }
+
             let posterId = try await getPosterId(requestType: requestType, requestId: requestId)
             
             // Create notification for poster
@@ -488,10 +500,11 @@ final class ClaimService {
                 }
             }
 
-            // Call queue_push_notification RPC
-            try await supabase.rpc("queue_push_notification", params: [
-                "p_recipient_user_id": AnyCodable(posterId.uuidString),
-                "p_notification_type": AnyCodable(requestType == "ride" ? "ride_claimed" : "favor_claimed"),
+            // Route through SECURITY DEFINER wrapper that validates auth.uid() = claimed_by
+            // (base queue_push_notification is no longer grantable to authenticated).
+            try await supabase.rpc("notify_creator_of_claim", params: [
+                "p_ride_id": AnyCodable((requestType == "ride" ? requestId.uuidString : nil) as Any),
+                "p_favor_id": AnyCodable((requestType == "favor" ? requestId.uuidString : nil) as Any),
                 "p_title": AnyCodable(title),
                 "p_body": AnyCodable(body),
                 "p_data": AnyCodable(eventData)

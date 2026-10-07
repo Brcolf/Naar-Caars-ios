@@ -25,32 +25,52 @@ struct ReviewCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Reviewer Info
             HStack {
-                if let reviewerAvatarUrl = reviewerAvatarUrl {
-                    AvatarView(
-                        imageUrl: reviewerAvatarUrl,
-                        name: reviewerName ?? "Anonymous",
-                        size: 40,
-                        userId: reviewerId
+                let displayName = reviewerName ?? "Anonymous"
+
+                // Tap-through to the reviewer's public profile (Report/Block reachability).
+                // Only enabled when the reviewer's id is known; otherwise falls back to
+                // a non-interactive avatar so existing callers keep working.
+                if let reviewerId {
+                    UserAvatarLink(
+                        profile: Profile(
+                            id: reviewerId,
+                            name: displayName,
+                            email: "",
+                            avatarUrl: reviewerAvatarUrl
+                        ),
+                        size: 40
                     )
+                    .accessibilityLabel("review_view_reviewer_profile".localized(with: displayName))
                 } else {
                     AvatarView(
-                        imageUrl: nil,
-                        name: reviewerName ?? "Anonymous",
+                        imageUrl: reviewerAvatarUrl,
+                        name: displayName,
                         size: 40,
                         userId: reviewerId
                     )
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(reviewerName ?? "Anonymous")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    
+                    if let reviewerId {
+                        NavigationLink(destination: PublicProfileView(userId: reviewerId)) {
+                            Text(displayName)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("review_view_reviewer_profile".localized(with: displayName))
+                    } else {
+                        Text(displayName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+
                     StarRatingView(rating: Double(review.rating))
                 }
-                
+
                 Spacer()
-                
+
                 Text(review.createdAt.timeAgo)
                     .font(.caption)
                     .foregroundColor(.secondary)

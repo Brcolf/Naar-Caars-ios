@@ -69,11 +69,15 @@ final class TownHallFeedViewModel: ObservableObject {
         }
 
         do {
-            let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: 0)
+            let page = try await townHallService.fetchPostsPage(limit: pageSize, offset: 0)
+            let fetchedPosts = page.posts
             updateVoteCache(with: fetchedPosts)
             posts = sortWithPinnedFirst(applyVoteCache(to: fetchedPosts))
-            currentOffset = fetchedPosts.count
-            hasMore = fetchedPosts.count >= pageSize
+            // Advance offset / hasMore on the RAW page size (rows consumed), not
+            // the blocked-filtered count, so a page containing a blocked user's
+            // post doesn't stop infinite scroll early or drift the offset.
+            currentOffset = page.rawCount
+            hasMore = page.rawCount >= pageSize
             try repository.upsertPosts(fetchedPosts)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)
@@ -89,15 +93,20 @@ final class TownHallFeedViewModel: ObservableObject {
         defer { isLoadingMore = false }
         
         do {
-            let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: currentOffset)
-            
-            if fetchedPosts.isEmpty {
+            let page = try await townHallService.fetchPostsPage(limit: pageSize, offset: currentOffset)
+            let fetchedPosts = page.posts
+
+            // Use the RAW page size (rows consumed) to decide whether more pages
+            // exist and how far to advance the offset. A page that is entirely
+            // blocked users yields rawCount > 0 with fetchedPosts empty — we must
+            // still advance and keep paging rather than stopping.
+            if page.rawCount == 0 {
                 hasMore = false
             } else {
                 updateVoteCache(with: fetchedPosts)
                 posts = applyVoteCache(to: mergePosts(existing: posts, new: fetchedPosts))
-                currentOffset += fetchedPosts.count
-                hasMore = fetchedPosts.count >= pageSize
+                currentOffset += page.rawCount
+                hasMore = page.rawCount >= pageSize
                 try repository.upsertPosts(fetchedPosts)
             }
         } catch {
@@ -179,18 +188,20 @@ final class TownHallFeedViewModel: ObservableObject {
 
         do {
             let offset = resetOffset ? 0 : currentOffset
-            let fetchedPosts = try await townHallService.fetchPosts(limit: pageSize, offset: offset)
+            let page = try await townHallService.fetchPostsPage(limit: pageSize, offset: offset)
+            let fetchedPosts = page.posts
 
             updateVoteCache(with: fetchedPosts)
             let merged = mergePosts(existing: posts, new: fetchedPosts)
             posts = applyVoteCache(to: merged)
 
+            // Advance offset / hasMore on the RAW page size, not the filtered count.
             if resetOffset {
-                currentOffset = max(currentOffset, fetchedPosts.count)
+                currentOffset = max(currentOffset, page.rawCount)
             } else {
-                currentOffset += fetchedPosts.count
+                currentOffset += page.rawCount
             }
-            hasMore = fetchedPosts.count >= pageSize
+            hasMore = page.rawCount >= pageSize
             try repository.upsertPosts(fetchedPosts)
         } catch {
             self.error = AppError.processingError(error.localizedDescription)

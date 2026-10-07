@@ -31,9 +31,16 @@ final class RequestFilterManager {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
 
-        var allRequests: [RequestItem] = []
+        let allRequests = convertRides(rides).map(RequestItem.ride)
+            + convertFavors(favors).map(RequestItem.favor)
+        return applyFilterAndSort(allRequests, filter: filter, userId: userId)
+    }
 
-        let ridesConverted: [Ride] = rides.map { sdRide in
+    /// Converts SwiftData rides to domain `Ride` values.
+    /// NOTE: `participants` is intentionally left nil (matching prior behavior); callers that need
+    /// participant/claimer membership rely on the SwiftData pre-filter, not `isParticipating`.
+    private func convertRides(_ rides: [SDRide]) -> [Ride] {
+        rides.map { sdRide in
             let poster = makeProfile(id: sdRide.userId, name: sdRide.posterName, avatarUrl: sdRide.posterAvatarUrl)
             let claimer = sdRide.claimedBy.flatMap { claimedBy in
                 makeProfile(id: claimedBy, name: sdRide.claimerName, avatarUrl: sdRide.claimerAvatarUrl)
@@ -67,8 +74,11 @@ final class RequestFilterManager {
                 qaCount: sdRide.qaCount
             )
         }
+    }
 
-        let favorsConverted: [Favor] = favors.map { sdFavor in
+    /// Converts SwiftData favors to domain `Favor` values. See `convertRides` note on `participants`.
+    private func convertFavors(_ favors: [SDFavor]) -> [Favor] {
+        favors.map { sdFavor in
             let poster = makeProfile(id: sdFavor.userId, name: sdFavor.posterName, avatarUrl: sdFavor.posterAvatarUrl)
             let claimer = sdFavor.claimedBy.flatMap { claimedBy in
                 makeProfile(id: claimedBy, name: sdFavor.claimerName, avatarUrl: sdFavor.claimerAvatarUrl)
@@ -100,30 +110,39 @@ final class RequestFilterManager {
                 qaCount: sdFavor.qaCount
             )
         }
+    }
 
-        allRequests = ridesConverted.map(RequestItem.ride) + favorsConverted.map(RequestItem.favor)
+    /// Applies the active-filter predicate, the 12-hour recency window, and the event-time sort.
+    /// Mirrors the tail of `getFilteredRequests` exactly so both entry points produce identical output.
+    private func applyFilterAndSort(
+        _ allRequests: [RequestItem],
+        filter: RequestFilter,
+        userId: UUID?
+    ) -> [RequestItem] {
+        if userId == nil && filter != .open { return [] }
 
+        var result: [RequestItem]
         switch filter {
         case .open:
             // Guests (userId nil) see all unclaimed. Authenticated users also exclude requests they participate in.
-            allRequests = allRequests.filter { item in
+            result = allRequests.filter { item in
                 item.isUnclaimed && (userId == nil || !item.isParticipating(userId: userId!))
             }
         case .mine:
-            allRequests = allRequests.filter { $0.isParticipating(userId: userId!) }
+            result = allRequests.filter { $0.isParticipating(userId: userId!) }
         case .claimed:
-            allRequests = allRequests.filter { $0.claimedBy == userId! }
+            result = allRequests.filter { $0.claimedBy == userId! }
         }
 
         let now = Date()
-        allRequests = allRequests.filter { request in
+        result = result.filter { request in
             if request.isCompleted { return false }
             let hoursSinceEvent = now.timeIntervalSince(request.eventTime) / 3600
             return hoursSinceEvent <= 12
         }
 
-        allRequests.sort { $0.eventTime < $1.eventTime }
-        return allRequests
+        result.sort { $0.eventTime < $1.eventTime }
+        return result
     }
 
     func fetchFilteredRides(in context: ModelContext, filter: RequestFilter) -> [SDRide] {
@@ -182,11 +201,27 @@ final class RequestFilterManager {
         let allRides = (try? context.fetch(FetchDescriptor<SDRide>())) ?? []
         let allFavors = (try? context.fetch(FetchDescriptor<SDFavor>())) ?? []
 
+        // Convert each SwiftData model to a domain RequestItem exactly ONCE and reuse across all tabs,
+        // instead of re-converting a per-tab subset inside getFilteredRequests for every filter case.
+        // Keyed by id so the cheap per-tab SwiftData pre-filter can look up its already-converted items.
+        let rideItemsById = Dictionary(
+            convertRides(allRides).map(RequestItem.ride).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let favorItemsById = Dictionary(
+            convertFavors(allFavors).map(RequestItem.favor).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        let userId = authService.currentUserId
         var counts: [RequestFilter: Int] = [:]
         for filterCase in RequestFilter.allCases {
+            // Cheap SwiftData-field pre-filter (unchanged), then map to pre-converted domain items.
             let filteredRides = filterRidesInMemory(allRides, for: filterCase)
             let filteredFavors = filterFavorsInMemory(allFavors, for: filterCase)
-            let requests = getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filterCase)
+            let preFilteredItems = filteredRides.compactMap { rideItemsById[$0.id] }
+                + filteredFavors.compactMap { favorItemsById[$0.id] }
+            let requests = applyFilterAndSort(preFilteredItems, filter: filterCase, userId: userId)
             let unreadTotal = requests.reduce(0) { total, request in
                 total + (requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0)
             }

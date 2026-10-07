@@ -31,37 +31,17 @@ enum InviteCodeFormatter {
 
     /// Generate a share message for a regular (single-use) invite code
     /// - Parameter code: The raw invite code
-    /// - Returns: Formatted share message with deep link and app store link
+    /// - Returns: Formatted share message with app store link and invite code
     static func generateShareMessage(_ code: String) -> String {
-        let deepLink = "\(Constants.URLs.deepLinkBase)/signup?code=\(code)"
         let appStoreLink = Constants.URLs.appStore
-
-        return """
-        Join me on Naar's Cars! 🚗
-        
-        Sign up here: \(deepLink)
-        
-        Or download the app and enter code: \(code)
-        \(appStoreLink)
-        """
+        return "invite_share_message_regular".localized(with: appStoreLink, code)
     }
 
     /// Generate a share message for a bulk invite code
     /// - Parameter code: The raw invite code
-    /// - Returns: Formatted share message with bulk-specific note
+    /// - Returns: Formatted share message with app store link, invite code, and bulk-specific note
     static func generateBulkShareMessage(_ code: String) -> String {
-        let deepLink = "\(Constants.URLs.deepLinkBase)/signup?code=\(code)"
         let appStoreLink = Constants.URLs.appStore
-
-        return """
-        Join Naar's Cars! 🚗
-        
-        Sign up here: \(deepLink)
-        
-        Or download the app and enter code: \(code)
-        \(appStoreLink)
-        
-        This code can be used by multiple people and expires in 48 hours.
-        """
+        return "invite_share_message_bulk".localized(with: appStoreLink, code)
     }
 }

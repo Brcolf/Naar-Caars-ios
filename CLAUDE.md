@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Table of Contents
 
+> **First 60 seconds:** for any code change, read [Read This First](#-read-this-first--before-any-code-change), [Quick Reference — Critical Invariants](#quick-reference--critical-invariants), and the relevant [Fragile Systems](#fragile-systems--mandatory-conservative-handling) section. That covers ~80% of tasks. The per-layer Rules sections are reference material — skim, don't read top-to-bottom.
+
 - [Read This First](#-read-this-first--before-any-code-change)
 - [Current State of the Codebase](#current-state-of-the-codebase-active-context)
 - [What This App Is](#what-this-app-is)
@@ -99,6 +101,8 @@ iOS 17+ Swift 5.9+ community app for neighbor rides/favors with messaging, town 
 
 > **First-time setup:** the build will fail until you create `Secrets.swift` — see [Secrets Setup](#secrets-setup-required-for-build) below before running any of the commands here.
 
+> **No CI/CD pipeline exists.** Nothing runs the build or tests on push. All verification — build, tests, lint-equivalents, secret scanning, localization checks — happens locally via pre-commit hooks and the scripts in `scripts/`. If you change something fragile and don't run the build/tests yourself, no automated system will catch it before the user does.
+
 The Xcode project is at `NaarsCars/NaarsCars.xcodeproj`. Scheme: `NaarsCars`. Simulator target: iPhone, iOS 17+.
 
 ```bash
@@ -155,8 +159,6 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `pre-commit-localization-check.sh` — validates localization key consistency (called by the pre-commit hook)
 - `pre-commit-secrets-check.sh` — blocks commits containing secrets or signing files (called by the pre-commit hook)
 
-**No CI/CD pipeline exists.** All automated checks are pre-commit hooks and local validation scripts. Build and test verification is manual.
-
 ### Cursor Rules
 
 `.cursor/rules/` contains 9 rule files that reinforce the patterns in this document with file-glob scoping. Key rules: impact seam analysis (`01`), notification type registry consistency (`02`), centralized realtime payload parsing (`03`), badge count server contract (`04`), navigation intent pattern (`05`), SwiftData mapper mirroring (`06`), service DI via protocols (`07`), fixture test requirements for seam changes (`08`), and a master project rule (`naars-cars-project.mdc`, `alwaysApply: true`). These rules use glob-based `Applies to:` patterns to scope enforcement to relevant files.
@@ -172,6 +174,8 @@ Supabase and GitHub MCP tools are configured in `.mcp.json`. Use the Supabase MC
 - `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` — authoritative spec for the push-notify, pull-hydrate architecture and `RefreshCoordinator`
 
 **Historical artifacts — do not treat as authoritative.** Root-level `*-PLAN.md`, `*-SUMMARY.md`, `*-CHECKLIST.md`, `CHECKPOINT-RESULTS.md`, and similar files (e.g., `BUILD-PLAN.md`, `EXECUTION-SUMMARY.md`, `FOUNDATION-COMPLETION-SUMMARY.md`, `REMAINING-TASKS-SUMMARY.md`, `NaarsCars/CLEANUP_SUMMARY*.md`, `NaarsCars/ADD-FILES-TO-XCODE.md`, `NaarsCars/FIX-*.md`, `NaarsCars/MISSING-FILES-REPORT.txt`) are stale planning/migration notes left over from earlier phases. Do not cite them in code review or rely on them for current behavior unless they are explicitly cross-referenced from this file or `SECURITY.md`.
+
+**`PRDs/`, `Tasks/`, `QA/`, and `Docs/` are product/QA/spec artifacts, not engineering source of truth.** They are useful for understanding intent and context, but the *code* is authoritative for current behavior. The exceptions explicitly cited as authoritative are `SECURITY.md`, `MESSAGING-REVIEW-AND-PLAN.md`, and `Docs/superpowers/specs/2026-03-30-push-notify-pull-hydrate-design.md` — anything else under these directories should be treated as background reading, not a contract.
 
 ---
 

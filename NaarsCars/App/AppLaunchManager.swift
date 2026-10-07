@@ -67,6 +67,12 @@ final class AppLaunchManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var signOutObserver: NSObjectProtocol?
     private var deferredSyncStartedForUserId: UUID?
+    private var refreshCoordinatorInitializedForUserId: UUID?
+
+    /// UserDefaults key for the per-user cached AuthState. Used on the next launch
+    /// to skip the ~700ms `checkAccountStatus` roundtrip on the critical path while
+    /// still verifying authoritatively in the background.
+    private let cachedAuthStateKey = "AppLaunchManager.lastAuthState"
     
     private init() {
         AppLogger.info("launch", "Initializing - setting up notification listener")
@@ -94,6 +100,7 @@ final class AppLaunchManager: ObservableObject {
             AppLogger.info("launch", "Setting state to unauthenticated immediately")
             AppLogger.info("launch", "Current state before update: \(self.state.id)")
             self.deferredSyncStartedForUserId = nil
+            self.refreshCoordinatorInitializedForUserId = nil
             self.state = .ready(.unauthenticated)
             AppLogger.info("launch", "State updated to: \(self.state.id)")
         }
@@ -116,11 +123,11 @@ final class AppLaunchManager: ObservableObject {
     func performCriticalLaunch() async {
         let launchStart = Date()
         state = .checkingAuth
-        
+
         do {
             // Step 1: Check for existing session (fast - reads from keychain)
             let session = try await supabase.auth.session
-            
+
             // Extract user ID from session
             let userIdString = session.user.id.uuidString
             guard let userId = UUID(uuidString: userIdString) else {
@@ -133,10 +140,45 @@ final class AppLaunchManager: ObservableObject {
                 )
                 return
             }
-            
-            // Step 2: Check account lifecycle (approved + application_complete)
+
+            // Step 2: Optimistic launch when we have a cached authState for this user.
+            // The vast majority of returning users haven't changed status since last
+            // launch, so we skip the ~700ms profile roundtrip on the critical path
+            // and verify authoritatively in the background.
+            if let cached = cachedAuthState(for: userId) {
+                if cached == .authenticated {
+                    prepareAuthenticatedRefreshState(for: userId)
+                }
+                state = .ready(cached)
+                if cached == .authenticated {
+                    Task(priority: .userInitiated) { [weak self, userId] in
+                        guard let self else { return }
+                        await self.performDeferredLoading(userId: userId)
+                    }
+                }
+                Task(priority: .userInitiated) { [weak self, userId, cached] in
+                    guard let self else { return }
+                    await self.verifyAccountStatusInBackground(userId: userId, optimisticState: cached)
+                }
+                await recordLaunchDuration(
+                    start: launchStart,
+                    result: "optimistic",
+                    metadata: [
+                        "state": state.id,
+                        "cachedAuthState": "\(cached)",
+                        "hasSession": true
+                    ]
+                )
+                return
+            }
+
+            // Step 2 (cold path): no cache, do the full blocking check.
             let authState = await checkAccountStatus(userId: userId)
+            if authState == .authenticated {
+                prepareAuthenticatedRefreshState(for: userId)
+            }
             state = .ready(authState)
+            cacheAuthState(authState, for: userId)
 
             // Step 3: Start deferred loading in background (non-blocking)
             if authState == .authenticated {
@@ -154,7 +196,7 @@ final class AppLaunchManager: ObservableObject {
                     "hasSession": true
                 ]
             )
-            
+
         } catch {
             // Session check failed - treat as unauthenticated
             state = .ready(.unauthenticated)
@@ -166,6 +208,25 @@ final class AppLaunchManager: ObservableObject {
                     "error": error.localizedDescription
                 ]
             )
+        }
+    }
+
+    /// Background reconciliation for the optimistic-launch path. Only mutates state
+    /// if the authoritative server result differs from the cached optimistic value.
+    private func verifyAccountStatusInBackground(userId: UUID, optimisticState: AuthState) async {
+        let actual = await checkAccountStatus(userId: userId)
+        cacheAuthState(actual, for: userId)
+        guard actual != optimisticState else { return }
+        // The user's status has actually changed since last launch.
+        AppLogger.info("launch", "Auth state changed since last launch: \(optimisticState) -> \(actual)")
+        if actual == .authenticated {
+            prepareAuthenticatedRefreshState(for: userId)
+        }
+        state = .ready(actual)
+        // If we transitioned into authenticated (e.g. approval was granted), start
+        // the deferred loading we skipped during optimistic launch.
+        if optimisticState != .authenticated && actual == .authenticated {
+            await performDeferredLoading(userId: userId)
         }
     }
     
@@ -197,12 +258,42 @@ final class AppLaunchManager: ObservableObject {
             let session = try await supabase.auth.session
             guard let userId = UUID(uuidString: session.user.id.uuidString) else { return }
             let status = await checkAccountStatus(userId: userId)
+            cacheAuthState(status, for: userId)
             if status == .banned {
                 state = .ready(.banned)
             }
         } catch {
             AppLogger.warning("launch", "Ban re-check failed: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Cached AuthState (for optimistic launch)
+
+    private func cachedAuthState(for userId: UUID) -> AuthState? {
+        let dict = UserDefaults.standard.dictionary(forKey: cachedAuthStateKey) as? [String: String] ?? [:]
+        guard let raw = dict[userId.uuidString] else { return nil }
+        switch raw {
+        case "authenticated":   return .authenticated
+        case "banned":          return .banned
+        case "needsApplication": return .needsApplication
+        case "pendingApproval": return .pendingApproval
+        default: return nil
+        }
+    }
+
+    private func cacheAuthState(_ state: AuthState, for userId: UUID) {
+        let raw: String?
+        switch state {
+        case .authenticated:    raw = "authenticated"
+        case .banned:           raw = "banned"
+        case .needsApplication: raw = "needsApplication"
+        case .pendingApproval:  raw = "pendingApproval"
+        default:                raw = nil  // unauthenticated/guest aren't cached
+        }
+        guard let raw else { return }
+        var dict = UserDefaults.standard.dictionary(forKey: cachedAuthStateKey) as? [String: String] ?? [:]
+        dict[userId.uuidString] = raw
+        UserDefaults.standard.set(dict, forKey: cachedAuthStateKey)
     }
 
     /// Enter guest browsing mode without creating a Supabase session.
@@ -288,11 +379,9 @@ final class AppLaunchManager: ObservableObject {
         // doesn't set it on AuthService — sync engines check
         // authService.currentUserId for user-specific subscriptions and data
         // fetches, so it must be populated first.
-        if authService.currentUserId == nil {
-            authService.currentUserId = userId
-        }
+        prepareAuthenticatedRefreshState(for: userId)
 
-        startDeferredSyncEnginesIfNeeded(for: userId)
+        startDeferredServicesIfNeeded(for: userId)
 
         // Refresh blocked users cache for content filtering
         await MessageService.shared.refreshBlockedUsers()
@@ -300,8 +389,8 @@ final class AppLaunchManager: ObservableObject {
         // Update AuthService with full profile
         try? await authService.checkAuthStatus()
         
-        // Note: Additional background loading (rides, favors, etc.)
-        // will be handled by respective ViewModels when views appear
+        // Note: Additional background loading (rides, favors, etc.) is visible-domain driven
+        // by RefreshCoordinator so first interactions are not competing with every engine.
         await PerformanceMonitor.shared.record(
             operation: "launch.deferredLoading",
             duration: Date().timeIntervalSince(start),
@@ -309,15 +398,26 @@ final class AppLaunchManager: ObservableObject {
         )
     }
 
-    private func startDeferredSyncEnginesIfNeeded(for userId: UUID) {
+    private func startDeferredServicesIfNeeded(for userId: UUID) {
         guard deferredSyncStartedForUserId != userId else { return }
         deferredSyncStartedForUserId = userId
 
-        // Initialize refresh coordinator and start safety poll
+        prepareAuthenticatedRefreshState(for: userId)
+
+        Task {
+            await MessageSendWorker.shared.start()
+            await MessageSendWorker.shared.notifyNewPendingMessage()
+        }
+    }
+
+    private func prepareAuthenticatedRefreshState(for userId: UUID) {
+        if authService.currentUserId != userId {
+            authService.currentUserId = userId
+        }
+        guard refreshCoordinatorInitializedForUserId != userId else { return }
+        refreshCoordinatorInitializedForUserId = userId
         RefreshCoordinator.shared.initializeStates()
         RefreshCoordinator.shared.startSafetyPoll()
-
-        SyncEngineOrchestrator.shared.startAll()
     }
 
     private func recordLaunchDuration(start: Date, result: String, metadata: [String: Any] = [:]) async {

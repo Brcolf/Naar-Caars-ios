@@ -21,9 +21,29 @@ final class NotificationService {
     private let supabase = SupabaseService.shared.client
     private var cachedNotificationsByUser: [UUID: (fetchedAt: Date, notifications: [AppNotification])] = [:]
     private var inFlightFetchesByUser: [UUID: Task<[AppNotification], Error>] = [:]
-    
+
+    /// Guards the two caches above. They are mutated concurrently from badge
+    /// refresh, the notifications view model, and push handlers, so unsynchronized
+    /// Dictionary access would be a data race / crash (SVC-3).
+    private let cacheLock = NSLock()
+
+    private func withCacheLock<T>(_ body: () -> T) -> T {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return body()
+    }
+
+    /// Clear all cached notifications and cancel in-flight fetches (e.g. on sign-out).
+    func clearAllCaches() {
+        withCacheLock {
+            inFlightFetchesByUser.values.forEach { $0.cancel() }
+            inFlightFetchesByUser.removeAll()
+            cachedNotificationsByUser.removeAll()
+        }
+    }
+
     // MARK: - Initialization
-    
+
     private init() {}
     
     // MARK: - Fetch Notifications
@@ -39,33 +59,47 @@ final class NotificationService {
     private static let fetchHorizonDays: Int = 30
 
     func fetchNotifications(userId: UUID, forceRefresh: Bool = false) async throws -> [AppNotification] {
-        if let inFlightTask = inFlightFetchesByUser[userId] {
+        // Join an already-running fetch for this user.
+        if let inFlightTask = withCacheLock({ inFlightFetchesByUser[userId] }) {
             return try await inFlightTask.value
         }
 
-        if let cached = cachedNotificationsByUser[userId] {
-            let age = Date().timeIntervalSince(cached.fetchedAt)
-            let coalesceWindow = forceRefresh
-                ? Constants.Timing.notificationsForceRefreshCoalesceWindow
-                : Constants.Timing.notificationsFetchCoalesceWindow
-            if age <= coalesceWindow {
-                return cached.notifications
-            }
+        // Serve a sufficiently fresh cache without a network round-trip.
+        let coalesceWindow = forceRefresh
+            ? Constants.Timing.notificationsForceRefreshCoalesceWindow
+            : Constants.Timing.notificationsFetchCoalesceWindow
+        if let cachedNotifications = withCacheLock({ () -> [AppNotification]? in
+            guard let cached = cachedNotificationsByUser[userId] else { return nil }
+            return Date().timeIntervalSince(cached.fetchedAt) <= coalesceWindow ? cached.notifications : nil
+        }) {
+            return cachedNotifications
         }
 
-        let task = Task { [self] in
-            try await self.performNetworkNotificationFetch(userId: userId)
+        // Atomically get-or-create the in-flight fetch task, closing the window
+        // where two callers could both launch a network fetch.
+        let (task, isOwner): (Task<[AppNotification], Error>, Bool) = withCacheLock {
+            if let existing = inFlightFetchesByUser[userId] { return (existing, false) }
+            let newTask = Task { [self] in
+                try await self.performNetworkNotificationFetch(userId: userId)
+            }
+            inFlightFetchesByUser[userId] = newTask
+            return (newTask, true)
         }
-        inFlightFetchesByUser[userId] = task
+
+        if !isOwner {
+            return try await task.value
+        }
 
         do {
             let notifications = try await task.value
-            cachedNotificationsByUser[userId] = (fetchedAt: Date(), notifications: notifications)
-            inFlightFetchesByUser.removeValue(forKey: userId)
+            withCacheLock {
+                cachedNotificationsByUser[userId] = (fetchedAt: Date(), notifications: notifications)
+                inFlightFetchesByUser.removeValue(forKey: userId)
+            }
             return notifications
         } catch {
-            inFlightFetchesByUser.removeValue(forKey: userId)
-            if !forceRefresh, let cached = cachedNotificationsByUser[userId] {
+            withCacheLock { _ = inFlightFetchesByUser.removeValue(forKey: userId) }
+            if !forceRefresh, let cached = withCacheLock({ cachedNotificationsByUser[userId] }) {
                 return cached.notifications
             }
             throw error
@@ -156,16 +190,18 @@ final class NotificationService {
     }
 
     private func invalidateCachedNotifications(for userId: UUID? = nil) {
-        if let userId {
-            cachedNotificationsByUser.removeValue(forKey: userId)
-            inFlightFetchesByUser[userId]?.cancel()
-            inFlightFetchesByUser.removeValue(forKey: userId)
-            return
-        }
+        withCacheLock {
+            if let userId {
+                cachedNotificationsByUser.removeValue(forKey: userId)
+                inFlightFetchesByUser[userId]?.cancel()
+                inFlightFetchesByUser.removeValue(forKey: userId)
+                return
+            }
 
-        inFlightFetchesByUser.values.forEach { $0.cancel() }
-        inFlightFetchesByUser.removeAll()
-        cachedNotificationsByUser.removeAll()
+            inFlightFetchesByUser.values.forEach { $0.cancel() }
+            inFlightFetchesByUser.removeAll()
+            cachedNotificationsByUser.removeAll()
+        }
     }
     
     /// Fetch unread count for a user

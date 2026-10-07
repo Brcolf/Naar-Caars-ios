@@ -202,12 +202,13 @@ struct UserSearchView: View {
             
             AppLogger.info("messaging", "UserSearchView searching for: '\(trimmedQuery)' (pattern: '\(searchPattern)')")
             
-            // Select all fields (Profile model requires all fields)
-            // Using .select() without arguments gets all columns, matching other services
+            // Cross-user search: hit the non-PII view and match by name only.
+            // email.ilike was dropped — searching other users by email address
+            // leaks email enumeration to anyone with a search UI.
             let response = try await SupabaseService.shared.client
-                .from("profiles")
+                .from("public_profiles")
                 .select()
-                .or("name.ilike.\(searchPattern),email.ilike.\(searchPattern)")
+                .ilike("name", pattern: searchPattern)
                 .eq("approved", value: true)
                 .limit(20)
                 .execute()

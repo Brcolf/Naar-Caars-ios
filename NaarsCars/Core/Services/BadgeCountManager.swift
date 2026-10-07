@@ -56,6 +56,7 @@ extension BadgeCountManager: BadgeCountManaging {}
     private let supabase = SupabaseService.shared.client
 
     private var deferredMessagesBadgeRefreshTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>?
 
     /// Timestamp of last completed refresh
     private var lastRefreshTime: Date = .distantPast
@@ -73,17 +74,29 @@ extension BadgeCountManager: BadgeCountManaging {}
     // MARK: - Initialization
 
     private init() {
-        // Load initial badge counts when user is authenticated
-        Task {
-            await refreshAllBadges(reason: "init")
-        }
+        // Initial refresh is triggered by MainTabView/RefreshCoordinator after first UI.
     }
 
     // MARK: - Public Methods
 
     /// Refresh all badge counts
     func refreshAllBadges(reason: String = "manual") async {
-        guard let userId = authService.currentUserId else { return }
+        if let refreshTask {
+            await refreshTask.value
+            return
+        }
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performBadgeRefresh(reason: reason)
+        }
+        refreshTask = task
+        await task.value
+        refreshTask = nil
+    }
+
+    private func performBadgeRefresh(reason: String) async {
+        guard authService.currentUserId != nil else { return }
 
         // Simple debounce: skip if refreshed within the debounce window
         let elapsed = Date().timeIntervalSince(lastRefreshTime)

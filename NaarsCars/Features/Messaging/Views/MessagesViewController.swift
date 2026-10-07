@@ -353,10 +353,12 @@ final class MessagesViewController: UIViewController {
                       let msg = messagesById[msgId] else { continue }
                 if let prev = previousMessages[msgId],
                    prev.text == msg.text,
-                   prev.individualReactions?.count == msg.individualReactions?.count,
+                   Self.reactionsFingerprint(for: prev) == Self.reactionsFingerprint(for: msg),
                    prev.readBy.count == msg.readBy.count,
                    prev.editedAt == msg.editedAt,
-                   prev.sendStatus == msg.sendStatus {
+                   prev.sendStatus == msg.sendStatus,
+                   prev.hiddenAt == msg.hiddenAt,
+                   prev.deletedAt == msg.deletedAt {
                     continue // unchanged
                 }
                 changedItems.append(itemId)
@@ -397,10 +399,22 @@ final class MessagesViewController: UIViewController {
 
     // MARK: - Height Cache
 
+    /// Order-independent fingerprint of reaction CONTENT (emoji per user), not just
+    /// count — so swapping one emoji for another (count unchanged) is detected as a
+    /// change. Returns 0 when there are no reactions.
+    static func reactionsFingerprint(for msg: Message) -> Int {
+        guard let reactions = msg.individualReactions, !reactions.isEmpty else { return 0 }
+        return reactions
+            .map { "\($0.userId.uuidString):\($0.reaction)" }
+            .sorted()
+            .joined(separator: ",")
+            .hashValue
+    }
+
     /// Lightweight content hash for cache key — covers all layout-affecting fields.
     static func contentHash(for msg: Message) -> Int {
         var h = msg.text.hashValue
-        h ^= (msg.individualReactions?.count ?? 0)
+        h ^= reactionsFingerprint(for: msg)
         h ^= msg.readBy.count &* 31
         h ^= (msg.replyToMessage != nil ? 1 : 0) &* 97
         h ^= (msg.imageUrl != nil ? 1 : 0) &* 127
@@ -408,6 +422,8 @@ final class MessagesViewController: UIViewController {
         h ^= (msg.latitude != nil ? 1 : 0) &* 173
         h ^= (msg.editedAt != nil ? 1 : 0) &* 199
         h ^= (msg.sendStatus?.rawValue.hashValue ?? 0) &* 211
+        h ^= (msg.hiddenAt != nil ? 1 : 0) &* 227
+        h ^= (msg.deletedAt != nil ? 1 : 0) &* 233
         return h
     }
 

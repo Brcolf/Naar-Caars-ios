@@ -53,6 +53,11 @@ final class ConversationService {
                     resetConversationsRpcBackoff()
                     AppLogger.network.info("Fetched \(rpcConversations.count) conversations via RPC.")
                     return rpcConversations
+                } catch is CancellationError {
+                    // User backed out mid-RPC; don't penalize the RPC.
+                    throw CancellationError()
+                } catch let urlError as URLError where urlError.code == .cancelled {
+                    throw CancellationError()
                 } catch {
                     registerConversationsRpcFailure(error)
                 }
@@ -77,14 +82,24 @@ final class ConversationService {
             let participantRows = try JSONDecoder().decode([ParticipantRow].self, from: participantsResponse.data)
             let participantConversationIds = Set(participantRows.map { $0.conversationId })
             
-            // Get conversations where user is creator
-            var createdConversationsResponse: PostgrestResponse<Data>? = nil
+            // Get conversations where user is creator.
+            // NOTE: must annotate as PostgrestResponse<Void>?, not PostgrestResponse<Data>?.
+            // Supabase-swift 2.x has only two execute() overloads — Void and generic
+            // T: Decodable. Annotating Data picks the decoding overload, and Foundation's
+            // `Data` decodes JSON as a base64-encoded String, which throws typeMismatch
+            // when the body is a JSON array. `.data` (raw bytes) is on the struct
+            // regardless of generic type, so Void is correct here.
+            var createdConversationsResponse: PostgrestResponse<Void>? = nil
             do {
                 createdConversationsResponse = try await supabase
                     .from("conversations")
                     .select("id, created_by, title, group_image_url, is_archived, created_at, updated_at")
                     .eq("created_by", value: userId.uuidString)
                     .execute()
+            } catch is CancellationError {
+                // User navigated away; expected, don't record.
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                // Supabase SDK surfaces Task cancellation as URLError(.cancelled).
             } catch {
                 AppLogger.error("messaging", "Failed to fetch created conversations: \(error)")
                 CrashReportingService.shared.recordServiceError(error, operation: "fetchCreatedConversations", service: "ConversationService")
@@ -216,7 +231,7 @@ final class ConversationService {
         do {
             let response = try await supabase
                 .from("messages")
-                .select("*, sender:profiles!messages_from_id_fkey(id, name, avatar_url)")
+                .select("*, sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)")
                 .eq("conversation_id", value: conversationId.uuidString)
                 .neq("message_type", value: "system")
                 .is("deleted_at", value: nil)
@@ -278,10 +293,11 @@ final class ConversationService {
             
             guard !participantIds.isEmpty else { return [] }
             
-            // Step 2: Fetch profiles for those user IDs
+            // Step 2: Fetch public profiles for those user IDs (cross-user display —
+            // PII-bearing columns live in `profiles` and are gated to self + admin).
             let userIdStrings = participantIds.map { $0.userId.uuidString }
             let profilesResponse = try await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select("*")
                 .in("id", values: userIdStrings)
                 .execute()
@@ -502,9 +518,9 @@ final class ConversationService {
         let allUserIds = Array(Set(userIds + [createdBy]))
         await invalidateConversationCaches(for: allUserIds)
 
-        // Send "Group Created" system event
+        // Send "Group Created" system event — public name lookup, uses non-PII view.
         let creatorProfile = try? await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select("name")
             .eq("id", value: createdBy.uuidString)
             .single()

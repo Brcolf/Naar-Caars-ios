@@ -122,6 +122,8 @@ enum Constants {
         static let backgroundPushBudget: TimeInterval = 8.0
         /// Background push deadline timer (25s — leaves 5s margin of 30s iOS limit)
         static let backgroundPushDeadline: TimeInterval = 25.0
+        /// Delay before non-critical post-launch UI work such as badges/prompts.
+        static let postLaunchNonCriticalWorkDelayNanoseconds: UInt64 = 1_000_000_000
     }
 
     /// Performance thresholds and retention policies

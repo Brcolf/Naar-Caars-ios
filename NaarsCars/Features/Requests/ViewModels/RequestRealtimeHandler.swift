@@ -97,8 +97,7 @@ final class RequestRealtimeHandler {
         requestsReloadTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: Constants.Timing.requestsRealtimeReloadDebounceNanoseconds)
             guard let self, !Task.isCancelled else { return }
-            AppLogger.info("requests", "[RequestRealtimeHandler] Coalesced sync refresh: \(reason)")
-            await self.loadRequestsForceRefresh?()
+            AppLogger.info("requests", "[RequestRealtimeHandler] Coalesced local sync refresh: \(reason)")
             self.refreshFilteredRequests?()
         }
     }

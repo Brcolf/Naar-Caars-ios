@@ -104,8 +104,10 @@ struct RequestsDashboardView: View {
             .task {
                 // ViewModel now uses SwiftData for its source of truth
                 viewModel.setup(modelContext: modelContext)
-                await viewModel.loadRequests()
-                if !appState.isGuest {
+                if appState.isGuest {
+                    await viewModel.loadRequests()
+                } else {
+                    await viewModel.refreshLocalState()
                     viewModel.setupRealtimeSubscription()
                 }
             }

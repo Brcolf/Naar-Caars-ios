@@ -212,7 +212,14 @@ private struct SubscriptionConfig {
 }
 
 /// Centralized manager for Supabase realtime subscriptions
-/// Limits concurrent subscriptions and handles background/foreground transitions
+/// Limits concurrent subscriptions and handles background/foreground transitions.
+///
+/// `@MainActor`-isolated so that `activeChannels` / `subscriptionConfigs` are only
+/// ever touched on the main actor (previously a data race between async subscribe/
+/// unsubscribe on the cooperative pool and `clearAllState()` on sign-out — MSG-4),
+/// and so realtime stream callbacks are delivered on the main actor before reaching
+/// SwiftData / UIKit / NotificationCenter (MSG-5).
+@MainActor
 final class RealtimeManager {
     /// Shared singleton instance
     static let shared = RealtimeManager()
@@ -312,13 +319,13 @@ final class RealtimeManager {
             await removeOldestSubscription()
         }
         
-        // Create channel on realtime V2 client (RLS-aware)
-        let channelTopic: String
-        if channelName.hasPrefix("messages:") {
-            channelTopic = "public:\(table)"
-        } else {
-            channelTopic = channelName
-        }
+        // Create channel on realtime V2 client (RLS-aware).
+        // Use the unique channelName as the topic. Previously all "messages:*"
+        // channels collapsed to the shared topic "public:messages", so the V2 client
+        // returned the SAME channel instance across conversations — on an A→B switch,
+        // B reused A's channel (bound to conversation A) which A then tore down,
+        // leaving B with a dead channel and silent message loss (MSG-3).
+        let channelTopic = channelName
         let channel = supabaseClient.realtimeV2.channel(channelTopic)
         
         let insertStream = onInsert == nil ? nil : await channel.postgresChange(

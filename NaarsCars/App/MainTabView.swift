@@ -104,16 +104,7 @@ struct MainTabView: View {
             }
 
             // Notify RefreshCoordinator of visible domain
-            let domain: RefreshCoordinator.Domain? = {
-                switch newTab {
-                case 0: return .dashboard
-                case 1: return .conversations
-                case 2: return .townHall
-                case 3: return nil  // profile — no refresh domain
-                default: return nil
-                }
-            }()
-            RefreshCoordinator.shared.setVisibleDomain(domain)
+            RefreshCoordinator.shared.setVisibleDomain(visibleDomain(for: newTab))
 
             // Tear down conversation WebSocket when leaving messaging tab
             if oldValue == 1 && newTab != 1 {
@@ -177,10 +168,15 @@ struct MainTabView: View {
             }
         }
         .task {
+            RefreshCoordinator.shared.setVisibleDomain(visibleDomain(for: selectedTab))
             guard !appState.isGuest else { return }
             // Check if user needs to accept community guidelines
             checkGuidelinesAcceptance()
-            // Refresh badges on appear
+
+            try? await Task.sleep(nanoseconds: Constants.Timing.postLaunchNonCriticalWorkDelayNanoseconds)
+            guard !Task.isCancelled else { return }
+
+            // Refresh badges after the first frame/initial interactions have breathing room.
             await badgeManager.refreshAllBadges()
             // Check for pending prompts (completion and review)
             if let userId = AuthService.shared.currentUserId {
@@ -210,7 +206,19 @@ struct MainTabView: View {
                     navigationCoordinator.pendingCompletionPromptFromDeferred = nil
                     if let userId = AuthService.shared.currentUserId {
                         AppLogger.info("app", "[MainTabView] Enqueueing completion prompt after sheet dismiss requestType=\(requestType) requestId=\(requestId)")
-                        await promptCoordinator.enqueueCompletionPrompt(requestType: requestType, requestId: requestId, userId: userId)
+                        let result = await promptCoordinator.enqueueCompletionPrompt(requestType: requestType, requestId: requestId, userId: userId)
+                        if result == .stale {
+                            // No due reminder remained for this notification (status flipped
+                            // server-side or reminder was cleaned up). Open the request detail
+                            // so the user has an action surface instead of a silent dead-end.
+                            AppLogger.info("app", "[MainTabView] Stale completion prompt; routing to request detail requestType=\(requestType) requestId=\(requestId)")
+                            switch requestType {
+                            case .ride:
+                                navigationCoordinator.pendingIntent = .ride(requestId)
+                            case .favor:
+                                navigationCoordinator.pendingIntent = .favor(requestId)
+                            }
+                        }
                     }
                 }
             }
@@ -298,6 +306,16 @@ struct MainTabView: View {
     }
     
     // MARK: - Helper Methods
+
+    private func visibleDomain(for tab: Int) -> RefreshCoordinator.Domain? {
+        switch tab {
+        case 0: return .dashboard
+        case 1: return .conversations
+        case 2: return .townHall
+        case 3: return nil  // profile — no refresh domain
+        default: return nil
+        }
+    }
     
     /// Check if user needs to accept community guidelines
     private func checkGuidelinesAcceptance() {

@@ -150,7 +150,6 @@ final class SupabaseService: ObservableObject {
                 Task.detached { [client] in
                     AppLogger.realtime.info("[SupabaseService] Auth updated; setting realtime auth (tokenLength=\(token.count))")
                     await client.realtimeV2.setAuth(token)
-                    await client.realtimeV2.connect()
                 }
             }
         }
@@ -177,10 +176,11 @@ final class SupabaseService: ObservableObject {
                 return false
             }
             
-            // Try to fetch profiles count as a simple connection test
-            AppLogger.network.debug("[SupabaseService] Attempting to query profiles table...")
+            // Connection test — hits the public view so it succeeds for
+            // anon (guest) sessions too, not just authenticated callers.
+            AppLogger.network.debug("[SupabaseService] Attempting to query public_profiles view...")
             let response = try await client
-                .from("profiles")
+                .from("public_profiles")
                 .select("id", head: true, count: .exact)
                 .execute()
             
@@ -226,4 +226,3 @@ final class SupabaseService: ObservableObject {
     }
 
 }
-

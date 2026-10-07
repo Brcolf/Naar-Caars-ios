@@ -589,7 +589,7 @@ final class AuthService: ObservableObject {
 
         // Clear realtime session state — prevents stale channel restoration
         await MessagingSyncEngine.shared.clearSessionState()
-        RealtimeManager.shared.clearAllState()
+        await MainActor.run { RealtimeManager.shared.clearAllState() }
 
         // Wipe SwiftData cache (prevents cross-user data leakage)
         do {
@@ -627,6 +627,10 @@ final class AuthService: ObservableObject {
 
         // Clear caches
         await CacheManager.shared.clearAll()
+        // Clear in-memory service caches that are NOT keyed by user id and would
+        // otherwise leak across an account switch on the same device (SEC-9).
+        MessageService.shared.clearBlockedUsersCache()
+        NotificationService.shared.clearAllCaches()
         AppLogger.cache.debug("Cache cleared on sign out")
 
         if let userId = userIdToRemove {

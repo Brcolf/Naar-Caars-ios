@@ -267,24 +267,19 @@ final class FavorService {
                                 (time != nil && original.time != favor.time)
             
             if detailsChanged {
-                // Create notification for claimer
+                // Routed through notify_claimer_of_request_update wrapper, which
+                // validates auth.uid() = favor.user_id before calling create_notification.
                 do {
-                    let notificationData: [String: AnyCodable] = [
-                        "user_id": AnyCodable(claimedBy.uuidString),
-                        "type": AnyCodable("favor_update"),
-                        "title": AnyCodable("Favor Details Updated"),
-                        "body": AnyCodable("The favor you claimed has been updated. Check the details."),
-                        "favor_id": AnyCodable(id.uuidString),
-                        "read": AnyCodable(false),
-                        "pinned": AnyCodable(false)
-                    ]
-                    
                     try await supabase
-                        .from("notifications")
-                        .insert(notificationData)
+                        .rpc("notify_claimer_of_request_update", params: [
+                            "p_ride_id": AnyCodable(nil as String?),
+                            "p_favor_id": AnyCodable(id.uuidString),
+                            "p_title": AnyCodable("Favor Details Updated"),
+                            "p_body": AnyCodable("The favor you claimed has been updated. Check the details.")
+                        ])
                         .execute()
                 } catch {
-                    AppLogger.warning("favors", "Failed to create notification for claimer: \(error)")
+                    AppLogger.warning("favors", "Failed to notify claimer of favor update: \(error)")
                 }
             }
         }
@@ -400,17 +395,24 @@ final class FavorService {
             return []
         }
         
-        // Fetch favors by IDs - fetch individually to avoid .in() syntax issues
-        var allFavors: [Favor] = []
-        for favorId in favorIds {
-            if let favor = try? await fetchFavor(id: favorId) {
-                allFavors.append(favor)
-            }
-        }
-        
+        // Batch fetch all favors in a single query, then enrich via the shared
+        // batched profile helper (the same path fetchFavors uses). This replaces the
+        // previous N+1 pattern that called fetchFavor per id (~5 requests each) and
+        // silently dropped favors on transient errors via try?. If the batch fails,
+        // throw so the caller can surface an error rather than returning a partial list.
+        let favorsResponse = try await supabase
+            .from("favors")
+            .select()
+            .in("id", values: favorIds.map { $0.uuidString })
+            .execute()
+
+        let favors: [Favor] = try createDecoder().decode([Favor].self, from: favorsResponse.data)
+
+        var allFavors = await enrichFavorsWithProfiles(favors)
+
         // Sort by date
         allFavors.sort { $0.date < $1.date }
-        
+
         return allFavors
     }
     

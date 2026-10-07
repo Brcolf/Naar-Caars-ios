@@ -34,35 +34,65 @@ final class TownHallService {
     /// - Returns: Array of posts ordered by createdAt descending
     /// - Throws: AppError if fetch fails
     func fetchPosts(limit: Int = 20, offset: Int = 0) async throws -> [TownHallPost] {
+        try await fetchPostsPage(limit: limit, offset: offset).posts
+    }
+
+    /// A page of town hall posts, carrying both the blocked-user-filtered posts
+    /// and the raw (pre-filter) row count returned by the database for this range.
+    ///
+    /// Pagination must advance by `rawCount` — the number of DB rows consumed by
+    /// this range — not by `posts.count`. Filtering blocked users out of a page
+    /// shrinks `posts` but does NOT reduce how many rows the server returned, so
+    /// using the filtered count to compute `hasMore`/offset would stop paging
+    /// early and drift the offset whenever a page contains a blocked user's post.
+    struct TownHallPostPage {
+        /// Posts with blocked users removed. May be shorter than `rawCount`.
+        let posts: [TownHallPost]
+        /// Number of rows the DB returned for this range, before blocked filtering.
+        let rawCount: Int
+    }
+
+    /// Fetch a page of town hall posts, returning both the filtered posts and the
+    /// raw pre-filter page size so callers can paginate correctly.
+    /// - Parameters:
+    ///   - limit: Maximum number of posts to fetch (default: 20)
+    ///   - offset: Number of posts to skip (default: 0)
+    /// - Returns: A `TownHallPostPage` (blocked-filtered posts + raw page count)
+    /// - Throws: AppError if fetch fails
+    func fetchPostsPage(limit: Int = 20, offset: Int = 0) async throws -> TownHallPostPage {
         let response = try await supabase
             .from("town_hall_posts")
             .select()
             .order("created_at", ascending: false)
             .range(from: offset, to: offset + limit - 1)
             .execute()
-        
+
         // Decode posts with custom date decoder
         let decoder = createDateDecoder()
         var posts: [TownHallPost] = try decoder.decode([TownHallPost].self, from: response.data)
-        
+
+        // Capture the raw page size BEFORE any blocked-user filtering. This is the
+        // number of DB rows this range consumed and is what pagination advances on.
+        let rawCount = posts.count
+
         // Enrich with author profiles
         posts = await enrichPostsWithProfiles(posts)
-        
+
         // Enrich with vote counts and comment counts
         if let userId = AuthService.shared.currentUserId {
             posts = await enrichPostsWithVotesAndComments(posts, userId: userId)
         } else {
             posts = await enrichPostsWithVotesAndComments(posts, userId: nil)
         }
-        
+
         // Filter out posts from blocked users
         let blockedIds = MessageService.shared.cachedBlockedUserIds
         if !blockedIds.isEmpty {
             posts = posts.filter { !blockedIds.contains($0.userId) }
         }
 
-        AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
-        return posts
+        AppLogger.info("townhall", "Fetched \(posts.count) posts from network (raw page size \(rawCount))")
+        return TownHallPostPage(posts: posts, rawCount: rawCount)
     }
 
     /// Fetch the town hall post ID associated with a review
@@ -245,27 +275,33 @@ final class TownHallService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func votePost(postId: UUID, userId: UUID, voteType: VoteType?) async throws {
-        // Check if user already voted on this post
-        let existingVoteResponse = try? await supabase
+        // Check if user already voted on this post.
+        // Use .limit(1) + array decode instead of .single() + try?: .single()
+        // throws on 0 rows, and try? would ALSO swallow genuine network errors
+        // (timeouts/500s) and misroute them to the "create new vote" branch,
+        // causing a duplicate insert that trips the unique index. An array decode
+        // treats "no existing vote" as an empty array while letting real errors
+        // propagate.
+        struct ExistingVote: Codable {
+            let id: UUID
+            let voteType: String
+            enum CodingKeys: String, CodingKey {
+                case id
+                case voteType = "vote_type"
+            }
+        }
+
+        let existingVoteResponse = try await supabase
             .from("town_hall_votes")
             .select("id, vote_type")
             .eq("post_id", value: postId.uuidString)
             .eq("user_id", value: userId.uuidString)
-            .single()
+            .limit(1)
             .execute()
-        
-        if let existingData = existingVoteResponse?.data {
-            struct ExistingVote: Codable {
-                let id: UUID
-                let voteType: String
-                enum CodingKeys: String, CodingKey {
-                    case id
-                    case voteType = "vote_type"
-                }
-            }
-            
-            let existingVote = try JSONDecoder().decode(ExistingVote.self, from: existingData)
-            
+
+        let existingVotes = try JSONDecoder().decode([ExistingVote].self, from: existingVoteResponse.data)
+
+        if let existingVote = existingVotes.first {
             if let newVoteType = voteType {
                 // Update existing vote
                 if existingVote.voteType != newVoteType.rawValue {
@@ -347,9 +383,9 @@ final class TownHallService {
         
         guard !userIds.isEmpty else { return posts }
         
-        // Fetch all profiles in one query
+        // Fetch public-safe profiles for post authors (cross-user display).
         let response = try? await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select()
             .in("id", values: Array(userIds).map { $0.uuidString })
             .execute()
@@ -508,7 +544,7 @@ final class TownHallService {
         let fulfillerIds = Set(reviews.map { $0.fulfillerId })
         if !fulfillerIds.isEmpty {
             let profileResponse = try? await supabase
-                .from("profiles")
+                .from("public_profiles")
                 .select("id, name")
                 .in("id", values: fulfillerIds.map { $0.uuidString })
                 .execute()

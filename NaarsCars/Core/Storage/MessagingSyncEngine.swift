@@ -198,6 +198,56 @@ final class MessagingSyncEngine: SyncEngineProtocol {
         }
     }
 
+    /// Handle a realtime DELETE for a message.
+    ///
+    /// Deletes MUST NOT flow through `handleIncomingMessage` / the upsert path:
+    /// `RealtimePayloadAdapter.decodeDelete` places the *old* record into `.record`,
+    /// so upserting it would resurrect the just-deleted row — and with PK-only
+    /// replica identity the row wouldn't parse into a full `Message` at all, so the
+    /// deletion would be silently dropped. Moderation and account hard-deletes must
+    /// clear the local cache, so we remove the row by id here instead.
+    private func handleDeletedMessage(_ event: RealtimeRecord) {
+        // Delete payloads carry the old record. Only the primary key (`id`) is
+        // guaranteed present (PK-only replica identity), so parse defensively —
+        // we only need the id to remove the row.
+        guard let idString = event.record["id"] as? String,
+              let messageId = UUID(uuidString: idString) else {
+            AppLogger.warning("messaging", "Failed to parse realtime delete payload (missing message id)")
+            return
+        }
+
+        // Resolve the conversation for the publisher refresh. Prefer the payload's
+        // conversation_id; fall back to the active conversation since the messages
+        // subscription is conversation-scoped.
+        let conversationId: UUID? = {
+            if let convString = event.record["conversation_id"] as? String,
+               let convId = UUID(uuidString: convString) {
+                return convId
+            }
+            return activeConversationId
+        }()
+
+        Task {
+            // Remove via the repository's existing delete API (idempotent — a
+            // duplicate delete is a harmless no-op, preserving dedup semantics).
+            // Never fire-and-forget send logic here.
+            self.repository.deleteMessage(id: messageId)
+            do {
+                try self.repository.save(changedConversationIds: conversationId.map { Set([$0]) } ?? [])
+            } catch {
+                AppLogger.error("messaging", "Error saving after realtime message delete: \(error)")
+            }
+
+            if let conversationId {
+                NotificationCenter.default.post(
+                    name: .conversationUpdated,
+                    object: conversationId,
+                    userInfo: ["event": "delete"]
+                )
+            }
+        }
+    }
+
     // MARK: - Conversation WebSocket Lifecycle
 
     /// Subscribe to messages and reactions for a specific conversation.
@@ -248,7 +298,7 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                 filter: "conversation_id=eq.\(conversationId.uuidString)",
                 onInsert: { [weak self] record in self?.handleIncomingMessage(record) },
                 onUpdate: { [weak self] record in self?.handleIncomingMessage(record) },
-                onDelete: { [weak self] record in self?.handleIncomingMessage(record) }
+                onDelete: { [weak self] record in self?.handleDeletedMessage(record) }
             )
             guard !Task.isCancelled else {
                 AppLogger.info("messaging", "[subscribe] cancelled(messages) conv=\(shortId) refresh=\(rid)")
@@ -347,6 +397,12 @@ final class MessagingSyncEngine: SyncEngineProtocol {
 
             let totalMs = Int(Date().timeIntervalSince(start) * 1000)
             AppLogger.info("messaging", "[hydrate] done conv=\(shortId) refresh=\(rid) fetched=\(messages.count) changed=\(changedCount) \(totalMs)ms")
+        } catch is CancellationError {
+            // User navigated away mid-fetch. Expected; not a failure.
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // Supabase SDK surfaces Task cancellation as URLError(.cancelled).
+            return
         } catch {
             let totalMs = Int(Date().timeIntervalSince(start) * 1000)
             AppLogger.error("messaging", "[hydrate] failed conv=\(shortId) refresh=\(rid) \(totalMs)ms error=\(error)")

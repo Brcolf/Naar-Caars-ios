@@ -29,12 +29,17 @@ struct NaarsCarsApp: App {
     init() {
         let appInitStart = Date()
         var containerReady = false
-        // Initialize Firebase
-        FirebaseApp.configure()
-        
+        // Defer Firebase configure off the launch critical path. Crashlytics misses
+        // crashes that happen in the ~50ms before this fires, which is an acceptable
+        // tradeoff for ~400-600ms off the user-visible launch time. Must run on the
+        // main thread because FirebaseCore touches UIApplication state.
+        Task { @MainActor in
+            FirebaseApp.configure()
+        }
+
         // Initialize language preference on app launch
         LocalizationManager.shared.initializeLanguagePreference()
-        
+
         // Apply saved theme preference on app launch
         ThemeManager.shared.applyThemeOnLaunch()
         

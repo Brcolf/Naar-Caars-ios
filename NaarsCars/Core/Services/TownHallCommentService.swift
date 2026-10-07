@@ -271,27 +271,33 @@ final class TownHallCommentService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func voteComment(commentId: UUID, userId: UUID, voteType: VoteType?) async throws {
-        // Check if user already voted on this comment
-        let existingVoteResponse = try? await supabase
+        // Check if user already voted on this comment.
+        // Use .limit(1) + array decode instead of .single() + try?: .single()
+        // throws on 0 rows, and try? would ALSO swallow genuine network errors
+        // (timeouts/500s) and misroute them to the "create new vote" branch,
+        // causing a duplicate insert that trips the unique index. An array decode
+        // treats "no existing vote" as an empty array while letting real errors
+        // propagate.
+        struct ExistingVote: Codable {
+            let id: UUID
+            let voteType: String
+            enum CodingKeys: String, CodingKey {
+                case id
+                case voteType = "vote_type"
+            }
+        }
+
+        let existingVoteResponse = try await supabase
             .from("town_hall_votes")
             .select("id, vote_type")
             .eq("comment_id", value: commentId.uuidString)
             .eq("user_id", value: userId.uuidString)
-            .single()
+            .limit(1)
             .execute()
-        
-        if let existingData = existingVoteResponse?.data {
-            struct ExistingVote: Codable {
-                let id: UUID
-                let voteType: String
-                enum CodingKeys: String, CodingKey {
-                    case id
-                    case voteType = "vote_type"
-                }
-            }
-            
-            let existingVote = try JSONDecoder().decode(ExistingVote.self, from: existingData)
-            
+
+        let existingVotes = try JSONDecoder().decode([ExistingVote].self, from: existingVoteResponse.data)
+
+        if let existingVote = existingVotes.first {
             if let newVoteType = voteType {
                 // Update existing vote
                 if existingVote.voteType != newVoteType.rawValue {
@@ -359,9 +365,9 @@ final class TownHallCommentService {
         
         guard !userIds.isEmpty else { return comments }
         
-        // Fetch all profiles in one query
+        // Fetch public-safe profiles for commenters (cross-user display).
         let response = try? await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select()
             .in("id", values: Array(userIds).map { $0.uuidString })
             .execute()

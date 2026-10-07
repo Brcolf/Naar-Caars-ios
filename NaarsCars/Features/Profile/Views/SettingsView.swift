@@ -457,19 +457,12 @@ final class SettingsViewModel: ObservableObject {
            let profile = try? await ProfileService.shared.fetchProfile(userId: userId) {
             notifyRideUpdates = profile.notifyRideUpdates
             notifyMessages = profile.notifyMessages
-            notifyAnnouncements = true
-            notifyNewRequests = true
+            // Honor the user's stored opt-out; do not force these back on. (AS-6 / 4.5.4)
+            notifyAnnouncements = profile.notifyAnnouncements
+            notifyNewRequests = profile.notifyNewRequests
             notifyQaActivity = profile.notifyQaActivity
             notifyReviewReminders = profile.notifyReviewReminders
             notifyTownHall = profile.notifyTownHall
-            
-            if profile.notifyAnnouncements == false || profile.notifyNewRequests == false {
-                try? await ProfileService.shared.updateNotificationPreferences(
-                    userId: userId,
-                    notifyAnnouncements: true,
-                    notifyNewRequests: true
-                )
-            }
         }
         
         // Load messaging preferences from UserDefaults
