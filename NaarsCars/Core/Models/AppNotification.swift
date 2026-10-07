@@ -188,7 +188,10 @@ extension NotificationType {
         case .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted:
             return "favor_id"
         case .townHallPost, .townHallComment, .townHallReaction:
-            return "post_id"
+            // SQL notification builders emit "town_hall_post_id" in the push payload
+            // (matches DeepLinkParser + the model CodingKey); "post_id" never matched,
+            // so town-hall pushes never triggered a targeted refresh (SVC-M6).
+            return "town_hall_post_id"
         case .message, .addedToConversation:
             return "conversation_id"
         case .contentHidden:
