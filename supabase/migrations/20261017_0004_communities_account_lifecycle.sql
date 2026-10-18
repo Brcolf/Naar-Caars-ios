@@ -1,10 +1,29 @@
 -- 20261017_0004_communities_account_lifecycle.sql
 --
--- NOT APPLIED. Owner step in the SQL editor, run as ONE transaction (the file has its own
+-- APPLIED 2026-10-18 by the owner in the SQL editor, as ONE transaction (the file has its own
 -- begin / commit). It deletes from auth.users and its functions delete from storage.objects,
 -- which the Supabase MCP declines, and it must land atomically (see "Why one transaction").
--- After applying, record here: the md5(prosrc) of the four deployed functions, and the outcome
--- of the rolled-back probe at the end of this file.
+-- Verified live the same day (read-only, then the probe below rolled back): the four functions are
+-- SECURITY DEFINER with search_path '', EXECUTE is held by authenticated on delete_user_account and
+-- admin_reject_pending_user only (anon none; unwind_member_requests and guard_last_owner none), the
+-- guard_last_owner trigger is BEFORE DELETE OR UPDATE on community_members and enabled, and
+-- community_membership_events held 0 rows afterwards (nothing from the owner's run leaked).
+--   md5(prosrc): unwind_member_requests f275463d8d0c5e5f9043033677d6b01a,
+--   delete_user_account 135aca113be1ebf5281c03c288ee32c6,
+--   admin_reject_pending_user f5366ee20a4fa51908b3e8173cb1e400,
+--   guard_last_owner aa26d64576260d3be2bf7213b3770e89.
+-- Probe outcome (the probe below, re-expressed as 36 checks in one rolled-back transaction through
+-- the MCP, every "expect error" case caught in a sub-transaction): all 36 passed. The guard raises
+-- 42501 on deleting C3's sole owner row and on demoting C1's sole owner; O1's deletion makes A1
+-- owner of C1 with 2 announcement rows and 1 queued push and revokes O1's code; O2's deletion
+-- archives C2 with 2 "Probe C2 was closed" rows and 2 ride_unclaimed rows, M3 loses approved and
+-- M1 keeps it; O3's deletion archives C3; CO1's deletion leaves C4 live with CO2 its one owner and
+-- no announcement; M2's deletion leaves CO2 alone; the event row about O1 has null user_id and
+-- reason; unwind_member_requests returns {reopened 1, removed 1, cancelled 1} as postgres and
+-- 42501 to a client; admin_reject_pending_user answers the four cases as documented and refuses a
+-- community owner who is not a platform admin; the default community's owner deleting their
+-- account leaves Seattle live with exactly one other owner (STEP A, the A3 + INV-L1 reading, which
+-- the owner accepted by applying this file; recorded in the decisions file under A3).
 --
 -- Phase 0, step 4 of Docs/superpowers/specs/2026-10-07-multi-community-design.md (section 3.5,
 -- 3.6 INV-M3 / INV-M9 / INV-R6 / INV-I1, D20), as amended by decision A3 of

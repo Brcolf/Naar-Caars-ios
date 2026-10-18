@@ -45,6 +45,7 @@
 - Communities where the deleting user is the only owner **and no other admin exists** are **archived as part of the deletion**. All members lose access; each gets an `announcement` row "<community> was closed because its owner's account was deleted". In-flight claims in it are cancelled with notice, as for any archive.
 - The client's delete-account flow shows, before the final confirmation, a warning that names those communities and says every member will lose access, and requires an explicit confirmation. **The server does not depend on that confirmation:** `delete_user_account` always applies the rules above, because account deletion must succeed from every state (App Store 5.1.1(v)).
 - There is no ownerless state, no `owner_vacant_since`, no `claim_community_ownership` and no F21. `leave_community` is unchanged from the spec: the last owner must transfer ownership or promote an admin first, unless they are the only member, in which case leaving archives the community.
+- **The default community (A3 + INV-L1, confirmed 2026-10-18 when the owner applied `20261017_0004`):** Seattle is never archived while a member remains. When its only owner deletes their account and no other admin exists, its longest-standing active member (platform admins first) becomes owner; only with nobody left at all is it archived.
 
 ### A4. Sequencing relative to the Android initiative
 

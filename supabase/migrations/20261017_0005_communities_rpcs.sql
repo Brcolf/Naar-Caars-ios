@@ -1,7 +1,13 @@
 -- 20261017_0005_communities_rpcs.sql
 --
--- NOT APPLIED: waits for step 4 (20261017_0004, the owner's SQL-editor step). Steps 0-3 are live as
--- of 2026-10-18. Phase 0, step 5 of the multi-community design
+-- PARTLY APPLIED 2026-10-18: blocks 1-4 and 7-32 except 21 (30 functions) are live through the
+-- Supabase MCP (apply_migration, migration-history version "20261017_0005_communities_rpcs"). Blocks 5
+-- (archive_community_with_notices) and 21 (reject_community_member) contain a DELETE statement, which
+-- the MCP's permission layer declines even inside a function body (execute_sql and apply_migration both,
+-- tested in isolation), so they are the owner's SQL-editor step, like 20261017_0004: run the two blocks
+-- as they stand, then the `archive` probe block and `short`. Until then archive_community and the
+-- sole-owner path of leave_community raise 42883 (no installed build calls them) and
+-- reject_community_member does not exist. Phase 0, step 5 of the multi-community design
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §3.5 "New RPCs", §4 step 5) with the
 -- owner's decisions of 2026-10-17 (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md,
 -- which wins where the two differ).
