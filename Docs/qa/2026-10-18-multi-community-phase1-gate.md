@@ -53,3 +53,53 @@ The modifier no longer branches on `enabled` (see the commit). Renders of the di
 **Database dependency.** The client reads Phase 0 objects (the five RPCs above, `community_id` on the request and post tables, `get_badge_counts` keys). They are live (step 1 above). Behaviour against a backend without them was not tested in this gate.
 
 **App Store checklist.** No new permission, SDK, tracking, payment or privacy-manifest change. Account deletion, reporting, blocking and moderation paths are unchanged. Notification behaviour changes only as in item 1 (refresh scope, not delivery or routing).
+
+## Owner-present steps, run 2026-10-18 afternoon (signed in, built-in simulator panel)
+
+Build: the Phase 1 snapshot app from `688ee98` (Phase 1 plus `[P2-T2]`, v1 build 11). Device: the owner's `iPhone 16` simulator (iOS 26.5) through the Claude desktop app's simulator panel, using the session that was already signed in on it (the owner's own account, a platform admin). The fixture account was not used because the sign-in screen could not be reached (finding 1). Nothing was submitted or written on the server; the three memberships came from the `-debugCommunityCount 3` launch argument. All captures are in `build/p1-gate/` (gitignored), 32 PNGs named `<screen>-<1member|3members>-<light|dark>[-ax5].png` for the Requests dashboard (`dash`), `create-ride`, `create-favor` and `community`, plus `push-1-townhall-with-community-banner.png`.
+
+### Captures
+
+| Screen | One membership (baseline) | Three memberships |
+|---|---|---|
+| Requests dashboard | Title "Requests", no chevron, no subtitle; empty state (the default community has no open request today). | Identical to the baseline: no chevron and no subtitle, in light and dark (finding 2). |
+| Create Ride | No "Post to" section; the toolbar button reads "Post". | A "Post to" section with a Community picker ("Naar's Cars Seattle") above Date & Time; the toolbar button reads "Post to Naar's Cars Seattle". |
+| Create Favor | No "Post to" section. | Same "Post to" section and button as the ride form. |
+| Community tab | Title "Community", Town Hall / Leaderboard control, cards unchanged. | Title becomes the community name ("Naar's Cars Seattle"); no chevron, and tapping the title opens nothing (finding 2). |
+
+Light, dark and AX 5 were captured for every cell. Dark mode comes from the app's own theme setting (the owner had it on Dark; it was switched to Light through Settings → Appearance for the light captures and set back to Dark). Dark contrast is readable everywhere; nothing clips at the default size.
+
+### Findings
+
+1. **Blocker to confirm: the Sign In and Sign Up pushes never render on `iPhone 17 Pro` / iOS 26.4.** On the owner's `iPhone 17 Pro` simulator (iOS 26.4 runtime, no session), tapping "Sign In with Email" or "Sign Up with Email" on the Welcome screen starts a main-thread render storm: `sample` shows 100 % of the main thread in `_UIHostingView.layoutSubviews → ViewGraphRootValueUpdater.render → LoginView.body` (or `SignupDetailsView.body`) for about three minutes, the pushed screen never appears, taps are ignored, and with `-UIViewLayoutFeedbackLoopDebuggingThreshold 50` the process aborts (SIGABRT, 45 s after the tap), which means UIKit saw a layout feedback loop. `LoginView.swift`, `SignupDetailsView.swift`, `WelcomeView.swift`, `NaarsTextField.swift` and `AppleSignInButton.swift` are byte-identical to `main`; the two pushed screens share `ScrollView` + `NaarsTextField` + `@FocusState` + a keyboard `ToolbarItemGroup`. Not reproduced on iOS 26.5, because the only 26.5 device holds the owner's session and signing it out would have blocked the rest of this gate if the storm reproduced. **Before any build goes to TestFlight, run the Welcome → Sign In push on an iOS 26.5 simulator with no session** (the `NaarsCarsUITests` login flow does exactly this), and if it reproduces, bisect the keyboard toolbar and the focus binding first. The owner's Mac was under heavy load from the Phase 2 agents during this (load average 50 to 115), which slows everything but does not explain a three-minute spin followed by an abort.
+2. **The community switcher is not reachable on device.** With three memberships, neither the Requests title nor the Community title shows the title-menu chevron, and tapping the title opens nothing, in light and dark, after the memberships had loaded (the `get_my_memberships` call is in the Supabase API log and the create forms show the three communities). The gate renders in §8 showed the chevron, but those previews had `enabled == true` from the first render; on device `hasMultipleCommunities` flips from false to true after the first render (memberships load after the UI is up, and `restore(for:)` starts from an empty list), and the `ToolbarTitleMenu` added by `communityTitleMenu` at that point is not picked up by the navigation bar. The `[P1-fix]` that stopped branching on `enabled` removed the identity reset but left this. A member of two communities therefore cannot change the Requests scope or the Community tab's community from the title. Fix in a follow-up (`[P1-fix]`), verified on device: either give the title content a new identity when `enabled` flips (`.id(enabled)` on the navigation content, accepting one reset at load time), or seed `enabled` from a cached membership count so it is right at first render, or add an explicit control (a chip or picker under the title) that does not depend on the title menu. The Community tab title does change to the community name, so the rest of the plumbing works.
+3. **AX 5: the "Post to <community>" toolbar button collapses into an overflow menu.** At the largest accessibility size the Post button in both create forms becomes a "•••" item in the sheet's toolbar; Post is still reachable but hidden behind a menu, while the one-membership "Post" button stays visible. Use the short "Post" label at accessibility sizes (the community is already named in the form's "Post to" section) or move the community name out of the button.
+4. **Pre-existing AX 5 layout breaks, not from this branch:** the ride form's Time row breaks "Time" inside the word ("Ti / me") next to the three time pickers; the Town Hall card title collapses to its first letter ("N") beside the five-star rating; the Town Hall / Leaderboard segmented control does not scale. Same shape as the `RideCard` "Claim / ed by" break noted in §8. Layout follow-ups.
+5. **The dashboard with three memberships shows no scope subtitle.** By design when the scope is "All communities" (`name(for:)` is nil), so nothing distinguishes the dashboard of a member of three communities from the baseline until finding 2 is fixed.
+
+### Push fixtures (`xcrun simctl push`, app in the foreground, banner tapped)
+
+Placeholders were filled with the default community `7a8ed131-…`, post `f671bf78-…` ("New Review") and the fixture account's user id. Each banner was tapped from the foreground app; the navigation line is from the app's `navigation` log category.
+
+| Fixture | Received (targeted refresh) | Tap |
+|---|---|---|
+| `town_hall_post_with_community` | `[townHall] started(targeted(F671BF78…)) trigger=push:town_hall_post` | `townHallPostComments(id: F671BF78…, communityId: 7A8ED131…)`: the post's comments opened in the right community. |
+| `town_hall_comment_without_community` | targeted refresh of the post, `trigger=push:town_hall_comment` | `townHallPostHighlight(id: F671BF78…, communityId: nil)`: the post in the community already shown (the documented fallback). |
+| `town_hall_post_foreign_community` | targeted refresh of the unknown post id, no error | `townHallPostComments(id: 00000000-…-0001, communityId: 00000000-…-0001)`: the Community tab came forward on the current community; no crash, nothing opened for the foreign post. |
+| `pending_approval_with_community` | badges refresh, `trigger=push:pending_approval` | `pendingUsers` (the admin Pending Approvals screen). |
+| `pending_approval_without_community` | same | `pendingUsers`. |
+| `user_approved_further_community` (signed in) | badges refresh, `trigger=push:user_approved` | "Enter app" → `enterApp`; no launch-state change and no session re-setup in the log; the app stayed where it was. |
+
+Note that `[P2-T11]` (`4f3e246`, after this snapshot) re-routes `pending_approval` to Requests to join and `.enterApp` to My communities, so the last three rows describe the Phase 1 snapshot only; the Phase 2 gate must repeat them.
+
+### Still not run
+
+- The fixture account's sign-in and anything signed out on iOS 26.5 (finding 1).
+- Install-over run 2 (offline) and the two-community live matrix (no member holds two memberships until Phase 2).
+
+### Notes for whoever repeats this
+
+- The Phase 2 workflow agents end their Lane B runs with `xcrun simctl shutdown all` or `shutdown booted`; the gate device was shut down under this pass four times. Boot it again and relaunch; nothing is lost. Agents should shut down only the device they booted, by UDID.
+- The app's theme is the in-app setting (`naars_theme_mode`), not the simulator's appearance. Editing the container plist does not survive cfprefsd's cache; switch it in Settings → Appearance.
+- A banner lasts about five seconds, so to tap one, send the same fixture every four seconds for half a minute and tap at the top of the screen (points `196, 88` on an iPhone 16).
+- Delivered banners do not stay in Notification Center (the app clears them), so the shade cannot be used instead.
