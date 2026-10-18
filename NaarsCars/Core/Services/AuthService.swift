@@ -676,6 +676,8 @@ final class AuthService: ObservableObject {
             // account CommunityContext restored, when that differs).
             CommunityContext.shared.resetForSignOut(userId: userId)
         }
+        // An invite code kept on this device for a sign-up (spec §5 Sign-out row).
+        PendingInviteStore().clear()
     }
 
     /// Poll for profile creation after signup with exponential backoff

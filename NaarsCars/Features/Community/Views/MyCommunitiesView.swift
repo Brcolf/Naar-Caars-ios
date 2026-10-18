@@ -39,8 +39,12 @@ struct MyCommunitiesView: View {
     @State private var joinResult: JoinResult?
     @State private var reopenLimitRequest = false
     @State private var limitRequestSent = false
-    /// Stays nil until a pending invite code can be handed over (Phase 2 Task 14).
+    /// The code the Join sheet opens with (a saved invite code), nil for a plain Join.
     @State private var joinPrefilledCode: String?
+    /// The invite code saved on Welcome before sign-in; re-read in `.task` and after every sheet.
+    @State private var storedInviteCode: String? = PendingInviteStore().peek()
+    /// A saved code opens the Join sheet by itself once per view lifetime.
+    @State private var didAutoOpenStoredCode = false
 
     @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -80,6 +84,10 @@ struct MyCommunitiesView: View {
             }
 
             Section {
+                if let code = storedInviteCode {
+                    storedInviteRow(code)
+                }
+
                 Button {
                     activeSheet = .create
                 } label: {
@@ -88,6 +96,7 @@ struct MyCommunitiesView: View {
                 .accessibilityIdentifier("community.my.create")
 
                 Button {
+                    joinPrefilledCode = nil
                     activeSheet = .join
                 } label: {
                     Label("community_action_join".localized, systemImage: "person.badge.plus")
@@ -108,6 +117,11 @@ struct MyCommunitiesView: View {
         }
         .task {
             viewModel.setup(modelContext: modelContext)
+            storedInviteCode = PendingInviteStore().peek()
+            if !didAutoOpenStoredCode, let code = storedInviteCode, activeSheet == nil {
+                didAutoOpenStoredCode = true
+                openJoin(with: code)
+            }
             await viewModel.load()
         }
         .refreshable { await viewModel.load() }
@@ -116,6 +130,52 @@ struct MyCommunitiesView: View {
         }
         .toast(message: $viewModel.toastMessage)
         .errorBanner(message: $viewModel.errorMessage)
+    }
+
+    // MARK: - Saved invite code
+
+    /// A saved code whose sheet was dismissed, or never shown, stays reachable here until it is
+    /// redeemed or removed.
+    private func storedInviteRow(_ code: String) -> some View {
+        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+            Label("community_invite_saved_row".localized, systemImage: "envelope.open.fill")
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextPrimary)
+            HStack(spacing: Constants.Spacing.md) {
+                Button {
+                    openJoin(with: code)
+                } label: {
+                    Text("community_invite_use".localized)
+                        .font(.naarsSubheadline.weight(.semibold))
+                        .foregroundColor(.naarsPrimary)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("community_invite_use".localized)
+                .accessibilityIdentifier("community.my.inviteCode.use")
+
+                Spacer(minLength: 0)
+
+                Button {
+                    PendingInviteStore().clear()
+                    storedInviteCode = nil
+                } label: {
+                    Text("community_invite_remove".localized)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.naarsTextSecondary)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("community_invite_remove".localized)
+                .accessibilityIdentifier("community.my.inviteCode.remove")
+            }
+        }
+        .padding(.vertical, Constants.Spacing.xs)
+    }
+
+    private func openJoin(with code: String) {
+        joinPrefilledCode = code
+        activeSheet = .join
     }
 
     // MARK: - Limit
@@ -358,6 +418,8 @@ struct MyCommunitiesView: View {
     /// Create and Join record their result; the follow-up runs once the sheet is gone, so nothing
     /// reloads underneath a sheet that is still on screen.
     private func sheetDismissed() {
+        // A redemption (or a dead code) clears the store; a cancel keeps it.
+        storedInviteCode = PendingInviteStore().peek()
         if limitRequestSent {
             limitRequestSent = false
             viewModel.toastMessage = "community_limit_request_sent".localized

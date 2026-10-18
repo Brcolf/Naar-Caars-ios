@@ -74,4 +74,58 @@ final class JoinCommunityViewModelTests: XCTestCase {
         XCTAssertEqual(stub.requestToJoinCalls.count, 1)
         XCTAssertEqual(recorded.count, 1)
     }
+
+    // MARK: - Stored invite code (PendingInviteStore)
+
+    private func makeStore() -> (PendingInviteStore, UserDefaults, String) {
+        let suiteName = "JoinCommunityViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let store = PendingInviteStore(defaults: defaults)
+        store.save("NC7K2PQ9XA")
+        return (store, defaults, suiteName)
+    }
+
+    func testRedeem_ClearsTheMatchingStoredCode() async {
+        let (store, defaults, suiteName) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stub = StubCommunityService(result: .success([]))
+        let vm = JoinCommunityViewModel(target: .code(prefilled: "NC7K2PQ9XA"), service: stub, pendingInviteStore: store)
+
+        await vm.validate()
+        XCTAssertEqual(store.peek(), "NC7K2PQ9XA")
+        await vm.submit()
+
+        XCTAssertEqual(stub.redeemInviteCalls.count, 1)
+        XCTAssertNil(store.peek())
+    }
+
+    func testRedeemRateLimited_KeepsTheStoredCode() async {
+        let (store, defaults, suiteName) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stub = StubCommunityService(result: .success([]))
+        stub.redeemInviteResult = .failure(CommunityRPCError(code: .rateLimited))
+        let vm = JoinCommunityViewModel(target: .code(prefilled: "NC7K2PQ9XA"), service: stub, pendingInviteStore: store)
+
+        await vm.validate()
+        await vm.submit()
+
+        XCTAssertEqual(stub.redeemInviteCalls.count, 1)
+        XCTAssertEqual(vm.errorMessage, CommunityRPCError(code: .rateLimited).localizedMessage)
+        XCTAssertEqual(store.peek(), "NC7K2PQ9XA")
+    }
+
+    func testValidateInvalid_ClearsTheMatchingStoredCode() async {
+        let (store, defaults, suiteName) = makeStore()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let stub = StubCommunityService(result: .success([]))
+        stub.validateInviteResult = .success(
+            InvitePreview(valid: false, expired: false, requiresApproval: nil, communityName: nil, alreadyMember: nil, memberCount: nil)
+        )
+        let vm = JoinCommunityViewModel(target: .code(prefilled: "NC7K2PQ9XA"), service: stub, pendingInviteStore: store)
+
+        await vm.validate()
+
+        XCTAssertEqual(vm.errorMessage, "community_error_invalid".localized)
+        XCTAssertNil(store.peek())
+    }
 }

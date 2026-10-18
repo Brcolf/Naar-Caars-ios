@@ -20,6 +20,8 @@ struct MainTabView: View {
     @State private var showNotificationsSheet = false
     @State private var isNotificationsSheetVisible = false
     @State private var showGuestDeepLinkPrompt = false
+    /// A saved invite code opens My communities once per view lifetime.
+    @State private var didOfferPendingInvite = false
 
     @ViewBuilder
     private var toastOverlay: some View {
@@ -229,6 +231,7 @@ struct MainTabView: View {
             if !isNotificationsSheetVisible {
                 await enqueuePendingCompletionPromptIfNeeded()
             }
+            offerPendingInviteIfNeeded()
         }
         // Second trigger for the guidelines check only. On a cold launch the profile is still
         // nil when the task above runs (deferred loading fills it a moment later), so that check
@@ -238,6 +241,7 @@ struct MainTabView: View {
         .task(id: appState.currentUser?.id) {
             guard !appState.isGuest else { return }
             checkGuidelinesAcceptance()
+            offerPendingInviteIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
             showGuidelinesAcceptance = false
@@ -279,7 +283,9 @@ struct MainTabView: View {
                 AnnouncementsView(scrollToNotificationId: target.scrollToNotificationId, showsCloseButton: true)
             }
         }
-        .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
+        .fullScreenCover(isPresented: $showGuidelinesAcceptance, onDismiss: {
+            offerPendingInviteIfNeeded()
+        }) {
             GuidelinesAcceptanceSheet {
                 await acceptGuidelines()
             }
@@ -372,6 +378,20 @@ struct MainTabView: View {
         guard let userId = AuthService.shared.currentUserId else { return }
         AppLogger.info("app", "[MainTabView] Enqueueing completion prompt requestType=\(requestType) requestId=\(requestId)")
         await promptCoordinator.enqueueCompletionPrompt(requestType: requestType, requestId: requestId, userId: userId)
+    }
+
+    /// An invite code saved on Welcome before sign-in opens My communities, whose join sheet
+    /// holds the code. Never under the guidelines cover (raised from the same first `.task`): the
+    /// cover's `onDismiss` calls this again. Reading the store does not clear it; only a
+    /// redemption (or a dead code) does, so a sheet that is cancelled loses nothing.
+    private func offerPendingInviteIfNeeded() {
+        guard !didOfferPendingInvite,
+              !appState.isGuest,
+              !showGuidelinesAcceptance,
+              AuthService.shared.currentProfile != nil,
+              PendingInviteStore().peek() != nil else { return }
+        didOfferPendingInvite = true
+        navigationCoordinator.pendingIntent = .myCommunities
     }
 
     private func checkGuidelinesAcceptance() {

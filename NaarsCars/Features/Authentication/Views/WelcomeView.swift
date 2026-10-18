@@ -19,6 +19,16 @@ struct WelcomeView: View {
     @State private var showError = false
     @State private var navigateToEmailSignup = false
     @State private var navigateToLogin = false
+    @State private var showInviteEntry = false
+    /// The invite code kept on this device, if any. Only its presence is shown: a signed-out
+    /// person cannot look a code up, so no community details appear here.
+    @State private var savedInviteCode: String?
+
+    private let pendingInviteStore: PendingInviteStore
+
+    init(pendingInviteStore: PendingInviteStore = PendingInviteStore()) {
+        self.pendingInviteStore = pendingInviteStore
+    }
 
     var body: some View {
         ScrollView {
@@ -131,12 +141,14 @@ struct WelcomeView: View {
                             .padding(.vertical, 12)
                     }
                     .accessibilityIdentifier("welcome.continueAsGuest")
+
+                    inviteCodeEntry
                 }
                 .padding(.horizontal)
 
-                // Says before any account exists that sign-up is open but approval is not
-                // instant; otherwise the application form and review screen come as a surprise.
-                Text("welcome_footer".localized)
+                // Says before any account exists how joining works: by invite, by asking a
+                // public community, or by starting one; community admins review new members.
+                Text("welcome_footer_communities".localized)
                     .font(.naarsFootnote)
                     .foregroundColor(.naarsTextSecondary)
                     .multilineTextAlignment(.center)
@@ -183,14 +195,69 @@ struct WelcomeView: View {
         } message: {
             Text(appleSignInViewModel.errorMessage ?? "common_error_occurred".localized)
         }
+        .sheet(isPresented: $showInviteEntry) {
+            InviteCodeEntrySheet(store: pendingInviteStore) {
+                savedInviteCode = pendingInviteStore.peek()
+            }
+        }
         .trackScreen("Welcome")
         .task {
+            savedInviteCode = pendingInviteStore.peek()
             // A guest who chose "Sign In" continues to the sign-in form instead of having
             // to choose again here.
             if WelcomeEntryRoute.opensSignIn {
                 WelcomeEntryRoute.opensSignIn = false
                 navigateToLogin = true
             }
+        }
+    }
+}
+
+extension WelcomeView {
+    /// "I have an invite code", or, once a code is saved, the banner that says so with Remove.
+    @ViewBuilder
+    var inviteCodeEntry: some View {
+        if savedInviteCode != nil {
+            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                HStack(alignment: .top, spacing: Constants.Spacing.sm) {
+                    Image(systemName: "envelope.open.fill")
+                        .foregroundColor(.naarsPrimary)
+                        .accessibilityHidden(true)
+                    Text("community_invite_saved_banner".localized)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.naarsTextPrimary)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Button {
+                    pendingInviteStore.clear()
+                    savedInviteCode = nil
+                } label: {
+                    Text("community_invite_remove".localized)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.naarsPrimary)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .accessibilityLabel("community_invite_remove".localized)
+                .accessibilityIdentifier("welcome.inviteCode.remove")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+            .accessibilityIdentifier("welcome.inviteCode.banner")
+        } else {
+            Button {
+                showInviteEntry = true
+            } label: {
+                Text("community_invite_entry_link".localized)
+                    .font(.naarsFootnote)
+                    .foregroundColor(.naarsPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Constants.Spacing.sm)
+            }
+            .accessibilityLabel("community_invite_entry_link".localized)
+            .accessibilityIdentifier("welcome.inviteCode.entry")
         }
     }
 }
@@ -203,9 +270,20 @@ enum WelcomeEntryRoute {
     static var opensSignIn = false
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
-        WelcomeView()
+        WelcomeView(pendingInviteStore: PendingInviteStore(defaults: UserDefaults(suiteName: "preview.welcome.empty")!))
             .environment(AppState())
     }
 }
+
+#Preview("Saved invite") {
+    let store = PendingInviteStore(defaults: UserDefaults(suiteName: "preview.welcome.saved")!)
+    store.save("NC7K2PQ9XA")
+    return NavigationStack {
+        WelcomeView(pendingInviteStore: store)
+            .environment(AppState())
+    }
+}
+#endif

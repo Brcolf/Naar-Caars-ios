@@ -277,6 +277,9 @@
 		AC410C713085724000D921E2 /* CommunityOnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */; };
 		AC410C73308575B900D921E2 /* PendingApprovalViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */; };
 		AC410C75308575EF00D921E2 /* PendingApprovalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C74308575EF00D921E2 /* PendingApprovalViewModel.swift */; };
+		AC410C7730857BF000D921E2 /* PendingInviteStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7630857BF000D921E2 /* PendingInviteStoreTests.swift */; };
+		AC410C7930857C2700D921E2 /* PendingInviteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7830857C2700D921E2 /* PendingInviteStore.swift */; };
+		AC410C7B30857C4600D921E2 /* InviteCodeEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7A30857C4600D921E2 /* InviteCodeEntrySheet.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -827,6 +830,9 @@
 		AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingViewModelTests.swift; sourceTree = "<group>"; };
 		AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingApprovalViewModelTests.swift; sourceTree = "<group>"; };
 		AC410C74308575EF00D921E2 /* PendingApprovalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingApprovalViewModel.swift; sourceTree = "<group>"; };
+		AC410C7630857BF000D921E2 /* PendingInviteStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingInviteStoreTests.swift; sourceTree = "<group>"; };
+		AC410C7830857C2700D921E2 /* PendingInviteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingInviteStore.swift; sourceTree = "<group>"; };
+		AC410C7A30857C4600D921E2 /* InviteCodeEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteCodeEntrySheet.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1388,6 +1394,7 @@
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
 				AC305EEF2F0DB7BD0063AFDF /* SignupInviteCodeView.swift */,
 				AC410C6E3085723000D921E2 /* CommunityOnboardingView.swift */,
+				AC410C7A30857C4600D921E2 /* InviteCodeEntrySheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2096,6 +2103,7 @@
 				172C379B679B4BE19C12E800 /* CalendarOfferTracker.swift */,
 				CE110002AAAA00000000000F /* EmojiDetection.swift */,
 				AC410C3E3085526C00D921E2 /* QRCodeRenderer.swift */,
+				AC410C7830857C2700D921E2 /* PendingInviteStore.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -2272,6 +2280,7 @@
 				2A70EA7D093A02C304A06840 /* DeepLinkParserTests.swift */,
 				C593F646429F3082D467FEAE /* ThrottlerTests.swift */,
 				6269689ACFD3BFE689480804 /* FlightCodeParserTests.swift */,
+				AC410C7630857BF000D921E2 /* PendingInviteStoreTests.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -2619,6 +2628,7 @@
 				D15000012F3D00010043BFAE /* NotificationGroupingManager.swift in Sources */,
 				D15000022F3D00010043BFAE /* NotificationNavigationRouter.swift in Sources */,
 				D15000032F3D00010043BFAE /* NotificationRealtimeHandler.swift in Sources */,
+				AC410C7930857C2700D921E2 /* PendingInviteStore.swift in Sources */,
 				D15000042F3D00010043BFAE /* RequestFilterManager.swift in Sources */,
 				D15000052F3D00010043BFAE /* RequestRealtimeHandler.swift in Sources */,
 				D15000062F3D00010043BFAE /* RequestNotificationSummaryManager.swift in Sources */,
@@ -2753,6 +2763,7 @@
 				AC305EC72F0DB7890063AFDF /* NotificationsListView.swift in Sources */,
 				D6FB2A28A2FF482C906F6D09 /* PublicProfileView.swift in Sources */,
 				AC305ED12F0DB79E0063AFDF /* FavorsDashboardViewModel.swift in Sources */,
+				AC410C7B30857C4600D921E2 /* InviteCodeEntrySheet.swift in Sources */,
 				AC305ED22F0DB79E0063AFDF /* CreateFavorView.swift in Sources */,
 				ACD19A552F14D3A8009C1DE5 /* AppLogger.swift in Sources */,
 				ACBF4AFC2F12CB86006A7C8A /* InvitationWorkflowView.swift in Sources */,
@@ -3005,6 +3016,7 @@
 				AC410C73308575B900D921E2 /* PendingApprovalViewModelTests.swift in Sources */,
 				AC12006E2F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift in Sources */,
 				AC12006F2F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift in Sources */,
+				AC410C7730857BF000D921E2 /* PendingInviteStoreTests.swift in Sources */,
 				AC1200702F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift in Sources */,
 				AC1200712F3AE5E10043BFAE /* WebhookFixtures.swift in Sources */,
 				AC1200722F3AE5E10043BFAE /* NotificationFixtures.swift in Sources */,

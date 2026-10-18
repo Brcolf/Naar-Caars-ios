@@ -27,15 +27,19 @@ final class JoinCommunityViewModel: ObservableObject {
 
     private let service: any CommunityServiceProtocol
     private let onResult: @MainActor (JoinResult) -> Void
+    /// Cleared here, and only here, once the stored code is used or known to be dead (spec §3.7).
+    private let pendingInviteStore: PendingInviteStore
 
     init(
         target: JoinTarget,
         service: any CommunityServiceProtocol = CommunityService.shared,
-        onResult: @escaping @MainActor (JoinResult) -> Void = { _ in }
+        onResult: @escaping @MainActor (JoinResult) -> Void = { _ in },
+        pendingInviteStore: PendingInviteStore = PendingInviteStore()
     ) {
         self.target = target
         self.service = service
         self.onResult = onResult
+        self.pendingInviteStore = pendingInviteStore
         if case .code(let prefilled) = target {
             self.code = prefilled ?? ""
         } else {
@@ -100,18 +104,22 @@ final class JoinCommunityViewModel: ObservableObject {
             if answer.valid {
                 preview = answer
                 if answer.alreadyMember == true {
+                    pendingInviteStore.clearIfMatches(normalized)
                     errorMessage = "community_join_already_member".localized
                 }
             } else if answer.expired {
+                pendingInviteStore.clearIfMatches(normalized)
                 if let name = answer.communityName {
                     errorMessage = String(format: "community_join_expired_named".localized, name)
                 } else {
                     errorMessage = "community_error_expired".localized
                 }
             } else {
+                pendingInviteStore.clearIfMatches(normalized)
                 errorMessage = "community_error_invalid".localized
             }
         } catch let refusal as CommunityRPCError {
+            clearStoredCodeIfDead(refusal, code: normalized)
             errorMessage = refusal.localizedMessage
         } catch {
             AppLogger.error("community", "validateInvite failed: \(error)")
@@ -142,19 +150,35 @@ final class JoinCommunityViewModel: ObservableObject {
                     joinReason: reasonValue
                 )
             } else {
+                let code = normalizedCode
                 joined = try await service.redeemInvite(
-                    code: normalizedCode,
+                    code: code,
                     heardAbout: heardValue,
                     joinReason: reasonValue
                 )
+                pendingInviteStore.clearIfMatches(code)
             }
             result = joined
             onResult(joined)
         } catch let refusal as CommunityRPCError {
+            if publicCommunity == nil {
+                clearStoredCodeIfDead(refusal, code: normalizedCode)
+            }
             errorMessage = refusal.localizedMessage
         } catch {
             AppLogger.error("community", "join failed: \(error)")
             errorMessage = "community_error_generic".localized
+        }
+    }
+
+    /// A refusal that says the code can never work for this account drops the stored copy. A
+    /// network failure, `rate_limited`, `full` or `recently_rejected` keeps it for a later try.
+    private func clearStoredCodeIfDead(_ refusal: CommunityRPCError, code: String) {
+        switch refusal.code {
+        case .invalid, .expired, .exhausted, .removed, .alreadyMember, .alreadyPending:
+            pendingInviteStore.clearIfMatches(code)
+        default:
+            break
         }
     }
 }

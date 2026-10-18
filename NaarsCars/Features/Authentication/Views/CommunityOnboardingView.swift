@@ -80,6 +80,9 @@ struct CommunityOnboardingView: View {
         )
         .task {
             await viewModel.loadNameRequirement()
+            // A code saved on Welcome before sign-in. The join options open it once they are
+            // enabled (after the name step); only a redemption or a dead code clears the store.
+            viewModel.prefilledCode = PendingInviteStore().peek()
         }
         .trackScreen("CommunityOnboarding")
     }
