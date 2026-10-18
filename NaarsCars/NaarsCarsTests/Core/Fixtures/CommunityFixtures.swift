@@ -143,6 +143,20 @@ enum CommunityFixtures {
             updatedAt: createdAt
         )
     }
+
+    static let searchMemberRowsJSON: String = """
+    [
+      {
+        "id": "DDDDDDDD-0000-4000-8000-000000000004",
+        "name": "Sam Neighbor",
+        "avatar_url": null,
+        "car": "Blue Civic",
+        "approved": true,
+        "created_at": "2026-01-02T10:00:00Z",
+        "updated_at": "2026-02-03T11:00:00.123Z"
+      }
+    ]
+    """
 }
 
 final class StubCommunityService: CommunityServiceProtocol {

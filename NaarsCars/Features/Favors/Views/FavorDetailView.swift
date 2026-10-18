@@ -302,6 +302,7 @@ struct FavorDetailView: View {
                 UserSearchView(
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: getExistingParticipantIds(favor: favor),
+                    communityId: favor.communityId,
                     onDismiss: {
                         // Copy the selection before it is cleared below; the task runs after
                         // this closure returns and used to read an already-empty set.

@@ -13,6 +13,7 @@ struct UserSearchView: View {
     let excludeUserIds: [UUID] // Users to exclude from search (e.g., already in conversation)
     let showExistingParticipants: Bool // Whether to show existing participants as selected (non-removable)
     let actionButtonTitle: String // Title for the action button (default: "Done")
+    let communityId: UUID? // Restrict search to one community; nil searches all of the member's communities
     let onDismiss: () -> Void
     
     @State private var searchText = ""
@@ -25,12 +26,14 @@ struct UserSearchView: View {
         excludeUserIds: [UUID],
         showExistingParticipants: Bool = true,
         actionButtonTitle: String = "common_done".localized,
+        communityId: UUID? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self._selectedUserIds = selectedUserIds
         self.excludeUserIds = excludeUserIds
         self.showExistingParticipants = showExistingParticipants
         self.actionButtonTitle = actionButtonTitle
+        self.communityId = communityId
         self.onDismiss = onDismiss
     }
     
@@ -45,7 +48,7 @@ struct UserSearchView: View {
                 )
                 .padding()
                 .onChange(of: searchText) { _, newValue in
-                    viewModel.scheduleSearch(query: newValue, excludeUserIds: excludeUserIds)
+                    viewModel.scheduleSearch(query: newValue, excludeUserIds: excludeUserIds, communityId: communityId)
                 }
                 .onAppear {
                     // Auto-focus search field when view appears

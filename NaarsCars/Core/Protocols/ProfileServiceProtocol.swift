@@ -26,5 +26,5 @@ protocol ProfileServiceProtocol: AnyObject {
     func deleteAccount(userId: UUID) async throws
     func fetchBanReason(userId: UUID) async throws -> String?
     func submitApplication(userId: UUID, heardAbout: String, joinReason: String) async throws
-    func searchPublicProfiles(query: String, limit: Int) async throws -> [Profile]
+    func searchCommunityMembers(query: String, communityId: UUID?, limit: Int) async throws -> [Profile]
 }

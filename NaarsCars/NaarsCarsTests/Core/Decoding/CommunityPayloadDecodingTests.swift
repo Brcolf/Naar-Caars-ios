@@ -60,4 +60,11 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         let stats = try JSONDecoder().decode(ProfileStats.self, from: Data(CommunityFixtures.profileStatsEmptyJSON.utf8))
         XCTAssertEqual(stats, ProfileStats(averageRating: nil, reviewCount: 0, fulfilledCount: 0))
     }
+
+    func testSearchCommunityMembersRowsDecodeAsProfiles() throws {
+        let profiles = try DateDecoderFactory.makeSupabaseDecoder().decode([Profile].self, from: Data(CommunityFixtures.searchMemberRowsJSON.utf8))
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertEqual(profiles[0].id, UUID(uuidString: "DDDDDDDD-0000-4000-8000-000000000004"))
+        XCTAssertEqual(profiles[0].name, "Sam Neighbor")
+    }
 }

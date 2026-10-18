@@ -314,6 +314,7 @@ struct RideDetailView: View {
                 UserSearchView(
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: getExistingParticipantIds(ride: ride),
+                    communityId: ride.communityId,
                     onDismiss: {
                         // Copy the selection before it is cleared below; the task runs after
                         // this closure returns and used to read an already-empty set.
