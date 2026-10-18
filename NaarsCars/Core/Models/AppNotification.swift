@@ -231,6 +231,8 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
     let reviewId: UUID?
     let townHallPostId: UUID?
     let sourceUserId: UUID?  // Who triggered the notification (sender, claimer, etc.)
+    /// Community the notification concerns, when the server knows one.
+    let communityId: UUID?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -247,6 +249,7 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         case reviewId = "review_id"
         case townHallPostId = "town_hall_post_id"
         case sourceUserId = "source_user_id"
+        case communityId = "community_id"
     }
     
     
@@ -264,7 +267,8 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         conversationId: UUID? = nil,
         reviewId: UUID? = nil,
         townHallPostId: UUID? = nil,
-        sourceUserId: UUID? = nil
+        sourceUserId: UUID? = nil,
+        communityId: UUID? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -280,5 +284,6 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         self.reviewId = reviewId
         self.townHallPostId = townHallPostId
         self.sourceUserId = sourceUserId
+        self.communityId = communityId
     }
 }

@@ -60,6 +60,9 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
     let hiddenAt: Date?
     let hiddenBy: UUID?
     let hiddenReason: String?
+    /// Community the ride was posted to. Nil when the payload has no `community_id`
+    /// (unknown: shown everywhere, never filtered out).
+    let communityId: UUID?
     let createdAt: Date
     let updatedAt: Date
     
@@ -129,6 +132,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         case hiddenAt = "hidden_at"
         case hiddenBy = "hidden_by"
         case hiddenReason = "hidden_reason"
+        case communityId = "community_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         // Joined fields are not in CodingKeys - they're populated separately
@@ -158,6 +162,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         hiddenAt: Date? = nil,
         hiddenBy: UUID? = nil,
         hiddenReason: String? = nil,
+        communityId: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         poster: Profile? = nil,
@@ -186,6 +191,7 @@ struct Ride: Codable, Identifiable, Equatable, Sendable {
         self.hiddenAt = hiddenAt
         self.hiddenBy = hiddenBy
         self.hiddenReason = hiddenReason
+        self.communityId = communityId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.poster = poster

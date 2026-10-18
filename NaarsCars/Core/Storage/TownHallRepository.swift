@@ -185,6 +185,7 @@ final class TownHallRepository {
             hiddenAt: sdPost.hiddenAt,
             hiddenBy: sdPost.hiddenBy,
             hiddenReason: sdPost.hiddenReason,
+            communityId: sdPost.communityId,
             createdAt: sdPost.createdAt,
             updatedAt: sdPost.updatedAt,
             author: author,
@@ -213,7 +214,8 @@ final class TownHallRepository {
             updatedAt: post.updatedAt,
             authorName: post.author?.name,
             authorAvatarUrl: post.author?.avatarUrl,
-            commentCount: post.commentCount
+            commentCount: post.commentCount,
+            communityId: post.communityId
         )
     }
 
@@ -230,6 +232,7 @@ final class TownHallRepository {
         if sdPost.hiddenAt != post.hiddenAt { sdPost.hiddenAt = post.hiddenAt; changed = true }
         if sdPost.hiddenBy != post.hiddenBy { sdPost.hiddenBy = post.hiddenBy; changed = true }
         if sdPost.hiddenReason != post.hiddenReason { sdPost.hiddenReason = post.hiddenReason; changed = true }
+        if sdPost.communityId != post.communityId { sdPost.communityId = post.communityId; changed = true }
         if sdPost.createdAt != post.createdAt { sdPost.createdAt = post.createdAt; changed = true }
         if sdPost.updatedAt != post.updatedAt { sdPost.updatedAt = post.updatedAt; changed = true }
         if sdPost.authorName != post.author?.name { sdPost.authorName = post.author?.name; changed = true }

@@ -61,6 +61,7 @@ actor BackgroundSyncActor {
             existing.hiddenAt = ride.hiddenAt
             existing.hiddenBy = ride.hiddenBy
             existing.hiddenReason = ride.hiddenReason
+            existing.communityId = ride.communityId
             // Preserve poster/claimer/participants/qaCount — not in realtime payloads
         } else {
             let sdRide = SDRide(
@@ -92,7 +93,8 @@ actor BackgroundSyncActor {
                 claimerName: ride.claimer?.name,
                 claimerAvatarUrl: ride.claimer?.avatarUrl,
                 participantIds: ride.participants?.map { $0.id } ?? [],
-                qaCount: ride.qaCount ?? 0
+                qaCount: ride.qaCount ?? 0,
+                communityId: ride.communityId
             )
             modelContext.insert(sdRide)
         }
@@ -125,6 +127,7 @@ actor BackgroundSyncActor {
             existing.hiddenAt = favor.hiddenAt
             existing.hiddenBy = favor.hiddenBy
             existing.hiddenReason = favor.hiddenReason
+            existing.communityId = favor.communityId
             // Preserve poster/claimer/participants/qaCount — not in realtime payloads
         } else {
             let sdFavor = SDFavor(
@@ -154,7 +157,8 @@ actor BackgroundSyncActor {
                 claimerName: favor.claimer?.name,
                 claimerAvatarUrl: favor.claimer?.avatarUrl,
                 participantIds: favor.participants?.map { $0.id } ?? [],
-                qaCount: favor.qaCount ?? 0
+                qaCount: favor.qaCount ?? 0,
+                communityId: favor.communityId
             )
             modelContext.insert(sdFavor)
         }
@@ -197,6 +201,7 @@ actor BackgroundSyncActor {
             existing.reviewId = notification.reviewId
             existing.townHallPostId = notification.townHallPostId
             existing.sourceUserId = notification.sourceUserId
+            existing.communityId = notification.communityId
         } else {
             let sd = SDNotification(
                 id: notification.id,
@@ -212,7 +217,8 @@ actor BackgroundSyncActor {
                 conversationId: notification.conversationId,
                 reviewId: notification.reviewId,
                 townHallPostId: notification.townHallPostId,
-                sourceUserId: notification.sourceUserId
+                sourceUserId: notification.sourceUserId,
+                communityId: notification.communityId
             )
             modelContext.insert(sd)
         }
@@ -373,7 +379,8 @@ actor BackgroundSyncActor {
                     claimerName: ride.claimer?.name,
                     claimerAvatarUrl: ride.claimer?.avatarUrl,
                     participantIds: ride.participants?.map { $0.id } ?? [],
-                    qaCount: ride.qaCount ?? 0
+                    qaCount: ride.qaCount ?? 0,
+                    communityId: ride.communityId
                 )
                 modelContext.insert(sdRide)
             }
@@ -425,7 +432,8 @@ actor BackgroundSyncActor {
                     claimerName: favor.claimer?.name,
                     claimerAvatarUrl: favor.claimer?.avatarUrl,
                     participantIds: favor.participants?.map { $0.id } ?? [],
-                    qaCount: favor.qaCount ?? 0
+                    qaCount: favor.qaCount ?? 0,
+                    communityId: favor.communityId
                 )
                 modelContext.insert(sdFavor)
             }
@@ -451,6 +459,7 @@ actor BackgroundSyncActor {
                 existing.pinned = notification.pinned
                 existing.title = notification.title
                 existing.body = notification.body
+                existing.communityId = notification.communityId
             } else {
                 let sd = SDNotification(
                     id: notification.id,
@@ -466,7 +475,8 @@ actor BackgroundSyncActor {
                     conversationId: notification.conversationId,
                     reviewId: notification.reviewId,
                     townHallPostId: notification.townHallPostId,
-                    sourceUserId: notification.sourceUserId
+                    sourceUserId: notification.sourceUserId,
+                    communityId: notification.communityId
                 )
                 modelContext.insert(sd)
             }
@@ -496,6 +506,7 @@ actor BackgroundSyncActor {
         sd.hiddenAt = ride.hiddenAt
         sd.hiddenBy = ride.hiddenBy
         sd.hiddenReason = ride.hiddenReason
+        sd.communityId = ride.communityId
         sd.posterName = ride.poster?.name
         sd.posterAvatarUrl = ride.poster?.avatarUrl
         sd.claimerName = ride.claimer?.name
@@ -523,6 +534,7 @@ actor BackgroundSyncActor {
         sd.hiddenAt = favor.hiddenAt
         sd.hiddenBy = favor.hiddenBy
         sd.hiddenReason = favor.hiddenReason
+        sd.communityId = favor.communityId
         sd.posterName = favor.poster?.name
         sd.posterAvatarUrl = favor.poster?.avatarUrl
         sd.claimerName = favor.claimer?.name
@@ -557,6 +569,7 @@ actor BackgroundSyncActor {
         if sd.hiddenAt != ride.hiddenAt { sd.hiddenAt = ride.hiddenAt; changed = true }
         if sd.hiddenBy != ride.hiddenBy { sd.hiddenBy = ride.hiddenBy; changed = true }
         if sd.hiddenReason != ride.hiddenReason { sd.hiddenReason = ride.hiddenReason; changed = true }
+        if sd.communityId != ride.communityId { sd.communityId = ride.communityId; changed = true }
         if sd.posterName != ride.poster?.name { sd.posterName = ride.poster?.name; changed = true }
         if sd.posterAvatarUrl != ride.poster?.avatarUrl { sd.posterAvatarUrl = ride.poster?.avatarUrl; changed = true }
         if sd.claimerName != ride.claimer?.name { sd.claimerName = ride.claimer?.name; changed = true }
@@ -588,6 +601,7 @@ actor BackgroundSyncActor {
         if sd.hiddenAt != favor.hiddenAt { sd.hiddenAt = favor.hiddenAt; changed = true }
         if sd.hiddenBy != favor.hiddenBy { sd.hiddenBy = favor.hiddenBy; changed = true }
         if sd.hiddenReason != favor.hiddenReason { sd.hiddenReason = favor.hiddenReason; changed = true }
+        if sd.communityId != favor.communityId { sd.communityId = favor.communityId; changed = true }
         if sd.posterName != favor.poster?.name { sd.posterName = favor.poster?.name; changed = true }
         if sd.posterAvatarUrl != favor.poster?.avatarUrl { sd.posterAvatarUrl = favor.poster?.avatarUrl; changed = true }
         if sd.claimerName != favor.claimer?.name { sd.claimerName = favor.claimer?.name; changed = true }
@@ -610,6 +624,7 @@ actor BackgroundSyncActor {
         if sd.reviewId != notification.reviewId { sd.reviewId = notification.reviewId; changed = true }
         if sd.townHallPostId != notification.townHallPostId { sd.townHallPostId = notification.townHallPostId; changed = true }
         if sd.sourceUserId != notification.sourceUserId { sd.sourceUserId = notification.sourceUserId; changed = true }
+        if sd.communityId != notification.communityId { sd.communityId = notification.communityId; changed = true }
         return changed
     }
 
@@ -665,6 +680,7 @@ actor BackgroundSyncActor {
         if sd.hiddenAt != post.hiddenAt { sd.hiddenAt = post.hiddenAt; changed = true }
         if sd.hiddenBy != post.hiddenBy { sd.hiddenBy = post.hiddenBy; changed = true }
         if sd.hiddenReason != post.hiddenReason { sd.hiddenReason = post.hiddenReason; changed = true }
+        if sd.communityId != post.communityId { sd.communityId = post.communityId; changed = true }
         if sd.createdAt != post.createdAt { sd.createdAt = post.createdAt; changed = true }
         if sd.updatedAt != post.updatedAt { sd.updatedAt = post.updatedAt; changed = true }
         if sd.authorName != post.author?.name { sd.authorName = post.author?.name; changed = true }
@@ -729,7 +745,8 @@ actor BackgroundSyncActor {
                     posterName: ride.poster?.name, posterAvatarUrl: ride.poster?.avatarUrl,
                     claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
                     participantIds: ride.participants?.map { $0.id } ?? [],
-                    qaCount: ride.qaCount ?? 0
+                    qaCount: ride.qaCount ?? 0,
+                    communityId: ride.communityId
                 )
                 modelContext.insert(sdRide)
                 inserted += 1
@@ -766,7 +783,8 @@ actor BackgroundSyncActor {
                     posterName: favor.poster?.name, posterAvatarUrl: favor.poster?.avatarUrl,
                     claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
                     participantIds: favor.participants?.map { $0.id } ?? [],
-                    qaCount: favor.qaCount ?? 0
+                    qaCount: favor.qaCount ?? 0,
+                    communityId: favor.communityId
                 )
                 modelContext.insert(sdFavor)
                 inserted += 1
@@ -797,7 +815,8 @@ actor BackgroundSyncActor {
                     conversationId: notification.conversationId,
                     reviewId: notification.reviewId,
                     townHallPostId: notification.townHallPostId,
-                    sourceUserId: notification.sourceUserId
+                    sourceUserId: notification.sourceUserId,
+                    communityId: notification.communityId
                 )
                 modelContext.insert(sd)
                 inserted += 1
@@ -856,7 +875,8 @@ actor BackgroundSyncActor {
                 posterName: ride.poster?.name, posterAvatarUrl: ride.poster?.avatarUrl,
                 claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
                 participantIds: ride.participants?.map { $0.id } ?? [],
-                qaCount: ride.qaCount ?? 0
+                qaCount: ride.qaCount ?? 0,
+                communityId: ride.communityId
             )
             modelContext.insert(sdRide)
             inserted = 1
@@ -899,7 +919,8 @@ actor BackgroundSyncActor {
                 posterName: favor.poster?.name, posterAvatarUrl: favor.poster?.avatarUrl,
                 claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
                 participantIds: favor.participants?.map { $0.id } ?? [],
-                qaCount: favor.qaCount ?? 0
+                qaCount: favor.qaCount ?? 0,
+                communityId: favor.communityId
             )
             modelContext.insert(sdFavor)
             inserted = 1
@@ -938,7 +959,8 @@ actor BackgroundSyncActor {
                     hiddenAt: post.hiddenAt, hiddenBy: post.hiddenBy, hiddenReason: post.hiddenReason,
                     createdAt: post.createdAt, updatedAt: post.updatedAt,
                     authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
-                    commentCount: post.commentCount
+                    commentCount: post.commentCount,
+                    communityId: post.communityId
                 )
                 modelContext.insert(sdPost)
                 inserted += 1
@@ -1038,7 +1060,8 @@ actor BackgroundSyncActor {
                 hiddenAt: post.hiddenAt, hiddenBy: post.hiddenBy, hiddenReason: post.hiddenReason,
                 createdAt: post.createdAt, updatedAt: post.updatedAt,
                 authorName: post.author?.name, authorAvatarUrl: post.author?.avatarUrl,
-                commentCount: post.commentCount
+                commentCount: post.commentCount,
+                communityId: post.communityId
             )
             modelContext.insert(sdPost)
             inserted = 1

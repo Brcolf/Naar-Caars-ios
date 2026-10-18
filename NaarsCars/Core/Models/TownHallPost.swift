@@ -38,6 +38,9 @@ struct TownHallPost: Codable, Identifiable, Equatable {
     let hiddenAt: Date?
     let hiddenBy: UUID?
     let hiddenReason: String?
+    /// Community the post belongs to. Nil when the payload has no `community_id`
+    /// (unknown: shown, never filtered out); omitted on insert so the server resolves it.
+    let communityId: UUID?
     
     // Joined data (not from database)
     var author: Profile?
@@ -65,6 +68,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         case hiddenAt = "hidden_at"
         case hiddenBy = "hidden_by"
         case hiddenReason = "hidden_reason"
+        case communityId = "community_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -85,6 +89,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         try container.encodeIfPresent(hiddenAt, forKey: .hiddenAt)
         try container.encodeIfPresent(hiddenBy, forKey: .hiddenBy)
         try container.encodeIfPresent(hiddenReason, forKey: .hiddenReason)
+        try container.encodeIfPresent(communityId, forKey: .communityId)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
@@ -103,6 +108,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         hiddenAt: Date? = nil,
         hiddenBy: UUID? = nil,
         hiddenReason: String? = nil,
+        communityId: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         author: Profile? = nil,
@@ -123,6 +129,7 @@ struct TownHallPost: Codable, Identifiable, Equatable {
         self.hiddenAt = hiddenAt
         self.hiddenBy = hiddenBy
         self.hiddenReason = hiddenReason
+        self.communityId = communityId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.author = author
@@ -149,7 +156,8 @@ struct TownHallPost: Codable, Identifiable, Equatable {
                lhs.reviewId == rhs.reviewId &&
                lhs.hiddenAt == rhs.hiddenAt &&
                lhs.hiddenBy == rhs.hiddenBy &&
-               lhs.hiddenReason == rhs.hiddenReason
+               lhs.hiddenReason == rhs.hiddenReason &&
+               lhs.communityId == rhs.communityId
     }
 }
 
