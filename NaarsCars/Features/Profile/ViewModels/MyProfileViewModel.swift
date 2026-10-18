@@ -30,13 +30,20 @@ final class MyProfileViewModel: ObservableObject {
     
     private let profileService: any ProfileServiceProtocol
     private let authService: any AuthServiceProtocol
+    /// nil reads `CommunityContext.shared` when needed (it is main-actor isolated).
+    private let communityContext: CommunityContext?
+    private let communityAdminService: any CommunityAdminServiceProtocol
 
     init(
         profileService: any ProfileServiceProtocol = ProfileService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil,
+        communityAdminService: any CommunityAdminServiceProtocol = CommunityService.shared
     ) {
         self.profileService = profileService
         self.authService = authService
+        self.communityContext = communityContext
+        self.communityAdminService = communityAdminService
     }
     
     // MARK: - Public Methods
@@ -119,6 +126,28 @@ final class MyProfileViewModel: ObservableObject {
         )
     }
     
+    /// Names of the communities deleting this account closes (decision A3): the ones this user
+    /// owns alone with no admin to take over. Shown before the final confirmation; the server
+    /// applies A3 whatever the client shows, so a failure here never blocks deletion.
+    func communitiesClosedByDeletion() async -> [String] {
+        guard let userId = authService.currentUserId else { return [] }
+        let memberships = (communityContext ?? CommunityContext.shared).memberships
+        let service = communityAdminService
+        let closed = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: userId,
+            memberships: memberships,
+            fetchActiveMembers: { communityId in
+                try await service.fetchCommunityMembers(
+                    communityId: communityId,
+                    status: .active,
+                    limit: Constants.Community.membersPageSize,
+                    offset: 0
+                )
+            }
+        )
+        return closed.map(\.name)
+    }
+
     /// Delete the current user's account (App Store requirement — keep reachable).
     /// - Returns: `false` when there is no signed-in user (nothing was attempted), `true` on success
     /// - Throws: Error from the deletion (caller shows the failure alert)

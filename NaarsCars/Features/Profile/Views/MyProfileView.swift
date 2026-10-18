@@ -19,6 +19,10 @@ struct MyProfileView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
+    /// The A3 check (communities this deletion closes) is running between the first alert and the next.
+    @State private var isCheckingDeletionCommunities = false
+    @State private var showDeleteClosesCommunitiesAlert = false
+    @State private var deletionClosedCommunityNames: [String] = []
     @State private var showDeleteError = false
     @State private var showDeleteSuccess = false
     @State private var deleteErrorMessage = ""
@@ -252,10 +256,23 @@ struct MyProfileView: View {
             .alert("profile_delete_account".localized, isPresented: $showDeleteAccountAlert) {
                 Button("common_cancel".localized, role: .cancel) {}
                 Button("profile_delete".localized, role: .destructive) {
-                    showDeleteConfirmation = true
+                    checkCommunitiesClosedByDeletion()
                 }
             } message: {
                 Text("profile_delete_warning".localized)
+            }
+            .alert("community_delete_closes_title".localized, isPresented: $showDeleteClosesCommunitiesAlert) {
+                Button("common_cancel".localized, role: .cancel) {
+                    deletionClosedCommunityNames = []
+                }
+                Button("community_delete_closes_confirm".localized, role: .destructive) {
+                    deletionClosedCommunityNames = []
+                    showDeleteConfirmation = true
+                }
+            } message: {
+                Text("community_delete_closes_message".localized(
+                    with: ListFormatter.localizedString(byJoining: deletionClosedCommunityNames)
+                ))
             }
             .alert("profile_confirm_deletion".localized, isPresented: $showDeleteConfirmation) {
                 Button("common_cancel".localized, role: .cancel) {}
@@ -524,8 +541,20 @@ struct MyProfileView: View {
                 .cornerRadius(Constants.Radius.sm)
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(viewModel.isDeletingAccount)
-            
+            .disabled(viewModel.isDeletingAccount || isCheckingDeletionCommunities)
+            .accessibilityIdentifier("profile.deleteAccount")
+
+            if isCheckingDeletionCommunities {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("community_delete_checking".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+            }
+
             if viewModel.isDeletingAccount {
                 HStack {
                     ProgressView()
@@ -542,6 +571,23 @@ struct MyProfileView: View {
         .cornerRadius(Constants.Radius.card)
     }
     
+    /// Decision A3: before the final confirmation, name the communities this deletion closes.
+    /// An empty list goes straight to the final confirmation, as before.
+    private func checkCommunitiesClosedByDeletion() {
+        guard !isCheckingDeletionCommunities else { return }
+        isCheckingDeletionCommunities = true
+        Task { @MainActor in
+            let names = await viewModel.communitiesClosedByDeletion()
+            isCheckingDeletionCommunities = false
+            if names.isEmpty {
+                showDeleteConfirmation = true
+            } else {
+                deletionClosedCommunityNames = names
+                showDeleteClosesCommunitiesAlert = true
+            }
+        }
+    }
+
     private func deleteAccount() async {
         do {
             guard try await viewModel.deleteAccount() else { return }

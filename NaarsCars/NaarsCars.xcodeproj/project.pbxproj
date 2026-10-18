@@ -280,6 +280,8 @@
 		AC410C7730857BF000D921E2 /* PendingInviteStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7630857BF000D921E2 /* PendingInviteStoreTests.swift */; };
 		AC410C7930857C2700D921E2 /* PendingInviteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7830857C2700D921E2 /* PendingInviteStore.swift */; };
 		AC410C7B30857C4600D921E2 /* InviteCodeEntrySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7A30857C4600D921E2 /* InviteCodeEntrySheet.swift */; };
+		AC410C7D30857FBA00D921E2 /* AccountDeletionCommunityCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7C30857FBA00D921E2 /* AccountDeletionCommunityCheckTests.swift */; };
+		AC410C7F30857FC500D921E2 /* AccountDeletionCommunityCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C7E30857FC400D921E2 /* AccountDeletionCommunityCheck.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -833,6 +835,8 @@
 		AC410C7630857BF000D921E2 /* PendingInviteStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingInviteStoreTests.swift; sourceTree = "<group>"; };
 		AC410C7830857C2700D921E2 /* PendingInviteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingInviteStore.swift; sourceTree = "<group>"; };
 		AC410C7A30857C4600D921E2 /* InviteCodeEntrySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteCodeEntrySheet.swift; sourceTree = "<group>"; };
+		AC410C7C30857FBA00D921E2 /* AccountDeletionCommunityCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionCommunityCheckTests.swift; sourceTree = "<group>"; };
+		AC410C7E30857FC400D921E2 /* AccountDeletionCommunityCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionCommunityCheck.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -2353,6 +2357,7 @@
 				99BCE5B28CED4588BD3232BA /* EditProfileViewModel.swift */,
 				327937860EB7466991CA8C7B /* PublicProfileViewModel.swift */,
 				32EA476C1A00E8E575B889EC /* BlockedUsersViewModel.swift */,
+				AC410C7E30857FC400D921E2 /* AccountDeletionCommunityCheck.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -2386,6 +2391,7 @@
 				1F859B4E10E14211A4D70EFA /* MyProfileViewModelTests.swift */,
 				5B83B70D276143ED90C7BA8E /* EditProfileViewModelTests.swift */,
 				C15A09E880A74ED5B394100A /* PublicProfileViewModelTests.swift */,
+				AC410C7C30857FBA00D921E2 /* AccountDeletionCommunityCheckTests.swift */,
 			);
 			path = Profile;
 			sourceTree = "<group>";
@@ -2659,6 +2665,7 @@
 				ACBF4AC12F12CAE4006A7C8A /* TownHallCommentService.swift in Sources */,
 				ACBF4AC22F12CAE4006A7C8A /* MapService.swift in Sources */,
 				ACBF4AC32F12CAE4006A7C8A /* LocationService.swift in Sources */,
+				AC410C7F30857FC500D921E2 /* AccountDeletionCommunityCheck.swift in Sources */,
 				ACBF4AC42F12CAE4006A7C8A /* TownHallVoteService.swift in Sources */,
 				A1B2C3D4E5F60001B9C0D1E2 /* AdminModerationService.swift in Sources */,
 				ACBF4AC52F12CAE4006A7C8A /* AdminService.swift in Sources */,
@@ -3067,6 +3074,7 @@
 				7FC1B85E59ED46EC979DDA25 /* ProfileServiceTests.swift in Sources */,
 				AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */,
 				7AD025419E784FB8A81740AC /* ValidatorsTests.swift in Sources */,
+				AC410C7D30857FBA00D921E2 /* AccountDeletionCommunityCheckTests.swift in Sources */,
 				130951F3D8E84F66ABF62CC0 /* MyProfileViewModelTests.swift in Sources */,
 				AC410C3B3085504F00D921E2 /* ReportContentViewModelTests.swift in Sources */,
 				AC1200852F3AE63E0043BFAE /* ConversationParticipantsViewModelTests.swift in Sources */,
