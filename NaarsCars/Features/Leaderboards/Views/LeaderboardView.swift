@@ -11,7 +11,8 @@ import SwiftUI
 /// Hosted inside CommunityTabView's NavigationStack; it must not open a stack of its own, or it
 /// draws a second navigation bar under the Community one and pushes profiles inside the segment.
 struct LeaderboardView: View {
-    @StateObject private var viewModel = LeaderboardViewModel()
+    @State private var communityContext = CommunityContext.shared
+    @StateObject private var viewModel = LeaderboardViewModel(communityContext: CommunityContext.shared)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,9 @@ struct LeaderboardView: View {
                 Task {
                     await viewModel.loadLeaderboard()
                 }
+            }
+            .onChange(of: communityContext.communityTabId) { _, _ in
+                Task { await viewModel.communityDidChange() }
             }
 
             // Content

@@ -13,6 +13,21 @@ enum CommunityFixtures {
     static let communityB = UUID(uuidString: "BBBBBBBB-0000-4000-8000-000000000002")!
     static let communityC = UUID(uuidString: "CCCCCCCC-0000-4000-8000-000000000003")!
 
+    static let communityLeaderboardRowsJSON: String = """
+    [
+      {
+        "user_id": "DDDDDDDD-0000-4000-8000-000000000004",
+        "name": "Sam Neighbor",
+        "avatar_url": null,
+        "xp": 120,
+        "badges": ["road_warrior"],
+        "streak_weeks": 3,
+        "requests_fulfilled": 5,
+        "requests_made": 2
+      }
+    ]
+    """
+
     static let myMembershipsJSON: String = """
     [
       {

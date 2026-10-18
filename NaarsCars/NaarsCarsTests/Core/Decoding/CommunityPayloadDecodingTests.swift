@@ -32,4 +32,22 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertEqual(rows[0].role, .member)
         XCTAssertEqual(rows[0].status, .pending)
     }
+
+    func testCommunityLeaderboardParamsEncodeTheRPCKeys() throws {
+        let data = try JSONEncoder().encode(CommunityLeaderboardParams(p_community_id: CommunityFixtures.communityA.uuidString, start_date: "2026-10-01", end_date: "2026-10-17"))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        XCTAssertEqual(Set(object.keys), ["p_community_id", "start_date", "end_date"])
+        XCTAssertEqual(object["p_community_id"], CommunityFixtures.communityA.uuidString)
+    }
+
+    func testCommunityLeaderboardRowDecodesAsLeaderboardEntry() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let entries = try decoder.decode([LeaderboardEntry].self, from: Data(CommunityFixtures.communityLeaderboardRowsJSON.utf8))
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].userId, UUID(uuidString: "DDDDDDDD-0000-4000-8000-000000000004"))
+        XCTAssertEqual(entries[0].name, "Sam Neighbor")
+        XCTAssertEqual(entries[0].xp, 120)
+        XCTAssertEqual(entries[0].badges, [.roadWarrior])
+    }
 }
