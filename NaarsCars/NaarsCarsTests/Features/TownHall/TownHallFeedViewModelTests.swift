@@ -16,6 +16,8 @@ private final class FeedTestRecorder {
     var refreshTriggers: [String] = []
     var recording = false
     var recordedPosts: [[UUID]] = []
+    var retryCount = 0
+    var sawScopeAEmissionWhileOnB = false
     weak var viewModel: TownHallFeedViewModel?
 }
 
@@ -117,6 +119,7 @@ final class TownHallFeedViewModelTests: XCTestCase {
     private let communityB = UUID(uuidString: "0E000000-0000-4000-8000-00000000000B")!
     private let a1 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000A1")!
     private let a2 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000A2")!
+    private let a3 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000A3")!
     private let b1 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000B1")!
     private let b2 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000B2")!
     private let base = Date(timeIntervalSince1970: 1_770_640_000)
@@ -167,6 +170,9 @@ final class TownHallFeedViewModelTests: XCTestCase {
         let scopeA = TownHallSyncScope.community(communityA)
         let scopeB = TownHallSyncScope.community(communityB)
         let recorder = FeedTestRecorder()
+        let aPageChanged = [
+            CommunityFixtures.post(a3, community: communityA, createdAt: base.addingTimeInterval(25))
+        ] + aPage
 
         let refresher: @MainActor (String) async -> RefreshResult? = { trigger in
             recorder.refreshTriggers.append(trigger)
@@ -175,10 +181,18 @@ final class TownHallFeedViewModelTests: XCTestCase {
                 try? repo.upsertPosts(aPage, replaceAll: true, syncScope: scopeA)
                 return .completed(.empty)
             case "communitySwitch":
-                // The joined sync that started for A.
-                try? repo.upsertPosts(aPage, replaceAll: true, syncScope: scopeA)
+                // Joins the sync that started for A; it has not saved yet.
                 return .joined(inFlightTrigger: "launch")
             case "communitySwitch:retry":
+                recorder.retryCount += 1
+                if recorder.retryCount == 1 {
+                    // The joined A sync saves now, after the B enrichment page is on screen. The
+                    // page differs from the store (a new A post), so it saves and posts an
+                    // A-scoped emission, delivered here while the feed shows B.
+                    try? repo.upsertPosts(aPageChanged, replaceAll: true, syncScope: scopeA)
+                    try? await Task.sleep(for: .milliseconds(100))   // deliver it on RunLoop.main
+                    return .joined(inFlightTrigger: "launch")
+                }
                 try? repo.upsertPosts(bPage, replaceAll: true, syncScope: scopeB)
                 return .completed(.empty)
             default:
@@ -201,6 +215,17 @@ final class TownHallFeedViewModelTests: XCTestCase {
             if recorder.recording { recorder.recordedPosts.append(value.map(\.id)) }
         }
         defer { cancellable.cancel() }
+        let communityA = self.communityA
+        let communityB = self.communityB
+        let scopeSink = NotificationCenter.default.publisher(for: .townHallPostsDidSync)
+            .receive(on: RunLoop.main)
+            .sink { [weak vm] note in
+                let scope = note.userInfo?[TownHallSyncScope.userInfoKey] as? TownHallSyncScope
+                if scope?.communityId == communityA, vm?.activeCommunityId == communityB {
+                    recorder.sawScopeAEmissionWhileOnB = true
+                }
+            }
+        defer { scopeSink.cancel() }
 
         harness.context.communityTabId = communityB
         await vm.activeCommunityDidChange()
@@ -209,7 +234,11 @@ final class TownHallFeedViewModelTests: XCTestCase {
         XCTAssertEqual(Set(vm.posts.map(\.id)), [self.b1, b2])
         XCTAssertFalse(recorder.recordedPosts.contains { $0.isEmpty })
         XCTAssertEqual(Set(try repo.getPosts(communityId: communityB).map(\.id)), [self.b1, b2])
-        XCTAssertEqual(recorder.refreshTriggers, ["manualReload:townHall", "communitySwitch", "communitySwitch:retry"])
+        XCTAssertTrue(recorder.sawScopeAEmissionWhileOnB, "the joined A sync must emit while the feed shows B")
+        XCTAssertEqual(
+            recorder.refreshTriggers,
+            ["manualReload:townHall", "communitySwitch", "communitySwitch:retry", "communitySwitch:retry"]
+        )
         withExtendedLifetime(harness.container) {}
     }
 
@@ -250,6 +279,51 @@ final class TownHallFeedViewModelTests: XCTestCase {
         XCTAssertEqual(vm.activeCommunityId, communityA)
         XCTAssertFalse(recorder.recordedPosts.contains { $0.isEmpty })
         XCTAssertEqual(Set(vm.posts.map(\.id)), [a1, a2])
+        withExtendedLifetime(harness.container) {}
+    }
+
+    func testNilToCommunityResolution_MemberOfTwo_DropsTheOtherCommunitysPosts() async throws {
+        let harness = try makeScopingHarness()
+        let repo = harness.repository
+        let fetcher = harness.fetcher
+        let recorder = FeedTestRecorder()
+
+        // A full page of A (so the enrichment merges into the list), newer than everything in B.
+        let aFull = (0..<20).map { index in
+            CommunityFixtures.post(UUID(), community: communityA, createdAt: base.addingTimeInterval(Double(100 + index)))
+        }.sorted { $0.createdAt > $1.createdAt }
+        let bOld = (0..<5).map { index in
+            CommunityFixtures.post(UUID(), community: communityB, createdAt: base.addingTimeInterval(Double(index)))
+        }.sorted { $0.createdAt > $1.createdAt }
+        // The unfiltered first page before the community is known: 15 A posts and 5 older B posts.
+        fetcher.pagesByCommunity = [communityA: aFull, nil: Array(aFull.prefix(15)) + bOld]
+
+        let refresher: @MainActor (String) async -> RefreshResult? = { trigger in
+            recorder.refreshTriggers.append(trigger)
+            let active = recorder.viewModel?.activeCommunityId
+            let page = fetcher.pagesByCommunity[active] ?? []
+            try? repo.upsertPosts(page, replaceAll: true, syncScope: TownHallSyncScope(communityId: active))
+            return .completed(.empty)
+        }
+
+        harness.context.communityTabId = nil
+        let vm = TownHallFeedViewModel(
+            repository: repo,
+            postFetcher: fetcher,
+            communityContext: harness.context,
+            refreshTownHall: refresher
+        )
+        recorder.viewModel = vm
+        await vm.loadPosts()
+        try await Task.sleep(for: .milliseconds(100))   // drain RunLoop.main deliveries
+        XCTAssertEqual(Set(vm.posts.map(\.id)), Set((Array(aFull.prefix(15)) + bOld).map(\.id)))
+
+        harness.context.communityTabId = communityA
+        await vm.activeCommunityDidChange()
+        try await Task.sleep(for: .milliseconds(100))   // drain RunLoop.main deliveries
+
+        XCTAssertEqual(Set(vm.posts.map(\.id)), Set(aFull.map(\.id)))
+        XCTAssertFalse(vm.posts.contains { $0.communityId == communityB })
         withExtendedLifetime(harness.container) {}
     }
 }

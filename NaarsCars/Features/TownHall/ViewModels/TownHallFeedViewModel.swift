@@ -257,7 +257,10 @@ final class TownHallFeedViewModel: ObservableObject {
 
         if wasUnfiltered {
             // Launch resolution nil → X: for a member of one community the rows are the same, so
-            // the list stays up while the scoped refresh runs.
+            // the list stays up while the scoped refresh runs. The unfiltered list can also hold
+            // another community's posts (a member of two); drop them first, by the repository's
+            // own rule, or the merge and the paged-row rule would keep them in this feed.
+            replacePosts(with: posts.filter { $0.communityId == newCommunityId || $0.communityId == nil })
             await refreshFromNetwork(showLoading: false, trigger: "communityResolved")
             return
         }
