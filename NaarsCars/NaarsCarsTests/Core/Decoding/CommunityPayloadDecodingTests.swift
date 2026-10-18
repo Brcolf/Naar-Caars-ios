@@ -50,4 +50,14 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertEqual(entries[0].xp, 120)
         XCTAssertEqual(entries[0].badges, [.roadWarrior])
     }
+
+    func testProfileStatsDecode() throws {
+        let stats = try JSONDecoder().decode(ProfileStats.self, from: Data(CommunityFixtures.profileStatsJSON.utf8))
+        XCTAssertEqual(stats, ProfileStats(averageRating: 4.5, reviewCount: 3, fulfilledCount: 7))
+    }
+
+    func testProfileStatsEmptyObjectDecodesAsNothingVisible() throws {
+        let stats = try JSONDecoder().decode(ProfileStats.self, from: Data(CommunityFixtures.profileStatsEmptyJSON.utf8))
+        XCTAssertEqual(stats, ProfileStats(averageRating: nil, reviewCount: 0, fulfilledCount: 0))
+    }
 }

@@ -267,7 +267,7 @@ struct PublicProfileView: View {
             Text("profile_reviews".localized)
                 .font(.naarsHeadline)
             
-            if viewModel.reviews.isEmpty {
+            if viewModel.reviews.isEmpty && viewModel.otherCommunityReviewCount == 0 {
                 EmptyStateView(
                     icon: "star",
                     title: "profile_no_reviews_yet".localized,
@@ -278,10 +278,20 @@ struct PublicProfileView: View {
                     ReviewRow(review: review)
                 }
             }
+            
+            if viewModel.otherCommunityReviewCount > 0 {
+                Text(otherCommunityReviewsText(viewModel.otherCommunityReviewCount))
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
         .background(Color.naarsCardBackground)
         .cornerRadius(Constants.Radius.card)
+    }
+    
+    private func otherCommunityReviewsText(_ count: Int) -> String {
+        (count == 1 ? "profile_more_reviews_other_communities_one" : "profile_more_reviews_other_communities_other").localized(with: count)
     }
     
     // MARK: - Block User

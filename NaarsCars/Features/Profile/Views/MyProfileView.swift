@@ -439,7 +439,7 @@ struct MyProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             NavigationLink {
                 if let userId = AuthService.shared.currentUserId {
-                    AllReviewsView(userId: userId)
+                    AllReviewsView(userId: userId, totalReviewCount: viewModel.reviewCount)
                 }
             } label: {
                 HStack {

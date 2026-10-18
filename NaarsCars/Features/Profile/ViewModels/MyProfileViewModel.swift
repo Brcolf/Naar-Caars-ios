@@ -19,6 +19,7 @@ final class MyProfileViewModel: ObservableObject {
     @Published var reviews: [Review] = []
     @Published var averageRating: Double?
     @Published var fulfilledCount: Int = 0
+    @Published var reviewCount: Int = 0
     @Published var totalSavings: Double = 0
     @Published var totalXP: Int = 0
     @Published var isLoading: Bool = false
@@ -63,24 +64,23 @@ final class MyProfileViewModel: ObservableObject {
             // Fetch all data concurrently using async let
             async let profileTask = profileService.fetchProfile(userId: userId)
             async let reviewsTask = profileService.fetchReviews(forUserId: userId)
-            async let ratingTask = profileService.calculateAverageRating(userId: userId)
-            async let countTask = profileService.fetchFulfilledCount(userId: userId)
+            async let statsTask = profileService.fetchProfileStats(userId: userId)
             async let savingsTask = profileService.fetchUserTotalSavings(userId: userId)
             async let xpTask = profileService.fetchUserTotalXP(userId: userId)
 
-            let (fetchedProfile, fetchedReviews, fetchedRating, fetchedCount, fetchedSavings, fetchedXP) = try await (
+            let (fetchedProfile, fetchedReviews, stats, fetchedSavings, fetchedXP) = try await (
                 profileTask,
                 reviewsTask,
-                ratingTask,
-                countTask,
+                statsTask,
                 savingsTask,
                 xpTask
             )
 
             profile = fetchedProfile
             reviews = fetchedReviews
-            averageRating = fetchedRating
-            fulfilledCount = fetchedCount
+            averageRating = stats.averageRating
+            fulfilledCount = stats.fulfilledCount
+            reviewCount = stats.reviewCount
             totalSavings = fetchedSavings
             totalXP = fetchedXP
 
