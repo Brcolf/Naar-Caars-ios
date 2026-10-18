@@ -11,10 +11,18 @@ struct ReviewsSheet: View {
     let reviews: [Review]
     @Environment(\.dismiss) private var dismiss
 
+    /// Display-layer filter: hide reviews authored by users the viewer has blocked.
+    /// Mirrors the Town Hall block-filtering pattern; RLS remains the security boundary.
+    private var visibleReviews: [Review] {
+        let blockedIds = MessageService.shared.cachedBlockedUserIds
+        guard !blockedIds.isEmpty else { return reviews }
+        return reviews.filter { !blockedIds.contains($0.reviewerId) }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
-                if reviews.isEmpty {
+                if visibleReviews.isEmpty {
                     EmptyStateView(
                         icon: "star.fill",
                         title: "reviews_empty_title".localized,
@@ -23,7 +31,7 @@ struct ReviewsSheet: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(reviews) { review in
+                            ForEach(visibleReviews) { review in
                                 ReviewRowView(review: review)
                             }
                         }

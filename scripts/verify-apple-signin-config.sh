@@ -13,7 +13,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 ENTITLEMENTS_FILE="$PROJECT_DIR/NaarsCars/NaarsCars/NaarsCars.entitlements"
 PBXPROJ_FILE="$PROJECT_DIR/NaarsCars/NaarsCars.xcodeproj/project.pbxproj"
 
@@ -114,5 +115,4 @@ echo "  • Rebuild and install"
 echo ""
 echo "📖 See APPLE-SIGN-IN-ERROR-1000-FIX.md for detailed instructions"
 echo ""
-
 

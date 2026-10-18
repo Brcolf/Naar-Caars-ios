@@ -21,6 +21,16 @@ protocol PromptSideEffects {
     func sendCompletionResponse(reminderId: UUID, completed: Bool) async throws
 }
 
+/// Result of attempting to surface a completion prompt for a specific request.
+/// Lets the caller decide on a UX fallback (e.g. navigate to the request detail
+/// screen) when no due reminder exists for an otherwise-actionable notification.
+enum CompletionPromptResult: Equatable {
+    case queued            // prompt was enqueued and will be activated
+    case alreadyActive     // an identical prompt is already on screen
+    case stale             // no matching due reminder; notification cleared
+    case failed            // the fetch threw; logged but not retried here
+}
+
 @MainActor
 @Observable final class PromptCoordinator {
     static let shared = PromptCoordinator(
@@ -68,27 +78,49 @@ protocol PromptSideEffects {
         }
     }
 
-    func enqueueCompletionPrompt(requestType: RequestType, requestId: UUID, userId: UUID) async {
-        if let prompt = try? await completionProvider.fetchCompletionPrompt(
-            requestType: requestType, requestId: requestId, userId: userId
-        ) {
+    @discardableResult
+    func enqueueCompletionPrompt(requestType: RequestType, requestId: UUID, userId: UUID) async -> CompletionPromptResult {
+        do {
+            guard let prompt = try await completionProvider.fetchCompletionPrompt(
+                requestType: requestType, requestId: requestId, userId: userId
+            ) else {
+                // No matching due reminder — the push is stale (already responded, expired,
+                // or the request was unclaimed/deleted). Mark the notification read so the
+                // bell stops re-firing the same intent. Caller may use `.stale` to navigate
+                // the user to the request detail as an action-surface fallback.
+                AppLogger.warning("prompts", "enqueueCompletionPrompt: no due reminder requestType=\(requestType) requestId=\(requestId)")
+                await sideEffects.markCompletionNotificationsRead(requestType: requestType, requestId: requestId)
+                await sideEffects.refreshBadges(reason: "completionPromptStale")
+                return .stale
+            }
             if activePrompt?.id == prompt.id {
-                return
+                return .alreadyActive
             }
             queue.enqueue(.completion(prompt))
+            AppLogger.info("prompts", "enqueueCompletionPrompt: queued promptId=\(prompt.id)")
             await activateNextPromptIfNeeded()
+            return .queued
+        } catch {
+            AppLogger.error("prompts", "enqueueCompletionPrompt failed requestType=\(requestType) requestId=\(requestId) error=\(error.localizedDescription)")
+            return .failed
         }
     }
 
     func enqueueReviewPrompt(requestType: RequestType, requestId: UUID, userId: UUID) async {
-        if let prompt = try? await reviewProvider.fetchReviewPrompt(
-            requestType: requestType, requestId: requestId, userId: userId
-        ) {
+        do {
+            guard let prompt = try await reviewProvider.fetchReviewPrompt(
+                requestType: requestType, requestId: requestId, userId: userId
+            ) else {
+                AppLogger.warning("prompts", "enqueueReviewPrompt: no pending review requestType=\(requestType) requestId=\(requestId)")
+                return
+            }
             if activePrompt?.id == prompt.id {
                 return
             }
             queue.enqueue(.review(prompt))
             await activateNextPromptIfNeeded()
+        } catch {
+            AppLogger.error("prompts", "enqueueReviewPrompt failed requestType=\(requestType) requestId=\(requestId) error=\(error.localizedDescription)")
         }
     }
 
@@ -125,9 +157,16 @@ protocol PromptSideEffects {
         guard activePrompt == nil else { return }
         guard let next = queue.dequeue() else { return }
         activePrompt = next
-        if case .review(let prompt) = next {
+        switch next {
+        case .review(let prompt):
             await sideEffects.markReviewNotificationsRead(requestType: prompt.requestType, requestId: prompt.requestId)
             await sideEffects.refreshBadges(reason: "reviewPromptShown")
+        case .completion(let prompt):
+            // Mirror the review path so the bell badge clears as soon as the prompt is on
+            // screen. The yes/no action separately calls handleCompletionResponse which
+            // also marks read — that's idempotent.
+            await sideEffects.markCompletionNotificationsRead(requestType: prompt.requestType, requestId: prompt.requestId)
+            await sideEffects.refreshBadges(reason: "completionPromptShown")
         }
     }
 }

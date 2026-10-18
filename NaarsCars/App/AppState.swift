@@ -90,7 +90,10 @@ final class AppState {
 
         authService.$currentProfile
             .sink { [weak self] profile in
-                guard self?.currentUser?.id != profile?.id else { return }
+                // Compare full value, not just id: same-user changes (approval, ban,
+                // admin, avatar/name) must propagate so derived state (isApproved,
+                // isAdmin, authState) stays in sync with AuthService. (SEC-14)
+                guard self?.currentUser != profile else { return }
                 self?.currentUser = profile
             }
             .store(in: &cancellables)

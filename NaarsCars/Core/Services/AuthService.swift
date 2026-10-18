@@ -668,6 +668,7 @@ final class AuthService: ObservableObject {
         await MainActor.run {
             LocationService.shared.forgetRecentLocations()
             BadgeCountManager.shared.resetForSignOut()
+            MessageService.shared.clearBlockedUsersCache()
         }
     }
 

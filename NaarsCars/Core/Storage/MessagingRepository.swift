@@ -254,8 +254,9 @@ final class MessagingRepository {
         )
         let sdMessages = try modelContext.fetch(fetchDescriptor)
         let deletedIds = fetchLocallyDeletedMessageIds(for: conversationId)
+        let blockedIds = messageService.cachedBlockedUserIds
         return sdMessages
-            .filter { !deletedIds.contains($0.id) }
+            .filter { !deletedIds.contains($0.id) && !blockedIds.contains($0.fromId) }
             .map { MessagingMapper.mapToMessage($0) }
     }
     
