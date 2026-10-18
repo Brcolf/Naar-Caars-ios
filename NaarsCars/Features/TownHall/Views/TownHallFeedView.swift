@@ -11,6 +11,7 @@ import SwiftUI
 struct TownHallFeedView: View {
     @StateObject private var viewModel = TownHallFeedViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var communityContext = CommunityContext.shared
     @Environment(AppState.self) private var appState
     @State private var showCreatePost = false
     @State private var guestPromptReason: GuestRestrictionReason?
@@ -60,6 +61,10 @@ struct TownHallFeedView: View {
             }
             .task {
                 await viewModel.loadPosts()
+            }
+            // The title menu's switch and the launch membership load (nil to a community) both land here.
+            .onChange(of: communityContext.communityTabId) { _, _ in
+                Task { await viewModel.activeCommunityDidChange() }
             }
             .toast(message: $toastMessage)
             // A failed vote, delete, next page or refresh keeps the loaded posts on screen.

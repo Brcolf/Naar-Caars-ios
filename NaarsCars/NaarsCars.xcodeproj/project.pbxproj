@@ -242,6 +242,7 @@
 		AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */; };
 		AC410C2B3084E93300D921E2 /* CommunityContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C2A3084E93300D921E2 /* CommunityContext.swift */; };
 		AC410C2D3084F06800D921E2 /* TownHallPostFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C2C3084F06800D921E2 /* TownHallPostFetching.swift */; };
+		AC410C2F3084F89300D921E2 /* CommunityTitleMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C2E3084F89300D921E2 /* CommunityTitleMenu.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -757,6 +758,7 @@
 		AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPayloadDecodingTests.swift; sourceTree = "<group>"; };
 		AC410C2A3084E93300D921E2 /* CommunityContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityContext.swift; sourceTree = "<group>"; };
 		AC410C2C3084F06800D921E2 /* TownHallPostFetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostFetching.swift; sourceTree = "<group>"; };
+		AC410C2E3084F89300D921E2 /* CommunityTitleMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityTitleMenu.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -2085,6 +2087,7 @@
 				8FB76606AE8564ADFB21E84E /* ProfileStatsCard.swift */,
 				D7A89F5AE28B17AD11B6782F /* ReviewRowView.swift */,
 				CE110002AAAA00000000000C /* AvatarUIView.swift */,
+				AC410C2E3084F89300D921E2 /* CommunityTitleMenu.swift */,
 			);
 			path = Common;
 			sourceTree = "<group>";
@@ -2532,6 +2535,7 @@
 				9A0CEEE41B4B4941AAA037CA /* AppLockManager.swift in Sources */,
 				AC410C213084E78500D921E2 /* Community.swift in Sources */,
 				ACBF4AC72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift in Sources */,
+				AC410C2F3084F89300D921E2 /* CommunityTitleMenu.swift in Sources */,
 				ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */,
 				AC27A0122F1F20F700E3B58F /* DateFormatters.swift in Sources */,
 				ACBF4AC92F12CAE4006A7C8A /* LeaderboardService.swift in Sources */,
