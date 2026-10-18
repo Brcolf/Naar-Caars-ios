@@ -63,6 +63,12 @@ final class CreateRideViewModel: ObservableObject {
     /// True when the member belongs to several communities and must say where this goes.
     var requiresCommunityChoice: Bool { communityOptions.count > 1 }
 
+    /// The active memberships' ids. The form re-runs `configureCommunityChoice()` when this
+    /// changes, so memberships that load after the form opened still bring up "Post to".
+    var communityChoiceSignature: [UUID] {
+        communityContext.activeMemberships.map(\.communityId)
+    }
+
     /// Fills the "Post to" options and default. A member of one community sees no section.
     func configureCommunityChoice() {
         guard communityContext.hasMultipleCommunities else {

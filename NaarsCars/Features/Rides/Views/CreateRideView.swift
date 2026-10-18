@@ -199,6 +199,10 @@ struct CreateRideView: View {
                     locationServiceReady = true
                 }
             }
+            // Memberships can load after the form opens (cold start); refresh "Post to" then too.
+            .onChange(of: viewModel.communityChoiceSignature) { _, _ in
+                viewModel.configureCommunityChoice()
+            }
             .navigationTitle("ride_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

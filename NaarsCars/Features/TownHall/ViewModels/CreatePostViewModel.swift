@@ -37,6 +37,13 @@ final class CreatePostViewModel: ObservableObject {
         characterCount <= 500 &&
         !isLoading
     }
+
+    /// The community a new post is sent to (spec §3.7): the Community tab's community once the
+    /// memberships have loaded; nil before that, because the stored value may name a community
+    /// the person has since left. Nil omits `community_id` and the server resolves the primary.
+    var postCommunityId: UUID? {
+        communityContext.hasLoadedMemberships ? communityContext.communityTabId : nil
+    }
     
     // MARK: - Private Properties
     
@@ -90,7 +97,7 @@ final class CreatePostViewModel: ObservableObject {
                 userId: userId,
                 content: trimmedContent,
                 imageUrl: uploadedImageUrl,
-                communityId: communityContext.communityTabId
+                communityId: postCommunityId
             )
             
             // Reset form

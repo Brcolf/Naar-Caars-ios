@@ -209,6 +209,10 @@ struct CreateFavorView: View {
                     locationServiceReady = true
                 }
             }
+            // Memberships can load after the form opens (cold start); refresh "Post to" then too.
+            .onChange(of: viewModel.communityChoiceSignature) { _, _ in
+                viewModel.configureCommunityChoice()
+            }
             .navigationTitle("favor_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
