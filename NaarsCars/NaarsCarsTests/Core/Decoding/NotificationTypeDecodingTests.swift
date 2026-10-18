@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import SwiftData
 @testable import NaarsCars
 
 final class NotificationTypeDecodingTests: XCTestCase {
@@ -71,5 +72,76 @@ final class NotificationTypeDecodingTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         XCTAssertEqual(try decoder.decode(AppNotification.self, from: Data(json.utf8)).type, .other)
+    }
+
+    // MARK: - Unknown type kept in the cache
+
+    private static let unknownTypeJSON = #"{"id":"0A000000-0000-0000-0000-000000000003","user_id":"0A000000-0000-0000-0000-000000000002","type":"membership_update","title":"T","body":null,"read":false,"pinned":false,"created_at":"2026-10-17T12:00:00Z"}"#
+
+    private func decodeUnknownTypeNotification() throws -> AppNotification {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(AppNotification.self, from: Data(Self.unknownTypeJSON.utf8))
+    }
+
+    func testAppNotificationWithUnknownTypeKeepsRawValue() throws {
+        let notification = try decodeUnknownTypeNotification()
+        XCTAssertEqual(notification.type, .other)
+        XCTAssertEqual(notification.typeRawValue, "membership_update")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let object = try JSONSerialization.jsonObject(with: encoder.encode(notification)) as? [String: Any]
+        XCTAssertEqual(object?["type"] as? String, "membership_update")
+    }
+
+    func testKnownTypeRawValueMatchesType() {
+        let notification = AppNotification(userId: UUID(), type: .townHallPost, title: "T")
+        XCTAssertEqual(notification.typeRawValue, "town_hall_post")
+    }
+
+    /// The cached row stores the server's string, not "other", so a later build that knows the
+    /// type decodes it; this build still reads it back as `.other`.
+    @MainActor
+    func testSyncStoresOriginalRawTypeInCachedRow() async throws {
+        let notification = try decodeUnknownTypeNotification()
+        let container = try ModelContainer(
+            for: SDNotification.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let actor = BackgroundSyncActor(modelContainer: container)
+        try await actor.syncNotifications([notification])
+
+        let rows = try ModelContext(container).fetch(FetchDescriptor<SDNotification>())
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.type, "membership_update")
+        XCTAssertEqual(NotificationType(rawValue: rows.first?.type ?? ""), nil)
+
+        let mapped = NotificationGroupingManager().getFilteredNotifications(sdNotifications: rows)
+        XCTAssertEqual(mapped.first?.type, .other)
+        XCTAssertEqual(mapped.first?.typeRawValue, "membership_update")
+    }
+
+    /// A row an older build stored as "other" is rewritten when the server row is synced again.
+    @MainActor
+    func testSyncHealsRowStoredAsOther() async throws {
+        let notification = try decodeUnknownTypeNotification()
+        let container = try ModelContainer(
+            for: SDNotification.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+        context.insert(SDNotification(
+            id: notification.id, userId: notification.userId, type: "other",
+            title: notification.title, body: nil, read: false, pinned: false,
+            createdAt: notification.createdAt
+        ))
+        try context.save()
+
+        let actor = BackgroundSyncActor(modelContainer: container)
+        try await actor.syncNotifications([notification])
+
+        let rows = try ModelContext(container).fetch(FetchDescriptor<SDNotification>())
+        XCTAssertEqual(rows.first?.type, "membership_update")
     }
 }

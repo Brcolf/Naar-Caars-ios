@@ -60,7 +60,8 @@ final class NotificationGroupingManager {
                 reviewId: sd.reviewId,
                 townHallPostId: sd.townHallPostId,
                 sourceUserId: sd.sourceUserId,
-                communityId: sd.communityId
+                communityId: sd.communityId,
+                typeRawValue: sd.type
             )
         }
         return NotificationGrouping.filterBellNotifications(from: notifications)

@@ -219,6 +219,10 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let userId: UUID
     let type: NotificationType
+    /// The type string as the server sent it. Equal to `type.rawValue` except for a type this
+    /// build does not know (`type == .other`), where it keeps the original string so the cached
+    /// row (`SDNotification.type`) re-decodes as that type on a later build that knows it.
+    let typeRawValue: String
     let title: String
     let body: String?
     var read: Bool
@@ -269,11 +273,13 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         reviewId: UUID? = nil,
         townHallPostId: UUID? = nil,
         sourceUserId: UUID? = nil,
-        communityId: UUID? = nil
+        communityId: UUID? = nil,
+        typeRawValue: String? = nil
     ) {
         self.id = id
         self.userId = userId
         self.type = type
+        self.typeRawValue = typeRawValue ?? type.rawValue
         self.title = title
         self.body = body
         self.read = read
@@ -286,5 +292,51 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         self.townHallPostId = townHallPostId
         self.sourceUserId = sourceUserId
         self.communityId = communityId
+    }
+}
+
+// MARK: - Coding
+
+extension AppNotification {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        // Decoded once as a string: NotificationType's tolerant decoder would turn an unknown
+        // type into `.other` and lose the original.
+        let rawType = try container.decode(String.self, forKey: .type)
+        type = NotificationType(rawValue: rawType) ?? .other
+        typeRawValue = rawType
+        title = try container.decode(String.self, forKey: .title)
+        body = try container.decodeIfPresent(String.self, forKey: .body)
+        read = try container.decode(Bool.self, forKey: .read)
+        pinned = try container.decode(Bool.self, forKey: .pinned)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        rideId = try container.decodeIfPresent(UUID.self, forKey: .rideId)
+        favorId = try container.decodeIfPresent(UUID.self, forKey: .favorId)
+        conversationId = try container.decodeIfPresent(UUID.self, forKey: .conversationId)
+        reviewId = try container.decodeIfPresent(UUID.self, forKey: .reviewId)
+        townHallPostId = try container.decodeIfPresent(UUID.self, forKey: .townHallPostId)
+        sourceUserId = try container.decodeIfPresent(UUID.self, forKey: .sourceUserId)
+        communityId = try container.decodeIfPresent(UUID.self, forKey: .communityId)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(typeRawValue, forKey: .type)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(body, forKey: .body)
+        try container.encode(read, forKey: .read)
+        try container.encode(pinned, forKey: .pinned)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(rideId, forKey: .rideId)
+        try container.encodeIfPresent(favorId, forKey: .favorId)
+        try container.encodeIfPresent(conversationId, forKey: .conversationId)
+        try container.encodeIfPresent(reviewId, forKey: .reviewId)
+        try container.encodeIfPresent(townHallPostId, forKey: .townHallPostId)
+        try container.encodeIfPresent(sourceUserId, forKey: .sourceUserId)
+        try container.encodeIfPresent(communityId, forKey: .communityId)
     }
 }

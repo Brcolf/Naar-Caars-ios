@@ -193,6 +193,7 @@ actor BackgroundSyncActor {
         if let existing = try? modelContext.fetch(descriptor).first {
             existing.read = notification.read
             existing.pinned = notification.pinned
+            if existing.type != notification.typeRawValue { existing.type = notification.typeRawValue }
             existing.title = notification.title
             existing.body = notification.body
             existing.rideId = notification.rideId
@@ -206,7 +207,7 @@ actor BackgroundSyncActor {
             let sd = SDNotification(
                 id: notification.id,
                 userId: notification.userId,
-                type: notification.type.rawValue,
+                type: notification.typeRawValue,
                 title: notification.title,
                 body: notification.body,
                 read: notification.read,
@@ -457,6 +458,8 @@ actor BackgroundSyncActor {
             if let existing = existingById[notification.id] {
                 existing.read = notification.read
                 existing.pinned = notification.pinned
+                // Heals a row an older build stored as "other" for a type it did not know.
+                if existing.type != notification.typeRawValue { existing.type = notification.typeRawValue }
                 existing.title = notification.title
                 existing.body = notification.body
                 existing.communityId = notification.communityId
@@ -464,7 +467,7 @@ actor BackgroundSyncActor {
                 let sd = SDNotification(
                     id: notification.id,
                     userId: notification.userId,
-                    type: notification.type.rawValue,
+                    type: notification.typeRawValue,
                     title: notification.title,
                     body: notification.body,
                     read: notification.read,
@@ -616,6 +619,7 @@ actor BackgroundSyncActor {
         var changed = false
         if sd.read != notification.read { sd.read = notification.read; changed = true }
         if sd.pinned != notification.pinned { sd.pinned = notification.pinned; changed = true }
+        if sd.type != notification.typeRawValue { sd.type = notification.typeRawValue; changed = true }
         if sd.title != notification.title { sd.title = notification.title; changed = true }
         if sd.body != notification.body { sd.body = notification.body; changed = true }
         if sd.rideId != notification.rideId { sd.rideId = notification.rideId; changed = true }
@@ -807,7 +811,7 @@ actor BackgroundSyncActor {
             } else {
                 let sd = SDNotification(
                     id: notification.id, userId: notification.userId,
-                    type: notification.type.rawValue,
+                    type: notification.typeRawValue,
                     title: notification.title, body: notification.body,
                     read: notification.read, pinned: notification.pinned,
                     createdAt: notification.createdAt,
