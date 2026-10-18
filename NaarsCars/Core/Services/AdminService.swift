@@ -166,6 +166,23 @@ final class AdminService {
         return profiles
     }
     
+    /// An applicant's email and phone, for a platform admin's Requests to join detail.
+    /// Reads the `profiles` table, which a platform admin may read (`profiles_select_admin`);
+    /// `public_profiles` has neither column. Never cached.
+    /// - Throws: AppError.unauthorized if not a platform admin, or the read's error
+    func fetchApplicantContact(userId: UUID) async throws -> ApplicantContact {
+        try await verifyAdminStatus()
+
+        let response = try await supabase
+            .from("profiles")
+            .select("email, phone_number")
+            .eq("id", value: userId.uuidString)
+            .single()
+            .execute()
+
+        return try JSONDecoder().decode(ApplicantContact.self, from: response.data)
+    }
+
     /// Fetch all approved members
     /// - Returns: Array of approved profiles
     /// - Throws: AppError if not admin or fetch fails
@@ -492,3 +509,4 @@ final class AdminService {
     }
 }
 
+extension AdminService: ApplicantContactFetching {}

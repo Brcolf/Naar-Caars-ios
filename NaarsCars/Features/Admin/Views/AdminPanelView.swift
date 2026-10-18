@@ -224,7 +224,7 @@ struct AdminPanelView: View {
             Text("admin_management".localized)
                 .font(.naarsTitle3)
             
-            NavigationLink(destination: PendingUsersView()) {
+            NavigationLink(destination: PendingMembersView(target: .defaultCommunity)) {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.naarsWarning)

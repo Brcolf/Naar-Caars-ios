@@ -32,6 +32,7 @@ final class CommunityContext {
     private let service: any CommunityServiceProtocol
     private let defaults: UserDefaults
     private let now: () -> Date
+    private let platformAdminProvider: @MainActor () -> Bool
 
     // MARK: - Session
 
@@ -113,11 +114,13 @@ final class CommunityContext {
     init(
         service: any CommunityServiceProtocol = CommunityService.shared,
         defaults: UserDefaults = .standard,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        platformAdminProvider: @escaping @MainActor () -> Bool = { AuthService.shared.currentProfile?.isAdmin == true }
     ) {
         self.service = service
         self.defaults = defaults
         self.now = now
+        self.platformAdminProvider = platformAdminProvider
     }
 
     // MARK: - Lookups
@@ -147,6 +150,41 @@ final class CommunityContext {
             return id
         }
         return active.first(where: \.isPrimary)?.communityId ?? active.first?.communityId
+    }
+
+    // MARK: - Admin lookups
+
+    /// True for a platform admin (`profiles.is_admin`), who may administer any community.
+    var isPlatformAdmin: Bool {
+        platformAdminProvider()
+    }
+
+    /// The member's row for a community, or nil for a nil or unknown id.
+    func membership(for communityId: UUID?) -> CommunityMembership? {
+        guard let communityId else { return nil }
+        return memberships.first { $0.communityId == communityId }
+    }
+
+    /// An active owner or admin membership of the community, or a platform admin.
+    /// The server decides every admin action; this only chooses what the client shows.
+    func isAdmin(of communityId: UUID) -> Bool {
+        if isPlatformAdmin { return true }
+        guard let row = membership(for: communityId) else { return false }
+        return Self.isActiveAdmin(row)
+    }
+
+    /// Memberships still waiting for an admin's approval.
+    var pendingMemberships: [CommunityMembership] {
+        memberships.filter { $0.status == .pending }
+    }
+
+    /// Requests to join waiting in the communities the member administers.
+    var administeredPendingTotal: Int {
+        memberships.filter(Self.isActiveAdmin).reduce(0) { $0 + ($1.pendingCount ?? 0) }
+    }
+
+    private static func isActiveAdmin(_ row: CommunityMembership) -> Bool {
+        row.status == .active && (row.role == .owner || row.role == .admin)
     }
 
     // MARK: - Lifecycle

@@ -30,6 +30,7 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     var platformCommunities: PlatformCommunities = PreviewCommunityService.samplePlatformCommunities
     /// When set, approve, reject and archive throw it (the not-admin preview).
     var adminRefusal: CommunityRPCError?
+    var applicantContact = ApplicantContact(email: "dana.rivera@example.com", phoneNumber: "+1 206 555 0142")
 
     init() {}
 
@@ -234,5 +235,11 @@ extension PreviewCommunityService: CommunityAdminServiceProtocol {
     func decideOwnedCommunityLimit(requestId: UUID, approve: Bool) async throws -> LimitDecision {
         LimitDecision(status: approve ? .approved : .declined, maxOwned: 5)
     }
+}
+
+// MARK: - Applicant contact
+
+extension PreviewCommunityService: ApplicantContactFetching {
+    func fetchApplicantContact(userId: UUID) async throws -> ApplicantContact { applicantContact }
 }
 #endif

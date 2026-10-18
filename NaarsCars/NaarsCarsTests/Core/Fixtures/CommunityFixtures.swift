@@ -543,6 +543,18 @@ final class StubCommunityAdminService: CommunityAdminServiceProtocol {
     }
 }
 
+final class StubApplicantContactFetcher: ApplicantContactFetching {
+    var result: Result<ApplicantContact, Error> = .success(
+        ApplicantContact(email: "dana@example.com", phoneNumber: "+12065550142")
+    )
+    private(set) var calls: [UUID] = []
+
+    func fetchApplicantContact(userId: UUID) async throws -> ApplicantContact {
+        calls.append(userId)
+        return try result.get()
+    }
+}
+
 /// Stub for `TownHallSyncEngine`'s post reads. Offset 0 returns the page stored for the
 /// requested community and its count; any other offset returns an empty page.
 final class StubTownHallPostFetcher: TownHallPostFetching {
