@@ -66,6 +66,17 @@ struct CreateRideView: View {
                     }
                 } else {
 
+                if viewModel.requiresCommunityChoice {
+                    Section("community_post_to_section".localized) {
+                        Picker("community_post_to_picker".localized, selection: $viewModel.selectedCommunityId) {
+                            ForEach(viewModel.communityOptions) { membership in
+                                Text(membership.name).tag(Optional(membership.communityId))
+                            }
+                        }
+                        .accessibilityIdentifier("createRide.community")
+                    }
+                }
+
                 Section("ride_create_section_date_time".localized) {
                     // Past days are not offered; they used to be selectable and rejected on Post.
                     DatePicker(
@@ -181,6 +192,7 @@ struct CreateRideView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
+                viewModel.configureCommunityChoice()
                 // Initialize LocationService off the first frame so date/time section stays responsive.
                 Task { @MainActor in
                     _ = LocationService.shared
@@ -207,7 +219,7 @@ struct CreateRideView: View {
 
                 if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("ride_create_post".localized) {
+                    Button(viewModel.postButtonTitle) {
                         // A time earlier today is usually a slip (AM left in place of PM), but
                         // it can be meant, so ask instead of refusing.
                         if viewModel.isEventTimeInPast {
@@ -218,7 +230,7 @@ struct CreateRideView: View {
                     }
                     .disabled(viewModel.isLoading || !viewModel.hasRequiredFields)
                     .accessibilityIdentifier("createRide.post")
-                    .accessibilityLabel("ride_create_post_accessibility".localized)
+                    .accessibilityLabel(viewModel.requiresCommunityChoice ? viewModel.postButtonTitle : "ride_create_post_accessibility".localized)
                     .accessibilityHint("ride_create_post_hint".localized)
                 }
                 }
@@ -227,6 +239,7 @@ struct CreateRideView: View {
                 UserSearchView(
                     selectedUserIds: $viewModel.selectedParticipantIds,
                     excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
+                    communityId: viewModel.requiresCommunityChoice ? viewModel.selectedCommunityId : nil,
                     onDismiss: {
                         showAddParticipants = false
                     }

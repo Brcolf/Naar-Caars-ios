@@ -127,7 +127,8 @@ final class FavorService {
         date: Date,
         time: String? = nil,
         gift: String? = nil,
-        timezone: String
+        timezone: String,
+        communityId: UUID? = nil
     ) async throws -> Favor {
         // Format date as "yyyy-MM-dd" using local timezone
         // Important: Use local timezone to match what the user selected in DatePicker
@@ -159,6 +160,10 @@ final class FavorService {
         }
         if let gift = gift {
             favorData["gift"] = AnyCodable(gift)
+        }
+        // A nil community lets the database fill trigger use the member's primary one.
+        if let communityId {
+            favorData["community_id"] = AnyCodable(communityId.uuidString)
         }
         
         // Insert favor

@@ -42,9 +42,14 @@ final class CreatePostViewModel: ObservableObject {
     
     private let townHallService = TownHallService.shared
     private let authService: any AuthServiceProtocol
+    private let communityContext: CommunityContext
 
-    init(authService: any AuthServiceProtocol = AuthService.shared) {
+    init(
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
+    ) {
         self.authService = authService
+        self.communityContext = communityContext ?? .shared
     }
     
     // MARK: - Public Methods
@@ -84,7 +89,8 @@ final class CreatePostViewModel: ObservableObject {
             let post = try await townHallService.createPost(
                 userId: userId,
                 content: trimmedContent,
-                imageUrl: uploadedImageUrl
+                imageUrl: uploadedImageUrl,
+                communityId: communityContext.communityTabId
             )
             
             // Reset form

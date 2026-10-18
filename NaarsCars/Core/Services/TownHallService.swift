@@ -128,7 +128,7 @@ final class TownHallService {
     ///   - imageUrl: Optional image URL
     /// - Returns: Created post
     /// - Throws: AppError if creation fails or rate limited
-    func createPost(userId: UUID, content: String, imageUrl: String? = nil) async throws -> TownHallPost {
+    func createPost(userId: UUID, content: String, imageUrl: String? = nil, communityId: UUID? = nil) async throws -> TownHallPost {
         // Validate content length
         guard content.count <= 500 else {
             throw AppError.invalidInput("Post content must be 500 characters or less")
@@ -158,7 +158,8 @@ final class TownHallService {
             content: trimmedContent,
             imageUrl: imageUrl,
             title: title,
-            type: nil // Not stored in database
+            type: nil, // Not stored in database
+            communityId: communityId
         )
         
         let response = try await supabase

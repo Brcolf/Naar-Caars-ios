@@ -25,6 +25,16 @@ final class CreateRideViewModel: ObservableObject {
     @Published var notes: String = ""
     @Published var gift: String = ""
     @Published var selectedParticipantIds: Set<UUID> = []
+    @Published var selectedCommunityId: UUID? {
+        didSet {
+            // Participants are searched within the selected community, so people picked for
+            // one community may not belong to another. The first selection keeps them.
+            if requiresCommunityChoice, oldValue != nil, oldValue != selectedCommunityId {
+                selectedParticipantIds = []
+            }
+        }
+    }
+    @Published private(set) var communityOptions: [CommunityMembership] = []
     
     @Published var isLoading: Bool = false
     @Published var error: String?
@@ -33,26 +43,54 @@ final class CreateRideViewModel: ObservableObject {
     
     private let rideService: any RideServiceProtocol
     private let authService: any AuthServiceProtocol
+    private let communityContext: CommunityContext
     /// The ride being edited (EditRideView). Lets `updateRide` tell a cleared field from an
     /// untouched one and apply the past-date rule only when the date was changed.
     private var editingOriginal: Ride?
 
     init(
         rideService: any RideServiceProtocol = RideService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
     ) {
         self.rideService = rideService
         self.authService = authService
+        self.communityContext = communityContext ?? .shared
     }
     
     // MARK: - Public Methods
     
+    /// True when the member belongs to several communities and must say where this goes.
+    var requiresCommunityChoice: Bool { communityOptions.count > 1 }
+
+    /// Fills the "Post to" options and default. A member of one community sees no section.
+    func configureCommunityChoice() {
+        guard communityContext.hasMultipleCommunities else {
+            communityOptions = []
+            return
+        }
+        communityOptions = communityContext.activeMemberships
+        if selectedCommunityId == nil || !communityOptions.contains(where: { $0.communityId == selectedCommunityId }) {
+            selectedCommunityId = communityContext.defaultPostCommunityId
+        }
+    }
+
+    /// The confirmation button title; names the community while the "Post to" section shows.
+    var postButtonTitle: String {
+        if requiresCommunityChoice,
+           let name = communityOptions.first(where: { $0.communityId == selectedCommunityId })?.name {
+            return "community_post_to_button".localized(with: name)
+        }
+        return "ride_create_post".localized
+    }
+
     /// True once the two fields a ride cannot exist without are filled in. The Post button
     /// stays disabled until then, as it does on the New Post sheet; the remaining rules are
     /// still checked by `validateForm()` on submit.
     var hasRequiredFields: Bool {
         !pickup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (!requiresCommunityChoice || selectedCommunityId != nil)
     }
 
     /// Validate form fields
@@ -182,8 +220,12 @@ final class CreateRideViewModel: ObservableObject {
                 seats: seats,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines),
                 gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines),
-                timezone: timezone
+                timezone: timezone,
+                communityId: requiresCommunityChoice ? selectedCommunityId : nil
             )
+            if requiresCommunityChoice, let selectedCommunityId {
+                communityContext.lastPostedCommunityId = selectedCommunityId
+            }
             
             // Add participants if any were selected (max 5)
             let participantIds = Array(selectedParticipantIds.prefix(5))

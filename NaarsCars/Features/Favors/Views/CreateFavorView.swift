@@ -66,6 +66,17 @@ struct CreateFavorView: View {
                     }
                 } else {
 
+                if viewModel.requiresCommunityChoice {
+                    Section("community_post_to_section".localized) {
+                        Picker("community_post_to_picker".localized, selection: $viewModel.selectedCommunityId) {
+                            ForEach(viewModel.communityOptions) { membership in
+                                Text(membership.name).tag(Optional(membership.communityId))
+                            }
+                        }
+                        .accessibilityIdentifier("createFavor.community")
+                    }
+                }
+
                 Section("favor_create_section_title_description".localized) {
                     TextField("favor_create_title_placeholder".localized, text: $viewModel.title)
                         .accessibilityIdentifier("createFavor.title")
@@ -191,6 +202,7 @@ struct CreateFavorView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
+                viewModel.configureCommunityChoice()
                 // Initialize LocationService off the first frame so title/description section stays responsive.
                 Task { @MainActor in
                     _ = LocationService.shared
@@ -217,7 +229,7 @@ struct CreateFavorView: View {
 
                 if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("favor_create_post".localized) {
+                    Button(viewModel.postButtonTitle) {
                         // A time earlier today is usually a slip (AM left in place of PM), but
                         // it can be meant, so ask instead of refusing.
                         if viewModel.isEventTimeInPast {
@@ -228,7 +240,7 @@ struct CreateFavorView: View {
                     }
                     .disabled(viewModel.isLoading || !viewModel.hasRequiredFields)
                     .accessibilityIdentifier("createFavor.post")
-                    .accessibilityLabel("favor_create_post_accessibility".localized)
+                    .accessibilityLabel(viewModel.requiresCommunityChoice ? viewModel.postButtonTitle : "favor_create_post_accessibility".localized)
                     .accessibilityHint("favor_create_post_hint".localized)
                 }
                 }
@@ -237,6 +249,7 @@ struct CreateFavorView: View {
                 UserSearchView(
                     selectedUserIds: $viewModel.selectedParticipantIds,
                     excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
+                    communityId: viewModel.requiresCommunityChoice ? viewModel.selectedCommunityId : nil,
                     onDismiss: {
                         showAddParticipants = false
                     }
