@@ -240,6 +240,7 @@
 		AC410C253084E78500D921E2 /* CommunityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C243084E78500D921E2 /* CommunityService.swift */; };
 		AC410C273084E78500D921E2 /* CommunityFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C263084E78500D921E2 /* CommunityFixtures.swift */; };
 		AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */; };
+		AC410C2B3084E93300D921E2 /* CommunityContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C2A3084E93300D921E2 /* CommunityContext.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -753,6 +754,7 @@
 		AC410C243084E78500D921E2 /* CommunityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityService.swift; sourceTree = "<group>"; };
 		AC410C263084E78500D921E2 /* CommunityFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityFixtures.swift; sourceTree = "<group>"; };
 		AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPayloadDecodingTests.swift; sourceTree = "<group>"; };
+		AC410C2A3084E93300D921E2 /* CommunityContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityContext.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1680,6 +1682,7 @@
 				ACDCBDCF2F0B74F500956D1C /* AppState.swift */,
 				ACDCBDCD2F0B74F400956D1C /* ContentView.swift */,
 				ACDCBDCB2F0B74F400956D1C /* NaarsCarsApp.swift */,
+				AC410C2A3084E93300D921E2 /* CommunityContext.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2698,6 +2701,7 @@
 				AC305F1C2F0DB85B0063AFDF /* NotificationBadge.swift in Sources */,
 				144453F3B1B547A0912EA15F /* Core/Utilities/Constants.swift in Sources */,
 				A04EE73F31C7465B9341BE10 /* Core/Utilities/DeepLinkParser.swift in Sources */,
+				AC410C2B3084E93300D921E2 /* CommunityContext.swift in Sources */,
 				9E490CB84FA24C199FF118DC /* Features/Claiming/ViewModels/ClaimViewModel.swift in Sources */,
 				557ECEF8F4454C42883F123F /* Features/Claiming/Views/CompleteSheet.swift in Sources */,
 				618E2729DA4E4D3A9FE27998 /* Features/Claiming/Views/PhoneRequiredSheet.swift in Sources */,

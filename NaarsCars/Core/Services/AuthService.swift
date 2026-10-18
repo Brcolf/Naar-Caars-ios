@@ -586,6 +586,9 @@ final class AuthService: ObservableObject {
 
         // --- Phase 1: Clear auth state ---
 
+        // Captured before it is cleared so per-account keys can be removed by user id below.
+        // It may already be nil when the session ended first.
+        let signingOutUserId = currentUserId
         currentUserId = nil
         currentProfile = nil
         AppLogger.auth.debug("User ID cleared")
@@ -612,7 +615,7 @@ final class AuthService: ObservableObject {
         // Per-account state kept outside SwiftData. It used to outlive sign-out, so a guest or
         // the next account on this device saw the previous member's recent addresses, pinned
         // threads, delivered notifications and badge counts. Local only; cannot hang.
-        await clearPerAccountLocalState()
+        await clearPerAccountLocalState(userId: signingOutUserId)
 
         // --- Phase 3: Post notification for immediate UI transition ---
         // This MUST fire before the potentially-hanging teardown below.
@@ -649,7 +652,8 @@ final class AuthService: ObservableObject {
     }
     
     /// Local-only part of the sign-out wipe: no network, safe before the UI transition.
-    private func clearPerAccountLocalState() async {
+    /// - Parameter userId: the account signing out, or nil when the session had already ended.
+    private func clearPerAccountLocalState(userId: UUID?) async {
         // Keys owned by ConversationsListView (pinned threads), RecentReactionsStore,
         // CalendarOfferTracker and PushNotificationService (last push payload).
         let defaults = UserDefaults.standard
@@ -668,6 +672,9 @@ final class AuthService: ObservableObject {
         await MainActor.run {
             LocationService.shared.forgetRecentLocations()
             BadgeCountManager.shared.resetForSignOut()
+            // Memberships in memory and the community.* keys of this account (and of the
+            // account CommunityContext restored, when that differs).
+            CommunityContext.shared.resetForSignOut(userId: userId)
         }
     }
 

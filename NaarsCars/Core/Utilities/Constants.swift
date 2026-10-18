@@ -138,6 +138,8 @@ enum Constants {
         /// and the messages tab is visible (push-off fallback, commit 7dd1494). Ticks route through
         /// RefreshCoordinator.refreshIfNeeded, so the 30s staleness window and failure backoff still apply.
         static let conversationsPushOffPollInterval: TimeInterval = 60.0
+        /// Shortest time between two automatic `get_my_memberships` loads (foreground recheck, 30s)
+        static let membershipRefreshMinInterval: TimeInterval = 30
         /// Gap between consecutive messages after which the thread shows a time header
         /// ("Today 3:45 PM"), as iMessage does (1 hour). Day changes always get one.
         static let messageTimeHeaderGap: TimeInterval = 3600
