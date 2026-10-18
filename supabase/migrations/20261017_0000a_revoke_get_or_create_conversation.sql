@@ -1,0 +1,34 @@
+-- 20261017_0000a_revoke_get_or_create_conversation.sql
+-- NOT APPLIED. Phase 0, step 0 of the multi-community build: its one forward change
+-- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §4 step 0, as amended by
+-- Docs/superpowers/specs/2026-10-17-multi-community-decisions.md). Apply through the Supabase MCP
+-- before 20261017_0001; the two statements may go in one call.
+--
+-- What this file does
+--   Takes EXECUTE on two unused SECURITY DEFINER conversation functions away from clients. This closes
+--   the member-set side door around the conversation_participants INSERT policy (spec §3.4), which
+--   becomes a privacy issue once private communities exist:
+--     * get_or_create_conversation(uuid[])
+--     * get_or_create_request_conversation(uuid, uuid, uuid) (its body references columns that do not
+--       exist live, so a call fails today anyway).
+--   Neither is called by the iOS app or by an edge function (repository search, 2026-10-17).
+--   postgres and service_role keep EXECUTE.
+--
+-- Live state before this file (read-only check, 2026-10-17): both functions are SECURITY DEFINER with
+--   proacl {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}; anon and PUBLIC
+--   already have no EXECUTE, so the anon half of each statement is a no-op kept for clarity.
+--
+-- Verification (to be filled in at apply time)
+--   Expected: has_function_privilege('authenticated', <oid>, 'execute') and
+--   has_function_privilege('anon', <oid>, 'execute') are false for both; service_role still true; the
+--   short probe (supabase/probes/communities_probe.sql, block `short`) passes.
+--
+-- What old clients see
+--   Nothing: no build calls either function.
+--
+-- To undo
+--   20261017_0000_communities_live_bodies_snapshot.sql section 4 (grant execute ... to authenticated
+--   on both).
+
+revoke execute on function public.get_or_create_conversation(uuid[]) from authenticated, anon;
+revoke execute on function public.get_or_create_request_conversation(uuid, uuid, uuid) from authenticated, anon;
