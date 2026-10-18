@@ -1,8 +1,8 @@
 # Naars Cars Terms of Service
 
-**Effective date:** January 20, 2026
+**Effective date:** <RELEASE DATE>
 
-**Last updated:** January 20, 2026
+**Last updated:** <RELEASE DATE>
 
 These Terms of Service ("Terms") govern your access to and use of the Naars Cars iOS application and related services (collectively, the "Services").
 
@@ -20,14 +20,17 @@ By downloading, accessing, or using the Services, you agree to these Terms and o
 
 You must be at least **18 years old** to use the Services.
 
-## 4. Account registration, application submission, and approvals
+## 4. Account registration, joining communities, and approvals
 
-Naars Cars is an open community that takes safety of our neighbors seriously. To use the Services you may be required to:
+Naars Cars is an open app made up of communities, and it takes the safety of our neighbors seriously. Anyone may create an account. To take part in a community you may be required to:
 
 - Create an account (e.g., email/password and/or Sign in with Apple)
-- Provide certain application information about why you want to join
+- Join a community: enter an invite code, ask to join a public community, or create your own community
+- Answer a community's questions about how you heard about it and why you want to join
 - Accept the Community Guidelines
-- Be approved to participate (for example, accounts may be pending approval)
+- Be approved by that community's owners or admins, or by us (your membership may be pending until then)
+
+Each community decides who it admits. Being approved in one community does not make you a member of any other.
 
 You agree to provide accurate information and to keep your account secure. You are responsible for all activity under your account.
 
@@ -40,9 +43,36 @@ Your use of the Services is subject to the Naars Cars Community Guidelines (as p
 - Keep requests lawful and appropriate
 - Communicate clearly and respectfully
 
-We may remove content or restrict accounts that violate the guidelines or these Terms.
+We, and the owners and admins of a community within that community, may remove content or restrict participation that violates the guidelines or these Terms.
 
-## 6. The Services are a coordination platform (not a transportation provider)
+## 6. Community owners and admins
+
+### 6.1 Creating a community
+
+Anyone with an account may create a community, and becomes its owner. To limit abuse, an account may create one community a day and own up to three communities at a time; you may ask us for a higher limit, which we may approve or decline.
+
+### 6.2 What owners and admins may do
+
+Owners may make other members admins. Within their own community, owners and admins may:
+
+- Approve or decline requests to join, and create invite codes
+- Remove members, optionally with a note
+- Moderate the community's content and enforce the Community Guidelines there
+- Send announcements to the community's members
+
+### 6.3 What owners and admins may not do
+
+Owners and admins may not see members' or applicants' email addresses or phone numbers, may not see who reported content, may not delete anyone's account, and have no powers outside their own community. They must use what they see (such as application answers and who invited whom) only to run their community, and must follow these Terms and the Community Guidelines like any other user. A community's name, description and public content are User Content under section 8 and follow the same rules as any post.
+
+### 6.4 When an owner's account is closed
+
+If the only owner of a community deletes their account, ownership passes to the community's longest-standing admin. If it has no other admin, the community is closed and its members lose access to it. The default Naar's Cars community is never closed while it has members; ownership passes to one of its members instead. An owner who is the only member of a community closes it by leaving.
+
+### 6.5 Our role
+
+We (the platform moderators) may act as an admin in any community, including private ones. We may review reported content in any community, remove content or members, close (archive) any community or restore it, and make a public community private. Owners and admins are users, not our employees or agents, and we are not responsible for their decisions about who to admit or remove.
+
+## 7. The Services are a coordination platform (not a transportation provider)
 
 Naars Cars helps community members coordinate rides and favors. **We do not provide transportation services**, do not employ drivers, and do not guarantee the quality, timing, safety, legality, or outcome of any ride, favor, or interaction.
 
@@ -54,11 +84,11 @@ You are solely responsible for:
 
 **Do not use the app while driving.**
 
-## 7. User content and visibility
+## 8. User content and visibility
 
 The Services allow you to create and share content, including ride/favor requests, messages, posts, images, and reviews ("User Content").
 
-### 7.1 You are responsible for your User Content
+### 8.1 You are responsible for your User Content
 
 You represent and warrant that:
 
@@ -66,15 +96,15 @@ You represent and warrant that:
 - Your User Content does not violate law or infringe anyone's rights
 - Your User Content is not harmful, abusive, hateful, sexually explicit, or otherwise inappropriate for a community setting
 
-### 7.2 License you grant to Naars Cars
+### 8.2 License you grant to Naars Cars
 
 You grant Naars Cars a worldwide, non-exclusive, royalty-free license to host, store, reproduce, distribute, display, and perform your User Content as necessary to operate and improve the Services (for example, showing your posts to other users, storing message images, and displaying your profile avatar).
 
-### 7.3 Content may be visible to others
+### 8.3 Content may be visible to others
 
-The Services are social by design. Other community members may be able to view your profile information and User Content depending on the feature (for example, recipients of messages can view message content and attachments).
+The Services are social by design. Members of the communities you belong to, and people browsing a public community, may be able to view your profile information and User Content depending on the feature and the community (see our Privacy Policy) (for example, recipients of messages can view message content and attachments).
 
-## 8. Prohibited conduct
+## 9. Prohibited conduct
 
 You agree not to:
 
@@ -85,13 +115,13 @@ You agree not to:
 - Interfere with or disrupt the Services, including by scraping or reverse engineering (except where permitted by law)
 - Use the Services to send spam or malicious content
 
-## 9. Moderation, enforcement, and reporting
+## 10. Moderation, enforcement, and reporting
 
-We may (but are not obligated to) monitor, remove, or restrict User Content or accounts. We may investigate and take action we deem appropriate, including suspension or termination, to enforce these Terms and protect users.
+Moderation is shared. The owners and admins of each community may moderate it as described in section 6. We may (but are not obligated to) monitor, remove, or restrict User Content, members or accounts in any community, and we may investigate and take action we deem appropriate, including suspension or termination of your account, to enforce these Terms and protect users.
 
-If you believe content violates these Terms or is unsafe, contact us at [**naarscars@gmail.com**](mailto:naarscars@gmail.com).
+You can report content, a person, or a community in the app. Platform moderators review every report and see who filed it; the person or community you report is not told who reported them. If you believe content violates these Terms or is unsafe, you can also contact us at [**naarscars@gmail.com**](mailto:naarscars@gmail.com).
 
-## 10. Notifications and communications
+## 11. Notifications and communications
 
 You may receive:
 
@@ -101,17 +131,19 @@ You may receive:
 
 You can control push notifications in iOS Settings and within the app's notification preferences.
 
-## 11. Third-party services
+## 12. Third-party services
 
 The Services rely on third-party services (for example, Supabase for backend infrastructure, Apple services for push notifications and MapKit, and Firebase Crashlytics for optional crash reporting). Your use of those features may be subject to the third parties' terms and policies.
 
-## 12. Account deletion
+## 13. Account deletion
 
 You can delete your account in the app (currently via **My Profile → Delete Account**). Deleting your account is intended to remove your profile and associated data from our systems, subject to backups and legal requirements.
 
+If you are the only owner of a community, deleting your account hands it to an admin or closes it, as described in section 6.4; the app warns you first.
+
 If you used Sign in with Apple, we take steps to revoke/unlink Apple sign-in credentials as part of account deletion.
 
-## 13. Termination
+## 14. Termination
 
 You may stop using the Services at any time. We may suspend or terminate your access (and remove content) if:
 
@@ -119,31 +151,31 @@ You may stop using the Services at any time. We may suspend or terminate your ac
 - We believe your use creates risk or potential legal exposure
 - Required by law or platform policies
 
-## 14. Disclaimers
+## 15. Disclaimers
 
 THE SERVICES ARE PROVIDED "AS IS" AND "AS AVAILABLE." TO THE MAXIMUM EXTENT PERMITTED BY LAW, NAARS CARS DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
 
 We do not guarantee uninterrupted, secure, or error-free operation.
 
-## 15. Limitation of liability
+## 16. Limitation of liability
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, NAARS CARS WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, USE, OR GOODWILL, ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICES.
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, OUR TOTAL LIABILITY FOR ANY CLAIM ARISING OUT OF OR RELATING TO THE SERVICES WILL NOT EXCEED **$100** OR THE AMOUNT YOU PAID US IN THE 12 MONTHS BEFORE THE CLAIM (WHICHEVER IS GREATER).
 
-## 16. Indemnification
+## 17. Indemnification
 
 You agree to indemnify and hold harmless Naars Cars and its affiliates, officers, employees, and agents from any claims, liabilities, damages, losses, and expenses (including reasonable attorneys' fees) arising out of or related to your use of the Services or violation of these Terms.
 
-## 17. Governing law and venue
+## 18. Governing law and venue
 
 These Terms are governed by the laws of the State of **Washington**, United States, excluding conflict-of-laws rules. Any dispute will be brought exclusively in the state or federal courts located in **King County, Washington**, unless applicable law provides otherwise.
 
-## 18. Changes to these Terms
+## 19. Changes to these Terms
 
 We may update these Terms from time to time. If changes are material, we will provide notice as required by law. Continued use of the Services after changes means you accept the updated Terms.
 
-## 19. Apple-required terms (iOS)
+## 20. Apple-required terms (iOS)
 
 If you downloaded the app from Apple's App Store:
 
@@ -153,7 +185,7 @@ If you downloaded the app from Apple's App Store:
 - Apple is not responsible for addressing any claims relating to the Services, including product liability claims, claims that the Services fail to conform to legal requirements, or consumer protection claims.
 - Apple and Apple's subsidiaries are third-party beneficiaries of these Terms, and Apple may enforce these Terms against you as a third-party beneficiary.
 
-## 20. Contact
+## 21. Contact
 
 Questions about these Terms:
 

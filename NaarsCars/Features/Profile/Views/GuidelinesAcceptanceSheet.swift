@@ -42,7 +42,7 @@ struct GuidelinesAcceptanceSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.bottom, 8)
                             
-                            // The same six guidelines as CommunityGuidelinesView, from the one
+                            // The same guidelines as CommunityGuidelinesView, from the one
                             // localized list, so members accept them in their own language.
                             CommunityGuidelinesList()
 

@@ -7384,6 +7384,88 @@
         }
       }
     },
+    "guidelines_7_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone can create a community. Its owners and admins approve members, remove people and moderate it. They see your name, photo, car, your answers when you ask to join and who invited you, never your email or phone number. A community's name, description and public content follow the same rules as any post. Platform moderators can review reported content in any community, including private ones, and can close a community that breaks these guidelines."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cualquiera puede crear una comunidad. Sus propietarios y administradores aprueban miembros, eliminan personas y la moderan. Ven tu nombre, foto, coche, tus respuestas cuando pides unirte y quién te invitó, pero nunca tu correo ni tu número de teléfono. El nombre, la descripción y el contenido público de una comunidad siguen las mismas reglas que cualquier publicación. Los moderadores de la plataforma pueden revisar contenido denunciado en cualquier comunidad, incluidas las privadas, y pueden cerrar una comunidad que incumpla estas normas."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "누구나 커뮤니티를 만들 수 있습니다. 커뮤니티의 소유자와 관리자는 멤버를 승인하고, 사람을 내보내고, 커뮤니티를 관리합니다. 이들에게는 이름, 사진, 차량, 가입을 요청할 때 작성한 답변, 그리고 누가 초대했는지가 표시되며, 이메일이나 전화번호는 절대 표시되지 않습니다. 커뮤니티의 이름, 설명, 공개 콘텐츠도 다른 게시물과 같은 규칙을 따릅니다. 플랫폼 관리자는 비공개 커뮤니티를 포함한 모든 커뮤니티에서 신고된 콘텐츠를 검토할 수 있으며, 이 가이드라인을 위반하는 커뮤니티를 닫을 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bất kỳ ai cũng có thể tạo một cộng đồng. Chủ sở hữu và quản trị viên của cộng đồng duyệt thành viên, xóa người khỏi cộng đồng và kiểm duyệt cộng đồng. Họ thấy tên, ảnh, xe của bạn, các câu trả lời khi bạn xin tham gia và người đã mời bạn, nhưng không bao giờ thấy email hoặc số điện thoại của bạn. Tên, mô tả và nội dung công khai của một cộng đồng tuân theo cùng quy tắc như mọi bài đăng. Người kiểm duyệt của nền tảng có thể xem xét nội dung bị báo cáo trong bất kỳ cộng đồng nào, kể cả cộng đồng riêng tư, và có thể đóng một cộng đồng vi phạm các nguyên tắc này."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任何人都可以创建社区。社区的所有者和管理员负责批准成员、移除成员并管理社区。他们能看到你的姓名、照片、车辆、你申请加入时的回答以及邀请你的人，但永远看不到你的电子邮件或电话号码。社区的名称、简介和公开内容与任何帖子遵守相同的规则。平台审核员可以审查任何社区（包括私密社区）中被举报的内容，并可以关闭违反这些准则的社区。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任何人都可以建立社群。社群的擁有者和管理員負責核准成員、移除成員並管理社群。他們能看到你的姓名、照片、車輛、你申請加入時的回答以及邀請你的人，但永遠看不到你的電子郵件或電話號碼。社群的名稱、簡介和公開內容與任何貼文遵守相同的規則。平台審核員可以審查任何社群（包括私密社群）中被檢舉的內容，並可以關閉違反這些準則的社群。"
+          }
+        }
+      }
+    },
+    "guidelines_7_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Communities and their admins"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las comunidades y sus administradores"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커뮤니티와 관리자"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng và quản trị viên"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社区及其管理员"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社群及其管理員"
+          }
+        }
+      }
+    },
     "onboarding_body" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -2,7 +2,7 @@
 
 ## Document Information
 - **Type**: Privacy Requirements & App Store Compliance
-- **Last Updated**: 2026-10-05 (content review date)
+- **Last Updated**: 2026-10-18 (content review date; reviewed for the multi-community Phase 2 build)
 - **Status**: Maintained; must be re-verified before each release that changes data collection
 
 ---
@@ -103,7 +103,8 @@ Select the following in App Store Connect → App Privacy:
 - **Used for Tracking**: No
 
 #### User Content - Other User Content
-- **Collected**: Yes (ride requests, favor requests, messages, reviews)
+- **Collected**: Yes (ride requests, favor requests, messages, reviews, Town Hall posts, communities created, per-community application answers, invite redemptions, admin removal notes, owned-community limit requests)
+- **Note (multi-community, 2026-10-18)**: no new data *type*. The application answers were already collected; they are now stored per community and shown to that community's owners and admins (ordinary users). Re-check the App Store Connect answers against this list before submitting the Phase 2 build.
 - **Purpose**: App Functionality
 - **Linked to User**: Yes
 - **Used for Tracking**: No
@@ -141,7 +142,7 @@ Confirm "No" for:
 
 For App Store Connect description:
 
-> Naar's Cars collects personal information (name, email, phone number) to facilitate ride and favor sharing within our community. Profile photos and user-generated content (requests, messages, reviews) are stored to enable app functionality. Push notification tokens are collected to deliver notifications. Location data is used only for the map feature and is not stored. No data is sold to third parties or used for advertising.
+> Naar's Cars collects personal information (name, email, phone number) to facilitate ride and favor sharing within the communities members create and join. Profile photos and user-generated content (requests, messages, reviews) are stored to enable app functionality. Push notification tokens are collected to deliver notifications. Location data is used only for the map feature and is not stored. No data is sold to third parties or used for advertising.
 
 ---
 
@@ -292,12 +293,32 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 - Message: "Your phone number will be visible to other Naar's Cars members to coordinate rides and favors. Continue?"
 - Actions: "Yes, Save Number", "Cancel"
 
-### 5.3 Phone Masking on Public Profiles
+### 5.3 Phone Masking on Public Profiles (historical requirement)
 
 **Requirement PRIV-PHONE-003**: Phone numbers masked by default on public profiles:
 - Display: `(•••) •••-4321`
 - "Reveal Number" button to show full number
 - Auto-reveal if users are in active conversation or same request
+
+### 5.4 Current server behaviour (verified 2026-10-18)
+
+The requirements above predate the 2026-04 profiles split. What the server does today:
+
+- `phone_number` and `email` are readable only from `profiles`, whose SELECT policies are `profiles_select_own` and `profiles_select_admin` (platform admins) (`20260416_0002`). `public_profiles` exposes `id, name, avatar_url, car, approved, created_at, updated_at` only. No community RPC returns email or phone (`get_community_members`, `20261017_0005` block 29).
+- So a phone number is visible to its owner and to platform admins only. The in-app copy (`edit_profile_phone_disclosure`: "only visible to members who you are in an active ride or favor with") promises at most that; the privacy policy states the server behaviour. If a counterpart-visible phone path is ever added, update both.
+
+## 5A. Community Visibility Disclosures (multi-community, Phase 2)
+
+Who sees what, as stated in `Legal/PRIVACY_POLICY.md` §6.1, with the server source:
+
+| Viewer | Sees | Never sees | Source |
+|--------|------|-----------|--------|
+| Members of a community you belong to | Name, photo, car, role, join date; your requests, Q&A and Town Hall posts in that community | Email, phone, application answers | `public_profiles` / `my_visible_profile_ids` (`20261017_0002` V3, `20261017_0001` 1c.8); `get_community_members` non-admin branch |
+| Owners and admins of a community you apply to or belong to | The above plus application answers, who invited you, request and join dates, removal note | Email, phone, who reported content | `get_community_members` admin branch (`20261017_0005` block 29); reports SELECT policies (`20261005_0022`) |
+| Guests (no account) | Public communities only: requests without addresses, their Q&A and reviews, Town Hall posts, members' name, photo, car | Everything in private communities | `guest_rides` / `guest_favors`, anon policies A17 / A24, `public_profiles` anon branch (`20261017_0002`) |
+| Platform admins | Admin access to every live community (including private), every report and its reporter, email and phone | n/a | `my_admin_community_ids` (`20261017_0001`), `handle_new_report` recipients (`20261017_0003` call 10), `profiles_select_admin` |
+
+In-app sentences that carry this disclosure: `community_join_disclosure` (join sheet), the report sheet's reporter-privacy line, and guideline 7 (`guidelines_7_title` / `guidelines_7_body`).
 
 ---
 
@@ -315,18 +336,17 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 | Messages | Indefinite | Not currently supported |
 | Reviews | Indefinite | Admin-initiated |
 | Push tokens | Until logout or 90-day cleanup | Automatic |
+| Community memberships, application answers, removal notes | Until account deletion (a left or removed membership keeps its row) | Cascade on account deletion |
+| Invite redemptions, invite code attempts, owned-limit requests | Until account deletion | Cascade on account deletion |
+| Invite codes created | Until revoked or expired | Revoked and unlinked on the creator's account deletion |
+| Membership event log | Indefinite (append-only) | Anonymised on account deletion (user and reason nulled) |
 | Location data | Not stored | N/A (real-time only) |
 
 ### 6.2 Account Deletion
 
-**Current state**: Account deletion handled by admin request.
+**Current state**: Self-service in the app (My Profile → Delete Account), through `delete_user_account` (`20261017_0004`), which has no precondition (App Store 5.1.1(v)).
 
-**User process**:
-1. User contacts admin (via profile settings or direct message)
-2. Admin manually deletes user account
-3. Associated data cascades (rides, favors authored remain but anonymized)
-
-**Future enhancement**: Self-service account deletion (required for some regions).
+**Communities (decision A3)**: a community whose only owner deletes their account passes to its longest-standing other admin; with no other admin it is archived and every member is told. The default community is never archived while a member remains (ownership passes to a member, platform admins first). The app lists the communities that would close and asks for confirmation before the final step; the server applies the rules either way.
 
 ### 6.3 Data Export
 

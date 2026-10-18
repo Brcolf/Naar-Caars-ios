@@ -1,8 +1,8 @@
 # Naars Cars Privacy Policy
 
-**Effective date:** January 20, 2026
+**Effective date:** <RELEASE DATE>
 
-**Last updated:** January 20, 2026
+**Last updated:** <RELEASE DATE>
 
 This Privacy Policy explains how **Naars Cars** (the "App") collects, uses, shares, and protects information when you use the Naars Cars iOS application and related services (collectively, the "Services").
 
@@ -22,7 +22,7 @@ This Privacy Policy applies to the Services and covers information collected:
 
 ## 3. Summary (plain English)
 
-Naars Cars is an open community app where members can:
+Naars Cars is an open community app organized into communities. Anyone can create an account and join a community with an invite code, ask to join a public community, or create their own. Members can:
 
 - Create and claim **ride requests** and **favor requests**
 - Message other members (including sharing images)
@@ -44,6 +44,12 @@ Depending on how you use the Services, we may collect:
     - Messages you send (including attachments such as images)
     - Town Hall posts and comments you create (including images)
     - Reviews and ratings you submit (optionally with images)
+- **Communities you create**: the name, description and settings of each community you create, and the invite codes you create for a community.
+- **Community memberships**: which communities you belong to or have asked to join, your role in each (member, admin or owner), the status of your membership, and when you asked, joined or left.
+- **Application answers**: when you ask to join a community or join with a code, your answers to its questions (how you heard about it and why you want to join). We keep a separate set of answers for each community.
+- **Invite redemptions**: when you join with an invite code, which code you used and who invited you.
+- **Admin notes and the membership log**: a note an owner or admin may write when removing a member, and a log of membership changes (for example approved, removed, left, or a role change) with who made each change.
+- **Requests to own more communities**: if you ask to own more communities than the default limit, the number you ask for and your reason.
 - **Community guidelines acceptance**: whether you accepted the guidelines and the time of acceptance.
 
 ### 4.2 Information collected automatically
@@ -51,6 +57,7 @@ Depending on how you use the Services, we may collect:
 We may collect:
 
 - **Push notification token and device identifier**: used to deliver push notifications to your device. We store a token plus a per-device identifier and link it to your user account.
+- **Invite code attempts**: each time you try an invite code, the time and whether it worked, so we can limit how many codes one account can try.
 - **Diagnostics / crash data (optional)**: if you enable "Share Crash Reports," we collect crash logs and related diagnostics through **Firebase Crashlytics**. We may also associate crash reports with your app user ID (a UUID) to help us troubleshoot account-specific issues.
 
 ### 4.3 Location information
@@ -74,7 +81,8 @@ If you choose to upload images, we may access:
 We use information to:
 
 - **Provide core app functionality**, including accounts, profiles, ride/favor requests, messaging, reviews, and Town Hall posts
-- **Facilitate community coordination**, including displaying relevant profile details to other members (for example, your name and, if you provide it, your phone number for coordination)
+- **Facilitate community coordination**, including displaying relevant profile details to the members of your communities (your name, photo and car; see section 6.1)
+- **Run communities**, including showing your application answers to the owners and admins of a community you ask to join so they can decide on your request, and enforcing community creation and invite limits
 - **Send notifications** (push notifications via Apple Push Notification service (APNs) and in-app notifications)
 - **Maintain safety and integrity**, including enforcing community guidelines and preventing abuse
 - **Operate, troubleshoot, and improve** the Services (including optional crash reporting, debugging, and performance monitoring)
@@ -85,13 +93,16 @@ We share information in limited circumstances:
 
 ### 6.1 With other users (community sharing)
 
-The Services are social by design. Depending on features you use, other members may be able to view:
+The Services are social by design and organized into communities. What another person can see depends on which communities you share and on their role:
 
-- Your profile information you choose to provide (such as name, car, avatar, and **phone number (visible to all members)** if you provide it)
-- Your ride/favor requests
-- Your Town Hall posts
-- Your reviews and ratings
-- Your messages and message images with recipients/participants
+- **Members of the communities you belong to** can see your name, photo (avatar) and car, your role in the community and when you joined it, and the ride and favor requests, questions, Town Hall posts and comments you share in that community. Your requests and posts in a community are shown only to its members (and, in a public community, to guests; see below).
+- **People you exchange messages with** can see your messages and message attachments, and your name, photo and car, including after one of you has left the community you shared.
+- **Reviews and ratings** you give or receive can be seen by the members of the community the request belongs to, and the person you reviewed (or who reviewed you) can see your name, photo and car.
+- **Owners and admins of a community you ask to join, belong to or were removed from** can also see your answers to that community's questions, who invited you, when you asked to join and when you joined, and any note an admin wrote when removing you. They never see your email address or phone number, and they are not told who reported content.
+- **Public communities.** Signed-in people who are not members can see a public community's name and description. People browsing without an account (guest mode) can also see a public community's ride and favor requests (without pickup, destination or favor addresses), the questions and reviews on those requests, its Town Hall posts, and the name, photo and car of its members. The default Naar's Cars community is public; only platform moderators can make a community public.
+- **Platform moderators** (the people who operate Naars Cars) have admin access to every community, including private ones: they can see the member and applicant details that community's owners and admins see, including application answers and who invited whom, and can approve or remove members. They review reported content in any community, see who reported it, can see your email address and phone number, and can close (archive) any community or make a public community private.
+- **Your phone number**, if you provide one, is not shown to other members or to the owners and admins of any community. Only you and platform moderators can see it. The same is true of your email address.
+- **Reports.** When you report content, a person or a community, the person or community you report is not told who reported it, and neither are community owners and admins. Platform moderators see who reported it.
 
 ### 6.2 Service providers / processors
 
@@ -140,6 +151,18 @@ You can delete your account in the app (currently via **My Profile → Delete Ac
 - Town Hall posts
 - Ride and favor requests you created
 - Request Q&A items you created
+- Your community memberships, including your answers to each community's questions and any note an admin wrote about you
+- Your invite redemptions, your invite code attempts and your requests to own more communities
+
+Some community records are anonymised rather than deleted: the invite codes you created are revoked and no longer linked to you, other members' memberships no longer show you as the person who invited them, and the membership log keeps the change (for example "removed" or "approved") but no longer names you and drops any note written about you. Communities you created stay, without you as their creator.
+
+**Communities you own alone.** If you are the only owner of a community when you delete your account:
+
+- If the community has another admin, ownership passes to its longest-standing admin, and its members are told.
+- If it has no other admin, the community is closed (archived) as part of the deletion: every member loses access to it and is told why, and claims on requests in it that are still in progress are cancelled with notice.
+- The default Naar's Cars community is never closed while it has members: if it has no other admin, ownership passes to one of its members (platform moderators first, otherwise the longest-standing member).
+
+The app lists the communities that would close and asks you to confirm before your account is deleted. Your account is deleted either way.
 
 > Some information may remain in backups for a limited period, or be retained as required by law.
 
