@@ -10,7 +10,8 @@ import UserNotifications
 
 /// View displayed when user account is pending admin approval
 struct PendingApprovalView: View {
-    @StateObject private var launchManager = AppLaunchManager.shared
+    // Membership list and relaunch decisions
+    @StateObject private var viewModel: PendingApprovalViewModel
     // Sign-out and delete-account actions, shared with the restricted and application screens
     @StateObject private var accountViewModel = BannedAccountViewModel()
     @State private var hasRequestedNotifications = false
@@ -19,6 +20,20 @@ struct PendingApprovalView: View {
     @State private var isCheckingStatus = false
     @State private var statusMessage: String?
     @State private var showDeleteConfirmation = false
+    @State private var showJoinAnother = false
+    @State private var showCreate = false
+    /// Recorded by "Join another community"; acted on once its sheet is gone.
+    @State private var recordedJoin: JoinResult?
+    /// Recorded by Create; acted on once the sheet (and its invite step) is gone.
+    @State private var createdCommunityId: UUID?
+    /// The tick, Refresh and the sheets can all decide to relaunch; only the first one runs.
+    @State private var didRelaunch = false
+
+    @MainActor init(
+        viewModel: @autoclosure @escaping @MainActor () -> PendingApprovalViewModel = PendingApprovalViewModel()
+    ) {
+        _viewModel = StateObject(wrappedValue: viewModel())
+    }
 
     var body: some View {
         // Scrolls when the content is taller than the screen (small phones, large text sizes)
@@ -43,12 +58,28 @@ struct PendingApprovalView: View {
                         .padding(.horizontal, Constants.Spacing.xl)
                         .accessibilityAddTraits(.isHeader)
 
-                    // Description — reviewer-safe copy
-                    Text("pending_review_body".localized)
-                        .font(.naarsBody)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    // One line per community with a pending request; today's copy when the list
+                    // is empty or could not be read
+                    if viewModel.pendingCommunityNames.isEmpty {
+                        // Description — reviewer-safe copy
+                        Text("pending_review_body".localized)
+                            .font(.naarsBody)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, Constants.Spacing.xl)
+                    } else {
+                        VStack(spacing: Constants.Spacing.sm) {
+                            ForEach(Array(viewModel.pendingCommunityNames.enumerated()), id: \.offset) { _, name in
+                                Text("pending_waiting_for_community".localized(with: name))
+                                    .font(.naarsBody)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                        }
                         .padding(.horizontal, Constants.Spacing.xl)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("pendingApproval.pendingCommunities")
+                    }
 
                     // Notification permission prompt
                     if notificationStatus == .notDetermined && !hasRequestedNotifications {
@@ -71,6 +102,12 @@ struct PendingApprovalView: View {
             viewModel: accountViewModel,
             message: "account_delete_pre_approval_message".localized
         )
+        .sheet(isPresented: $showJoinAnother, onDismiss: joinAnotherDismissed) {
+            joinAnotherSheet
+        }
+        .sheet(isPresented: $showCreate, onDismiss: createDismissed) {
+            CreateCommunityView(onCreated: { createdCommunityId = $0 })
+        }
         .task {
             // Check notification status on appear
             await checkNotificationStatus()
@@ -80,11 +117,65 @@ struct PendingApprovalView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                 showNotificationPrompt = true
             }
-            
-            // Periodically check approval status (every 15 seconds)
-            // This allows users to be automatically transitioned to the main app when approved
+        }
+        .task {
+            // Polls once on appear and then on every tick, so the person moves on by themselves
+            // when a community approves (or declines) them
             await startPeriodicApprovalCheck()
         }
+    }
+
+    // MARK: - Join another / Create your own
+
+    private var joinAnotherSheet: some View {
+        NavigationStack {
+            ScrollView {
+                CommunityJoinOptionsView(
+                    excludedCommunityIds: viewModel.membershipIds,
+                    onJoined: { result in
+                        // Recorded at once (the inner sheet may still be swiped away); closing this
+                        // sheet runs the poll in `joinAnotherDismissed`.
+                        recordedJoin = result
+                        showJoinAnother = false
+                    }
+                )
+                .padding()
+            }
+            .background(Color.naarsBackground)
+            .navigationTitle("pending_join_another".localized)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common_cancel".localized) { showJoinAnother = false }
+                        .accessibilityIdentifier("pendingApproval.joinAnother.cancel")
+                }
+            }
+        }
+    }
+
+    /// A recorded join is checked once its sheet is gone: an instant join relaunches into the app,
+    /// a request adds its community to the list.
+    private func joinAnotherDismissed() {
+        guard recordedJoin != nil else { return }
+        recordedJoin = nil
+        Task {
+            if await viewModel.poll() == .relaunch { relaunchOnce() }
+        }
+    }
+
+    /// The invite step shows inside the create sheet first; the relaunch waits until it is gone.
+    private func createDismissed() {
+        guard createdCommunityId != nil else { return }
+        createdCommunityId = nil
+        relaunchOnce()
+    }
+
+    /// Unstructured on purpose: this screen leaves the hierarchy when the state becomes
+    /// `.checkingAuth`, which would cancel a launch awaited from this view's tasks.
+    private func relaunchOnce() {
+        guard !didRelaunch else { return }
+        didRelaunch = true
+        Task { @MainActor in await AppLaunchManager.shared.performCriticalLaunch() }
     }
     
     // MARK: - Actions
@@ -108,6 +199,20 @@ struct PendingApprovalView: View {
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("pendingApproval.statusMessage")
             }
+
+            // Join another community
+            SecondaryButton(title: "pending_join_another".localized) {
+                showJoinAnother = true
+            }
+            .accessibilityLabel("pending_join_another".localized)
+            .accessibilityIdentifier("pendingApproval.joinAnother")
+
+            // Create your own
+            SecondaryButton(title: "pending_create_own".localized) {
+                showCreate = true
+            }
+            .accessibilityLabel("pending_create_own".localized)
+            .accessibilityIdentifier("pendingApproval.createOwn")
 
             // Contact Support
             SecondaryButton(title: "pending_review_contact_support".localized) {
@@ -149,13 +254,11 @@ struct PendingApprovalView: View {
         Task {
             isCheckingStatus = true
             statusMessage = nil
-            let isApproved = await checkApprovalDirectly()
+            let outcome = await viewModel.poll()
             isCheckingStatus = false
 
-            if isApproved {
-                // Unstructured on purpose: this screen leaves the hierarchy when the state becomes
-                // `.checkingAuth`, which would cancel a launch awaited from this view's tasks.
-                Task { @MainActor in await AppLaunchManager.shared.performCriticalLaunch() }
+            if outcome == .relaunch {
+                relaunchOnce()
                 return
             }
 
@@ -254,38 +357,46 @@ struct PendingApprovalView: View {
         }
     }
     
-    /// Start periodic checks for approval status
-    /// Checks every 30 seconds to detect when user is approved
+    /// Polls on appear and then every `Constants.Timing.pendingApprovalPollInterval`, without
+    /// running the launch flow, until a poll decides to relaunch (an active membership, or nothing
+    /// left to wait for). The relaunch starts the deferred session (sync engines, profile,
+    /// communities) or routes to onboarding.
     private func startPeriodicApprovalCheck() async {
-        // Initial check after 10 seconds (give server time to process approval)
-        try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-        
-        // Then check every 30 seconds (reduced frequency to avoid loops)
         while !Task.isCancelled {
-            // Check approval status directly without triggering full launch flow
-            // This prevents state oscillation and request storms
-            let isApproved = await checkApprovalDirectly()
-            
-            if isApproved {
-                // User is now approved - relaunch so the deferred session (sync engines,
-                // profile, communities) starts. Unstructured on purpose: this loop runs in the
-                // screen's `.task`, which is cancelled when the state becomes `.checkingAuth`.
-                Task { @MainActor in await AppLaunchManager.shared.performCriticalLaunch() }
-                return // Exit the loop
+            if await viewModel.poll() == .relaunch {
+                relaunchOnce()
+                return
             }
-            
-            // Wait 30 seconds before next check
-            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+            try? await Task.sleep(for: .seconds(Constants.Timing.pendingApprovalPollInterval))
         }
-    }
-    
-    /// Check approval status directly without triggering full launch flow
-    private func checkApprovalDirectly() async -> Bool {
-        // Use AppLaunchManager's lightweight check (doesn't change state)
-        return await launchManager.checkApprovalStatusOnly()
     }
 }
 
-#Preview {
-    PendingApprovalView()
+#if DEBUG
+#Preview("Generic copy") {
+    let service = PreviewCommunityService()
+    service.memberships = []
+    return PendingApprovalView(
+        viewModel: PendingApprovalViewModel(
+            service: service,
+            accountRoute: { .pendingApproval },
+            approvalCheck: { false }
+        )
+    )
 }
+
+#Preview("Two pending communities") {
+    let service = PreviewCommunityService()
+    service.memberships = [
+        PreviewCommunityService.membership(name: "Ballard Neighbors", status: .pending),
+        PreviewCommunityService.membership(name: "Fremont Families", status: .pending)
+    ]
+    return PendingApprovalView(
+        viewModel: PendingApprovalViewModel(
+            service: service,
+            accountRoute: { .pendingApproval },
+            approvalCheck: { false }
+        )
+    )
+}
+#endif

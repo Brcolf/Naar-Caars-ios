@@ -238,29 +238,38 @@ final class AppLaunchManager: ObservableObject {
     func recheckAccountStatus() async {
         guard case .ready(.authenticated) = state else { return }
 
-        let flags: AccountStatusFlags
+        let newState: AuthState
         do {
-            let userId: UUID
-            if let sessionUserId {
-                userId = try await sessionUserId()
-            } else {
-                userId = try await supabase.auth.session.user.id
-            }
-            if let fetchAccountStatus {
-                flags = try await fetchAccountStatus(userId)
-            } else {
-                flags = try await fetchAccountStatusFlags(userId: userId)
-            }
+            newState = try await readAccountRoute()
         } catch {
             AppLogger.warning("launch", "Account status re-check failed; keeping the current state: \(error.localizedDescription)")
             return
         }
 
-        let newState = Self.authState(for: flags)
         guard newState != .authenticated else { return }
         guard case .ready(.authenticated) = state else { return }
         AppLogger.info("launch", "Account status re-check moved the session to \(newState)")
         state = .ready(newState)
+    }
+
+    /// Reads the session's user id and the three profile flags and maps them with
+    /// `authState(for:)`. Throws on any failure (no session, offline, a decoding error) and never
+    /// changes `state`; callers decide what a route means. Used by `recheckAccountStatus()` and the
+    /// waiting screen, which must not relaunch while the route still reads `.pendingApproval`.
+    func readAccountRoute() async throws -> AuthState {
+        let userId: UUID
+        if let sessionUserId {
+            userId = try await sessionUserId()
+        } else {
+            userId = try await supabase.auth.session.user.id
+        }
+        let flags: AccountStatusFlags
+        if let fetchAccountStatus {
+            flags = try await fetchAccountStatus(userId)
+        } else {
+            flags = try await fetchAccountStatusFlags(userId: userId)
+        }
+        return Self.authState(for: flags)
     }
 
     /// Maps the three profile flags to an `AuthState`. Repeats the mapping in

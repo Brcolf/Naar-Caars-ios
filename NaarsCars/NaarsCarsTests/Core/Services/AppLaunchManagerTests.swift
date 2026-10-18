@@ -349,6 +349,23 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertEqual(result.fetchCalls, 0)
         XCTAssertEqual(result.state, .ready(.pendingApproval))
     }
+
+    // MARK: - readAccountRoute
+
+    func testReadAccountRoute_MapsFlags() async throws {
+        let uid = UUID()
+        launchManager.sessionUserId = { uid }
+        launchManager.fetchAccountStatus = { requested in
+            XCTAssertEqual(requested, uid)
+            return AccountStatusFlags(isBanned: false, approved: false, applicationComplete: true)
+        }
+        launchManager.state = .ready(.pendingApproval)
+
+        let route = try await launchManager.readAccountRoute()
+
+        XCTAssertEqual(route, .pendingApproval)
+        XCTAssertEqual(launchManager.state, .ready(.pendingApproval), "reading the route never changes the state")
+    }
 }
 
 /// Holds a stubbed fetch in flight until the test opens it; opening before the wait is safe.

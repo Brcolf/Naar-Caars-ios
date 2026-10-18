@@ -275,6 +275,8 @@
 		AC410C6D308571E200D921E2 /* CommunityOnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */; };
 		AC410C6F3085723000D921E2 /* CommunityOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6E3085723000D921E2 /* CommunityOnboardingView.swift */; };
 		AC410C713085724000D921E2 /* CommunityOnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */; };
+		AC410C73308575B900D921E2 /* PendingApprovalViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */; };
+		AC410C75308575EF00D921E2 /* PendingApprovalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C74308575EF00D921E2 /* PendingApprovalViewModel.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -823,6 +825,8 @@
 		AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingViewModel.swift; sourceTree = "<group>"; };
 		AC410C6E3085723000D921E2 /* CommunityOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingView.swift; sourceTree = "<group>"; };
 		AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingApprovalViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C74308575EF00D921E2 /* PendingApprovalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingApprovalViewModel.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1361,6 +1365,7 @@
 				EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */,
 				23239C057D89CB4022E7A1EB /* BannedAccountViewModel.swift */,
 				AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */,
+				AC410C74308575EF00D921E2 /* PendingApprovalViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1460,6 +1465,7 @@
 				AC410C5A308558A700D921E2 /* PendingMembersViewModelTests.swift */,
 				AC410C5C30855BB500D921E2 /* MyCommunitiesViewModelTests.swift */,
 				AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */,
+				AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -2679,6 +2685,7 @@
 				B29F4A793E8647D9911439DC /* AppNotification.swift in Sources */,
 				AC305EF12F0DB7BD0063AFDF /* SignupViewModel.swift in Sources */,
 				E01A23F3B5354449AED53D3E /* NoAccountFoundSheet.swift in Sources */,
+				AC410C75308575EF00D921E2 /* PendingApprovalViewModel.swift in Sources */,
 				AC410C6B3085620D00D921E2 /* CommunitiesAdminView.swift in Sources */,
 				AC305EF22F0DB7BD0063AFDF /* LoginView.swift in Sources */,
 				AC410C33308544F600D921E2 /* CommunityPayloads.swift in Sources */,
@@ -2995,6 +3002,7 @@
 				4CB804EE388840589F935D34 /* PromptCoordinatorTests.swift in Sources */,
 				F7A2B4C5D6E7481A9B3C4D61 /* CompletionPromptProviderTests.swift in Sources */,
 				F7A2B4C5D6E7481A9B3C4D62 /* ReviewPromptProviderTests.swift in Sources */,
+				AC410C73308575B900D921E2 /* PendingApprovalViewModelTests.swift in Sources */,
 				AC12006E2F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift in Sources */,
 				AC12006F2F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift in Sources */,
 				AC1200702F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift in Sources */,
