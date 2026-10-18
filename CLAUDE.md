@@ -346,12 +346,25 @@ push notification / staleness expiry / pull-to-refresh
 
 ### 2. Optimistic Message Sending
 
-**The only valid send path is:**
+**Files:** `Features/Messaging/ViewModels/MessageSendManager.swift`, `Core/Services/MessageSendWorker.swift`, `Core/Services/MessageService.swift`. The worker is started from `Core/Storage/MessagingSyncEngine.swift`.
+
+**`MessageSendManager` is the only entry point, and it sends inline. `MessageSendWorker` is a recovery drain, not a stage every send passes through:**
 ```
-MessageSendManager → MessageSendWorker → MessageService → Supabase
+send / retry / quick reply
+  → MessageSendManager
+      1. save the optimistic row in SwiftData (local id, status = sending); it is on screen at once
+      2. upload the image or audio, if any
+      3. one inline call to MessageService (sendMessage / sendAudioMessage / sendLocationMessage) → Supabase
+      4. success: delete the optimistic row and save the server's row as sent
+         failure: mark the row failed; nothing retries it until the user taps retry
+
+a row still in status sending when a drain runs
+  → MessageSendWorker.processPendingMessages() → MessageService → Supabase
 ```
 
-Never send messages from `MessagingRepository`, Views, or ViewModels directly. The repository must never contain fire-and-forget send logic.
+**What the worker does.** `MessageSendWorker` is an actor. `MessagingSyncEngine.startSync()` starts it at session start (launch with a session, or sign-in) and `teardown()` stops it. It drains on three triggers: `start()`, `notifyNewPendingMessage()`, and the network coming back (`NWPathMonitor`). `notifyNewPendingMessage()` is called only from `MessagingSyncEngine`: by `startSync()`, right after `start()`, and by `retryPendingMessages()`, which has no callers. `MessageSendManager` never calls the worker, so in practice a drain runs at session start and on network restore. A drain reads every `SDMessage` whose status is `sending`, oldest first, in every conversation, and sends each one through `MessageService` up to `Constants.Retry.messageSendMaxAttempts` times (5) with a delay that doubles from 1 s to 30 s, then marks it `failed`. Its job is the row that the inline send left behind, for example when the app was killed mid-send.
+
+`MessageService.sendMessage` / `sendAudioMessage` / `sendLocationMessage` have two callers, `MessageSendManager` and `MessageSendWorker`. Never send messages from `MessagingRepository`, Views, or ViewModels directly. The repository must never contain fire-and-forget send logic.
 
 **Required invariants:**
 - Pending local messages appear in the UI immediately
@@ -362,10 +375,11 @@ Never send messages from `MessagingRepository`, Views, or ViewModels directly. T
 **Why this matters:** Breaking optimistic send makes the app feel broken to users even when the network is fine. Breaking recovery means users lose messages silently.
 
 **Do not:**
-- Remove or collapse `status` state transitions
-- Clear `isPending` or `localAttachmentPath` before server acknowledgment
-- Replace the durable queue with fire-and-forget async tasks
+- Remove or collapse `status` state transitions (`sending` → `sent`, `sending` → `failed`, `failed` → `sending` on retry). The drain selects rows by `sending` alone.
+- Clear `isPending` or `localAttachmentPath` before server acknowledgment. `status` is the field the drain and the UI read, not `isPending`: a first optimistic insert is `sending` with `isPending == false` (`MessagingRepository.insertNewMessage` maps with the default), and `retryMessage` sets it to true. A `failed` row keeps its `localAttachmentPath` so retry and the worker can upload from it again.
+- Replace the durable queue with fire-and-forget async tasks. The queue is the `sending` rows in SwiftData: the row must be saved before the network call, or the worker has nothing to recover.
 - Use untracked `Task {}` blocks to send messages
+- Add a caller of `MessageSendWorker.notifyNewPendingMessage()` on the send path, or any other drain trigger, without first closing the overlap in Audit Notes ("Send path re-read, 2026-10-08"): the drain would send the row whose inline send is still running
 
 ### 3. Reaction State
 
@@ -762,7 +776,7 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 | Realtime pipeline (active conversation) | WebSocket → adapter → sync engine → repository (MainActor) → publisher → view model → UI |
 | Non-realtime domains | coordinator → engine → BackgroundSyncActor (compare-before-write) → SwiftData → @Query/publisher → UI |
 | SwiftData writes | Change detection mandatory: no save without mutation. NSNotifications posted only after save. |
-| Optimistic send | pending appears immediately; failed stays recoverable; server ack reconciles |
+| Optimistic send | `MessageSendManager` saves the row as `sending` (appears immediately), uploads media, then makes one inline `MessageService` call; server ack replaces the row, an error marks it `failed` and it stays recoverable. `MessageSendWorker` only drains rows still `sending`, at session start and on network restore. |
 | Reactions | `individualReactions` is source of truth; only `setIndividualReactions(_:)` mutates it |
 | Reaction badges | render at the TOP of the bubble |
 | Notifications | push → AppDelegate → DeepLinkParser → NavigationIntent → NavigationCoordinator → destination |
@@ -778,7 +792,8 @@ When you need to do one of these things, this is the *only* path. Do not duplica
 
 | If you need to… | Call this | Do not |
 |---|---|---|
-| Send a chat message | `MessageSendManager.sendMessage(...)` (or `sendAudioMessage` / `sendLocationMessage` / `retryMessage`) | Send from `MessagingRepository`, Views, ViewModels, or untracked `Task {}` blocks |
+| Send a chat message | `MessageSendManager.sendMessage(...)` (or `sendAudioMessage` / `sendLocationMessage` / `retryMessage`). It saves the optimistic row and makes the one inline `MessageService` call itself. | Send from `MessagingRepository`, Views, ViewModels, or untracked `Task {}` blocks; call `MessageService.send*` from anywhere but `MessageSendManager` and `MessageSendWorker` |
+| Resend rows left in `sending` (app killed mid-send, network back) | Nothing to call: `MessageSendWorker` drains them at session start (`MessagingSyncEngine.startSync()`) and on network restore | Add a second resend loop, or trigger a drain while an inline send is in flight |
 | Refresh a domain after push or staleness | `RefreshCoordinator.refreshIfNeeded(_ domain:, trigger:)` | Call sync engine `performFullSync` / `performTargetedSync` from a ViewModel |
 | Pull-to-refresh / manual reload from a ViewModel | `RefreshCoordinator.forceFullRefreshAndWait(_:trigger:)` (awaitable; joins in-flight; never cancels) | Bypass the coordinator's in-flight dedup, or call an engine |
 | Refresh badges after a user action (mark read, approve, review) | `RefreshCoordinator.forceFullRefreshAndWait(.badges, trigger:)` | Call `BadgeCountManager.refreshAllBadges` directly — only the coordinator calls it |
@@ -799,7 +814,7 @@ These document where the code currently deviates from the rules above. Check the
 
 ### Known Violations
 
-**Last audited: 2026-10-06 after the functional and design QA pass on `claude/quirky-gates-4bkmv4` (built headless, Xcode 26.6, Lane B; merged to `main` on 2026-10-06). A security pass later the same day verified the four SQL-editor migrations as live and added the guest views (see Current State). The 2026-10-05 notes below still apply; the 2026-10-06 section follows them.**
+**Last audited: 2026-10-08, send path only (Fragile Systems §2). `MessageSendManager.swift`, `MessageSendWorker.swift`, `MessagingSyncEngine.swift` and the three send methods of `MessageService.swift` were read end to end at `8d558f6` and this file was corrected to match; no Swift file changed and nothing was built or run. See "Send path re-read, 2026-10-08" below. The last audit of the whole section was 2026-10-06 after the functional and design QA pass on `claude/quirky-gates-4bkmv4` (built headless, Xcode 26.6, Lane B; merged to `main` on 2026-10-06). A security pass later the same day verified the four SQL-editor migrations as live and added the guest views (see Current State). The 2026-10-05 notes below still apply; the 2026-10-06 section follows them.**
 
 Two fragile-system deviations in the active-conversation receive path were found by the 2026-10-05 test-hardening pass and fixed the same day (`ee140ab`, `75f02fd`); they are recorded here because the fixes need on-device confirmation with two accounts (read receipts updating live in an open conversation; edits/unsends/moderation hides applying through the view model's own handlers):
 
@@ -888,10 +903,15 @@ Two fragile-system deviations in the active-conversation receive path were found
 
 *Not verified*: creating, approving and deleting a new user; the logged-out screens beyond Welcome (sign-in, sign-up, guest, pending approval were changed and only reviewed in code); anything needing a real device (Sign in with Apple, Face ID lock and the privacy cover, voice notes, lock-screen actions).
 
+**Send path re-read, 2026-10-08 (documentation only).** Until this date this file gave the send path as `MessageSendManager → MessageSendWorker → MessageService → Supabase`. The code does not route a send through the worker: the manager makes the inline call, and the worker drains rows left in `sending` (Fragile Systems §2 now says so). No Swift file changed. Two risks follow from reading the code. **Neither has been reproduced, and neither is verified on a device or in the simulator.**
+
+- **(a) A retry after an insert that reached the server can create a second message.** `MessageService.sendMessage`, `sendAudioMessage` and `sendLocationMessage` each build a new `Message`, whose `id` defaults to a fresh `UUID()`, and insert it. The optimistic row's id is never sent, so two attempts for one row are two different rows to the server. Attempts repeat in three places: `MessageSendManager.retryMessage` (the user retries a `failed` row), the worker's backoff loop (up to 5 attempts per row), and a session-start drain of a row whose inline send was cut off when the app was killed. An attempt can also fail after its insert has committed with no network fault: each of the three methods decodes the response and then updates `conversations.updated_at`, and a throw from either step reaches the caller as a failed send. This is the non-idempotent insert of item 2 below ("E5b").
+- **(b) A drain can send a row whose inline send is still in flight.** `MessageSendWorker.fetchPendingMessages` selects on `status == sending` and nothing else. `MessageSendManager` sets that status before the media upload and holds it until the `MessageService` call returns, and nothing marks the row as owned by a running send. A drain that starts in that window (the live triggers are session start and network restore) uploads and inserts the same row a second time. If both inserts succeed, whichever call returns second finds the optimistic row already gone (`deleteMessage` is then a no-op) and saves its own server row beside the first. The 1-second per-sender limit in `MessageService.sendMessage` does not close the window: the worker counts the rejection as a failed attempt and tries again after its backoff, and the audio and location methods have no limit.
+
 The previous `TownHallSyncEngine` MainActor write deviation has been resolved — TownHall writes now use `BackgroundSyncActor`. Beyond that:
 
 1. **Realtime rule 11 — background teardown is delayed, not immediate.** `RealtimeManager` unsubscribes after `Constants.Timing.realtimeBackgroundUnsubscribeDelay` (30 s) instead of immediately on backgrounding. Immediate teardown plus foreground resubscribe is a documented follow-up that needs on-device verification.
-2. **Message inserts are not idempotent.** There is no client id / idempotency key on the send path, so a network flap mid-send can duplicate a message. Follow-up "E5b" (idempotent insert using the client id as the server id) is deferred until the SwiftData reconciliation can be verified on a simulator.
+2. **Message inserts are not idempotent.** There is no client id / idempotency key on the send path, so a network flap mid-send can duplicate a message. Follow-up "E5b" (idempotent insert using the client id as the server id) is deferred until the SwiftData reconciliation can be verified on a simulator. "Send path re-read, 2026-10-08" above names the two routes to that duplicate read from the code, (a) a retry after an insert that reached the server and (b) a worker drain overlapping an inline send; both are unverified on a device.
 3. **`TownHallFeedViewModel.loadMore` writes SwiftData on the main actor** through `TownHallRepository.upsertPosts` (the repository is `@MainActor`). Coordinator-driven Town Hall refreshes use `BackgroundSyncActor`; only the paging path is still main-actor.
 4. **`SDTownHallPost` stores no vote/review columns**, so the feed keeps a network enrichment fetch beside the coordinator refresh. That fetch must never write to SwiftData.
 5. **Dead files awaiting manual deletion in Xcode** (remove the project references too): `Core/Services/MessagingDebugView.swift` (DEBUG-only, unreferenced), `Core/Utilities/Logger.swift` (legacy `Log` enum, no callers), `Features/Rides/Views/RidesDashboardView.swift` + `RidesDashboardViewModel.swift` + its test, `Features/Favors/Views/FavorsDashboardView.swift` + `FavorsDashboardViewModel.swift` + its test (only referenced by previews/tests). `DirectMessageContainerView.swift` and the eight machine-specific `NaarsCars/*.swift` symlinks are already deleted.
