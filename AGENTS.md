@@ -60,6 +60,14 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `Scripts/obfuscate.swift` to generate obfuscated credential arrays. Never log or expose `Secrets.supabaseURL` or `Secrets.supabaseAnonKey`.
 - Install the git pre-commit hook with `scripts/install-hooks.sh`; it installs a thin wrapper that runs `scripts/pre-commit-secrets-check.sh` from the repo (secrets, signing files, localization-key check).
 
+## Communities (Phase 2)
+
+- Community screens: `Features/Community/{Views,ViewModels}`; Admin → Communities in `Features/Admin`; onboarding in `Features/Authentication` (`CommunityOnboardingView` is the `.needsApplication` root).
+- `pending_approval` with `community_id` routes to `.pendingMembers(communityId)`; without it, `.pendingUsers` opens the default community's Requests to join; `.enterApp` while authenticated opens My communities.
+- The Profile badge reads `pending_members_total`; never aggregate pending counts on the client. `clearCommunityBadge(visibleCommunityId:)` clears only the visible community's Town Hall rows.
+- Community RPC refusals (`{success:false, error, code}`) throw `CommunityRPCError`. Shared community sheets record a result and the presenter acts on it in `onDismiss`. `PreviewCommunityService` is the only app-target preview stand-in.
+- Dead files awaiting deletion: `ApplicationFieldsView`, `PendingUsersView`, `PendingUsersViewModel`, `PendingUserDetailView`.
+
 ## Communities (Phase 1)
 
 - `CommunityContext` (`@Observable`, `App/`) holds the person's memberships and the selected scopes. Switch the Community tab's community only by setting `communityTabId`; the feed refreshes through `forceFullRefreshAndWait(.townHall, …)`. `TownHallSyncEngine` reads the context at fetch start and `.townHallPostsDidSync` carries the synced scope.

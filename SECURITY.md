@@ -538,6 +538,12 @@ Admin operations are protected at three layers:
 | Client verification | Defense in depth | Skilled attacker with modified client |
 | Server RLS | Actual security | Nothing (if properly configured) |
 
+### 4.1a Two admin notions
+
+- **Platform admin:** `profiles.is_admin`, checked on the client by `verifyAdminStatus` and on the server by the admin RPCs.
+- **Community admin:** the member's role in that community, checked inside each community RPC (the client never decides it). Community admins never see an applicant's email or phone, or who filed a report.
+- Only the user can delete an account, plus, for a default-community applicant with no other membership, a platform admin (INV-M9).
+
 ### 4.2 AdminService Implementation
 
 **Requirement SEC-ADMIN-001**: All admin operations MUST verify admin status server-side:
