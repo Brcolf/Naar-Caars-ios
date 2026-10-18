@@ -364,9 +364,9 @@ struct TownHallPostCard: View {
                 .accessibilityLabel(author.name)
                 .accessibilityHint("townhall_author_profile_hint".localized)
             } else {
-                AvatarView(imageUrl: nil, name: "townhall_unknown".localized, size: 24)
+                AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 24)
 
-                Text("townhall_unknown_user".localized)
+                Text("community_former_member".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -575,3 +575,17 @@ struct TownHallPostCard: View {
     .background(Color(.systemGroupedBackground))
 }
 
+#Preview("Former member author") {
+    TownHallPostCard(
+        post: TownHallPost(
+            userId: UUID(),
+            content: "A post whose author is no longer visible.",
+            author: nil,
+            commentCount: 2,
+            upvotes: 1,
+            downvotes: 0
+        ),
+        currentUserId: UUID()
+    )
+    .padding()
+}

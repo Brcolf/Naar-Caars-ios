@@ -346,6 +346,8 @@ struct FavorDetailView: View {
                 HStack(alignment: .center, spacing: Constants.Spacing.md) {
                     if let poster = favor.poster {
                         UserAvatarLink(profile: poster, size: 60)
+                    } else {
+                        AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 60)
                     }
                     
                     VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
@@ -358,11 +360,9 @@ struct FavorDetailView: View {
                                 .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
                         }
                         
-                        if let poster = favor.poster {
-                            Text("favor_detail_requested_by".localized(with: poster.name))
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
+                        Text("favor_detail_requested_by".localized(with: favor.poster?.name ?? "community_former_member".localized))
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
                     }
                     
                     Spacer()
@@ -525,6 +525,25 @@ struct FavorDetailView: View {
                                     .font(.naarsHeadline)
                             }
                             
+                            Spacer()
+                        }
+                    }
+                    .cardStyle()
+                    .id(RequestDetailAnchor.claimerCard.anchorId(for: .favor))
+                    .requestHighlight(highlightedAnchor == .claimerCard)
+                } else if favor.claimedBy != nil {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("favor_detail_claimed_by".localized)
+                            .font(.naarsTitle3)
+                            .accessibilityAddTraits(.isHeader)
+
+                        HStack(spacing: 12) {
+                            AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 50)
+
+                            Text("community_former_member".localized)
+                                .font(.naarsHeadline)
+                                .foregroundColor(.secondary)
+
                             Spacer()
                         }
                     }

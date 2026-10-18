@@ -68,9 +68,7 @@ struct FavorCard: View {
         // to carry the poster, time, duration, claimer and unread count itself. Guests get no
         // address, as on the card.
         var parts: [String] = ["common_favor".localized, favor.title]
-        if let poster = favor.poster {
-            parts.append("favor_detail_requested_by".localized(with: poster.name))
-        }
+        parts.append("favor_detail_requested_by".localized(with: favor.poster?.name ?? "community_former_member".localized))
         if !appState.isGuest {
             parts.append("card_favor_location_accessibility".localized(with: favor.location))
         }
@@ -80,8 +78,8 @@ struct FavorCard: View {
         }
         parts.append(favor.duration.displayText)
         parts.append(favor.statusDisplayText)
-        if favor.claimedBy != nil, let claimer = favor.claimer {
-            parts.append("\("card_claimed_by".localized) \(claimer.name)")
+        if favor.claimedBy != nil {
+            parts.append("\("card_claimed_by".localized) \(favor.claimer?.name ?? "community_former_member".localized)")
         }
         if let communityChipText {
             parts.append("community_chip_accessibility".localized(with: communityChipText))
@@ -104,7 +102,7 @@ struct FavorCard: View {
                 if let poster = favor.poster {
                     UserAvatarLink(profile: poster, size: 40)
                 } else {
-                    AvatarView(imageUrl: nil, name: "Unknown", size: 40)
+                    AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 40)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -113,7 +111,7 @@ struct FavorCard: View {
                             .font(.naarsHeadline)
                             .lineLimit(2)
                     } else {
-                        Text("common_unknown_user".localized)
+                        Text("community_former_member".localized)
                             .font(.naarsHeadline)
                             .foregroundColor(.secondary)
                     }
@@ -210,9 +208,14 @@ struct FavorCard: View {
                     Image(systemName: "hand.raised.fill")
                         .foregroundColor(.naarsPrimary)
                         .font(.naarsSubheadline)
-                    Text("card_claimed".localized)
+                    Text("card_claimed_by".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
+                    Text("community_former_member".localized)
+                        .font(.naarsCaption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
             }
@@ -241,6 +244,35 @@ struct FavorCard: View {
         ))
     }
     .padding()
+}
+
+#Preview("Former member poster") {
+    FavorCard(favor: Favor(
+        userId: UUID(),
+        title: "Help moving boxes",
+        location: "123 Main St",
+        duration: .underHour,
+        date: Date(),
+        status: .open,
+        poster: nil
+    ))
+    .padding()
+    .environment(AppState())
+}
+
+#Preview("Former member claimer") {
+    FavorCard(favor: Favor(
+        userId: UUID(),
+        title: "Help moving boxes",
+        location: "123 Main St",
+        duration: .underHour,
+        date: Date(),
+        status: .confirmed,
+        claimedBy: UUID(),
+        claimer: nil
+    ))
+    .padding()
+    .environment(AppState())
 }
 
 #if DEBUG

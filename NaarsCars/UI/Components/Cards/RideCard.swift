@@ -68,9 +68,7 @@ struct RideCard: View {
         // to carry the poster, time, seats, flight, claimer and unread count itself. Guests
         // get no addresses, as on the card.
         var parts: [String] = ["common_ride".localized]
-        if let poster = ride.poster {
-            parts.append("ride_detail_requested_by".localized(with: poster.name))
-        }
+        parts.append("ride_detail_requested_by".localized(with: ride.poster?.name ?? "community_former_member".localized))
         if !appState.isGuest {
             parts.append("card_ride_route_accessibility".localized(with: ride.pickup, ride.destination))
         }
@@ -81,8 +79,8 @@ struct RideCard: View {
             parts.append("\("ride_detail_flight".localized) \(flightInfo.normalizedFlightNumber)")
         }
         parts.append(ride.statusDisplayText)
-        if ride.claimedBy != nil, let claimer = ride.claimer {
-            parts.append("\("card_claimed_by".localized) \(claimer.name)")
+        if ride.claimedBy != nil {
+            parts.append("\("card_claimed_by".localized) \(ride.claimer?.name ?? "community_former_member".localized)")
         }
         if let communityChipText {
             parts.append("community_chip_accessibility".localized(with: communityChipText))
@@ -105,7 +103,7 @@ struct RideCard: View {
                 if let poster = ride.poster {
                     UserAvatarLink(profile: poster, size: 40)
                 } else {
-                    AvatarView(imageUrl: nil, name: "Unknown", size: 40)
+                    AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 40)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -114,7 +112,7 @@ struct RideCard: View {
                             .font(.naarsHeadline)
                             .lineLimit(2)
                     } else {
-                        Text("common_unknown_user".localized)
+                        Text("community_former_member".localized)
                             .font(.naarsHeadline)
                             .foregroundColor(.secondary)
                     }
@@ -220,9 +218,14 @@ struct RideCard: View {
                     Image(systemName: "hand.raised.fill")
                         .foregroundColor(.naarsPrimary)
                         .font(.naarsSubheadline)
-                    Text("card_claimed".localized)
+                    Text("card_claimed_by".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
+                    Text("community_former_member".localized)
+                        .font(.naarsCaption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
             }
@@ -253,6 +256,37 @@ struct RideCard: View {
         ))
     }
     .padding()
+}
+
+#Preview("Former member poster") {
+    RideCard(ride: Ride(
+        userId: UUID(),
+        date: Date(),
+        time: "14:30:00",
+        pickup: "123 Main St",
+        destination: "Airport Terminal 1",
+        seats: 2,
+        status: .open,
+        poster: nil
+    ))
+    .padding()
+    .environment(AppState())
+}
+
+#Preview("Former member claimer") {
+    RideCard(ride: Ride(
+        userId: UUID(),
+        date: Date(),
+        time: "14:30:00",
+        pickup: "123 Main St",
+        destination: "Airport Terminal 1",
+        seats: 2,
+        status: .confirmed,
+        claimedBy: UUID(),
+        claimer: nil
+    ))
+    .padding()
+    .environment(AppState())
 }
 
 #if DEBUG
