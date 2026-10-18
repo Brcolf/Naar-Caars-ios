@@ -126,11 +126,18 @@ extension BadgeCountManager: BadgeCountManaging {}
 
     /// Refresh all badge counts
     func refreshAllBadges(reason: String = "manual") async {
+        await refreshAllBadges(reason: reason, bypassDebounce: false)
+    }
+
+    /// `bypassDebounce` is only for a refresh that follows this device's own server write
+    /// (rows just marked read): a debounced skip would leave the counts showing those rows
+    /// until the next push or safety poll. Push-driven refreshes keep the debounce.
+    private func refreshAllBadges(reason: String, bypassDebounce: Bool) async {
         guard let userId = authService.currentUserId else { return }
 
         // Simple debounce: skip if refreshed within the debounce window
         let elapsed = Date().timeIntervalSince(lastRefreshTime)
-        guard elapsed >= Constants.Timing.badgeRefreshDebounce else { return }
+        guard bypassDebounce || elapsed >= Constants.Timing.badgeRefreshDebounce else { return }
 
         AppLogger.info("badges", "Refreshing badges (\(reason))")
 
@@ -288,10 +295,20 @@ extension BadgeCountManager: BadgeCountManaging {}
                 return
             }
 
-            // Mark all community notifications as read in a single request
-            try? await NotificationService.shared.markAsRead(notificationIds: communityNotificationIds)
+            // Mark the scoped community notifications as read in a single request
+            do {
+                try await NotificationService.shared.markAsRead(notificationIds: communityNotificationIds)
+            } catch {
+                AppLogger.warning("badges", "Failed to mark community notifications read: \(error)")
+                await refreshAllBadges(reason: "clearCommunityBadge.markFailed")
+                return
+            }
 
-            await refreshAllBadges(reason: "clearCommunityBadge")
+            // The rows just changed on the server, so this refresh must not be skipped by the
+            // debounce: opening the tab already refreshes, and a community switch within the
+            // window would otherwise leave the tab badge and the menu's count for this
+            // community stale until the next push or the safety poll.
+            await refreshAllBadges(reason: "clearCommunityBadge", bypassDebounce: true)
         } catch {
             AppLogger.warning("badges", "Error clearing community badge: \(error)")
         }
