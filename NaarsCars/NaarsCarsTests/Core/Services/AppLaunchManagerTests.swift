@@ -13,15 +13,25 @@ final class AppLaunchManagerTests: XCTestCase {
     var launchManager: AppLaunchManager!
     private var suiteName: String!
     private var suite: UserDefaults!
+    private var savedCurrentUserId: UUID?
+    private var savedState: LaunchState!
     
     override func setUp() {
         super.setUp()
         launchManager = AppLaunchManager.shared
         suiteName = "CommunityContextTests-\(UUID())"
         suite = UserDefaults(suiteName: suiteName)!
+        savedCurrentUserId = AuthService.shared.currentUserId
+        savedState = launchManager.state
     }
 
     override func tearDown() {
+        // A leaked currentUserId or launch state breaks later test classes (CLAUDE.md Audit Notes).
+        AuthService.shared.currentUserId = savedCurrentUserId
+        launchManager.state = savedState
+        launchManager.communityContext = .shared
+        launchManager.startSyncEngines = nil
+        savedState = nil
         suite.removePersistentDomain(forName: suiteName)
         suite = nil
         suiteName = nil
@@ -201,6 +211,82 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertEqual(suite.string(forKey: "community.tab.\(uid)"), b.uuidString)
         XCTAssertNil(suite.string(forKey: "community.lastPosted.\(uid)"))
         XCTAssertEqual(ctx.memberships.map(\.communityId), [a, b])
+    }
+
+    // MARK: - Launch ordering (beginDeferredSession)
+
+    func testBeginDeferredSession_RestoresContextBeforeEnginesStart() {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA
+        seedKeys(for: uid, tab: a, scope: nil, lastPosted: nil)
+        let (ctx, _) = makeContext(.failure(URLError(.notConnectedToInternet)))
+        launchManager.communityContext = ctx
+        var seen: UUID?
+        var engineStarts = 0
+        launchManager.startSyncEngines = { _ in
+            engineStarts += 1
+            seen = ctx.communityTabId
+        }
+
+        launchManager.beginDeferredSession(userId: uid)
+
+        XCTAssertEqual(engineStarts, 1)
+        XCTAssertEqual(seen, a, "the engines must start with the restored community")
+    }
+
+    func testBeginDeferredSession_NoStoredCommunityStartsEnginesWithNilContext() {
+        let uid = UUID()
+        let (ctx, _) = makeContext(.failure(URLError(.notConnectedToInternet)))
+        launchManager.communityContext = ctx
+        var seen: UUID? = UUID()
+        var engineStarts = 0
+        launchManager.startSyncEngines = { _ in
+            engineStarts += 1
+            seen = ctx.communityTabId
+        }
+
+        launchManager.beginDeferredSession(userId: uid)
+
+        XCTAssertEqual(engineStarts, 1)
+        XCTAssertNil(seen, "nil means no community filter")
+    }
+
+    func testMembershipLoadFailure_LeavesLaunchUnaffected() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA
+        seedKeys(for: uid, tab: a, scope: nil, lastPosted: nil)
+        let (ctx, stub) = makeContext(.failure(URLError(.notConnectedToInternet)))
+        launchManager.communityContext = ctx
+        var engineStarts = 0
+        launchManager.startSyncEngines = { _ in engineStarts += 1 }
+        launchManager.state = .ready(.authenticated)
+
+        launchManager.beginDeferredSession(userId: uid)
+        await launchManager.membershipLoadTask?.value
+
+        XCTAssertEqual(stub.fetchCount, 1)
+        XCTAssertEqual(launchManager.state, .ready(.authenticated))
+        XCTAssertEqual(ctx.communityTabId, a)
+        XCTAssertEqual(engineStarts, 1)
+    }
+
+    func testMembershipLoad_ResolvesNilTabToPrimary() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let (ctx, _) = makeContext(.success([
+            CommunityFixtures.membership(a, name: "A"),
+            CommunityFixtures.membership(b, name: "B", isPrimary: true)
+        ]))
+        launchManager.communityContext = ctx
+        var seen: UUID? = UUID()
+        launchManager.startSyncEngines = { _ in seen = ctx.communityTabId }
+
+        launchManager.beginDeferredSession(userId: uid)
+        XCTAssertNil(seen)
+        await launchManager.membershipLoadTask?.value
+
+        XCTAssertEqual(ctx.communityTabId, b)
+        XCTAssertEqual(suite.string(forKey: "community.tab.\(uid)"), b.uuidString)
     }
 }
 

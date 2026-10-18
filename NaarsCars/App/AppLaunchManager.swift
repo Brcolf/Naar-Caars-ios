@@ -67,6 +67,18 @@ final class AppLaunchManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var signOutObserver: NSObjectProtocol?
     private var deferredSyncStartedForUserId: UUID?
+
+    /// The member's communities. Restored before the sync engines start (so the launch
+    /// Town Hall sync reads the stored community) and refreshed after them. Injectable for tests.
+    var communityContext: CommunityContext = .shared
+
+    /// Starts the sync engines for a user. Nil uses `startDeferredSyncEnginesIfNeeded(for:)`;
+    /// tests inject a closure to observe the launch order without starting real engines.
+    var startSyncEngines: ((UUID) -> Void)?
+
+    /// The membership load started by `beginDeferredSession(userId:)`. Launch routing and
+    /// hydration never wait for it.
+    private(set) var membershipLoadTask: Task<Void, Never>?
     
     private init() {
         AppLogger.info("launch", "Initializing - setting up notification listener")
@@ -288,11 +300,7 @@ final class AppLaunchManager: ObservableObject {
         // doesn't set it on AuthService — sync engines check
         // authService.currentUserId for user-specific subscriptions and data
         // fetches, so it must be populated first.
-        if authService.currentUserId == nil {
-            authService.currentUserId = userId
-        }
-
-        startDeferredSyncEnginesIfNeeded(for: userId)
+        beginDeferredSession(userId: userId)
 
         // Refresh blocked users cache for content filtering
         await MessageService.shared.refreshBlockedUsers()
@@ -307,6 +315,29 @@ final class AppLaunchManager: ObservableObject {
             duration: Date().timeIntervalSince(start),
             metadata: ["userId": userId.uuidString]
         )
+    }
+
+    /// Starts the deferred session in the order the launch sync depends on (spec §3.7):
+    /// 1. set `authService.currentUserId` when it is nil;
+    /// 2. restore the stored community synchronously (no network), so the engines read it;
+    /// 3. start the sync engines;
+    /// 4. load the memberships off the launch path. Nothing here waits for that load, and a
+    ///    failed load keeps the restored values (nil means "no community filter").
+    func beginDeferredSession(userId: UUID) {
+        if authService.currentUserId == nil {
+            authService.currentUserId = userId
+        }
+
+        communityContext.restore(for: userId)
+
+        if let startSyncEngines {
+            startSyncEngines(userId)
+        } else {
+            startDeferredSyncEnginesIfNeeded(for: userId)
+        }
+
+        let context = communityContext
+        membershipLoadTask = Task { await context.refreshMemberships() }
     }
 
     /// Domains hydrated at launch. Mirrors the three sync engines that used to
