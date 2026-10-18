@@ -314,7 +314,7 @@ Who sees what, as stated in `Legal/PRIVACY_POLICY.md` §6.1, with the server sou
 | Viewer | Sees | Never sees | Source |
 |--------|------|-----------|--------|
 | Members of a community you belong to | Name, photo, car, role, join date; your requests, Q&A and Town Hall posts in that community | Email, phone, application answers | `public_profiles` / `my_visible_profile_ids` (`20261017_0002` V3, `20261017_0001` 1c.8); `get_community_members` non-admin branch |
-| Owners and admins of a community you apply to or belong to | The above plus application answers, who invited you, request and join dates, removal note | Email, phone, who reported content | `get_community_members` admin branch (`20261017_0005` block 29); reports SELECT policies (`20261005_0022`) |
+| Owners and admins of a community you apply to, belong to, left or were removed from | The above plus application answers, who invited you, request and join dates, removal note | Email, phone, who reported content | `get_community_members` admin branch (`20261017_0005` block 29); reports SELECT policies (`20261005_0022`) |
 | Guests (no account) | Public communities only: requests without addresses, their Q&A and reviews, Town Hall posts, members' name, photo, car | Everything in private communities | `guest_rides` / `guest_favors`, anon policies A17 / A24, `public_profiles` anon branch (`20261017_0002`) |
 | Platform admins | Admin access to every live community (including private), every report and its reporter, email and phone | n/a | `my_admin_community_ids` (`20261017_0001`), `handle_new_report` recipients (`20261017_0003` call 10), `profiles_select_admin` |
 

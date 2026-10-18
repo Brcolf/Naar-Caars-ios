@@ -25,7 +25,7 @@ Test invite code: <TEST CODE>
 Existing account: sign in. You are a member of Naar's Cars Seattle. Profile > My communities lists your communities and has Create a community, Join a community and, for admins, Requests to join.
 
 New account, three ways in (after signing up, the Get started screen offers all three):
-1. Invite code: tap Enter an invite code and type <TEST CODE>. The preview shows the community's name, description and what its admins will see before you join.
+1. Invite code: tap Enter an invite code and type <TEST CODE>. The preview shows the community's name, member count and what its admins will see before you join.
 2. Ask to join a public community: answer two questions; the request waits for that community's admins.
 3. Create a community: enter a name. You become its owner and enter the app at once. The invite sheet then shows a code you can share.
 A new community is private by default, and its owners and admins approve who joins.
