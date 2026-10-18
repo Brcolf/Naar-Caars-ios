@@ -23,6 +23,9 @@ final class TownHallFeedViewModel: ObservableObject {
     /// A failure while posts are on screen (vote, delete, next page, refresh). The view shows it
     /// as a banner so the loaded feed stays readable.
     @Published var bannerMessage: String?
+    /// The community the feed shows. Nil means no community filter (no community known yet).
+    /// Follows `CommunityContext.communityTabId` through `activeCommunityDidChange()`.
+    private(set) var activeCommunityId: UUID?
 
     // MARK: - Private Properties
 
@@ -31,6 +34,18 @@ final class TownHallFeedViewModel: ObservableObject {
     private let repository: TownHallRepository
     private let authService: any AuthServiceProtocol
     private let messageService: any MessageServiceProtocol
+    /// Page and single-post reads (the enrichment fetch and infinite scroll).
+    private let postFetcher: any TownHallPostFetching
+    private let communityContext: CommunityContext
+    /// The awaitable coordinator refresh of `.townHall` (the only coordinator call this
+    /// ViewModel makes); a seam so tests can stand in for the coordinator.
+    private let refreshTownHall: @MainActor (String) async -> RefreshResult?
+
+    /// Bumped on every community change. A network result that returns after it moved belongs to
+    /// the previous community and is dropped before it touches the list, errors or paging.
+    private var generation = 0
+    /// Post ids of the last successful enrichment page (the store reconciliation after a switch).
+    private var lastEnrichmentPostIds: [UUID] = []
 
     private var postsCancellable: AnyCancellable?
     private var voteCancellable: AnyCancellable?
@@ -50,13 +65,24 @@ final class TownHallFeedViewModel: ObservableObject {
         townHallService: TownHallService? = nil,
         voteService: TownHallVoteService? = nil,
         authService: any AuthServiceProtocol = AuthService.shared,
-        messageService: any MessageServiceProtocol = MessageService.shared
+        messageService: any MessageServiceProtocol = MessageService.shared,
+        postFetcher: (any TownHallPostFetching)? = nil,
+        communityContext: CommunityContext? = nil,
+        refreshTownHall: (@MainActor (String) async -> RefreshResult?)? = nil
     ) {
         self.repository = repository ?? .shared
-        self.townHallService = townHallService ?? .shared
+        let resolvedService = townHallService ?? .shared
+        self.townHallService = resolvedService
         self.voteService = voteService ?? .shared
         self.authService = authService
         self.messageService = messageService
+        self.postFetcher = postFetcher ?? resolvedService
+        let resolvedContext = communityContext ?? .shared
+        self.communityContext = resolvedContext
+        self.refreshTownHall = refreshTownHall ?? { trigger in
+            await RefreshCoordinator.shared.forceFullRefreshAndWait(.townHall, trigger: trigger)
+        }
+        self.activeCommunityId = resolvedContext.communityTabId
         bindPosts()
         bindVoteNotifications()
     }
@@ -69,7 +95,7 @@ final class TownHallFeedViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        let localPosts = (try? repository.getPosts(communityId: nil)) ?? []
+        let localPosts = (try? repository.getPosts(communityId: activeCommunityId)) ?? []
         if !localPosts.isEmpty {
             // This also runs when the feed reappears (tab switch, back from a profile). Pages the
             // user already scrolled in stay; see keepingPagedPosts.
@@ -96,9 +122,12 @@ final class TownHallFeedViewModel: ObservableObject {
 
         isLoadingMore = true
         defer { isLoadingMore = false }
+        let startGeneration = generation
 
         do {
-            let page = try await townHallService.fetchPostsPage(limit: pageSize, offset: currentOffset)
+            let page = try await postFetcher.fetchPostsPage(limit: pageSize, offset: currentOffset, communityId: activeCommunityId)
+            // A page of the community the feed showed before a switch.
+            guard startGeneration == generation else { return }
             // The page loaded, so an earlier "couldn't load more" banner is out of date.
             if bannerMessage == "townhall_load_more_failed".localized { bannerMessage = nil }
             // Advance and stop on what the server sent, not on what survived the blocked-author
@@ -113,6 +142,7 @@ final class TownHallFeedViewModel: ObservableObject {
                 posts = applyVoteCache(to: mergePosts(existing: posts, new: page.posts))
             }
         } catch {
+            guard startGeneration == generation else { return }
             bannerMessage = "townhall_load_more_failed".localized
             AppLogger.error("townhall", "Error loading more posts: \(error.localizedDescription)")
         }
@@ -124,7 +154,7 @@ final class TownHallFeedViewModel: ObservableObject {
         // Pull-to-refresh asks for the current feed, and it starts at the top of the list: drop
         // the pages kept in memory beyond the window the sync just stored (keepingPagedPosts) and
         // let them reload on scroll, so a post deleted or hidden further down cannot linger.
-        let stored = (try? repository.getPosts(communityId: nil)) ?? []
+        let stored = (try? repository.getPosts(communityId: activeCommunityId)) ?? []
         guard !stored.isEmpty else { return }
         let windowEnd = stored[min(stored.count, pageSize) - 1].createdAt
         replacePosts(with: posts.filter { $0.createdAt >= windowEnd })
@@ -215,12 +245,56 @@ final class TownHallFeedViewModel: ObservableObject {
         }
     }
 
+    /// The Community tab's community changed (the title menu, or the launch membership load
+    /// resolving nil to a community). Reads one scope at a time through the coordinator; never
+    /// resets the coordinator, invalidates, wipes the store or calls the engine.
+    func activeCommunityDidChange() async {
+        let newCommunityId = communityContext.communityTabId
+        guard newCommunityId != activeCommunityId else { return }
+        let wasUnfiltered = activeCommunityId == nil
+        activeCommunityId = newCommunityId
+        generation += 1
+
+        if wasUnfiltered {
+            // Launch resolution nil → X: for a member of one community the rows are the same, so
+            // the list stays up while the scoped refresh runs.
+            await refreshFromNetwork(showLoading: false, trigger: "communityResolved")
+            return
+        }
+
+        let switchGeneration = generation
+        posts = []
+        currentOffset = 0
+        hasMore = true
+        firstPageIsWholeFeed = false
+        error = nil
+        isLoading = true
+        await refreshFromNetwork(showLoading: false, trigger: "communitySwitch")
+        guard switchGeneration == generation else { return }
+        isLoading = false
+
+        // The coordinator joins a sync already in flight, which may have started for the previous
+        // community. The screen is right after the enrichment page; the store (the offline cache)
+        // is checked here and refreshed again, at most twice, until it holds that page.
+        for _ in 1...2 {
+            let stored = Set(((try? repository.getPosts(communityId: activeCommunityId)) ?? []).map(\.id))
+            if Set(lastEnrichmentPostIds).isSubset(of: stored) { break }
+            _ = await refreshTownHall("communitySwitch:retry")
+            guard switchGeneration == generation else { return }
+        }
+    }
+
     // MARK: - Local-first helpers
 
     private func bindPosts() {
-        postsCancellable = repository.getPostsPublisher(communityId: { nil })
+        postsCancellable = repository.getPostsPublisher(communityId: { [weak self] in self?.activeCommunityId })
             .sink { [weak self] emission in
                 guard let self else { return }
+                // A full sync of another community than the one shown (one that started before a
+                // switch and was joined) would otherwise empty the list through keepingPagedPosts.
+                if let syncedScope = emission.syncedScope, syncedScope.communityId != self.activeCommunityId {
+                    return
+                }
                 let stored = emission.posts
                 let enriched = self.preserveReviewEnrichment(from: self.posts, to: stored)
                 let merged = self.keepingPagedPosts(from: self.posts, withStored: enriched)
@@ -278,11 +352,22 @@ final class TownHallFeedViewModel: ObservableObject {
     private func refreshFromNetwork(showLoading: Bool, trigger: String) async -> Bool {
         if showLoading { isLoading = true }
         defer { if showLoading { isLoading = false } }
+        let startGeneration = generation
+        let communityId = activeCommunityId
 
         // Run the enrichment fetch concurrently with the coordinator refresh so pull-to-refresh
         // latency stays at one round trip.
-        async let enrichment = townHallService.fetchPostsPage(limit: pageSize, offset: 0)
-        let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.townHall, trigger: trigger)
+        async let enrichment = postFetcher.fetchPostsPage(limit: pageSize, offset: 0, communityId: communityId)
+        let result = await refreshTownHall(trigger)
+        let enrichmentResult: Result<(posts: [TownHallPost], serverCount: Int), Error>
+        do {
+            enrichmentResult = .success(try await enrichment)
+        } catch {
+            enrichmentResult = .failure(error)
+        }
+        // Results for the community the feed showed before a switch.
+        guard startGeneration == generation else { return false }
+
         var failure: Error?
         if case .failed(let error, _)? = result {
             failure = error
@@ -290,7 +375,8 @@ final class TownHallFeedViewModel: ObservableObject {
         }
 
         do {
-            let page = try await enrichment
+            let page = try enrichmentResult.get()
+            lastEnrichmentPostIds = page.posts.map(\.id)
             updateVoteCache(with: page.posts)
             // A short first page is the whole feed: nothing older exists on the server, so a post it
             // no longer returns (deleted, or hidden by a moderator) must not survive as a "paged" row.
@@ -302,6 +388,7 @@ final class TownHallFeedViewModel: ObservableObject {
             hasMore = !isWholeFeed
         } catch {
             failure = error
+            lastEnrichmentPostIds = []
             AppLogger.error("townhall", "Error refreshing posts: \(error.localizedDescription)")
         }
 

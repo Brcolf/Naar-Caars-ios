@@ -6,7 +6,18 @@
 //
 
 import XCTest
+import SwiftData
+internal import Combine
 @testable import NaarsCars
+
+/// Mutable state shared with the test's escaping closures (refresher stub, `$posts` sink).
+@MainActor
+private final class FeedTestRecorder {
+    var refreshTriggers: [String] = []
+    var recording = false
+    var recordedPosts: [[UUID]] = []
+    weak var viewModel: TownHallFeedViewModel?
+}
 
 @MainActor
 final class TownHallFeedViewModelTests: XCTestCase {
@@ -98,6 +109,148 @@ final class TownHallFeedViewModelTests: XCTestCase {
         // Then: Post should be removed from array
         XCTAssertEqual(viewModel.posts.count, initialCount - 1, "Post should be removed")
         XCTAssertFalse(viewModel.posts.contains(where: { $0.id == firstPost.id }), "Post should not be in array")
+    }
+
+    // MARK: - Community scoping (stubbed; no network)
+
+    private let communityA = UUID(uuidString: "0E000000-0000-4000-8000-00000000000A")!
+    private let communityB = UUID(uuidString: "0E000000-0000-4000-8000-00000000000B")!
+    private let a1 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000A1")!
+    private let a2 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000A2")!
+    private let b1 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000B1")!
+    private let b2 = UUID(uuidString: "0E000000-0000-4000-8000-0000000000B2")!
+    private let base = Date(timeIntervalSince1970: 1_770_640_000)
+
+    private struct ScopingHarness {
+        let container: ModelContainer
+        let repository: TownHallRepository
+        let context: CommunityContext
+        let fetcher: StubTownHallPostFetcher
+        let suiteName: String
+        var aPage: [TownHallPost]
+        var bPage: [TownHallPost]
+    }
+
+    private func makeScopingHarness() throws -> ScopingHarness {
+        let container = try ModelContainer(
+            for: SDTownHallPost.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let repository = TownHallRepository()
+        repository.setup(modelContext: ModelContext(container))
+        let suiteName = "TownHallFeedViewModelTests-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let context = CommunityContext(service: StubCommunityService(result: .success([])), defaults: defaults)
+        let aPage = [
+            CommunityFixtures.post(a1, community: communityA, createdAt: base.addingTimeInterval(20)),
+            CommunityFixtures.post(a2, community: communityA, createdAt: base.addingTimeInterval(10))
+        ]
+        let bPage = [
+            CommunityFixtures.post(b1, community: communityB, createdAt: base.addingTimeInterval(40)),
+            CommunityFixtures.post(b2, community: communityB, createdAt: base.addingTimeInterval(30))
+        ]
+        let fetcher = StubTownHallPostFetcher(pagesByCommunity: [communityA: aPage, communityB: bPage, nil: aPage])
+        addTeardownBlock {
+            UserDefaults().removePersistentDomain(forName: suiteName)
+        }
+        return ScopingHarness(
+            container: container, repository: repository, context: context, fetcher: fetcher,
+            suiteName: suiteName, aPage: aPage, bPage: bPage
+        )
+    }
+
+    func testSwitchWhileSyncForPreviousCommunityInFlight_EndsOnNewCommunity() async throws {
+        let harness = try makeScopingHarness()
+        let repo = harness.repository
+        let aPage = harness.aPage
+        let bPage = harness.bPage
+        let scopeA = TownHallSyncScope.community(communityA)
+        let scopeB = TownHallSyncScope.community(communityB)
+        let recorder = FeedTestRecorder()
+
+        let refresher: @MainActor (String) async -> RefreshResult? = { trigger in
+            recorder.refreshTriggers.append(trigger)
+            switch trigger {
+            case "manualReload:townHall":
+                try? repo.upsertPosts(aPage, replaceAll: true, syncScope: scopeA)
+                return .completed(.empty)
+            case "communitySwitch":
+                // The joined sync that started for A.
+                try? repo.upsertPosts(aPage, replaceAll: true, syncScope: scopeA)
+                return .joined(inFlightTrigger: "launch")
+            case "communitySwitch:retry":
+                try? repo.upsertPosts(bPage, replaceAll: true, syncScope: scopeB)
+                return .completed(.empty)
+            default:
+                return nil
+            }
+        }
+
+        harness.context.communityTabId = communityA
+        let vm = TownHallFeedViewModel(
+            repository: repo,
+            postFetcher: harness.fetcher,
+            communityContext: harness.context,
+            refreshTownHall: refresher
+        )
+        await vm.loadPosts()
+
+        let b1 = self.b1
+        let cancellable = vm.$posts.sink { value in
+            if value.contains(where: { $0.id == b1 }) { recorder.recording = true }
+            if recorder.recording { recorder.recordedPosts.append(value.map(\.id)) }
+        }
+        defer { cancellable.cancel() }
+
+        harness.context.communityTabId = communityB
+        await vm.activeCommunityDidChange()
+        try await Task.sleep(for: .milliseconds(100))   // drain RunLoop.main deliveries
+
+        XCTAssertEqual(Set(vm.posts.map(\.id)), [self.b1, b2])
+        XCTAssertFalse(recorder.recordedPosts.contains { $0.isEmpty })
+        XCTAssertEqual(Set(try repo.getPosts(communityId: communityB).map(\.id)), [self.b1, b2])
+        XCTAssertEqual(recorder.refreshTriggers, ["manualReload:townHall", "communitySwitch", "communitySwitch:retry"])
+        withExtendedLifetime(harness.container) {}
+    }
+
+    func testNilToCommunityResolution_DoesNotClearTheList() async throws {
+        let harness = try makeScopingHarness()
+        let repo = harness.repository
+        let fetcher = harness.fetcher
+        let recorder = FeedTestRecorder()
+
+        let refresher: @MainActor (String) async -> RefreshResult? = { trigger in
+            recorder.refreshTriggers.append(trigger)
+            let active = recorder.viewModel?.activeCommunityId
+            let page = fetcher.pagesByCommunity[active] ?? []
+            try? repo.upsertPosts(page, replaceAll: true, syncScope: TownHallSyncScope(communityId: active))
+            return .completed(.empty)
+        }
+
+        harness.context.communityTabId = nil
+        let vm = TownHallFeedViewModel(
+            repository: repo,
+            postFetcher: fetcher,
+            communityContext: harness.context,
+            refreshTownHall: refresher
+        )
+        recorder.viewModel = vm
+        await vm.loadPosts()
+        XCTAssertEqual(Set(vm.posts.map(\.id)), [a1, a2])
+
+        let cancellable = vm.$posts.sink { value in
+            recorder.recordedPosts.append(value.map(\.id))
+        }
+        defer { cancellable.cancel() }
+
+        harness.context.communityTabId = communityA
+        await vm.activeCommunityDidChange()
+        try await Task.sleep(for: .milliseconds(100))   // drain RunLoop.main deliveries
+
+        XCTAssertEqual(vm.activeCommunityId, communityA)
+        XCTAssertFalse(recorder.recordedPosts.contains { $0.isEmpty })
+        XCTAssertEqual(Set(vm.posts.map(\.id)), [a1, a2])
+        withExtendedLifetime(harness.container) {}
     }
 }
 
