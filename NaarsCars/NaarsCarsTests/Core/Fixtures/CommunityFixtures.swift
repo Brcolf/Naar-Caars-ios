@@ -145,6 +145,8 @@ final class StubCommunityService: CommunityServiceProtocol {
 final class StubTownHallPostFetcher: TownHallPostFetching {
     var pagesByCommunity: [UUID?: [TownHallPost]]
     var postsById: [UUID: TownHallPost]
+    /// When set, every `fetchPostsPage` throws (offline).
+    var failPages = false
     private(set) var requestedCommunityIds: [UUID?] = []
 
     init(pagesByCommunity: [UUID?: [TownHallPost]] = [:], postsById: [UUID: TownHallPost] = [:]) {
@@ -154,6 +156,7 @@ final class StubTownHallPostFetcher: TownHallPostFetching {
 
     func fetchPostsPage(limit: Int, offset: Int, communityId: UUID?) async throws -> (posts: [TownHallPost], serverCount: Int) {
         requestedCommunityIds.append(communityId)
+        if failPages { throw URLError(.notConnectedToInternet) }
         guard offset == 0 else { return ([], 0) }
         let page = Array((pagesByCommunity[communityId] ?? []).prefix(limit))
         return (page, page.count)

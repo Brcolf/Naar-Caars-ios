@@ -16,7 +16,7 @@ enum NotificationIntent: Equatable {
     case openConversation(conversationId: UUID, scrollTarget: NavigationCoordinator.ConversationScrollTarget?)
     case openRide(rideId: UUID, anchor: RequestNotificationTarget?)
     case openFavor(favorId: UUID, anchor: RequestNotificationTarget?)
-    case openTownHallPost(postId: UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode)
+    case openTownHallPost(postId: UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode, communityId: UUID? = nil)
     case openAnnouncements(scrollToNotificationId: UUID?)
     case openProfile(userId: UUID)
     case openAdminPanel
@@ -102,6 +102,8 @@ final class NavigationCoordinator {
 
         let postId: UUID
         let mode: Mode
+        /// The post's community when the push or bell row carried one; nil means "look it up".
+        var communityId: UUID? = nil
     }
 
     struct AnnouncementsNavigationTarget: Identifiable, Equatable {
@@ -180,11 +182,11 @@ final class NavigationCoordinator {
         case .townHall:
             selectedTab = .community
             
-        case .townHallPostComments(let postId):
-            pendingIntent = .townHallPost(postId, mode: .openComments)
+        case .townHallPostComments(let postId, let communityId):
+            pendingIntent = .townHallPost(postId, mode: .openComments, communityId: communityId)
 
-        case .townHallPostHighlight(let postId):
-            pendingIntent = .townHallPost(postId, mode: .highlightPost)
+        case .townHallPostHighlight(let postId, let communityId):
+            pendingIntent = .townHallPost(postId, mode: .highlightPost, communityId: communityId)
             
         case .profile(let userId):
             pendingIntent = .profile(userId)
@@ -245,8 +247,8 @@ final class NavigationCoordinator {
                 return currentId == id
             }
             return false
-        case .townHallPostComments(let id), .townHallPostHighlight(let id):
-            if case .townHallPost(let postId, _) = pendingIntent {
+        case .townHallPostComments(let id, _), .townHallPostHighlight(let id, _):
+            if case .townHallPost(let postId, _, _) = pendingIntent {
                 return postId == id
             }
             return false
@@ -316,8 +318,8 @@ final class NavigationCoordinator {
         case .openFavor(let favorId, let anchor):
             pendingIntent = .favor(favorId, anchor: anchor)
             selectedTab = .requests
-        case .openTownHallPost(let postId, let mode):
-            pendingIntent = .townHallPost(postId, mode: mode)
+        case .openTownHallPost(let postId, let mode, let communityId):
+            pendingIntent = .townHallPost(postId, mode: mode, communityId: communityId)
             selectedTab = .community
         case .openAnnouncements(let scrollToNotificationId):
             pendingIntent = .announcements(scrollToNotificationId: scrollToNotificationId)
@@ -396,11 +398,11 @@ final class NavigationCoordinator {
     }
 
     func consumeTownHallNavigationTarget() -> TownHallNavigationTarget? {
-        guard case .townHallPost(let postId, let mode) = pendingIntent else {
+        guard case .townHallPost(let postId, let mode, let communityId) = pendingIntent else {
             return nil
         }
         pendingIntent = nil
-        return .init(postId: postId, mode: mode)
+        return .init(postId: postId, mode: mode, communityId: communityId)
     }
 
     func consumeAnnouncementsNavigationTarget() -> AnnouncementsNavigationTarget? {

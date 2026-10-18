@@ -77,7 +77,7 @@ final class NotificationNavigationRouter {
         }
         // The broadcast has a linked town hall post: navigate there instead
         AppLogger.info("notifications", "[NotificationNavigationRouter] Broadcast tapped with town hall post: \(postId); deferring intent")
-        NavigationCoordinator.shared.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost))
+        NavigationCoordinator.shared.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost, communityId: notification.communityId))
         NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
         return false
     }
@@ -122,9 +122,9 @@ final class NotificationNavigationRouter {
         case .message, .addedToConversation:
             return notification.conversationId.map { .openConversation(conversationId: $0, scrollTarget: nil) }
         case .townHallPost:
-            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .openComments) }
+            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .openComments, communityId: notification.communityId) }
         case .townHallComment, .townHallReaction:
-            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .highlightPost) }
+            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .highlightPost, communityId: notification.communityId) }
         case .pendingApproval:
             return .openPendingUsers
         case .contentReported:
@@ -140,7 +140,7 @@ final class NotificationNavigationRouter {
                 return .openFavor(favorId: favorId, anchor: nil)
             }
             if let postId = notification.townHallPostId {
-                return .openTownHallPost(postId: postId, mode: .highlightPost)
+                return .openTownHallPost(postId: postId, mode: .highlightPost, communityId: notification.communityId)
             }
             return .openDashboard
         case .review:

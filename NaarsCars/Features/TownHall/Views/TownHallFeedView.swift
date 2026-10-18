@@ -66,6 +66,27 @@ struct TownHallFeedView: View {
             .onChange(of: communityContext.communityTabId) { _, _ in
                 Task { await viewModel.activeCommunityDidChange() }
             }
+            // initial: true also consumes a target that was set before this view existed (cold-start
+            // push tap, first visit to the tab, Leaderboard segment showing). The intent is consumed
+            // here, in the same pass, and the ViewModel owns the community switch and the resolution.
+            .onChange(of: navigationCoordinator.pendingIntent, initial: true) { _, _ in
+                if let target = navigationCoordinator.consumeTownHallNavigationTarget() {
+                    Task { await viewModel.open(target) }
+                }
+            }
+            // The two actions that do not need the list; the scroll actions are handled by postsListView.
+            .onChange(of: viewModel.pendingFeedAction, initial: true) { _, action in
+                switch action {
+                case .openComments(let postId):
+                    openCommentsTarget = .init(id: postId)
+                    viewModel.consumeFeedAction()
+                case .unavailable:
+                    toastMessage = "moderation_content_unavailable".localized
+                    viewModel.consumeFeedAction()
+                case .scrollAndOpenComments, .scrollAndHighlight, nil:
+                    break
+                }
+            }
             .toast(message: $toastMessage)
             // A failed vote, delete, next page or refresh keeps the loaded posts on screen.
             .errorBanner(message: $viewModel.bannerMessage)
@@ -172,11 +193,17 @@ struct TownHallFeedView: View {
                 await viewModel.refreshPosts()
             }
             .background(Color.naarsBackground)
-            // initial: true also consumes a target that was set before this list existed (cold-start
-            // push tap, first visit to the tab, Leaderboard segment showing, feed still loading);
-            // onChange alone never fires for a value that is already there.
-            .onChange(of: navigationCoordinator.pendingIntent, initial: true) { _, intent in
-                guard case .townHallPost(let postId, let mode) = intent else { return }
+            // initial: true also performs an action published before this list existed (the post
+            // arrived in the same update that showed the list); onChange alone never fires for a
+            // value that is already there.
+            .onChange(of: viewModel.pendingFeedAction, initial: true) { _, action in
+                let postId: UUID
+                switch action {
+                case .scrollAndOpenComments(let id), .scrollAndHighlight(let id):
+                    postId = id
+                case .openComments, .unavailable, nil:
+                    return
+                }
                 let anchorId = "community.townHall.postCard(\(postId))"
                 // One main-actor turn later: on the initial pass the list has not been laid out
                 // yet and a scroll requested now can be dropped.
@@ -186,14 +213,13 @@ struct TownHallFeedView: View {
                     }
                 }
 
-                switch mode {
-                case .openComments:
+                if case .scrollAndOpenComments = action {
                     openCommentsTarget = .init(id: postId)
-                case .highlightPost:
+                } else {
                     highlightPost(postId)
                 }
 
-                navigationCoordinator.pendingIntent = nil
+                viewModel.consumeFeedAction()
             }
         }
     }

@@ -205,4 +205,49 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
             XCTFail("Expected ride intent")
         }
     }
+
+    // MARK: - Town Hall community_id (multi-community Phase 1)
+
+    func testApplyPushDeepLink_TownHallCommentsCarriesCommunityId() {
+        let postId = UUID()
+        let communityId = UUID()
+        coordinator.applyPushDeepLink(.townHallPostComments(id: postId, communityId: communityId))
+        XCTAssertEqual(coordinator.pendingIntent, .townHallPost(postId, mode: .openComments, communityId: communityId))
+    }
+
+    func testApplyPushDeepLink_TownHallHighlightWithoutCommunityId() {
+        let postId = UUID()
+        coordinator.applyPushDeepLink(.townHallPostHighlight(id: postId))
+        XCTAssertEqual(coordinator.pendingIntent, .townHallPost(postId, mode: .highlightPost, communityId: nil))
+    }
+
+    func testDeferredOpenTownHallPost_ConsumeCarriesCommunityId() {
+        let postId = UUID()
+        let communityId = UUID()
+        coordinator.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost, communityId: communityId))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
+        XCTAssertEqual(coordinator.selectedTab, .community)
+        let consumed = coordinator.consumeTownHallNavigationTarget()
+        XCTAssertEqual(consumed?.postId, postId)
+        XCTAssertEqual(consumed?.mode, .highlightPost)
+        XCTAssertEqual(consumed?.communityId, communityId)
+        XCTAssertNil(coordinator.pendingIntent)
+    }
+
+    func testRouter_ContentHiddenBellRowCarriesCommunityId() {
+        let userId = UUID()
+        let postId = UUID()
+        let communityId = UUID()
+        let notification = AppNotification(
+            userId: userId,
+            type: .contentHidden,
+            title: "t",
+            townHallPostId: postId,
+            communityId: communityId
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter().notificationIntent(for: notification),
+            .openTownHallPost(postId: postId, mode: .highlightPost, communityId: communityId)
+        )
+    }
 }

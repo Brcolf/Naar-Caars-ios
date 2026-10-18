@@ -18,7 +18,7 @@ enum NavigationIntent: Equatable {
     case conversation(UUID, scrollTarget: NavigationCoordinator.ConversationScrollTarget? = nil)
 
     // Community tab
-    case townHallPost(UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode = .openComments)
+    case townHallPost(UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode = .openComments, communityId: UUID? = nil)
     case announcements(scrollToNotificationId: UUID? = nil)
 
     // Profile tab

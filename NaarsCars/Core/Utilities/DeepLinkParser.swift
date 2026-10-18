@@ -13,8 +13,8 @@ enum DeepLink {
     case favor(id: UUID)
     case conversation(id: UUID)
     case profile(id: UUID)
-    case townHallPostComments(id: UUID)
-    case townHallPostHighlight(id: UUID)
+    case townHallPostComments(id: UUID, communityId: UUID? = nil)
+    case townHallPostHighlight(id: UUID, communityId: UUID? = nil)
     case townHall
     case adminPanel
     case pendingUsers
@@ -28,6 +28,12 @@ enum DeepLink {
 
 /// Parser for deep links from push notifications
 struct DeepLinkParser {
+    /// The post's community from the push payload (`community_id`), when present and well formed.
+    /// Absent on pushes from before the multi-community backend; the feed then looks the post up.
+    private static func communityId(from userInfo: [AnyHashable: Any]) -> UUID? {
+        (userInfo["community_id"] as? String).flatMap(UUID.init)
+    }
+
     /// Parse deep link from notification userInfo
     /// - Parameter userInfo: Notification payload
     /// - Returns: Parsed DeepLink
@@ -74,10 +80,11 @@ struct DeepLinkParser {
         case "town_hall_post", "town_hall_comment", "town_hall_reaction":
             if let postIdString = userInfo["town_hall_post_id"] as? String,
                let postId = UUID(uuidString: postIdString) {
+                let communityId = communityId(from: userInfo)
                 if type == "town_hall_post" {
-                    return .townHallPostComments(id: postId)
+                    return .townHallPostComments(id: postId, communityId: communityId)
                 }
-                return .townHallPostHighlight(id: postId)
+                return .townHallPostHighlight(id: postId, communityId: communityId)
             }
             return .townHall
 
@@ -113,7 +120,7 @@ struct DeepLinkParser {
             }
             if let postIdString = userInfo["town_hall_post_id"] as? String,
                let postId = UUID(uuidString: postIdString) {
-                return .townHallPostHighlight(id: postId)
+                return .townHallPostHighlight(id: postId, communityId: communityId(from: userInfo))
             }
             return .dashboard
 

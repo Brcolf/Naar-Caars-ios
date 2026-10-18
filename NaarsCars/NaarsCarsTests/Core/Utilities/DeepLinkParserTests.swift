@@ -119,7 +119,7 @@ final class DeepLinkParserTests: XCTestCase {
         
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         
-        if case .townHallPostComments(let id) = deepLink {
+        if case .townHallPostComments(let id, _) = deepLink {
             XCTAssertEqual(id, postId, "Should parse town hall post ID correctly")
         } else {
             XCTFail("Expected .townHallPostComments deep link, got \(deepLink)")
@@ -226,7 +226,74 @@ final class DeepLinkParserTests: XCTestCase {
             XCTFail("Expected .unknown deep link for invalid UUID, got \(deepLink)")
         }
     }
+
+    // MARK: - Town Hall community_id (multi-community Phase 1)
+
+    func testParse_TownHallTypesCarryCommunityIdWhenPresent() {
+        let postId = UUID()
+        let communityId = UUID()
+        for type in ["town_hall_post", "town_hall_comment", "town_hall_reaction"] {
+            let deepLink = DeepLinkParser.parse(userInfo: [
+                "type": type,
+                "town_hall_post_id": postId.uuidString,
+                "community_id": communityId.uuidString
+            ])
+            switch deepLink {
+            case .townHallPostComments(let id, let community) where type == "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertEqual(community, communityId, type)
+            case .townHallPostHighlight(let id, let community) where type != "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertEqual(community, communityId, type)
+            default:
+                XCTFail("Unexpected deep link for \(type): \(deepLink)")
+            }
+        }
+    }
+
+    func testParse_TownHallTypesWithoutCommunityIdParseAsBefore() {
+        let postId = UUID()
+        for type in ["town_hall_post", "town_hall_comment", "town_hall_reaction"] {
+            let deepLink = DeepLinkParser.parse(userInfo: [
+                "type": type,
+                "town_hall_post_id": postId.uuidString
+            ])
+            switch deepLink {
+            case .townHallPostComments(let id, let community) where type == "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertNil(community, type)
+            case .townHallPostHighlight(let id, let community) where type != "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertNil(community, type)
+            default:
+                XCTFail("Unexpected deep link for \(type): \(deepLink)")
+            }
+        }
+    }
+
+    func testParse_ContentHiddenTownHallPostCarriesCommunityId() {
+        let postId = UUID()
+        let communityId = UUID()
+
+        let withCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "content_hidden",
+            "town_hall_post_id": postId.uuidString,
+            "community_id": communityId.uuidString
+        ])
+        guard case .townHallPostHighlight(let id, let community) = withCommunity else {
+            return XCTFail("Expected .townHallPostHighlight, got \(withCommunity)")
+        }
+        XCTAssertEqual(id, postId)
+        XCTAssertEqual(community, communityId)
+
+        let withoutCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "content_hidden",
+            "town_hall_post_id": postId.uuidString
+        ])
+        guard case .townHallPostHighlight(let idWithout, let communityWithout) = withoutCommunity else {
+            return XCTFail("Expected .townHallPostHighlight, got \(withoutCommunity)")
+        }
+        XCTAssertEqual(idWithout, postId)
+        XCTAssertNil(communityWithout)
+    }
 }
-
-
-

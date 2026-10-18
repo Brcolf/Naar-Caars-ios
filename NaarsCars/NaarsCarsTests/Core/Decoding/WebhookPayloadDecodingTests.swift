@@ -46,7 +46,7 @@ final class WebhookPayloadDecodingTests: XCTestCase {
             "town_hall_post_id": WebhookFixtures.postId.uuidString
         ]
         let deepLink = DeepLinkParser.parse(userInfo: payload)
-        guard case .townHallPostHighlight(let id) = deepLink else {
+        guard case .townHallPostHighlight(let id, _) = deepLink else {
             XCTFail("Expected .townHallPostHighlight for town hall comment payload")
             return
         }

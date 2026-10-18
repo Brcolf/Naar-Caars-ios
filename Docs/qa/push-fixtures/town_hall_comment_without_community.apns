@@ -1,0 +1,11 @@
+{
+  "aps": {
+    "alert": {
+      "title": "New comment",
+      "body": "Fixture: town_hall_comment without community_id"
+    },
+    "sound": "default"
+  },
+  "type": "town_hall_comment",
+  "town_hall_post_id": "<POST_ID>"
+}

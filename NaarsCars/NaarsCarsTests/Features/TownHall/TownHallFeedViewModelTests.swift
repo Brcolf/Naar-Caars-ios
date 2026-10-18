@@ -326,7 +326,46 @@ final class TownHallFeedViewModelTests: XCTestCase {
         XCTAssertFalse(vm.posts.contains { $0.communityId == communityB })
         withExtendedLifetime(harness.container) {}
     }
+
+    // MARK: - open(_:) (multi-community Phase 1, Task 12)
+
+    func testOpen_RefreshFailureStillResolvesHeldTarget() async throws {
+        let container = try ModelContainer(
+            for: SDTownHallPost.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let repository = TownHallRepository()
+        repository.setup(modelContext: ModelContext(container))
+        let suiteName = "TownHallFeedViewModelTests-open-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        addTeardownBlock {
+            UserDefaults().removePersistentDomain(forName: suiteName)
+        }
+        let context = CommunityContext(
+            service: StubCommunityService(result: .success([CommunityFixtures.membership(communityA, name: "A", isPrimary: true)])),
+            defaults: defaults
+        )
+        context.restore(for: UUID())
+        await context.refreshMemberships()
+        XCTAssertEqual(context.communityTabId, communityA)
+
+        let fetcher = StubTownHallPostFetcher()
+        fetcher.failPages = true
+        let vm = TownHallFeedViewModel(
+            repository: repository,
+            postFetcher: fetcher,
+            communityContext: context,
+            refreshTownHall: { _ in nil }
+        )
+        let postId = UUID()
+
+        await vm.open(NavigationCoordinator.TownHallNavigationTarget(postId: postId, mode: .openComments, communityId: communityA))
+        XCTAssertNil(vm.pendingFeedAction, "no refresh has finished yet, so the target is held")
+        await vm.refreshPosts()   // the refresh fails
+
+        XCTAssertEqual(vm.pendingFeedAction, .openComments(postId))
+        vm.consumeFeedAction()
+        XCTAssertNil(vm.pendingFeedAction)
+        withExtendedLifetime(container) {}
+    }
 }
-
-
-

@@ -8,6 +8,18 @@
 import Foundation
 internal import Combine
 
+/// What the feed view does for a Town Hall target from a push, a bell row or a deep link.
+enum TownHallFeedAction: Equatable {
+    /// The post is in the list: scroll to it and open its comments.
+    case scrollAndOpenComments(UUID)
+    /// The post is in the list: scroll to it and highlight it.
+    case scrollAndHighlight(UUID)
+    /// The post is not in the list after a refresh: open the comments sheet, which loads by id.
+    case openComments(UUID)
+    /// The post cannot be read (hidden, deleted, or in a community the person is not in).
+    case unavailable
+}
+
 /// ViewModel for town hall feed
 @MainActor
 final class TownHallFeedViewModel: ObservableObject {
@@ -26,6 +38,9 @@ final class TownHallFeedViewModel: ObservableObject {
     /// The community the feed shows. Nil means no community filter (no community known yet).
     /// Follows `CommunityContext.communityTabId` through `activeCommunityDidChange()`.
     private(set) var activeCommunityId: UUID?
+    /// The action for the last target passed to `open(_:)`; the view performs it and calls
+    /// `consumeFeedAction()`.
+    @Published private(set) var pendingFeedAction: TownHallFeedAction?
 
     // MARK: - Private Properties
 
@@ -46,6 +61,12 @@ final class TownHallFeedViewModel: ObservableObject {
     private var generation = 0
     /// Post ids of the last successful enrichment page (the store reconciliation after a switch).
     private var lastEnrichmentPostIds: [UUID] = []
+    /// The generation whose `refreshFromNetwork` last finished, successfully or not.
+    private var finishedRefreshGeneration: Int?
+    /// A target whose community is settled, waiting for its post to be resolved against `posts`.
+    private var pendingNavigation: NavigationCoordinator.TownHallNavigationTarget?
+    /// Bumped by every `open(_:)`; an earlier call that is still resolving its community stops.
+    private var navigationRequest = 0
 
     private var postsCancellable: AnyCancellable?
     private var voteCancellable: AnyCancellable?
@@ -287,6 +308,78 @@ final class TownHallFeedViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Navigation targets
+
+    /// Opens a Town Hall target (push, bell row, deep link). Switches the Community tab to the
+    /// post's community when it is another active membership, then publishes the scroll,
+    /// highlight or open-comments action through `pendingFeedAction`. Never switches to a
+    /// community the person is not an active member of: a post that cannot be read publishes
+    /// `.unavailable` and the feed stays where it is.
+    func open(_ target: NavigationCoordinator.TownHallNavigationTarget) async {
+        navigationRequest += 1
+        let request = navigationRequest
+        pendingNavigation = nil
+
+        // 1. The post's community: from the target when it is an active membership, otherwise
+        // from the post itself (an old push, a row with no community, or a community not loaded).
+        let activeIds = Set(communityContext.activeMemberships.map(\.communityId))
+        let communityId: UUID?
+        if let given = target.communityId, activeIds.contains(given) {
+            communityId = given
+        } else {
+            do {
+                let post = try await postFetcher.fetchPost(id: target.postId)
+                guard request == navigationRequest else { return }
+                guard let post else {
+                    pendingFeedAction = .unavailable
+                    return
+                }
+                communityId = post.communityId
+            } catch {
+                guard request == navigationRequest else { return }
+                guard let given = target.communityId else {
+                    AppLogger.warning("townhall", "Post lookup for a navigation target failed: \(error.localizedDescription)")
+                    pendingFeedAction = .unavailable
+                    return
+                }
+                communityId = given
+            }
+        }
+
+        // 2. Switch only to an active membership other than the one shown.
+        if let communityId, activeIds.contains(communityId), communityId != activeCommunityId {
+            communityContext.communityTabId = communityId
+            await activeCommunityDidChange()
+            guard request == navigationRequest else { return }
+        }
+
+        // 3. Resolve against the list now, or when the current generation's refresh finishes.
+        pendingNavigation = target
+        resolvePendingNavigation()
+    }
+
+    /// The view performed `pendingFeedAction`.
+    func consumeFeedAction() {
+        pendingFeedAction = nil
+    }
+
+    /// Publishes the action for `pendingNavigation` once it can be decided: the post is in the
+    /// list, or the current generation has finished a refresh without it. Otherwise it waits;
+    /// `refreshFromNetwork` calls this again at its end.
+    private func resolvePendingNavigation() {
+        guard let target = pendingNavigation else { return }
+        if posts.contains(where: { $0.id == target.postId }) {
+            switch target.mode {
+            case .openComments: pendingFeedAction = .scrollAndOpenComments(target.postId)
+            case .highlightPost: pendingFeedAction = .scrollAndHighlight(target.postId)
+            }
+            pendingNavigation = nil
+        } else if finishedRefreshGeneration == generation {
+            pendingFeedAction = .openComments(target.postId)
+            pendingNavigation = nil
+        }
+    }
+
     // MARK: - Local-first helpers
 
     private func bindPosts() {
@@ -370,6 +463,12 @@ final class TownHallFeedViewModel: ObservableObject {
         }
         // Results for the community the feed showed before a switch.
         guard startGeneration == generation else { return false }
+        // Whatever the outcome, this generation has now finished a refresh: a held navigation
+        // target is resolved after `posts` / `error` are set below, so it never waits forever.
+        defer {
+            finishedRefreshGeneration = startGeneration
+            resolvePendingNavigation()
+        }
 
         var failure: Error?
         if case .failed(let error, _)? = result {
