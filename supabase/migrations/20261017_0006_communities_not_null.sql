@@ -1,5 +1,13 @@
 -- 20261017_0006_communities_not_null.sql
--- NOT APPLIED: waits for steps 4 (owner's SQL editor) and 5. Steps 0-3 are live as of 2026-10-18.
+-- APPLIED 2026-10-18 (Supabase MCP apply_migration, the whole file in one call; migration-history
+-- version 20261018182957), after steps 0-5 were live and the full probe matrix had passed once after
+-- step 5. Dry run first inside begin; ... rollback;: the assertion raised nothing, all four columns read
+-- is_nullable = 'NO', and a member's ride and post inserted without community_id still landed in the
+-- default community (the fill triggers run before the constraint). After the apply: is_nullable = 'NO'
+-- on rides, favors, town_hall_posts and xp_events; the full matrix (noop_default with the pre-Phase-0 XP
+-- baseline, isolation, legacy_bridges, owner_notifications, privileged_columns, membership_end, archive,
+-- invites, account_deletion, reports, reputation, blocks, creation_limits) and short all passed in one
+-- rolled-back transaction; no probe row leaked. Phase 0 is complete.
 -- Phase 0, step 6 of the multi-community build, and the LAST Phase 0 file
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §4 "Step 6", §3.6 INV-R1, as amended by
 -- Docs/superpowers/specs/2026-10-17-multi-community-decisions.md).

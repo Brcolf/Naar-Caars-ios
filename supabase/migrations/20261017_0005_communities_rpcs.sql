@@ -1,13 +1,58 @@
 -- 20261017_0005_communities_rpcs.sql
 --
--- PARTLY APPLIED 2026-10-18: blocks 1-4 and 7-32 except 21 (30 functions) are live through the
+-- APPLIED 2026-10-18 in two parts. Blocks 1-4 and 7-32 except 21 (29 functions) went through the
 -- Supabase MCP (apply_migration, migration-history version "20261017_0005_communities_rpcs"). Blocks 5
 -- (archive_community_with_notices) and 21 (reject_community_member) contain a DELETE statement, which
 -- the MCP's permission layer declines even inside a function body (execute_sql and apply_migration both,
--- tested in isolation), so they are the owner's SQL-editor step, like 20261017_0004: run the two blocks
--- as they stand, then the `archive` probe block and `short`. Until then archive_community and the
--- sole-owner path of leave_community raise 42883 (no installed build calls them) and
--- reject_community_member does not exist. Phase 0, step 5 of the multi-community design
+-- tested in isolation); at the owner's request they were run in the dashboard SQL editor (owner signed
+-- in, the exact text of the two blocks, Supabase's own "destructive operations" prompt confirmed,
+-- "Success. No rows returned"), so they are not in the migration history. Block 6 is empty, so step 5
+-- is 31 functions.
+--   md5(prosrc) of every deployed body (pg_proc, 2026-10-18):
+--     my_community_role 9ed636b9f664f5301ea7147a1744b381
+--     notify_user_in_community fb4722eeda9389814118aa6ae7db8302
+--     lookup_community_invite e9b6fd9f07447b987015a200cfecb42f
+--     invite_attempts_exceeded 613bcf5abda8573e6dffee8eaf795b36
+--     archive_community_with_notices 2a990b50267800a9e8930f99df0d835a
+--     create_community 573a3cfacd6f824e592d502575398df8
+--     get_my_community_limits 49a1da4d24404de9f223470213810d07
+--     request_owned_community_limit 63510fdab16e96c1fdfe1e11917f17a1
+--     decide_owned_community_limit d86e49fd4bd2f9333b6acb71518c8082
+--     update_community 7bf86ba02a90e5b996177ea86455a704
+--     set_community_public be06eb7f873a1631bd743a572f9cee11
+--     archive_community b6de43a4db32d8b42b945f573c019920
+--     unarchive_community b1fccb2583e0b20a61300da30ec3b419
+--     create_community_invite d0944a561ae3724ba7cfaebd33afbcb9
+--     revoke_community_invite 7c1daf0b5a304309540835b02cca892e
+--     validate_community_invite 7b05ca38ad87e0a25aabf0cf39b3eda0
+--     redeem_community_invite f18e6af6f7ca7a53acd193db115b1f27
+--     request_to_join_community da89c2337d8102d4c284440c534c2b2a
+--     approve_community_member d46e6536ada7419c1f63b8e988f1f670
+--     reject_community_member 6a2d315447b95c5a859714cd40c2ae64
+--     remove_community_member c09099d5ec2281e8bfbf3866c05d8b76
+--     readmit_community_member 3045087b5df74f503cb1986da444160e
+--     set_member_role 4e00bbdc2abcf3d993e8377324655689
+--     transfer_community_ownership 8fc784bfc93916789137a8328d4929d8
+--     leave_community c6ac93ae215cd59bc1942dab5bf93794
+--     set_primary_community 95f04e143ec85f843a50cd4272eecbcd
+--     get_my_memberships a614499aadf7f5788c5bea8129cf556d
+--     get_community_members 05b8d56adad44dc5bc7e46f64d98be86
+--     search_community_members 6b7841aaecb482bdfdd9b67d221ae84d
+--     report_community 6b6e3c74f3f6719e0be372b455d63ac6
+--     get_platform_communities 7e6f81c814ef2affa0382b86d73e4d02
+--   Probe outcomes (supabase/probes/communities_probe.sql, each block in its own savepoint of one
+--   rolled-back transaction, probe.xp_baseline set to the pre-Phase-0 leaderboard): after the 29-function
+--   part, noop_default, isolation, legacy_bridges, owner_notifications, privileged_columns,
+--   membership_end, invites, account_deletion, reports, reputation, blocks, creation_limits and short
+--   all passed; after the two SQL-editor bodies, archive passed (extended on the spot with: the four
+--   other active members get "Probe Community One was archived", the poster and helper of the confirmed
+--   ride get ride_unclaimed, reject_community_member deletes the pending row, writes the event and the
+--   user_rejected row, answers not_pending on a repeat and refuses a plain member, and the only member of
+--   C3 leaving archives it) and short passed again. No probe row leaked (0 probe profiles, 1 community).
+--   Before the apply, every DELETE-free block had been compiled inside a rolled-back transaction; the
+--   whole-file dry run with the matrix was declined by the permission layer (the DELETE bodies), so the
+--   matrix ran against the live state instead, as recorded above.
+-- Phase 0, step 5 of the multi-community design
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §3.5 "New RPCs", §4 step 5) with the
 -- owner's decisions of 2026-10-17 (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md,
 -- which wins where the two differ).
