@@ -140,6 +140,8 @@ enum Constants {
         static let conversationsPushOffPollInterval: TimeInterval = 60.0
         /// Shortest time between two automatic `get_my_memberships` loads (foreground recheck, 30s)
         static let membershipRefreshMinInterval: TimeInterval = 30
+        /// How often the waiting screen re-checks its memberships (30s)
+        static let pendingApprovalPollInterval: TimeInterval = 30
         /// Longest a Town Hall push or bell-row target waits for the first membership load (cold
         /// start) before it opens in the community already shown (the load failed or is offline)
         static let townHallTargetMembershipWait: TimeInterval = 10
@@ -230,6 +232,22 @@ enum Constants {
         static let deepLinkBase = "https://naarscars.com"
     }
     
+    /// Community limits and lengths. The server enforces every limit; the client validates only
+    /// to avoid pointless calls.
+    enum Community {
+        static let nameLength = 2...60
+        static let descriptionMaxLength = 300
+        static let answerMaxLength = 500
+        static let limitRequestRange = 4...20
+        static let memberInviteLifetimeDays = 7
+        static let adminInviteMaxUses = 1000
+        static let inviteExpiryDayChoices = [1, 7, 30, 90]
+        static let pendingMembersPageSize = 100
+        static let membersPageSize = 500
+        /// How long a code kept for a signed-out visitor stays valid (7 days)
+        static let pendingInviteLifetime: TimeInterval = 7 * 24 * 3600
+    }
+
     /// Default map coordinates
     enum Map {
         static let defaultLatitude: Double = 47.6062    // Seattle

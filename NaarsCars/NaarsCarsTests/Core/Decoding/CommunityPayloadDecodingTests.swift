@@ -19,6 +19,12 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertEqual(rows[0].status, .active)
     }
 
+    func testMembershipRequiresApprovalFollowsTheServerJoinPolicy() throws {
+        let rows = try DateDecoderFactory.makeSupabaseDecoder().decode([CommunityMembership].self, from: Data(CommunityFixtures.myMembershipsJSON.utf8))
+        XCTAssertFalse(rows[0].requiresApproval)
+        XCTAssertTrue(rows[1].requiresApproval)
+    }
+
     func testRequestsScopeStorageRoundTripAndIncludes() {
         XCTAssertEqual(RequestsScope(storageValue: RequestsScope.community(CommunityFixtures.communityA).storageValue), .community(CommunityFixtures.communityA))
         XCTAssertEqual(RequestsScope(storageValue: "garbage"), .all)

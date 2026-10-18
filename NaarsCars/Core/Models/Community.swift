@@ -52,6 +52,9 @@ struct CommunityMembership: Decodable, Identifiable, Equatable, Sendable {
 
     var id: UUID { communityId }
 
+    /// True when joining needs an admin's approval (the server's `approve` join policy).
+    var requiresApproval: Bool { joinPolicy == CommunityJoinPolicy.approve.rawValue }
+
     enum CodingKeys: String, CodingKey {
         case communityId = "community_id"
         case name
