@@ -146,4 +146,97 @@ final class BadgeCountManagerTests: XCTestCase {
         XCTAssertEqual(payload.conversationDetails.first?.conversationId, conversationId)
         XCTAssertEqual(payload.conversationDetails.first?.unreadCount, 6)
     }
+
+    // MARK: - Counts from the payload (Profile badge, per-community counts)
+
+    private func makePayload(
+        pendingMembersTotal: Int? = nil,
+        communityDetails: [BadgeCountManager.CommunityCountDetail]? = nil
+    ) -> BadgeCountManager.BadgeCountsPayload {
+        BadgeCountManager.BadgeCountsPayload(
+            requestsTotal: 1,
+            messagesTotal: 5,
+            communityTotal: 3,
+            bellTotal: 4,
+            requestDetails: [],
+            conversationDetails: [],
+            pendingMembersTotal: pendingMembersTotal,
+            communityDetails: communityDetails,
+            total: nil
+        )
+    }
+
+    func testMakeCounts_ProfileBadgeReadsPendingMembersTotal() {
+        let counts = BadgeCountManager.BadgeCounts.makeCounts(from: makePayload(pendingMembersTotal: 2))
+
+        XCTAssertEqual(counts.profile, 2)
+        XCTAssertEqual(counts.adminPanel, 2)
+        XCTAssertEqual(counts.requests, 1)
+        XCTAssertEqual(counts.messages, 5)
+        XCTAssertEqual(counts.community, 3)
+        XCTAssertEqual(counts.bell, 4)
+        XCTAssertEqual(counts.totalUnread, 1 + 5 + 3)
+    }
+
+    func testMakeCounts_MissingPendingMembersTotalIsZero() {
+        let counts = BadgeCountManager.BadgeCounts.makeCounts(from: makePayload(pendingMembersTotal: nil))
+
+        XCTAssertEqual(counts.profile, 0)
+        XCTAssertEqual(counts.adminPanel, 0)
+        XCTAssertEqual(counts.communityUnreadById, [:])
+    }
+
+    func testMakeCounts_CommunityUnreadByIdKeepsPositiveTotals() {
+        let communityA = UUID()
+        let communityB = UUID()
+        let payload = makePayload(communityDetails: [
+            BadgeCountManager.CommunityCountDetail(communityId: communityA, requestsTotal: 0, communityTotal: 3, bellTotal: 3),
+            BadgeCountManager.CommunityCountDetail(communityId: communityB, requestsTotal: 2, communityTotal: 0, bellTotal: 2)
+        ])
+
+        let counts = BadgeCountManager.BadgeCounts.makeCounts(from: payload)
+
+        XCTAssertEqual(counts.communityUnreadById, [communityA: 3])
+    }
+
+    // MARK: - Scoped Community clear
+
+    private struct ClearFixture {
+        let communityA = UUID()
+        let communityB = UUID()
+        let userId = UUID()
+        let aPostUnread: AppNotification
+        let bCommentUnread: AppNotification
+        let nilReactionUnread: AppNotification
+        let aPostRead: AppNotification
+        let aRideClaimedUnread: AppNotification
+
+        init() {
+            aPostUnread = AppNotification(userId: userId, type: .townHallPost, title: "A post", communityId: communityA)
+            bCommentUnread = AppNotification(userId: userId, type: .townHallComment, title: "B comment", communityId: communityB)
+            nilReactionUnread = AppNotification(userId: userId, type: .townHallReaction, title: "Reaction")
+            aPostRead = AppNotification(userId: userId, type: .townHallPost, title: "A post read", read: true, communityId: communityA)
+            aRideClaimedUnread = AppNotification(userId: userId, type: .rideClaimed, title: "Claimed", communityId: communityA)
+        }
+
+        var all: [AppNotification] {
+            [aPostUnread, bCommentUnread, nilReactionUnread, aPostRead, aRideClaimedUnread]
+        }
+    }
+
+    func testCommunityIdsToClear_ScopesToVisibleAndUnlabelledRows() {
+        let fixture = ClearFixture()
+
+        let ids = BadgeCountManager.communityNotificationIdsToClear(fixture.all, visibleCommunityId: fixture.communityA)
+
+        XCTAssertEqual(ids, [fixture.aPostUnread.id, fixture.nilReactionUnread.id])
+    }
+
+    func testCommunityIdsToClear_NilVisibleClearsEveryCommunityRow() {
+        let fixture = ClearFixture()
+
+        let ids = BadgeCountManager.communityNotificationIdsToClear(fixture.all, visibleCommunityId: nil)
+
+        XCTAssertEqual(ids, [fixture.aPostUnread.id, fixture.bCommentUnread.id, fixture.nilReactionUnread.id])
+    }
 }

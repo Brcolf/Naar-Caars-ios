@@ -12,6 +12,7 @@ struct CommunityTabView: View {
     @State private var selectedView: CommunityView = .townHall
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var communityContext = CommunityContext.shared
+    @State private var badgeManager = BadgeCountManager.shared
     
     enum CommunityView: String, CaseIterable {
         case townHall = "community_town_hall"
@@ -48,13 +49,18 @@ struct CommunityTabView: View {
             .communityTitleMenu(enabled: communityContext.hasMultipleCommunities) {
                 ForEach(communityContext.activeMemberships) { membership in
                     let isSelected = membership.communityId == communityContext.communityTabId
+                    let unreadCount = badgeManager.counts.communityUnreadById[membership.communityId] ?? 0
                     Button {
                         communityContext.communityTabId = membership.communityId
                     } label: {
                         if isSelected {
                             Label(membership.name, systemImage: "checkmark")
                         } else {
+                            // Menu buttons show a second Text as the row's subtitle.
                             Text(membership.name)
+                            if unreadCount > 0 {
+                                Text("community_menu_unread_count".localized(with: unreadCount))
+                            }
                         }
                     }
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -69,9 +75,18 @@ struct CommunityTabView: View {
                 }
             }
             .onAppear {
-                // Clear community badge when viewing Community tab
+                // Clear the visible community's badge when viewing Community tab
+                let visibleCommunityId = communityContext.communityTabId
                 Task {
-                    await BadgeCountManager.shared.clearCommunityBadge()
+                    await BadgeCountManager.shared.clearCommunityBadge(visibleCommunityId: visibleCommunityId)
+                }
+            }
+            .onChange(of: communityContext.communityTabId) { _, newCommunityId in
+                // Switching communities marks the newly visible one read. A change while the
+                // tab is not on screen (a membership refresh) marks nothing read.
+                guard navigationCoordinator.selectedTab == .community else { return }
+                Task {
+                    await BadgeCountManager.shared.clearCommunityBadge(visibleCommunityId: newCommunityId)
                 }
             }
             .onChange(of: navigationCoordinator.pendingIntent) { _, intent in

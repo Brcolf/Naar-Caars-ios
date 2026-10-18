@@ -42,6 +42,50 @@ extension BadgeCountManager: BadgeCountManaging {}
         var adminPanel: Int = 0
         var bell: Int = 0
         var totalUnread: Int = 0
+        /// Unread Town Hall count per community (`community_details`), positive totals only.
+        /// Read by the Community tab's title menu for the communities that are not on screen.
+        var communityUnreadById: [UUID: Int] = [:]
+
+        /// The tab counts for one `get_badge_counts` payload. The Profile (and Admin Panel)
+        /// badge is `pending_members_total`: pending rows in the communities the caller
+        /// administers, counted by the server, so there is no second client-side path.
+        static func makeCounts(from payload: BadgeCountsPayload) -> BadgeCounts {
+            var counts = BadgeCounts()
+            counts.requests = payload.requestsTotal
+            counts.messages = payload.messagesTotal
+            counts.community = payload.communityTotal
+            counts.profile = payload.pendingMembersTotal ?? 0
+            counts.adminPanel = counts.profile
+            counts.bell = payload.bellTotal
+            counts.totalUnread = payload.requestsTotal + payload.messagesTotal + payload.communityTotal
+            var byId: [UUID: Int] = [:]
+            for detail in payload.communityDetails ?? [] where detail.communityTotal > 0 {
+                byId[detail.communityId] = detail.communityTotal
+            }
+            counts.communityUnreadById = byId
+            return counts
+        }
+    }
+
+    /// Notification types that make up the Community tab badge.
+    static let communityBadgeTypes: Set<NotificationType> = [
+        .townHallPost, .townHallComment, .townHallReaction
+    ]
+
+    /// The unread Town Hall notifications that opening the Community tab marks read: those of
+    /// the visible community and those with no community. With no visible community (the
+    /// community context has not loaded) every unread Town Hall row, as before Phase 2.
+    static func communityNotificationIdsToClear(
+        _ notifications: [AppNotification],
+        visibleCommunityId: UUID?
+    ) -> [UUID] {
+        notifications
+            .filter { notification in
+                guard !notification.read, communityBadgeTypes.contains(notification.type) else { return false }
+                guard let visibleCommunityId else { return true }
+                return notification.communityId == nil || notification.communityId == visibleCommunityId
+            }
+            .map(\.id)
     }
 
     private(set) var counts = BadgeCounts()
@@ -51,7 +95,6 @@ extension BadgeCountManager: BadgeCountManaging {}
 
     // MARK: - Private Properties
 
-    private let adminService = AdminService.shared
     private let authService = AuthService.shared
     private let supabase = SupabaseService.shared.client
 
@@ -90,7 +133,6 @@ extension BadgeCountManager: BadgeCountManaging {}
         guard elapsed >= Constants.Timing.badgeRefreshDebounce else { return }
 
         AppLogger.info("badges", "Refreshing badges (\(reason))")
-        async let profileCount = calculateProfileBadgeCount()
 
         do {
             let counts: BadgeCountsPayload
@@ -154,18 +196,8 @@ extension BadgeCountManager: BadgeCountManaging {}
 
             lastRefreshTime = Date()
 
-            let profile = await profileCount
-
             // Build a single struct and assign once → one objectWillChange emission
-            var newCounts = BadgeCounts()
-            newCounts.requests = counts.requestsTotal
-            newCounts.messages = counts.messagesTotal
-            newCounts.community = counts.communityTotal
-            newCounts.profile = profile
-            newCounts.adminPanel = profile  // Same as profile badge for admins
-            newCounts.bell = counts.bellTotal
-            newCounts.totalUnread = counts.requestsTotal + counts.messagesTotal + counts.communityTotal
-            self.counts = newCounts
+            self.counts = BadgeCounts.makeCounts(from: counts)
 
             // Broadcast conversation-level unread counts to any active view models
             NotificationCenter.default.post(
@@ -178,14 +210,10 @@ extension BadgeCountManager: BadgeCountManaging {}
 
             AppLogger.info("badges", "Counts synced: requests=\(counts.requestsTotal), messages=\(counts.messagesTotal), community=\(counts.communityTotal), bell=\(counts.bellTotal)")
         } catch is CancellationError {
-            _ = await profileCount
             return
         } catch let error as NSError where error.code == NSURLErrorCancelled {
-            _ = await profileCount
             return
         } catch {
-            // Await profileCount to prevent orphan cancellation of the async let
-            _ = await profileCount
             AppLogger.error("badges", "Failed to refresh badge counts (\(reason)): \(error)")
         }
     }
@@ -240,22 +268,20 @@ extension BadgeCountManager: BadgeCountManaging {}
         await refreshAllBadges(reason: "clearMessagesBadge")
     }
 
-    /// Clear Community badge (called when viewing Community tab or a post)
-    func clearCommunityBadge() async {
+    /// Clear Community badge (called when viewing Community tab or switching its community).
+    /// Marks read only the visible community's Town Hall rows and rows with no community, so
+    /// opening the tab does not clear communities the person did not look at.
+    func clearCommunityBadge(visibleCommunityId: UUID?) async {
         guard let userId = authService.currentUserId else { return }
 
         do {
             // Use cached notifications (no forceRefresh) to avoid a full 30-day network fetch
             let notifications = try await NotificationService.shared.fetchNotifications(userId: userId, forceRefresh: false)
 
-            // Community notification types to clear
-            let communityTypes: Set<NotificationType> = [
-                .townHallPost, .townHallComment, .townHallReaction
-            ]
-
-            let communityNotificationIds = notifications
-                .filter { !$0.read && communityTypes.contains($0.type) }
-                .map { $0.id }
+            let communityNotificationIds = Self.communityNotificationIdsToClear(
+                notifications,
+                visibleCommunityId: visibleCommunityId
+            )
 
             guard !communityNotificationIds.isEmpty else {
                 await refreshAllBadges(reason: "clearCommunityBadge.noop")
@@ -290,28 +316,6 @@ extension BadgeCountManager: BadgeCountManaging {}
 
     // MARK: - Private Methods
 
-    /// Calculate Profile badge count (admin only)
-    /// Counts: pending user approvals
-    private func calculateProfileBadgeCount() async -> Int {
-        guard let userId = authService.currentUserId,
-              let profile = authService.currentProfile,
-              profile.isAdmin else {
-            return 0
-        }
-
-        do {
-            let pendingUsers = try await adminService.fetchPendingUsers()
-            return pendingUsers.count
-        } catch is CancellationError {
-            return 0
-        } catch let error as NSError where error.code == NSURLErrorCancelled {
-            return 0
-        } catch {
-            AppLogger.warning("badges", "Error calculating profile badge: \(error)")
-            return 0
-        }
-    }
-
     // MARK: - Authoritative Counts RPC
 
     struct RequestCountDetail: Decodable {
@@ -325,7 +329,7 @@ extension BadgeCountManager: BadgeCountManaging {}
         let unreadCount: Int
     }
 
-    /// Per-community unread counts from `get_badge_counts` (`community_details`). Not read in Phase 1.
+    /// Per-community unread counts from `get_badge_counts` (`community_details`).
     struct CommunityCountDetail: Decodable, Equatable {
         let communityId: UUID
         let requestsTotal: Int
@@ -340,7 +344,8 @@ extension BadgeCountManager: BadgeCountManaging {}
         let bellTotal: Int
         let requestDetails: [RequestCountDetail]
         let conversationDetails: [ConversationCountDetail]
-        /// Additive multi-community keys; absent on a server without them. Nothing reads them in Phase 1.
+        /// Additive multi-community keys; absent on a server without them. `makeCounts(from:)`
+        /// reads `pendingMembersTotal` and `communityDetails`.
         let pendingMembersTotal: Int?
         let communityDetails: [CommunityCountDetail]?
         let total: Int?
