@@ -13,6 +13,10 @@ import SwiftUI
 struct LeaderboardView: View {
     @State private var communityContext = CommunityContext.shared
     @StateObject private var viewModel = LeaderboardViewModel(communityContext: CommunityContext.shared)
+    /// The load for the latest community change; a newer change cancels it. The ViewModel ignores
+    /// the outcome of a load whose community is no longer the current one, so a cancelled one
+    /// shows nothing.
+    @State private var communityLoadTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,7 +35,8 @@ struct LeaderboardView: View {
                 }
             }
             .onChange(of: communityContext.communityTabId) { _, _ in
-                Task { await viewModel.communityDidChange() }
+                communityLoadTask?.cancel()
+                communityLoadTask = Task { await viewModel.communityDidChange() }
             }
 
             // Content

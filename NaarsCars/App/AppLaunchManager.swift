@@ -96,8 +96,8 @@ final class AppLaunchManager: ObservableObject {
     /// tests inject a closure to observe the launch order without starting real engines.
     var startSyncEngines: ((UUID) -> Void)?
 
-    /// The membership load started by `beginDeferredSession(userId:)`. Launch routing and
-    /// hydration never wait for it.
+    /// The latest membership load, started by `beginDeferredSession(userId:)` or
+    /// `handleEnterAppIntent()`. Launch routing and hydration never wait for it.
     private(set) var membershipLoadTask: Task<Void, Never>?
 
     /// Reads the account flags for the foreground re-check. Nil uses
@@ -289,7 +289,7 @@ final class AppLaunchManager: ObservableObject {
             return
         }
         let context = communityContext
-        Task { await context.refreshMemberships() }
+        membershipLoadTask = Task { await context.refreshMemberships() }
         NavigationCoordinator.shared.applyPushDeepLink(.enterApp)
     }
 
