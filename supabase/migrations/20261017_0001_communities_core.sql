@@ -299,7 +299,7 @@ $function$;
 -- placeholder is replaced the cast fails, so neither the dry-run nor the call can run with a guessed owner.
 insert into public.communities (name, created_by, is_default, is_public, join_policy, timezone)
 select 'Naar''s Cars Seattle',
-       'REPLACE-WITH-OWNER-PROFILE-ID'::uuid,   -- the owner-confirmed profiles.id (D1)
+       '0da568d8-924c-4420-8853-206a48d277b6'::uuid,   -- the owner-confirmed profiles.id (D1)
        true, true, 'approve', 'America/Los_Angeles'
  where not exists (select 1 from public.communities where is_default);
 

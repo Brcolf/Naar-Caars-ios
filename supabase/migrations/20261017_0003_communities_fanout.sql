@@ -71,9 +71,14 @@
 --      becomes SECURITY DEFINER: as an invoker function its new community_members join would
 --      see only the caller's own row under step 2's policy. Average rating and review count in
 --      get_leaderboard(text, integer) stay per person (rule 8).
---   4. send_broadcast_notifications keeps its 4-argument signature; p_type is accepted and
---      ignored (rows are always type 'broadcast', the default the installed build relies on;
---      a free-form type would be refused by should_notify_user inside create_notification).
+--   4. send_broadcast_notifications keeps its 4-argument signature and passes p_type through to
+--      the bell rows as the live body does (the installed admin build sends 'broadcast' or
+--      'admin_announcement'); send_community_broadcast takes it as a fifth argument, default
+--      'broadcast'. Owner decision 2026-10-17: stay close to today. Only the three announcement
+--      types should_notify_user already accepts ('broadcast', 'admin_announcement',
+--      'announcement') are allowed; any other type is refused (the live body would insert any
+--      string; no build sends another one, and a community admin must not mint e.g. 'new_ride'
+--      rows).
 --   5. search_path: functions rewritten here are pinned to '' with every name qualified (the
 --      repo convention). create_signup_profile and get_user_badges keep their live
 --      search_path ('public') because only one branch / one gate changes in them.
@@ -117,8 +122,10 @@
 -- send_broadcast_notifications wrapper (call 12):
 --   * goes to the default community's active, unbanned, unmuted members and no longer gives the
 --     sender a bell row;
---   * ignores p_type (rows are always 'broadcast', deviation 4);
---   * is refused as the 4th within 24 hours in the community (D14), for platform admins too;
+--   * passes p_type through; only 'broadcast', 'admin_announcement' and 'announcement' are
+--     accepted (deviation 4);
+--   * is refused as the 4th within 24 hours in the community (D14) for community admins;
+--     platform admins are exempt until Phase 3 (owner decision 2026-10-17);
 --   * creates its bell rows through create_notification, so should_notify_user gates each one,
 --     instead of the live body's direct inserts.
 -- The cap applies to platform admins as decided in D14. Exempting platform admins until Phase 3
@@ -811,9 +818,10 @@ revoke all on function public.handle_new_report() from public, anon, authenticat
 -- ---------------------------------------------------------------------------------------------
 -- Call 11. send_community_broadcast (new)
 -- Community admin (is_community_admin: its owner and admins, and platform admins). An
--- announcement post in the community, then one 'broadcast' bell row per active, unbanned,
+-- announcement post in the community, then one bell row of p_type per active, unbanned,
 -- unmuted member other than the sender, through create_notification (the row's community_id
--- derives from town_hall_post_id). At most 3 per community in any 24 hours (D14). The Town Hall
+-- derives from town_hall_post_id). At most 3 per community in any 24 hours for community admins
+-- (D14); platform admins are exempt until Phase 3. The Town Hall
 -- push the post triggers goes through notify_town_hall_post, which honours notify_town_hall and
 -- the mute. Returns the number of bell rows created (the wrapper's contract).
 -- ---------------------------------------------------------------------------------------------
@@ -821,7 +829,8 @@ create or replace function public.send_community_broadcast(
     p_community_id uuid,
     p_title text,
     p_body text,
-    p_pinned boolean
+    p_pinned boolean,
+    p_type text default 'broadcast'
 )
 returns integer
 language plpgsql
@@ -834,9 +843,17 @@ declare
     v_member record;
     v_notification_id uuid;
     v_inserted_count integer := 0;
+    v_type text;
 begin
     if v_uid is null then
         raise exception 'Only admins can send broadcast notifications' using errcode = '42501';
+    end if;
+
+    -- Deviation 4 (owner decision 2026-10-17): the type is passed through as the live body does,
+    -- limited to the three announcement types should_notify_user already accepts.
+    v_type := coalesce(nullif(btrim(p_type), ''), 'broadcast');
+    if v_type not in ('broadcast', 'admin_announcement', 'announcement') then
+        raise exception 'Unsupported announcement type' using errcode = '22023';
     end if;
 
     if p_community_id is null or not public.is_community_admin(p_community_id) then
@@ -845,7 +862,8 @@ begin
 
     perform pg_advisory_xact_lock(hashtextextended('community_broadcast:' || p_community_id::text, 0));
 
-    if (select count(*)
+    -- D14 cap for community admins; platform admins are exempt until Phase 3 (owner decision 2026-10-17).
+    if not public.is_platform_admin() and (select count(*)
           from public.town_hall_posts t
          where t.community_id = p_community_id
            and t.type = 'announcement'
@@ -873,7 +891,7 @@ begin
            and (m.muted_until is null or m.muted_until < now())
     loop
         v_notification_id := public.create_notification(
-            v_member.user_id, 'broadcast', p_title, p_body,
+            v_member.user_id, v_type, p_title, p_body,
             null, null, null, null, v_post_id, v_uid, coalesce(p_pinned, false)
         );
         if v_notification_id is not null then
@@ -885,15 +903,15 @@ begin
 end;
 $function$;
 
-revoke all on function public.send_community_broadcast(uuid, text, text, boolean) from public, anon;
-grant execute on function public.send_community_broadcast(uuid, text, text, boolean) to authenticated, service_role;
+revoke all on function public.send_community_broadcast(uuid, text, text, boolean, text) from public, anon;
+grant execute on function public.send_community_broadcast(uuid, text, text, boolean, text) to authenticated, service_role;
 
 
 -- ---------------------------------------------------------------------------------------------
 -- Call 12. send_broadcast_notifications   live md5(prosrc) 8b3eb719ce8f0d4bc57b50f7a228d873
 -- Wrapper; the installed admin build's 4-argument call keeps working. A platform admin
 -- broadcasts to the default community; a community admin of exactly one community to that
--- community; anyone else is refused with today's message. p_type is ignored (deviation 4).
+-- community; anyone else is refused with today's message. p_type is passed through (deviation 4).
 -- ---------------------------------------------------------------------------------------------
 create or replace function public.send_broadcast_notifications(
     p_title text,
@@ -927,7 +945,7 @@ begin
         raise exception 'Only admins can send broadcast notifications';
     end if;
 
-    return public.send_community_broadcast(v_community_id, p_title, p_body, p_pinned);
+    return public.send_community_broadcast(v_community_id, p_title, p_body, p_pinned, p_type);
 end;
 $function$;
 
