@@ -281,7 +281,7 @@ Compilation is not correctness, and an unbuilt change is not done. After every c
 
 **Community code**: `CommunityServiceProtocol` (`Core/Protocols/`) fronts `CommunityService`; `TownHallPostFetching` is the narrow protocol `TownHallSyncEngine` uses to fetch posts; the shared `communityTitleMenu(enabled:subtitle:menu:)` modifier (`UI/Components/Common/CommunityTitleMenu.swift`) is the only way a screen adds a community title menu.
 
-**Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, and `NotificationFixtures.swift`. When adding payload handling, add corresponding fixtures and decoding tests here.
+**Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, `NotificationFixtures.swift`, and `CommunityFixtures.swift` (membership and RPC row fixtures plus `StubCommunityService` and `StubTownHallPostFetcher`). When adding payload handling, add corresponding fixtures and decoding tests here.
 
 ---
 
@@ -462,7 +462,7 @@ unhydrated → hydrated → invalidated → refreshing → hydrated
 
 **Coordinator methods (not engine methods):** `refreshIfNeeded`, `performTargetedRefresh`, `forceFullRefresh`, `forceFullRefreshAndWait`, `invalidate`, `setVisibleDomain`, `handleAppForegrounded`, `reset`. ViewModels never call engines or `refreshIfNeeded`; the only coordinator call a ViewModel may make is `forceFullRefreshAndWait` for an explicit user-initiated reload (pull-to-refresh, mark-read, approve). `MainTabView.onChange(of: selectedTab)` and app-foreground remain the staleness triggers; the push-off conversations poll in `ConversationsListViewModel` (`Constants.Timing.conversationsPushOffPollInterval`, ticks staleness-gated through the coordinator) is the one sanctioned timer besides the 5-minute safety poll.
 
-**Town Hall scope.** `TownHallSyncEngine` reads `CommunityContext.communityTabId` at the start of each fetch (through the `TownHallPostFetching` protocol) and posts `.townHallPostsDidSync` with the synced `TownHallSyncScope` in `userInfo`. The Community feed ViewModel reloads through `forceFullRefreshAndWait(.townHall, …)` after the community is switched.
+**Town Hall scope.** `TownHallSyncEngine` reads `CommunityContext.communityTabId` at the start of each fetch through its injected `communityScope` closure (default `{ CommunityContext.shared.communityTabId }`; `TownHallPostFetching` is only the protocol it fetches posts through) and posts `.townHallPostsDidSync` with the synced `TownHallSyncScope` in `userInfo`. The Community feed ViewModel reloads through `forceFullRefreshAndWait(.townHall, …)` after the community is switched.
 
 **MessagingSyncEngine has additional conversation-scoped methods** outside the protocol: `subscribeToConversation(_ conversationId:)`, `beginGracePeriod()`, `cancelGracePeriodAndUnsubscribe()`, `refreshConversationList()`.
 
@@ -793,7 +793,7 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 | Notifications | push → AppDelegate → DeepLinkParser → NavigationIntent → NavigationCoordinator → destination |
 | Auth state | initializing → checkingAuth → ready(authState). `recheckAccountStatus` acts only on a successful read; the waiting screen runs `performCriticalLaunch()`; `.enterApp` does not relaunch an authenticated session. |
 | Launch hydration | `AppLaunchManager` → `RefreshCoordinator.refreshIfNeeded(.dashboard / .conversations / .townHall, trigger: "launch")`. Engine `startSync()` is session setup only and never fetches. |
-| Sign-out | teardown (session work only — engines keep their container-scoped `modelContext` / `backgroundActor`) → wipe SwiftData → clear sync timestamps → reset coordinator → `CommunityContext.resetForSignOut(userId:)` (id captured in `handleSignOut`). All domains nil, badges zero, @Query returns []. |
+| Sign-out | teardown (session work only — engines keep their container-scoped `modelContext` / `backgroundActor`) → wipe SwiftData → clear sync timestamps → reset coordinator. `CommunityContext.resetForSignOut(userId:)` runs in phase 2, inside `AuthService.clearPerAccountLocalState()` after the SwiftData wipe and before the UI transition (id captured in `handleSignOut`). All domains nil, badges zero, @Query returns []. |
 | SwiftData schema | additive-only changes without a formal migration |
 | UIKit messaging | MessagesCollectionView is not replaceable with SwiftUI List |
 
