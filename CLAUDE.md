@@ -834,7 +834,7 @@ Two fragile-system deviations in the active-conversation receive path were found
 - The bubble overlay is presented through `afterDismissingKeyboard` so the keyboard and composer are gone before the snapshot is taken.
 - Transcript items are message ids plus `"date:<messageId>"`, `"unread:<n>"` and `"typing"`. The typing bubble is a transcript item (`setTypingUsers`), not a SwiftUI overlay. Delivery status ("Delivered" / "Read") is shown only under `lastOutgoingMessageId`, which skips unsent and system messages; both the cell losing it and the cell gaining it are reconfigured.
 - Time headers: day change or a gap of `Constants.Timing.messageTimeHeaderGap` (1 h). Bubble grouping: `Constants.Timing.messageSeriesWindow` (60 s). Swipe **right** replies on every bubble.
-- Thread identity is the **active** member set (`left_at IS NULL`) everywhere: the server lookup, `fetchParticipantIdsByConversation`, and the list's duplicate filter.
+- Thread identity is the **active** member set (`left_at IS NULL`) everywhere: the server lookup, `fetchParticipantIdsByConversation`, the list's duplicate filter, and the recipients of `send-message-push` (deployed as v32 on 2026-10-17: a member who left gets no message push, and a re-added member gets one, not two).
 - Known gap: changing Dynamic Type while a thread is open does not resize visible cells (fonts are set at configure time); reopening the thread does. New transcript cells should set fonts in `configure`, not use `adjustsFontForContentSizeCategory`, until that is fixed for all cells together.
 
 *Database contract (applied live; migrations `20261005_0012`–`0024`)*
