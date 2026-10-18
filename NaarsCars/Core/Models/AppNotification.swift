@@ -153,6 +153,20 @@ enum NotificationType: String, Codable, CaseIterable {
     #endif
 }
 
+// MARK: - Tolerant Decoding
+
+extension NotificationType {
+    /// Decodes any raw string. A type this build does not know (a future server-side
+    /// notification type) decodes as `.other` so one new type cannot fail a whole
+    /// notification list decode. `init(rawValue:)` is unchanged and still returns nil
+    /// for unknown strings; encoding stays synthesized (writes the raw value).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        self = NotificationType(rawValue: raw) ?? .other
+    }
+}
+
 // MARK: - Refresh Domain Mapping
 
 extension NotificationType {
