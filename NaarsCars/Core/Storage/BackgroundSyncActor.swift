@@ -1077,6 +1077,28 @@ actor BackgroundSyncActor {
             durationMs: Int(Date().timeIntervalSince(start) * 1000)
         )
     }
+
+    /// Targeted single-post delete with change detection: removes the cached post when it is
+    /// present (a targeted refresh found it no longer readable). Saves only when it deleted.
+    func deletePostWithChangeDetection(id: UUID) throws -> RefreshMetrics {
+        let start = Date()
+        let postId = id
+        let descriptor = FetchDescriptor<SDTownHallPost>(predicate: #Predicate { $0.id == postId })
+        let existing = try modelContext.fetch(descriptor)
+
+        for row in existing {
+            modelContext.delete(row)
+        }
+        let deleted = existing.isEmpty ? 0 : 1
+        if deleted > 0 { try modelContext.save() }
+
+        return RefreshMetrics(
+            recordsEvaluated: 1, recordsMutated: 0,
+            recordsInserted: 0, recordsDeleted: deleted,
+            savedToStore: deleted > 0,
+            durationMs: Int(Date().timeIntervalSince(start) * 1000)
+        )
+    }
 }
 
 // MARK: - Dashboard sync result

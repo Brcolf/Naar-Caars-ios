@@ -111,6 +111,17 @@ enum CommunityFixtures {
             activatedAt: nil
         )
     }
+
+    static func post(_ id: UUID, community: UUID?, createdAt: Date) -> TownHallPost {
+        TownHallPost(
+            id: id,
+            userId: UUID(uuidString: "0D000000-0000-4000-8000-000000000001")!,
+            content: "Post \(id.uuidString.prefix(8))",
+            communityId: community,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+    }
 }
 
 final class StubCommunityService: CommunityServiceProtocol {
@@ -126,5 +137,29 @@ final class StubCommunityService: CommunityServiceProtocol {
         fetchCount += 1
         await gate?()
         return try result.get()
+    }
+}
+
+/// Stub for `TownHallSyncEngine`'s post reads. Offset 0 returns the page stored for the
+/// requested community and its count; any other offset returns an empty page.
+final class StubTownHallPostFetcher: TownHallPostFetching {
+    var pagesByCommunity: [UUID?: [TownHallPost]]
+    var postsById: [UUID: TownHallPost]
+    private(set) var requestedCommunityIds: [UUID?] = []
+
+    init(pagesByCommunity: [UUID?: [TownHallPost]] = [:], postsById: [UUID: TownHallPost] = [:]) {
+        self.pagesByCommunity = pagesByCommunity
+        self.postsById = postsById
+    }
+
+    func fetchPostsPage(limit: Int, offset: Int, communityId: UUID?) async throws -> (posts: [TownHallPost], serverCount: Int) {
+        requestedCommunityIds.append(communityId)
+        guard offset == 0 else { return ([], 0) }
+        let page = Array((pagesByCommunity[communityId] ?? []).prefix(limit))
+        return (page, page.count)
+    }
+
+    func fetchPost(id: UUID) async throws -> TownHallPost? {
+        postsById[id]
     }
 }

@@ -241,6 +241,7 @@
 		AC410C273084E78500D921E2 /* CommunityFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C263084E78500D921E2 /* CommunityFixtures.swift */; };
 		AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */; };
 		AC410C2B3084E93300D921E2 /* CommunityContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C2A3084E93300D921E2 /* CommunityContext.swift */; };
+		AC410C2D3084F06800D921E2 /* TownHallPostFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C2C3084F06800D921E2 /* TownHallPostFetching.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -755,6 +756,7 @@
 		AC410C263084E78500D921E2 /* CommunityFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityFixtures.swift; sourceTree = "<group>"; };
 		AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPayloadDecodingTests.swift; sourceTree = "<group>"; };
 		AC410C2A3084E93300D921E2 /* CommunityContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityContext.swift; sourceTree = "<group>"; };
+		AC410C2C3084F06800D921E2 /* TownHallPostFetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallPostFetching.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1142,6 +1144,7 @@
 				AC1201082F3D73E60043BFAE /* ReviewServiceProtocol.swift */,
 				AC1201092F3D73E60043BFAE /* RideServiceProtocol.swift */,
 				AC410C223084E78500D921E2 /* CommunityServiceProtocol.swift */,
+				AC410C2C3084F06800D921E2 /* TownHallPostFetching.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -2506,6 +2509,7 @@
 				AC02E54B2F44322000355A45 /* CurrentLocationProvider.swift in Sources */,
 				AC02E54C2F44322000355A45 /* RideDirectionsLauncher.swift in Sources */,
 				AC8197A72F14C232003BB08B /* RouteMapView.swift in Sources */,
+				AC410C2D3084F06800D921E2 /* TownHallPostFetching.swift in Sources */,
 				AC35AB5D2F0F080F0012096B /* CreatePostView.swift in Sources */,
 				AC35AB5F2F0F080F0012096B /* CreatePostViewModel.swift in Sources */,
 				AC35AB602F0F080F0012096B /* TownHallFeedViewModel.swift in Sources */,

@@ -202,7 +202,8 @@ extension NotificationType {
         case .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted:
             return "favor_id"
         case .townHallPost, .townHallComment, .townHallReaction:
-            return "post_id"
+            // The push payload key the edge function sends (and DeepLinkParser reads).
+            return "town_hall_post_id"
         case .message, .addedToConversation:
             return "conversation_id"
         case .contentHidden:

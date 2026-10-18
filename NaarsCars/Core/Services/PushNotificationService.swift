@@ -791,8 +791,8 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// Called when any push is received (foreground or background).
     /// Routes refresh decisions through RefreshCoordinator — no direct engine calls.
     func handlePushReceived(userInfo: [AnyHashable: Any]) {
-        guard let typeString = userInfo["type"] as? String,
-              let type = NotificationType(rawValue: typeString) else {
+        guard let plan = PushRefreshPlan.make(userInfo: userInfo),
+              let typeString = userInfo["type"] as? String else {
             // Unknown type — just refresh badges (same push → coordinator path as known types)
             Task { @MainActor in
                 RefreshCoordinator.shared.performTargetedRefresh(.badges, entityId: UUID(), trigger: "push:unknown")
@@ -800,18 +800,11 @@ final class PushNotificationService: NSObject, ObservableObject {
             return
         }
 
-        let domains = type.affectedDomains
-        let entityId: UUID? = {
-            guard let key = type.entityIdKey,
-                  let idString = userInfo[key] as? String else { return nil }
-            return UUID(uuidString: idString)
-        }()
-
         // Route through coordinator — targeted if entity ID available, else invalidate.
         // RefreshCoordinator is @MainActor-isolated; marshal onto main actor.
         Task { @MainActor in
-            for domain in domains {
-                if let entityId {
+            for domain in plan.domains {
+                if let entityId = plan.entityId {
                     RefreshCoordinator.shared.performTargetedRefresh(domain, entityId: entityId, trigger: "push:\(typeString)")
                 } else {
                     RefreshCoordinator.shared.invalidate([domain])
@@ -820,6 +813,12 @@ final class PushNotificationService: NSObject, ObservableObject {
 
             // Badges always refresh on any push
             RefreshCoordinator.shared.performTargetedRefresh(.badges, entityId: UUID(), trigger: "push:\(typeString)")
+
+            // Account-status pushes can change which communities the person is in. Not a
+            // coordinator domain; touches no engine.
+            if plan.refreshesMemberships {
+                await CommunityContext.shared.refreshMemberships()
+            }
         }
     }
 
@@ -866,5 +865,35 @@ struct CompletionResponse: Codable {
         case action
         case error
         case nextReminder = "next_reminder"
+    }
+}
+
+// MARK: - Push Refresh Plan
+
+/// What a received push should refresh, derived from its payload alone so it can be tested
+/// without the coordinator. `handlePushReceived` acts on it: a targeted refresh per domain when
+/// `entityId` is set, an invalidation otherwise, and a membership refresh when asked.
+struct PushRefreshPlan: Equatable {
+    let domains: Set<RefreshDomain>
+    let entityId: UUID?
+    let refreshesMemberships: Bool
+
+    /// Push types that can change the person's community memberships (spec §3.7 "Later refreshes").
+    static let membershipRefreshTypes: Set<NotificationType> = [.userApproved, .userRejected, .accountRestricted, .pendingApproval]
+
+    /// Returns nil when `type` is missing or not a known notification type.
+    static func make(userInfo: [AnyHashable: Any]) -> PushRefreshPlan? {
+        guard let typeString = userInfo["type"] as? String,
+              let type = NotificationType(rawValue: typeString) else { return nil }
+        let entityId: UUID? = {
+            guard let key = type.entityIdKey,
+                  let idString = userInfo[key] as? String else { return nil }
+            return UUID(uuidString: idString)
+        }()
+        return PushRefreshPlan(
+            domains: type.affectedDomains,
+            entityId: entityId,
+            refreshesMemberships: membershipRefreshTypes.contains(type)
+        )
     }
 }

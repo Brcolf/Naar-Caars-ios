@@ -7,6 +7,7 @@
 
 import XCTest
 import UserNotifications
+import SwiftData
 @testable import NaarsCars
 
 @MainActor
@@ -93,6 +94,82 @@ final class PushNotificationServiceTests: XCTestCase {
         // Then: Should return a valid authorization status
         XCTAssertTrue([.notDetermined, .denied, .authorized, .provisional, .ephemeral].contains(status),
                       "Should return a valid authorization status")
+    }
+
+    // MARK: - Push refresh plan
+
+    func testRefreshPlan_TownHallPostTargetsThePost() {
+        let plan = PushRefreshPlan.make(userInfo: WebhookFixtures.townHallPostPushPayload)
+        XCTAssertEqual(plan?.domains, [.townHall])
+        XCTAssertEqual(plan?.entityId, WebhookFixtures.postId)
+        XCTAssertEqual(plan?.refreshesMemberships, false)
+    }
+
+    func testRefreshPlan_TownHallCommentWithoutCommunityStillTargets() {
+        let plan = PushRefreshPlan.make(userInfo: WebhookFixtures.townHallCommentPushPayload)
+        XCTAssertEqual(plan?.domains, [.townHall])
+        XCTAssertEqual(plan?.entityId, WebhookFixtures.postId)
+    }
+
+    func testRefreshPlan_RideWithCommunityKeyIsUnchanged() {
+        let withCommunity = PushRefreshPlan.make(userInfo: WebhookFixtures.notificationPushPayloadWithCommunity)
+        XCTAssertEqual(withCommunity, PushRefreshPlan(domains: [.dashboard], entityId: WebhookFixtures.rideId, refreshesMemberships: false))
+        XCTAssertEqual(withCommunity, PushRefreshPlan.make(userInfo: WebhookFixtures.notificationPushPayload))
+    }
+
+    func testRefreshPlan_UserApprovedRefreshesMemberships() {
+        let plan = PushRefreshPlan.make(userInfo: ["type": "user_approved"])
+        XCTAssertEqual(plan?.refreshesMemberships, true)
+        XCTAssertNil(plan?.entityId)
+    }
+
+    func testRefreshPlan_MissingOrUnknownTypeIsNil() {
+        XCTAssertNil(PushRefreshPlan.make(userInfo: [:]))
+        XCTAssertNil(PushRefreshPlan.make(userInfo: ["type": "some_future_type"]))
+    }
+
+    // MARK: - Targeted Town Hall sync
+
+    /// "Does not throw" stands in for "leaves .townHall out of backoff": the coordinator moves a
+    /// domain to `.failed(retryAfter:)` only when the engine throws.
+    func testTargetedSync_UnreadablePostDeletesLocalRowWithoutThrowing() async throws {
+        let postId = UUID(uuidString: "0D000000-0000-4000-8000-0000000000A1")!
+        let container = try ModelContainer(
+            for: SDTownHallPost.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let seed = ModelContext(container)
+        seed.insert(SDTownHallPost(id: postId, userId: UUID(), content: "Cached"))
+        try seed.save()
+
+        let engine = TownHallSyncEngine(repository: TownHallRepository(), postFetcher: StubTownHallPostFetcher())
+        engine.setupBackgroundActor(container: container)
+
+        let first = try await engine.performTargetedSync(entityId: postId)
+        XCTAssertEqual(first.recordsDeleted, 1)
+        XCTAssertTrue(first.savedToStore)
+        XCTAssertTrue(try ModelContext(container).fetch(FetchDescriptor<SDTownHallPost>()).isEmpty)
+
+        let second = try await engine.performTargetedSync(entityId: postId)
+        XCTAssertEqual(second.recordsDeleted, 0)
+        XCTAssertFalse(second.savedToStore)
+    }
+
+    func testTargetedSync_ReadablePostIsUpserted() async throws {
+        let postId = UUID(uuidString: "0D000000-0000-4000-8000-0000000000A2")!
+        let container = try ModelContainer(
+            for: SDTownHallPost.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let post = CommunityFixtures.post(postId, community: CommunityFixtures.communityA, createdAt: Date(timeIntervalSince1970: 1_790_000_000))
+        let engine = TownHallSyncEngine(repository: TownHallRepository(), postFetcher: StubTownHallPostFetcher(postsById: [postId: post]))
+        engine.setupBackgroundActor(container: container)
+
+        let metrics = try await engine.performTargetedSync(entityId: postId)
+        XCTAssertEqual(metrics.recordsInserted, 1)
+        let stored = try ModelContext(container).fetch(FetchDescriptor<SDTownHallPost>())
+        XCTAssertEqual(stored.map(\.id), [postId])
+        XCTAssertEqual(stored.first?.communityId, CommunityFixtures.communityA)
     }
 }
 

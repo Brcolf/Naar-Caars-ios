@@ -15,6 +15,7 @@ enum WebhookFixtures {
     static let favorId = UUID(uuidString: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")!
     static let postId = UUID(uuidString: "ffffffff-ffff-ffff-ffff-ffffffffffff")!
     static let userId = UUID(uuidString: "12121212-1212-1212-1212-121212121212")!
+    static let communityId = UUID(uuidString: "34343434-3434-4343-8343-343434343434")!
 
     static let messagePushPayload: [String: Any] = [
         "aps": [
@@ -47,6 +48,41 @@ enum WebhookFixtures {
         "type": "ride_claimed",
         "ride_id": rideId.uuidString,
         "user_id": userId.uuidString
+    ]
+
+    /// `notificationPushPayload` plus the `community_id` key the community-aware edge function adds.
+    static let notificationPushPayloadWithCommunity: [String: Any] = {
+        var payload = notificationPushPayload
+        payload["community_id"] = communityId.uuidString
+        return payload
+    }()
+
+    static let townHallPostPushPayload: [String: Any] = [
+        "aps": [
+            "alert": [
+                "title": "New Town Hall post",
+                "body": "Someone posted in Town Hall"
+            ],
+            "sound": "default",
+            "badge": 2
+        ],
+        "type": "town_hall_post",
+        "town_hall_post_id": postId.uuidString,
+        "community_id": communityId.uuidString
+    ]
+
+    /// A Town Hall push from a server without the community key (an older edge function).
+    static let townHallCommentPushPayload: [String: Any] = [
+        "aps": [
+            "alert": [
+                "title": "New comment",
+                "body": "Someone commented on your post"
+            ],
+            "sound": "default",
+            "badge": 2
+        ],
+        "type": "town_hall_comment",
+        "town_hall_post_id": postId.uuidString
     ]
 
     static let resolveEventTypePayloads: [[String: Any]] = [

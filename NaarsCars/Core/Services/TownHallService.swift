@@ -40,10 +40,17 @@ final class TownHallService {
     /// Same fetch as `fetchPosts`, plus the number of rows the server returned before posts by
     /// blocked authors were filtered out. Paging has to advance and stop on `serverCount`: a page
     /// that lost one post to the block filter is short, but it is not the last page.
-    func fetchPostsPage(limit: Int = 20, offset: Int = 0) async throws -> (posts: [TownHallPost], serverCount: Int) {
-        let response = try await supabase
+    ///
+    /// A nil `communityId` means "no community filter": RLS still returns only the caller's
+    /// communities. A non-nil id adds `community_id = id` to the query.
+    func fetchPostsPage(limit: Int = 20, offset: Int = 0, communityId: UUID? = nil) async throws -> (posts: [TownHallPost], serverCount: Int) {
+        var query = supabase
             .from("town_hall_posts")
             .select()
+        if let communityId {
+            query = query.eq("community_id", value: communityId.uuidString)
+        }
+        let response = try await query
             .order("created_at", ascending: false)
             .range(from: offset, to: offset + limit - 1)
             .execute()
@@ -88,15 +95,28 @@ final class TownHallService {
     }
     
     /// Fetch a single town hall post by ID for targeted refresh.
-    func fetchPost(id: UUID) async throws -> TownHallPost {
-        let response: TownHallPost = try await supabase
+    ///
+    /// Zero-row tolerant: returns nil when the post is not readable (hidden, deleted, in a
+    /// community the caller is not in, a forwarded push) or is by a blocked author, the same
+    /// posts the page fetch leaves out. Throws only on a transport or decoding failure, so an
+    /// unreadable post never puts the `.townHall` domain into backoff.
+    /// The post is enriched like a page post, so a targeted upsert keeps the cached author
+    /// name and comment count instead of overwriting them with nil and 0.
+    func fetchPost(id: UUID) async throws -> TownHallPost? {
+        let response = try await supabase
             .from("town_hall_posts")
             .select()
             .eq("id", value: id.uuidString)
-            .single()
+            .limit(1)
             .execute()
-            .value
-        return response
+
+        let decoder = createDateDecoder()
+        let rows = try decoder.decode([TownHallPost].self, from: response.data)
+        guard let post = rows.first else { return nil }
+        if MessageService.shared.cachedBlockedUserIds.contains(post.userId) {
+            return nil
+        }
+        return await enrichPosts([post], userId: AuthService.shared.currentUserId).first
     }
 
     // MARK: - Create Post
@@ -524,3 +544,4 @@ final class TownHallService {
     }
 }
 
+extension TownHallService: TownHallPostFetching {}

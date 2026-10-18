@@ -12,7 +12,7 @@ final class TownHallSyncEngine: SyncEngineProtocol {
     let engineName = "townHall"
 
     private let repository: TownHallRepository
-    private let townHallService: TownHallService
+    private let postFetcher: any TownHallPostFetching
     private let commentService: TownHallCommentService
     private var backgroundActor: BackgroundSyncActor?
 
@@ -20,11 +20,11 @@ final class TownHallSyncEngine: SyncEngineProtocol {
 
     init(
         repository: TownHallRepository? = nil,
-        townHallService: TownHallService? = nil,
+        postFetcher: (any TownHallPostFetching)? = nil,
         commentService: TownHallCommentService? = nil
     ) {
         self.repository = repository ?? .shared
-        self.townHallService = townHallService ?? .shared
+        self.postFetcher = postFetcher ?? TownHallService.shared
         self.commentService = commentService ?? .shared
     }
 
@@ -52,7 +52,9 @@ final class TownHallSyncEngine: SyncEngineProtocol {
     // MARK: - Coordinator Entry Points
 
     func performFullSync() async throws -> RefreshMetrics {
-        let posts = try await townHallService.fetchPosts()
+        let posts = try await postFetcher.fetchPostsPage(
+            limit: Constants.PageSizes.townHall, offset: 0, communityId: nil
+        ).posts
         guard !Task.isCancelled else { throw CancellationError() }
         guard let backgroundActor else {
             try repository.upsertPosts(posts, replaceAll: true)
@@ -70,8 +72,14 @@ final class TownHallSyncEngine: SyncEngineProtocol {
     }
 
     func performTargetedSync(entityId: UUID) async throws -> RefreshMetrics {
-        let post = try await townHallService.fetchPost(id: entityId)
+        let fetched = try await postFetcher.fetchPost(id: entityId)
         guard !Task.isCancelled else { throw CancellationError() }
+        guard let post = fetched else {
+            // Not readable (hidden, deleted, another community, a forwarded push, a blocked
+            // author): drop the cached row if there is one and succeed. Never throw here, or
+            // the coordinator would put the whole .townHall domain into backoff.
+            return await deleteUnreadablePost(id: entityId)
+        }
         guard let backgroundActor else {
             try repository.upsertPosts([post])
             health.recordSuccess()
@@ -83,5 +91,27 @@ final class TownHallSyncEngine: SyncEngineProtocol {
         }
         health.recordSuccess()
         return metrics
+    }
+
+    /// Removes the cached copy of a post the server no longer returns. Does not throw: a
+    /// local delete failure is logged and the refresh still counts as a success (the next full
+    /// sync prunes the row anyway).
+    private func deleteUnreadablePost(id: UUID) async -> RefreshMetrics {
+        defer { health.recordSuccess() }
+        do {
+            guard let backgroundActor else {
+                // The repository posts .townHallPostsDidSync itself, only when it deleted a row.
+                try repository.deletePost(id: id)
+                return .empty
+            }
+            let metrics = try await backgroundActor.deletePostWithChangeDetection(id: id)
+            if metrics.recordsDeleted > 0 {
+                NotificationCenter.default.post(name: .townHallPostsDidSync, object: nil)
+            }
+            return metrics
+        } catch {
+            AppLogger.error("townhall", "Could not drop unreadable post \(id) from the cache: \(error.localizedDescription)")
+            return .empty
+        }
     }
 }
