@@ -264,6 +264,10 @@
 		AC410C573085583B00D921E2 /* PendingMembersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */; };
 		AC410C593085588300D921E2 /* PendingMembersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C583085588300D921E2 /* PendingMembersView.swift */; };
 		AC410C5B308558A700D921E2 /* PendingMembersViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C5A308558A700D921E2 /* PendingMembersViewModelTests.swift */; };
+		AC410C5D30855BB500D921E2 /* MyCommunitiesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C5C30855BB500D921E2 /* MyCommunitiesViewModelTests.swift */; };
+		AC410C5F30855BF000D921E2 /* MyCommunitiesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */; };
+		AC410C6130855C0500D921E2 /* LeaveCommunitySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */; };
+		AC410C6330855C3200D921E2 /* MyCommunitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -801,6 +805,10 @@
 		AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMembersViewModel.swift; sourceTree = "<group>"; };
 		AC410C583085588300D921E2 /* PendingMembersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMembersView.swift; sourceTree = "<group>"; };
 		AC410C5A308558A700D921E2 /* PendingMembersViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMembersViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C5C30855BB500D921E2 /* MyCommunitiesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyCommunitiesViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyCommunitiesViewModel.swift; sourceTree = "<group>"; };
+		AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveCommunitySheet.swift; sourceTree = "<group>"; };
+		AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyCommunitiesView.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1422,6 +1430,7 @@
 				AC410C4C3085555400D921E2 /* JoinCommunityViewModel.swift */,
 				AC410C4E3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift */,
 				AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */,
+				AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1432,6 +1441,7 @@
 				AC410C443085528A00D921E2 /* CreateCommunityViewModelTests.swift */,
 				AC410C4A3085554400D921E2 /* JoinCommunityViewModelTests.swift */,
 				AC410C5A308558A700D921E2 /* PendingMembersViewModelTests.swift */,
+				AC410C5C30855BB500D921E2 /* MyCommunitiesViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1589,6 +1599,8 @@
 				AC410C503085557F00D921E2 /* JoinCommunitySheet.swift */,
 				AC410C523085559200D921E2 /* CommunityJoinOptionsView.swift */,
 				AC410C583085588300D921E2 /* PendingMembersView.swift */,
+				AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */,
+				AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2678,6 +2690,7 @@
 				4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */,
 				3F520A1C460F4FA98D68876A /* CacheManager.swift in Sources */,
 				D70D95F2A0D840B2BDBD8F41 /* ImageCompressor.swift in Sources */,
+				AC410C6130855C0500D921E2 /* LeaveCommunitySheet.swift in Sources */,
 				AC9178FB2F0BA7010077133C /* AppLaunchManager.swift in Sources */,
 				38BBBB5459534B9B91F36C3F /* ProfileService.swift in Sources */,
 				ACBF4AF02F12CB3D006A7C8A /* LeaderboardRow.swift in Sources */,
@@ -2696,6 +2709,7 @@
 				AC305F2D2F0DB8880063AFDF /* RideCard.swift in Sources */,
 				DFF2E7BE31B84AC8AF0BBF5B /* MyProfileViewModel.swift in Sources */,
 				B226C0514DC84558877E369D /* EditProfileViewModel.swift in Sources */,
+				AC410C6330855C3200D921E2 /* MyCommunitiesView.swift in Sources */,
 				AC35AB622F0F08AC0012096B /* TownHallService.swift in Sources */,
 				AC27A0032F1EDCDC00E3B58F /* CrashReportingService.swift in Sources */,
 				705E4B404CE3406391EF9121 /* PublicProfileViewModel.swift in Sources */,
@@ -2769,6 +2783,7 @@
 				AC1200512F37B2570043BFAE /* MessagesCollectionView.swift in Sources */,
 				AC27A0102F1EFB6800E3B58F /* CommunityGuidelinesView.swift in Sources */,
 				AC02E54E2F44358900355A45 /* MapsLaunchCoordinator.swift in Sources */,
+				AC410C5F30855BF000D921E2 /* MyCommunitiesViewModel.swift in Sources */,
 				4779EAF6DB234F378D72E66E /* Core/Services/FavorService.swift in Sources */,
 				ACD19A472F14D001009C1DE5 /* RequestDeduplicator.swift in Sources */,
 				ACBF4B082F12CBAE006A7C8A /* MessagesListView.swift in Sources */,
@@ -2984,6 +2999,7 @@
 				AC9DDD352F2B139C003465D3 /* NotificationsListViewModelTests.swift in Sources */,
 				AC12007B2F3AE6160043BFAE /* ClaimServiceTests.swift in Sources */,
 				AC12007C2F3AE6160043BFAE /* FavorServiceTests.swift in Sources */,
+				AC410C5D30855BB500D921E2 /* MyCommunitiesViewModelTests.swift in Sources */,
 				AC12007D2F3AE6160043BFAE /* RideServiceTests.swift in Sources */,
 				AC1200762F3AE6090043BFAE /* BadgeCountManagerTests.swift in Sources */,
 				AC1200772F3AE6090043BFAE /* NavigationCoordinatorRoutingTests.swift in Sources */,

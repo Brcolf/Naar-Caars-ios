@@ -230,6 +230,19 @@ final class CommunityContext {
         }
     }
 
+    /// Drops one membership locally after the server confirmed it ended (a leave or a withdrawn
+    /// request), so it disappears even when the follow-up `refreshMemberships()` fails. The tab,
+    /// the Requests narrow and the last community posted to normalise as on a load. Calls
+    /// `onActiveMembershipsEmpty` when no active membership is left. A no-op for an unknown id.
+    func forgetMembership(_ communityId: UUID) async {
+        guard memberships.contains(where: { $0.communityId == communityId }) else { return }
+        apply(memberships.filter { $0.communityId != communityId })
+
+        if activeMemberships.isEmpty {
+            await onActiveMembershipsEmpty?()
+        }
+    }
+
     /// Refreshes unless the last attempt is newer than `Constants.Timing.membershipRefreshMinInterval`.
     func refreshMembershipsIfStale() async {
         if let lastRefreshAttempt,

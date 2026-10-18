@@ -71,7 +71,9 @@ struct MyProfileView: View {
                             if profile.isAdmin {
                                 adminPanelLink()
                             }
-                            
+
+                            myCommunitiesLink()
+
                             accountSettingsSection()
 
                             // Share App Section
@@ -565,6 +567,38 @@ struct MyProfileView: View {
             .cornerRadius(Constants.Radius.card)
         }
         .accessibilityIdentifier("profile.adminPanel")
+    }
+
+    // MARK: - My Communities Link
+
+    private func myCommunitiesLink() -> some View {
+        let pendingTotal = CommunityContext.shared.administeredPendingTotal
+        return NavigationLink {
+            MyCommunitiesView()
+        } label: {
+            HStack {
+                Image(systemName: "person.3.fill")
+                    .foregroundColor(.naarsPrimary)
+                    .accessibilityHidden(true)
+                Text("community_my_profile_row".localized)
+                    .font(.naarsHeadline)
+                    .foregroundColor(.primary)
+                Spacer()
+                if pendingTotal > 0 {
+                    NotificationBadge(count: pendingTotal)
+                }
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.naarsCaption)
+                    .accessibilityHidden(true)
+            }
+            .padding()
+            .background(Color.naarsCardBackground)
+            .cornerRadius(Constants.Radius.card)
+        }
+        .accessibilityLabel("community_my_profile_row".localized)
+        .accessibilityValue(pendingTotal > 0 ? "\(pendingTotal)" : "")
+        .accessibilityIdentifier("profile.myCommunities")
     }
 
     // MARK: - Account Settings Link
