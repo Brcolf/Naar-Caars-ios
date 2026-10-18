@@ -11,6 +11,8 @@ import SwiftUI
 struct RideCard: View {
     let ride: Ride
     var unreadCount: Int = 0
+    /// Name of the request's community; set only when the person belongs to several.
+    var communityChipText: String? = nil
 
     @Environment(AppState.self) private var appState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -82,6 +84,9 @@ struct RideCard: View {
         if ride.claimedBy != nil, let claimer = ride.claimer {
             parts.append("\("card_claimed_by".localized) \(claimer.name)")
         }
+        if let communityChipText {
+            parts.append("community_chip_accessibility".localized(with: communityChipText))
+        }
         if unreadCount > 0 {
             parts.append("common_unseen_notifications_accessibility".localized(with: unreadCount))
         }
@@ -127,6 +132,10 @@ struct RideCard: View {
             HStack(spacing: 8) {
                 NotificationBadge(count: unreadCount, cap: 9)
                     .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
+                if let communityChipText {
+                    NaarsChip(text: communityChipText, tint: nil)
+                        .accessibilityLabel("community_chip_accessibility".localized(with: communityChipText))
+                }
                 NaarsChip(text: ride.statusDisplayText, tint: ride.status.color)
             }
         }
@@ -245,3 +254,26 @@ struct RideCard: View {
     }
     .padding()
 }
+
+#if DEBUG
+#Preview("Three communities") {
+    let _ = CommunityContext.shared.debugSetMemberships([
+        CommunityMembership(communityId: UUID(), name: "Capitol Hill", description: nil, role: .member, status: .active, isPrimary: true, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
+        CommunityMembership(communityId: UUID(), name: "Ballard", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
+        CommunityMembership(communityId: UUID(), name: "Fremont", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil)
+    ])
+    VStack(spacing: 16) {
+        RideCard(ride: Ride(
+            userId: UUID(),
+            date: Date(),
+            time: "14:30:00",
+            pickup: "123 Main St",
+            destination: "Airport Terminal 1",
+            seats: 2,
+            status: .open
+        ), communityChipText: "Capitol Hill")
+    }
+    .padding()
+    .environment(AppState())
+}
+#endif

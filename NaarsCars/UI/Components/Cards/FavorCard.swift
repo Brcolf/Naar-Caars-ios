@@ -11,6 +11,8 @@ import SwiftUI
 struct FavorCard: View {
     let favor: Favor
     var unreadCount: Int = 0
+    /// Name of the request's community; set only when the person belongs to several.
+    var communityChipText: String? = nil
 
     @Environment(AppState.self) private var appState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -81,6 +83,9 @@ struct FavorCard: View {
         if favor.claimedBy != nil, let claimer = favor.claimer {
             parts.append("\("card_claimed_by".localized) \(claimer.name)")
         }
+        if let communityChipText {
+            parts.append("community_chip_accessibility".localized(with: communityChipText))
+        }
         if unreadCount > 0 {
             parts.append("common_unseen_notifications_accessibility".localized(with: unreadCount))
         }
@@ -126,6 +131,10 @@ struct FavorCard: View {
             HStack(spacing: 8) {
                 NotificationBadge(count: unreadCount, cap: 9)
                     .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
+                if let communityChipText {
+                    NaarsChip(text: communityChipText, tint: nil)
+                        .accessibilityLabel("community_chip_accessibility".localized(with: communityChipText))
+                }
                 NaarsChip(text: favor.statusDisplayText, tint: favor.status.color)
             }
         }
@@ -234,3 +243,24 @@ struct FavorCard: View {
     .padding()
 }
 
+#if DEBUG
+#Preview("Three communities") {
+    let _ = CommunityContext.shared.debugSetMemberships([
+        CommunityMembership(communityId: UUID(), name: "Capitol Hill", description: nil, role: .member, status: .active, isPrimary: true, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
+        CommunityMembership(communityId: UUID(), name: "Ballard", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
+        CommunityMembership(communityId: UUID(), name: "Fremont", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil)
+    ])
+    VStack(spacing: 16) {
+        FavorCard(favor: Favor(
+            userId: UUID(),
+            title: "Help moving boxes",
+            location: "123 Main St",
+            duration: .underHour,
+            date: Date(),
+            status: .open
+        ), communityChipText: "Capitol Hill")
+    }
+    .padding()
+    .environment(AppState())
+}
+#endif

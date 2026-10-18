@@ -471,14 +471,26 @@ struct FilterTile: View {
 struct RequestCardView: View {
     let request: RequestItem
     let unreadCount: Int
+    /// Past Requests passes false: it is never narrowed, so it chips whenever the person has
+    /// two or more communities.
+    var respectsRequestsScope: Bool = true
+    @State private var communityContext = CommunityContext.shared
     
     var body: some View {
         Group {
             switch request {
             case .ride(let ride):
-                RideCard(ride: ride, unreadCount: unreadCount)
+                RideCard(
+                    ride: ride,
+                    unreadCount: unreadCount,
+                    communityChipText: communityContext.chipText(for: ride.communityId, respectingScope: respectsRequestsScope)
+                )
             case .favor(let favor):
-                FavorCard(favor: favor, unreadCount: unreadCount)
+                FavorCard(
+                    favor: favor,
+                    unreadCount: unreadCount,
+                    communityChipText: communityContext.chipText(for: favor.communityId, respectingScope: respectsRequestsScope)
+                )
             }
         }
     }

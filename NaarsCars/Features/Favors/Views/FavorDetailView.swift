@@ -16,6 +16,7 @@ struct FavorDetailView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
+    @State private var communityContext = CommunityContext.shared
     @State private var guestPromptReason: GuestRestrictionReason?
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false
@@ -351,6 +352,11 @@ struct FavorDetailView: View {
                         NaarsChip(text: favor.statusDisplayText, tint: favor.status.color, size: .large)
                             .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
                             .requestHighlight(highlightedAnchor == .statusBadge)
+
+                        if let communityText = communityContext.chipText(for: favor.communityId, respectingScope: true) {
+                            NaarsChip(text: communityText, tint: nil, size: .large)
+                                .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
+                        }
                         
                         if let poster = favor.poster {
                             Text("favor_detail_requested_by".localized(with: poster.name))

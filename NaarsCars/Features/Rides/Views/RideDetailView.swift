@@ -16,6 +16,7 @@ struct RideDetailView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
+    @State private var communityContext = CommunityContext.shared
     @State private var guestPromptReason: GuestRestrictionReason?
     @State private var showEditRide = false
     @State private var showDeleteAlert = false
@@ -364,6 +365,11 @@ struct RideDetailView: View {
                         NaarsChip(text: ride.statusDisplayText, tint: ride.status.color, size: .large)
                             .id(RequestDetailAnchor.statusBadge.anchorId(for: .ride))
                             .requestHighlight(highlightedAnchor == .statusBadge)
+
+                        if let communityText = communityContext.chipText(for: ride.communityId, respectingScope: true) {
+                            NaarsChip(text: communityText, tint: nil, size: .large)
+                                .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
+                        }
                         
                         if let poster = ride.poster {
                             Text("ride_detail_requested_by".localized(with: poster.name))
