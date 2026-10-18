@@ -69,7 +69,7 @@ final class TownHallFeedViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        let localPosts = (try? repository.getPosts()) ?? []
+        let localPosts = (try? repository.getPosts(communityId: nil)) ?? []
         if !localPosts.isEmpty {
             // This also runs when the feed reappears (tab switch, back from a profile). Pages the
             // user already scrolled in stay; see keepingPagedPosts.
@@ -124,7 +124,7 @@ final class TownHallFeedViewModel: ObservableObject {
         // Pull-to-refresh asks for the current feed, and it starts at the top of the list: drop
         // the pages kept in memory beyond the window the sync just stored (keepingPagedPosts) and
         // let them reload on scroll, so a post deleted or hidden further down cannot linger.
-        let stored = (try? repository.getPosts()) ?? []
+        let stored = (try? repository.getPosts(communityId: nil)) ?? []
         guard !stored.isEmpty else { return }
         let windowEnd = stored[min(stored.count, pageSize) - 1].createdAt
         replacePosts(with: posts.filter { $0.createdAt >= windowEnd })
@@ -218,9 +218,10 @@ final class TownHallFeedViewModel: ObservableObject {
     // MARK: - Local-first helpers
 
     private func bindPosts() {
-        postsCancellable = repository.getPostsPublisher()
-            .sink { [weak self] stored in
+        postsCancellable = repository.getPostsPublisher(communityId: { nil })
+            .sink { [weak self] emission in
                 guard let self else { return }
+                let stored = emission.posts
                 let enriched = self.preserveReviewEnrichment(from: self.posts, to: stored)
                 let merged = self.keepingPagedPosts(from: self.posts, withStored: enriched)
                 self.replacePosts(with: self.sortWithPinnedFirst(self.applyVoteCache(to: merged)))

@@ -14,18 +14,24 @@ final class TownHallSyncEngine: SyncEngineProtocol {
     private let repository: TownHallRepository
     private let postFetcher: any TownHallPostFetching
     private let commentService: TownHallCommentService
+    /// The community a full sync fetches (nil = no community filter).
+    private let communityScope: @MainActor () -> UUID?
     private var backgroundActor: BackgroundSyncActor?
 
     let health = SyncHealthMetrics()
 
+    /// - Parameter communityScope: nil reads the Community tab's community from
+    ///   `CommunityContext.shared`.
     init(
         repository: TownHallRepository? = nil,
         postFetcher: (any TownHallPostFetching)? = nil,
-        commentService: TownHallCommentService? = nil
+        commentService: TownHallCommentService? = nil,
+        communityScope: (@MainActor () -> UUID?)? = nil
     ) {
         self.repository = repository ?? .shared
         self.postFetcher = postFetcher ?? TownHallService.shared
         self.commentService = commentService ?? .shared
+        self.communityScope = communityScope ?? { CommunityContext.shared.communityTabId }
     }
 
     func setup(modelContext: ModelContext) {
@@ -52,20 +58,30 @@ final class TownHallSyncEngine: SyncEngineProtocol {
     // MARK: - Coordinator Entry Points
 
     func performFullSync() async throws -> RefreshMetrics {
+        // Read once, at fetch start: a switch made while this sync runs is reconciled by the feed,
+        // which ignores an emission stamped with another scope.
+        let communityId = communityScope()
+        let syncScope = TownHallSyncScope(communityId: communityId)
         let posts = try await postFetcher.fetchPostsPage(
-            limit: Constants.PageSizes.townHall, offset: 0, communityId: nil
+            limit: Constants.PageSizes.townHall, offset: 0, communityId: communityId
         ).posts
         guard !Task.isCancelled else { throw CancellationError() }
         guard let backgroundActor else {
-            try repository.upsertPosts(posts, replaceAll: true)
+            try repository.upsertPosts(posts, replaceAll: true, syncScope: syncScope)
             health.recordSuccess()
             return .empty
         }
+        // Prunes every local post absent from this page: the store holds the first page of the
+        // scope synced last.
         let metrics = try await backgroundActor.syncPostsWithChangeDetection(posts)
         // Posted ONLY after a successful BackgroundSyncActor save; TownHallRepository's posts
         // publisher re-reads SwiftData on it (same contract as DashboardSyncEngine's *DidSync).
         if metrics.savedToStore {
-            NotificationCenter.default.post(name: .townHallPostsDidSync, object: nil)
+            NotificationCenter.default.post(
+                name: .townHallPostsDidSync,
+                object: nil,
+                userInfo: [TownHallSyncScope.userInfoKey: syncScope]
+            )
         }
         health.recordSuccess()
         return metrics

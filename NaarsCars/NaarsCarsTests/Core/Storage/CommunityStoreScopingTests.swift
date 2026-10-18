@@ -5,11 +5,18 @@
 //  Fixture tests for the communityId mapper trio: rides, favors, notifications and
 //  Town Hall posts carry their community through every SwiftData field site, and a row
 //  cached by a build without the column (communityId nil) is rewritten by the next sync.
+//  Town Hall scoping: scoped repository reads and the full sync's community scope.
 //
 
 import XCTest
 import SwiftData
 @testable import NaarsCars
+
+/// Holds the scope read from the `.townHallPostsDidSync` notification (the expectation's
+/// handler is a `@Sendable` closure, so it cannot assign a captured local).
+private final class ReceivedSyncScope: @unchecked Sendable {
+    var scope: TownHallSyncScope?
+}
 
 @MainActor
 final class CommunityStoreScopingTests: XCTestCase {
@@ -17,6 +24,7 @@ final class CommunityStoreScopingTests: XCTestCase {
     private let base = Date(timeIntervalSince1970: 1_770_640_000)
 
     private let communityA = UUID(uuidString: "0C000000-0000-0000-0000-00000000000A")!
+    private let communityB = UUID(uuidString: "0C000000-0000-0000-0000-00000000000B")!
     private let userId = UUID(uuidString: "0C000000-0000-0000-0000-000000000001")!
     private let rideId = UUID(uuidString: "0C000000-0000-0000-0000-000000000002")!
     private let favorId = UUID(uuidString: "0C000000-0000-0000-0000-000000000003")!
@@ -266,7 +274,7 @@ final class CommunityStoreScopingTests: XCTestCase {
         let repository = TownHallRepository()
         repository.setup(modelContext: ModelContext(container))
         try repository.upsertPosts([post(community: communityA)])
-        XCTAssertEqual(try repository.getPosts().first?.communityId, communityA)
+        XCTAssertEqual(try repository.getPosts(communityId: nil).first?.communityId, communityA)
 
         let cachedContainer = try makeContainer()
         let cachedContext = ModelContext(cachedContainer)
@@ -276,11 +284,75 @@ final class CommunityStoreScopingTests: XCTestCase {
         try cachedContext.save()
         let cachedRepository = TownHallRepository()
         cachedRepository.setup(modelContext: cachedContext)
-        XCTAssertNil(try cachedRepository.getPosts().first?.communityId)
+        XCTAssertNil(try cachedRepository.getPosts(communityId: nil).first?.communityId)
 
         try cachedRepository.upsertPosts([post(community: communityA)])
 
-        XCTAssertEqual(try cachedRepository.getPosts().first?.communityId, communityA)
+        XCTAssertEqual(try cachedRepository.getPosts(communityId: nil).first?.communityId, communityA)
+    }
+
+    // MARK: - Town Hall scoping
+
+    /// Rows for A (newest), B and an unlabelled one cached by the previous build (oldest).
+    private func scopedPosts() -> (a: TownHallPost, b: TownHallPost, unlabelled: TownHallPost) {
+        let a = TownHallPost(
+            id: UUID(uuidString: "0C000000-0000-0000-0000-0000000000A1")!, userId: userId, content: "A",
+            communityId: communityA, createdAt: base.addingTimeInterval(20), updatedAt: base
+        )
+        let b = TownHallPost(
+            id: UUID(uuidString: "0C000000-0000-0000-0000-0000000000B1")!, userId: userId, content: "B",
+            communityId: communityB, createdAt: base.addingTimeInterval(10), updatedAt: base
+        )
+        let unlabelled = TownHallPost(
+            id: UUID(uuidString: "0C000000-0000-0000-0000-0000000000C1")!, userId: userId, content: "Unlabelled",
+            communityId: nil, createdAt: base, updatedAt: base
+        )
+        return (a, b, unlabelled)
+    }
+
+    func testGetPosts_NilCommunityReturnsEveryRow() throws {
+        let container = try makeContainer()
+        let repository = TownHallRepository()
+        repository.setup(modelContext: ModelContext(container))
+        let rows = scopedPosts()
+        try repository.upsertPosts([rows.a, rows.b, rows.unlabelled])
+
+        XCTAssertEqual(try repository.getPosts(communityId: nil).count, 3)
+    }
+
+    func testGetPosts_CommunityReturnsMatchingAndUnlabelledButNotOther() throws {
+        let container = try makeContainer()
+        let repository = TownHallRepository()
+        repository.setup(modelContext: ModelContext(container))
+        let rows = scopedPosts()
+        try repository.upsertPosts([rows.a, rows.b, rows.unlabelled])
+
+        XCTAssertEqual(try repository.getPosts(communityId: communityA).map(\.id), [rows.a.id, rows.unlabelled.id])
+    }
+
+    func testFullSync_FetchesTheScopeAndStampsItOnTheNotification() async throws {
+        let container = try makeContainer()
+        let rows = scopedPosts()
+        let stub = StubTownHallPostFetcher(pagesByCommunity: [communityA: [rows.a]])
+        let scopeA = communityA
+        let engine = TownHallSyncEngine(
+            repository: TownHallRepository(),
+            postFetcher: stub,
+            communityScope: { scopeA }
+        )
+        engine.setupBackgroundActor(container: container)
+
+        let received = ReceivedSyncScope()
+        let synced = expectation(forNotification: .townHallPostsDidSync, object: nil) { notification in
+            received.scope = notification.userInfo?[TownHallSyncScope.userInfoKey] as? TownHallSyncScope
+            return true
+        }
+
+        _ = try await engine.performFullSync()
+        await fulfillment(of: [synced], timeout: 5)
+
+        XCTAssertEqual(stub.requestedCommunityIds, [communityA])
+        XCTAssertEqual(received.scope, .community(communityA))
     }
 
     // MARK: - Encoding
