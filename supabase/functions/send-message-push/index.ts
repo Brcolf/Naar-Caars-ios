@@ -185,12 +185,15 @@ serve(async (req) => {
       const messageText = messageData.text || ''
       message_preview = messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText
 
-      // Get recipient user IDs (all participants except sender)
+      // Get recipient user IDs (all active participants except sender).
+      // left_at IS NULL: a member who left gets no push, and a re-added member's older
+      // left row (kept for history) is not counted beside the active one.
       const { data: participants, error: participantsError } = await supabase
         .from('conversation_participants')
         .select('user_id, last_seen, notifications_muted, muted_until')
         .eq('conversation_id', conversation_id)
         .neq('user_id', sender_id)
+        .is('left_at', null)
 
       if (participantsError || !participants || participants.length === 0) {
         console.log('⏭️ No recipients found for conversation')
@@ -295,10 +298,18 @@ serve(async (req) => {
       .select('last_seen, notifications_muted, muted_until')
       .eq('conversation_id', conversation_id)
       .eq('user_id', recipient_user_id)
-      .single()
+      .is('left_at', null)
+      .maybeSingle()
 
     if (participantError) {
       console.error('Error checking participant:', participantError)
+    } else if (!participant) {
+      // No active membership row: the recipient left this conversation or was never in it.
+      console.log('⏭️ Skipping push - recipient is not an active member of the conversation')
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'not_active_member' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     } else if (participant) {
       // Muted conversation (SEC-11)
       if (participant.notifications_muted === true ||
