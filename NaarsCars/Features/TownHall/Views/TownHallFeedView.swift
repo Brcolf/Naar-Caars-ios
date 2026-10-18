@@ -21,6 +21,8 @@ struct TownHallFeedView: View {
     /// A comment was added or deleted in the sheet opened from a notification or deep link.
     @State private var openedCommentsChanged = false
     @State private var toastMessage: String? = nil
+    /// Failures shown as a toast use the warning style, never the success one.
+    @State private var warningToastMessage: String? = nil
 
     var body: some View {
         mainContent
@@ -81,13 +83,14 @@ struct TownHallFeedView: View {
                     openCommentsTarget = .init(id: postId)
                     viewModel.consumeFeedAction()
                 case .unavailable:
-                    toastMessage = "moderation_content_unavailable".localized
+                    warningToastMessage = "moderation_content_unavailable".localized
                     viewModel.consumeFeedAction()
                 case .scrollAndOpenComments, .scrollAndHighlight, nil:
                     break
                 }
             }
             .toast(message: $toastMessage)
+            .toast(message: $warningToastMessage, style: .warning)
             // A failed vote, delete, next page or refresh keeps the loaded posts on screen.
             .errorBanner(message: $viewModel.bannerMessage)
             .trackScreen("TownHallFeed")

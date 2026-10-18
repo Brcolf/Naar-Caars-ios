@@ -368,4 +368,76 @@ final class TownHallFeedViewModelTests: XCTestCase {
         XCTAssertNil(vm.pendingFeedAction)
         withExtendedLifetime(container) {}
     }
+
+    /// Cold-start push tap: the target arrives while the memberships are still loading off the
+    /// launch path. It waits for them, then switches the Community tab to the post's community.
+    func testOpen_ColdStartTargetWaitsForMembershipsThenSwitchesCommunity() async throws {
+        let harness = try makeScopingHarness()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: harness.suiteName))
+        let context = CommunityContext(
+            service: StubCommunityService(result: .success([
+                CommunityFixtures.membership(communityA, name: "A", isPrimary: true),
+                CommunityFixtures.membership(communityB, name: "B")
+            ])),
+            defaults: defaults
+        )
+        context.restore(for: UUID())
+        context.communityTabId = communityA   // the restored tab
+        XCTAssertTrue(context.isAwaitingMemberships)
+        harness.fetcher.postsById = [b1: harness.bPage[0]]
+
+        let vm = TownHallFeedViewModel(
+            repository: harness.repository,
+            postFetcher: harness.fetcher,
+            communityContext: context,
+            refreshTownHall: { _ in nil }
+        )
+        await vm.open(NavigationCoordinator.TownHallNavigationTarget(postId: b1, mode: .highlightPost, communityId: communityB))
+        XCTAssertNil(vm.pendingFeedAction, "held until the memberships load")
+        XCTAssertEqual(context.communityTabId, communityA)
+
+        await context.refreshMemberships()   // the launch load returns
+        try await waitForFeedAction(vm)
+
+        XCTAssertEqual(context.communityTabId, communityB)
+        XCTAssertEqual(vm.activeCommunityId, communityB)
+        XCTAssertEqual(vm.pendingFeedAction, .scrollAndHighlight(b1))
+        withExtendedLifetime(harness.container) {}
+    }
+
+    /// A membership load that never returns (offline) does not hold the target forever: after the
+    /// wait it opens in the community already shown.
+    func testOpen_TargetHeldForMembershipsOpensAfterWaitWhenLoadNeverReturns() async throws {
+        let harness = try makeScopingHarness()
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: harness.suiteName))
+        let context = CommunityContext(service: StubCommunityService(result: .success([])), defaults: defaults)
+        context.restore(for: UUID())
+        context.communityTabId = communityA
+        harness.fetcher.postsById = [a1: harness.aPage[0]]
+
+        let vm = TownHallFeedViewModel(
+            repository: harness.repository,
+            postFetcher: harness.fetcher,
+            communityContext: context,
+            refreshTownHall: { _ in nil },
+            membershipWait: 0.05
+        )
+        await vm.open(NavigationCoordinator.TownHallNavigationTarget(postId: a1, mode: .openComments, communityId: communityA))
+        XCTAssertNil(vm.pendingFeedAction)
+
+        await vm.refreshPosts()   // A's page arrives while the target is still held
+        try await waitForFeedAction(vm)
+
+        XCTAssertTrue(context.isAwaitingMemberships, "the load never returned")
+        XCTAssertEqual(context.communityTabId, communityA)
+        XCTAssertEqual(vm.pendingFeedAction, .scrollAndOpenComments(a1))
+        withExtendedLifetime(harness.container) {}
+    }
+
+    private func waitForFeedAction(_ vm: TownHallFeedViewModel, timeout: TimeInterval = 3) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while vm.pendingFeedAction == nil, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
 }

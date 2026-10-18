@@ -48,6 +48,16 @@ final class CommunityContext {
     /// Active and pending rows, in server order.
     private(set) var memberships: [CommunityMembership] = []
 
+    /// Set by the first successful load for the restored user; cleared when another user is
+    /// restored and on sign-out.
+    private(set) var hasLoadedMemberships = false
+
+    /// A session is restored and its first membership load has not returned yet (cold start:
+    /// the load runs off the launch path). False for a guest, who has no memberships.
+    var isAwaitingMemberships: Bool {
+        restoredUserId != nil && !hasLoadedMemberships
+    }
+
     var activeMemberships: [CommunityMembership] {
         memberships.filter { $0.status == .active }
     }
@@ -145,6 +155,7 @@ final class CommunityContext {
     func restore(for userId: UUID) {
         if restoredUserId != userId {
             memberships = []
+            hasLoadedMemberships = false
             lastRefreshAttempt = nil
         }
         restoredUserId = userId
@@ -197,6 +208,7 @@ final class CommunityContext {
         restoredUserId = nil
         lastRefreshAttempt = nil
         memberships = []
+        hasLoadedMemberships = false
         setCommunityTabId(nil)
         setRequestsScope(.all)
         setLastPostedCommunityId(nil)
@@ -231,6 +243,8 @@ final class CommunityContext {
         if let lastPosted = lastPostedCommunityId, !activeIds.contains(lastPosted) {
             lastPostedCommunityId = nil
         }
+        // Last, so an observer of this flag sees the memberships and the tab already settled.
+        hasLoadedMemberships = true
     }
 
     @discardableResult
@@ -289,6 +303,7 @@ final class CommunityContext {
     /// Replaces the memberships without a fetch (previews and debugging).
     func debugSetMemberships(_ memberships: [CommunityMembership]) {
         self.memberships = memberships
+        hasLoadedMemberships = true
     }
 
     private static func appendingDebugMemberships(to rows: [CommunityMembership]) -> [CommunityMembership] {

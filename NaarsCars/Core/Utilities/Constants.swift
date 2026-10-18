@@ -140,6 +140,9 @@ enum Constants {
         static let conversationsPushOffPollInterval: TimeInterval = 60.0
         /// Shortest time between two automatic `get_my_memberships` loads (foreground recheck, 30s)
         static let membershipRefreshMinInterval: TimeInterval = 30
+        /// Longest a Town Hall push or bell-row target waits for the first membership load (cold
+        /// start) before it opens in the community already shown (the load failed or is offline)
+        static let townHallTargetMembershipWait: TimeInterval = 10
         /// Gap between consecutive messages after which the thread shows a time header
         /// ("Today 3:45 PM"), as iMessage does (1 hour). Day changes always get one.
         static let messageTimeHeaderGap: TimeInterval = 3600

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Observation
 internal import Combine
 
 /// What the feed view does for a Town Hall target from a push, a bell row or a deep link.
@@ -67,6 +68,12 @@ final class TownHallFeedViewModel: ObservableObject {
     private var pendingNavigation: NavigationCoordinator.TownHallNavigationTarget?
     /// Bumped by every `open(_:)`; an earlier call that is still resolving its community stops.
     private var navigationRequest = 0
+    /// A target that arrived before the first membership load (cold-start push tap). Its community
+    /// cannot be checked against the memberships yet, so it waits for the load, or for
+    /// `membershipWait` when the load does not come back (offline, a failed load).
+    private var targetAwaitingMemberships: NavigationCoordinator.TownHallNavigationTarget?
+    private var membershipWaitTask: Task<Void, Never>?
+    private let membershipWait: TimeInterval
 
     private var postsCancellable: AnyCancellable?
     private var voteCancellable: AnyCancellable?
@@ -89,8 +96,10 @@ final class TownHallFeedViewModel: ObservableObject {
         messageService: any MessageServiceProtocol = MessageService.shared,
         postFetcher: (any TownHallPostFetching)? = nil,
         communityContext: CommunityContext? = nil,
-        refreshTownHall: (@MainActor (String) async -> RefreshResult?)? = nil
+        refreshTownHall: (@MainActor (String) async -> RefreshResult?)? = nil,
+        membershipWait: TimeInterval = Constants.Timing.townHallTargetMembershipWait
     ) {
+        self.membershipWait = membershipWait
         self.repository = repository ?? .shared
         let resolvedService = townHallService ?? .shared
         self.townHallService = resolvedService
@@ -314,12 +323,28 @@ final class TownHallFeedViewModel: ObservableObject {
     /// post's community when it is another active membership, then publishes the scroll,
     /// highlight or open-comments action through `pendingFeedAction`. Never switches to a
     /// community the person is not an active member of: a post that cannot be read publishes
-    /// `.unavailable` and the feed stays where it is.
+    /// `.unavailable` and the feed stays where it is. A target that arrives before the first
+    /// membership load (cold-start push tap) waits for that load, at most `membershipWait`.
     func open(_ target: NavigationCoordinator.TownHallNavigationTarget) async {
         navigationRequest += 1
         let request = navigationRequest
         pendingNavigation = nil
+        targetAwaitingMemberships = nil
+        membershipWaitTask?.cancel()
+        membershipWaitTask = nil
 
+        // 0. Cold start: the memberships load off the launch path and are still empty, so a
+        // target for another community would fail the membership check below and never switch
+        // the tab. Hold it until the load returns.
+        if communityContext.isAwaitingMemberships {
+            holdUntilMembershipsLoad(target, request: request)
+            return
+        }
+        await navigate(to: target, request: request)
+    }
+
+    /// Steps 1-3 of `open(_:)`.
+    private func navigate(to target: NavigationCoordinator.TownHallNavigationTarget, request: Int) async {
         // 1. The post's community: from the target when it is an active membership, otherwise
         // from the post itself (an old push, a row with no community, or a community not loaded).
         let activeIds = Set(communityContext.activeMemberships.map(\.communityId))
@@ -356,6 +381,44 @@ final class TownHallFeedViewModel: ObservableObject {
         // 3. Resolve against the list now, or when the current generation's refresh finishes.
         pendingNavigation = target
         resolvePendingNavigation()
+    }
+
+    private func holdUntilMembershipsLoad(_ target: NavigationCoordinator.TownHallNavigationTarget, request: Int) {
+        targetAwaitingMemberships = target
+        observeMembershipLoad(request: request)
+        let wait = membershipWait
+        membershipWaitTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled, let self else { return }
+            // Not cancelled by the release below: this task goes on to run the target's reads.
+            self.membershipWaitTask = nil
+            await self.releaseTargetAwaitingMemberships(request: request)
+        }
+    }
+
+    /// Re-registers after each change, since `withObservationTracking` fires once.
+    private func observeMembershipLoad(request: Int) {
+        let context = communityContext
+        withObservationTracking {
+            _ = context.hasLoadedMemberships
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, request == self.navigationRequest, self.targetAwaitingMemberships != nil else { return }
+                if self.communityContext.isAwaitingMemberships {
+                    self.observeMembershipLoad(request: request)
+                } else {
+                    await self.releaseTargetAwaitingMemberships(request: request)
+                }
+            }
+        }
+    }
+
+    private func releaseTargetAwaitingMemberships(request: Int) async {
+        guard request == navigationRequest, let target = targetAwaitingMemberships else { return }
+        targetAwaitingMemberships = nil
+        membershipWaitTask?.cancel()
+        membershipWaitTask = nil
+        await navigate(to: target, request: request)
     }
 
     /// The view performed `pendingFeedAction`.
