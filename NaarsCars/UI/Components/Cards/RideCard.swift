@@ -184,7 +184,8 @@ struct RideCard: View {
             }
         }
 
-        HStack(spacing: 16) {
+        // Stacked at accessibility sizes, where side by side the seats label broke inside the word.
+        timeAndSeatsLayout {
             Label(Date.displayTime(fromDatabaseTime: ride.time), systemImage: "clock")
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
@@ -201,34 +202,42 @@ struct RideCard: View {
         if ride.claimedBy != nil {
             Divider()
 
-            HStack(spacing: 8) {
-                if let claimer = ride.claimer {
+            claimedByRow
+        }
+    }
+
+    private var timeAndSeatsLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 16))
+    }
+
+    /// "Claimed by" and the helper's name. At accessibility sizes the name goes under the label
+    /// and may wrap, so neither breaks inside a word.
+    private var claimedByRow: some View {
+        let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
+        let layout = isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return HStack(spacing: 0) {
+            layout {
+                HStack(spacing: 8) {
                     Image(systemName: "hand.raised.fill")
                         .foregroundColor(.naarsPrimary)
                         .font(.naarsSubheadline)
                     Text("card_claimed_by".localized)
                         .font(.naarsCaption)
                         .foregroundColor(.secondary)
-                    Text(claimer.name)
-                        .font(.naarsCaption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                } else {
-                    Image(systemName: "hand.raised.fill")
-                        .foregroundColor(.naarsPrimary)
-                        .font(.naarsSubheadline)
-                    Text("card_claimed_by".localized)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                    Text("community_former_member".localized)
-                        .font(.naarsCaption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
                 }
-                Spacer()
+                // The label keeps its full width; a long name truncates instead.
+                .layoutPriority(1)
+                Text(ride.claimer?.name ?? "community_former_member".localized)
+                    .font(.naarsCaption)
+                    .fontWeight(.medium)
+                    .foregroundColor(ride.claimer == nil ? .secondary : .primary)
+                    .lineLimit(isAccessibilitySize ? 3 : 1)
             }
+            Spacer(minLength: 0)
         }
     }
 }
@@ -292,9 +301,9 @@ struct RideCard: View {
 #if DEBUG
 #Preview("Three communities") {
     let _ = CommunityContext.shared.debugSetMemberships([
-        CommunityMembership(communityId: UUID(), name: "Capitol Hill", description: nil, role: .member, status: .active, isPrimary: true, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
-        CommunityMembership(communityId: UUID(), name: "Ballard", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
-        CommunityMembership(communityId: UUID(), name: "Fremont", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite_only", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil)
+        CommunityMembership(communityId: UUID(), name: "Capitol Hill", description: nil, role: .member, status: .active, isPrimary: true, joinPolicy: "invite", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
+        CommunityMembership(communityId: UUID(), name: "Ballard", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil),
+        CommunityMembership(communityId: UUID(), name: "Fremont", description: nil, role: .member, status: .active, isPrimary: false, joinPolicy: "invite", isPublic: false, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles", canInvite: true, memberCount: 1, pendingCount: nil, notificationsMuted: false, mutedUntil: nil, joinedAt: Date(timeIntervalSince1970: 0), activatedAt: nil)
     ])
     VStack(spacing: 16) {
         RideCard(ride: Ride(

@@ -327,7 +327,7 @@ final class CommunityContext {
                 role: .member,
                 status: .active,
                 isPrimary: false,
-                joinPolicy: "invite_only",
+                joinPolicy: "invite",
                 isPublic: false,
                 isDefault: false,
                 membersCanInvite: true,

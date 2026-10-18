@@ -459,62 +459,57 @@ struct TownHallPostCard: View {
             }
 
             HStack(spacing: 8) {
-                Button(action: {
-                    if post.userVote == .downvote {
-                        onVote?(post.id, nil)
-                    } else {
-                        onVote?(post.id, .downvote)
-                    }
-                }) {
-                    HStack(spacing: Constants.Spacing.xs) {
-                        // Filled when it is the user's vote, so the state does not rest on colour alone
-                        Image(systemName: post.userVote == .downvote ? "arrowshape.down.fill" : "arrowshape.down")
-                            .font(.naarsCaption)
-                            .foregroundColor(post.userVote == .downvote ? .naarsPrimary : .secondary)
-                        if post.downvotes > 0 {
-                            Text("\(post.downvotes)")
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel(post.userVote == .downvote ? "townhall_remove_downvote_accessibility".localized : "townhall_downvote_post_accessibility".localized)
-                // The explicit label replaces the count text, so say it as the value
-                .accessibilityValue(String(post.downvotes))
-                .accessibilityHint(post.userVote == .downvote ? "townhall_remove_downvote_hint".localized : "townhall_downvote_post_hint".localized)
-                .accessibilityAddTraits(post.userVote == .downvote ? .isSelected : [])
-
-                Button(action: {
-                    if post.userVote == .upvote {
-                        onVote?(post.id, nil)
-                    } else {
-                        onVote?(post.id, .upvote)
-                    }
-                }) {
-                    HStack(spacing: Constants.Spacing.xs) {
-                        Image(systemName: post.userVote == .upvote ? "arrowshape.up.fill" : "arrowshape.up")
-                            .font(.naarsCaption)
-                            .foregroundColor(post.userVote == .upvote ? .naarsPrimary : .secondary)
-                        if post.upvotes > 0 {
-                            Text("\(post.upvotes)")
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel(post.userVote == .upvote ? "townhall_remove_upvote_accessibility".localized : "townhall_upvote_post_accessibility".localized)
-                .accessibilityValue(String(post.upvotes))
-                .accessibilityHint(post.userVote == .upvote ? "townhall_remove_upvote_hint".localized : "townhall_upvote_post_hint".localized)
-                .accessibilityAddTraits(post.userVote == .upvote ? .isSelected : [])
+                voteButton(.downvote)
+                voteButton(.upvote)
             }
         }
         .padding(.top, Constants.Spacing.xs)
+    }
+
+    /// One vote button. Split out of `actionRow` so each expression type-checks quickly (the
+    /// preview's design-time build timed out on the inline version).
+    private func voteButton(_ vote: VoteType) -> some View {
+        let isSelected = post.userVote == vote
+        let isUpvote = vote == .upvote
+        let count = isUpvote ? post.upvotes : post.downvotes
+        let symbol: String
+        let label: String
+        let hint: String
+        if isUpvote {
+            symbol = isSelected ? "arrowshape.up.fill" : "arrowshape.up"
+            label = isSelected ? "townhall_remove_upvote_accessibility".localized : "townhall_upvote_post_accessibility".localized
+            hint = isSelected ? "townhall_remove_upvote_hint".localized : "townhall_upvote_post_hint".localized
+        } else {
+            symbol = isSelected ? "arrowshape.down.fill" : "arrowshape.down"
+            label = isSelected ? "townhall_remove_downvote_accessibility".localized : "townhall_downvote_post_accessibility".localized
+            hint = isSelected ? "townhall_remove_downvote_hint".localized : "townhall_downvote_post_hint".localized
+        }
+        let tint: Color = isSelected ? .naarsPrimary : .secondary
+        let traits: AccessibilityTraits = isSelected ? .isSelected : []
+
+        return Button(action: {
+            onVote?(post.id, isSelected ? nil : vote)
+        }) {
+            HStack(spacing: Constants.Spacing.xs) {
+                // Filled when it is the user's vote, so the state does not rest on colour alone
+                Image(systemName: symbol)
+                    .font(.naarsCaption)
+                    .foregroundColor(tint)
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel(label)
+        // The explicit label replaces the count text, so say it as the value
+        .accessibilityValue(String(count))
+        .accessibilityHint(hint)
+        .accessibilityAddTraits(traits)
     }
 }
 
@@ -573,6 +568,7 @@ struct TownHallPostCard: View {
         .padding()
     }
     .background(Color(.systemGroupedBackground))
+    .environment(AppState())
 }
 
 #Preview("Former member author") {
@@ -588,4 +584,5 @@ struct TownHallPostCard: View {
         currentUserId: UUID()
     )
     .padding()
+    .environment(AppState())
 }
