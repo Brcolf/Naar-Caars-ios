@@ -16,6 +16,8 @@ enum ReportContext {
     case user(id: UUID, name: String)
     /// A review. `authorId` is the reviewer.
     case review(id: UUID, authorId: UUID, preview: String)
+    /// A community: one the caller can see, by `id`, or one they hold a valid invite code for, by `code`.
+    case community(id: UUID?, code: String?, name: String)
 }
 
 /// Sheet for reporting user-generated content
@@ -51,6 +53,7 @@ struct ReportContentSheet: View {
         case .favor(_, _, let preview): return preview
         case .user(_, let name): return name
         case .review(_, _, let preview): return preview
+        case .community(_, _, let name): return name
         }
     }
 
@@ -62,6 +65,7 @@ struct ReportContentSheet: View {
         case .favor: return "report_content_type_favor".localized
         case .user: return "report_content_type_user".localized
         case .review: return "townhall_badge_review".localized
+        case .community: return "report_content_type_community".localized
         }
     }
 
@@ -123,6 +127,8 @@ struct ReportContentSheet: View {
                         .lineLimit(3...6)
                 } header: {
                     Text("messaging_description".localized)
+                } footer: {
+                    Text("report_reporter_privacy_note".localized)
                 }
 
                 // Block the author (same option as the message report sheet)
@@ -210,3 +216,9 @@ struct ReportContentSheet: View {
         dismiss()
     }
 }
+
+#if DEBUG
+#Preview("Community") {
+    ReportContentSheet(context: .community(id: nil, code: "NC7K2PQ9XA", name: "Ballard Neighbors"))
+}
+#endif

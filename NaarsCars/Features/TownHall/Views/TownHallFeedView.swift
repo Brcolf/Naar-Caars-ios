@@ -27,6 +27,25 @@ struct TownHallFeedView: View {
     var body: some View {
         mainContent
             .toolbar {
+                // A guest can report the community they are browsing; Report asks them to sign in
+                // (A2). A signed-in person reports their communities from My communities.
+                if appState.isGuest {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Menu {
+                            Button {
+                                guestPromptReason = .reportContent
+                            } label: {
+                                Label("community_report_this_community".localized, systemImage: "flag")
+                            }
+                            .accessibilityIdentifier("community.townHall.reportCommunity")
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.naarsTitle3)
+                        }
+                        .accessibilityLabel("community_more_actions".localized)
+                        .accessibilityIdentifier("community.townHall.more")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         if appState.isGuest {

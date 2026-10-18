@@ -248,6 +248,7 @@
 		AC410C353085452000D921E2 /* PreviewCommunityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C343085452000D921E2 /* PreviewCommunityService.swift */; };
 		AC410C373085456D00D921E2 /* CommunityServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C363085456D00D921E2 /* CommunityServiceTests.swift */; };
 		AC410C39308547D200D921E2 /* CommunityAdminServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */; };
+		AC410C3B3085504F00D921E2 /* ReportContentViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C3A3085504F00D921E2 /* ReportContentViewModelTests.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -769,6 +770,7 @@
 		AC410C343085452000D921E2 /* PreviewCommunityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCommunityService.swift; sourceTree = "<group>"; };
 		AC410C363085456D00D921E2 /* CommunityServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityServiceTests.swift; sourceTree = "<group>"; };
 		AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAdminServiceProtocol.swift; sourceTree = "<group>"; };
+		AC410C3A3085504F00D921E2 /* ReportContentViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportContentViewModelTests.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1501,6 +1503,7 @@
 			children = (
 				AC9DDD2A2F2B139C003465D3 /* CreatePostViewModelTests.swift */,
 				AC9DDD2B2F2B139C003465D3 /* TownHallFeedViewModelTests.swift */,
+				AC410C3A3085504F00D921E2 /* ReportContentViewModelTests.swift */,
 			);
 			path = TownHall;
 			sourceTree = "<group>";
@@ -2928,6 +2931,7 @@
 				AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */,
 				7AD025419E784FB8A81740AC /* ValidatorsTests.swift in Sources */,
 				130951F3D8E84F66ABF62CC0 /* MyProfileViewModelTests.swift in Sources */,
+				AC410C3B3085504F00D921E2 /* ReportContentViewModelTests.swift in Sources */,
 				AC1200852F3AE63E0043BFAE /* ConversationParticipantsViewModelTests.swift in Sources */,
 				2AC1A9F7E1BD428889C01E63 /* EditProfileViewModelTests.swift in Sources */,
 				B8A3E1E96A7B4435BF3A7BDD /* PublicProfileViewModelTests.swift in Sources */,
