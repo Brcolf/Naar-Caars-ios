@@ -357,13 +357,25 @@ struct PendingApprovalView: View {
         }
     }
     
+    /// True while "Join another community" or Create is on screen, or its result has not yet been
+    /// acted on. Create inserts an active owner row and an instant join an active member row, so a
+    /// tick in that window would relaunch underneath the sheet (taking the new community's invite
+    /// step, or the join's success state, with it); the sheet's `onDismiss` drives that relaunch.
+    private var isJoinOrCreateInProgress: Bool {
+        showJoinAnother || showCreate || recordedJoin != nil || createdCommunityId != nil
+    }
+
     /// Polls on appear and then every `Constants.Timing.pendingApprovalPollInterval`, without
     /// running the launch flow, until a poll decides to relaunch (an active membership, or nothing
     /// left to wait for). The relaunch starts the deferred session (sync engines, profile,
-    /// communities) or routes to onboarding.
+    /// communities) or routes to onboarding. Ticks are skipped while a join or create is in
+    /// progress; a relaunch decided by a poll that was already running when a sheet opened waits
+    /// for the next tick after the sheet is gone (the view model answers `.relaunch` again at once).
     private func startPeriodicApprovalCheck() async {
         while !Task.isCancelled {
-            if await viewModel.poll() == .relaunch {
+            if !isJoinOrCreateInProgress,
+               await viewModel.poll() == .relaunch,
+               !isJoinOrCreateInProgress {
                 relaunchOnce()
                 return
             }
