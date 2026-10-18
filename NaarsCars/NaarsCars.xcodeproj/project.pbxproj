@@ -235,6 +235,11 @@
 		AC39A76F7136CB8DAE8C4BBA /* PerformanceImprovementsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CB7B28086F9D90019234293 /* PerformanceImprovementsTests.swift */; };
 		AC3E992FD97844089ED86A69 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE98428EC9B46E4A670AC3D /* EmptyStateView.swift */; };
 		AC410C1F3084E55600D921E2 /* CommunityStoreScopingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C1E3084E55600D921E2 /* CommunityStoreScopingTests.swift */; };
+		AC410C213084E78500D921E2 /* Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C203084E78500D921E2 /* Community.swift */; };
+		AC410C233084E78500D921E2 /* CommunityServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C223084E78500D921E2 /* CommunityServiceProtocol.swift */; };
+		AC410C253084E78500D921E2 /* CommunityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C243084E78500D921E2 /* CommunityService.swift */; };
+		AC410C273084E78500D921E2 /* CommunityFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C263084E78500D921E2 /* CommunityFixtures.swift */; };
+		AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -743,6 +748,11 @@
 		AC35AB592F0F080F0012096B /* TownHallFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallFeedView.swift; sourceTree = "<group>"; };
 		AC35AB612F0F08AC0012096B /* TownHallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TownHallService.swift; sourceTree = "<group>"; };
 		AC410C1E3084E55600D921E2 /* CommunityStoreScopingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityStoreScopingTests.swift; sourceTree = "<group>"; };
+		AC410C203084E78500D921E2 /* Community.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Community.swift; sourceTree = "<group>"; };
+		AC410C223084E78500D921E2 /* CommunityServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityServiceProtocol.swift; sourceTree = "<group>"; };
+		AC410C243084E78500D921E2 /* CommunityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityService.swift; sourceTree = "<group>"; };
+		AC410C263084E78500D921E2 /* CommunityFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityFixtures.swift; sourceTree = "<group>"; };
+		AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPayloadDecodingTests.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1100,6 +1110,7 @@
 				AC1200662F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift */,
 				AC1200672F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift */,
 				AC1200682F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift */,
+				AC410C283084E78500D921E2 /* CommunityPayloadDecodingTests.swift */,
 			);
 			path = Decoding;
 			sourceTree = "<group>";
@@ -1110,6 +1121,7 @@
 				AC12006A2F3AE5E10043BFAE /* NotificationFixtures.swift */,
 				AC12006B2F3AE5E10043BFAE /* RealtimeFixtures.swift */,
 				AC12006C2F3AE5E10043BFAE /* WebhookFixtures.swift */,
+				AC410C263084E78500D921E2 /* CommunityFixtures.swift */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -1127,6 +1139,7 @@
 				AC1201072F3D73E60043BFAE /* ProfileServiceProtocol.swift */,
 				AC1201082F3D73E60043BFAE /* ReviewServiceProtocol.swift */,
 				AC1201092F3D73E60043BFAE /* RideServiceProtocol.swift */,
+				AC410C223084E78500D921E2 /* CommunityServiceProtocol.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -1866,6 +1879,7 @@
 				F551931D5275E0226CAA1B78 /* RefreshCoordinator.swift */,
 				A290D244201497F85D8263E7 /* ProfileService+AccountStatus.swift */,
 				C6BE2969BECCE63255A2634F /* ProfileService+Search.swift */,
+				AC410C243084E78500D921E2 /* CommunityService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1900,6 +1914,7 @@
 				A5BD6728D2674DDB93C700C3 /* TownHallPost.swift */,
 				ADDEBE9548224EBBAD012954 /* MessageReaction.swift */,
 				E9479DA69459CB1835C68CC9 /* RefreshMetrics.swift */,
+				AC410C203084E78500D921E2 /* Community.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2461,6 +2476,7 @@
 				AC8197B12F14C286003BB08B /* PastRequestsViewModel.swift in Sources */,
 				ACDCBE292F0B7DB000956D1C /* AppError.swift in Sources */,
 				B5EC968E233947D3AC523AAC /* Date+Extensions.swift in Sources */,
+				AC410C233084E78500D921E2 /* CommunityServiceProtocol.swift in Sources */,
 				06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */,
 				C18A928FEE624F3EBF15DBB4 /* Typography.swift in Sources */,
 				ACD19A682F174C75009C1DE5 /* MessagingDebugView.swift in Sources */,
@@ -2507,6 +2523,7 @@
 				AC12004F2F37B2330043BFAE /* MessageSendWorker.swift in Sources */,
 				ACBF4AC62F12CAE4006A7C8A /* BiometricService.swift in Sources */,
 				9A0CEEE41B4B4941AAA037CA /* AppLockManager.swift in Sources */,
+				AC410C213084E78500D921E2 /* Community.swift in Sources */,
 				ACBF4AC72F12CAE4006A7C8A /* AuthService+AppleSignIn.swift in Sources */,
 				ACBF4AC82F12CAE4006A7C8A /* EmailService.swift in Sources */,
 				AC27A0122F1F20F700E3B58F /* DateFormatters.swift in Sources */,
@@ -2807,6 +2824,7 @@
 				5DDD5E74F61DBC72928F68DD /* RefreshMetrics.swift in Sources */,
 				C12749ED61073F03BFBC28B1 /* ProfileService+AccountStatus.swift in Sources */,
 				8C0B03CA56EED6889B48D5DD /* ProfileService+Search.swift in Sources */,
+				AC410C253084E78500D921E2 /* CommunityService.swift in Sources */,
 				E847D7FC5A2CEA01ED03C0CC /* AdminReportsViewModel.swift in Sources */,
 				6686F4E6FDCFDCB4D862B44F /* ApplicationFieldsViewModel.swift in Sources */,
 				8852F44B2282A755C77AD0C7 /* BannedAccountViewModel.swift in Sources */,
@@ -2876,6 +2894,7 @@
 				AC9DDD392F2B139C003465D3 /* ConversationsListViewModelTests.swift in Sources */,
 				7B8F9E1C2D3E4F5A6B7C8D9E /* MessageServiceTests.swift in Sources */,
 				7FC1B85E59ED46EC979DDA25 /* ProfileServiceTests.swift in Sources */,
+				AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */,
 				7AD025419E784FB8A81740AC /* ValidatorsTests.swift in Sources */,
 				130951F3D8E84F66ABF62CC0 /* MyProfileViewModelTests.swift in Sources */,
 				AC1200852F3AE63E0043BFAE /* ConversationParticipantsViewModelTests.swift in Sources */,
@@ -2894,6 +2913,7 @@
 				A3921C93B965221F4F61C072 /* AppDelegateNotificationHandlingTests.swift in Sources */,
 				5A27F6DCE56AAE7163DF3843 /* DeepLinkParserTests.swift in Sources */,
 				9F59B80A6C617AE74B0445AE /* ThrottlerTests.swift in Sources */,
+				AC410C273084E78500D921E2 /* CommunityFixtures.swift in Sources */,
 				84CC81DC3F7ED93C173866D1 /* FlightCodeParserTests.swift in Sources */,
 				DEEA249A5E3AFF0D21B3209E /* BackgroundSyncActorConversationSyncTests.swift in Sources */,
 			);
