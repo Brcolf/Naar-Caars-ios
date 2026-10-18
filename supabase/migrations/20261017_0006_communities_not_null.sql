@@ -1,5 +1,6 @@
 -- 20261017_0006_communities_not_null.sql
--- NOT APPLIED. Phase 0, step 6 of the multi-community build, and the LAST Phase 0 file
+-- NOT APPLIED: waits for steps 4 (owner's SQL editor) and 5. Steps 0-3 are live as of 2026-10-18.
+-- Phase 0, step 6 of the multi-community build, and the LAST Phase 0 file
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §4 "Step 6", §3.6 INV-R1, as amended by
 -- Docs/superpowers/specs/2026-10-17-multi-community-decisions.md).
 --

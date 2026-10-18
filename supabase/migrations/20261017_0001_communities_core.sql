@@ -1,5 +1,6 @@
 -- 20261017_0001_communities_core.sql
--- NOT APPLIED. Phase 0, step 1 of the multi-community build
+-- APPLIED 2026-10-18 (Supabase MCP apply_migration, the whole file in one call; migration-history
+-- version 20261018135301). Phase 0, step 1 of the multi-community build
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §3.1-3.3 and §4 step 1, as amended by
 -- Docs/superpowers/specs/2026-10-17-multi-community-decisions.md, which wins where they differ).
 --
@@ -44,7 +45,54 @@
 --   and protect_admin_fields_on_insert (1a.3, 1a.4) come right after the columns they guard (1a.2), and
 --   the bridge triggers (1d.6) come before the mirror triggers (1d.7).
 --
--- Verification (to be filled in at apply time: md5(prosrc) of each deployed function, probe outcomes)
+-- Verification (2026-10-18)
+--   Outcome. The whole file plus the short probe ran first inside one begin; ... rollback; ("DRY RUN
+--   0001 + short: OK"). It was then applied as ONE migration rather than one MCP call per [call]
+--   block: the dry run had already exercised every block in file order, and a single call leaves no
+--   half-applied state if a block fails. After the apply (read-only, and the short probe rolled back):
+--     * default community 7a8ed131-cb05-462b-a491-b433d70a3fe5 "Naar's Cars Seattle", public, approve,
+--       America/Los_Angeles, created_by 0da568d8-924c-4420-8853-206a48d277b6 (its active owner);
+--     * 19 active memberships (1 owner, 3 admin, 15 member), 0 pending; 19 of 19 profiles approved
+--       with primary_community_id set; max_owned_communities = 3 everywhere; 0 membership events;
+--     * 0 null community_id on rides (106) / favors (61) / town_hall_posts (34) / xp_events;
+--       2436 notifications and 13 reports back-filled; max(updated_at) unchanged (rides and favors
+--       2026-10-08 03:15:00.290545+00, posts 2026-10-06 09:03:45.754489+00); set_updated_at_rides /
+--       _favors / _town_hall_posts enabled ('O');
+--     * all 17 triggers present (guard_request_claim_membership on rides and favors); EXECUTE as
+--       declared (anon and authenticated on the nine helpers, service_role only on the two lookups,
+--       none for clients on recompute_profile_membership_flags);
+--     * short probe after the apply: OK (18 active members inside the probe after its deletions).
+--   md5(prosrc) of the deployed functions (pg_proc, 2026-10-18):
+--     protect_admin_fields 48424e05ea801252b83ed8c893db5f4f
+--     protect_admin_fields_on_insert 848e879c6a55d08815f3e576bd035e3b
+--     my_community_ids a27ab2bc21f40a177775f3faf34e5512
+--     my_admin_community_ids 77adf6e3199d5e6621b3e5c0eea010a3
+--     is_active_member fc18ad7c0f3ba677b91c5e3293293dd1
+--     is_community_admin 66483bcdc8d3f475ffc9549fb8cbe0ef
+--     is_platform_admin 653070bd2a37711a8f72e03e131eaa69
+--     community_has_member 9031a18bb80524dae34cf57ef7e675d7
+--     shares_community_with 3b7e7feede3ce9bb175b703424d9a068
+--     my_visible_profile_ids 534c017b224ddef0399887151b4e99ad
+--     default_community_id 4208bb77b7de45ff85c1181ae69ad571
+--     community_of_request 5661ed8595a53ac9a58cffa699f435a0
+--     community_of_post 9203f60118edecda497b8b329f4db1b6
+--     recompute_profile_membership_flags 1916634fb46766a4eab47096d78d9e23
+--     maintain_profile_membership_flags 426c4e1bba7bf66b500a3bc388424ab8
+--     recompute_flags_on_archive 6331a9e817be0b073bbb962abaa28cdb
+--     legacy_application_to_membership 387361399eda45649d08c1332c2df72c
+--     sync_legacy_approval_to_membership 523906605a77307bb088f34d820e9093
+--     fill_request_community 6241f67fc4e8618ac782b99a7b6d9295
+--     fill_xp_event_community d4f8d3aeb4d73e315b18087659cee8fc
+--     derive_notification_community 55c06fd052dc3e6f48b259da89719dd8
+--     derive_report_community affd44f0a8e3b2b44ff54740c779c14f
+--     guard_request_claim_membership 91de54aa5834b4bab62248b939d8bee1
+--     guard_community_members_client_update 5f076ca1f1e500b0a9a266e397577ce6
+--     prevent_community_membership_events_mutation b0c70eccfffddef502564beb63d4d592
+--     should_notify_user a68446277de8720faa48d1d0384f371a
+--     notify_pending_membership 92d41ccdd20b33879dc2b5655f9f14b2
+--     notify_pending_user 638e55b19c4a77f36c0b0e1d043bbb36
+--   The live send-message-push edge function (version 32) already filters conversation_participants
+--   on left_at is null in both of its paths, so no deploy was needed.
 --   Expected: the consistency assertions at the end of 1d and 1f raise nothing; every approved profile
 --   (19) has one active membership of the default community and primary_community_id set to it, and every
 --   profile still has max_owned_communities = 3; no rides / favors / town_hall_posts / xp_events row has a

@@ -1,6 +1,7 @@
 -- 20261017_0005_communities_rpcs.sql
 --
--- NOT APPLIED. Phase 0, step 5 of the multi-community design
+-- NOT APPLIED: waits for step 4 (20261017_0004, the owner's SQL-editor step). Steps 0-3 are live as
+-- of 2026-10-18. Phase 0, step 5 of the multi-community design
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §3.5 "New RPCs", §4 step 5) with the
 -- owner's decisions of 2026-10-17 (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md,
 -- which wins where the two differ).

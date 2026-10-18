@@ -1,5 +1,6 @@
 -- 20261017_0000a_revoke_get_or_create_conversation.sql
--- NOT APPLIED. Phase 0, step 0 of the multi-community build: its one forward change
+-- APPLIED 2026-10-18 through the Supabase MCP (execute_sql, both statements in one call; it is not a
+-- migration-history entry). Phase 0, step 0 of the multi-community build: its one forward change
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §4 step 0, as amended by
 -- Docs/superpowers/specs/2026-10-17-multi-community-decisions.md). Apply through the Supabase MCP
 -- before 20261017_0001; the two statements may go in one call.
@@ -18,10 +19,13 @@
 --   proacl {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}; anon and PUBLIC
 --   already have no EXECUTE, so the anon half of each statement is a no-op kept for clarity.
 --
--- Verification (to be filled in at apply time)
+-- Verification (2026-10-18)
 --   Expected: has_function_privilege('authenticated', <oid>, 'execute') and
 --   has_function_privilege('anon', <oid>, 'execute') are false for both; service_role still true; the
 --   short probe (supabase/probes/communities_probe.sql, block `short`) passes.
+--   Outcome: authenticated false, anon false, service_role true for both functions right after the
+--   call; the short probe then passed with this step live, inside the rolled-back dry run of
+--   20261017_0001 (the 0001 header records it).
 --
 -- What old clients see
 --   Nothing: no build calls either function.

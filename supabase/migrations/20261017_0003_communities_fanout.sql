@@ -1,5 +1,8 @@
 -- 20261017_0003_communities_fanout.sql
--- NOT APPLIED. Phase 0, step 3 of the multi-community rollout
+-- APPLIED 2026-10-18 through the Supabase MCP as two migrations: calls 1-24 in one apply_migration
+-- call (migration-history version 20261018141709, "20261017_0003_communities_fanout") and call 25 on
+-- its own (20261018141809, "20261017_0003_communities_fanout_badge_total"), so the D28 total key can be
+-- reverted alone. Phase 0, step 3 of the multi-community rollout
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md section 3.5 and section 4, as
 -- amended by Docs/superpowers/specs/2026-10-17-multi-community-decisions.md).
 --
@@ -96,7 +99,69 @@
 --   8 record_xp_on_completion   16 get_leaderboard_spotlights   24 get_badge_counts
 --                                                               25 get_badge_counts + total (D28)
 --
--- Verification (to be filled in when applied): dry-run the whole file inside one
+-- Verification outcome (2026-10-18). Dry run: all 25 calls inside one begin; ... rollback; with a
+-- snapshot taken before and after them (78 rows: get_xp_leaderboard, get_leaderboard_spotlights and
+-- both get_leaderboard overloads as a member, the platform admin and anon; get_user_badges,
+-- get_user_stats and is_user_approved of the platform admin seen by each of those three; and, for
+-- each of the 19 members as themselves, get_user_badges, get_user_stats and get_badge_counts(true)).
+-- Every row was identical before and after except get_leaderboard(date, date), which is deviation 3
+-- made visible: a member read only their own row before (SECURITY INVOKER under step 2's profiles
+-- policy) and the community's 19 rows after; anon read 0 rows before and the same 19 after (the
+-- default community is public, and anon could already read get_leaderboard(text, integer), which was
+-- SECURITY DEFINER before this file). Neither overload has an iOS caller; revoking EXECUTE from anon
+-- on both, or dropping them, is a follow-up for a later step. get_badge_counts kept every existing
+-- key for every member and added pending_members_total = 0, community_details = [] and, after call
+-- 25, total = requests_total + messages_total + community_total. The live apply was then checked
+-- with 41 rolled-back assertions, all passed: the member's get_xp_leaderboard equals the pre-step
+-- rows and xp (CTO 582, Brendan Colford 491, 207, 92, 77, 50, 20, 15, 15, 15, 15); anon reading
+-- get_community_leaderboard(default) sees the same rows; three spotlight categories; a ride by a
+-- member creates one new_ride bell row per active unmuted member but the poster, none for a muted
+-- member, each carrying the community; a private community's leaderboard and spotlights raise 42501
+-- for a non-member and for anon and answer its owner and a platform admin; get_user_badges /
+-- get_user_stats / get_profile_stats for a person in no shared community return '[]' / no row / '{}'
+-- in both directions and is_user_approved answers false; a member reads the admin's profile stats
+-- (review_count equal to get_user_stats) and anon reads them for a public-community member;
+-- create_signup_profile re-run by a member succeeds and leaves approved and application_complete
+-- true; an installed-build application (application_complete) creates one pending default
+-- membership and four pending_approval rows (the owner and three admins), the platform admin's
+-- pending_members_total reads 1 and a plain member's 0; the legacy approve activates the membership
+-- and sends exactly one "Welcome to Naar's Cars Seattle!" row carrying the community; a platform
+-- admin's send_broadcast_notifications returns the count of active, unbanned, unmuted members
+-- but themselves, creates one 'announcement' post in the default community and that many
+-- 'broadcast' bell rows, none for the sender or the muted member; 'admin_announcement' is accepted,
+-- 'new_ride' refused (22023), a plain member refused with today's message, the platform admin's
+-- fourth broadcast of the day accepted, a community admin's refused (P0001), a community admin of
+-- the default community refused on another community (42501), anon refused; a review on a ride
+-- puts its post and xp in the ride's community; a community report notifies every platform admin.
+-- Not testable until step 5: "a creator's own create_community sends none". The short probe passed
+-- after the apply. No probe row leaked (0 probe profiles, 0 probe posts, 1 community).
+-- md5(prosrc) of the deployed bodies (pg_proc, 2026-10-18):
+--   notify_new_ride 412d6ec764b021bed454a34bf55cb993
+--   notify_new_favor a4995495114a3936804b444de79df271
+--   notify_town_hall_post 5c5d85a295dd292f6a92f73f2bfa2ce0
+--   notify_user_approved 5c46d8ce7d08eddbff822181e54db3fd
+--   guard_request_client_update cb842afa19917c77470fc95a0313e08d
+--   handle_new_review 844168c9f41d3aaef294a0328ef67b3d
+--   record_xp_on_request_created a2f1a07e89f884da817302e9d13667a9
+--   record_xp_on_completion 2a770683f97e002802b56bd72664e18a
+--   record_xp_on_review f8c3e33e5cbd7ae8575385091d8f1861
+--   handle_new_report a470284db164ca45c1eaa23a4cd32cd6
+--   send_community_broadcast df908ac4cf41a160e4f5285af8580c5d
+--   send_broadcast_notifications e238abe6ecffbf8cf4835e5703a74ee7
+--   get_community_leaderboard 51b36e761f3e074d9507eb743ca43fcb
+--   get_community_spotlights 545a71b1060e0eb0f79b959b9bece2b4
+--   get_xp_leaderboard 99e2e7cb21593614dca1a6227c05dfb1
+--   get_leaderboard_spotlights 4f7e7cfa293d72cec20d441860e4b1df
+--   get_leaderboard(text, integer) f97d8b82dbd14225a46f6e32558b0499
+--   get_leaderboard(date, date) c52c79d1fd79c298fc40fdc320f62e23
+--   get_profile_stats 72274ef3cb2b98916745ccb93dae6166
+--   get_user_badges 85f21a5ac329c8747e1f838c85e77bc0
+--   get_user_stats c8a0975a977e430a3474b5e855d33dcc
+--   is_user_approved d2165fb1d450a01365bff32099e379d4
+--   create_signup_profile 22686fb9af22c3c648ac77ab56c4a83c
+--   get_badge_counts (call 25 body) 683075d80bd7126b4d515e210b561a0a
+--
+-- Verification plan, as written before the run: dry-run the whole file inside one
 -- begin; ... rollback; with the short probe (insert a ride and a favor without community_id,
 -- claim and complete as a second member, 5-star review, read the ride's community and three
 -- xp_events rows with a community, delete a probe member / probe admin / the default owner),
@@ -128,9 +193,9 @@
 --     platform admins are exempt until Phase 3 (owner decision 2026-10-17);
 --   * creates its bell rows through create_notification, so should_notify_user gates each one,
 --     instead of the live body's direct inserts.
--- The cap applies to platform admins as decided in D14. Exempting platform admins until Phase 3
--- would make this step behaviour-neutral for the installed admin build; that is the owner's call
--- and is not done here.
+-- The 3-per-day cap applies to community admins only; platform admins are exempt until Phase 3
+-- (owner decision 2026-10-17), so the installed admin build's broadcasts keep working without a
+-- daily limit and the four points above are the whole of the change.
 --
 -- Rollback: re-apply the live bodies recorded in the step 0 snapshot (md5 below), in reverse
 -- order; drop the four new functions after their wrappers are restored. The snapshot holds every

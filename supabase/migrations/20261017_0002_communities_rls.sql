@@ -1,5 +1,6 @@
 -- 20261017_0002_communities_rls.sql
--- NOT APPLIED. Phase 0, step 2 of the multi-community build
+-- APPLIED 2026-10-18 (Supabase MCP apply_migration, the whole file in one call; migration-history
+-- version 20261018140103). Phase 0, step 2 of the multi-community build
 -- (Docs/superpowers/specs/2026-10-07-multi-community-design.md §3.4 and §4 "Step 2", as amended by
 -- Docs/superpowers/specs/2026-10-17-multi-community-decisions.md).
 --
@@ -71,9 +72,30 @@
 -- claim and complete as a second member, insert a review, read back the community, delete probe
 -- accounts) inside begin; ... rollback;.
 --
--- Verification (to be filled in by the apply run; the rollout stops at the first failure):
---   md5 of pg_get_viewdef after applying: guest_rides ________, guest_favors ________,
---   public_profiles ________; md5 of each altered policy's qual / with_check: recorded in the run.
+-- Verification (2026-10-18; the file was applied as one migration after a rolled-back dry run of
+-- the whole file, not one statement per call: the dry run had exercised every statement in order
+-- and the no-op digest below needs the complete set to be meaningful):
+--   md5 of pg_get_viewdef after applying: guest_rides 9a21db79501536b75b8dc2cba3fd778c,
+--   guest_favors 003605559c2e7f5b4e87951628a2391e, public_profiles 0ab5dd39ff3e3fddaad989a3cfa35579;
+--   md5 over "tablename.policyname:qual:with_check" of the 28 altered and 8 new policies, ordered by
+--   table and name: 95d104ad97e8fcaa9ed86699ed80289e. All three view digests and the policy digest
+--   matched between the dry run and the live apply.
+--   No-op digest: the row counts each of the 19 members reads from 18 tables (rides, favors, posts,
+--   comments, public_profiles, profiles, notifications, conversations, participants, messages,
+--   xp_events, reviews, reports, votes, invite_codes, completion_reminders, blocked_users,
+--   push_tokens) plus anon's reads were captured before the step and again after it. Every count was
+--   identical except comments (10 -> 8) and votes (12 -> 10) for everyone but the author of hidden
+--   post 04cf39a4 (838bc925, who still reads 10 and 12) and the two voters' own vote rows: row-level
+--   difference (b) above, now measured (that post carries both comments and both votes; no orphan
+--   comment or vote exists). Anon: 0 rides / favors, 106 / 61 from the guest views with community_id
+--   set and blank addresses, 31 posts, 8 comments, 15 reviews, 19 rows of public_profiles.
+--   Behaviour checks (rolled back, all passed in the dry run and again live): a member reads exactly
+--   their own community_members row and the one communities row; can set notifications_muted on
+--   their row and gets 42501 on role; reads geocoding_cache; inserts a ride and a post without
+--   community_id and both come back with the default community; the platform admin reads all 19
+--   membership rows; anon reads the default community, gets 42501 on community_members, and no
+--   guest_rides row has a null community_id or an address. Short probe after the apply: OK.
+--   Planned probes, as written before the run:
 --   Probes, under set local role authenticated / anon with request.jwt.claims, rolled back:
 --     each of the 19 members reads 106 rides, 61 favors, 31 visible Town Hall posts plus their own
 --     hidden ones, 15 reviews, 7 geocoding rows, and 19 rows of public_profiles;
