@@ -249,6 +249,12 @@
 		AC410C373085456D00D921E2 /* CommunityServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C363085456D00D921E2 /* CommunityServiceTests.swift */; };
 		AC410C39308547D200D921E2 /* CommunityAdminServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */; };
 		AC410C3B3085504F00D921E2 /* ReportContentViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C3A3085504F00D921E2 /* ReportContentViewModelTests.swift */; };
+		AC410C3F3085526C00D921E2 /* QRCodeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C3E3085526C00D921E2 /* QRCodeRenderer.swift */; };
+		AC410C413085526C00D921E2 /* CreateCommunityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C403085526C00D921E2 /* CreateCommunityViewModel.swift */; };
+		AC410C433085528800D921E2 /* CommunityInviteViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C423085528800D921E2 /* CommunityInviteViewModel.swift */; };
+		AC410C453085528A00D921E2 /* CreateCommunityViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C443085528A00D921E2 /* CreateCommunityViewModelTests.swift */; };
+		AC410C47308552B000D921E2 /* CommunityInviteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C46308552B000D921E2 /* CommunityInviteSheet.swift */; };
+		AC410C49308552B100D921E2 /* CreateCommunityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C48308552B100D921E2 /* CreateCommunityView.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -771,6 +777,12 @@
 		AC410C363085456D00D921E2 /* CommunityServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityServiceTests.swift; sourceTree = "<group>"; };
 		AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAdminServiceProtocol.swift; sourceTree = "<group>"; };
 		AC410C3A3085504F00D921E2 /* ReportContentViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportContentViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C3E3085526C00D921E2 /* QRCodeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeRenderer.swift; sourceTree = "<group>"; };
+		AC410C403085526C00D921E2 /* CreateCommunityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommunityViewModel.swift; sourceTree = "<group>"; };
+		AC410C423085528800D921E2 /* CommunityInviteViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityInviteViewModel.swift; sourceTree = "<group>"; };
+		AC410C443085528A00D921E2 /* CreateCommunityViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommunityViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C46308552B000D921E2 /* CommunityInviteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityInviteSheet.swift; sourceTree = "<group>"; };
+		AC410C48308552B100D921E2 /* CreateCommunityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommunityView.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1383,6 +1395,23 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		AC410C3C3085525B00D921E2 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				AC410C403085526C00D921E2 /* CreateCommunityViewModel.swift */,
+				AC410C423085528800D921E2 /* CommunityInviteViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		AC410C3D3085525C00D921E2 /* Community */ = {
+			isa = PBXGroup;
+			children = (
+				AC410C443085528A00D921E2 /* CreateCommunityViewModelTests.swift */,
+			);
+			path = Community;
+			sourceTree = "<group>";
+		};
 		AC4F1E182F23340500CC5DBA /* Storage */ = {
 			isa = PBXGroup;
 			children = (
@@ -1531,6 +1560,8 @@
 			isa = PBXGroup;
 			children = (
 				ACBF4ACA2F12CAFF006A7C8A /* CommunityTabView.swift */,
+				AC410C46308552B000D921E2 /* CommunityInviteSheet.swift */,
+				AC410C48308552B100D921E2 /* CreateCommunityView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1539,6 +1570,7 @@
 			isa = PBXGroup;
 			children = (
 				ACBF4ACB2F12CAFF006A7C8A /* Views */,
+				AC410C3C3085525B00D921E2 /* ViewModels */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1997,6 +2029,7 @@
 				68345925C3A049591611F5E6 /* RideCostModels.swift */,
 				172C379B679B4BE19C12E800 /* CalendarOfferTracker.swift */,
 				CE110002AAAA00000000000F /* EmojiDetection.swift */,
+				AC410C3E3085526C00D921E2 /* QRCodeRenderer.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -2233,6 +2266,7 @@
 				AC9DDD292F2B139C003465D3 /* Rides */,
 				AC9DDD2C2F2B139C003465D3 /* TownHall */,
 				ACDCBE192F0B79BD00956D1C /* Profile */,
+				AC410C3D3085525C00D921E2 /* Community */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -2596,7 +2630,9 @@
 				ACBF4AA12F12CA95006A7C8A /* PostTitleExtractor.swift in Sources */,
 				ACBF4AA22F12CA95006A7C8A /* BiometricPreferences.swift in Sources */,
 				ACBF4AA32F12CA95006A7C8A /* LocalizationManager.swift in Sources */,
+				AC410C433085528800D921E2 /* CommunityInviteViewModel.swift in Sources */,
 				AC305EF62F0DB7BD0063AFDF /* PasswordResetViewModel.swift in Sources */,
+				AC410C47308552B000D921E2 /* CommunityInviteSheet.swift in Sources */,
 				ACBF4AA72F12CAB9006A7C8A /* String+Localization.swift in Sources */,
 				ACBF4AA82F12CAB9006A7C8A /* Number+Localization.swift in Sources */,
 				AC4F1E1E2F23495600CC5DBA /* DashboardSyncEngine.swift in Sources */,
@@ -2740,6 +2776,7 @@
 				5F007FF83CC74A13A68761AE /* Features/Favors/Views/FavorsDashboardView.swift in Sources */,
 				41B955527CAF4F59BECA3D82 /* Features/Messaging/ViewModels/ConversationDetailViewModel.swift in Sources */,
 				6D5101EBFBE8476BB7D9058E /* Features/Messaging/ViewModels/ConversationsListViewModel.swift in Sources */,
+				AC410C413085526C00D921E2 /* CreateCommunityViewModel.swift in Sources */,
 				THREAD000000000000000B1 /* Features/Messaging/Views/MessageThreadViewController.swift in Sources */,
 				THREAD000000000000000B2 /* Features/Messaging/Views/MessageThreadRepresentable.swift in Sources */,
 				INPUTBAR00000000000000B1 /* UI/Components/Messaging/MessageInputAccessoryView.swift in Sources */,
@@ -2764,6 +2801,7 @@
 				ACBF4AB42F12CAD7006A7C8A /* MapModels.swift in Sources */,
 				AC1201172F3D7A8A0043BFAE /* NotificationTypeRegistry.swift in Sources */,
 				ACBF4AB52F12CAD7006A7C8A /* TownHallComment.swift in Sources */,
+				AC410C49308552B100D921E2 /* CreateCommunityView.swift in Sources */,
 				2693C24838084E52BB8A9869 /* Features/Rides/Views/CreateRideView.swift in Sources */,
 				978C66F9CB8840BF84FFBF5C /* Features/Rides/Views/EditRideView.swift in Sources */,
 				AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */,
@@ -2776,6 +2814,7 @@
 				AC35AB4F2F0F01B70012096B /* PushPermissionPromptView.swift in Sources */,
 				AC35AB512F0F01B70012096B /* ClaimSheet.swift in Sources */,
 				AC4F1E192F23340500CC5DBA /* MessagingMapper.swift in Sources */,
+				AC410C3F3085526C00D921E2 /* QRCodeRenderer.swift in Sources */,
 				AC12010C2F3D73E60043BFAE /* ReviewServiceProtocol.swift in Sources */,
 				AC12010D2F3D73E60043BFAE /* FavorServiceProtocol.swift in Sources */,
 				AC12010E2F3D73E60043BFAE /* MessageServiceProtocol.swift in Sources */,
@@ -2945,6 +2984,7 @@
 				3BBAF04A4F094CDDF7FDB0CD /* AppLaunchManagerTests.swift in Sources */,
 				AC410C373085456D00D921E2 /* CommunityServiceTests.swift in Sources */,
 				89932D282B485635EA5ECBE8 /* RideDirectionsLauncherTests.swift in Sources */,
+				AC410C453085528A00D921E2 /* CreateCommunityViewModelTests.swift in Sources */,
 				AC39A76F7136CB8DAE8C4BBA /* PerformanceImprovementsTests.swift in Sources */,
 				A3921C93B965221F4F61C072 /* AppDelegateNotificationHandlingTests.swift in Sources */,
 				5A27F6DCE56AAE7163DF3843 /* DeepLinkParserTests.swift in Sources */,
