@@ -21,7 +21,7 @@ final class ApplicationFieldsViewModel: ObservableObject {
     /// Apple sends the person's name only on the first authorization. A repeat authorization
     /// (for example after starting on the Sign In screen) creates the profile with this
     /// placeholder, which admins and later neighbours would otherwise see.
-    private static let applePlaceholderName = "Apple User"
+    static let applePlaceholderName = "Apple User"
 
     private let profileService: any ProfileServiceProtocol
     private let authService: any AuthServiceProtocol
@@ -53,7 +53,7 @@ final class ApplicationFieldsViewModel: ObservableObject {
     }
 
     /// Same rules and messages as the name field on the sign-up form. Nil when the name is fine.
-    private static func nameProblem(_ trimmedName: String) -> String? {
+    static func nameProblem(_ trimmedName: String) -> String? {
         if trimmedName.isEmpty || trimmedName == applePlaceholderName {
             return "signup_error_name_required".localized
         }

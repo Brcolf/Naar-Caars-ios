@@ -54,7 +54,7 @@ struct ContentView: View {
 
                     case .needsApplication:
                         NavigationStack {
-                            ApplicationFieldsView()
+                            CommunityOnboardingView()
                         }
 
                     case .pendingApproval:

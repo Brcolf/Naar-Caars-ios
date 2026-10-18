@@ -28,6 +28,7 @@ struct CommunityJoinOptionsView: View {
     private let isEnabled: Bool
     private let prefilledCode: String?
     private let service: any CommunityServiceProtocol
+    private let onPublicListFailureChange: ((Bool) -> Void)?
     private let onJoined: (JoinResult) -> Void
 
     @MainActor init(
@@ -35,12 +36,14 @@ struct CommunityJoinOptionsView: View {
         isEnabled: Bool = true,
         prefilledCode: String? = nil,
         service: any CommunityServiceProtocol = CommunityService.shared,
+        onPublicListFailureChange: ((Bool) -> Void)? = nil,
         onJoined: @escaping (JoinResult) -> Void
     ) {
         self.excludedCommunityIds = excludedCommunityIds
         self.isEnabled = isEnabled
         self.prefilledCode = prefilledCode
         self.service = service
+        self.onPublicListFailureChange = onPublicListFailureChange
         self.onJoined = onJoined
         _viewModel = StateObject(wrappedValue: CommunityJoinOptionsViewModel(service: service))
     }
@@ -82,6 +85,10 @@ struct CommunityJoinOptionsView: View {
         }
         .task(id: excludedCommunityIds) {
             await viewModel.load(excluding: excludedCommunityIds)
+        }
+        // Lets onboarding offer its own Try again (re-running the account check) when the list fails.
+        .onChange(of: viewModel.errorMessage != nil) { _, failed in
+            onPublicListFailureChange?(failed)
         }
         .onChange(of: AutoOpen(code: prefilledCode, enabled: isEnabled), initial: true) { _, new in
             guard let code = new.code, new.enabled, activeSheet == nil, code != openedPrefilledCode else { return }

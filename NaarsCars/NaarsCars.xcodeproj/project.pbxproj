@@ -272,6 +272,9 @@
 		AC410C6730855F0C00D921E2 /* OwnedLimitRequestSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6630855F0C00D921E2 /* OwnedLimitRequestSheet.swift */; };
 		AC410C69308561BC00D921E2 /* CommunitiesAdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C68308561BC00D921E2 /* CommunitiesAdminViewModel.swift */; };
 		AC410C6B3085620D00D921E2 /* CommunitiesAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6A3085620D00D921E2 /* CommunitiesAdminView.swift */; };
+		AC410C6D308571E200D921E2 /* CommunityOnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */; };
+		AC410C6F3085723000D921E2 /* CommunityOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6E3085723000D921E2 /* CommunityOnboardingView.swift */; };
+		AC410C713085724000D921E2 /* CommunityOnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -817,6 +820,9 @@
 		AC410C6630855F0C00D921E2 /* OwnedLimitRequestSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnedLimitRequestSheet.swift; sourceTree = "<group>"; };
 		AC410C68308561BC00D921E2 /* CommunitiesAdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitiesAdminViewModel.swift; sourceTree = "<group>"; };
 		AC410C6A3085620D00D921E2 /* CommunitiesAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitiesAdminView.swift; sourceTree = "<group>"; };
+		AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingViewModel.swift; sourceTree = "<group>"; };
+		AC410C6E3085723000D921E2 /* CommunityOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingView.swift; sourceTree = "<group>"; };
+		AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityOnboardingViewModelTests.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1354,6 +1360,7 @@
 				AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */,
 				EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */,
 				23239C057D89CB4022E7A1EB /* BannedAccountViewModel.swift */,
+				AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1375,6 +1382,7 @@
 				AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */,
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
 				AC305EEF2F0DB7BD0063AFDF /* SignupInviteCodeView.swift */,
+				AC410C6E3085723000D921E2 /* CommunityOnboardingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1451,6 +1459,7 @@
 				AC410C4A3085554400D921E2 /* JoinCommunityViewModelTests.swift */,
 				AC410C5A308558A700D921E2 /* PendingMembersViewModelTests.swift */,
 				AC410C5C30855BB500D921E2 /* MyCommunitiesViewModelTests.swift */,
+				AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -2862,6 +2871,7 @@
 				ACBF4AB42F12CAD7006A7C8A /* MapModels.swift in Sources */,
 				AC1201172F3D7A8A0043BFAE /* NotificationTypeRegistry.swift in Sources */,
 				AC410C513085557F00D921E2 /* JoinCommunitySheet.swift in Sources */,
+				AC410C6D308571E200D921E2 /* CommunityOnboardingViewModel.swift in Sources */,
 				ACBF4AB52F12CAD7006A7C8A /* TownHallComment.swift in Sources */,
 				AC410C49308552B100D921E2 /* CreateCommunityView.swift in Sources */,
 				AC410C553085582000D921E2 /* ApplicantContactFetching.swift in Sources */,
@@ -2924,6 +2934,7 @@
 				11E63CC66A19A0FD69A3115C /* InviteCodeFormatter.swift in Sources */,
 				457AE7AECC220A02FC433539 /* MessageSeriesHelper.swift in Sources */,
 				DC10BA7C913BB6154D64733E /* NetworkMonitor.swift in Sources */,
+				AC410C6F3085723000D921E2 /* CommunityOnboardingView.swift in Sources */,
 				E7FE0980E455BADC223BAD94 /* RetryableOperation.swift in Sources */,
 				3441F65522488084208BB11F /* RideCostModels.swift in Sources */,
 				BF22C161886A5354970E2BB0 /* ConversationSearchManager.swift in Sources */,
@@ -3056,6 +3067,7 @@
 				A3921C93B965221F4F61C072 /* AppDelegateNotificationHandlingTests.swift in Sources */,
 				5A27F6DCE56AAE7163DF3843 /* DeepLinkParserTests.swift in Sources */,
 				9F59B80A6C617AE74B0445AE /* ThrottlerTests.swift in Sources */,
+				AC410C713085724000D921E2 /* CommunityOnboardingViewModelTests.swift in Sources */,
 				AC410C5B308558A700D921E2 /* PendingMembersViewModelTests.swift in Sources */,
 				AC410C273084E78500D921E2 /* CommunityFixtures.swift in Sources */,
 				84CC81DC3F7ED93C173866D1 /* FlightCodeParserTests.swift in Sources */,
