@@ -127,12 +127,13 @@ final class MyProfileViewModel: ObservableObject {
     }
     
     /// Names of the communities deleting this account closes (decision A3): the ones this user
-    /// owns alone with no admin to take over. Shown before the final confirmation; the server
+    /// owns alone with no unbanned co-owner or admin to take over. Shown before the final confirmation; the server
     /// applies A3 whatever the client shows, so a failure here never blocks deletion.
     func communitiesClosedByDeletion() async -> [String] {
         guard let userId = authService.currentUserId else { return [] }
         let memberships = (communityContext ?? CommunityContext.shared).memberships
         let service = communityAdminService
+        let profiles = profileService
         let closed = await AccountDeletionCommunityCheck.communitiesClosed(
             byDeleting: userId,
             memberships: memberships,
@@ -143,6 +144,21 @@ final class MyProfileViewModel: ObservableObject {
                     limit: Constants.Community.membersPageSize,
                     offset: 0
                 )
+            },
+            fetchUnbannedMemberIds: { communityId, candidates in
+                // search_community_members leaves out banned accounts (and accounts blocked either way,
+                // which only makes the warning show where it need not). One found candidate is enough.
+                for candidate in candidates {
+                    let found = try await profiles.searchCommunityMembers(
+                        query: candidate.name,
+                        communityId: communityId,
+                        limit: Constants.Community.successorSearchLimit
+                    )
+                    if found.contains(where: { $0.id == candidate.id }) {
+                        return [candidate.id]
+                    }
+                }
+                return []
             }
         )
         return closed.map(\.name)

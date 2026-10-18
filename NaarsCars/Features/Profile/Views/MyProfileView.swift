@@ -19,8 +19,12 @@ struct MyProfileView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
-    /// The A3 check (communities this deletion closes) is running between the first alert and the next.
-    @State private var isCheckingDeletionCommunities = false
+    /// The A3 check (communities this deletion closes) starts when Delete Account is tapped, so its
+    /// result is usually ready when the first alert's Delete is; nil while it runs.
+    @State private var deletionCheckTask: Task<Void, Never>?
+    @State private var deletionCheckNames: [String]?
+    /// Set when the first alert's Delete was tapped before the check finished; the row shows the check meanwhile.
+    @State private var deleteTappedWhileCheckingAt: Date?
     @State private var showDeleteClosesCommunitiesAlert = false
     @State private var deletionClosedCommunityNames: [String] = []
     @State private var showDeleteError = false
@@ -254,9 +258,11 @@ struct MyProfileView: View {
                 Text("profile_sign_out_confirmation".localized)
             }
             .alert("profile_delete_account".localized, isPresented: $showDeleteAccountAlert) {
-                Button("common_cancel".localized, role: .cancel) {}
+                Button("common_cancel".localized, role: .cancel) {
+                    cancelDeletionCheck()
+                }
                 Button("profile_delete".localized, role: .destructive) {
-                    checkCommunitiesClosedByDeletion()
+                    continueDeletionAfterFirstAlert()
                 }
             } message: {
                 Text("profile_delete_warning".localized)
@@ -526,7 +532,7 @@ struct MyProfileView: View {
     private func deleteAccountSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Button(action: {
-                showDeleteAccountAlert = true
+                startDeletionFlow()
             }) {
                 HStack {
                     Image(systemName: "trash.fill")
@@ -541,10 +547,10 @@ struct MyProfileView: View {
                 .cornerRadius(Constants.Radius.sm)
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(viewModel.isDeletingAccount || isCheckingDeletionCommunities)
+            .disabled(viewModel.isDeletingAccount || deleteTappedWhileCheckingAt != nil)
             .accessibilityIdentifier("profile.deleteAccount")
 
-            if isCheckingDeletionCommunities {
+            if deleteTappedWhileCheckingAt != nil {
                 HStack {
                     ProgressView()
                         .scaleEffect(0.8)
@@ -572,20 +578,53 @@ struct MyProfileView: View {
     }
     
     /// Decision A3: before the final confirmation, name the communities this deletion closes.
-    /// An empty list goes straight to the final confirmation, as before.
-    private func checkCommunitiesClosedByDeletion() {
-        guard !isCheckingDeletionCommunities else { return }
-        isCheckingDeletionCommunities = true
-        Task { @MainActor in
+    /// The check runs while the first alert is up, so the next alert is normally raised from that
+    /// alert's Delete action, the same moment the final confirmation always was.
+    private func startDeletionFlow() {
+        cancelDeletionCheck()
+        showDeleteAccountAlert = true
+        deletionCheckTask = Task { @MainActor in
             let names = await viewModel.communitiesClosedByDeletion()
-            isCheckingDeletionCommunities = false
-            if names.isEmpty {
-                showDeleteConfirmation = true
-            } else {
-                deletionClosedCommunityNames = names
-                showDeleteClosesCommunitiesAlert = true
+            guard !Task.isCancelled else { return }
+            deletionCheckNames = names
+            guard let tappedAt = deleteTappedWhileCheckingAt else { return }
+            // Delete was tapped before the check finished: raise the next alert only once the first
+            // one has finished going away, or SwiftUI can drop it and deletion would do nothing.
+            let remaining = Constants.Animation.long - Date().timeIntervalSince(tappedAt)
+            if remaining > 0 {
+                try? await Task.sleep(for: .seconds(remaining))
             }
+            guard !Task.isCancelled else { return }
+            deleteTappedWhileCheckingAt = nil
+            presentStepAfterFirstAlert(names)
         }
+    }
+
+    /// The first alert's Delete. An empty list goes straight to the final confirmation, as before.
+    private func continueDeletionAfterFirstAlert() {
+        if let names = deletionCheckNames {
+            presentStepAfterFirstAlert(names)
+        } else {
+            deleteTappedWhileCheckingAt = Date()
+        }
+    }
+
+    private func presentStepAfterFirstAlert(_ names: [String]) {
+        deletionCheckTask = nil
+        deletionCheckNames = nil
+        if names.isEmpty {
+            showDeleteConfirmation = true
+        } else {
+            deletionClosedCommunityNames = names
+            showDeleteClosesCommunitiesAlert = true
+        }
+    }
+
+    private func cancelDeletionCheck() {
+        deletionCheckTask?.cancel()
+        deletionCheckTask = nil
+        deletionCheckNames = nil
+        deleteTappedWhileCheckingAt = nil
     }
 
     private func deleteAccount() async {

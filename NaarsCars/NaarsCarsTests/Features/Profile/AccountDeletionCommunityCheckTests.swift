@@ -16,6 +16,16 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
 
     private enum FetchError: Error { case offline }
 
+    /// Every candidate successor is unbanned.
+    private let noneBanned: (UUID, [CommunityMember]) async throws -> Set<UUID> = { _, candidates in
+        Set(candidates.map(\.id))
+    }
+
+    /// Every candidate successor except `banned` is unbanned.
+    private func allBut(_ banned: Set<UUID>) -> (UUID, [CommunityMember]) async throws -> Set<UUID> {
+        { _, candidates in Set(candidates.map(\.id)).subtracting(banned) }
+    }
+
     /// Records every community whose members were fetched.
     private actor FetchLog {
         private(set) var ids: [UUID] = []
@@ -50,7 +60,8 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
         let closed = await AccountDeletionCommunityCheck.communitiesClosed(
             byDeleting: me,
             memberships: [community],
-            fetchActiveMembers: { _ in members }
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertEqual(closed.map(\.communityId), [community.communityId])
@@ -62,7 +73,8 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
         let closed = await AccountDeletionCommunityCheck.communitiesClosed(
             byDeleting: me,
             memberships: [community],
-            fetchActiveMembers: { _ in [self.member(self.me, role: .owner)] }
+            fetchActiveMembers: { _ in [self.member(self.me, role: .owner)] },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertEqual(closed.map(\.communityId), [community.communityId])
@@ -74,7 +86,8 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
         let closed = await AccountDeletionCommunityCheck.communitiesClosed(
             byDeleting: me,
             memberships: [ownedCommunity()],
-            fetchActiveMembers: { _ in members }
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertTrue(closed.isEmpty)
@@ -86,7 +99,8 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
         let closed = await AccountDeletionCommunityCheck.communitiesClosed(
             byDeleting: me,
             memberships: [ownedCommunity()],
-            fetchActiveMembers: { _ in members }
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertTrue(closed.isEmpty)
@@ -102,7 +116,8 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
             fetchActiveMembers: { id in
                 await log.record(id)
                 return [self.member(self.me, role: .owner)]
-            }
+            },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertTrue(closed.isEmpty)
@@ -124,7 +139,8 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
             fetchActiveMembers: { id in
                 await log.record(id)
                 return []
-            }
+            },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertTrue(closed.isEmpty)
@@ -143,9 +159,85 @@ final class AccountDeletionCommunityCheckTests: XCTestCase {
             fetchActiveMembers: { id in
                 if id == CommunityFixtures.communityB { throw FetchError.offline }
                 return adminMembers
-            }
+            },
+            fetchUnbannedMemberIds: noneBanned
         )
 
         XCTAssertEqual(closed.map(\.communityId), [failing.communityId])
+    }
+
+    // MARK: - Banned successors (20261017_0004 STEP A skips banned owners and admins)
+
+    func testBannedAdminIsNoSuccessor() async {
+        let community = ownedCommunity()
+        let members = [member(me, role: .owner), member(otherUser, role: .admin), member(thirdUser, role: .member)]
+
+        let closed = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: me,
+            memberships: [community],
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: allBut([otherUser])
+        )
+
+        XCTAssertEqual(closed.map(\.communityId), [community.communityId])
+    }
+
+    func testBannedCoOwnerIsNoSuccessor() async {
+        let community = ownedCommunity()
+        let members = [member(me, role: .owner), member(otherUser, role: .owner)]
+
+        let closed = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: me,
+            memberships: [community],
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: allBut([otherUser])
+        )
+
+        XCTAssertEqual(closed.map(\.communityId), [community.communityId])
+    }
+
+    func testUnbannedAdminBesideABannedOneIsASuccessor() async {
+        let members = [member(me, role: .owner), member(otherUser, role: .admin), member(thirdUser, role: .admin)]
+
+        let closed = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: me,
+            memberships: [ownedCommunity()],
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: allBut([otherUser])
+        )
+
+        XCTAssertTrue(closed.isEmpty)
+    }
+
+    func testUnbannedLookupFailureListsTheCommunity() async {
+        let community = ownedCommunity()
+        let members = [member(me, role: .owner), member(otherUser, role: .admin)]
+
+        let closed = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: me,
+            memberships: [community],
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: { _, _ in throw FetchError.offline }
+        )
+
+        XCTAssertEqual(closed.map(\.communityId), [community.communityId])
+    }
+
+    func testOnlyOwnersAndAdminsOtherThanMeAreLookedUp() async {
+        let log = FetchLog()
+        let members = [member(me, role: .owner), member(otherUser, role: .admin), member(thirdUser, role: .member)]
+
+        _ = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: me,
+            memberships: [ownedCommunity()],
+            fetchActiveMembers: { _ in members },
+            fetchUnbannedMemberIds: { _, candidates in
+                for candidate in candidates { await log.record(candidate.id) }
+                return Set(candidates.map(\.id))
+            }
+        )
+
+        let looked = await log.ids
+        XCTAssertEqual(looked, [otherUser])
     }
 }
