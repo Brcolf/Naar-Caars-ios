@@ -246,7 +246,30 @@ struct AdminPanelView: View {
             .accessibilityIdentifier("admin.pendingUsers")
             .accessibilityLabel("admin_pending_approvals".localized)
             .accessibilityHint("admin_pending_approvals_hint".localized)
-            
+
+            NavigationLink(destination: CommunitiesAdminView()) {
+                HStack {
+                    Image(systemName: "building.2.fill")
+                        .foregroundColor(.naarsPrimary)
+                    Text("admin_communities_title".localized)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.naarsCaption)
+                }
+                .padding()
+                .background(Color.naarsBackgroundSecondary)
+                .cornerRadius(Constants.Radius.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Constants.Radius.card)
+                        .stroke(Color(.separator), lineWidth: 1)
+                )
+            }
+            .accessibilityIdentifier("admin.communities")
+            .accessibilityLabel("admin_communities_title".localized)
+            .accessibilityHint("admin_communities_hint".localized)
+
             NavigationLink(destination: UserManagementView()) {
                 HStack {
                     Image(systemName: "person.3.fill")
