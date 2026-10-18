@@ -279,6 +279,8 @@ Compilation is not correctness, and an unbuilt change is not done. After every c
 
 **Supabase edge functions**: `supabase/functions/` — `revoke-apple-token`, `send-message-push`, `send-notification`. Shared utilities in `supabase/functions/_shared/` (`apns.ts`, `badges.ts`, `notificationTypes.ts`, `webhookAuth.ts`). The `notificationTypes.ts` registry must stay in sync with the Swift `AppNotification` enum — use `scripts/validate-notification-types.sh` to verify. Deploy edge functions using the Supabase MCP `deploy_edge_function` tool. Database webhooks are created by `public.invoke_edge_webhook()` and never embed API keys: they send the Vault shared secret as `x-webhook-secret`, which `_shared/webhookAuth.ts` verifies (`SECURITY.md` §7.4).
 
+**Community code**: `CommunityServiceProtocol` (`Core/Protocols/`) fronts `CommunityService`; `TownHallPostFetching` is the narrow protocol `TownHallSyncEngine` uses to fetch posts; the shared `communityTitleMenu(enabled:subtitle:menu:)` modifier (`UI/Components/Common/CommunityTitleMenu.swift`) is the only way a screen adds a community title menu.
+
 **Test fixtures**: `NaarsCarsTests/Core/Fixtures/` contains `RealtimeFixtures.swift`, `WebhookFixtures.swift`, and `NotificationFixtures.swift`. When adding payload handling, add corresponding fixtures and decoding tests here.
 
 ---
@@ -416,12 +418,17 @@ All navigation from push handlers must go through **`pendingIntent` / `deferNoti
 - Add new `@Published` navigation flags (e.g., `navigateToX`) — prefer the `NavigationIntent` enum pattern
 - Change notification type mapping without verifying every route
 
+**Town Hall pushes.** The push payload carries `community_id` (read by `DeepLinkParser`; a post in a community the person does not belong to shows "This content is no longer available." and leaves the Community tab's community unchanged). `NotificationType.entityIdKey` for the three Town Hall types is `town_hall_post_id`, so `PushNotificationService` does a targeted single-post refresh rather than invalidating the domain.
+
 ### 5. Auth and Launch State
 
 **Required state machine:**
 ```
 initializing → checkingAuth → ready(authState)
 ```
+
+- `AppLaunchManager.recheckAccountStatus()` acts only on a successful read of the account flags and only while the state is still `.ready(.authenticated)`; a failed read changes nothing. `CommunityContext.onActiveMembershipsEmpty` calls it when the last active membership goes.
+- The waiting screen, on approval, runs `performCriticalLaunch()` (session setup), never a direct write to `state`; `.enterApp` does not relaunch an already authenticated session.
 
 **Do not:**
 - Change launch routing logic without tracing the full state machine
@@ -455,6 +462,8 @@ unhydrated → hydrated → invalidated → refreshing → hydrated
 
 **Coordinator methods (not engine methods):** `refreshIfNeeded`, `performTargetedRefresh`, `forceFullRefresh`, `forceFullRefreshAndWait`, `invalidate`, `setVisibleDomain`, `handleAppForegrounded`, `reset`. ViewModels never call engines or `refreshIfNeeded`; the only coordinator call a ViewModel may make is `forceFullRefreshAndWait` for an explicit user-initiated reload (pull-to-refresh, mark-read, approve). `MainTabView.onChange(of: selectedTab)` and app-foreground remain the staleness triggers; the push-off conversations poll in `ConversationsListViewModel` (`Constants.Timing.conversationsPushOffPollInterval`, ticks staleness-gated through the coordinator) is the one sanctioned timer besides the 5-minute safety poll.
 
+**Town Hall scope.** `TownHallSyncEngine` reads `CommunityContext.communityTabId` at the start of each fetch (through the `TownHallPostFetching` protocol) and posts `.townHallPostsDidSync` with the synced `TownHallSyncScope` in `userInfo`. The Community feed ViewModel reloads through `forceFullRefreshAndWait(.townHall, …)` after the community is switched.
+
 **MessagingSyncEngine has additional conversation-scoped methods** outside the protocol: `subscribeToConversation(_ conversationId:)`, `beginGracePeriod()`, `cancelGracePeriodAndUnsubscribe()`, `refreshConversationList()`.
 
 **Do not:**
@@ -470,6 +479,8 @@ Push badges, tab badges, in-app toast counts, and unread counts are one connecte
 **If `get_badge_counts` RPC fails:** prefer cached/stale values with a staleness indicator rather than introducing a second client-side aggregation logic path.
 
 **Badge refresh entry points:** after a user action (mark read, approve, review) call `RefreshCoordinator.forceFullRefreshAndWait(.badges, trigger:)`; after a push, `PushNotificationService` / `AppDelegate` call `RefreshCoordinator.performTargetedRefresh(.badges, …)`. Only the coordinator calls `BadgeCountManager.refreshAllBadges`.
+
+**`get_badge_counts` keys** include `pending_members_total`, `community_details` and `total` beside the per-domain counts; the client decodes them from the RPC and does not recompute them.
 
 **Do not:**
 - Remove the 5s debounce (prevents push bursts) or backoff logic
@@ -506,7 +517,7 @@ These exist to keep the codebase navigable as it grows with AI assistance. Viola
 ## State Management Rules
 
 1. All UI-facing state holders must be `@MainActor`.
-2. The observation split is mixed and settled: 33 screen ViewModels (31 once the two dead dashboard ViewModels are deleted) are `ObservableObject`; the four messaging/notifications screen ViewModels (`ConversationDetailViewModel`, `MessageThreadViewModel`, `ConversationsListViewModel`, `NotificationsListViewModel`), the ~11 helper managers under `Features/*/ViewModels/` (`MessageSendManager`, `TypingIndicatorManager`, `NotificationGroupingManager`, …), a few Core/UI state holders (`BadgeCountManager`, `InAppToastManager`, `InputBarController`, `AppTheme`), `AppState`, and `NavigationCoordinator` are `@Observable`. **New ViewModels must be `ObservableObject` + `@MainActor`.** Do not migrate existing ones in either direction without explicit approval.
+2. The observation split is mixed and settled: 33 screen ViewModels (31 once the two dead dashboard ViewModels are deleted) are `ObservableObject`; the four messaging/notifications screen ViewModels (`ConversationDetailViewModel`, `MessageThreadViewModel`, `ConversationsListViewModel`, `NotificationsListViewModel`), the ~11 helper managers under `Features/*/ViewModels/` (`MessageSendManager`, `TypingIndicatorManager`, `NotificationGroupingManager`, …), a few Core/UI state holders (`BadgeCountManager`, `InAppToastManager`, `InputBarController`, `AppTheme`, `CommunityContext`), `AppState`, and `NavigationCoordinator` are `@Observable`. **New ViewModels must be `ObservableObject` + `@MainActor`.** Do not migrate existing ones in either direction without explicit approval.
 3. Use `@Published` for state the UI binds to in `ObservableObject` types.
 4. Published state should not trigger heavy side effects unless the pattern is already established and proven safe.
 5. Track cancellable async work with stored `Task` references.
@@ -603,7 +614,7 @@ Several systems span Swift client code, SQL (database RPCs/triggers), and Supaba
 - `BadgeCountManager` — if a `get_badge_counts` RPC exists, treat it as authoritative; do not expand client-side fallback aggregation
 - `RealtimeManager` — conversation-scoped subscription only (~3 channels max), cleanup
 - `NavigationCoordinator` — routing table mapping notification types to intents
-- `NotificationType` — registry must match across Swift enum, SQL, and Edge Functions. `affectedDomains` and `entityIdKey` extensions must cover all cases.
+- `NotificationType` — registry must match across Swift enum, SQL, and Edge Functions. `affectedDomains` and `entityIdKey` extensions must cover all cases. The Town Hall types use `town_hall_post_id`, and push payloads may carry `community_id`.
 - Sync engines — `MessagingSyncEngine`, `DashboardSyncEngine`, `TownHallSyncEngine`
 - SwiftData ↔ Domain mappers — if you change a domain model (`Message`, `Ride`, `Favor`, `Conversation`, `Notification`, `TownHall`), you MUST atomically update all three: the SwiftData model, mapper(s), and sync engine insert/update logic. These are a mandatory trio — updating one without the others will cause silent data loss or crashes.
 - Supabase RPC call sites — signature changes must propagate to all callers
@@ -718,7 +729,7 @@ For any meaningful code change, include or propose concrete tests for the affect
 |---|---|
 | Messaging | Optimistic send, realtime receive, dedupe, ordering, read state, reactions |
 | Notifications | Deep links, category actions, toast suppression, badge updates |
-| Auth | Launch routing, sign in, sign out teardown, pending approval, account deletion |
+| Auth | Launch routing, sign in, sign out teardown, pending approval, account deletion, zero-membership routing (`CommunityContext.onActiveMembershipsEmpty` → `AppLaunchManager.recheckAccountStatus`) |
 | Storage | Migration safety, cache invalidation, sync engine behavior |
 | Realtime | Structured and unstructured payload cases |
 
@@ -780,9 +791,9 @@ In these areas: smaller diff, preserved logic, explicit reasoning, and verificat
 | Reactions | `individualReactions` is source of truth; only `setIndividualReactions(_:)` mutates it |
 | Reaction badges | render at the TOP of the bubble |
 | Notifications | push → AppDelegate → DeepLinkParser → NavigationIntent → NavigationCoordinator → destination |
-| Auth state | initializing → checkingAuth → ready(authState) |
+| Auth state | initializing → checkingAuth → ready(authState). `recheckAccountStatus` acts only on a successful read; the waiting screen runs `performCriticalLaunch()`; `.enterApp` does not relaunch an authenticated session. |
 | Launch hydration | `AppLaunchManager` → `RefreshCoordinator.refreshIfNeeded(.dashboard / .conversations / .townHall, trigger: "launch")`. Engine `startSync()` is session setup only and never fetches. |
-| Sign-out | teardown (session work only — engines keep their container-scoped `modelContext` / `backgroundActor`) → wipe SwiftData → clear sync timestamps → reset coordinator. All domains nil, badges zero, @Query returns []. |
+| Sign-out | teardown (session work only — engines keep their container-scoped `modelContext` / `backgroundActor`) → wipe SwiftData → clear sync timestamps → reset coordinator → `CommunityContext.resetForSignOut(userId:)` (id captured in `handleSignOut`). All domains nil, badges zero, @Query returns []. |
 | SwiftData schema | additive-only changes without a formal migration |
 | UIKit messaging | MessagesCollectionView is not replaceable with SwiftUI List |
 
@@ -801,6 +812,7 @@ When you need to do one of these things, this is the *only* path. Do not duplica
 | Send a quick reply from a push action | `MessageSendManager.sendMessage(...)` via `PushNotificationService` | Call `MessageService.sendMessage` directly from the push handler |
 | Mark a domain dirty after a push | `RefreshCoordinator.invalidate(_:reason:)` | Mutate engine state directly |
 | Track which tab/screen is visible | `RefreshCoordinator.setVisibleDomain(_:)` from `MainTabView.onChange(of: selectedTab)` | Call this from individual ViewModels |
+| Switch the Community tab's community | Set `CommunityContext.shared.communityTabId`; the feed then calls `forceFullRefreshAndWait(.townHall, …)` | Fetch Town Hall posts for a chosen community from a view, or keep a second selected-community state |
 | Mutate reaction state on a `Message` | `Message.setIndividualReactions(_:)` | Mutate `reactions` (aggregated) directly |
 | Route a deep link / push intent | `NavigationCoordinator.navigate(to: DeepLink)` (sets `pendingIntent`) | Set `@Published navigateToX` flags or navigate from `AppDelegate` / `PushNotificationService` |
 | Subscribe to a conversation's realtime channels | `MessagingSyncEngine.subscribeToConversation(_:)` (subscribe-then-fetch) | Open WebSocket channels from anywhere else, or fetch before subscribing |
@@ -814,7 +826,7 @@ These document where the code currently deviates from the rules above. Check the
 
 ### Known Violations
 
-**Last audited: 2026-10-08, send path only (Fragile Systems §2). `MessageSendManager.swift`, `MessageSendWorker.swift`, `MessagingSyncEngine.swift` and the three send methods of `MessageService.swift` were read end to end at `8d558f6` and this file was corrected to match; no Swift file changed and nothing was built or run. See "Send path re-read, 2026-10-08" below. The last audit of the whole section was 2026-10-06 after the functional and design QA pass on `claude/quirky-gates-4bkmv4` (built headless, Xcode 26.6, Lane B; merged to `main` on 2026-10-06). A security pass later the same day verified the four SQL-editor migrations as live and added the guest views (see Current State). The 2026-10-05 notes below still apply; the 2026-10-06 section follows them.**
+**Phase 1 multi-community client, 2026-10-18: Fragile Systems 4, 5, 6 and 7, State Management rule 2, the Cross-Layer seams, the Canonical Entry Points and the sign-out rows were updated for it; two items formerly left open are fixed (Town Hall pushes now use `town_hall_post_id`; approval on the waiting screen runs `performCriticalLaunch()`). Not rebuilt or re-run for this documentation change.** **Last audited before that: 2026-10-08, send path only (Fragile Systems §2). `MessageSendManager.swift`, `MessageSendWorker.swift`, `MessagingSyncEngine.swift` and the three send methods of `MessageService.swift` were read end to end at `8d558f6` and this file was corrected to match; no Swift file changed and nothing was built or run. See "Send path re-read, 2026-10-08" below. The last audit of the whole section was 2026-10-06 after the functional and design QA pass on `claude/quirky-gates-4bkmv4` (built headless, Xcode 26.6, Lane B; merged to `main` on 2026-10-06). A security pass later the same day verified the four SQL-editor migrations as live and added the guest views (see Current State). The 2026-10-05 notes below still apply; the 2026-10-06 section follows them.**
 
 Two fragile-system deviations in the active-conversation receive path were found by the 2026-10-05 test-hardening pass and fixed the same day (`ee140ab`, `75f02fd`); they are recorded here because the fixes need on-device confirmation with two accounts (read receipts updating live in an open conversation; edits/unsends/moderation hides applying through the view model's own handlers):
 
@@ -892,14 +904,14 @@ Two fragile-system deviations in the active-conversation receive path were found
 
 - **Copy `@State` into a local before starting a `Task` that reads it.** A closure that starts a Task and then resets the state (`selectedUserIds = []`, `text = ""`) runs the reset first; the Task then reads the empty value. This is why Add Participants saved nothing and why text typed during a comment send was sent and wiped.
 - **A view that consumes `NavigationCoordinator.pendingIntent` must also replay an intent that was set before the view existed**: `.onChange(of: pendingIntent, initial: true)`, honoured once per view lifetime (`didReplayInitialIntent`), applied one main-actor turn later, and never consumed twice. `MainTabView`, `RequestsDashboardView`, `ConversationsListView` and `TownHallFeedView` do this. Without it a push tapped while the app is closed only opens the first tab. Push-tap routing can be tested in the simulator with `xcrun simctl push booted com.NaarsCars payload.json` (keys: `type`, plus `ride_id` / `favor_id` / `conversation_id` / `town_hall_post_id`).
-- **Sign-out clears per-account local state in `AuthService.clearPerAccountLocalState()`** (phase 2, before the UI transition): recent addresses, pinned threads, recent reactions, calendar-offer state, pending attachments, delivered and pending notifications, and `BadgeCountManager.resetForSignOut()`. A new per-device store that belongs to an account must be cleared there.
+- **Sign-out clears per-account local state in `AuthService.clearPerAccountLocalState()`** (phase 2, before the UI transition): recent addresses, pinned threads, recent reactions, calendar-offer state, pending attachments, delivered and pending notifications, `BadgeCountManager.resetForSignOut()`, and `CommunityContext.resetForSignOut(userId:)` (called with the signing-out id captured in `handleSignOut`). A new per-device store that belongs to an account must be cleared there.
 - **Failures never use the success toast**, a list keeps its rows when a refresh fails (banner, not a full-screen error), a field is cleared only after its send succeeds, and a full-screen prompt always has a way out. `Docs/design-system/README.md` §5 has the table.
 - **`.localized` shows the English text when a language has no entry**, so a new key needs at least its English value in the catalog; 367 keys are English-only. Messaging no longer calls `NSLocalizedString` directly.
 - **The delivery status under the last outgoing message is redrawn when the participant count changes** (`MessagesViewController.lastAppliedTotalParticipants`); it is derived from that count, which loads after the first messages.
 - `ConversationsListViewModel.loadConversations` keeps `isLoading` until the first remote sync finishes (first load of a session only).
 - The reply thread (`MessageThreadViewModel.mergeReplies`) now refreshes rows from the conversation's copy and drops a local sending / failed row once the conversation no longer holds it. It was reviewed in code but not exercised with two devices.
 
-*Left open on purpose (each has a recommended fix in `Docs/qa/2026-10-06-audit-findings.md`)*: Sign Out ending every device's session and server-ended sessions not being handled; a push token surviving sign-out on some paths; Apple revocation decided from a device-wide Keychain flag; approval on the waiting screen entering the app without session setup; offline launch showing the application form; quick reply and Mark as Read dropped when the app was not running; no banner for another conversation while a thread is open; the "Apple User" profile on a repeat Apple authorization; Town Hall pushes using `post_id` instead of `town_hall_post_id` for the targeted refresh; the privacy manifest's missing data types.
+*Left open on purpose (each has a recommended fix in `Docs/qa/2026-10-06-audit-findings.md`)*: Sign Out ending every device's session and server-ended sessions not being handled; a push token surviving sign-out on some paths; Apple revocation decided from a device-wide Keychain flag; offline launch showing the application form; quick reply and Mark as Read dropped when the app was not running; no banner for another conversation while a thread is open; the "Apple User" profile on a repeat Apple authorization; the privacy manifest's missing data types.
 
 *Not verified*: creating, approving and deleting a new user; the logged-out screens beyond Welcome (sign-in, sign-up, guest, pending approval were changed and only reviewed in code); anything needing a real device (Sign in with Apple, Face ID lock and the privacy cover, voice notes, lock-screen actions).
 

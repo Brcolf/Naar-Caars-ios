@@ -16,3 +16,5 @@ Rules:
 3) If deferred navigation exists:
    - keep it behind a single mechanism (pendingIntent) and do not duplicate patterns.
 
+
+4) Town Hall pushes: `entityIdKey` is `town_hall_post_id`; the optional `community_id` is parsed in `DeepLinkParser`. A post in a community the person is not in shows an unavailable toast and leaves `communityTabId` unchanged.

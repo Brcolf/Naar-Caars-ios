@@ -200,7 +200,10 @@ Paths are relative to `NaarsCars/`.
 | Component | File | Spec |
 |---|---|---|
 | `NaarsChip` | `UI/Components/Common/NotificationBadge.swift` | Short label on a capsule: caption semibold in a tint, on that tint at 12%. `tint: nil` is neutral. `size: .large` for detail-screen headers. Used for request status, post type, invite state and admin tags. |
+| Community chip | `NaarsChip(text:, tint: nil)` in `RideCard` and `FavorCard` | Neutral chip naming the request's or post's community. Hidden when the person has one active membership, so a single-community screen is unchanged. |
 | `NotificationBadge` | same file | The one count badge: white `naarsCaption2` semibold on `naarsBadge`. `style: .muted` for a muted conversation. `cap:` sets where "N+" starts. Used on cards, filter tiles, the bell and conversation rows. |
+
+**Community title menus.** `communityTitleMenu(enabled:subtitle:menu:)` (`UI/Components/Common/CommunityTitleMenu.swift`) adds `toolbarTitleMenu` only when `enabled` (more than one membership); with one membership the view is returned unchanged. Two patterns use it: Requests (menu of "All communities" and each community, with the narrowed community as the navigation subtitle) and the Community tab (menu of the memberships, checkmark on the selected one, no subtitle). No new tokens.
 
 ### 3.3 Inputs
 

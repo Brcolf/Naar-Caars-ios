@@ -19,3 +19,5 @@ Rules:
 
 3) Persistence writes happen in repositories/sync engines, not in Views.
 
+
+4) `TownHallPost` carries `communityId`; `SDTownHallPost` (`communityId`), its mapper and the sync engine upsert are updated together. Fetches are scoped by `CommunityContext.communityTabId`.

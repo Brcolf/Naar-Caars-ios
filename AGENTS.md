@@ -59,3 +59,10 @@ These instructions apply to all work in this repository. Follow them unless the 
 
 - `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `Scripts/obfuscate.swift` to generate obfuscated credential arrays. Never log or expose `Secrets.supabaseURL` or `Secrets.supabaseAnonKey`.
 - Install the git pre-commit hook with `scripts/install-hooks.sh`; it installs a thin wrapper that runs `scripts/pre-commit-secrets-check.sh` from the repo (secrets, signing files, localization-key check).
+
+## Communities (Phase 1)
+
+- `CommunityContext` (`@Observable`, `App/`) holds the person's memberships and the selected scopes. Switch the Community tab's community only by setting `communityTabId`; the feed refreshes through `forceFullRefreshAndWait(.townHall, …)`. `TownHallSyncEngine` reads the context at fetch start and `.townHallPostsDidSync` carries the synced scope.
+- Town Hall pushes use `town_hall_post_id` (`NotificationType.entityIdKey`) and may carry `community_id`; they do a targeted single-post refresh.
+- `recheckAccountStatus` acts only on a successful read; the waiting screen runs `performCriticalLaunch()`; sign-out calls `CommunityContext.resetForSignOut(userId:)`.
+- Title menus use the shared `communityTitleMenu` modifier and show only with more than one membership. `get_badge_counts` keys `pending_members_total`, `community_details`, `total` come from the server.
