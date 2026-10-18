@@ -136,7 +136,10 @@ struct ContentView: View {
             AppLogger.info("lock", "scenePhase: \(oldPhase) → \(newPhase), lockState=\(lockManager.state)")
             if newPhase == .active, isAuthenticated {
                 RefreshCoordinator.shared.handleAppForegrounded()
-                Task { await launchManager.recheckBanStatus() }
+                Task {
+                    await launchManager.recheckAccountStatus()
+                    await CommunityContext.shared.refreshMembershipsIfStale()
+                }
             } else if newPhase == .background {
                 RefreshCoordinator.shared.stopSafetyPoll()
             }

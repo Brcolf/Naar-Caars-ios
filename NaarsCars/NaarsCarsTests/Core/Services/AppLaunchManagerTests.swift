@@ -31,6 +31,8 @@ final class AppLaunchManagerTests: XCTestCase {
         launchManager.state = savedState
         launchManager.communityContext = .shared
         launchManager.startSyncEngines = nil
+        launchManager.fetchAccountStatus = nil
+        launchManager.sessionUserId = nil
         savedState = nil
         suite.removePersistentDomain(forName: suiteName)
         suite = nil
@@ -287,6 +289,65 @@ final class AppLaunchManagerTests: XCTestCase {
 
         XCTAssertEqual(ctx.communityTabId, b)
         XCTAssertEqual(suite.string(forKey: "community.tab.\(uid)"), b.uuidString)
+    }
+
+    // MARK: - recheckAccountStatus
+
+    private func recheck(
+        from start: LaunchState = .ready(.authenticated),
+        flags: Result<AccountStatusFlags, Error>
+    ) async -> (state: LaunchState, fetchCalls: Int) {
+        let uid = UUID()
+        var fetchCalls = 0
+        launchManager.sessionUserId = { uid }
+        launchManager.fetchAccountStatus = { requested in
+            fetchCalls += 1
+            XCTAssertEqual(requested, uid)
+            return try flags.get()
+        }
+        launchManager.state = start
+        await launchManager.recheckAccountStatus()
+        return (launchManager.state, fetchCalls)
+    }
+
+    private func flags(banned: Bool, approved: Bool, complete: Bool) -> Result<AccountStatusFlags, Error> {
+        .success(AccountStatusFlags(isBanned: banned, approved: approved, applicationComplete: complete))
+    }
+
+    func testRecheck_BannedMovesToBanned() async {
+        let result = await recheck(flags: flags(banned: true, approved: true, complete: true))
+        XCTAssertEqual(result.state, .ready(.banned))
+    }
+
+    func testRecheck_ApprovedStaysAuthenticated() async {
+        let result = await recheck(flags: flags(banned: false, approved: true, complete: true))
+        XCTAssertEqual(result.state, .ready(.authenticated))
+        XCTAssertEqual(result.fetchCalls, 1)
+    }
+
+    func testRecheck_NoApplicationMovesToNeedsApplication() async {
+        let result = await recheck(flags: flags(banned: false, approved: false, complete: false))
+        XCTAssertEqual(result.state, .ready(.needsApplication))
+    }
+
+    func testRecheck_PendingMovesToPendingApproval() async {
+        let result = await recheck(flags: flags(banned: false, approved: false, complete: true))
+        XCTAssertEqual(result.state, .ready(.pendingApproval))
+    }
+
+    func testRecheck_FailedReadIsANoOp() async {
+        let result = await recheck(flags: .failure(URLError(.notConnectedToInternet)))
+        XCTAssertEqual(result.fetchCalls, 1)
+        XCTAssertEqual(result.state, .ready(.authenticated), "a failed read must never eject a member")
+    }
+
+    func testRecheck_DoesNothingUnlessAuthenticated() async {
+        let result = await recheck(
+            from: .ready(.pendingApproval),
+            flags: flags(banned: true, approved: false, complete: false)
+        )
+        XCTAssertEqual(result.fetchCalls, 0)
+        XCTAssertEqual(result.state, .ready(.pendingApproval))
     }
 }
 

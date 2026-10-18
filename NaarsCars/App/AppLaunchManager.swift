@@ -46,6 +46,26 @@ enum LaunchState: Equatable {
     }
 }
 
+/// The three profile flags that decide the launch route.
+struct AccountStatusFlags: Equatable, Sendable {
+    let isBanned: Bool
+    let approved: Bool
+    let applicationComplete: Bool
+}
+
+/// Decodes the account-status read of `fetchAccountStatusFlags(userId:)`.
+private struct AccountStatusRow: Decodable {
+    let isBanned: Bool
+    let approved: Bool
+    let applicationComplete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case isBanned = "is_banned"
+        case approved
+        case applicationComplete = "application_complete"
+    }
+}
+
 /// Manages critical-path app launch to complete in <1 second
 /// Performs minimal checks (auth session + approval) before showing UI
 /// Defers non-critical loading (profile, rides, etc.) to background
@@ -79,6 +99,13 @@ final class AppLaunchManager: ObservableObject {
     /// The membership load started by `beginDeferredSession(userId:)`. Launch routing and
     /// hydration never wait for it.
     private(set) var membershipLoadTask: Task<Void, Never>?
+
+    /// Reads the account flags for the foreground re-check. Nil uses
+    /// `fetchAccountStatusFlags(userId:)`; tests inject a stub. Errors must propagate.
+    var fetchAccountStatus: ((UUID) async throws -> AccountStatusFlags)?
+
+    /// The signed-in user's id for the foreground re-check. Nil reads `supabase.auth.session`.
+    var sessionUserId: (() async throws -> UUID)?
     
     private init() {
         AppLogger.info("launch", "Initializing - setting up notification listener")
@@ -201,19 +228,53 @@ final class AppLaunchManager: ObservableObject {
         }
     }
     
-    /// Lightweight ban re-check for use on app foreground.
-    /// If user is now banned, transitions state to .banned.
-    func recheckBanStatus() async {
+    /// Re-reads the account flags on app foreground (and after a membership load that returned no
+    /// active membership) and leaves the main UI when the profile no longer says "approved":
+    /// `.banned`, `.needsApplication` or `.pendingApproval`, set directly without a `.checkingAuth`
+    /// hop, as the ban path always did. Acts only on a successful read: any error (offline, no
+    /// session, a decoding failure) is logged and changes nothing, so an offline foreground never
+    /// ejects a member. Does nothing unless the state is `.ready(.authenticated)`, and nothing when
+    /// the state changed while the read was in flight.
+    func recheckAccountStatus() async {
         guard case .ready(.authenticated) = state else { return }
+
+        let flags: AccountStatusFlags
         do {
-            let session = try await supabase.auth.session
-            guard let userId = UUID(uuidString: session.user.id.uuidString) else { return }
-            let status = await checkAccountStatus(userId: userId)
-            if status == .banned {
-                state = .ready(.banned)
+            let userId: UUID
+            if let sessionUserId {
+                userId = try await sessionUserId()
+            } else {
+                userId = try await supabase.auth.session.user.id
+            }
+            if let fetchAccountStatus {
+                flags = try await fetchAccountStatus(userId)
+            } else {
+                flags = try await fetchAccountStatusFlags(userId: userId)
             }
         } catch {
-            AppLogger.warning("launch", "Ban re-check failed: \(error.localizedDescription)")
+            AppLogger.warning("launch", "Account status re-check failed; keeping the current state: \(error.localizedDescription)")
+            return
+        }
+
+        let newState = Self.authState(for: flags)
+        guard newState != .authenticated else { return }
+        guard case .ready(.authenticated) = state else { return }
+        AppLogger.info("launch", "Account status re-check moved the session to \(newState)")
+        state = .ready(newState)
+    }
+
+    /// Maps the three profile flags to an `AuthState`. Repeats the mapping in
+    /// `checkAccountStatus(userId:)`, which is deliberately left unchanged; consolidating the two is
+    /// a separate refactor.
+    nonisolated static func authState(for flags: AccountStatusFlags) -> AuthState {
+        if flags.isBanned {
+            return .banned
+        } else if flags.approved {
+            return .authenticated
+        } else if !flags.applicationComplete {
+            return .needsApplication
+        } else {
+            return .pendingApproval
         }
     }
 
@@ -290,6 +351,23 @@ final class AppLaunchManager: ObservableObject {
         }
     }
     
+    /// The throwing read behind `recheckAccountStatus()`: the same query as
+    /// `checkAccountStatus(userId:)`, but errors propagate instead of answering `.needsApplication`.
+    private func fetchAccountStatusFlags(userId: UUID) async throws -> AccountStatusFlags {
+        let row: AccountStatusRow = try await supabase
+            .from("profiles")
+            .select("is_banned, approved, application_complete")
+            .eq("id", value: userId.uuidString)
+            .single()
+            .execute()
+            .value
+        return AccountStatusFlags(
+            isBanned: row.isBanned,
+            approved: row.approved,
+            applicationComplete: row.applicationComplete
+        )
+    }
+
     /// Perform deferred loading of non-critical data in background
     /// - Parameter userId: Authenticated user ID
     private func performDeferredLoading(userId: UUID) async {
@@ -322,7 +400,8 @@ final class AppLaunchManager: ObservableObject {
     /// 2. restore the stored community synchronously (no network), so the engines read it;
     /// 3. start the sync engines;
     /// 4. load the memberships off the launch path. Nothing here waits for that load, and a
-    ///    failed load keeps the restored values (nil means "no community filter").
+    ///    failed load keeps the restored values (nil means "no community filter"). A successful
+    ///    load with no active membership runs `recheckAccountStatus()`.
     func beginDeferredSession(userId: UUID) {
         if authService.currentUserId == nil {
             authService.currentUserId = userId
@@ -334,6 +413,11 @@ final class AppLaunchManager: ObservableObject {
             startSyncEngines(userId)
         } else {
             startDeferredSyncEnginesIfNeeded(for: userId)
+        }
+
+        // A load that returns no active membership re-checks the account (spec §3.7).
+        communityContext.onActiveMembershipsEmpty = { [weak self] in
+            await self?.recheckAccountStatus()
         }
 
         let context = communityContext
