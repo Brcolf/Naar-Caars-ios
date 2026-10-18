@@ -1,0 +1,11 @@
+{
+  "aps": {
+    "alert": {
+      "title": "New member request",
+      "body": "Fixture: pending_approval without community_id"
+    },
+    "sound": "default"
+  },
+  "type": "pending_approval",
+  "user_id": "<USER_ID>"
+}

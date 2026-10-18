@@ -21,6 +21,7 @@ enum NotificationIntent: Equatable {
     case openProfile(userId: UUID)
     case openAdminPanel
     case openPendingUsers
+    case openPendingMembers(communityId: UUID)
     case openAdminReports
     case openDashboard
 }
@@ -197,6 +198,9 @@ final class NavigationCoordinator {
         case .pendingUsers:
             pendingIntent = .pendingUsers
 
+        case .pendingMembers(let communityId):
+            pendingIntent = .pendingMembers(communityId)
+
         case .adminReports:
             pendingIntent = .adminReports
 
@@ -207,7 +211,9 @@ final class NavigationCoordinator {
             pendingIntent = .announcements(scrollToNotificationId: notificationId)
             
         case .enterApp:
-            pendingIntent = .dashboard
+            // Reached only from `AppLaunchManager.handleEnterAppIntent` while authenticated
+            // (an approval into a further community); every other state relaunches.
+            pendingIntent = .myCommunities
             
         case .unknown:
             pendingIntent = .dashboard
@@ -260,6 +266,11 @@ final class NavigationCoordinator {
         case .pendingUsers:
             if case .pendingUsers = pendingIntent { return true }
             return false
+        case .pendingMembers(let id):
+            if case .pendingMembers(let currentId) = pendingIntent {
+                return currentId == id
+            }
+            return false
         case .adminReports:
             if case .adminReports = pendingIntent { return true }
             return false
@@ -269,9 +280,12 @@ final class NavigationCoordinator {
         case .announcements:
             if case .announcements = pendingIntent { return true }
             return false
-        case .dashboard, .enterApp:
+        case .dashboard:
             if case .dashboard = pendingIntent { return true }
             return selectedTab == .requests
+        case .enterApp:
+            if case .myCommunities = pendingIntent { return true }
+            return false
         case .unknown:
             return false
         }
@@ -333,6 +347,9 @@ final class NavigationCoordinator {
         case .openPendingUsers:
             pendingIntent = .pendingUsers
             selectedTab = .profile
+        case .openPendingMembers(let communityId):
+            pendingIntent = .pendingMembers(communityId)
+            selectedTab = .profile
         case .openAdminReports:
             pendingIntent = .adminReports
             selectedTab = .profile
@@ -346,15 +363,15 @@ final class NavigationCoordinator {
 
     /// Returns true if this intent requires an authenticated user.
     /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll)
-    /// pass through. Admin-only intents (adminPanel, pendingUsers, adminReports) are
-    /// treated as silently ignorable — guests should never encounter them via deep link.
+    /// pass through. Admin-only intents (adminPanel, pendingUsers, pendingMembers, adminReports)
+    /// are treated as silently ignorable — guests should never encounter them via deep link.
     func intentRequiresAuth(_ intent: NavigationIntent) -> Bool {
         switch intent {
         case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard:
             return false
-        case .conversation, .announcements, .notifications:
+        case .conversation, .announcements, .notifications, .myCommunities:
             return true
-        case .adminPanel, .pendingUsers, .adminReports:
+        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports:
             // Admin-only: silently ignore rather than prompt
             return false
         }
@@ -363,7 +380,7 @@ final class NavigationCoordinator {
     /// Returns true if the intent is admin-only and should be silently dropped for guests.
     func intentIsAdminOnly(_ intent: NavigationIntent) -> Bool {
         switch intent {
-        case .adminPanel, .pendingUsers, .adminReports:
+        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports:
             return true
         default:
             return false

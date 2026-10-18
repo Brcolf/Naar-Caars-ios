@@ -24,7 +24,10 @@ struct MyProfileView: View {
     @State private var deleteErrorMessage = ""
     @State private var showSettings = false
     @State private var badges: [LeaderboardBadge] = []
-    @State private var showPendingUsersList = false
+    /// Requests to join opened from a notification (`.pendingUsers` / `.pendingMembers` intents).
+    @State private var pendingMembersTarget: PendingMembersTarget?
+    /// My communities opened from a `.myCommunities` intent.
+    @State private var showMyCommunities = false
     @State private var showAdminPanel = false
     @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
@@ -147,7 +150,7 @@ struct MyProfileView: View {
                     // used to switch here without being applied, and the intent stayed set.
                     if let intent = navigationCoordinator.pendingIntent {
                         switch intent {
-                        case .pendingUsers, .adminPanel, .adminReports, .profile:
+                        case .pendingUsers, .pendingMembers, .myCommunities, .adminPanel, .adminReports, .profile:
                             applyProfileIntent(intent, proxy: proxy)
                         default:
                             break
@@ -186,8 +189,11 @@ struct MyProfileView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
-            .navigationDestination(isPresented: $showPendingUsersList) {
-                PendingUsersView()
+            .navigationDestination(item: $pendingMembersTarget) { target in
+                PendingMembersView(target: target)
+            }
+            .navigationDestination(isPresented: $showMyCommunities) {
+                MyCommunitiesView()
             }
             .navigationDestination(isPresented: $showAdminPanel) {
                 AdminPanelView(autoOpenReports: autoOpenAdminReports)
@@ -628,7 +634,14 @@ struct MyProfileView: View {
     private func applyProfileIntent(_ intent: NavigationIntent, proxy: ScrollViewProxy) {
         switch intent {
         case .pendingUsers:
-            showPendingUsersList = true
+            // The platform admins' route opens the default community's Requests to join.
+            pendingMembersTarget = .defaultCommunity
+            navigationCoordinator.pendingIntent = nil
+        case .pendingMembers(let communityId):
+            pendingMembersTarget = .community(communityId, name: nil)
+            navigationCoordinator.pendingIntent = nil
+        case .myCommunities:
+            showMyCommunities = true
             navigationCoordinator.pendingIntent = nil
         case .adminPanel:
             showAdminPanel = true

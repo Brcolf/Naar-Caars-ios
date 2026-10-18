@@ -126,6 +126,11 @@ final class NotificationNavigationRouter {
         case .townHallComment, .townHallReaction:
             return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .highlightPost, communityId: notification.communityId) }
         case .pendingApproval:
+            // A community's applicant (row carries `community_id`) opens that community's
+            // Requests to join; a legacy row without one keeps the platform route.
+            if let communityId = notification.communityId {
+                return .openPendingMembers(communityId: communityId)
+            }
             return .openPendingUsers
         case .contentReported:
             return .openAdminReports

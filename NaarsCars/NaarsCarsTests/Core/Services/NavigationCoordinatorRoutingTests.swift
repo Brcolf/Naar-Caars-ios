@@ -43,7 +43,8 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         await launch.handleEnterAppIntent()
 
         XCTAssertEqual(launch.state, .ready(.authenticated))
-        XCTAssertEqual(coordinator.pendingIntent, .dashboard)
+        XCTAssertEqual(coordinator.pendingIntent, .myCommunities)
+        XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .profile)
     }
 
     func testResetNavigationClearsAllKeyRoutingState() {
@@ -249,5 +250,56 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
             NotificationNavigationRouter().notificationIntent(for: notification),
             .openTownHallPost(postId: postId, mode: .highlightPost, communityId: communityId)
         )
+    }
+    // MARK: - pending_approval for a community (multi-community Phase 2)
+
+    func testApplyPushDeepLink_PendingMembersSetsIntentForProfileTab() {
+        let communityId = UUID()
+        coordinator.applyPushDeepLink(.pendingMembers(communityId: communityId))
+        XCTAssertEqual(coordinator.pendingIntent, .pendingMembers(communityId))
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+    }
+
+    func testDeferredOpenPendingMembers_SelectsProfileTab() {
+        let communityId = UUID()
+        coordinator.deferNotificationIntent(.openPendingMembers(communityId: communityId))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
+        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent, .pendingMembers(communityId))
+    }
+
+    func testRouter_PendingApprovalBellRowWithCommunityOpensPendingMembers() {
+        let communityId = UUID()
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .pendingApproval,
+            title: "t",
+            communityId: communityId
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter().notificationIntent(for: notification),
+            .openPendingMembers(communityId: communityId)
+        )
+    }
+
+    func testRouter_PendingApprovalBellRowWithoutCommunityOpensPendingUsers() {
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .pendingApproval,
+            title: "t"
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter().notificationIntent(for: notification),
+            .openPendingUsers
+        )
+    }
+
+    func testPendingMembersIsAdminOnlyAndMyCommunitiesRequiresAuth() {
+        let pending = NavigationIntent.pendingMembers(UUID())
+        XCTAssertTrue(coordinator.intentIsAdminOnly(pending))
+        XCTAssertFalse(coordinator.intentRequiresAuth(pending))
+        XCTAssertTrue(coordinator.intentRequiresAuth(.myCommunities))
+        XCTAssertFalse(coordinator.intentIsAdminOnly(.myCommunities))
+        XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .profile)
     }
 }

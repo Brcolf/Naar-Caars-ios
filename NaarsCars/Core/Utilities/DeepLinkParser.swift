@@ -18,6 +18,8 @@ enum DeepLink {
     case townHall
     case adminPanel
     case pendingUsers
+    /// A community's Requests to join (`pending_approval` carrying `community_id`).
+    case pendingMembers(communityId: UUID)
     case adminReports
     case dashboard
     case notifications
@@ -28,7 +30,7 @@ enum DeepLink {
 
 /// Parser for deep links from push notifications
 struct DeepLinkParser {
-    /// The post's community from the push payload (`community_id`), when present and well formed.
+    /// The community from the push payload (`community_id`), when present and well formed.
     /// Absent on pushes from before the multi-community backend; the feed then looks the post up.
     private static func communityId(from userInfo: [AnyHashable: Any]) -> UUID? {
         (userInfo["community_id"] as? String).flatMap(UUID.init)
@@ -99,7 +101,12 @@ struct DeepLinkParser {
             }
             
         // Admin notifications - navigate to admin panel
+        // With a `community_id` it opens that community's Requests to join; without one
+        // (pushes from before the multi-community backend) the platform Pending Users route.
         case "pending_approval":
+            if let communityId = communityId(from: userInfo) {
+                return .pendingMembers(communityId: communityId)
+            }
             return .pendingUsers
 
         case "content_reported":

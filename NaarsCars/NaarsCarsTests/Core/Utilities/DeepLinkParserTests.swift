@@ -141,6 +141,41 @@ final class DeepLinkParserTests: XCTestCase {
         }
     }
     
+    /// `pending_approval` for a community (multi-community Phase 2) opens that community's
+    /// Requests to join.
+    func testParse_PendingApprovalWithCommunityIdRoutesToPendingMembers() {
+        let communityId = UUID()
+        let userInfo: [AnyHashable: Any] = [
+            "type": "pending_approval",
+            "user_id": UUID().uuidString,
+            "community_id": communityId.uuidString
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+
+        if case .pendingMembers(let routedId) = deepLink {
+            XCTAssertEqual(routedId, communityId)
+        } else {
+            XCTFail("Expected .pendingMembers deep link, got \(deepLink)")
+        }
+    }
+
+    /// A `community_id` that is not a UUID keeps the platform route.
+    func testParse_PendingApprovalWithMalformedCommunityIdStaysPendingUsers() {
+        let userInfo: [AnyHashable: Any] = [
+            "type": "pending_approval",
+            "community_id": "not-a-uuid"
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+
+        if case .pendingUsers = deepLink {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected .pendingUsers deep link, got \(deepLink)")
+        }
+    }
+
     /// Test parsing review request notification
     func testParse_ReviewRequestNotification() {
         let rideId = UUID()
