@@ -247,6 +247,7 @@
 		AC410C33308544F600D921E2 /* CommunityPayloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C32308544F600D921E2 /* CommunityPayloads.swift */; };
 		AC410C353085452000D921E2 /* PreviewCommunityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C343085452000D921E2 /* PreviewCommunityService.swift */; };
 		AC410C373085456D00D921E2 /* CommunityServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C363085456D00D921E2 /* CommunityServiceTests.swift */; };
+		AC410C39308547D200D921E2 /* CommunityAdminServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -767,6 +768,7 @@
 		AC410C32308544F600D921E2 /* CommunityPayloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPayloads.swift; sourceTree = "<group>"; };
 		AC410C343085452000D921E2 /* PreviewCommunityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCommunityService.swift; sourceTree = "<group>"; };
 		AC410C363085456D00D921E2 /* CommunityServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityServiceTests.swift; sourceTree = "<group>"; };
+		AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAdminServiceProtocol.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1155,6 +1157,7 @@
 				AC1201092F3D73E60043BFAE /* RideServiceProtocol.swift */,
 				AC410C223084E78500D921E2 /* CommunityServiceProtocol.swift */,
 				AC410C2C3084F06800D921E2 /* TownHallPostFetching.swift */,
+				AC410C38308547D200D921E2 /* CommunityAdminServiceProtocol.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -2613,6 +2616,7 @@
 				ACBF4AF12F12CB3D006A7C8A /* LeaderboardView.swift in Sources */,
 				ACBF4AF22F12CB3D006A7C8A /* LeaderboardViewModel.swift in Sources */,
 				7DCF598341BC4E58977B2DA8 /* Validators.swift in Sources */,
+				AC410C39308547D200D921E2 /* CommunityAdminServiceProtocol.swift in Sources */,
 				ACBF4AF52F12CB72006A7C8A /* PostCommentsView.swift in Sources */,
 				ACBF4AF62F12CB72006A7C8A /* TownHallPostCard.swift in Sources */,
 				AC0E0A012F26D00000CAFE01 /* ReportContentSheet.swift in Sources */,

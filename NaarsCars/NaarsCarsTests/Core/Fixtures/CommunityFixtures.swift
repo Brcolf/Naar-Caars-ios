@@ -205,6 +205,62 @@ enum CommunityFixtures {
     ]
     """
 
+
+    // MARK: - Admin payloads
+
+    static let pendingMembersAdminJSON = """
+    [
+      {"id": "DDDDDDDD-0000-4000-8000-000000000004", "name": "Dana Rivera", "avatar_url": null, "car": "Green Subaru",
+       "role": "member", "status": "pending", "joined_at": "2026-10-16T09:00:00.123456+00:00", "activated_at": null,
+       "heard_about": "A neighbor told me", "join_reason": "Airport rides", "invited_by_name": "Sam Neighbor", "removal_reason": null},
+      {"id": "EEEEEEEE-0000-4000-8000-000000000005", "name": null, "avatar_url": null, "car": null,
+       "role": "member", "status": "pending", "joined_at": "2026-10-17T09:00:00+00:00", "activated_at": null,
+       "heard_about": "Found it in the app", "join_reason": null, "invited_by_name": null, "removal_reason": null}
+    ]
+    """
+
+    static let activeMembersMemberViewJSON = """
+    [
+      {"id": "DDDDDDDD-0000-4000-8000-000000000004", "name": "Sam Neighbor", "avatar_url": null, "car": "Blue Civic",
+       "role": "owner", "status": "active", "joined_at": "2026-10-01T12:00:00.123456+00:00", "activated_at": "2026-10-01T12:00:01+00:00",
+       "heard_about": null, "join_reason": null, "invited_by_name": null, "removal_reason": null}
+    ]
+    """
+
+    static let platformCommunitiesJSON = """
+    {
+      "success": true,
+      "communities": [
+        {"id": "AAAAAAAA-0000-4000-8000-000000000001", "name": "Naar's Cars Seattle", "description": null, "created_by": null, "creator_name": null,
+         "created_at": "2026-01-01T00:00:00+00:00", "is_public": true, "is_default": true, "join_policy": "approve",
+         "archived_at": null, "archived_by": null, "member_count": 140, "pending_count": 0, "owner_count": 1, "open_report_count": 0},
+        {"id": "BBBBBBBB-0000-4000-8000-000000000002", "name": "Old Carpool", "description": "Gone quiet", "created_by": "0A000000-0000-4000-8000-0000000000A1", "creator_name": "Sam Neighbor",
+         "created_at": "2026-05-01T00:00:00.500000+00:00", "is_public": false, "is_default": false, "join_policy": "invite",
+         "archived_at": "2026-10-01T00:00:00+00:00", "archived_by": null, "member_count": 3, "pending_count": 0, "owner_count": 0, "open_report_count": 1}
+      ],
+      "limit_requests": [
+        {"request_id": "2E000000-0000-4000-8000-000000000002", "user_id": "0A000000-0000-4000-8000-0000000000A1", "user_name": "Sam Neighbor",
+         "requested_max": 5, "reason": "Three groups", "created_at": "2026-10-17T09:00:00.500000+00:00", "current_max": 3, "owned_count": 3}
+      ]
+    }
+    """
+
+    static let limitDecisionJSON = """
+    {"success": true, "status": "approved", "max_owned": 5}
+    """
+
+    static let approveRefusalWithoutCodeJSON = """
+    {"success": false, "error": "Not authorized"}
+    """
+
+    static let notPendingRefusalJSON = """
+    {"success": false, "error": "That request was already handled", "code": "not_pending"}
+    """
+
+    static let defaultCommunityRowsJSON = """
+    [{"id": "AAAAAAAA-0000-4000-8000-000000000001"}]
+    """
+
     static func membership(
         _ id: UUID,
         name: String,
@@ -401,6 +457,89 @@ final class StubCommunityService: CommunityServiceProtocol {
         reportCommunityCalls.append((communityId, code, type, description))
         await actionGate?()
         return try reportCommunityResult.get()
+    }
+}
+
+final class StubCommunityAdminService: CommunityAdminServiceProtocol {
+    /// Awaited by every write before it returns (a slow request, for double-tap tests).
+    var actionGate: (() async -> Void)?
+
+    var fetchCommunityMembersResult: Result<[CommunityMember], Error> = .success([])
+    private(set) var fetchCommunityMembersCalls: [(communityId: UUID, status: MembershipStatus, limit: Int, offset: Int)] = []
+
+    var approveMemberResult: Result<Void, Error> = .success(())
+    private(set) var approveMemberCalls: [(communityId: UUID, userId: UUID)] = []
+
+    var rejectMemberResult: Result<Void, Error> = .success(())
+    private(set) var rejectMemberCalls: [(communityId: UUID, userId: UUID)] = []
+
+    var fetchDefaultCommunityIdResult: Result<UUID?, Error> = .success(CommunityFixtures.communityA)
+    private(set) var fetchDefaultCommunityIdCalls = 0
+
+    var fetchPlatformCommunitiesResult: Result<PlatformCommunities, Error> = .success(PlatformCommunities(communities: [], limitRequests: []))
+    private(set) var fetchPlatformCommunitiesCalls = 0
+
+    var archiveCommunityResult: Result<Void, Error> = .success(())
+    private(set) var archiveCommunityCalls: [UUID] = []
+
+    var unarchiveCommunityResult: Result<Void, Error> = .success(())
+    private(set) var unarchiveCommunityCalls: [UUID] = []
+
+    var setCommunityPublicResult: Result<Void, Error> = .success(())
+    private(set) var setCommunityPublicCalls: [(communityId: UUID, isPublic: Bool)] = []
+
+    var decideOwnedCommunityLimitResult: Result<LimitDecision, Error> = .success(LimitDecision(status: .approved, maxOwned: 5))
+    private(set) var decideOwnedCommunityLimitCalls: [(requestId: UUID, approve: Bool)] = []
+
+    func fetchCommunityMembers(communityId: UUID, status: MembershipStatus, limit: Int, offset: Int) async throws -> [CommunityMember] {
+        fetchCommunityMembersCalls.append((communityId, status, limit, offset))
+        return try fetchCommunityMembersResult.get()
+    }
+
+    func approveMember(communityId: UUID, userId: UUID) async throws {
+        approveMemberCalls.append((communityId, userId))
+        await actionGate?()
+        try approveMemberResult.get()
+    }
+
+    func rejectMember(communityId: UUID, userId: UUID) async throws {
+        rejectMemberCalls.append((communityId, userId))
+        await actionGate?()
+        try rejectMemberResult.get()
+    }
+
+    func fetchDefaultCommunityId() async throws -> UUID? {
+        fetchDefaultCommunityIdCalls += 1
+        return try fetchDefaultCommunityIdResult.get()
+    }
+
+    func fetchPlatformCommunities() async throws -> PlatformCommunities {
+        fetchPlatformCommunitiesCalls += 1
+        return try fetchPlatformCommunitiesResult.get()
+    }
+
+    func archiveCommunity(communityId: UUID) async throws {
+        archiveCommunityCalls.append(communityId)
+        await actionGate?()
+        try archiveCommunityResult.get()
+    }
+
+    func unarchiveCommunity(communityId: UUID) async throws {
+        unarchiveCommunityCalls.append(communityId)
+        await actionGate?()
+        try unarchiveCommunityResult.get()
+    }
+
+    func setCommunityPublic(communityId: UUID, isPublic: Bool) async throws {
+        setCommunityPublicCalls.append((communityId, isPublic))
+        await actionGate?()
+        try setCommunityPublicResult.get()
+    }
+
+    func decideOwnedCommunityLimit(requestId: UUID, approve: Bool) async throws -> LimitDecision {
+        decideOwnedCommunityLimitCalls.append((requestId, approve))
+        await actionGate?()
+        return try decideOwnedCommunityLimitResult.get()
     }
 }
 

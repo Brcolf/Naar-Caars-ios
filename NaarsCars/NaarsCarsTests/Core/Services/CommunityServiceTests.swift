@@ -411,4 +411,125 @@ final class CommunityServiceTests: XCTestCase {
         XCTAssertTrue(result.duplicate)
         XCTAssertNil(result.reportId)
     }
+
+    // MARK: - Admin
+
+    func testFetchCommunityMembers_SendsAllFourArgumentsAndDecodesAdminFields() async throws {
+        respond(with: CommunityFixtures.pendingMembersAdminJSON)
+        let rows = try await service.fetchCommunityMembers(communityId: CommunityFixtures.communityA, status: .pending, limit: 50, offset: 10)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/get_community_members")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_status", "p_limit", "p_offset"])
+        XCTAssertEqual(request.body?["p_status"] as? String, "pending")
+        XCTAssertEqual(request.body?["p_limit"] as? Int, 50)
+        XCTAssertEqual(request.body?["p_offset"] as? Int, 10)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].heardAbout, "A neighbor told me")
+        XCTAssertEqual(rows[0].invitedByName, "Sam Neighbor")
+        XCTAssertEqual(rows[0].status, .pending)
+        XCTAssertEqual(rows[1].name, "", "a null name decodes as empty")
+    }
+
+    func testFetchCommunityMembers_MemberViewHasNullAnswers() async throws {
+        respond(with: CommunityFixtures.activeMembersMemberViewJSON)
+        let rows = try await service.fetchCommunityMembers(communityId: CommunityFixtures.communityA, status: .active, limit: 100, offset: 0)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].role, .owner)
+        XCTAssertNil(rows[0].heardAbout)
+        XCTAssertNil(rows[0].joinReason)
+        XCTAssertNil(rows[0].invitedByName)
+        XCTAssertNil(rows[0].removalReason)
+    }
+
+    func testApproveMember_SendsCommunityAndUser() async throws {
+        respond(with: #"{"success": true}"#)
+        try await service.approveMember(communityId: CommunityFixtures.communityA, userId: CommunityFixtures.userA)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/approve_community_member")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_user_id"])
+        XCTAssertEqual((request.body?["p_user_id"] as? String)?.lowercased(), CommunityFixtures.userA.uuidString.lowercased())
+    }
+
+    func testApproveMember_RefusalWithoutCodeThrowsNilCode() async {
+        respond(with: CommunityFixtures.approveRefusalWithoutCodeJSON)
+        do {
+            try await service.approveMember(communityId: CommunityFixtures.communityA, userId: CommunityFixtures.userA)
+            XCTFail("expected a refusal")
+        } catch let error as CommunityRPCError {
+            XCTAssertNil(error.code)
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+    }
+
+    func testRejectMember_NotPendingThrowsNotPending() async {
+        respond(with: CommunityFixtures.notPendingRefusalJSON)
+        do {
+            try await service.rejectMember(communityId: CommunityFixtures.communityA, userId: CommunityFixtures.userA)
+            XCTFail("expected a refusal")
+        } catch let error as CommunityRPCError {
+            XCTAssertEqual(error.code, .notPending)
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+        XCTAssertEqual(CommunityServiceURLProtocol.recorded.first?.path, "/rest/v1/rpc/reject_community_member")
+    }
+
+    func testFetchDefaultCommunityId_QueriesIsDefault() async throws {
+        respond(with: CommunityFixtures.defaultCommunityRowsJSON)
+        let id = try await service.fetchDefaultCommunityId()
+        let request = try onlyRequest()
+        XCTAssertEqual(request.method, "GET")
+        XCTAssertEqual(request.path, "/rest/v1/communities")
+        XCTAssertEqual(request.query["is_default"], "eq.true")
+        XCTAssertEqual(id, CommunityFixtures.communityA)
+    }
+
+    func testFetchPlatformCommunities_DecodesCommunitiesAndLimitRequests() async throws {
+        respond(with: CommunityFixtures.platformCommunitiesJSON)
+        let result = try await service.fetchPlatformCommunities()
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/get_platform_communities")
+        XCTAssertEqual(result.communities.count, 2)
+        XCTAssertTrue(result.communities[0].isDefault)
+        XCTAssertTrue(result.communities[0].isPublic)
+        XCTAssertEqual(result.communities[0].memberCount, 140)
+        XCTAssertNotNil(result.communities[1].archivedAt)
+        XCTAssertEqual(result.communities[1].openReportCount, 1)
+        XCTAssertEqual(result.communities[1].creatorName, "Sam Neighbor")
+        XCTAssertEqual(result.limitRequests.count, 1)
+        XCTAssertEqual(result.limitRequests[0].requestedMax, 5)
+        XCTAssertEqual(result.limitRequests[0].currentMax, 3)
+        XCTAssertEqual(result.limitRequests[0].id, result.limitRequests[0].requestId)
+    }
+
+    func testArchiveUnarchiveAndSetPublic_SendCommunityId() async throws {
+        respond(with: #"{"success": true}"#)
+        try await service.archiveCommunity(communityId: CommunityFixtures.communityA)
+        try await service.unarchiveCommunity(communityId: CommunityFixtures.communityA)
+        try await service.setCommunityPublic(communityId: CommunityFixtures.communityA, isPublic: false)
+        let all = CommunityServiceURLProtocol.recorded
+        XCTAssertEqual(all.map(\.path), [
+            "/rest/v1/rpc/archive_community",
+            "/rest/v1/rpc/unarchive_community",
+            "/rest/v1/rpc/set_community_public"
+        ])
+        for request in all {
+            XCTAssertEqual((request.body?["p_community_id"] as? String)?.lowercased(), CommunityFixtures.communityA.uuidString.lowercased())
+        }
+        XCTAssertEqual(Set(all[0].body?.keys ?? [:].keys), ["p_community_id"])
+        XCTAssertEqual(Set(all[2].body?.keys ?? [:].keys), ["p_community_id", "p_is_public"])
+        XCTAssertEqual(all[2].body?["p_is_public"] as? Bool, false)
+    }
+
+    func testDecideOwnedCommunityLimit_SendsApproveFlagAndDecodes() async throws {
+        respond(with: CommunityFixtures.limitDecisionJSON)
+        let requestId = UUID(uuidString: "2E000000-0000-4000-8000-000000000002")!
+        let decision = try await service.decideOwnedCommunityLimit(requestId: requestId, approve: true)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/decide_owned_community_limit")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_request_id", "p_approve"])
+        XCTAssertEqual(request.body?["p_approve"] as? Bool, true)
+        XCTAssertEqual(decision, LimitDecision(status: .approved, maxOwned: 5))
+    }
 }

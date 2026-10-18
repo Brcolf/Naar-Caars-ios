@@ -350,3 +350,140 @@ extension PublicCommunity: Decodable {
         case isDefault = "is_default"
     }
 }
+
+// MARK: - Admin payloads
+
+/// One row of `get_community_members`. The answers, inviter and removal reason are null unless the
+/// caller is an admin of the community.
+struct CommunityMember: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let name: String
+    let avatarUrl: String?
+    let car: String?
+    let role: CommunityRole
+    let status: MembershipStatus
+    let joinedAt: Date
+    let activatedAt: Date?
+    let heardAbout: String?
+    let joinReason: String?
+    let invitedByName: String?
+    let removalReason: String?
+}
+
+extension CommunityMember: Decodable {
+    enum CodingKeys: String, CodingKey {
+        case id, name, car, role, status
+        case avatarUrl = "avatar_url"
+        case joinedAt = "joined_at"
+        case activatedAt = "activated_at"
+        case heardAbout = "heard_about"
+        case joinReason = "join_reason"
+        case invitedByName = "invited_by_name"
+        case removalReason = "removal_reason"
+    }
+
+    /// Tolerant: one blank profile name must not fail the whole list.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        car = try c.decodeIfPresent(String.self, forKey: .car)
+        role = try c.decode(CommunityRole.self, forKey: .role)
+        status = try c.decode(MembershipStatus.self, forKey: .status)
+        joinedAt = try c.decode(Date.self, forKey: .joinedAt)
+        activatedAt = try c.decodeIfPresent(Date.self, forKey: .activatedAt)
+        heardAbout = try c.decodeIfPresent(String.self, forKey: .heardAbout)
+        joinReason = try c.decodeIfPresent(String.self, forKey: .joinReason)
+        invitedByName = try c.decodeIfPresent(String.self, forKey: .invitedByName)
+        removalReason = try c.decodeIfPresent(String.self, forKey: .removalReason)
+    }
+}
+
+/// `get_platform_communities` (platform admins only).
+struct PlatformCommunities: Equatable, Sendable {
+    let communities: [PlatformCommunity]
+    let limitRequests: [PlatformLimitRequest]
+}
+
+extension PlatformCommunities: Decodable {
+    enum CodingKeys: String, CodingKey {
+        case communities
+        case limitRequests = "limit_requests"
+    }
+}
+
+struct PlatformCommunity: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let name: String
+    let description: String?
+    let createdBy: UUID?
+    let creatorName: String?
+    let createdAt: Date
+    let isPublic: Bool
+    let isDefault: Bool
+    let joinPolicy: String
+    let archivedAt: Date?
+    let archivedBy: UUID?
+    let memberCount: Int
+    let pendingCount: Int
+    let ownerCount: Int
+    let openReportCount: Int
+}
+
+extension PlatformCommunity: Decodable {
+    enum CodingKeys: String, CodingKey {
+        case id, name, description
+        case createdBy = "created_by"
+        case creatorName = "creator_name"
+        case createdAt = "created_at"
+        case isPublic = "is_public"
+        case isDefault = "is_default"
+        case joinPolicy = "join_policy"
+        case archivedAt = "archived_at"
+        case archivedBy = "archived_by"
+        case memberCount = "member_count"
+        case pendingCount = "pending_count"
+        case ownerCount = "owner_count"
+        case openReportCount = "open_report_count"
+    }
+}
+
+struct PlatformLimitRequest: Identifiable, Equatable, Sendable {
+    let requestId: UUID
+    let userId: UUID
+    let userName: String?
+    let requestedMax: Int
+    let reason: String
+    let createdAt: Date
+    let currentMax: Int
+    let ownedCount: Int
+
+    var id: UUID { requestId }
+}
+
+extension PlatformLimitRequest: Decodable {
+    enum CodingKeys: String, CodingKey {
+        case requestId = "request_id"
+        case userId = "user_id"
+        case userName = "user_name"
+        case requestedMax = "requested_max"
+        case reason
+        case createdAt = "created_at"
+        case currentMax = "current_max"
+        case ownedCount = "owned_count"
+    }
+}
+
+/// The outcome of `decide_owned_community_limit`.
+struct LimitDecision: Equatable, Sendable {
+    let status: LimitRequestStatus
+    let maxOwned: Int
+}
+
+extension LimitDecision: Decodable {
+    enum CodingKeys: String, CodingKey {
+        case status
+        case maxOwned = "max_owned"
+    }
+}

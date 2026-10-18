@@ -26,6 +26,10 @@ final class PreviewCommunityService: CommunityServiceProtocol {
         memberCount: 12
     )
     var joinStatus: MembershipStatus = .pending
+    var members: [CommunityMember] = PreviewCommunityService.sampleApplicants
+    var platformCommunities: PlatformCommunities = PreviewCommunityService.samplePlatformCommunities
+    /// When set, approve, reject and archive throw it (the not-admin preview).
+    var adminRefusal: CommunityRPCError?
 
     init() {}
 
@@ -148,6 +152,87 @@ final class PreviewCommunityService: CommunityServiceProtocol {
 
     func reportCommunity(communityId: UUID?, code: String?, type: MessageService.ReportType, description: String?) async throws -> CommunityReportResult {
         CommunityReportResult(reportId: nil, duplicate: false)
+    }
+}
+
+// MARK: - Admin
+
+extension PreviewCommunityService: CommunityAdminServiceProtocol {
+    static let seattleSampleId = UUID(uuidString: "5EA77100-0000-4000-8000-000000000001")!
+
+    static let sampleApplicants: [CommunityMember] = [
+        CommunityMember(
+            id: UUID(), name: "Dana Rivera", avatarUrl: nil, car: "Green Subaru", role: .member, status: .pending,
+            joinedAt: Date(timeIntervalSince1970: 1_790_100_000), activatedAt: nil,
+            heardAbout: "A neighbor told me about it at the block party.",
+            joinReason: "I drive to the airport often and would like to share rides.",
+            invitedByName: "Sam Neighbor", removalReason: nil
+        ),
+        CommunityMember(
+            id: UUID(), name: "Lee Park", avatarUrl: nil, car: nil, role: .member, status: .pending,
+            joinedAt: Date(timeIntervalSince1970: 1_790_200_000), activatedAt: nil,
+            heardAbout: "Found the community in the app.",
+            joinReason: "New to the neighborhood.",
+            invitedByName: nil, removalReason: nil
+        )
+    ]
+
+    static let samplePlatformCommunities = PlatformCommunities(
+        communities: [
+            PlatformCommunity(
+                id: seattleSampleId, name: "Naar's Cars Seattle", description: nil, createdBy: nil, creatorName: nil,
+                createdAt: Date(timeIntervalSince1970: 1_780_000_000), isPublic: true, isDefault: true,
+                joinPolicy: "approve", archivedAt: nil, archivedBy: nil,
+                memberCount: 140, pendingCount: 0, ownerCount: 1, openReportCount: 0
+            ),
+            PlatformCommunity(
+                id: UUID(), name: "Ballard Neighbors", description: "Ballard rides and favors.", createdBy: UUID(), creatorName: "Sam Neighbor",
+                createdAt: Date(timeIntervalSince1970: 1_789_000_000), isPublic: false, isDefault: false,
+                joinPolicy: "approve", archivedAt: nil, archivedBy: nil,
+                memberCount: 12, pendingCount: 2, ownerCount: 1, openReportCount: 0
+            ),
+            PlatformCommunity(
+                id: UUID(), name: "Old Carpool", description: nil, createdBy: UUID(), creatorName: "Pat Quinn",
+                createdAt: Date(timeIntervalSince1970: 1_785_000_000), isPublic: false, isDefault: false,
+                joinPolicy: "invite", archivedAt: Date(timeIntervalSince1970: 1_790_000_000), archivedBy: nil,
+                memberCount: 3, pendingCount: 0, ownerCount: 0, openReportCount: 1
+            )
+        ],
+        limitRequests: [
+            PlatformLimitRequest(
+                requestId: UUID(), userId: UUID(), userName: "Sam Neighbor", requestedMax: 5,
+                reason: "I run three neighborhood groups.", createdAt: Date(timeIntervalSince1970: 1_790_300_000),
+                currentMax: 3, ownedCount: 3
+            )
+        ]
+    )
+
+    func fetchCommunityMembers(communityId: UUID, status: MembershipStatus, limit: Int, offset: Int) async throws -> [CommunityMember] {
+        members
+    }
+
+    func approveMember(communityId: UUID, userId: UUID) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func rejectMember(communityId: UUID, userId: UUID) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func fetchDefaultCommunityId() async throws -> UUID? { PreviewCommunityService.seattleSampleId }
+
+    func fetchPlatformCommunities() async throws -> PlatformCommunities { platformCommunities }
+
+    func archiveCommunity(communityId: UUID) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func unarchiveCommunity(communityId: UUID) async throws {}
+
+    func setCommunityPublic(communityId: UUID, isPublic: Bool) async throws {}
+
+    func decideOwnedCommunityLimit(requestId: UUID, approve: Bool) async throws -> LimitDecision {
+        LimitDecision(status: approve ? .approved : .declined, maxOwned: 5)
     }
 }
 #endif

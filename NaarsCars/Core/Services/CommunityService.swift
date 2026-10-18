@@ -138,6 +138,62 @@ private struct ReportCommunityParams: Encodable, Sendable {
     }
 }
 
+private struct MembersParams: Encodable, Sendable {
+    let communityId: String
+    let status: String
+    let limit: Int
+    let offset: Int
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_status, p_limit, p_offset }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(status, forKey: .p_status)
+        try c.encode(limit, forKey: .p_limit)
+        try c.encode(offset, forKey: .p_offset)
+    }
+}
+
+private struct MemberDecisionParams: Encodable, Sendable {
+    let communityId: String
+    let userId: String
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_user_id }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(userId, forKey: .p_user_id)
+    }
+}
+
+private struct SetPublicParams: Encodable, Sendable {
+    let communityId: String
+    let isPublic: Bool
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_is_public }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(isPublic, forKey: .p_is_public)
+    }
+}
+
+private struct LimitDecisionParams: Encodable, Sendable {
+    let requestId: String
+    let approve: Bool
+
+    private enum CodingKeys: String, CodingKey { case p_request_id, p_approve }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(requestId, forKey: .p_request_id)
+        try c.encode(approve, forKey: .p_approve)
+    }
+}
+
 /// Body of the mute update. `muted_until` is sent as an explicit null so a timed mute set
 /// elsewhere is cleared.
 private struct MuteBody: Encodable, Sendable {
@@ -272,5 +328,69 @@ final class CommunityService: CommunityServiceProtocol {
         )
         let response = try await client.rpc("report_community", params: params).execute()
         return try CommunityRPC.decode(CommunityReportResult.self, from: response.data)
+    }
+}
+
+// MARK: - Admin
+
+extension CommunityService: CommunityAdminServiceProtocol {
+    func fetchCommunityMembers(communityId: UUID, status: MembershipStatus, limit: Int, offset: Int) async throws -> [CommunityMember] {
+        let params = MembersParams(communityId: communityId.uuidString, status: status.rawValue, limit: limit, offset: offset)
+        let response = try await client.rpc("get_community_members", params: params).execute()
+        return try DateDecoderFactory.makeSupabaseDecoder().decode([CommunityMember].self, from: response.data)
+    }
+
+    func approveMember(communityId: UUID, userId: UUID) async throws {
+        let params = MemberDecisionParams(communityId: communityId.uuidString, userId: userId.uuidString)
+        let response = try await client.rpc("approve_community_member", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func rejectMember(communityId: UUID, userId: UUID) async throws {
+        let params = MemberDecisionParams(communityId: communityId.uuidString, userId: userId.uuidString)
+        let response = try await client.rpc("reject_community_member", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func fetchDefaultCommunityId() async throws -> UUID? {
+        struct Row: Decodable { let id: UUID }
+        let response = try await client
+            .from("communities")
+            .select("id")
+            .eq("is_default", value: true)
+            .limit(1)
+            .execute()
+        return try JSONDecoder().decode([Row].self, from: response.data).first?.id
+    }
+
+    func fetchPlatformCommunities() async throws -> PlatformCommunities {
+        let response = try await client.rpc("get_platform_communities").execute()
+        return try CommunityRPC.decode(PlatformCommunities.self, from: response.data)
+    }
+
+    func archiveCommunity(communityId: UUID) async throws {
+        let response = try await client
+            .rpc("archive_community", params: CommunityIdParams(communityId: communityId.uuidString))
+            .execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func unarchiveCommunity(communityId: UUID) async throws {
+        let response = try await client
+            .rpc("unarchive_community", params: CommunityIdParams(communityId: communityId.uuidString))
+            .execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func setCommunityPublic(communityId: UUID, isPublic: Bool) async throws {
+        let params = SetPublicParams(communityId: communityId.uuidString, isPublic: isPublic)
+        let response = try await client.rpc("set_community_public", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func decideOwnedCommunityLimit(requestId: UUID, approve: Bool) async throws -> LimitDecision {
+        let params = LimitDecisionParams(requestId: requestId.uuidString, approve: approve)
+        let response = try await client.rpc("decide_owned_community_limit", params: params).execute()
+        return try CommunityRPC.decode(LimitDecision.self, from: response.data)
     }
 }
