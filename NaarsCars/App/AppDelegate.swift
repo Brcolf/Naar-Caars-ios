@@ -386,7 +386,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .enterApp:
             AppLogger.info("app", "Enter app")
             Task { @MainActor in
-                await AppLaunchManager.shared.performCriticalLaunch()
+                await AppLaunchManager.shared.handleEnterAppIntent()
             }
 
         case .unknown:

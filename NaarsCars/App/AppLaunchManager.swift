@@ -278,6 +278,21 @@ final class AppLaunchManager: ObservableObject {
         }
     }
 
+    /// Answers an `.enterApp` deep link (the `user_approved` push). A session that is already
+    /// `.ready(.authenticated)` (a member approved into a further community, D22) is not relaunched:
+    /// the memberships are refreshed off the main path and the dashboard intent is set through
+    /// `NavigationCoordinator`. In every other state (the waiting screen) it runs
+    /// `performCriticalLaunch()` as before.
+    func handleEnterAppIntent() async {
+        guard case .ready(.authenticated) = state else {
+            await performCriticalLaunch()
+            return
+        }
+        let context = communityContext
+        Task { await context.refreshMemberships() }
+        NavigationCoordinator.shared.applyPushDeepLink(.enterApp)
+    }
+
     /// Enter guest browsing mode without creating a Supabase session.
     /// Callers must also set `appState.isGuestMode = true` before calling this.
     /// No session, no profile, no deferred loading, no sync engines.

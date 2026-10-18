@@ -11,17 +11,39 @@ import XCTest
 @MainActor
 final class NavigationCoordinatorRoutingTests: XCTestCase {
     private let coordinator = NavigationCoordinator.shared
+    private var suiteName = ""
+    private var suite: UserDefaults!
+    private var savedLaunchState: LaunchState!
+    private var savedCommunityContext: CommunityContext!
 
     override func setUp() {
         super.setUp()
         coordinator.resetNavigation()
         coordinator.selectedTab = .requests
+        suiteName = "CommunityContextTests-\(UUID())"
+        suite = UserDefaults(suiteName: suiteName)!
+        savedLaunchState = AppLaunchManager.shared.state
+        savedCommunityContext = AppLaunchManager.shared.communityContext
     }
 
     override func tearDown() {
+        AppLaunchManager.shared.state = savedLaunchState
+        AppLaunchManager.shared.communityContext = savedCommunityContext
+        suite.removePersistentDomain(forName: suiteName)
         coordinator.resetNavigation()
         coordinator.selectedTab = .requests
         super.tearDown()
+    }
+
+    func testEnterAppWhileAuthenticated_DoesNotRelaunch() async {
+        let launch = AppLaunchManager.shared
+        launch.communityContext = CommunityContext(service: StubCommunityService(result: .success([])), defaults: suite)
+        launch.state = .ready(.authenticated)
+
+        await launch.handleEnterAppIntent()
+
+        XCTAssertEqual(launch.state, .ready(.authenticated))
+        XCTAssertEqual(coordinator.pendingIntent, .dashboard)
     }
 
     func testResetNavigationClearsAllKeyRoutingState() {

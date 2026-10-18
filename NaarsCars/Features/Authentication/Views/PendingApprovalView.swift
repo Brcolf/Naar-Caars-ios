@@ -153,7 +153,9 @@ struct PendingApprovalView: View {
             isCheckingStatus = false
 
             if isApproved {
-                launchManager.state = .ready(.authenticated)
+                // Unstructured on purpose: this screen leaves the hierarchy when the state becomes
+                // `.checkingAuth`, which would cancel a launch awaited from this view's tasks.
+                Task { @MainActor in await AppLaunchManager.shared.performCriticalLaunch() }
                 return
             }
 
@@ -265,8 +267,10 @@ struct PendingApprovalView: View {
             let isApproved = await checkApprovalDirectly()
             
             if isApproved {
-                // User is now approved - transition to authenticated state
-                launchManager.state = .ready(.authenticated)
+                // User is now approved - relaunch so the deferred session (sync engines,
+                // profile, communities) starts. Unstructured on purpose: this loop runs in the
+                // screen's `.task`, which is cancelled when the state becomes `.checkingAuth`.
+                Task { @MainActor in await AppLaunchManager.shared.performCriticalLaunch() }
                 return // Exit the loop
             }
             
