@@ -125,7 +125,10 @@ extension BadgeCountManager: BadgeCountManaging {}
                             communityTotal: 0,
                             bellTotal: 0,
                             requestDetails: [],
-                            conversationDetails: []
+                            conversationDetails: [],
+                            pendingMembersTotal: nil,
+                            communityDetails: nil,
+                            total: nil
                         )
                     }
                     isBadgeStale = true
@@ -140,7 +143,10 @@ extension BadgeCountManager: BadgeCountManaging {}
                         communityTotal: 0,
                         bellTotal: 0,
                         requestDetails: [],
-                        conversationDetails: []
+                        conversationDetails: [],
+                        pendingMembersTotal: nil,
+                        communityDetails: nil,
+                        total: nil
                     )
                 }
                 isBadgeStale = true
@@ -319,13 +325,31 @@ extension BadgeCountManager: BadgeCountManaging {}
         let unreadCount: Int
     }
 
-    private struct BadgeCountsPayload: Decodable {
+    /// Per-community unread counts from `get_badge_counts` (`community_details`). Not read in Phase 1.
+    struct CommunityCountDetail: Decodable, Equatable {
+        let communityId: UUID
+        let requestsTotal: Int
+        let communityTotal: Int
+        let bellTotal: Int
+    }
+
+    struct BadgeCountsPayload: Decodable {
         let requestsTotal: Int
         let messagesTotal: Int
         let communityTotal: Int
         let bellTotal: Int
         let requestDetails: [RequestCountDetail]
         let conversationDetails: [ConversationCountDetail]
+        /// Additive multi-community keys; absent on a server without them. Nothing reads them in Phase 1.
+        let pendingMembersTotal: Int?
+        let communityDetails: [CommunityCountDetail]?
+        let total: Int?
+
+        static func decode(_ data: Data) throws -> BadgeCountsPayload {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(BadgeCountsPayload.self, from: data)
+        }
     }
 
     private func fetchBadgeCounts(includeDetails: Bool = false) async throws -> BadgeCountsPayload {
@@ -335,9 +359,7 @@ extension BadgeCountManager: BadgeCountManaging {}
             ])
             .execute()
 
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(BadgeCountsPayload.self, from: response.data)
+        return try BadgeCountsPayload.decode(response.data)
     }
 
     private func shouldUseBadgeCountsRpc() -> Bool {

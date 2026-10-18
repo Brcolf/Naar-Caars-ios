@@ -82,4 +82,68 @@ final class BadgeCountManagerTests: XCTestCase {
         XCTAssertEqual(BadgeCountManager.shared.counts, BadgeCountManager.BadgeCounts())
         XCTAssertFalse(BadgeCountManager.shared.isBadgeStale)
     }
+
+    // MARK: - get_badge_counts payload keys
+
+    func testBadgePayload_DecodesCommunityKeysWhenPresent() throws {
+        let communityId = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let json = """
+        {
+          "requests_total": 1,
+          "messages_total": 5,
+          "community_total": 3,
+          "bell_total": 4,
+          "request_details": [],
+          "conversation_details": [],
+          "pending_members_total": 2,
+          "community_details": [
+            {"community_id": "\(communityId.uuidString)", "requests_total": 1, "community_total": 3, "bell_total": 4}
+          ],
+          "total": 9
+        }
+        """
+        let payload = try BadgeCountManager.BadgeCountsPayload.decode(Data(json.utf8))
+
+        XCTAssertEqual(payload.pendingMembersTotal, 2)
+        XCTAssertEqual(payload.total, 9)
+        XCTAssertEqual(payload.communityDetails, [
+            BadgeCountManager.CommunityCountDetail(communityId: communityId, requestsTotal: 1, communityTotal: 3, bellTotal: 4)
+        ])
+        XCTAssertEqual(payload.requestsTotal, 1)
+        XCTAssertEqual(payload.messagesTotal, 5)
+        XCTAssertEqual(payload.communityTotal, 3)
+        XCTAssertEqual(payload.bellTotal, 4)
+    }
+
+    func testBadgePayload_DecodesTodaysPayloadWithoutCommunityKeys() throws {
+        let requestId = UUID()
+        let conversationId = UUID()
+        let json = """
+        {
+          "requests_total": 2,
+          "messages_total": 6,
+          "community_total": 1,
+          "bell_total": 3,
+          "request_details": [
+            {"request_type": "ride", "request_id": "\(requestId.uuidString)", "unread_count": 2}
+          ],
+          "conversation_details": [
+            {"conversation_id": "\(conversationId.uuidString)", "unread_count": 6}
+          ]
+        }
+        """
+        let payload = try BadgeCountManager.BadgeCountsPayload.decode(Data(json.utf8))
+
+        XCTAssertNil(payload.pendingMembersTotal)
+        XCTAssertNil(payload.communityDetails)
+        XCTAssertNil(payload.total)
+        XCTAssertEqual(payload.requestsTotal, 2)
+        XCTAssertEqual(payload.messagesTotal, 6)
+        XCTAssertEqual(payload.communityTotal, 1)
+        XCTAssertEqual(payload.bellTotal, 3)
+        XCTAssertEqual(payload.requestDetails.first?.requestId, requestId)
+        XCTAssertEqual(payload.requestDetails.first?.unreadCount, 2)
+        XCTAssertEqual(payload.conversationDetails.first?.conversationId, conversationId)
+        XCTAssertEqual(payload.conversationDetails.first?.unreadCount, 6)
+    }
 }
