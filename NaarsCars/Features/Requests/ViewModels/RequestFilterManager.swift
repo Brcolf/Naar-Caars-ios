@@ -156,7 +156,7 @@ final class RequestFilterManager {
         return allRequests
     }
 
-    func fetchFilteredRides(in context: ModelContext, filter: RequestFilter) -> [SDRide] {
+    func fetchFilteredRides(in context: ModelContext, filter: RequestFilter, scope: RequestsScope = .all) -> [SDRide] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
 
@@ -176,12 +176,14 @@ final class RequestFilterManager {
         let descriptor = FetchDescriptor<SDRide>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
         if filter == .mine, let uid = userId {
-            return fetched.filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+            return fetched
+                .filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+                .filter { scope.includes($0.communityId) }
         }
-        return fetched
+        return fetched.filter { scope.includes($0.communityId) }
     }
 
-    func fetchFilteredFavors(in context: ModelContext, filter: RequestFilter) -> [SDFavor] {
+    func fetchFilteredFavors(in context: ModelContext, filter: RequestFilter, scope: RequestsScope = .all) -> [SDFavor] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
 
@@ -201,14 +203,17 @@ final class RequestFilterManager {
         let descriptor = FetchDescriptor<SDFavor>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
         if filter == .mine, let uid = userId {
-            return fetched.filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+            return fetched
+                .filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+                .filter { scope.includes($0.communityId) }
         }
-        return fetched
+        return fetched.filter { scope.includes($0.communityId) }
     }
 
     func computeFilterBadgeCounts(
         in context: ModelContext,
-        requestNotificationSummaries: [String: RequestNotificationSummary]
+        requestNotificationSummaries: [String: RequestNotificationSummary],
+        scope: RequestsScope = .all
     ) -> [RequestFilter: Int] {
         // Single fetch of ALL rides and favors (2 queries instead of 6)
         let allRides = (try? context.fetch(FetchDescriptor<SDRide>())) ?? []
@@ -216,8 +221,8 @@ final class RequestFilterManager {
 
         var counts: [RequestFilter: Int] = [:]
         for filterCase in RequestFilter.allCases {
-            let filteredRides = filterRidesInMemory(allRides, for: filterCase)
-            let filteredFavors = filterFavorsInMemory(allFavors, for: filterCase)
+            let filteredRides = filterRidesInMemory(allRides, for: filterCase, scope: scope)
+            let filteredFavors = filterFavorsInMemory(allFavors, for: filterCase, scope: scope)
             let requests = getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filterCase)
             let unreadTotal = requests.reduce(0) { total, request in
                 total + (requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0)
@@ -241,7 +246,11 @@ final class RequestFilterManager {
     }
 
     /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredRides`.
-    private func filterRidesInMemory(_ rides: [SDRide], for filter: RequestFilter) -> [SDRide] {
+    private func filterRidesInMemory(_ rides: [SDRide], for filter: RequestFilter, scope: RequestsScope) -> [SDRide] {
+        filterRidesByStatus(rides, for: filter).filter { scope.includes($0.communityId) }
+    }
+
+    private func filterRidesByStatus(_ rides: [SDRide], for filter: RequestFilter) -> [SDRide] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
         switch filter {
@@ -263,7 +272,11 @@ final class RequestFilterManager {
     }
 
     /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredFavors`.
-    private func filterFavorsInMemory(_ favors: [SDFavor], for filter: RequestFilter) -> [SDFavor] {
+    private func filterFavorsInMemory(_ favors: [SDFavor], for filter: RequestFilter, scope: RequestsScope) -> [SDFavor] {
+        filterFavorsByStatus(favors, for: filter).filter { scope.includes($0.communityId) }
+    }
+
+    private func filterFavorsByStatus(_ favors: [SDFavor], for filter: RequestFilter) -> [SDFavor] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
         switch filter {

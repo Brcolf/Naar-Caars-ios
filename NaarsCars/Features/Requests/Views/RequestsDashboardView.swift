@@ -15,6 +15,7 @@ struct RequestsDashboardView: View {
     @Environment(AppState.self) private var appState
     @StateObject private var viewModel = RequestsDashboardViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var communityContext = CommunityContext.shared
     @State private var showCreateRide = false
     @State private var showCreateFavor = false
     @State private var selectedRideId: UUID?
@@ -32,6 +33,38 @@ struct RequestsDashboardView: View {
             listContentView
             .id("app.entry.enterApp")
             .navigationTitle("requests_nav_title".localized)
+            // One membership: no title menu and no subtitle, so the screen is unchanged.
+            .communityTitleMenu(
+                enabled: communityContext.hasMultipleCommunities,
+                subtitle: communityContext.name(for: communityContext.requestsScope.communityId)
+            ) {
+                Button {
+                    communityContext.requestsScope = .all
+                } label: {
+                    if communityContext.requestsScope == .all {
+                        Label("community_all_communities".localized, systemImage: "checkmark")
+                    } else {
+                        Text("community_all_communities".localized)
+                    }
+                }
+                .accessibilityAddTraits(communityContext.requestsScope == .all ? .isSelected : [])
+                ForEach(communityContext.activeMemberships) { membership in
+                    let isSelected = communityContext.requestsScope == .community(membership.communityId)
+                    Button {
+                        communityContext.requestsScope = .community(membership.communityId)
+                    } label: {
+                        if isSelected {
+                            Label(membership.name, systemImage: "checkmark")
+                        } else {
+                            Text(membership.name)
+                        }
+                    }
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                }
+            }
+            .onChange(of: communityContext.requestsScope) { _, _ in
+                viewModel.requestsScopeDidChange()
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {

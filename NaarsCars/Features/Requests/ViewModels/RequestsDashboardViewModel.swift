@@ -41,6 +41,7 @@ final class RequestsDashboardViewModel: ObservableObject {
     private let favorService: any FavorServiceProtocol
     private let authService: any AuthServiceProtocol
     private let filterManager: RequestFilterManager
+    private let communityContext: CommunityContext
     private let summaryManager: RequestNotificationSummaryManager
     private let realtimeHandler: RequestRealtimeHandler
     /// In-flight load task; cancelled in stop() to avoid use-after-free when view disappears.
@@ -52,8 +53,10 @@ final class RequestsDashboardViewModel: ObservableObject {
     init(
         rideService: any RideServiceProtocol = RideService.shared,
         favorService: any FavorServiceProtocol = FavorService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
     ) {
+        self.communityContext = communityContext ?? CommunityContext.shared
         self.rideService = rideService
         self.favorService = favorService
         self.authService = authService
@@ -233,8 +236,8 @@ final class RequestsDashboardViewModel: ObservableObject {
 
     private func refreshFilteredRequests() {
         guard let context = modelContext else { return }
-        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter)
-        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter)
+        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: communityContext.requestsScope)
+        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: communityContext.requestsScope)
         filteredRequests = filterManager.getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filter)
         refreshFilterBadgeCounts()
     }
@@ -246,8 +249,14 @@ final class RequestsDashboardViewModel: ObservableObject {
         }
         filterBadgeCounts = filterManager.computeFilterBadgeCounts(
             in: context,
-            requestNotificationSummaries: summaryManager.requestNotificationSummaries
+            requestNotificationSummaries: summaryManager.requestNotificationSummaries,
+            scope: communityContext.requestsScope
         )
+    }
+
+    /// The Requests narrow changed: re-filter the local rows. Local only, no network.
+    func requestsScopeDidChange() {
+        refreshFilteredRequests()
     }
 }
 

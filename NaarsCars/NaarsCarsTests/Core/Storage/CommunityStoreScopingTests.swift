@@ -370,4 +370,64 @@ final class CommunityStoreScopingTests: XCTestCase {
         let encoded = try XCTUnwrap(setObject["community_id"] as? String)
         XCTAssertEqual(UUID(uuidString: encoded), communityA)
     }
+
+    // MARK: - Requests narrow
+
+    private func seedScopedRequests(_ container: ModelContainer) throws -> ModelContext {
+        let context = ModelContext(container)
+        let ids = (1...6).map { UUID(uuidString: "0C000000-0000-0000-0000-0000000001\(String(format: "%02d", $0))")! }
+        let rideRows: [(UUID, UUID?)] = [(ids[0], communityA), (ids[1], communityB), (ids[2], nil)]
+        let favorRows: [(UUID, UUID?)] = [(ids[3], communityA), (ids[4], communityB), (ids[5], nil)]
+        for (id, community) in rideRows {
+            context.insert(SDRide(id: id, userId: userId, date: base, time: "12:00:00", pickup: "P", destination: "D", communityId: community))
+        }
+        for (id, community) in favorRows {
+            context.insert(SDFavor(id: id, userId: userId, title: "F", location: "L", date: base, communityId: community))
+        }
+        try context.save()
+        return context
+    }
+
+    func testNarrowScope_KeepsScopedAndUnlabelledRides() throws {
+        let container = try makeContainer()
+        let context = try seedScopedRequests(container)
+        let manager = RequestFilterManager()
+        let rows = manager.fetchFilteredRides(in: context, filter: .open, scope: .community(communityA))
+        XCTAssertEqual(Set(rows.map(\.communityId)), [communityA, nil])
+        XCTAssertEqual(rows.count, 2)
+    }
+
+    func testNarrowScope_KeepsScopedAndUnlabelledFavors() throws {
+        let container = try makeContainer()
+        let context = try seedScopedRequests(container)
+        let manager = RequestFilterManager()
+        let rows = manager.fetchFilteredFavors(in: context, filter: .open, scope: .community(communityA))
+        XCTAssertEqual(Set(rows.map(\.communityId)), [communityA, nil])
+        XCTAssertEqual(rows.count, 2)
+    }
+
+    func testAllScope_KeepsEveryRow() throws {
+        let container = try makeContainer()
+        let context = try seedScopedRequests(container)
+        let manager = RequestFilterManager()
+        XCTAssertEqual(manager.fetchFilteredRides(in: context, filter: .open, scope: .all).count, 3)
+        XCTAssertEqual(manager.fetchFilteredFavors(in: context, filter: .open).count, 3)
+    }
+
+    func testNarrowScope_BadgeCountsCountOnlyScopedRequests() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        // Past requests are hidden by the 12-hour rule, so use a future date.
+        let future = Date().addingTimeInterval(7 * 86_400)
+        let rideA = UUID(uuidString: "0C000000-0000-0000-0000-000000000201")!
+        let rideB = UUID(uuidString: "0C000000-0000-0000-0000-000000000202")!
+        context.insert(SDRide(id: rideA, userId: userId, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: communityA))
+        context.insert(SDRide(id: rideB, userId: userId, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: communityB))
+        try context.save()
+        let summary = RequestNotificationSummary(unreadCount: 1, latestUnreadType: .rideClaimed, latestUnreadAt: base)
+        let summaries = ["ride:\(rideA)": summary, "ride:\(rideB)": summary]
+        let manager = RequestFilterManager()
+        XCTAssertEqual(manager.computeFilterBadgeCounts(in: context, requestNotificationSummaries: summaries, scope: .community(communityA))[.open], 1)
+        XCTAssertEqual(manager.computeFilterBadgeCounts(in: context, requestNotificationSummaries: summaries, scope: .all)[.open], 2)
+    }
 }
