@@ -57,6 +57,12 @@ enum LeavePlan: Equatable {
     case closesCommunity(LeaveConsequences)
 }
 
+/// What the owned-community limit row on My communities shows.
+enum LimitOffer: Equatable {
+    case requestPending(requestedMax: Int)
+    case canRequest(currentMax: Int, ownedCount: Int)
+}
+
 @MainActor
 final class MyCommunitiesViewModel: ObservableObject {
     @Published private(set) var limits: CommunityLimits?
@@ -109,6 +115,18 @@ final class MyCommunitiesViewModel: ObservableObject {
         if membership.notificationsMuted { return true }
         if let mutedUntil = membership.mutedUntil, mutedUntil > now { return true }
         return false
+    }
+
+    /// A pending limit request shows until decided; otherwise the offer shows at the limit.
+    var limitOffer: LimitOffer? {
+        guard let limits else { return nil }
+        if let request = limits.latestRequest, request.status == .pending {
+            return .requestPending(requestedMax: request.requestedMax)
+        }
+        if limits.ownedCount >= limits.maxOwned && OwnedLimitRequestViewModel.canRequestMore(currentMax: limits.maxOwned) {
+            return .canRequest(currentMax: limits.maxOwned, ownedCount: limits.ownedCount)
+        }
+        return nil
     }
 
     // MARK: - Load

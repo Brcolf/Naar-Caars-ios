@@ -15,14 +15,17 @@ struct CreateCommunityView: View {
 
     private let service: any CommunityServiceProtocol
     private let onCreated: (UUID) -> Void
+    private let onRequestHigherLimit: (() -> Void)?
 
     @MainActor init(
         service: any CommunityServiceProtocol = CommunityService.shared,
         viewModel: @autoclosure @escaping @MainActor () -> CreateCommunityViewModel = CreateCommunityViewModel(),
-        onCreated: @escaping (UUID) -> Void
+        onCreated: @escaping (UUID) -> Void,
+        onRequestHigherLimit: (() -> Void)? = nil
     ) {
         self.service = service
         self.onCreated = onCreated
+        self.onRequestHigherLimit = onRequestHigherLimit
         _viewModel = StateObject(wrappedValue: viewModel())
     }
 
@@ -86,6 +89,18 @@ struct CreateCommunityView: View {
                             .disabled(!viewModel.canSubmit)
                             .accessibilityIdentifier("community.create.submit")
                     }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let onRequestHigherLimit, let refusal = viewModel.lastRefusal, refusal.code == .ownedLimit,
+                   OwnedLimitRequestViewModel.canRequestMore(currentMax: refusal.maxOwned ?? 0) {
+                    SecondaryButton(title: "community_limit_request_button".localized) {
+                        dismiss()
+                        onRequestHigherLimit()
+                    }
+                    .padding(.horizontal, Constants.Spacing.md)
+                    .padding(.bottom, Constants.Spacing.sm)
+                    .accessibilityIdentifier("community.create.requestLimit")
                 }
             }
             .errorBanner(message: $viewModel.errorMessage)

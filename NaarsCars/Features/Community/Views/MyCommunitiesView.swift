@@ -16,6 +16,7 @@ struct MyCommunitiesView: View {
         case leave(CommunityMembership, LeavePlan)
         case create
         case join
+        case limitRequest(currentMax: Int)
 
         var id: String {
             switch self {
@@ -24,6 +25,7 @@ struct MyCommunitiesView: View {
             case .leave(let m, _): return "leave-\(m.communityId)"
             case .create: return "create"
             case .join: return "join"
+            case .limitRequest: return "limit-request"
             }
         }
     }
@@ -35,6 +37,8 @@ struct MyCommunitiesView: View {
     /// Recorded by Create and Join; acted on in the sheet's `onDismiss`.
     @State private var createdCommunityId: UUID?
     @State private var joinResult: JoinResult?
+    @State private var reopenLimitRequest = false
+    @State private var limitRequestSent = false
     /// Stays nil until a pending invite code can be handed over (Phase 2 Task 14).
     @State private var joinPrefilledCode: String?
 
@@ -69,6 +73,10 @@ struct MyCommunitiesView: View {
                 } header: {
                     Text("community_section_waiting".localized)
                 }
+            }
+
+            if let offer = viewModel.limitOffer {
+                limitSection(offer)
             }
 
             Section {
@@ -108,6 +116,34 @@ struct MyCommunitiesView: View {
         }
         .toast(message: $viewModel.toastMessage)
         .errorBanner(message: $viewModel.errorMessage)
+    }
+
+    // MARK: - Limit
+
+    @ViewBuilder
+    private func limitSection(_ offer: LimitOffer) -> some View {
+        Section {
+            switch offer {
+            case .requestPending(let requestedMax):
+                Label(
+                    String(format: "community_limit_request_pending".localized, requestedMax),
+                    systemImage: "clock"
+                )
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextSecondary)
+                .accessibilityIdentifier("community.my.limitPending")
+            case .canRequest(let currentMax, let ownedCount):
+                Text(String(format: "community_limit_offer".localized, ownedCount))
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.naarsTextSecondary)
+                Button {
+                    activeSheet = .limitRequest(currentMax: currentMax)
+                } label: {
+                    Label("community_limit_request_button".localized, systemImage: "arrow.up.circle")
+                }
+                .accessibilityIdentifier("community.my.limitRequest")
+            }
+        }
     }
 
     // MARK: - Rows
@@ -281,7 +317,18 @@ struct MyCommunitiesView: View {
                 }
             )
         case .create:
-            CreateCommunityView(onCreated: { createdCommunityId = $0 })
+            CreateCommunityView(
+                onCreated: { createdCommunityId = $0 },
+                onRequestHigherLimit: {
+                    // Swap sheets once Create is gone.
+                    activeSheet = nil
+                    reopenLimitRequest = true
+                }
+            )
+        case .limitRequest(let currentMax):
+            OwnedLimitRequestSheet(currentMax: currentMax, onSent: {
+                limitRequestSent = true
+            })
         case .join:
             NavigationStack {
                 ScrollView {
@@ -311,6 +358,17 @@ struct MyCommunitiesView: View {
     /// Create and Join record their result; the follow-up runs once the sheet is gone, so nothing
     /// reloads underneath a sheet that is still on screen.
     private func sheetDismissed() {
+        if limitRequestSent {
+            limitRequestSent = false
+            viewModel.toastMessage = "community_limit_request_sent".localized
+            Task { await viewModel.load() }
+        }
+        if reopenLimitRequest {
+            reopenLimitRequest = false
+            if let limits = viewModel.limits, OwnedLimitRequestViewModel.canRequestMore(currentMax: limits.maxOwned) {
+                activeSheet = .limitRequest(currentMax: limits.maxOwned)
+            }
+        }
         if let communityId = createdCommunityId {
             createdCommunityId = nil
             Task { await viewModel.didCreate(communityId) }
@@ -347,6 +405,32 @@ struct MyCommunitiesView: View {
     service.memberships = [PreviewCommunityService.sampleMemberships[0]]
     let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
     context.debugSetMemberships(service.memberships)
+    return NavigationStack {
+        MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
+    }
+}
+
+#Preview("Limit reached") {
+    let service = PreviewCommunityService()
+    service.limits = CommunityLimits(maxOwned: 3, ownedCount: 3, nextCreateAt: nil, canCreate: false, latestRequest: nil)
+    let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
+    context.debugSetMemberships(PreviewCommunityService.sampleMemberships)
+    return NavigationStack {
+        MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
+    }
+}
+
+#Preview("Limit request pending") {
+    let service = PreviewCommunityService()
+    service.limits = CommunityLimits(
+        maxOwned: 3, ownedCount: 3, nextCreateAt: nil, canCreate: false,
+        latestRequest: CommunityLimitRequest(
+            requestId: UUID(), requestedMax: 5, reason: "Three groups", status: .pending,
+            createdAt: Date(), decidedAt: nil
+        )
+    )
+    let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
+    context.debugSetMemberships(PreviewCommunityService.sampleMemberships)
     return NavigationStack {
         MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
     }

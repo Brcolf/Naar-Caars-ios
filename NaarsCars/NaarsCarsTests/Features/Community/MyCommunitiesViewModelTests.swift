@@ -132,4 +132,25 @@ final class MyCommunitiesViewModelTests: XCTestCase {
         XCTAssertTrue(vm.active.contains { $0.communityId == CommunityFixtures.communityB })
         XCTAssertNil(vm.errorMessage)
     }
+
+    // MARK: - Owned-community limit request
+
+    func testLimitRequestRange_IsTotalAtAndAboveTheCeiling() async throws {
+        XCTAssertEqual(OwnedLimitRequestViewModel(currentMax: 3, service: StubCommunityService(result: .success([]))).range, 4...20)
+        XCTAssertEqual(OwnedLimitRequestViewModel(currentMax: 19, service: StubCommunityService(result: .success([]))).range, 20...20)
+        let atCeiling = OwnedLimitRequestViewModel(currentMax: 20, service: StubCommunityService(result: .success([])))
+        XCTAssertEqual(atCeiling.range, 20...20)
+        XCTAssertFalse(OwnedLimitRequestViewModel.canRequestMore(currentMax: 20))
+        atCeiling.reason = "More"
+        XCTAssertFalse(atCeiling.canSubmit)
+        XCTAssertEqual(OwnedLimitRequestViewModel(currentMax: 25, service: StubCommunityService(result: .success([]))).range, 20...20)
+
+        let (context, stub) = await makeContext()
+        stub.fetchMyCommunityLimitsResult = .success(
+            CommunityLimits(maxOwned: 20, ownedCount: 20, nextCreateAt: nil, canCreate: false, latestRequest: nil)
+        )
+        let viewModel = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in })
+        await viewModel.load()
+        XCTAssertNil(viewModel.limitOffer)
+    }
 }

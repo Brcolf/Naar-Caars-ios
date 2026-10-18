@@ -268,6 +268,8 @@
 		AC410C5F30855BF000D921E2 /* MyCommunitiesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */; };
 		AC410C6130855C0500D921E2 /* LeaveCommunitySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */; };
 		AC410C6330855C3200D921E2 /* MyCommunitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */; };
+		AC410C6530855F0C00D921E2 /* OwnedLimitRequestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6430855F0C00D921E2 /* OwnedLimitRequestViewModel.swift */; };
+		AC410C6730855F0C00D921E2 /* OwnedLimitRequestSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C6630855F0C00D921E2 /* OwnedLimitRequestSheet.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -809,6 +811,8 @@
 		AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyCommunitiesViewModel.swift; sourceTree = "<group>"; };
 		AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveCommunitySheet.swift; sourceTree = "<group>"; };
 		AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyCommunitiesView.swift; sourceTree = "<group>"; };
+		AC410C6430855F0C00D921E2 /* OwnedLimitRequestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnedLimitRequestViewModel.swift; sourceTree = "<group>"; };
+		AC410C6630855F0C00D921E2 /* OwnedLimitRequestSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnedLimitRequestSheet.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1431,6 +1435,7 @@
 				AC410C4E3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift */,
 				AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */,
 				AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */,
+				AC410C6430855F0C00D921E2 /* OwnedLimitRequestViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1601,6 +1606,7 @@
 				AC410C583085588300D921E2 /* PendingMembersView.swift */,
 				AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */,
 				AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */,
+				AC410C6630855F0C00D921E2 /* OwnedLimitRequestSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2767,6 +2773,7 @@
 				ACBF4B182F12CC04006A7C8A /* AppleSignInLinkView.swift in Sources */,
 				ACD19A662F174B91009C1DE5 /* MessagingLogger.swift in Sources */,
 				ACBF4AE82F12CB30006A7C8A /* PendingUsersView.swift in Sources */,
+				AC410C6730855F0C00D921E2 /* OwnedLimitRequestSheet.swift in Sources */,
 				ACBF4AE92F12CB30006A7C8A /* AdminInviteView.swift in Sources */,
 				ACBF4AEA2F12CB30006A7C8A /* PendingUsersViewModel.swift in Sources */,
 				AC305F062F0DB81A0063AFDF /* ClaimService.swift in Sources */,
@@ -2941,6 +2948,7 @@
 				E8AF3EE4A3855F8B58F002AC /* ScaleButtonStyle.swift in Sources */,
 				A39871588FAF14B326BD4BF3 /* ShakeModifier.swift in Sources */,
 				RECENT00000000000000001 /* RecentReactionsStore.swift in Sources */,
+				AC410C6530855F0C00D921E2 /* OwnedLimitRequestViewModel.swift in Sources */,
 				84A119E32778E3F30D9E131D /* RefreshCoordinator.swift in Sources */,
 				5DDD5E74F61DBC72928F68DD /* RefreshMetrics.swift in Sources */,
 				C12749ED61073F03BFBC28B1 /* ProfileService+AccountStatus.swift in Sources */,
