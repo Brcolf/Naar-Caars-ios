@@ -166,13 +166,16 @@ final class PerformanceImprovementsTests: XCTestCase {
         XCTAssertEqual(attemptCount, 3, "Should have 3 attempts")
         XCTAssertEqual(attemptTimes.count, 3, "Should record 3 attempt times")
         
-        // Check exponential backoff (each delay should be ~2x previous)
+        // Check exponential backoff: the helper sleeps initialDelay, then double it.
+        // Task.sleep never returns early, so each measured gap is at least its scheduled
+        // delay; compare against those lower bounds rather than the ratio of the two
+        // measurements, which a loaded runner breaks by overshooting the first sleep.
         if attemptTimes.count >= 3 {
             let delay1to2 = attemptTimes[1].timeIntervalSince(attemptTimes[0])
             let delay2to3 = attemptTimes[2].timeIntervalSince(attemptTimes[1])
             
-            // Second delay should be roughly double the first (allowing tolerance)
-            XCTAssertTrue(delay2to3 > delay1to2 * 1.5, "Exponential backoff should increase delay")
+            XCTAssertGreaterThanOrEqual(delay1to2, 0.09, "First retry should wait at least the initial delay (0.1 s)")
+            XCTAssertGreaterThanOrEqual(delay2to3, 0.18, "Second retry should wait at least double the initial delay (0.2 s)")
         }
     }
     
