@@ -277,7 +277,8 @@ struct CommunityMemberDetailView: View {
 
 // MARK: - Remove sheet
 
-/// Confirms a removal and takes the optional note the removed member sees.
+/// Confirms a removal and takes the optional note. Only the community's admins and platform
+/// moderators see it: the removal push has a fixed body and no screen shows the member their note.
 struct RemoveMemberSheet: View {
     let memberName: String
     let isActing: Bool
@@ -315,7 +316,7 @@ struct RemoveMemberSheet: View {
                                 if newValue.count > maxLength { note = String(newValue.prefix(maxLength)) }
                             }
                         HStack(alignment: .firstTextBaseline) {
-                            Text("community_member_remove_note_footer".localized)
+                            Text("community_member_remove_note_footer_admins".localized)
                                 .font(.naarsCaption)
                                 .foregroundColor(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)

@@ -59,7 +59,7 @@ Each needs the owner signed in on the simulator through the built-in panel, a se
 5. **The admin figures and announcements call the community RPCs** (`get_community_stats*`, `send_community_broadcast`); the platform panel's All scope reads every community. The legacy `send_broadcast_notifications` call and `BroadcastParams` are removed from the client.
 6. **Leaving as the last owner offers to choose a new owner**: the Members screen opens with a transfer banner, and the leaver becomes an admin.
 
-New community-admin surfaces: Members (search, removed list) and member detail (remove with a note seen only by the member and the community's admins, let back in, make admin or member, make owner); Community settings (name, description, manual approval, member invites, archive behind a confirmation); Reports; announcements to one community.
+New community-admin surfaces: Members (search, removed list) and member detail (remove with a note that only the community's admins and platform moderators see, since the removal push has a fixed body and no screen shows it to the member; let back in, make admin or member, make owner); Community settings (name, description, manual approval, member invites, archive behind a confirmation); Reports; announcements to one community.
 
 **Coordinator calls added** (both `forceFullRefreshAndWait` from ViewModels after an explicit action; `RefreshCoordinator.swift` unchanged): `(.dashboard, "removedMember")` after a removal and `(.dashboard, "archivedCommunity")` after an archive. No `invalidate` or `refreshIfNeeded` from a ViewModel. Realtime, `MessageSendManager`, reactions, SwiftData models and mappers, `BadgeCountManager`, `PushNotificationService` and the notification registry (33 types) are unchanged.
 

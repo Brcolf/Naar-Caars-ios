@@ -24,7 +24,8 @@ protocol CommunityAdminServiceProtocol: AnyObject {
     // MARK: Member management and settings (20261017_0005 blocks 11, 22-25). `userId` is always the
     // target member, never the caller.
 
-    /// Removes an active member; `reason` is the note the member sees (omitted when nil).
+    /// Removes an active member; `reason` is the removal note (omitted when nil). It is stored for the
+    /// community's admins and platform moderators; the app never shows it to the removed member.
     func removeMember(communityId: UUID, userId: UUID, reason: String?) async throws -> RemovalResult
     /// Lets a removed member back in as a member.
     func readmitMember(communityId: UUID, userId: UUID) async throws

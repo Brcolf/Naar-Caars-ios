@@ -1767,6 +1767,88 @@
         }
       }
     },
+    "admin_stat_fulfilled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fulfilled"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completadas"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã hoàn thành"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成"
+          }
+        }
+      }
+    },
+    "admin_stat_savings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Savings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ahorro"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "절약액"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiết kiệm"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "节省"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "節省"
+          }
+        }
+      }
+    },
     "community_action_create" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7544,6 +7626,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只有對方和此社群的管理員可以看到此備註。"
+          }
+        }
+      }
+    },
+    "community_member_remove_note_footer_admins" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only this community's admins and platform moderators see this note. The app doesn't show it to the person you remove."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo los administradores de esta comunidad y los moderadores de la plataforma ven esta nota. La app no se la muestra a la persona que eliminas."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 메모는 이 커뮤니티의 관리자와 플랫폼 운영자만 볼 수 있습니다. 내보내는 사람에게는 앱에서 표시되지 않습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ quản trị viên của cộng đồng này và người kiểm duyệt của nền tảng mới xem được ghi chú này. Ứng dụng không hiển thị ghi chú này cho người bị xóa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有此社区的管理员和平台审核员能看到此备注。应用不会向被移除的人显示此备注。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有此社群的管理員和平台審核員能看到此備註。App 不會向被移除的人顯示此備註。"
           }
         }
       }
