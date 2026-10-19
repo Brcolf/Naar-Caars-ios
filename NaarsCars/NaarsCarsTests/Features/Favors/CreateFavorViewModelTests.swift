@@ -80,4 +80,51 @@ final class CreateFavorViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.requiresCommunityChoice)
         XCTAssertEqual(viewModel.selectedCommunityId, CommunityFixtures.communityA)
     }
+
+    // MARK: - Community time zone default
+
+    private func favorContext(_ rows: [CommunityMembership]) -> (CommunityContext, UserDefaults, String) {
+        let suiteName = "CreateFavorViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let context = CommunityContext(service: StubCommunityService(result: .success([])), defaults: defaults)
+        context.debugSetMemberships(rows)
+        return (context, defaults, suiteName)
+    }
+
+    func testNewFavor_DefaultsToTheCommunityTimeZone() {
+        let (context, defaults, suite) = favorContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true, timezone: "America/Denver")
+        ])
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = CreateFavorViewModel(communityContext: context)
+        vm.configureCommunityChoice()
+        XCTAssertEqual(vm.timezone, "America/Denver")
+    }
+
+    func testNewFavor_SwitchingCommunityMovesAnUntouchedTimeZone() {
+        let (context, defaults, suite) = favorContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true, timezone: "America/Denver"),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "B", timezone: "America/New_York")
+        ])
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = CreateFavorViewModel(communityContext: context)
+        vm.configureCommunityChoice()
+        XCTAssertEqual(vm.timezone, "America/Denver")
+        vm.selectedCommunityId = CommunityFixtures.communityB
+        XCTAssertEqual(vm.timezone, "America/New_York")
+    }
+
+    func testNewFavor_KeepsATimeZoneThePersonChose() {
+        let (context, defaults, suite) = favorContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true, timezone: "America/Denver"),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "B", timezone: "America/New_York")
+        ])
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = CreateFavorViewModel(communityContext: context)
+        vm.configureCommunityChoice()
+        vm.chooseTimezone("America/Chicago")
+        vm.selectedCommunityId = CommunityFixtures.communityB
+        XCTAssertEqual(vm.timezone, "America/Chicago")
+        XCTAssertTrue(vm.didChooseTimezone)
+    }
 }

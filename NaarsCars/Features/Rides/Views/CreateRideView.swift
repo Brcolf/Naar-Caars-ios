@@ -99,7 +99,7 @@ struct CreateRideView: View {
                         accessibilityTitle: "ride_create_time_accessibility".localized
                     )
 
-                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
+                    TimeZonePicker(selectedTimezone: Binding(get: { viewModel.timezone }, set: { viewModel.chooseTimezone($0) }))
                 }
                 
                 Section("ride_create_section_route".localized) {

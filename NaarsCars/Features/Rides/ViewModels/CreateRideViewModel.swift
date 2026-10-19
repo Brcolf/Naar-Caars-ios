@@ -32,10 +32,14 @@ final class CreateRideViewModel: ObservableObject {
             if requiresCommunityChoice, oldValue != nil, oldValue != selectedCommunityId {
                 selectedParticipantIds = []
             }
+            if oldValue != selectedCommunityId { applyCommunityTimezoneDefault() }
         }
     }
     @Published private(set) var communityOptions: [CommunityMembership] = []
     
+    /// True once the person picked a time zone themselves; the community default then stays out of the way.
+    private(set) var didChooseTimezone = false
+
     @Published var isLoading: Bool = false
     @Published var error: String?
     
@@ -73,12 +77,37 @@ final class CreateRideViewModel: ObservableObject {
     func configureCommunityChoice() {
         guard communityContext.hasMultipleCommunities else {
             communityOptions = []
+            applyCommunityTimezoneDefault()
             return
         }
         communityOptions = communityContext.activeMemberships
         if selectedCommunityId == nil || !communityOptions.contains(where: { $0.communityId == selectedCommunityId }) {
             selectedCommunityId = communityContext.defaultPostCommunityId
         }
+        applyCommunityTimezoneDefault()
+    }
+
+    /// The picker's setter: records that the person chose the zone.
+    func chooseTimezone(_ id: String) {
+        timezone = id
+        didChooseTimezone = true
+    }
+
+    /// While creating and before the person picks a zone, follows the posting community's zone:
+    /// the selected community when the form asks, else the single active membership, else the old default.
+    func applyCommunityTimezoneDefault() {
+        guard editingOriginal == nil, !didChooseTimezone else { return }
+        let active = communityContext.activeMemberships
+        let zone: String?
+        if requiresCommunityChoice {
+            zone = communityContext.membership(for: selectedCommunityId)?.timezone
+        } else if active.count == 1 {
+            zone = active.first?.timezone
+        } else {
+            zone = nil
+        }
+        let resolved = zone ?? "America/Los_Angeles"
+        if timezone != resolved { timezone = resolved }
     }
 
     /// The confirmation button title; names the community while the "Post to" section shows.

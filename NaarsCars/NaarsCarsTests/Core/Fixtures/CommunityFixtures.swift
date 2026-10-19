@@ -371,7 +371,8 @@ enum CommunityFixtures {
         isDefault: Bool = false,
         joinPolicy: String = "invite",
         notificationsMuted: Bool = false,
-        canInvite: Bool = true
+        canInvite: Bool = true,
+        timezone: String = "America/Los_Angeles"
     ) -> CommunityMembership {
         CommunityMembership(
             communityId: id,
@@ -384,7 +385,7 @@ enum CommunityFixtures {
             isPublic: false,
             isDefault: isDefault,
             membersCanInvite: true,
-            timezone: "America/Los_Angeles",
+            timezone: timezone,
             canInvite: canInvite,
             memberCount: memberCount,
             pendingCount: pendingCount,

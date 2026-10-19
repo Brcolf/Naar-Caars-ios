@@ -152,7 +152,7 @@ struct CreateFavorView: View {
                         )
                     }
 
-                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
+                    TimeZonePicker(selectedTimezone: Binding(get: { viewModel.timezone }, set: { viewModel.chooseTimezone($0) }))
                 }
                 
                 Section("favor_create_section_details".localized) {
