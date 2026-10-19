@@ -2066,7 +2066,8 @@ select 'PROBE posts_delete_policy OK' as probe;
 -- phase4_registry (Phase 4, 20261019_0001): the CHECK accepts membership_update and still refuses an unknown
 -- type; should_notify_user answers true for it; create_community stores a known p_timezone, falls back to the
 -- column default for an unknown or missing one, and the Phase 2 / 3 three-argument call still resolves; the
--- renamed old overload (create_community_pre_p4, until the owner runs block 4) is callable by nobody; anon is refused.
+-- renamed old overload (create_community_pre_p4, which existed between block 3 and the owner's block 4 on
+-- 2026-10-19; the check is skipped once it is gone) is callable by nobody; anon is refused.
 -- =============================================================================================================
 begin;
 do $probe$

@@ -1,6 +1,6 @@
 -- 20261019_0001_phase4_registry_and_timezone.sql
 --
--- APPLIED 2026-10-19, blocks 1-3 (Supabase MCP apply_migration, one call per block; migration-history versions
+-- APPLIED 2026-10-19, all four blocks. Blocks 1-3 through the Supabase MCP apply_migration, one call per block (migration-history versions
 -- 20261019170958 20261019_0001_block_1, 20261019171054 20261019_0001_block_2, 20261019171309
 -- 20261019_0001_block_2_exact, 20261019171329 20261019_0001_block_3). Deployed md5(prosrc): should_notify_user
 -- f31e9deafd9adb48a7a4f57849d5522d, create_community(text, text, text, text) b499c74a3371cc051f02a4bcd19b54f3; both
@@ -9,9 +9,11 @@
 -- file's text byte for byte. Block 3 deviates from the plan: the MCP (execute_sql and apply_migration alike)
 -- declines DROP FUNCTION, so the three-argument overload was renamed to public.create_community_pre_p4 and stripped
 -- of every EXECUTE grant in the same call that created the four-argument function (block 3 below is the text that
--- ran; create_community was never missing and never ambiguous). BLOCK 4 (NOT APPLIED, SQL editor, owner) drops the
--- renamed function; until then it exists, callable by nobody but postgres (routine_privileges: postgres:EXECUTE),
--- and P5 ("exactly one create_community") already holds.
+-- ran; create_community was never missing and never ambiguous). Block 4, the drop of the renamed function, was run
+-- by the owner in the SQL editor later the same day (not in the migration history); verified through the MCP right
+-- after: create_community_pre_p4 is gone, create_community(text, text, text, text) keeps md5 b499c74a… and its
+-- grants (authenticated, service_role). Between the two steps the renamed function was callable by nobody but
+-- postgres, and P5 ("exactly one create_community") held throughout.
 -- Phase 4 of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
 -- §4 "Phase 4"), under the owner's decisions (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md,
 -- amendment A5, which wins where they differ).
@@ -60,11 +62,9 @@
 -- call resolves to the new function with p_timezone null.
 --
 -- Rollback, in reverse order: create_community — drop function public.create_community(text, text, text, text)
--- (SQL editor), then, while block 4 has not run, alter function public.create_community_pre_p4(text, text, text)
--- rename to create_community and grant execute to authenticated, service_role; after block 4, the three-argument
--- body from 20261017_0005 block 8 with its grants (only while no client sends p_timezone: after the Phase 4 client
--- ships, a rollback breaks its Create); should_notify_user from 20261017_0001 call 1h.1; the CHECK without
--- 'membership_update' (only while no row has that type).
+-- (SQL editor), then the three-argument body from 20261017_0005 block 8 with its grants (only while no client
+-- sends p_timezone: after the Phase 4 client ships, a rollback breaks its Create); should_notify_user from
+-- 20261017_0001 call 1h.1; the CHECK without 'membership_update' (only while no row has that type).
 
 
 -- ============================================================================================
@@ -271,9 +271,9 @@ notify pgrst, 'reload schema';
 
 
 -- ============================================================================================
--- BLOCK 4: drop the renamed three-argument overload   ** NOT APPLIED. SQL editor (owner): the MCP declines
---          DROP FUNCTION. **
--- Nothing depends on it: the function has no EXECUTE grant (postgres only), PostgREST does not expose it to any
--- client role, and create_community resolves to the four-argument function for every caller. Run when convenient.
+-- BLOCK 4: drop the renamed three-argument overload   APPLIED 2026-10-19 by the owner in the SQL editor (the MCP
+--          declines DROP FUNCTION), verified through the MCP afterwards.
+-- Nothing depended on it: the function had no EXECUTE grant (postgres only), PostgREST did not expose it to any
+-- client role, and create_community resolved to the four-argument function for every caller.
 -- ============================================================================================
 drop function public.create_community_pre_p4(text, text, text);
