@@ -76,7 +76,8 @@
 -- EXECUTE: is_community_staff none of anon / authenticated, the others authenticated only. community_moderation
 -- and admin_community_reports passed after block 8 and again after 20261018_0002 block 10, each rolled back, and no
 -- probe account, community, post, ride, report, moderation event or notification was left behind.
--- posts_delete_policy has NOT been run (owner step, SQL editor).
+-- posts_delete_policy was run by the owner in the Supabase SQL editor on 2026-10-18 (rolled back) and passed, so
+-- every Phase 3 probe block has now passed against the live project.
 --
 -- What old clients see. Installed build: platform admins get the same rows and pushes as before, and a report a
 -- community admin hid or dismissed is still pending in Admin → Reports; one whose content a community admin hid
