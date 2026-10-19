@@ -241,7 +241,12 @@ final class RequestsDashboardViewModel: ObservableObject {
         filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: communityContext.requestsScope)
         filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: communityContext.requestsScope)
         filteredRequests = filterManager.getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filter)
-        otherCommunitiesCount = filterManager.countOutsideScope(in: context, filter: filter, scope: communityContext.requestsScope)
+        // A narrow can outlive the second membership (the scope resets only when the narrowed
+        // community goes), and the person's own rows from a community they left are still read,
+        // so the hint is gated on the membership count, not only on the count of rows.
+        otherCommunitiesCount = communityContext.hasMultipleCommunities
+            ? filterManager.countOutsideScope(in: context, filter: filter, scope: communityContext.requestsScope)
+            : 0
         refreshFilterBadgeCounts()
     }
 

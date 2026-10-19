@@ -171,7 +171,7 @@ struct RequestsDashboardView: View {
             ScrollView {
                 LazyVStack(spacing: Constants.Spacing.md, pinnedViews: [.sectionHeaders]) {
                     Section(header: filterHeaderView) {
-                        if viewModel.otherCommunitiesCount > 0 {
+                        if communityContext.hasMultipleCommunities && viewModel.otherCommunitiesCount > 0 {
                             otherCommunitiesHint(count: viewModel.otherCommunitiesCount)
                         }
                         if viewModel.isLoading && filteredRequests.isEmpty {
