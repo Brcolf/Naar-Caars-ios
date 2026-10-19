@@ -201,6 +201,10 @@ struct WelcomeView: View {
             }
         }
         .trackScreen("Welcome")
+        // A join link opened while Welcome is on screen shows the banner without a relaunch.
+        .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
+            savedInviteCode = pendingInviteStore.peek()
+        }
         .task {
             savedInviteCode = pendingInviteStore.peek()
             // A guest who chose "Sign In" continues to the sign-in form instead of having

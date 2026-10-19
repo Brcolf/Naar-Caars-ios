@@ -12,22 +12,25 @@ final class PendingInviteStoreTests: XCTestCase {
     private var suiteName: String!
     private var defaults: UserDefaults!
     private var now = Date(timeIntervalSince1970: 1_790_000_000)
+    private var center: NotificationCenter!
 
     override func setUp() {
         super.setUp()
         suiteName = "PendingInviteStoreTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
+        center = NotificationCenter()
     }
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         suiteName = nil
+        center = nil
         super.tearDown()
     }
 
     private func makeStore() -> PendingInviteStore {
-        PendingInviteStore(defaults: defaults, now: { [unowned self] in self.now })
+        PendingInviteStore(defaults: defaults, now: { [unowned self] in self.now }, notificationCenter: center)
     }
 
     func testSave_StoresNormalizedCode() {
@@ -68,5 +71,176 @@ final class PendingInviteStoreTests: XCTestCase {
         store.clear()
         XCTAssertNil(defaults.object(forKey: PendingInviteStore.codeKey))
         XCTAssertNil(defaults.object(forKey: PendingInviteStore.savedAtKey))
+    }
+
+    // MARK: - didChange
+
+    private func countPosts(_ body: () -> Void) -> Int {
+        var count = 0
+        let token = center.addObserver(forName: PendingInviteStore.didChange, object: nil, queue: nil) { _ in
+            count += 1
+        }
+        body()
+        center.removeObserver(token)
+        return count
+    }
+
+    func testSave_PostsDidChange() {
+        let store = makeStore()
+        XCTAssertEqual(countPosts { store.save("NC7K2PQ9XA") }, 1)
+        // An input that normalizes to nothing stores nothing and posts nothing.
+        XCTAssertEqual(countPosts { store.save(" - ") }, 0)
+    }
+
+    func testClear_PostsDidChangeOnlyWhenACodeWasStored() {
+        let store = makeStore()
+        XCTAssertEqual(countPosts { store.clear() }, 0)
+        store.save("NC7K2PQ9XA")
+        XCTAssertEqual(countPosts { store.clearIfMatches("NC2222222A") }, 0)
+        XCTAssertEqual(countPosts { store.clearIfMatches("NC7K2PQ9XA") }, 1)
+        store.save("NC7K2PQ9XA")
+        XCTAssertEqual(countPosts { store.clear() }, 1)
+        XCTAssertEqual(countPosts { store.clear() }, 0)
+    }
+}
+
+// MARK: - IncomingLinkHandler
+//
+// Join links handed to the scene: the code is saved first, then routed by launch state.
+
+@MainActor
+final class IncomingLinkHandlerTests: XCTestCase {
+    private let coordinator = NavigationCoordinator.shared
+    private let code = "NC7K2PQ9XA"
+    private var suiteName = ""
+    private var defaults: UserDefaults!
+    private var store: PendingInviteStore!
+    private var state: LaunchState = .initializing
+
+    override func setUp() {
+        super.setUp()
+        suiteName = "IncomingLinkHandlerTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+        store = PendingInviteStore(defaults: defaults, notificationCenter: NotificationCenter())
+        state = .initializing
+        coordinator.resetNavigation()
+        coordinator.selectedTab = .requests
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        store = nil
+        coordinator.resetNavigation()
+        coordinator.selectedTab = .requests
+        super.tearDown()
+    }
+
+    private func makeHandler() -> IncomingLinkHandler {
+        IncomingLinkHandler(store: store, coordinator: coordinator, launchState: { [unowned self] in self.state })
+    }
+
+    private func joinURL(_ code: String) -> URL {
+        URL(string: "https://naarscars.com/join#\(code)")!
+    }
+
+    private var routedToJoin: Bool {
+        if case .joinCommunity = coordinator.pendingIntent { return true }
+        return false
+    }
+
+    func testAuthenticated_SavesCodeAndRoutesJoinIntent() {
+        state = .ready(.authenticated)
+        let decision = makeHandler().handle(joinURL(code))
+        XCTAssertEqual(decision, .route)
+        XCTAssertEqual(store.peek(), code)
+        XCTAssertTrue(routedToJoin)
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+    }
+
+    func testGuest_SavesCodeAndRoutesJoinIntent() {
+        state = .ready(.guest)
+        XCTAssertEqual(makeHandler().handle(joinURL(code)), .route)
+        XCTAssertEqual(store.peek(), code)
+        XCTAssertTrue(routedToJoin)
+    }
+
+    func testSignedOut_SavesCodeWithoutRouting() {
+        state = .ready(.unauthenticated)
+        XCTAssertEqual(makeHandler().handle(joinURL(code)), .saveOnly)
+        XCTAssertEqual(store.peek(), code)
+        XCTAssertNil(coordinator.pendingIntent)
+    }
+
+    func testNeedsApplication_SavesCodeWithoutRouting() {
+        state = .ready(.needsApplication)
+        XCTAssertEqual(makeHandler().handle(joinURL(code)), .saveOnly)
+        XCTAssertEqual(store.peek(), code)
+        XCTAssertNil(coordinator.pendingIntent)
+        for other: AuthState in [.pendingApproval, .banned, .loading] {
+            XCTAssertEqual(IncomingLinkHandler.decision(for: .ready(other)), .saveOnly)
+        }
+    }
+
+    func testNotReady_DefersAndReplaysOnceWhenGuest() {
+        state = .initializing
+        let handler = makeHandler()
+        XCTAssertEqual(handler.handle(joinURL(code)), .defer)
+        XCTAssertEqual(store.peek(), code)
+        XCTAssertNil(coordinator.pendingIntent)
+
+        handler.launchStateDidChange(.checkingAuth)
+        XCTAssertNil(coordinator.pendingIntent, "still not ready: stays deferred")
+
+        handler.launchStateDidChange(.ready(.guest))
+        XCTAssertTrue(routedToJoin)
+
+        coordinator.resetNavigation()
+        handler.launchStateDidChange(.ready(.guest))
+        XCTAssertNil(coordinator.pendingIntent, "a deferred link is replayed once")
+    }
+
+    func testNotReady_AuthenticatedReplayDoesNotRouteTwice() {
+        state = .checkingAuth
+        let handler = makeHandler()
+        XCTAssertEqual(handler.handle(joinURL(code)), .defer)
+        handler.launchStateDidChange(.ready(.authenticated))
+        // MainTabView's offerPendingInviteIfNeeded opens My communities from the store.
+        XCTAssertNil(coordinator.pendingIntent)
+        XCTAssertEqual(store.peek(), code)
+        XCTAssertEqual(IncomingLinkHandler.replayDecision(for: .ready(.authenticated)), .saveOnly)
+        XCTAssertEqual(IncomingLinkHandler.replayDecision(for: .failed(AppError.unknown("x"))), .defer)
+    }
+
+    func testNonJoinURL_IsIgnoredAndSavesNothing() {
+        state = .ready(.authenticated)
+        let handler = makeHandler()
+        XCTAssertNil(handler.handle(URL(string: "https://naarscars.com/other")!))
+        XCTAssertNil(handler.handle(URL(string: "https://naarscars.com/join?code=\(code)")!))
+        XCTAssertNil(store.peek())
+        XCTAssertNil(coordinator.pendingIntent)
+    }
+
+    func testSecondLinkReplacesTheSavedCode() {
+        state = .ready(.unauthenticated)
+        let handler = makeHandler()
+        handler.handle(joinURL(code))
+        handler.handle(joinURL("NC2222222A"))
+        XCTAssertEqual(store.peek(), "NC2222222A")
+    }
+
+    // MARK: - MyCommunitiesView's store-change rule
+
+    func testStoreChange_OpensJoinWhenVisibleWithNoSheet() {
+        XCTAssertEqual(
+            MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: code, hasSheet: false, isVisible: true),
+            code
+        )
+    }
+
+    func testStoreChange_NeverOpensUnderASheetOrWhenHidden() {
+        XCTAssertNil(MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: code, hasSheet: true, isVisible: true))
+        XCTAssertNil(MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: code, hasSheet: false, isVisible: false))
+        XCTAssertNil(MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: nil, hasSheet: false, isVisible: true))
     }
 }

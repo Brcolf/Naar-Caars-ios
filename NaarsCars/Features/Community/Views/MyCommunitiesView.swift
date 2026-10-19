@@ -49,6 +49,9 @@ struct MyCommunitiesView: View {
     @State private var storedInviteCode: String? = PendingInviteStore().peek()
     /// A saved code opens the Join sheet by itself once per view lifetime.
     @State private var didAutoOpenStoredCode = false
+    /// False while a screen is pushed on top (Admin panel, Members) or this one is popped, so a
+    /// hidden copy never presents the Join sheet on a store change.
+    @State private var isVisible = false
 
     @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -138,6 +141,21 @@ struct MyCommunitiesView: View {
             }
             await viewModel.load()
         }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        // A join link opened while this screen is up. With a sheet up or a screen pushed on top the
+        // code only refreshes the saved-code row, whose Use button stays the way in.
+        .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
+            storedInviteCode = PendingInviteStore().peek()
+            if let code = Self.joinCodeToOpenOnStoreChange(
+                storedCode: storedInviteCode,
+                hasSheet: activeSheet != nil,
+                isVisible: isVisible
+            ) {
+                didAutoOpenStoredCode = true
+                openJoin(with: code)
+            }
+        }
         .refreshable { await viewModel.load() }
         .sheet(item: $activeSheet, onDismiss: sheetDismissed) { sheet in
             sheetContent(sheet)
@@ -214,6 +232,13 @@ struct MyCommunitiesView: View {
     private func openJoin(with code: String) {
         joinPrefilledCode = code
         activeSheet = .join
+    }
+
+    /// The code to open the Join sheet with after a store change: only when one is saved, no sheet
+    /// is up and this screen is the visible one. Pure, for tests.
+    static func joinCodeToOpenOnStoreChange(storedCode: String?, hasSheet: Bool, isVisible: Bool) -> String? {
+        guard let storedCode, !hasSheet, isVisible else { return nil }
+        return storedCode
     }
 
     // MARK: - Limit

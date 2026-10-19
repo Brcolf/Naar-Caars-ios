@@ -90,6 +90,22 @@ struct NaarsCarsApp: App {
                     Color(.systemBackground)
                 }
             }
+            // Universal Links (https://naarscars.com/join#<code>) arrive at the scene, not the
+            // AppDelegate (the app declares a scene manifest). The handler saves the code first.
+            .onOpenURL { url in
+                IncomingLinkHandler.shared.handle(url)
+            }
+            #if DEBUG
+            // `-debugIncomingURL <url>`: exercises the incoming-link path in the simulator without
+            // the hosted apple-app-site-association file. Once per process.
+            .task {
+                guard !Self.didHandleDebugIncomingURL,
+                      let raw = UserDefaults.standard.string(forKey: "debugIncomingURL"),
+                      let url = URL(string: raw) else { return }
+                Self.didHandleDebugIncomingURL = true
+                IncomingLinkHandler.shared.handle(url)
+            }
+            #endif
             .alert("app_data_error_title".localized, isPresented: $showDataError) {
                 Button("app_clear_local_data".localized, role: .destructive) {
                     clearLocalDataAndRetry()
@@ -100,6 +116,10 @@ struct NaarsCarsApp: App {
         }
     }
     
+    #if DEBUG
+    @MainActor private static var didHandleDebugIncomingURL = false
+    #endif
+
     // MARK: - SwiftData Helpers
     
     /// Creates a ModelContainer for all SwiftData models.

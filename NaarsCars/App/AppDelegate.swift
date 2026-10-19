@@ -38,12 +38,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         #if DEBUG
         FirstTapPerfLogger.startKeyboardObserver()
         #endif
-        
-        // Handle deep link if app was opened via URL
-        if let url = launchOptions?[.url] as? URL {
-            handleURL(url)
-        }
-        
+
+        // Incoming URLs (Universal Links) reach the scene, not the delegate: NaarsCarsApp's
+        // `.onOpenURL` hands them to IncomingLinkHandler.
         return true
     }
 
@@ -120,19 +117,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         } catch {
             AppLogger.error("app", "Could not schedule app refresh: \(error)")
         }
-    }
-    
-    // MARK: - URL Handling
-    
-    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-        handleURL(url)
-        return true
-    }
-    
-    private func handleURL(_ url: URL) {
-        AppLogger.info("app", "Received URL: \(url.absoluteString)")
-        // Legacy /signup?code=CODE deep links are no longer handled (invite codes removed).
-        // New signup flow is through the public WelcomeView.
     }
     
     // MARK: - Remote Notification Registration

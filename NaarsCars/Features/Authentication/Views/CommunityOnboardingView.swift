@@ -84,6 +84,10 @@ struct CommunityOnboardingView: View {
             // enabled (after the name step); only a redemption or a dead code clears the store.
             viewModel.prefilledCode = PendingInviteStore().peek()
         }
+        // A join link opened while onboarding is on screen: the join options open the new code.
+        .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
+            viewModel.prefilledCode = PendingInviteStore().peek()
+        }
         .trackScreen("CommunityOnboarding")
     }
 
