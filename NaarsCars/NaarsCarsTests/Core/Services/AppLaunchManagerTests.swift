@@ -133,6 +133,33 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertEqual(suite.string(forKey: "community.tab.\(uid)"), CommunityFixtures.communityB.uuidString)
     }
 
+    func testChipText_IgnoringScopeNamesTheCommunityWithTwoMemberships() {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let (ctx, _) = makeContext()
+        ctx.debugSetMemberships([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ])
+        ctx.requestsScope = .community(b)
+
+        XCTAssertEqual(ctx.chipText(for: b, respectingScope: false), "B")
+        XCTAssertNil(ctx.chipText(for: b, respectingScope: true), "a narrowed Requests list hides its own chips")
+    }
+
+    func testChipText_NilWithOneMembershipOrUnknownCommunity() {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let (ctx, _) = makeContext()
+        ctx.debugSetMemberships([CommunityFixtures.membership(a, name: "A", isPrimary: true)])
+        XCTAssertNil(ctx.chipText(for: a, respectingScope: false), "one membership shows no chip")
+
+        ctx.debugSetMemberships([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ])
+        XCTAssertNil(ctx.chipText(for: UUID(), respectingScope: false))
+        XCTAssertNil(ctx.chipText(for: nil, respectingScope: false))
+    }
+
     func testCommunityContext_ResetForSignOutRemovesPersistedKeys() async {
         let uid = UUID()
         let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB

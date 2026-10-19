@@ -195,7 +195,8 @@ struct NotificationsListView: View {
         NotificationRow(
             notification: group.primaryNotification,
             isReadOverride: !group.hasUnread,
-            groupCount: group.totalCount
+            groupCount: group.totalCount,
+            communityChipText: CommunityContext.shared.chipText(for: group.primaryNotification.communityId, respectingScope: false)
         ) {
             if NotificationGrouping.announcementTypes.contains(group.primaryNotification.type) {
                 AppLogger.info("notifications", "[NotificationsListView] Notification tapped type=announcement id=\(group.primaryNotification.id)")
