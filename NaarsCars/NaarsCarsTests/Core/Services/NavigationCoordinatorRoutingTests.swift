@@ -302,4 +302,94 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertFalse(coordinator.intentIsAdminOnly(.myCommunities))
         XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .profile)
     }
+
+    // MARK: - content_reported and account_restricted (multi-community Phase 3)
+
+    func testApplyPushDeepLink_CommunityReportsSetsIntentForProfileTab() {
+        let communityId = UUID()
+        coordinator.applyPushDeepLink(.communityReports(communityId: communityId))
+        XCTAssertEqual(coordinator.pendingIntent, .communityReports(communityId))
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+
+        coordinator.resetNavigation()
+        coordinator.applyPushDeepLink(.myCommunities)
+        XCTAssertEqual(coordinator.pendingIntent, .myCommunities)
+    }
+
+    func testDeferredOpenCommunityReports_SelectsProfileTab() {
+        let communityId = UUID()
+        coordinator.deferNotificationIntent(.openCommunityReports(communityId: communityId))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
+        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent, .communityReports(communityId))
+
+        coordinator.resetNavigation()
+        coordinator.selectedTab = .requests
+        coordinator.deferNotificationIntent(.openMyCommunities)
+        coordinator.applyDeferredNotificationIntentIfNeeded()
+        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent, .myCommunities)
+    }
+
+    func testRouter_ContentReportedRowForCommunityAdminOpensCommunityReports() {
+        let communityId = UUID()
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .contentReported,
+            title: "t",
+            townHallPostId: UUID(),
+            communityId: communityId
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter(isPlatformAdmin: { false }).notificationIntent(for: notification),
+            .openCommunityReports(communityId: communityId)
+        )
+    }
+
+    /// A platform admin's bell row carries a derived community too; it keeps the platform list.
+    func testRouter_ContentReportedRowForPlatformAdminOpensAdminReports() {
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .contentReported,
+            title: "t",
+            townHallPostId: UUID(),
+            communityId: UUID()
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter(isPlatformAdmin: { true }).notificationIntent(for: notification),
+            .openAdminReports
+        )
+    }
+
+    func testRouter_ContentReportedRowWithoutCommunityOpensAdminReports() {
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .contentReported,
+            title: "t"
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter(isPlatformAdmin: { false }).notificationIntent(for: notification),
+            .openAdminReports
+        )
+    }
+
+    func testRouter_AccountRestrictedRowOpensMyCommunities() {
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .accountRestricted,
+            title: "t",
+            communityId: UUID()
+        )
+        XCTAssertEqual(
+            NotificationNavigationRouter(isPlatformAdmin: { false }).notificationIntent(for: notification),
+            .openMyCommunities
+        )
+    }
+
+    func testCommunityReportsIsAdminOnlyForGuests() {
+        let reports = NavigationIntent.communityReports(UUID())
+        XCTAssertTrue(coordinator.intentIsAdminOnly(reports))
+        XCTAssertFalse(coordinator.intentRequiresAuth(reports))
+        XCTAssertEqual(reports.targetTab, .profile)
+    }
 }

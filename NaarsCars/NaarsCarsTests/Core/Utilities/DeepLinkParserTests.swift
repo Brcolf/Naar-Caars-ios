@@ -331,4 +331,66 @@ final class DeepLinkParserTests: XCTestCase {
         XCTAssertEqual(idWithout, postId)
         XCTAssertNil(communityWithout)
     }
+
+    // MARK: - content_reported and account_restricted (multi-community Phase 3)
+
+    /// A community owner's or admin's `content_reported` push carries `community_id` and opens
+    /// that community's reports.
+    func testParse_ContentReportedWithCommunityIdRoutesToCommunityReports() {
+        let communityId = UUID()
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "content_reported",
+            "report_id": UUID().uuidString,
+            "target_type": "town_hall_post",
+            "town_hall_post_id": UUID().uuidString,
+            "community_id": communityId.uuidString
+        ])
+
+        guard case .communityReports(let routedId) = deepLink else {
+            return XCTFail("Expected .communityReports deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, communityId)
+    }
+
+    /// A platform admin's push has no `community_id` and keeps the platform reports route.
+    func testParse_ContentReportedWithoutCommunityIdStaysAdminReports() {
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "content_reported",
+            "report_id": UUID().uuidString,
+            "target_type": "town_hall_post",
+            "town_hall_post_id": UUID().uuidString
+        ])
+
+        guard case .adminReports = deepLink else {
+            return XCTFail("Expected .adminReports deep link, got \(deepLink)")
+        }
+    }
+
+    /// A `community_id` that is not a UUID keeps the platform route.
+    func testParse_ContentReportedWithMalformedCommunityIdStaysAdminReports() {
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "content_reported",
+            "community_id": "not-a-uuid"
+        ])
+
+        guard case .adminReports = deepLink else {
+            return XCTFail("Expected .adminReports deep link, got \(deepLink)")
+        }
+    }
+
+    /// A removal (`account_restricted`) opens My communities, with or without `community_id`.
+    func testParse_AccountRestrictedRoutesToMyCommunities() {
+        let withCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "account_restricted",
+            "community_id": UUID().uuidString
+        ])
+        guard case .myCommunities = withCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(withCommunity)")
+        }
+
+        let withoutCommunity = DeepLinkParser.parse(userInfo: ["type": "account_restricted"])
+        guard case .myCommunities = withoutCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(withoutCommunity)")
+        }
+    }
 }

@@ -21,6 +21,10 @@ enum DeepLink {
     /// A community's Requests to join (`pending_approval` carrying `community_id`).
     case pendingMembers(communityId: UUID)
     case adminReports
+    /// A community's reports (`content_reported` carrying `community_id`: a community owner's or admin's push).
+    case communityReports(communityId: UUID)
+    /// My communities (`account_restricted`: removed from a community).
+    case myCommunities
     case dashboard
     case notifications
     case announcements(notificationId: UUID?)
@@ -109,7 +113,12 @@ struct DeepLinkParser {
             }
             return .pendingUsers
 
+        // Two audiences: a community owner's or admin's push carries `community_id` and opens
+        // that community's reports; a platform admin's push has none and keeps the platform list.
         case "content_reported":
+            if let communityId = communityId(from: userInfo) {
+                return .communityReports(communityId: communityId)
+            }
             return .adminReports
 
         case "content_hidden":
@@ -141,6 +150,11 @@ struct DeepLinkParser {
         // User rejected - no destination (user cannot enter the app)
         case "user_rejected":
             return .notifications
+
+        // Removed from a community: My communities. A session that just lost its last community
+        // is moved to onboarding by the membership refresh every such push triggers.
+        case "account_restricted":
+            return .myCommunities
             
         case "dashboard":
             return .dashboard

@@ -23,6 +23,8 @@ enum NotificationIntent: Equatable {
     case openPendingUsers
     case openPendingMembers(communityId: UUID)
     case openAdminReports
+    case openCommunityReports(communityId: UUID)
+    case openMyCommunities
     case openDashboard
 }
 
@@ -204,6 +206,12 @@ final class NavigationCoordinator {
         case .adminReports:
             pendingIntent = .adminReports
 
+        case .communityReports(let communityId):
+            pendingIntent = .communityReports(communityId)
+
+        case .myCommunities:
+            pendingIntent = .myCommunities
+
         case .notifications:
             pendingIntent = .notifications
 
@@ -273,6 +281,14 @@ final class NavigationCoordinator {
             return false
         case .adminReports:
             if case .adminReports = pendingIntent { return true }
+            return false
+        case .communityReports(let id):
+            if case .communityReports(let currentId) = pendingIntent {
+                return currentId == id
+            }
+            return false
+        case .myCommunities:
+            if case .myCommunities = pendingIntent { return true }
             return false
         case .notifications:
             if case .notifications = pendingIntent { return true }
@@ -353,6 +369,12 @@ final class NavigationCoordinator {
         case .openAdminReports:
             pendingIntent = .adminReports
             selectedTab = .profile
+        case .openCommunityReports(let communityId):
+            pendingIntent = .communityReports(communityId)
+            selectedTab = .profile
+        case .openMyCommunities:
+            pendingIntent = .myCommunities
+            selectedTab = .profile
         case .openDashboard:
             pendingIntent = .dashboard
             selectedTab = .requests
@@ -363,7 +385,7 @@ final class NavigationCoordinator {
 
     /// Returns true if this intent requires an authenticated user.
     /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll)
-    /// pass through. Admin-only intents (adminPanel, pendingUsers, pendingMembers, adminReports)
+    /// pass through. Admin-only intents (adminPanel, pendingUsers, pendingMembers, adminReports, communityReports)
     /// are treated as silently ignorable — guests should never encounter them via deep link.
     func intentRequiresAuth(_ intent: NavigationIntent) -> Bool {
         switch intent {
@@ -371,7 +393,7 @@ final class NavigationCoordinator {
             return false
         case .conversation, .announcements, .notifications, .myCommunities:
             return true
-        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports:
+        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports:
             // Admin-only: silently ignore rather than prompt
             return false
         }
@@ -380,7 +402,7 @@ final class NavigationCoordinator {
     /// Returns true if the intent is admin-only and should be silently dropped for guests.
     func intentIsAdminOnly(_ intent: NavigationIntent) -> Bool {
         switch intent {
-        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports:
+        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports:
             return true
         default:
             return false

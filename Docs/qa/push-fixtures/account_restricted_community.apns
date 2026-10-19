@@ -1,0 +1,11 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Removed from a community",
+      "body": "Fixture: account_restricted with community_id"
+    },
+    "sound": "default"
+  },
+  "type": "account_restricted",
+  "community_id": "<COMMUNITY_ID>"
+}

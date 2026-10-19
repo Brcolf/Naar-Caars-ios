@@ -13,9 +13,16 @@ import Observation
 @Observable
 final class NotificationNavigationRouter {
     private let authService: AuthService
+    /// Decides which list a `content_reported` row opens: a platform admin's bell row carries a
+    /// derived community too, and keeps the platform reports list.
+    private let isPlatformAdmin: @MainActor () -> Bool
 
-    init(authService: AuthService = .shared) {
+    init(
+        authService: AuthService = .shared,
+        isPlatformAdmin: @escaping @MainActor () -> Bool = { AuthService.shared.currentProfile?.isAdmin == true }
+    ) {
         self.authService = authService
+        self.isPlatformAdmin = isPlatformAdmin
     }
 
     func handleNotificationTap(
@@ -133,6 +140,11 @@ final class NotificationNavigationRouter {
             }
             return .openPendingUsers
         case .contentReported:
+            // A community owner's or admin's row (carries `community_id`) opens that community's
+            // reports; a platform admin's, or a row with no community, the platform list.
+            if !isPlatformAdmin(), let communityId = notification.communityId {
+                return .openCommunityReports(communityId: communityId)
+            }
             return .openAdminReports
         case .contentHidden:
             if let conversationId = notification.conversationId {
@@ -160,6 +172,10 @@ final class NotificationNavigationRouter {
             return .openDashboard
         case .userRejected:
             return nil
+        case .accountRestricted:
+            // Removed from a community: My communities (onboarding follows the membership
+            // refresh when it was the last one).
+            return .openMyCommunities
         case .adminAnnouncement, .announcement, .broadcast:
             return nil
         case .other:

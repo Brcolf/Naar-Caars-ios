@@ -36,6 +36,8 @@ struct MyProfileView: View {
     @State private var pendingMembersTarget: PendingMembersTarget?
     /// My communities opened from a `.myCommunities` intent.
     @State private var showMyCommunities = false
+    /// A community's reports opened from a `.communityReports` intent (`content_reported`).
+    @State private var communityReportsTarget: UUID?
     @State private var showAdminPanel = false
     @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
@@ -161,7 +163,8 @@ struct MyProfileView: View {
                     // used to switch here without being applied, and the intent stayed set.
                     if let intent = navigationCoordinator.pendingIntent {
                         switch intent {
-                        case .pendingUsers, .pendingMembers, .myCommunities, .adminPanel, .adminReports, .profile:
+                        case .pendingUsers, .pendingMembers, .myCommunities, .adminPanel, .adminReports,
+                             .communityReports, .profile:
                             applyProfileIntent(intent, proxy: proxy)
                         default:
                             break
@@ -205,6 +208,9 @@ struct MyProfileView: View {
             }
             .navigationDestination(isPresented: $showMyCommunities) {
                 MyCommunitiesView()
+            }
+            .navigationDestination(item: $communityReportsTarget) { communityId in
+                CommunityReportsView(communityId: communityId, communityName: CommunityContext.shared.name(for: communityId))
             }
             .navigationDestination(isPresented: $showAdminPanel) {
                 AdminPanelView(autoOpenReports: autoOpenAdminReports, onCommunityArchived: { toastMessage = $0 })
@@ -741,6 +747,9 @@ struct MyProfileView: View {
         case .adminReports:
             autoOpenAdminReports = true
             showAdminPanel = true
+            navigationCoordinator.pendingIntent = nil
+        case .communityReports(let communityId):
+            communityReportsTarget = communityId
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):
             if userId == AuthService.shared.currentUserId {
