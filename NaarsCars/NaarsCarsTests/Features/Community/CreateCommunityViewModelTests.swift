@@ -34,14 +34,52 @@ final class CreateCommunityViewModelTests: XCTestCase {
 final class CommunityInviteViewModelTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_790_000_000)
 
-    private func makeViewModel(isAdmin: Bool, stub: StubCommunityService) -> CommunityInviteViewModel {
+    private func makeViewModel(
+        isAdmin: Bool,
+        stub: StubCommunityService,
+        inviteLinksEnabled: Bool = false
+    ) -> CommunityInviteViewModel {
         CommunityInviteViewModel(
             communityId: CommunityFixtures.communityA,
             communityName: "Community A",
             isAdmin: isAdmin,
+            inviteLinksEnabled: inviteLinksEnabled,
             service: stub,
             now: { self.now }
         )
+    }
+
+    private func makeViewModelWithCode(inviteLinksEnabled: Bool) async -> CommunityInviteViewModel {
+        let stub = StubCommunityService(result: .success([]))
+        let vm = makeViewModel(isAdmin: false, stub: stub, inviteLinksEnabled: inviteLinksEnabled)
+        await vm.createCode()
+        return vm
+    }
+
+    func testShareMessage_WithoutInviteLinksHasNoJoinLink() async throws {
+        let vm = await makeViewModelWithCode(inviteLinksEnabled: false)
+        let message = try XCTUnwrap(vm.shareMessage)
+        XCTAssertFalse(message.contains("naarscars.com/join"))
+        XCTAssertTrue(message.contains(Constants.URLs.appStore))
+    }
+
+    func testShareMessage_WithInviteLinksCarriesTheJoinLink() async throws {
+        let vm = await makeViewModelWithCode(inviteLinksEnabled: true)
+        let code = try XCTUnwrap(vm.displayedCode)
+        let message = try XCTUnwrap(vm.shareMessage)
+        XCTAssertTrue(message.contains(Constants.URLs.joinLink(code: code)))
+    }
+
+    func testQRPayload_WithInviteLinksIsTheBareJoinLink() async throws {
+        let vm = await makeViewModelWithCode(inviteLinksEnabled: true)
+        let code = try XCTUnwrap(vm.displayedCode)
+        XCTAssertEqual(vm.qrPayload, Constants.URLs.joinLink(code: code))
+    }
+
+    func testQRPayload_WithoutInviteLinksIsTheShareMessage() async throws {
+        let vm = await makeViewModelWithCode(inviteLinksEnabled: false)
+        XCTAssertNotNil(vm.qrPayload)
+        XCTAssertEqual(vm.qrPayload, vm.shareMessage)
     }
 
     func testCreateCode_MemberSendsSevenDayExpiry() async {

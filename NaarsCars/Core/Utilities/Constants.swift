@@ -255,6 +255,10 @@ enum Constants {
         static let successorSearchLimit = 50
         /// How long a code kept for a signed-out visitor stays valid (7 days)
         static let pendingInviteLifetime: TimeInterval = 7 * 24 * 3600
+        /// When true, the invite share message and QR carry `URLs.joinLink(code:)`. Set it to true
+        /// only once `https://naarscars.com/.well-known/apple-app-site-association` and the
+        /// `https://naarscars.com/join` landing page are live (Phase 4 plan, Prerequisite 1d).
+        static let shareInviteLinks: Bool = false
     }
 
     /// Default map coordinates

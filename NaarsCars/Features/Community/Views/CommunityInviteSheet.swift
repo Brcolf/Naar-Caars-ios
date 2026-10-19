@@ -69,8 +69,8 @@ struct CommunityInviteContent: View {
                         .accessibilityValue(code.map(String.init).joined(separator: " "))
                         .accessibilityIdentifier("community.invite.code")
 
-                    if let message = viewModel.shareMessage,
-                       let image = QRCodeRenderer.image(for: message, dimension: 200) {
+                    if let payload = viewModel.qrPayload,
+                       let image = QRCodeRenderer.image(for: payload, dimension: 200) {
                         Image(uiImage: image)
                             .interpolation(.none)
                             .resizable()

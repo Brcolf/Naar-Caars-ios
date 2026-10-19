@@ -4801,6 +4801,47 @@
         }
       }
     },
+    "community_invite_share_message_link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Join %1$@ on Naar's Cars, the app for neighbor rides and favors: %2$@ (invite code %3$@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Únete a %1$@ en Naar's Cars, la app de viajes y favores entre vecinos: %2$@ (código de invitación %3$@)."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이웃 간 차량 및 부탁 앱 Naar's Cars에서 %1$@에 참여하세요: %2$@ (초대 코드 %3$@)."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tham gia %1$@ trên Naar's Cars, ứng dụng đi nhờ xe và giúp đỡ giữa hàng xóm: %2$@ (mã mời %3$@)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Naar's Cars（邻里互助出行与帮忙应用）加入 %1$@：%2$@（邀请码 %3$@）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Naar's Cars（鄰里互助出行與幫忙應用程式）加入 %1$@：%2$@（邀請碼 %3$@）。"
+          }
+        }
+      }
+    },
     "community_invite_title" : {
       "extractionState" : "manual",
       "localizations" : {

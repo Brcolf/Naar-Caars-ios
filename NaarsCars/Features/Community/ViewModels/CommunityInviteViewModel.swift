@@ -22,6 +22,8 @@ final class CommunityInviteViewModel: ObservableObject {
     let communityId: UUID
     let communityName: String
     let isAdmin: Bool
+    /// Whether the share message and the QR carry the join link (`Constants.Community.shareInviteLinks`)
+    let inviteLinksEnabled: Bool
 
     private let service: any CommunityServiceProtocol
     private let authService: any AuthServiceProtocol
@@ -31,6 +33,7 @@ final class CommunityInviteViewModel: ObservableObject {
         communityId: UUID,
         communityName: String,
         isAdmin: Bool,
+        inviteLinksEnabled: Bool = Constants.Community.shareInviteLinks,
         service: any CommunityServiceProtocol = CommunityService.shared,
         authService: any AuthServiceProtocol = AuthService.shared,
         now: @escaping () -> Date = Date.init
@@ -38,6 +41,7 @@ final class CommunityInviteViewModel: ObservableObject {
         self.communityId = communityId
         self.communityName = communityName
         self.isAdmin = isAdmin
+        self.inviteLinksEnabled = inviteLinksEnabled
         self.service = service
         self.authService = authService
         self.now = now
@@ -47,12 +51,28 @@ final class CommunityInviteViewModel: ObservableObject {
 
     var shareMessage: String? {
         guard let code = displayedCode else { return nil }
+        if inviteLinksEnabled {
+            return String(
+                format: "community_invite_share_message_link".localized,
+                communityName,
+                Constants.URLs.joinLink(code: code),
+                InviteCodeFormatter.formatCode(code)
+            )
+        }
         return String(
             format: "community_invite_share_message".localized,
             communityName,
             Constants.URLs.appStore,
             InviteCodeFormatter.formatCode(code)
         )
+    }
+
+    /// What the QR code encodes. With invite links on, the bare join link, so the Camera offers it
+    /// as a link (the app when installed, the landing page otherwise); a sentence would be shown
+    /// as text. Off, the share message, as before.
+    var qrPayload: String? {
+        guard let code = displayedCode else { return nil }
+        return inviteLinksEnabled ? Constants.URLs.joinLink(code: code) : shareMessage
     }
 
     /// Lists the caller's live codes; when there are none, creates one.
