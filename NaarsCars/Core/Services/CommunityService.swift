@@ -12,13 +12,16 @@ import Supabase
 
 // MARK: - RPC parameters (explicit keys; optionals are omitted when nil)
 
+/// `create_community(p_name, p_description, p_join_policy, p_timezone)` (20261019_0001 block 3).
+/// `p_timezone` is omitted when nil, never sent as null.
 private struct CreateCommunityParams: Encodable, Sendable {
     let name: String
     let description: String?
     let joinPolicy: String
+    let timezone: String?
 
     private enum CodingKeys: String, CodingKey {
-        case p_name, p_description, p_join_policy
+        case p_name, p_description, p_join_policy, p_timezone
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -26,6 +29,7 @@ private struct CreateCommunityParams: Encodable, Sendable {
         try c.encode(name, forKey: .p_name)
         try c.encodeIfPresent(description, forKey: .p_description)
         try c.encode(joinPolicy, forKey: .p_join_policy)
+        try c.encodeIfPresent(timezone, forKey: .p_timezone)
     }
 }
 
@@ -226,17 +230,19 @@ private struct SetMemberRoleParams: Encodable, Sendable {
     }
 }
 
-/// `update_community`: only the set fields are sent; `p_timezone` never is. A nil field is omitted
-/// (the server leaves it unchanged); an empty description is sent as "" and clears it.
+/// `update_community`: only the set fields are sent; `p_timezone` only when the time zone changed.
+/// A nil field is omitted (the server leaves it unchanged); an empty description is sent as "" and
+/// clears it.
 private struct UpdateCommunityParams: Encodable, Sendable {
     let communityId: String
     let name: String?
     let description: String?
     let joinPolicy: String?
     let membersCanInvite: Bool?
+    let timezone: String?
 
     private enum CodingKeys: String, CodingKey {
-        case p_community_id, p_name, p_description, p_join_policy, p_members_can_invite
+        case p_community_id, p_name, p_description, p_join_policy, p_members_can_invite, p_timezone
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -246,6 +252,7 @@ private struct UpdateCommunityParams: Encodable, Sendable {
         try c.encodeIfPresent(description, forKey: .p_description)
         try c.encodeIfPresent(joinPolicy, forKey: .p_join_policy)
         try c.encodeIfPresent(membersCanInvite, forKey: .p_members_can_invite)
+        try c.encodeIfPresent(timezone, forKey: .p_timezone)
     }
 }
 
@@ -280,8 +287,13 @@ final class CommunityService: CommunityServiceProtocol {
             .decode([CommunityMembership].self, from: response.data)
     }
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy) async throws -> CreatedCommunity {
-        let params = CreateCommunityParams(name: name, description: description, joinPolicy: joinPolicy.rawValue)
+    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity {
+        let params = CreateCommunityParams(
+            name: name,
+            description: description,
+            joinPolicy: joinPolicy.rawValue,
+            timezone: timezone
+        )
         let response = try await client.rpc("create_community", params: params).execute()
         return try CommunityRPC.decode(CreatedCommunity.self, from: response.data)
     }
@@ -494,7 +506,8 @@ extension CommunityService: CommunityAdminServiceProtocol {
             name: change.name,
             description: change.description,
             joinPolicy: change.joinPolicy?.rawValue,
-            membersCanInvite: change.membersCanInvite
+            membersCanInvite: change.membersCanInvite,
+            timezone: change.timezone
         )
         let response = try await client.rpc("update_community", params: params).execute()
         try CommunityRPC.decodeSuccess(from: response.data)

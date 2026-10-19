@@ -430,7 +430,7 @@ final class StubCommunityService: CommunityServiceProtocol {
     var actionGate: (() async -> Void)?
 
     var createCommunityResult: Result<CreatedCommunity, Error> = .success(CreatedCommunity(communityId: CommunityFixtures.communityA))
-    private(set) var createCommunityCalls: [(name: String, description: String?, joinPolicy: CommunityJoinPolicy)] = []
+    private(set) var createCommunityCalls: [(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?)] = []
 
     var fetchMyCommunityLimitsResult: Result<CommunityLimits, Error> = .success(
         CommunityLimits(maxOwned: 3, ownedCount: 0, nextCreateAt: nil, canCreate: true, latestRequest: nil)
@@ -484,8 +484,8 @@ final class StubCommunityService: CommunityServiceProtocol {
         return try result.get()
     }
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy) async throws -> CreatedCommunity {
-        createCommunityCalls.append((name, description, joinPolicy))
+    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity {
+        createCommunityCalls.append((name, description, joinPolicy, timezone))
         await actionGate?()
         return try createCommunityResult.get()
     }

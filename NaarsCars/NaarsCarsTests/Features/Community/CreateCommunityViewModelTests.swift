@@ -28,6 +28,23 @@ final class CreateCommunityViewModelTests: XCTestCase {
         XCTAssertEqual(stub.createCommunityCalls.count, 1)
         XCTAssertEqual(stub.createCommunityCalls[0].joinPolicy, .approve)
     }
+
+    func testCreate_SendsTheDeviceTimeZone() async {
+        let stub = StubCommunityService(result: .success([]))
+        let vm = CreateCommunityViewModel(
+            service: stub,
+            adminService: StubCommunityAdminService(),
+            isPlatformAdmin: false,
+            deviceTimeZone: { TimeZone(identifier: "America/Chicago")! }
+        )
+        vm.name = "Ballard Neighbors"
+
+        let created = await vm.submit()
+
+        XCTAssertNotNil(created)
+        XCTAssertEqual(stub.createCommunityCalls.count, 1)
+        XCTAssertEqual(stub.createCommunityCalls[0].timezone, "America/Chicago")
+    }
 }
 
 @MainActor

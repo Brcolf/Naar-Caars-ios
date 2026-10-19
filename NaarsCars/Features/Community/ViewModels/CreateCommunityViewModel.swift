@@ -25,15 +25,20 @@ final class CreateCommunityViewModel: ObservableObject {
 
     private let service: any CommunityServiceProtocol
     private let adminService: any CommunityAdminServiceProtocol
+    /// The new community starts in the device's time zone; the form shows no field for it (the
+    /// owner changes it in Settings).
+    private let deviceTimeZone: () -> TimeZone
 
     init(
         service: any CommunityServiceProtocol = CommunityService.shared,
         adminService: any CommunityAdminServiceProtocol = CommunityService.shared,
-        isPlatformAdmin: Bool = AuthService.shared.currentProfile?.isAdmin == true
+        isPlatformAdmin: Bool = AuthService.shared.currentProfile?.isAdmin == true,
+        deviceTimeZone: @escaping () -> TimeZone = { .current }
     ) {
         self.service = service
         self.adminService = adminService
         self.showsGuestToggle = isPlatformAdmin
+        self.deviceTimeZone = deviceTimeZone
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -62,7 +67,8 @@ final class CreateCommunityViewModel: ObservableObject {
             created = try await service.createCommunity(
                 name: cleanName,
                 description: cleanDescription.isEmpty ? nil : cleanDescription,
-                joinPolicy: policy
+                joinPolicy: policy,
+                timezone: deviceTimeZone().identifier
             )
         } catch let refusal as CommunityRPCError {
             lastRefusal = refusal

@@ -11,7 +11,9 @@ protocol CommunityServiceProtocol: AnyObject {
     /// Active and pending memberships of the signed-in user.
     func fetchMyMemberships() async throws -> [CommunityMembership]
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy) async throws -> CreatedCommunity
+    /// `timezone` is an IANA identifier (the device's at creation); nil is omitted and the server
+    /// keeps its column default, as it does for a zone it does not know.
+    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity
     func fetchMyCommunityLimits() async throws -> CommunityLimits
     func requestOwnedCommunityLimit(requested: Int, reason: String) async throws -> LimitRequestReceipt
 

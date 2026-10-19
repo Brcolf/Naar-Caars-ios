@@ -2,7 +2,7 @@
 //  CommunitySettingsViewModel.swift
 //  NaarsCars
 //
-//  One community's name, description, who joins, who invites, and archive
+//  One community's name, description, who joins, who invites, time zone, and archive
 //
 
 internal import Combine
@@ -18,6 +18,8 @@ final class CommunitySettingsViewModel: ObservableObject {
     @Published var description = ""
     @Published var requiresApproval = true
     @Published var membersCanInvite = true
+    /// IANA identifier; edited only by the owner or a platform admin (`canEdit`).
+    @Published var timezone = ""
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published private(set) var isArchiving = false
@@ -85,6 +87,7 @@ final class CommunitySettingsViewModel: ObservableObject {
         let policy: CommunityJoinPolicy = requiresApproval ? .approve : .invite
         if policy.rawValue != settings.joinPolicy { change.joinPolicy = policy }
         if membersCanInvite != settings.membersCanInvite { change.membersCanInvite = membersCanInvite }
+        if !timezone.isEmpty, timezone != settings.timezone { change.timezone = timezone }
         return change
     }
 
@@ -144,6 +147,7 @@ final class CommunitySettingsViewModel: ObservableObject {
         description = fetched.description ?? ""
         requiresApproval = fetched.joinPolicy == CommunityJoinPolicy.approve.rawValue
         membersCanInvite = fetched.membersCanInvite
+        timezone = fetched.timezone
     }
 
     // MARK: - Save
@@ -177,7 +181,7 @@ final class CommunitySettingsViewModel: ObservableObject {
             membersCanInvite: change.membersCanInvite ?? current.membersCanInvite,
             isPublic: current.isPublic,
             isDefault: current.isDefault,
-            timezone: current.timezone
+            timezone: change.timezone ?? current.timezone
         )
         apply(saved)
         HapticManager.success()

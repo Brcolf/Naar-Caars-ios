@@ -519,15 +519,17 @@ struct CommunitySettings: Decodable, Equatable, Sendable {
 }
 
 /// A change to `update_community`. nil leaves a field unchanged; `description: ""` clears it
-/// (update_community, 20261017_0005 block 11). The time zone is never sent (no screen edits it).
+/// (update_community, 20261017_0005 block 11). `timezone` is an IANA identifier, set only when the
+/// owner picked a different zone in Settings (the server refuses one it does not know).
 struct CommunitySettingsChange: Equatable, Sendable {
     var name: String? = nil
     var description: String? = nil
     var joinPolicy: CommunityJoinPolicy? = nil
     var membersCanInvite: Bool? = nil
+    var timezone: String? = nil
 
     var isEmpty: Bool {
-        name == nil && description == nil && joinPolicy == nil && membersCanInvite == nil
+        name == nil && description == nil && joinPolicy == nil && membersCanInvite == nil && timezone == nil
     }
 }
 

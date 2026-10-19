@@ -36,11 +36,12 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         description: String? = "Ballard rides and favors.",
         joinPolicy: String = "approve",
         membersCanInvite: Bool = true,
-        isDefault: Bool = false
+        isDefault: Bool = false,
+        timezone: String = "America/Los_Angeles"
     ) -> CommunitySettings {
         CommunitySettings(
             id: CommunityFixtures.communityA, name: name, description: description, joinPolicy: joinPolicy,
-            membersCanInvite: membersCanInvite, isPublic: false, isDefault: isDefault, timezone: "America/Los_Angeles"
+            membersCanInvite: membersCanInvite, isPublic: false, isDefault: isDefault, timezone: timezone
         )
     }
 
@@ -152,6 +153,50 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         vm.requiresApproval = false
         vm.membersCanInvite = false
         XCTAssertEqual(vm.change, CommunitySettingsChange(description: "", joinPolicy: .invite, membersCanInvite: false))
+    }
+
+    func testLoad_ReadsTheCommunityTimezone() async {
+        let (context, _) = await makeContext(role: .owner)
+        let admin = StubCommunityAdminService()
+        admin.fetchCommunitySettingsResult = .success(settings(timezone: "Europe/Berlin"))
+        let vm = makeViewModel(context: context, admin: admin)
+
+        await vm.load()
+
+        XCTAssertEqual(vm.timezone, "Europe/Berlin")
+        XCTAssertTrue(vm.change.isEmpty, "an unchanged time zone is not part of the change")
+    }
+
+    func testSave_TimezoneChangeIsSentAndKept() async {
+        let (context, _) = await makeContext(role: .owner)
+        let admin = StubCommunityAdminService()
+        admin.fetchCommunitySettingsResult = .success(settings())
+        let vm = makeViewModel(context: context, admin: admin)
+        await vm.load()
+
+        vm.timezone = "America/New_York"
+        XCTAssertEqual(vm.change, CommunitySettingsChange(timezone: "America/New_York"))
+        XCTAssertTrue(vm.canSave)
+        // The follow-up reload fails, so what the screen shows comes from the saved copy.
+        admin.fetchCommunitySettingsResult = .failure(URLError(.notConnectedToInternet))
+
+        let saved = await vm.save()
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(admin.updateCommunityCalls.count, 1)
+        XCTAssertEqual(admin.updateCommunityCalls[0].change, CommunitySettingsChange(timezone: "America/New_York"))
+        XCTAssertEqual(vm.settings?.timezone, "America/New_York")
+        XCTAssertEqual(vm.timezone, "America/New_York")
+        XCTAssertTrue(vm.change.isEmpty)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func testTimeZonePickerOptions_IncludeAnOffListZone() {
+        XCTAssertEqual(TimeZonePicker.options(including: "America/Los_Angeles").count, 6)
+        let withBerlin = TimeZonePicker.options(including: "Europe/Berlin")
+        XCTAssertEqual(withBerlin.count, 7)
+        XCTAssertTrue(withBerlin.contains { $0.id == "Europe/Berlin" })
+        XCTAssertEqual(TimeZonePicker.options(including: "Not/AZone").count, 6)
     }
 
     func testSave_IgnoresSecondCallWhileSaving() async {

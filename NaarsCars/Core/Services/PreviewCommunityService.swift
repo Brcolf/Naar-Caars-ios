@@ -121,7 +121,7 @@ final class PreviewCommunityService: CommunityServiceProtocol {
 
     func fetchMyMemberships() async throws -> [CommunityMembership] { memberships }
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy) async throws -> CreatedCommunity {
+    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity {
         CreatedCommunity(communityId: UUID())
     }
 

@@ -191,7 +191,7 @@ final class CommunityServiceTests: XCTestCase {
 
     func testCreateCommunity_SendsNameDescriptionPolicy() async throws {
         respond(with: CommunityFixtures.createCommunitySuccessJSON)
-        let created = try await service.createCommunity(name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve)
+        let created = try await service.createCommunity(name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve, timezone: nil)
         let request = try onlyRequest()
         XCTAssertEqual(request.method, "POST")
         XCTAssertEqual(request.path, "/rest/v1/rpc/create_community")
@@ -203,10 +203,21 @@ final class CommunityServiceTests: XCTestCase {
 
     func testCreateCommunity_OmitsNilDescription() async throws {
         respond(with: CommunityFixtures.createCommunitySuccessJSON)
-        _ = try await service.createCommunity(name: "Ballard Neighbors", description: nil, joinPolicy: .invite)
+        _ = try await service.createCommunity(name: "Ballard Neighbors", description: nil, joinPolicy: .invite, timezone: nil)
         let request = try onlyRequest()
         XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_join_policy"])
         XCTAssertEqual(request.body?["p_join_policy"] as? String, "invite")
+    }
+
+    /// create_community(p_name, p_description, p_join_policy, p_timezone) (20261019_0001 block 3).
+    func testCreateCommunity_SendsTimezone() async throws {
+        respond(with: CommunityFixtures.createCommunitySuccessJSON)
+        _ = try await service.createCommunity(
+            name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve, timezone: "America/Chicago"
+        )
+        let request = try onlyRequest()
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_description", "p_join_policy", "p_timezone"])
+        XCTAssertEqual(request.body?["p_timezone"] as? String, "America/Chicago")
     }
 
     func testFetchMyCommunityLimits_DecodesLatestRequest() async throws {
@@ -658,5 +669,26 @@ final class CommunityServiceTests: XCTestCase {
         let request = try onlyRequest()
         XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_description"])
         XCTAssertEqual(request.body?["p_description"] as? String, "", "an empty description clears it")
+    }
+
+    func testUpdateCommunity_SendsTimezoneOnlyWhenChanged() async throws {
+        respond(with: CommunityFixtures.successJSON)
+        try await service.updateCommunity(
+            communityId: CommunityFixtures.communityA,
+            change: CommunitySettingsChange(timezone: "America/New_York")
+        )
+        let request = try onlyRequest()
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_timezone"])
+        XCTAssertEqual(request.body?["p_timezone"] as? String, "America/New_York")
+
+        XCTAssertFalse(CommunitySettingsChange(timezone: "America/New_York").isEmpty)
+        XCTAssertTrue(CommunitySettingsChange().isEmpty)
+    }
+
+    func testUpdateCommunity_EmptyChangeSendsNoTimezone() async throws {
+        respond(with: CommunityFixtures.successJSON)
+        try await service.updateCommunity(communityId: CommunityFixtures.communityA, change: CommunitySettingsChange(name: "New"))
+        let request = try onlyRequest()
+        XCTAssertNil(request.body?["p_timezone"], "an unchanged time zone is never sent, not even as null")
     }
 }

@@ -155,6 +155,25 @@ struct CommunitySettingsView: View {
                 }
             }
 
+            Section {
+                if viewModel.canEdit {
+                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
+                        .disabled(isBusy)
+                        .accessibilityLabel("community_settings_timezone".localized)
+                        .accessibilityIdentifier("community.settings.timezone")
+                } else {
+                    readOnlyValue(
+                        TimeZonePicker.displayName(forIdentifier: viewModel.timezone),
+                        label: "community_settings_timezone".localized,
+                        identifier: "community.settings.timezone"
+                    )
+                }
+            } header: {
+                Text("community_settings_timezone".localized)
+            } footer: {
+                Text("community_settings_timezone_footer".localized)
+            }
+
             if viewModel.canArchive {
                 Section {
                     Button(role: .destructive) {
