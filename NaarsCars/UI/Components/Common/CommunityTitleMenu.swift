@@ -7,21 +7,25 @@ import SwiftUI
 
 /// Adds a navigation title menu (and an optional subtitle) only when `enabled`.
 ///
-/// The modifier always takes one structural path: a `.toolbar` and a `navigationSubtitle` are
-/// applied in every state and only their contents change. An `if`/`else` on `enabled` would
-/// give `content` a different structural identity per branch, so the moment the membership
-/// count crossed one (memberships load after the UI is up) or the Requests subtitle appeared,
-/// SwiftUI would destroy and rebuild the whole subtree: `@StateObject` view models recreated
-/// (losing a Town Hall push target held while memberships load), scroll position and
+/// On iOS 26 a title menu is drawn (chevron) and tappable only on an inline title; a large title
+/// shows no chevron. The Community tab's large title never collapses, and Requests' collapses
+/// only once its list is scrolled; a member cannot be expected to scroll to find the switcher.
+/// So while `enabled` the modifier switches the title to `.inline`, and otherwise leaves it
+/// `.automatic` (the large title of the previous build).
+///
+/// The modifier always takes one structural path: a `.toolbar`, a `navigationSubtitle` and a
+/// `toolbarTitleDisplayMode` are applied in every state and only their values change. An
+/// `if`/`else` on `enabled` would give `content` a different structural identity per branch, so
+/// the moment the membership count crossed one (memberships load after the UI is up) SwiftUI
+/// would rebuild the whole subtree: `@StateObject` view models recreated, scroll position and
 /// `@State` lost.
 ///
-/// With `enabled == false` the toolbar holds no `ToolbarTitleMenu` and the subtitle is empty;
-/// preview renders of that state, large and inline title, are pixel-identical to a title with
-/// neither modifier (no chevron, no subtitle line), so a member of one community sees the
-/// screen of the previous build. Do not swap the conditional item for an always-present
-/// `toolbarTitleMenu { if enabled { ... } }`: an empty title menu still draws the chevron
-/// once the title is inline. Apply it to the same view that carries `.navigationTitle`.
-/// Shared by the Community tab and Requests so neither feature imports the other.
+/// With `enabled == false` the toolbar holds no `ToolbarTitleMenu` and the subtitle is empty,
+/// so a member of one community sees a title with neither modifier (no chevron, no subtitle).
+/// Do not swap the conditional item for an always-present `toolbarTitleMenu { if enabled { ... } }`:
+/// an empty title menu still draws the chevron once the title is inline. Apply it to the same
+/// view that carries `.navigationTitle`. Shared by the Community tab and Requests so neither
+/// feature imports the other.
 struct CommunityTitleMenuModifier<MenuContent: View>: ViewModifier {
     let enabled: Bool
     let subtitle: String?
@@ -35,6 +39,7 @@ struct CommunityTitleMenuModifier<MenuContent: View>: ViewModifier {
                 }
             }
             .navigationSubtitle(Text(verbatim: enabled ? (subtitle ?? "") : ""))
+            .toolbarTitleDisplayMode(enabled ? .inline : .automatic)
     }
 }
 
