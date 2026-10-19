@@ -15,13 +15,6 @@ private struct AdminCheck: Decodable {
     enum CodingKeys: String, CodingKey { case isAdmin = "is_admin" }
 }
 
-private struct BroadcastParams: Codable, Sendable {
-    let p_title: String
-    let p_body: String
-    let p_type: String
-    let p_pinned: Bool
-}
-
 // MARK: - Community RPC parameters (explicit keys; optionals are omitted when nil)
 
 /// `p_community_id` only; nil means every community (platform admins only).
@@ -168,18 +161,6 @@ struct ActiveRequestRow: Decodable, Identifiable {
         case posterName = "poster_name"
         case claimerName = "claimer_name"
     }
-}
-
-// MARK: - Nonisolated Helper Functions
-
-/// Create broadcast params dictionary in nonisolated context
-nonisolated private func createBroadcastParams(title: String, message: String, pinned: Bool) -> [String: AnyCodable] {
-    return [
-        "p_title": AnyCodable(title),
-        "p_body": AnyCodable(message),
-        "p_type": AnyCodable("broadcast"),
-        "p_pinned": AnyCodable(pinned)
-    ]
 }
 
 /// Service for admin operations
@@ -583,45 +564,6 @@ final class AdminService {
 
         AppLogger.error("security", "Admin \(authService.currentUserId?.uuidString ?? "unknown") unbanned user \(userId)")
         AppLogger.info("admin", "Unbanned user \(userId)")
-    }
-
-    // MARK: - Broadcast
-    
-    /// Send a broadcast announcement to all approved users
-    /// - Parameters:
-    ///   - title: Broadcast title
-    ///   - message: Broadcast message
-    ///   - pinToNotifications: Whether to pin to notifications for 7 days
-    /// - Throws: AppError if not admin or operation fails
-    func sendBroadcast(title: String, message: String, pinToNotifications: Bool) async throws {
-        try await verifyAdminStatus()
-        
-        // Use database function to send broadcast (bypasses RLS)
-        // Capture values explicitly to avoid MainActor isolation
-        let titleValue = title
-        let messageValue = message
-        let pinnedValue = pinToNotifications
-        
-        // Wrap RPC call in Task.detached to avoid MainActor isolation issues
-        let task = Task.detached(priority: .userInitiated) { [titleValue, messageValue, pinnedValue] () async throws -> Int in
-            // Use nonisolated helper function to create params in nonisolated context
-            let params = createBroadcastParams(title: titleValue, message: messageValue, pinned: pinnedValue)
-            let client = await SupabaseService.shared.client
-            let response = try await client
-                .rpc("send_broadcast_notifications", params: params)
-                .execute()
-            let decoder = JSONDecoder()
-            let count = try decoder.decode(Int.self, from: response.data)
-            return count
-        }
-        let count = try await task.value
-        
-        AppLogger.error("security", "Admin sent broadcast to \(count) users")
-        
-        AppLogger.info("admin", "Sent broadcast to \(count) users")
-        
-        // Note: Push notifications would be triggered via Edge Function
-        // This would be implemented separately via Supabase Edge Functions
     }
 }
 

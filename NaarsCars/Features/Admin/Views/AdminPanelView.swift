@@ -209,8 +209,10 @@ struct AdminPanelView: View {
             Text("admin_quick_actions".localized)
                 .font(.naarsTitle3)
 
-            if viewModel.scope == .all {
-            NavigationLink(destination: BroadcastView()) {
+            // Both scopes: a community scope announces to that community, "All" to the default
+            // community. Hidden until the target resolves (and when it could not be).
+            if let target = viewModel.broadcastTarget {
+            NavigationLink(destination: BroadcastView(communityId: target.communityId, communityName: target.communityName)) {
                 HStack {
                     Image(systemName: "megaphone.fill")
                         .foregroundColor(.naarsPrimary)

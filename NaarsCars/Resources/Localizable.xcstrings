@@ -4,6 +4,129 @@
     "" : {
 
     },
+    "admin_broadcast_community_confirmation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send this announcement to the members of %@?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Enviar este anuncio a los miembros de %@?"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 공지를 %@의 멤버에게 보낼까요?"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gửi thông báo này đến các thành viên của %@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要将此公告发送给 %@ 的成员吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要將此公告發送給 %@ 的成員嗎？"
+          }
+        }
+      }
+    },
+    "admin_broadcast_community_footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to the members of %@ who haven't muted it. A community can send 3 announcements a day."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se envía a los miembros de %@ que no la han silenciado. Una comunidad puede enviar 3 anuncios al día."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@의 멤버 중 알림을 끄지 않은 사람에게 전송됩니다. 커뮤니티는 하루에 공지를 3개까지 보낼 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gửi đến các thành viên của %@ chưa tắt thông báo của cộng đồng. Mỗi cộng đồng có thể gửi 3 thông báo mỗi ngày."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将发送给 %@ 中未将其静音的成员。每个社区每天最多可发送 3 条公告。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將發送給 %@ 中未將其靜音的成員。每個社群每天最多可發送 3 則公告。"
+          }
+        }
+      }
+    },
+    "admin_broadcast_daily_limit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has already sent 3 announcements today. Try again tomorrow."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ya envió 3 anuncios hoy. Inténtalo de nuevo mañana."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 오늘 이미 공지를 3개 보냈습니다. 내일 다시 시도해 주세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ đã gửi 3 thông báo hôm nay. Hãy thử lại vào ngày mai."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 今天已发送 3 条公告。请明天再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 今天已發送 3 則公告。請明天再試一次。"
+          }
+        }
+      }
+    },
     "admin_communities_approve" : {
       "extractionState" : "manual",
       "localizations" : {
