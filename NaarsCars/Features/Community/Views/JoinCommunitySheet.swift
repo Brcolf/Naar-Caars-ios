@@ -81,8 +81,8 @@ struct JoinCommunitySheet: View {
         if let community = viewModel.publicCommunity {
             return .community(id: community.id, code: nil, name: community.name)
         }
-        if viewModel.preview?.valid == true, let name = viewModel.communityName {
-            return .community(id: nil, code: viewModel.normalizedCode, name: name)
+        if viewModel.preview?.valid == true, let code = viewModel.checkedCode, let name = viewModel.communityName {
+            return .community(id: nil, code: code, name: name)
         }
         return nil
     }

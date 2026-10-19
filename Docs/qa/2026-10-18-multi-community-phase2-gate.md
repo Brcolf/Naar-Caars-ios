@@ -69,7 +69,7 @@ New member-facing surfaces: create a community (with the invite sheet: code, sha
 
 **Follow-ups to record**
 
-- Community reports are not returned by `admin_get_reports` and cannot be dismissed from the app; the Communities list's "Reported" marker stays until a server change.
+- Community reports (`report_community`) are returned by `admin_get_reports`, but as target `user` with no member, no target id and no preview, because neither it nor `admin_moderate_content` has a case for `reported_community_id`. Admin → Reports labels such a row Community and says it cannot name the community yet (fix pass, `[P2-fix]`); it offers no Dismiss, because `admin_moderate_content` would log the dismissal in `content_moderation_events` with a null `target_id`, which that column refuses (NOT NULL, checked live 2026-10-18). A server change to both RPCs (a `community` target with the community's name as preview, and dismiss using `reported_community_id` as the target) is needed; until then the Communities list's "Reported" marker stays and these reports cannot be resolved from the app.
 - A sole owner with other members cannot leave (`last_owner`) until Phase 3's transfer screen.
 - Render findings 1–4 above (1 and 2 before release).
 - Release prerequisite: the legal deliverable (Task 16) must be mirrored to the Notion pages the app opens before this client ships.

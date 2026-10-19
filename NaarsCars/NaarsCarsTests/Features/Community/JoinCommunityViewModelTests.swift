@@ -27,6 +27,26 @@ final class JoinCommunityViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.preview)
     }
 
+    func testEditingCheckedCode_DropsPreviewAndBlocksSubmit() async {
+        let stub = StubCommunityService(result: .success([]))
+        let vm = JoinCommunityViewModel(target: .code(prefilled: "NC7K2PQ9XA"), service: stub)
+        await vm.validate()
+        XCTAssertNotNil(vm.preview)
+        XCTAssertEqual(vm.checkedCode, "NC7K2PQ9XA")
+
+        vm.code = "nc7k-2pq9xa"
+        XCTAssertNotNil(vm.preview, "A change that normalizes to the checked code keeps the preview")
+
+        vm.code = "NC7K2PQ9XB"
+        vm.heardAbout = "A neighbor"
+        vm.joinReason = "Share rides"
+        XCTAssertNil(vm.preview)
+        XCTAssertNil(vm.checkedCode)
+        XCTAssertFalse(vm.canSubmit)
+        await vm.submit()
+        XCTAssertTrue(stub.redeemInviteCalls.isEmpty)
+    }
+
     func testValidate_MalformedCodeIsNotSent() async {
         let stub = StubCommunityService(result: .success([]))
         let vm = JoinCommunityViewModel(target: .code(prefilled: nil), service: stub)

@@ -245,6 +245,9 @@ struct AdminReportsView: View {
         // A report about a member has no content to hide or restore, and the server rejects
         // everything except Dismiss for it. Restricting the member is done from their profile
         // in All Members.
+        if report.isCommunityReport {
+            return report.status == "pending" && report.canDismissCommunityReport ? [.dismiss] : []
+        }
         if report.targetType == "user" {
             return report.status == "pending" ? [.dismiss] : []
         }
@@ -322,7 +325,19 @@ private struct ReportCardView: View {
                 }
             }
 
-            if report.targetType == "user" {
+            if report.isCommunityReport {
+                if report.targetType == "community", let name = report.contentPreview, !name.isEmpty {
+                    Text("admin_reports_reported_community".localized(with: name))
+                        .font(.naarsBody)
+                        .foregroundColor(.primary)
+                } else {
+                    // Today's server does not say which community; the Communities list marks it.
+                    Text("admin_reports_community_unnamed".localized)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else if report.targetType == "user" {
                 // The server sends the member's name as the "preview" of a member report;
                 // label it so it does not read as a stray grey name.
                 Text("admin_reports_reported_member".localized(

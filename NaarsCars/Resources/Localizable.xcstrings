@@ -1193,6 +1193,129 @@
         }
       }
     },
+    "admin_reports_community_unnamed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This list can't show which community was reported yet. Communities with open reports are marked Reported in Admin → Communities."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta lista aún no puede mostrar qué comunidad fue denunciada. Las comunidades con denuncias abiertas aparecen como Denunciada en Administración → Comunidades."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 목록에서는 아직 어떤 커뮤니티가 신고되었는지 표시할 수 없습니다. 처리되지 않은 신고가 있는 커뮤니티는 관리 → 커뮤니티에서 신고됨으로 표시됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Danh sách này chưa thể hiển thị cộng đồng nào bị báo cáo. Các cộng đồng có báo cáo chưa xử lý được đánh dấu Bị báo cáo trong Quản trị → Cộng đồng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此列表暂时无法显示被举报的是哪个社区。有未处理举报的社区会在“管理 → 社区”中标记为被举报。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此列表暫時無法顯示被檢舉的是哪個社群。有未處理檢舉的社群會在「管理 → 社區」中標記為被檢舉。"
+          }
+        }
+      }
+    },
+    "admin_reports_reported_community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reported community: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comunidad denunciada: %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "신고된 커뮤니티: %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng bị báo cáo: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "被举报社区：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "被檢舉社群：%@"
+          }
+        }
+      }
+    },
+    "admin_reports_target_community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Community"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comunidad"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커뮤니티"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社区"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社群"
+          }
+        }
+      }
+    },
     "community_action_create" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7390,37 +7513,37 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anyone can create a community. Its owners and admins approve members, remove people and moderate it. They see your name, photo, car, your answers when you ask to join and who invited you, never your email or phone number. A community's name, description and public content follow the same rules as any post. Platform moderators can review reported content in any community, including private ones, and can close a community that breaks these guidelines."
+            "value" : "Anyone can create a community. Its owners and admins approve members and remove people. They see your name, photo, car, your answers when you ask to join and who invited you, never your email or phone number. A community's name, description and public content follow the same rules as any post. Platform moderators can review reported content in any community, including private ones, and can close a community that breaks these guidelines."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cualquiera puede crear una comunidad. Sus propietarios y administradores aprueban miembros, eliminan personas y la moderan. Ven tu nombre, foto, coche, tus respuestas cuando pides unirte y quién te invitó, pero nunca tu correo ni tu número de teléfono. El nombre, la descripción y el contenido público de una comunidad siguen las mismas reglas que cualquier publicación. Los moderadores de la plataforma pueden revisar contenido denunciado en cualquier comunidad, incluidas las privadas, y pueden cerrar una comunidad que incumpla estas normas."
+            "value" : "Cualquiera puede crear una comunidad. Sus propietarios y administradores aprueban miembros y eliminan personas. Ven tu nombre, foto, coche, tus respuestas cuando pides unirte y quién te invitó, pero nunca tu correo ni tu número de teléfono. El nombre, la descripción y el contenido público de una comunidad siguen las mismas reglas que cualquier publicación. Los moderadores de la plataforma pueden revisar contenido denunciado en cualquier comunidad, incluidas las privadas, y pueden cerrar una comunidad que incumpla estas normas."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "누구나 커뮤니티를 만들 수 있습니다. 커뮤니티의 소유자와 관리자는 멤버를 승인하고, 사람을 내보내고, 커뮤니티를 관리합니다. 이들에게는 이름, 사진, 차량, 가입을 요청할 때 작성한 답변, 그리고 누가 초대했는지가 표시되며, 이메일이나 전화번호는 절대 표시되지 않습니다. 커뮤니티의 이름, 설명, 공개 콘텐츠도 다른 게시물과 같은 규칙을 따릅니다. 플랫폼 관리자는 비공개 커뮤니티를 포함한 모든 커뮤니티에서 신고된 콘텐츠를 검토할 수 있으며, 이 가이드라인을 위반하는 커뮤니티를 닫을 수 있습니다."
+            "value" : "누구나 커뮤니티를 만들 수 있습니다. 커뮤니티의 소유자와 관리자는 멤버를 승인하고 사람을 내보냅니다. 이들에게는 이름, 사진, 차량, 가입을 요청할 때 작성한 답변, 그리고 누가 초대했는지가 표시되며, 이메일이나 전화번호는 절대 표시되지 않습니다. 커뮤니티의 이름, 설명, 공개 콘텐츠도 다른 게시물과 같은 규칙을 따릅니다. 플랫폼 관리자는 비공개 커뮤니티를 포함한 모든 커뮤니티에서 신고된 콘텐츠를 검토할 수 있으며, 이 가이드라인을 위반하는 커뮤니티를 닫을 수 있습니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bất kỳ ai cũng có thể tạo một cộng đồng. Chủ sở hữu và quản trị viên của cộng đồng duyệt thành viên, xóa người khỏi cộng đồng và kiểm duyệt cộng đồng. Họ thấy tên, ảnh, xe của bạn, các câu trả lời khi bạn xin tham gia và người đã mời bạn, nhưng không bao giờ thấy email hoặc số điện thoại của bạn. Tên, mô tả và nội dung công khai của một cộng đồng tuân theo cùng quy tắc như mọi bài đăng. Người kiểm duyệt của nền tảng có thể xem xét nội dung bị báo cáo trong bất kỳ cộng đồng nào, kể cả cộng đồng riêng tư, và có thể đóng một cộng đồng vi phạm các nguyên tắc này."
+            "value" : "Bất kỳ ai cũng có thể tạo một cộng đồng. Chủ sở hữu và quản trị viên của cộng đồng duyệt thành viên và xóa người khỏi cộng đồng. Họ thấy tên, ảnh, xe của bạn, các câu trả lời khi bạn xin tham gia và người đã mời bạn, nhưng không bao giờ thấy email hoặc số điện thoại của bạn. Tên, mô tả và nội dung công khai của một cộng đồng tuân theo cùng quy tắc như mọi bài đăng. Người kiểm duyệt của nền tảng có thể xem xét nội dung bị báo cáo trong bất kỳ cộng đồng nào, kể cả cộng đồng riêng tư, và có thể đóng một cộng đồng vi phạm các nguyên tắc này."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "任何人都可以创建社区。社区的所有者和管理员负责批准成员、移除成员并管理社区。他们能看到你的姓名、照片、车辆、你申请加入时的回答以及邀请你的人，但永远看不到你的电子邮件或电话号码。社区的名称、简介和公开内容与任何帖子遵守相同的规则。平台审核员可以审查任何社区（包括私密社区）中被举报的内容，并可以关闭违反这些准则的社区。"
+            "value" : "任何人都可以创建社区。社区的所有者和管理员负责批准成员和移除成员。他们能看到你的姓名、照片、车辆、你申请加入时的回答以及邀请你的人，但永远看不到你的电子邮件或电话号码。社区的名称、简介和公开内容与任何帖子遵守相同的规则。平台审核员可以审查任何社区（包括私密社区）中被举报的内容，并可以关闭违反这些准则的社区。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "任何人都可以建立社群。社群的擁有者和管理員負責核准成員、移除成員並管理社群。他們能看到你的姓名、照片、車輛、你申請加入時的回答以及邀請你的人，但永遠看不到你的電子郵件或電話號碼。社群的名稱、簡介和公開內容與任何貼文遵守相同的規則。平台審核員可以審查任何社群（包括私密社群）中被檢舉的內容，並可以關閉違反這些準則的社群。"
+            "value" : "任何人都可以建立社群。社群的擁有者和管理員負責核准成員和移除成員。他們能看到你的姓名、照片、車輛、你申請加入時的回答以及邀請你的人，但永遠看不到你的電子郵件或電話號碼。社群的名稱、簡介和公開內容與任何貼文遵守相同的規則。平台審核員可以審查任何社群（包括私密社群）中被檢舉的內容，並可以關閉違反這些準則的社群。"
           }
         }
       }
@@ -51409,37 +51532,37 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your phone number isn't shown to other members. Only you and the community's admins have access to it."
+            "value" : "Your phone number isn't shown to other members or to any community's owners and admins. Only you and platform moderators can see it."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tu número de teléfono no se muestra a otros miembros. Solo tú y los administradores de la comunidad tienen acceso a él."
+            "value" : "Tu número de teléfono no se muestra a otros miembros ni a los propietarios y administradores de ninguna comunidad. Solo tú y los moderadores de la plataforma pueden verlo."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "전화번호는 다른 회원에게 표시되지 않습니다. 본인과 커뮤니티 관리자만 확인할 수 있습니다."
+            "value" : "전화번호는 다른 회원이나 어떤 커뮤니티의 소유자와 관리자에게도 표시되지 않습니다. 본인과 플랫폼 관리자만 확인할 수 있습니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Số điện thoại của bạn không được hiển thị cho các thành viên khác. Chỉ bạn và quản trị viên của cộng đồng mới có quyền truy cập."
+            "value" : "Số điện thoại của bạn không được hiển thị cho các thành viên khác hay cho chủ sở hữu và quản trị viên của bất kỳ cộng đồng nào. Chỉ bạn và người kiểm duyệt của nền tảng mới xem được."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您的电话号码不会显示给其他成员。只有您本人和社区管理员可以查看。"
+            "value" : "您的电话号码不会显示给其他成员，也不会显示给任何社区的所有者和管理员。只有您本人和平台审核员可以查看。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您的電話號碼不會顯示給其他成員。只有您本人和社群管理員可以查看。"
+            "value" : "您的電話號碼不會顯示給其他成員，也不會顯示給任何社群的擁有者和管理員。只有您本人和平台審核員可以查看。"
           }
         }
       }

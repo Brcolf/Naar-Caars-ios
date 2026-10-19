@@ -15,8 +15,19 @@ enum JoinTarget: Equatable {
 
 @MainActor
 final class JoinCommunityViewModel: ObservableObject {
-    @Published var code: String
+    /// Editing the code after a successful check drops the preview, so the name, the disclosure
+    /// and the submit button never describe a code other than the one that would be redeemed.
+    @Published var code: String {
+        didSet {
+            if let checkedCode, CommunityInviteCode.normalize(code) != checkedCode {
+                self.checkedCode = nil
+                preview = nil
+            }
+        }
+    }
     @Published private(set) var preview: InvitePreview?
+    /// The normalized code `preview` describes. Submit and Report use this one, never the field.
+    private(set) var checkedCode: String?
     @Published var heardAbout = ""
     @Published var joinReason = ""
     @Published private(set) var isWorking = false
@@ -72,7 +83,7 @@ final class JoinCommunityViewModel: ObservableObject {
 
     private var hasValidTarget: Bool {
         if publicCommunity != nil { return true }
-        guard let preview else { return false }
+        guard let preview, checkedCode != nil else { return false }
         return preview.valid && preview.alreadyMember != true
     }
 
@@ -92,6 +103,7 @@ final class JoinCommunityViewModel: ObservableObject {
         guard isCodeTarget, !isWorking, result == nil else { return }
         errorMessage = nil
         preview = nil
+        checkedCode = nil
         let normalized = normalizedCode
         guard CommunityInviteCode.isWellFormed(normalized) else {
             errorMessage = "community_join_code_malformed".localized
@@ -101,7 +113,10 @@ final class JoinCommunityViewModel: ObservableObject {
         defer { isWorking = false }
         do {
             let answer = try await service.validateInvite(code: normalized)
+            // The field is disabled while checking; if it changed anyway, this answer is stale.
+            guard normalizedCode == normalized else { return }
             if answer.valid {
+                checkedCode = normalized
                 preview = answer
                 if answer.alreadyMember == true {
                     pendingInviteStore.clearIfMatches(normalized)
@@ -150,7 +165,7 @@ final class JoinCommunityViewModel: ObservableObject {
                     joinReason: reasonValue
                 )
             } else {
-                let code = normalizedCode
+                guard let code = checkedCode else { return }
                 joined = try await service.redeemInvite(
                     code: code,
                     heardAbout: heardValue,
@@ -161,8 +176,8 @@ final class JoinCommunityViewModel: ObservableObject {
             result = joined
             onResult(joined)
         } catch let refusal as CommunityRPCError {
-            if publicCommunity == nil {
-                clearStoredCodeIfDead(refusal, code: normalizedCode)
+            if publicCommunity == nil, let code = checkedCode {
+                clearStoredCodeIfDead(refusal, code: code)
             }
             errorMessage = refusal.localizedMessage
         } catch {

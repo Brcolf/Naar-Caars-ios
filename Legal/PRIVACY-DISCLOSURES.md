@@ -269,7 +269,9 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 
 ## 5. Phone Number Visibility Disclosure
 
-### 5.1 In-App Disclosure
+Sections 5.1 to 5.3 are historical requirements and are not what the app shows; §5.4 is the current behaviour and copy.
+
+### 5.1 In-App Disclosure (historical requirement, superseded by §5.4)
 
 **Requirement PRIV-PHONE-001**: When user first adds phone number, show disclosure:
 
@@ -285,7 +287,7 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 └─────────────────────────────────────┘
 ```
 
-### 5.2 First-Time Confirmation
+### 5.2 First-Time Confirmation (historical requirement, superseded by §5.4)
 
 **Requirement PRIV-PHONE-002**: First time saving phone number, show confirmation:
 
@@ -305,7 +307,7 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 The requirements above predate the 2026-04 profiles split. What the server does today:
 
 - `phone_number` and `email` are readable only from `profiles`, whose SELECT policies are `profiles_select_own` and `profiles_select_admin` (platform admins) (`20260416_0002`). `public_profiles` exposes `id, name, avatar_url, car, approved, created_at, updated_at` only. No community RPC returns email or phone (`get_community_members`, `20261017_0005` block 29).
-- So a phone number is visible to its owner and to platform admins only. The in-app copy (`edit_profile_phone_disclosure`: "only visible to members who you are in an active ride or favor with") promises at most that; the privacy policy states the server behaviour. If a counterpart-visible phone path is ever added, update both.
+- So a phone number is visible to its owner and to platform admins only, never to other members or to a community's owners and admins (community admins are ordinary users since Phase 2). The in-app copy is `profile_phone_privacy_notice`, shown under the phone field in Edit Profile (`EditProfileView`, twice) and in the sheet that asks for a phone before claiming (`PhoneRequiredSheet`): "Your phone number isn't shown to other members or to any community's owners and admins. Only you and platform moderators can see it." It matches `Legal/PRIVACY_POLICY.md` §6.1. (`edit_profile_phone_disclosure` is a stale key no screen uses.) If a counterpart-visible phone path is ever added, update the copy, the policy and this section together.
 
 ## 5A. Community Visibility Disclosures (multi-community, Phase 2)
 
