@@ -49,10 +49,11 @@ struct CommunityOnboardingView: View {
                 )
 
                 if publicListFailed {
-                    SecondaryButton(title: "onboarding_retry".localized) {
+                    SecondaryButton(title: "onboarding_retry_check_account".localized) {
                         viewModel.retry()
                     }
-                    .accessibilityLabel("onboarding_retry".localized)
+                    .accessibilityLabel("onboarding_retry_check_account".localized)
+                    .accessibilityHint("onboarding_retry_check_account_hint".localized)
                     .accessibilityIdentifier("onboarding.retry")
                 }
 

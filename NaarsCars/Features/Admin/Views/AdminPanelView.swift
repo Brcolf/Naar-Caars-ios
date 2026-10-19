@@ -360,13 +360,17 @@ struct AdminPanelView: View {
         @ViewBuilder destination: () -> Destination
     ) -> some View {
         NavigationLink(destination: destination()) {
-            HStack {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Constants.Spacing.sm))
+                : AnyLayout(HStackLayout())
+            layout {
                 Image(systemName: systemImage)
                     .foregroundColor(tint)
                     .accessibilityHidden(true)
                 Text(title)
                     .foregroundColor(.primary)
-                Spacer()
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if badgeCount > 0 {
                     NotificationBadge(count: badgeCount)
                 }

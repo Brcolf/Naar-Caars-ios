@@ -66,6 +66,12 @@ final class CommunityInviteViewModelTests: XCTestCase {
         )
     }
 
+    func testUsesText_OneAndMany() {
+        let vm = makeViewModel(isAdmin: true, stub: StubCommunityService(result: .success([])))
+        XCTAssertEqual(vm.usesText(1), "community_invite_uses_one".localized)
+        XCTAssertTrue(vm.usesText(5).contains("5"))
+    }
+
     private func makeViewModelWithCode(inviteLinksEnabled: Bool) async -> CommunityInviteViewModel {
         let stub = StubCommunityService(result: .success([]))
         let vm = makeViewModel(isAdmin: false, stub: stub, inviteLinksEnabled: inviteLinksEnabled)

@@ -76,6 +76,13 @@ final class CommunityInviteViewModel: ObservableObject {
     }
 
     /// Lists the caller's live codes; when there are none, creates one.
+    /// "Can be used once" / "Can be used 5 times".
+    func usesText(_ count: Int) -> String {
+        count == 1
+            ? "community_invite_uses_one".localized
+            : String(format: "community_invite_uses_other".localized, count)
+    }
+
     func prepare() async {
         await loadLiveCodes()
         if liveCodes.isEmpty && invite == nil && errorMessage == nil {

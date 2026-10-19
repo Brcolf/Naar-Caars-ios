@@ -35,6 +35,7 @@ enum ReportContext {
 
 /// Sheet for reporting user-generated content
 struct ReportContentSheet: View {
+    @ScaledMetric(relativeTo: .body) private var reasonIconWidth: CGFloat = 24
     let context: ReportContext
     var onReported: (() -> Void)?
     /// Called with the author's ID as the sheet closes, when the user blocked them from here.
@@ -113,10 +114,10 @@ struct ReportContentSheet: View {
                         Button {
                             selectedReportType = reportType.type
                         } label: {
-                            HStack {
+                            HStack(spacing: Constants.Spacing.ms) {
                                 Image(systemName: reportType.icon)
                                     .foregroundColor(.naarsPrimary)
-                                    .frame(width: 24)
+                                    .frame(width: reasonIconWidth)
 
                                 Text(reportType.title)
                                     .foregroundColor(.primary)

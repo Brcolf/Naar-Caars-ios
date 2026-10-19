@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OwnedLimitRequestSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var viewModel: OwnedLimitRequestViewModel
     private let onSent: () -> Void
 
@@ -25,12 +26,10 @@ struct OwnedLimitRequestSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Stepper(
-                        String(format: "community_limit_request_number".localized, viewModel.requested),
-                        value: $viewModel.requested,
-                        in: viewModel.range
-                    )
-                    .accessibilityIdentifier("community.limit.number")
+                    limitStepper
+                } header: {
+                    Text("community_limit_request_title".localized)
+                        .textCase(nil)
                 }
 
                 Section {
@@ -48,7 +47,7 @@ struct OwnedLimitRequestSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.naarsBackground)
-            .navigationTitle("community_limit_request_title".localized)
+            .navigationTitle("community_limit_request_title_short".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -68,6 +67,23 @@ struct OwnedLimitRequestSheet: View {
             }
             .errorBanner(message: $viewModel.errorMessage)
             .interactiveDismissDisabled(viewModel.isSubmitting)
+        }
+    }
+
+    @ViewBuilder
+    private var limitStepper: some View {
+        let label = String(format: "community_limit_request_number".localized, viewModel.requested)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                Text(label)
+                Stepper(label, value: $viewModel.requested, in: viewModel.range)
+                    .labelsHidden()
+                    .accessibilityLabel(label)
+            }
+            .accessibilityIdentifier("community.limit.number")
+        } else {
+            Stepper(label, value: $viewModel.requested, in: viewModel.range)
+                .accessibilityIdentifier("community.limit.number")
         }
     }
 

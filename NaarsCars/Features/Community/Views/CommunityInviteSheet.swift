@@ -79,23 +79,12 @@ struct CommunityInviteContent: View {
                             .accessibilityLabel("community_invite_qr_accessibility".localized)
                     }
 
-                    HStack(spacing: Constants.Spacing.md) {
-                        Button {
-                            UIPasteboard.general.string = code
-                            HapticManager.success()
-                            toastMessage = "community_invite_copied".localized
-                        } label: {
-                            Label("community_invite_copy".localized, systemImage: "doc.on.doc")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: Constants.Spacing.md) {
+                            inviteActionButtons(code: code)
                         }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("community.invite.copy")
-
-                        if let message = viewModel.shareMessage {
-                            ShareLink(item: message) {
-                                Label("community_invite_share".localized, systemImage: "square.and.arrow.up")
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("community.invite.share")
+                        VStack(spacing: Constants.Spacing.sm) {
+                            inviteActionButtons(code: code, fillsWidth: true)
                         }
                     }
                 } else if viewModel.isWorking || viewModel.errorMessage == nil {
@@ -109,11 +98,36 @@ struct CommunityInviteContent: View {
     }
 
     @ViewBuilder
+    private func inviteActionButtons(code: String, fillsWidth: Bool = false) -> some View {
+        Button {
+            UIPasteboard.general.string = code
+            HapticManager.success()
+            toastMessage = "community_invite_copied".localized
+        } label: {
+            Label("community_invite_copy".localized, systemImage: "doc.on.doc")
+                .lineLimit(1)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("community.invite.copy")
+
+        if let message = viewModel.shareMessage {
+            ShareLink(item: message) {
+                Label("community_invite_share".localized, systemImage: "square.and.arrow.up")
+                    .lineLimit(1)
+                    .frame(maxWidth: fillsWidth ? .infinity : nil)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("community.invite.share")
+        }
+    }
+
+    @ViewBuilder
     private var optionsSection: some View {
         Section {
             if viewModel.isAdmin {
                 Stepper(
-                    String(format: "community_invite_uses".localized, viewModel.maxUses),
+                    viewModel.usesText(viewModel.maxUses),
                     value: $viewModel.maxUses,
                     in: 1...Constants.Community.adminInviteMaxUses
                 )

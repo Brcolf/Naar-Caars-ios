@@ -185,8 +185,9 @@ struct CommunityReportsView: View {
                             .fontWeight(isSelected ? .semibold : .regular)
                             .padding(.horizontal, Constants.Spacing.ms)
                             .padding(.vertical, Constants.Spacing.sm)
-                            .background(Capsule().fill(isSelected ? Color.naarsPrimary : Color.naarsCardBackground))
-                            .foregroundColor(isSelected ? .white : .primary)
+                            .background(Capsule().fill(isSelected ? Color.naarsPrimary.opacity(0.12) : Color.naarsCardBackground))
+                            .overlay(Capsule().stroke(isSelected ? Color.naarsPrimary : Color.clear, lineWidth: 1))
+                            .foregroundColor(isSelected ? .naarsPrimary : .primary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(filter.labelKey.localized)
@@ -195,6 +196,14 @@ struct CommunityReportsView: View {
                 }
             }
         }
+        .contentMargins(.horizontal, Constants.Spacing.md, for: .scrollContent)
+        .mask(
+            LinearGradient(
+                stops: [.init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 
     @ViewBuilder
