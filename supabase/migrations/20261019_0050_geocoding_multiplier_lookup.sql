@@ -1,6 +1,14 @@
 -- 20261019_0050_geocoding_multiplier_lookup.sql
 --
--- NOT APPLIED. Phase 5a of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
+-- APPLIED 2026-10-19, all three blocks, through the Supabase MCP apply_migration, one call per block, each block's
+-- text sent byte for byte from this file (migration-history versions 20261019223135 20261019_0050_block_1,
+-- 20261019223238 20261019_0050_block_2, 20261019223321 20261019_0050_block_3). Deployed md5(prosrc):
+-- get_geocoding_multiplier(text) 438807f01da2c4e5606bd01c0758763a, put_geocoding_multiplier(text, numeric, numeric,
+-- numeric) cfdad42429b7447a3f7ff00826c04091; both equal the text between this file's $function$ delimiters. Both are
+-- SECURITY DEFINER with search_path="" and EXECUTE for authenticated and service_role only (PUBLIC and anon revoked).
+-- Block 3 (D-S8, kept: the owner accepted the planner defaults in decisions amendment A6) cleared placemark_data on
+-- 7 rows (7 of 7 rows held a placemark just before it, 0 after; all 7 multipliers untouched).
+-- Phase 5a of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
 -- §4 "Phase 5", D16), under amendment A5 of Docs/superpowers/specs/2026-10-17-multi-community-decisions.md
 -- ("add a definer geocoding lookup and move the client to it"; the SELECT revoke is 5b, 20261019_0062).
 --
@@ -29,7 +37,15 @@
 -- their commit;, and the probe blocks geocoding_lookup and short with begin;/rollback; turned into savepoints
 -- (the plan's runbook step 2; the same assembly as the 5b dry-run scripts). Then short after each block and
 -- geocoding_lookup at the end.
--- Outcomes: not yet run.
+-- Outcomes, 2026-10-19. Preconditions re-read just before the dry run: P4 (neither name existed), P5 (no other file
+-- or migration-history entry takes 20261019_0050-0063; Phase 4 holds 0001-0003), File A has no P1 rows;
+-- geocoding_cache 7 rows, newest created_at 2026-09-15, as the plan recorded. Dry run (one rolled-back execute_sql:
+-- begin; blocks 1-3, PARAMETERS, HELPERS without their commit;, geocoding_lookup and short with begin;/rollback;
+-- turned into savepoint probe; / rollback to savepoint probe;, select 'DRY RUN OK', rollback;): DRY RUN OK, and
+-- afterwards neither function existed and all 7 placemarks were still stored. Apply: short after block 1, after
+-- block 2 and after block 3: OK; geocoding_lookup after block 3: OK. Each probe ran in its own begin; ... rollback;
+-- with PARAMETERS and the helpers it calls recreated in the same call; no probe account, community or cache row was
+-- left behind. The probe file needed no change.
 --
 -- Rollback. drop function public.put_geocoding_multiplier(text, numeric, numeric, numeric);
 -- drop function public.get_geocoding_multiplier(text); (the 5a client then finds no function, turns its
