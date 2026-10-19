@@ -1,6 +1,8 @@
 -- 20261018_0002_community_stats_and_broadcast_cap.sql
 --
--- NOT APPLIED. Phase 3 of the multi-community design (spec §3.5 rows "admin_dashboard_stats() ..." and
+-- APPLIED 2026-10-18, after 20261018_0001 (Supabase MCP apply_migration, one block per call, as
+-- 20261018_0002_block_1 .. _10; migration-history versions 20261019025905, 025954, 030044, 030133, 030224, 030348,
+-- 030443, 030535, 030626, 031046 UTC). Outcomes are under "Verification" below. Phase 3 of the multi-community design (spec §3.5 rows "admin_dashboard_stats() ..." and
 -- "get_community_stats(p_community_id) and the three breakdowns", §4 Phase 3, D14), with the owner decision of
 -- 2026-10-17 that platform admins are exempt from the broadcast cap until Phase 3 (20261017_0003:193-198).
 --
@@ -32,7 +34,23 @@
 -- ten blocks in one begin; ... rollback; with the probe blocks community_stats, broadcast_cap and short (each block's
 -- begin / rollback turned into a savepoint and a rollback to it), and the same
 -- five calls after the blocks: equal (active rides compared as a set). Then short after each block, community_stats
--- and broadcast_cap at the end. Outcomes: not yet run.
+-- and broadcast_cap at the end.
+-- Outcomes (2026-10-18): the five calls were snapshotted as a platform admin before the apply (the sets digested as
+-- md5 of their rows); D-S3 held: the live bodies of the four admin_* functions and of send_community_broadcast were
+-- identical to their rollback sources (md5 df908ac4cf41a160e4f5285af8580c5d for the broadcast). The dry run of all
+-- ten blocks with community_stats, broadcast_cap and short passed with the five calls equal. After each block: short
+-- passed (rolled back), the deployed md5(prosrc) equalled the block's body, EXECUTE was anon false / authenticated
+-- true (can_read_community_stats: neither), and each wrapper's digest equalled the snapshot (admin_dashboard_stats,
+-- admin_stats_fulfilled month and week, admin_stats_savings year, admin_stats_active_rides as a set
+-- c0564b75f3c45ee82b2b51f8a1c85d83) while a plain member was still refused. Deployed md5s: can_read_community_stats
+-- dcd54f0ea7b87e69d4f9bd159f1314f0, get_community_stats 9f5fbcd0627a8aa9a31d93a17a0f1eb7, get_community_stats_fulfilled
+-- aa0b3b5d951d1454adac92bf20900ae5, get_community_stats_savings ac07a0751d9088e50e6619d0382706f3,
+-- get_community_stats_active_requests dcbd98ca80da3133c5f75a86449bc7bd, admin_dashboard_stats
+-- 5814fc39d5824cfa0740701e5194b6f9, admin_stats_fulfilled de79211cec9d6c940d8f971d9f43c297, admin_stats_savings
+-- bce29f95eb7e43c9692e018447df0438, admin_stats_active_rides 7b610aa3c43d18a7b1122fd30072158c,
+-- send_community_broadcast b49920cb7b9aacbb0a5b0bc9cf85f864 (one overload; service_role keeps EXECUTE).
+-- community_stats and broadcast_cap passed after block 10 (rolled back; the default community had 0 counted
+-- announcements in the last 24 h at the time), and no probe row was left behind.
 --
 -- What old clients see. Admin dashboard figures and breakdowns: identical. Broadcasts: a platform admin's fourth
 -- announcement within 24 hours in the default community is refused; the installed build shows the server's text

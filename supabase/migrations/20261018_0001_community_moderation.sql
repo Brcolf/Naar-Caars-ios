@@ -1,6 +1,8 @@
 -- 20261018_0001_community_moderation.sql
 --
--- NOT APPLIED. Phase 3 of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
+-- APPLIED 2026-10-18 (Supabase MCP apply_migration, one block per call, as 20261018_0001_block_1 .. _8;
+-- migration-history versions 20261019024747, 024934, 025138, 025252, 025427, 025517, 025621, 025758 UTC).
+-- Outcomes are under "Verification" below. Phase 3 of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
 -- §4 "Phase 3", §3.5 "Reporter privacy for community admins (INV-P2)", §3.4 last row, §2.1 rule 10, D27), under the
 -- owner's decisions (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md, which wins where they differ).
 --
@@ -61,7 +63,20 @@
 -- and a before/after snapshot of admin_get_reports(<platform admin>, null),
 -- identical except community reports (target 'community', the name as preview). Then short after each block, and
 -- community_moderation and admin_community_reports after block 8; posts_delete_policy is an owner step in the SQL
--- editor (it holds DELETE statements). Outcomes: not yet run.
+-- editor (it holds DELETE statements).
+-- Outcomes (2026-10-18): preconditions passed (P1: the live md5(prosrc) of handle_new_report, admin_get_reports and
+-- admin_moderate_content matched the values in the plan; P2: notifications.type's CHECK holds both values; P3: none
+-- of the new names existed); the gate before block 2 found 0 owners or admins who are not platform admins. The dry
+-- run (blocks 1-8 with community_moderation, admin_community_reports and short, one rolled-back transaction) passed
+-- and the platform admin's admin_get_reports digest was unchanged. The MCP accepted blocks 5 and 6. After each
+-- block: short passed (rolled back) and the deployed md5(prosrc) equalled the md5 of the block's body:
+-- is_community_staff e810ba35c816c463f58496e0e4e1fb5f, handle_new_report de0d0dae37ae48e6a52cd2f50a05a66d,
+-- get_community_reports 7c85e31db1ffe89405fd384acc866e04, moderate_community_content 8f0218c330e68832bfc69e8c5845a409,
+-- admin_get_reports bd3199058f643c92a840e223577b6df9, admin_moderate_content 02b2b1ac5ca23110d22b36d8bc2887aa;
+-- EXECUTE: is_community_staff none of anon / authenticated, the others authenticated only. community_moderation
+-- and admin_community_reports passed after block 8 and again after 20261018_0002 block 10, each rolled back, and no
+-- probe account, community, post, ride, report, moderation event or notification was left behind.
+-- posts_delete_policy has NOT been run (owner step, SQL editor).
 --
 -- What old clients see. Installed build: platform admins get the same rows and pushes as before, and a report a
 -- community admin hid or dismissed is still pending in Admin → Reports; one whose content a community admin hid
