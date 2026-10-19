@@ -20,6 +20,10 @@
 --     community checks run only once the community tables / fill triggers / guard_last_owner exist.
 --   * Every other block is the full matrix and needs steps 1-5 live (each checks and fails with "steps 1-5
 --     are not all live" otherwise). Run them after step 5 and again after step 6.
+--   * The Phase 3 blocks (community_moderation, admin_community_reports, community_stats, broadcast_cap) need
+--     20261018_0001 and 20261018_0002 live and fail with "Phase 3 is not live" otherwise (admin_community_reports
+--     also needs File A blocks 6-8). posts_delete_policy holds DELETE statements: SQL editor (owner) only; the MCP
+--     declines it.
 --   * SQL editor: run the whole file. MCP execute_sql: pass the PARAMETERS and HELPERS sections plus the
 --     block(s) in ONE call (the helpers live in the session). The `commit;` after HELPERS is deliberate:
 --     in a multi-statement run it keeps the helpers from being rolled back by the first block's rollback.
@@ -81,6 +85,7 @@
 -- p_description), request_owned_community_limit(p_requested, p_reason), decide_owned_community_limit(
 -- p_request_id, p_approve)). A refusal is accepted in either form the spec allows: an exception, or a jsonb
 -- with success = false / a non-empty error.
+--   Phase 3 adds: get_community_reports(p_community_id, p_status), moderate_community_content(p_report_id, p_action, p_reason), get_community_stats(p_community_id) and get_community_stats_fulfilled / _savings(p_community_id, p_period, p_count), get_community_stats_active_requests(p_community_id), send_community_broadcast(p_community_id, p_title, p_body, p_pinned[, p_type]).
 
 
 -- =============================================================================================================
@@ -324,6 +329,37 @@ begin
           'open', pg_temp.c(1));
 end $f$;
 
+-- Phase 3: fails unless steps 1-5 and both Phase 3 files (20261018_0001 / 0002) are live
+create or replace function pg_temp.probe_require_phase3(p_probe text) returns void language plpgsql as $f$
+declare
+  v_missing text[];
+begin
+  perform pg_temp.probe_require(p_probe);
+  select array_agg(f) into v_missing
+    from unnest(array['is_community_staff', 'get_community_reports', 'moderate_community_content',
+                      'can_read_community_stats', 'get_community_stats', 'get_community_stats_fulfilled',
+                      'get_community_stats_savings', 'get_community_stats_active_requests']) f
+   where not exists (select 1 from pg_catalog.pg_proc p
+                      where p.pronamespace = 'public'::regnamespace and p.proname = f);
+  if v_missing is not null then
+    raise exception 'PROBE % FAILED: Phase 3 is not live; missing %', p_probe, v_missing;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'reports' and column_name = 'community_status') then
+    raise exception 'PROBE % FAILED: Phase 3 is not live; missing reports.community_status', p_probe;
+  end if;
+end $f$;
+
+-- a Town Hall post written as the table owner (no JWT); ids 00000000-0000-4000-d000-0000000005NN
+create or replace function pg_temp.probe_post(n int, p_author uuid, p_community uuid) returns uuid language plpgsql as $f$
+declare
+  v uuid := ('00000000-0000-4000-d000-' || lpad((500 + n)::text, 12, '0'))::uuid;
+begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.town_hall_posts (id, user_id, title, content, community_id)
+  values (v, p_author, 'Probe post ' || n, 'communities probe post ' || n, p_community);
+  return v;
+end $f$;
 commit;
 
 
@@ -1372,5 +1408,551 @@ $probe$;
 rollback;
 select 'PROBE creation_limits OK' as probe;
 
+
+-- =============================================================================================================
+-- community_moderation (Phase 3, INV-P2, D27): a report on a probe-community post reaches its owner and admin
+-- with no source user and a push carrying community_id, never the author or the reporter, and the platform
+-- admins' rows are unchanged; get_community_reports has no reporter field and refuses non-admins; a report on an
+-- admin's post reaches no admin of the community, is not in their lists and cannot be moderated by them (nor by
+-- its author); a person report between two people sharing one community reaches that community's admins but not
+-- the reported person, and one about an admin reaches none; hide / restore / dismiss write the content, the events
+-- and the community's own decision, and leave the report pending in the platform admins' queue; platform moderation
+-- wins (no restore of a platform admin's hide or of the auto-hide, no hide or dismiss on a report a platform admin
+-- reviewed, no hide of hidden content); a community report is out of reach; an archived community's reports are
+-- refused.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'community_moderation';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u5 uuid := pg_temp.u(5);  u7 uuid := pg_temp.u(7);  u12 uuid := pg_temp.u(12);
+  u11 uuid := pg_temp.u(11);
+  c1 uuid := pg_temp.c(1);
+  v_post3 uuid;  v_post5 uuid;  v_post11 uuid;  v_post7b uuid;  v_r_post11 uuid;  v_r_auto uuid;
+  v_comment uuid := '00000000-0000-4000-d000-000000000601'::uuid;
+  v_r_post3 uuid;  v_r_post5 uuid;  v_r_comment uuid;  v_r_person uuid;  v_r_person_admin uuid;  v_r_community uuid;
+  v_padmins bigint;
+  v_list jsonb;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase3(v_probe);
+  perform pg_temp.probe_world();
+  v_padmins := (select count(*) from public.profiles where is_admin);
+
+  v_post3 := pg_temp.probe_post(1, u3, c1);    -- a plain member's post
+  v_post5 := pg_temp.probe_post(2, u5, c1);    -- an admin's post
+  insert into public.town_hall_comments (id, post_id, user_id, content)
+  values (v_comment, v_post3, u7, 'communities probe comment');
+
+  -- (a) a member reports a member's post
+  j := pg_temp.probe_call(u7, format($q$public.submit_report(%L::uuid, %L::uuid, null, %L::uuid, null, null, null,
+                                         'harassment', 'Probe post report')$q$, u7, u3, v_post3));
+  perform pg_temp.probe_ok(v_probe, 'a member reports a post: ' || j::text, not pg_temp.probe_refused(j));
+  v_r_post3 := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'the report carries C1', (select community_id from public.reports where id = v_r_post3) = c1);
+  perform pg_temp.probe_ok(v_probe, 'the owner and the admin each hold one content_reported row with no source user, in C1',
+    (select count(*) from public.notifications n
+      where n.user_id in (u4, u5) and n.type = 'content_reported' and n.town_hall_post_id = v_post3
+        and n.source_user_id is null and n.community_id = c1) = 2);
+  perform pg_temp.probe_ok(v_probe, 'each holds one queued push carrying community_id',
+    (select count(*) from public.notification_queue q
+      where q.recipient_user_id in (u4, u5) and q.notification_type = 'content_reported'
+        and q.payload -> 'data' ->> 'town_hall_post_id' = v_post3::text
+        and q.payload -> 'data' ->> 'community_id' = c1::text) = 2);
+  perform pg_temp.probe_ok(v_probe, 'the author and the reporter hold none',
+    not exists (select 1 from public.notifications n
+                 where n.user_id in (u3, u7) and n.type = 'content_reported' and n.town_hall_post_id = v_post3));
+  perform pg_temp.probe_ok(v_probe, 'the platform admins'' rows are unchanged: one each, with the reporter',
+    (select count(*) from public.notifications n join public.profiles p on p.id = n.user_id
+      where p.is_admin and n.type = 'content_reported' and n.town_hall_post_id = v_post3
+        and n.source_user_id = u7) = v_padmins);
+
+  v_list := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner lists the report: ' || v_list::text,
+    coalesce(v_list ->> 'success', '') = 'true'
+    and exists (select 1 from jsonb_array_elements(v_list -> 'reports') e
+                 where (e ->> 'report_id')::uuid = v_r_post3 and (e ->> 'author_id')::uuid = u3));
+  perform pg_temp.probe_ok(v_probe, 'no row has a reporter field, and the reporter''s id appears nowhere in the list',
+    not exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where e ? 'reporter_id' or e ? 'reporter_name')
+    and position(u7::text in (v_list -> 'reports')::text) = 0);
+  j := pg_temp.probe_call(u3, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'a plain member is refused: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u12, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'another community''s owner is refused: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(null, format('public.get_community_reports(%L::uuid, null)', c1), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call it: ' || j::text, coalesce(j ->> 'raised', '') = 'true');
+
+  -- (b) a report on an admin's post: platform admins only (INV-P2 rule 3)
+  j := pg_temp.probe_call(u3, format($q$public.submit_report(%L::uuid, %L::uuid, null, %L::uuid, null, null, null,
+                                         'spam', 'Probe admin post report')$q$, u3, u5, v_post5));
+  v_r_post5 := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'the report on the admin''s post is filed: ' || j::text, v_r_post5 is not null);
+  perform pg_temp.probe_ok(v_probe, 'it reaches no owner or admin of C1',
+    not exists (select 1 from public.notifications n
+                  join public.community_members m on m.user_id = n.user_id and m.community_id = c1
+                                                 and m.status = 'active' and m.role in ('owner', 'admin')
+                 where n.type = 'content_reported' and n.town_hall_post_id = v_post5));
+  perform pg_temp.probe_ok(v_probe, 'it reaches every platform admin',
+    (select count(*) from public.notifications n join public.profiles p on p.id = n.user_id
+      where p.is_admin and n.type = 'content_reported' and n.town_hall_post_id = v_post5) = v_padmins);
+  v_list := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'it is not in the owner''s list',
+    not exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where (e ->> 'report_id')::uuid = v_r_post5));
+  v_list := pg_temp.probe_call(u5, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'nor in its author''s list',
+    not exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where (e ->> 'report_id')::uuid = v_r_post5));
+  v_list := pg_temp.probe_call(v_admin, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'a platform admin reads C1''s list, without it: ' || v_list::text,
+    coalesce(v_list ->> 'success', '') = 'true'
+    and not exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where (e ->> 'report_id')::uuid = v_r_post5));
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post5, 'hide', 'Probe reason'));
+  perform pg_temp.probe_ok(v_probe, 'the owner cannot moderate a report about an admin''s post: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post5, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'the author cannot moderate a report about their own content: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(v_admin, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post5, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'nor can a platform admin through this function (admin_moderate_content is theirs): ' || j::text,
+    pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'the admin''s post is untouched and its report pending',
+    (select hidden_at from public.town_hall_posts where id = v_post5) is null
+    and (select status from public.reports where id = v_r_post5) = 'pending');
+
+  -- (c) an admin reports a member's comment: the reporting admin is not told, the owner is
+  j := pg_temp.probe_call(u5, format($q$public.submit_report(%L::uuid, %L::uuid, null, null, %L::uuid, null, null,
+                                         'inappropriate_content', 'Probe comment report')$q$, u5, u7, v_comment));
+  v_r_comment := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'the comment report is filed: ' || j::text, v_r_comment is not null);
+  perform pg_temp.probe_ok(v_probe, 'the reporting admin holds no new row; the owner holds one more',
+    (select count(*) from public.notifications n
+      where n.user_id = u5 and n.type = 'content_reported' and n.town_hall_post_id = v_post3) = 1
+    and (select count(*) from public.notifications n
+      where n.user_id = u4 and n.type = 'content_reported' and n.town_hall_post_id = v_post3) = 2);
+  perform pg_temp.probe_ok(v_probe, 'the comment''s author is not told',
+    not exists (select 1 from public.notifications n where n.user_id = u7 and n.type = 'content_reported'));
+
+  -- (d) person reports (D27)
+  j := pg_temp.probe_call(u7, format($q$public.submit_report(%L::uuid, %L::uuid, null, null, null, null, null,
+                                         'harassment', 'Probe person report')$q$, u7, u3));
+  v_r_person := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'a person report between two C1-only members carries C1',
+    (select community_id from public.reports where id = v_r_person) = c1);
+  perform pg_temp.probe_ok(v_probe, 'the owner and the admin each hold one entity-less row for it, tagged C1, no source user',
+    (select count(*) from public.notifications n
+      where n.user_id in (u4, u5) and n.type = 'content_reported' and n.ride_id is null and n.favor_id is null
+        and n.town_hall_post_id is null and n.source_user_id is null and n.community_id = c1) = 2);
+  perform pg_temp.probe_ok(v_probe, 'the reported person holds none',
+    not exists (select 1 from public.notifications n where n.user_id = u3 and n.type = 'content_reported'));
+  j := pg_temp.probe_call(u3, format($q$public.submit_report(%L::uuid, %L::uuid, null, null, null, null, null,
+                                         'harassment', 'Probe admin person report')$q$, u3, u5));
+  v_r_person_admin := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'a person report about an admin reaches no admin of C1 (the owner still has one entity-less row)',
+    v_r_person_admin is not null
+    and (select count(*) from public.notifications n
+          where n.user_id = u4 and n.type = 'content_reported' and n.ride_id is null and n.favor_id is null
+            and n.town_hall_post_id is null) = 1);
+
+  -- (e) moderation by the owner on the member's post; the platform admins' queue is not changed
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post3, 'hide', '   '));
+  perform pg_temp.probe_ok(v_probe, 'hide without a reason is refused: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u3, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post3, 'hide', 'Probe'));
+  perform pg_temp.probe_ok(v_probe, 'a plain member cannot moderate: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post3, 'hide', 'Probe hide reason'));
+  perform pg_temp.probe_ok(v_probe, 'the owner hides the post: ' || j::text, coalesce(j ->> 'success', '') = 'true');
+  perform pg_temp.probe_ok(v_probe, 'the post is hidden by the owner with the reason',
+    exists (select 1 from public.town_hall_posts
+             where id = v_post3 and hidden_at is not null and hidden_by = u4 and hidden_reason = 'Probe hide reason'));
+  perform pg_temp.probe_ok(v_probe, 'the report is action_taken for the community and still pending for the platform admins',
+    exists (select 1 from public.reports
+             where id = v_r_post3 and community_status = 'action_taken' and community_reviewed_at is not null
+               and content_hidden and status = 'pending' and reviewed_by is null and reviewed_at is null));
+  perform pg_temp.probe_ok(v_probe, 'one hide event acted by the owner',
+    (select count(*) from public.content_moderation_events
+      where target_type = 'town_hall_post' and target_id = v_post3 and action = 'hide' and acted_by = u4) = 1);
+  perform pg_temp.probe_ok(v_probe, 'the author is told (content_hidden)',
+    exists (select 1 from public.notifications where user_id = u3 and type = 'content_hidden' and town_hall_post_id = v_post3));
+  v_list := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner''s list reads action_taken, restorable, not platform-handled: ' || v_list::text,
+    exists (select 1 from jsonb_array_elements(v_list -> 'reports') e
+             where (e ->> 'report_id')::uuid = v_r_post3 and e ->> 'status' = 'action_taken'
+               and (e ->> 'can_restore')::boolean and not (e ->> 'platform_handled')::boolean));
+  j := pg_temp.probe_run(v_admin, format($q$select coalesce(jsonb_agg(x.report_id), '[]'::jsonb)
+                                            from public.admin_get_reports(%L::uuid, 'pending') x$q$, v_admin));
+  perform pg_temp.probe_ok(v_probe, 'it is still in the platform admins'' pending queue', j @> to_jsonb(array[v_r_post3]));
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post3, 'hide', 'Probe again'));
+  perform pg_temp.probe_ok(v_probe, 'hiding hidden content is refused (no hidden_by overwrite): ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'already_hidden'
+    and (select hidden_by from public.town_hall_posts where id = v_post3) = u4);
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post3, 'restore', null));
+  perform pg_temp.probe_ok(v_probe, 'C1''s admin restores the owner''s hide: ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and (select hidden_at from public.town_hall_posts where id = v_post3) is null
+    and exists (select 1 from public.content_moderation_events
+                 where target_id = v_post3 and action = 'restore' and acted_by = u5));
+
+  -- (f) a person report: dismiss only, recorded for the community, still pending for the platform admins
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_person, 'hide', 'Probe'));
+  perform pg_temp.probe_ok(v_probe, 'a person report cannot be hidden: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_person, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'the admin dismisses it for the community: ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and exists (select 1 from public.reports
+                 where id = v_r_person and community_status = 'dismissed' and status = 'pending' and reviewed_by is null)
+    and exists (select 1 from public.content_moderation_events
+                 where report_id = v_r_person and action = 'dismiss' and acted_by = u5));
+  v_list := pg_temp.probe_call(u4, format($q$public.get_community_reports(%L::uuid, 'dismissed')$q$, c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner''s Dismissed list holds it: ' || v_list::text,
+    exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where (e ->> 'report_id')::uuid = v_r_person));
+  v_list := pg_temp.probe_call(u4, format($q$public.get_community_reports(%L::uuid, 'pending')$q$, c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner''s Pending list does not',
+    not exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where (e ->> 'report_id')::uuid = v_r_person));
+  j := pg_temp.probe_run(v_admin, format($q$select coalesce(jsonb_agg(x.report_id), '[]'::jsonb)
+                                            from public.admin_get_reports(%L::uuid, 'pending') x$q$, v_admin));
+  perform pg_temp.probe_ok(v_probe, 'the platform admins'' pending queue still holds it', j @> to_jsonb(array[v_r_person]));
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_person, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'a second dismissal is refused: ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'already_closed');
+
+  -- (g) a community report never reaches community admins
+  j := pg_temp.probe_call(u3, format($q$public.report_community(p_community_id => %L::uuid, p_code => null,
+                                         p_report_type => 'spam', p_description => 'Probe community report')$q$, c1));
+  v_r_community := (select id from public.reports where reporter_id = u3 and reported_community_id = c1 order by created_at desc limit 1);
+  perform pg_temp.probe_ok(v_probe, 'the community report exists', v_r_community is not null);
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_community, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'the owner cannot act on a report about the community: ' || j::text, pg_temp.probe_refused(j));
+  v_list := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'nor list it',
+    not exists (select 1 from jsonb_array_elements(v_list -> 'reports') e where (e ->> 'report_id')::uuid = v_r_community));
+
+  -- (h) platform moderation wins: a platform admin's hide and review close the report to the community
+  v_post11 := pg_temp.probe_post(3, u11, c1);
+  j := pg_temp.probe_call(u3, format($q$public.submit_report(%L::uuid, %L::uuid, null, %L::uuid, null, null, null,
+                                         'spam', 'Probe platform-handled report')$q$, u3, u11, v_post11));
+  v_r_post11 := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'the report on the member''s post is filed: ' || j::text, v_r_post11 is not null);
+  j := pg_temp.probe_call(v_admin, format('public.admin_moderate_content(%L::uuid, %L::uuid, %L, %L)',
+                                          v_admin, v_r_post11, 'hide', 'Probe platform hide'));
+  perform pg_temp.probe_ok(v_probe, 'a platform admin hides it through admin_moderate_content: ' || j::text,
+    not pg_temp.probe_refused(j)
+    and (select hidden_by from public.town_hall_posts where id = v_post11) = v_admin
+    and (select status from public.reports where id = v_r_post11) = 'action_taken');
+  v_list := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner''s list reads it platform-handled and not restorable: ' || v_list::text,
+    exists (select 1 from jsonb_array_elements(v_list -> 'reports') e
+             where (e ->> 'report_id')::uuid = v_r_post11 and e ->> 'status' = 'action_taken'
+               and (e ->> 'platform_handled')::boolean and not (e ->> 'can_restore')::boolean));
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post11, 'restore', null));
+  perform pg_temp.probe_ok(v_probe, 'the owner cannot restore a platform admin''s hide: ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'platform_hidden'
+    and (select hidden_by from public.town_hall_posts where id = v_post11) = v_admin);
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post11, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'nor dismiss the report a platform admin reviewed: ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'platform_handled');
+  j := pg_temp.probe_call(u5, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_post11, 'hide', 'Probe'));
+  perform pg_temp.probe_ok(v_probe, 'nor hide on it: ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'platform_handled');
+  perform pg_temp.probe_ok(v_probe, 'the platform admin''s decision is intact',
+    exists (select 1 from public.reports
+             where id = v_r_post11 and status = 'action_taken' and reviewed_by = v_admin and community_status is null));
+
+  -- (i) the 3-reporter auto-hide (hidden_by null) is restored only by platform admins
+  v_post7b := pg_temp.probe_post(4, u7, c1);
+  j := pg_temp.probe_call(u3, format($q$public.submit_report(%L::uuid, %L::uuid, null, %L::uuid, null, null, null,
+                                         'spam', 'Probe auto-hide 1')$q$, u3, u7, v_post7b));
+  j := pg_temp.probe_call(u11, format($q$public.submit_report(%L::uuid, %L::uuid, null, %L::uuid, null, null, null,
+                                          'spam', 'Probe auto-hide 2')$q$, u11, u7, v_post7b));
+  j := pg_temp.probe_call(u5, format($q$public.submit_report(%L::uuid, %L::uuid, null, %L::uuid, null, null, null,
+                                         'spam', 'Probe auto-hide 3')$q$, u5, u7, v_post7b));
+  v_r_auto := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'three distinct reporters auto-hide the post, hidden_by null: ' || j::text,
+    v_r_auto is not null
+    and exists (select 1 from public.town_hall_posts where id = v_post7b and hidden_at is not null and hidden_by is null)
+    and exists (select 1 from public.content_moderation_events
+                 where target_id = v_post7b and action = 'auto_hide' and acted_by is null));
+  v_list := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner''s list offers no restore for it',
+    exists (select 1 from jsonb_array_elements(v_list -> 'reports') e
+             where (e ->> 'report_id')::uuid = v_r_auto and (e ->> 'content_hidden')::boolean
+               and not (e ->> 'can_restore')::boolean));
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_auto, 'restore', null));
+  perform pg_temp.probe_ok(v_probe, 'the owner cannot undo the auto-hide: ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'platform_hidden'
+    and (select hidden_at from public.town_hall_posts where id = v_post7b) is not null);
+  j := pg_temp.probe_call(u4, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_auto, 'hide', 'Probe takeover'));
+  perform pg_temp.probe_ok(v_probe, 'nor take it over by hiding it again: ' || j::text,
+    pg_temp.probe_refused(j) and j ->> 'code' = 'already_hidden'
+    and (select hidden_by from public.town_hall_posts where id = v_post7b) is null);
+  j := pg_temp.probe_call(v_admin, format('public.moderate_community_content(%L::uuid, %L, %L)', v_r_auto, 'restore', null));
+  perform pg_temp.probe_ok(v_probe, 'a platform admin may restore it here (admin_moderate_content gives them that already): ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and (select hidden_at from public.town_hall_posts where id = v_post7b) is null);
+
+  -- (j) an archived community's reports are out of reach
+  perform set_config('request.jwt.claims', '', true);
+  update public.communities set archived_at = now() where id = c1;
+  j := pg_temp.probe_call(u4, format('public.get_community_reports(%L::uuid, null)', c1));
+  perform pg_temp.probe_ok(v_probe, 'after archiving, the owner is refused: ' || j::text, pg_temp.probe_refused(j));
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE community_moderation OK' as probe;
+
+
+-- =============================================================================================================
+-- admin_community_reports (Phase 3 carry-over, File A blocks 6-8, D-S1): admin_get_reports lists a community
+-- report as target 'community' with the community's name; a platform admin dismisses it through
+-- admin_moderate_content, which logs one content_moderation_events row with target_type 'community'; Hide on it
+-- raises; a caller who is not a platform admin (here the community's own owner) is refused.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'admin_community_reports';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);
+  c1 uuid := pg_temp.c(1);
+  v_r uuid;
+  v_rows jsonb;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase3(v_probe);
+  if not exists (select 1 from pg_catalog.pg_constraint
+                  where conname = 'content_moderation_events_target_type_check'
+                    and pg_catalog.pg_get_constraintdef(oid) like '%community%') then
+    raise exception 'PROBE % FAILED: File A blocks 6-8 are not live (D-S1)', v_probe;
+  end if;
+  perform pg_temp.probe_world();
+
+  j := pg_temp.probe_call(u3, format($q$public.report_community(p_community_id => %L::uuid, p_code => null,
+                                         p_report_type => 'spam', p_description => 'Probe community report')$q$, c1));
+  v_r := (select id from public.reports where reporter_id = u3 and reported_community_id = c1 order by created_at desc limit 1);
+  perform pg_temp.probe_ok(v_probe, 'the community report exists: ' || j::text, v_r is not null);
+
+  v_rows := pg_temp.probe_run(v_admin, format($q$select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb)
+                                                 from public.admin_get_reports(%L::uuid, 'pending') x
+                                                where x.report_id = %L::uuid$q$, v_admin, v_r));
+  perform pg_temp.probe_ok(v_probe, 'admin_get_reports lists it as a community target with the name as preview: ' || v_rows::text,
+    jsonb_typeof(v_rows) = 'array' and jsonb_array_length(v_rows) = 1
+    and v_rows -> 0 ->> 'target_type' = 'community'
+    and v_rows -> 0 ->> 'content_preview' = 'Probe Community One'
+    and (v_rows -> 0 ->> 'reporter_id')::uuid = u3);
+
+  j := pg_temp.probe_call(v_admin, format('public.admin_moderate_content(%L::uuid, %L::uuid, %L, %L)',
+                                          v_admin, v_r, 'hide', 'Probe hide'));
+  perform pg_temp.probe_ok(v_probe, 'Hide on a community report raises: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and (select status from public.reports where id = v_r) = 'pending');
+
+  j := pg_temp.probe_call(u4, format('public.admin_moderate_content(%L::uuid, %L::uuid, %L, %L)',
+                                     u4, v_r, 'dismiss', null));
+  perform pg_temp.probe_ok(v_probe, 'the community''s owner, not a platform admin, is refused: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and (select status from public.reports where id = v_r) = 'pending');
+  j := pg_temp.probe_run(u4, format($q$select coalesce(jsonb_agg(x.report_id), '[]'::jsonb)
+                                       from public.admin_get_reports(%L::uuid, null) x$q$, u4));
+  perform pg_temp.probe_ok(v_probe, 'and cannot list platform reports: ' || j::text, coalesce(j ->> 'raised', '') = 'true');
+
+  j := pg_temp.probe_call(v_admin, format('public.admin_moderate_content(%L::uuid, %L::uuid, %L, %L)',
+                                          v_admin, v_r, 'dismiss', 'Probe dismissal'));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin dismisses it: ' || j::text,
+    not pg_temp.probe_refused(j)
+    and exists (select 1 from public.reports
+                 where id = v_r and status = 'dismissed' and reviewed_by = v_admin and admin_notes = 'Probe dismissal'));
+  perform pg_temp.probe_ok(v_probe, 'one dismiss event with target_type community and the community as target',
+    (select count(*) from public.content_moderation_events
+      where report_id = v_r and target_type = 'community' and target_id = c1
+        and action = 'dismiss' and acted_by = v_admin) = 1);
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE admin_community_reports OK' as probe;
+
+
+-- =============================================================================================================
+-- community_stats (Phase 3): get_community_stats and the three breakdowns read only the community's requests;
+-- members, other communities and anon are refused; the null scope is platform admins only; the legacy admin_*
+-- functions return the null scope's answer to a platform admin and refuse a community owner.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'community_stats';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u12 uuid := pg_temp.u(12);
+  c1 uuid := pg_temp.c(1);
+  j jsonb;
+  k jsonb;
+begin
+  perform pg_temp.probe_require_phase3(v_probe);
+  perform pg_temp.probe_world();
+  -- r(1): completed in C1; r(2): open in C1
+  update public.rides set estimated_cost = 12.50 where id = pg_temp.r(1);
+
+  j := pg_temp.probe_call(u4, format('public.get_community_stats(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'the owner reads C1''s figures: ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and (j ->> 'fulfilled_count')::int = 1 and (j ->> 'active_rides_count')::int = 1
+    and (j ->> 'total_savings')::numeric = 12.50);
+  j := pg_temp.probe_call(u3, format('public.get_community_stats(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'a plain member is refused: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u12, format('public.get_community_stats(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'another community''s owner is refused: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u4, 'public.get_community_stats(null)');
+  perform pg_temp.probe_ok(v_probe, 'the null (every community) scope is refused to a community owner: ' || j::text, pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(null, format('public.get_community_stats(%L::uuid)', c1), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call it: ' || j::text, coalesce(j ->> 'raised', '') = 'true');
+
+  j := pg_temp.probe_call(u4, format('public.get_community_stats_active_requests(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'active requests: C1''s open ride, and nothing from another community: ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and exists (select 1 from jsonb_array_elements(j -> 'rows') e where (e ->> 'id')::uuid = pg_temp.r(2))
+    and not exists (select 1 from jsonb_array_elements(j -> 'rows') e
+                     where (e ->> 'id')::uuid not in (select id from public.rides where community_id = c1
+                                                      union all select id from public.favors where community_id = c1)));
+  j := pg_temp.probe_call(u4, format($q$public.get_community_stats_fulfilled(%L::uuid, 'month', 12)$q$, c1));
+  perform pg_temp.probe_ok(v_probe, 'fulfilled breakdown counts C1''s one completed request: ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and (select coalesce(sum((e ->> 'total_count')::int), 0) from jsonb_array_elements(j -> 'rows') e) = 1);
+  j := pg_temp.probe_call(u4, format($q$public.get_community_stats_savings(%L::uuid, 'month', 12)$q$, c1));
+  perform pg_temp.probe_ok(v_probe, 'savings breakdown sums C1''s estimate: ' || j::text,
+    coalesce(j ->> 'success', '') = 'true'
+    and (select coalesce(sum((e ->> 'total_savings')::numeric), 0) from jsonb_array_elements(j -> 'rows') e) = 12.50);
+
+  -- the legacy wrappers
+  j := pg_temp.probe_call(v_admin, 'public.get_community_stats(null)');
+  k := pg_temp.probe_call(v_admin, 'public.admin_dashboard_stats()');
+  perform pg_temp.probe_ok(v_probe, format('admin_dashboard_stats equals the every-community scope: %s vs %s', k, j), k = (j - 'success'));
+  j := pg_temp.probe_call(v_admin, $q$public.get_community_stats_fulfilled(null, 'week', 12)$q$);
+  k := pg_temp.probe_call(v_admin, $q$public.admin_stats_fulfilled('week', 12)$q$);
+  perform pg_temp.probe_ok(v_probe, 'admin_stats_fulfilled equals the every-community rows', k = j -> 'rows');
+  j := pg_temp.probe_call(v_admin, $q$public.get_community_stats_savings(null, 'year', 12)$q$);
+  k := pg_temp.probe_call(v_admin, $q$public.admin_stats_savings('year', 12)$q$);
+  perform pg_temp.probe_ok(v_probe, 'admin_stats_savings equals the every-community rows', k = j -> 'rows');
+  j := pg_temp.probe_run(v_admin, $q$select coalesce(jsonb_agg(e order by e ->> 'id'), '[]'::jsonb)
+                                     from jsonb_array_elements(public.get_community_stats_active_requests(null) -> 'rows') e$q$);
+  k := pg_temp.probe_run(v_admin, $q$select coalesce(jsonb_agg(e order by e ->> 'id'), '[]'::jsonb)
+                                     from jsonb_array_elements(public.admin_stats_active_rides()::jsonb) e$q$);
+  perform pg_temp.probe_ok(v_probe, 'admin_stats_active_rides equals the every-community rows (as a set)', k = j);
+  j := pg_temp.probe_call(u4, 'public.admin_dashboard_stats()');
+  perform pg_temp.probe_ok(v_probe, 'a community owner who is not a platform admin is refused by the legacy function: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true');
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE community_stats OK' as probe;
+
+
+-- =============================================================================================================
+-- broadcast_cap (Phase 3, D14): announcement-typed rows a plain member writes do not count; a platform admin's
+-- fourth announcement within 24 hours in one community is refused with P0001, as a community admin's already was;
+-- the installed admin build's wrapper (default community) is capped the same way.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'broadcast_cap';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);
+  c1 uuid := pg_temp.c(1);
+  d uuid;
+  v_existing int;
+  n int;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase3(v_probe);
+  perform pg_temp.probe_world();
+  d := public.default_community_id();
+
+  -- (a) three rows typed 'announcement' by a plain member of C1: what town_hall_posts_insert_active_user lets an
+  --     active member write (it does not restrict type). Written as the table owner so the case does not depend on
+  --     the probe account's approval flags; the cap must not count them.
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.town_hall_posts (user_id, title, content, type, community_id)
+  select u3, 'Probe member announcement ' || g, 'communities probe', 'announcement', c1
+    from generate_series(1, 3) g;
+
+  for n in 1..3 loop
+    j := pg_temp.probe_call(v_admin, format($q$public.send_community_broadcast(%L::uuid, %L, %L, false)$q$,
+                                            c1, 'Probe announcement ' || n, 'communities probe'));
+    perform pg_temp.probe_ok(v_probe, format('the platform admin''s announcement %s in C1 is sent: %s', n, j), not pg_temp.probe_refused(j));
+  end loop;
+  j := pg_temp.probe_call(v_admin, format($q$public.send_community_broadcast(%L::uuid, %L, %L, false)$q$,
+                                          c1, 'Probe announcement 4', 'communities probe'));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin''s fourth in 24 hours is refused with P0001: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = 'P0001');
+  j := pg_temp.probe_call(u4, format($q$public.send_community_broadcast(%L::uuid, %L, %L, false)$q$,
+                                     c1, 'Probe owner announcement', 'communities probe'));
+  perform pg_temp.probe_ok(v_probe, 'the owner is refused too (the cap is per community): ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = 'P0001');
+  perform pg_temp.probe_ok(v_probe, 'C1 holds six announcement rows, three of them by the platform admin',
+    (select count(*) from public.town_hall_posts where community_id = c1 and type = 'announcement') = 6
+    and (select count(*) from public.town_hall_posts
+          where community_id = c1 and type = 'announcement' and user_id = v_admin) = 3);
+
+  -- the installed admin build's wrapper posts into the default community
+  -- the same counting rule as the function: announcements by platform admins and by the community's staff
+  v_existing := (select count(*)::int from public.town_hall_posts t
+                   left join public.profiles a on a.id = t.user_id
+                  where t.community_id = d and t.type = 'announcement' and t.created_at > now() - interval '24 hours'
+                    and (coalesce(a.is_admin, false) or public.is_community_staff(d, t.user_id)));
+  for n in 1..greatest(3 - v_existing, 0) loop
+    j := pg_temp.probe_call(v_admin, format($q$public.send_broadcast_notifications(%L, %L, 'broadcast', false)$q$,
+                                            'Probe wrapper ' || n, 'communities probe'));
+    perform pg_temp.probe_ok(v_probe, format('wrapper announcement %s is sent: %s', n, j), not pg_temp.probe_refused(j));
+  end loop;
+  j := pg_temp.probe_call(v_admin, $q$public.send_broadcast_notifications('Probe wrapper over', 'communities probe', 'broadcast', false)$q$);
+  perform pg_temp.probe_ok(v_probe, 'the wrapper refuses the platform admin once the default community has three today: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = 'P0001');
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE broadcast_cap OK' as probe;
+
+
+-- =============================================================================================================
+-- posts_delete_policy (Phase 3, spec §3.4)   ** SQL editor (owner): this block holds DELETE statements, which
+-- the MCP's permission layer declines. Paste PARAMETERS, HELPERS and this block. **
+-- A community admin may remove a member's post in their community, not an owner's post; a plain member may not
+-- remove another member's post; the owner of another community may not; an author may remove their own.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'posts_delete_policy';
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u5 uuid := pg_temp.u(5);  u7 uuid := pg_temp.u(7);  u12 uuid := pg_temp.u(12);
+  c1 uuid := pg_temp.c(1);
+  v_p3 uuid;  v_p4 uuid;  v_p7 uuid;  v_p7b uuid;
+  v_sql constant text := $q$with x as (delete from public.town_hall_posts where id = %L returning 1)
+                            select to_jsonb(count(*)) from x$q$;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase3(v_probe);
+  perform pg_temp.probe_world();
+  v_p3  := pg_temp.probe_post(11, u3, c1);
+  v_p4  := pg_temp.probe_post(12, u4, c1);   -- the owner's
+  v_p7  := pg_temp.probe_post(13, u7, c1);
+  v_p7b := pg_temp.probe_post(14, u7, c1);
+
+  j := pg_temp.probe_run(u3, format(v_sql, v_p7));
+  perform pg_temp.probe_ok(v_probe, 'a plain member cannot remove another member''s post: ' || j::text, j = '0'::jsonb);
+  j := pg_temp.probe_run(u12, format(v_sql, v_p7b));
+  perform pg_temp.probe_ok(v_probe, 'another community''s owner cannot: ' || j::text, j = '0'::jsonb);
+  j := pg_temp.probe_run(u5, format(v_sql, v_p7));
+  perform pg_temp.probe_ok(v_probe, 'C1''s admin removes a member''s post: ' || j::text, j = '1'::jsonb);
+  j := pg_temp.probe_run(u5, format(v_sql, v_p4));
+  perform pg_temp.probe_ok(v_probe, 'C1''s admin cannot remove the owner''s post: ' || j::text, j = '0'::jsonb);
+  j := pg_temp.probe_run(u3, format(v_sql, v_p3));
+  perform pg_temp.probe_ok(v_probe, 'an author removes their own post: ' || j::text, j = '1'::jsonb);
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE posts_delete_policy OK' as probe;
 
 select 'PROBE ALL OK' as probe;
