@@ -74,3 +74,10 @@ These instructions apply to all work in this repository. Follow them unless the 
 - Town Hall pushes use `town_hall_post_id` (`NotificationType.entityIdKey`) and may carry `community_id`; they do a targeted single-post refresh.
 - `recheckAccountStatus` acts only on a successful read; the waiting screen runs `performCriticalLaunch()`; sign-out calls `CommunityContext.resetForSignOut(userId:)`.
 - Title menus use the shared `communityTitleMenu` modifier and show only with more than one membership. `get_badge_counts` keys `pending_members_total`, `community_details`, `total` come from the server.
+
+## Communities (Phase 3)
+
+- Admin and moderation code: `Features/Community/{Views,ViewModels}` (members, settings, reports) and `Features/Admin` (panel per community, announcements). Fronts: `AdminServiceProtocol` (figures, `sendBroadcast(communityId:…)`, community reports) and `CommunityAdminServiceProtocol` (remove, readmit, roles, ownership, settings, archive). `PreviewAdminService` is the app-target preview stand-in; any `#Preview` using a DEBUG-only preview service sits inside `#if DEBUG`.
+- `CommunityReport` has no reporter field (INV-P2). Community screens never call `admin_get_reports` or `admin_moderate_content`; they use `AdminService.fetchCommunityReports` and `moderateCommunityContent`.
+- `content_reported` with `community_id` routes to `.communityReports(communityId)` for a non-platform admin; without it, `.adminReports`. `account_restricted` routes to `.myCommunities`.
+- Coordinator triggers added: `forceFullRefreshAndWait(.dashboard, "removedMember")` and `(.dashboard, "archivedCommunity")`, from ViewModels after an explicit action only. One RPC per tap: a write method returns early while one is in flight.

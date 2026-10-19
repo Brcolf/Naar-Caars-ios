@@ -286,7 +286,7 @@ Owner-only on every operation.
 | `Authenticated users can view visible or own hidden town hall posts` | SELECT | authenticated | `(hidden_at IS NULL AND caller is approved) OR user_id = auth.uid()` |
 | `Guests can view visible town hall posts` | SELECT | anon | `hidden_at IS NULL` |
 | `town_hall_posts_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
-| `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is admin` |
+| `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is a platform admin OR the post's community is in my_admin_community_ids()` (Phase 3, `20261018_0001`) |
 
 ### 2.15 town_hall_comments
 
@@ -541,7 +541,7 @@ Admin operations are protected at three layers:
 ### 4.1a Two admin notions
 
 - **Platform admin:** `profiles.is_admin`, checked on the client by `verifyAdminStatus` and on the server by the admin RPCs.
-- **Community admin:** the member's role in that community, checked inside each community RPC (the client never decides it). Community admins never see an applicant's email or phone, or who filed a report.
+- **Community admin:** the member's role in that community, checked inside each community RPC (the client never decides it). Community admins never see an applicant's email or phone, or who filed a report. They see the reports filed in their community (without the reporter) and can hide, restore or dismiss content there through `get_community_reports` / `moderate_community_content`. Staff matters (a report about an owner or admin of the community), message reports and community reports stay with platform admins. Platform moderation wins: a community decision is recorded in `reports.community_status` / `community_reviewed_at`, never in `status` / `reviewed_*`, so every report stays in the platform queue; a community admin cannot undo a platform decision or the 3-reporter auto-hide, or act on a report a platform admin reviewed. SEC-ADMIN-001 below covers platform operations only.
 - Only the user can delete an account, plus, for a default-community applicant with no other membership, a platform admin (INV-M9).
 
 ### 4.2 AdminService Implementation
@@ -663,6 +663,7 @@ For production deployment, implement server-side rate limiting via Supabase Edge
 | Login failures | 5 | 15 minutes | Supabase Auth config |
 | Password reset | 3 | 1 hour | Edge Function |
 | Invite generation | 5 | 24 hours | Database trigger |
+| Announcements | 3 per community | 24 hours | `send_community_broadcast` (platform admins included since `20261018_0002`; counts only announcements by platform admins and community staff) |
 
 ### 5.4 Implementation Priority
 
