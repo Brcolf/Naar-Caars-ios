@@ -24,6 +24,10 @@
 --     20261018_0001 and 20261018_0002 live and fail with "Phase 3 is not live" otherwise (admin_community_reports
 --     also needs File A blocks 6-8). posts_delete_policy holds DELETE statements: SQL editor (owner) only; the MCP
 --     declines it.
+--   * The Phase 4 blocks: phase4_registry needs 20261019_0001; broadcast_push needs 20261019_0002 and
+--     membership_update_producers needs 20261019_0003. Both of those files are GATED (decision A5 point 2): until
+--     they are applied, run their blocks only inside the dry run that creates them (they fail with "Phase 4 part
+--     <x> is not live" otherwise). None of the three holds a DELETE; all run through the MCP.
 --   * SQL editor: run the whole file. MCP execute_sql: pass the PARAMETERS and HELPERS sections plus the
 --     block(s) in ONE call (the helpers live in the session). The `commit;` after HELPERS is deliberate:
 --     in a multi-statement run it keeps the helpers from being rolled back by the first block's rollback.
@@ -86,6 +90,7 @@
 -- p_request_id, p_approve)). A refusal is accepted in either form the spec allows: an exception, or a jsonb
 -- with success = false / a non-empty error.
 --   Phase 3 adds: get_community_reports(p_community_id, p_status), moderate_community_content(p_report_id, p_action, p_reason), get_community_stats(p_community_id) and get_community_stats_fulfilled / _savings(p_community_id, p_period, p_count), get_community_stats_active_requests(p_community_id), send_community_broadcast(p_community_id, p_title, p_body, p_pinned[, p_type]).
+--   Phase 4: create_community(p_name, p_description, p_join_policy, p_timezone); the membership_update producers approve_community_member, readmit_community_member, transfer_community_ownership, set_member_role; send_community_broadcast's push.
 
 
 -- =============================================================================================================
@@ -359,6 +364,44 @@ begin
   insert into public.town_hall_posts (id, user_id, title, content, community_id)
   values (v, p_author, 'Probe post ' || n, 'communities probe post ' || n, p_community);
   return v;
+end $f$;
+
+-- Phase 4: fails unless Phase 3 and the named Phase 4 part are live (in the dry run: created earlier in the same
+-- transaction). p_part: 'registry' (20261019_0001), 'broadcast' (20261019_0002), 'membership' (20261019_0003).
+create or replace function pg_temp.probe_require_phase4(p_probe text, p_part text) returns void language plpgsql as $f$
+declare
+  v_ok boolean;
+begin
+  perform pg_temp.probe_require_phase3(p_probe);
+  v_ok := case p_part
+    when 'registry' then
+          exists (select 1 from pg_catalog.pg_constraint
+                   where conname = 'valid_notification_type'
+                     and pg_catalog.pg_get_constraintdef(oid) like '%membership_update%')
+      and exists (select 1 from pg_catalog.pg_proc
+                   where pronamespace = 'public'::regnamespace and proname = 'should_notify_user'
+                     and prosrc like '%membership_update%')
+      and exists (select 1 from pg_catalog.pg_proc
+                   where pronamespace = 'public'::regnamespace and proname = 'create_community'
+                     and pg_catalog.pg_get_function_identity_arguments(oid) like '%p_timezone%')
+    when 'broadcast' then
+          exists (select 1 from pg_catalog.pg_proc
+                   where pronamespace = 'public'::regnamespace and proname = 'send_community_broadcast'
+                     and prosrc like '%queue_push_notification%')
+      and exists (select 1 from pg_catalog.pg_proc
+                   where pronamespace = 'public'::regnamespace and proname = 'notify_town_hall_post'
+                     and prosrc like '%naars.broadcast_post%')
+    when 'membership' then
+          (select count(*) from pg_catalog.pg_proc
+            where pronamespace = 'public'::regnamespace
+              and proname in ('approve_community_member', 'readmit_community_member',
+                              'transfer_community_ownership', 'set_member_role')
+              and prosrc like '%membership_update%') = 4
+    else false
+  end;
+  if not v_ok then
+    raise exception 'PROBE % FAILED: Phase 4 part % is not live', p_probe, p_part;
+  end if;
 end $f$;
 commit;
 
@@ -1954,5 +1997,223 @@ end
 $probe$;
 rollback;
 select 'PROBE posts_delete_policy OK' as probe;
+
+-- =============================================================================================================
+-- phase4_registry (Phase 4, 20261019_0001): the CHECK accepts membership_update and still refuses an unknown
+-- type; should_notify_user answers true for it; create_community stores a known p_timezone, falls back to the
+-- column default for an unknown or missing one, and the Phase 2 / 3 three-argument call still resolves.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'phase4_registry';
+  u3 uuid := pg_temp.u(3);  u6 uuid := pg_temp.u(6);  u13 uuid := pg_temp.u(13);  u16 uuid := pg_temp.u(16);
+  v_default text;
+  v_id uuid;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase4(v_probe, 'registry');
+  perform pg_temp.probe_world();
+  v_default := (select replace(replace(column_default, '''', ''), '::text', '')
+                  from information_schema.columns
+                 where table_schema = 'public' and table_name = 'communities' and column_name = 'timezone');
+
+  -- (a) the CHECK
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.notifications (user_id, type, title) values (u3, 'membership_update', 'Probe membership update');
+  perform pg_temp.probe_ok(v_probe, 'a membership_update row is accepted',
+    exists (select 1 from public.notifications where user_id = u3 and type = 'membership_update'));
+  begin
+    insert into public.notifications (user_id, type, title) values (u3, 'probe_unknown_type', 'Probe');
+    raise exception 'PROBE % FAILED: an unknown notification type was accepted', v_probe;
+  exception when check_violation then
+    null;
+  end;
+
+  -- (b) should_notify_user
+  perform pg_temp.probe_ok(v_probe, 'should_notify_user(member, membership_update) is true',
+    public.should_notify_user(u3, 'membership_update'));
+  perform pg_temp.probe_ok(v_probe, 'an unknown type is still false',
+    not public.should_notify_user(u3, 'probe_unknown_type'));
+
+  -- (c) a known zone is stored
+  j := pg_temp.probe_call(u6, format('public.create_community(%L, %L, %L, %L)',
+                                     'Probe Zone One', 'communities probe', 'approve', 'America/New_York'));
+  perform pg_temp.probe_ok(v_probe, 'create_community with a zone succeeds: ' || j::text, not pg_temp.probe_refused(j));
+  v_id := (j ->> 'community_id')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'the zone is stored',
+    (select timezone from public.communities where id = v_id) = 'America/New_York');
+
+  -- (d) an unknown zone falls back, by name (the PostgREST form, description omitted)
+  j := pg_temp.probe_call(u13, format('public.create_community(p_name => %L, p_timezone => %L)',
+                                      'Probe Zone Two', 'Not/AZone'));
+  perform pg_temp.probe_ok(v_probe, 'an unknown zone is not a refusal: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'an unknown zone leaves the column default ' || coalesce(v_default, '?'),
+    (select timezone from public.communities where id = (j ->> 'community_id')::uuid) = v_default);
+
+  -- (e) the Phase 2 / 3 call: three arguments, no zone
+  j := pg_temp.probe_call(u16, format('public.create_community(%L, %L, %L)', 'Probe Zone Three', 'communities probe', 'invite'));
+  perform pg_temp.probe_ok(v_probe, 'the three-argument call resolves: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'and keeps the column default',
+    (select timezone from public.communities where id = (j ->> 'community_id')::uuid) = v_default);
+
+  -- (f) one overload
+  perform pg_temp.probe_ok(v_probe, 'exactly one create_community',
+    (select count(*) from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace and proname = 'create_community') = 1);
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE phase4_registry OK' as probe;
+
+
+-- =============================================================================================================
+-- broadcast_push (Phase 4, 20261019_0002, GATED: dry run only until the A5 gate): every unmuted active member but
+-- the sender gets one immediate push of the announcement's type with community_id, town_hall_post_id and
+-- notification_id, also with Town Hall notifications off; a muted member gets nothing; the announcement produces
+-- no town_hall_post row or push; a member's own 'announcement'-typed post is still notified as a Town Hall post.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'broadcast_push';
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u5 uuid := pg_temp.u(5);  u7 uuid := pg_temp.u(7);  u11 uuid := pg_temp.u(11);
+  c1 uuid := pg_temp.c(1);
+  v_post uuid;
+  v_member_post uuid;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase4(v_probe, 'broadcast');
+  perform pg_temp.probe_world();
+  perform set_config('request.jwt.claims', '', true);
+  update public.profiles set notify_town_hall = true  where id in (u3, u5);
+  update public.profiles set notify_town_hall = false where id = u7;      -- Town Hall off: still gets the push
+  update public.community_members set notifications_muted = true
+   where community_id = c1 and user_id = u11;                             -- muted: nothing
+
+  -- C1's active members: owner u4 (sender), admin u5, members u3 u7 u11 (muted); u9 is pending.
+  j := pg_temp.probe_call(u4, format($q$public.send_community_broadcast(%L::uuid, %L, %L, false)$q$,
+                                     c1, 'Probe broadcast', 'communities probe broadcast'));
+  perform pg_temp.probe_ok(v_probe, 'the owner''s announcement reaches three members: ' || j::text, j = '3'::jsonb);
+  v_post := (select id from public.town_hall_posts
+              where community_id = c1 and type = 'announcement' and title = 'Probe broadcast');
+
+  perform pg_temp.probe_ok(v_probe, 'one broadcast push each for u3, u5 and u7, none for the sender or the muted member',
+    (select array_agg(q.recipient_user_id order by q.recipient_user_id)
+       from public.notification_queue q
+      where q.notification_type = 'broadcast'
+        and q.payload -> 'data' ->> 'town_hall_post_id' = v_post::text)
+    = (select array_agg(x order by x) from unnest(array[u3, u5, u7]) x));
+  perform pg_temp.probe_ok(v_probe, 'each push carries the community and its own bell row, and is not batched',
+    not exists (select 1 from public.notification_queue q
+                 where q.notification_type = 'broadcast'
+                   and q.payload -> 'data' ->> 'town_hall_post_id' = v_post::text
+                   and (q.batch_key is not null
+                        or q.payload -> 'data' ->> 'community_id' is distinct from c1::text
+                        or not exists (select 1 from public.notifications n
+                                        where n.id::text = q.payload -> 'data' ->> 'notification_id'
+                                          and n.user_id = q.recipient_user_id and n.type = 'broadcast'))));
+  perform pg_temp.probe_ok(v_probe, 'the push title and body are the announcement''s',
+    not exists (select 1 from public.notification_queue q
+                 where q.notification_type = 'broadcast'
+                   and q.payload -> 'data' ->> 'town_hall_post_id' = v_post::text
+                   and (q.payload ->> 'title' <> 'Probe broadcast' or q.payload ->> 'body' <> 'communities probe broadcast')));
+  perform pg_temp.probe_ok(v_probe, 'the announcement makes no Town Hall row or push (the side door is closed)',
+    not exists (select 1 from public.notifications where type = 'town_hall_post' and town_hall_post_id = v_post)
+    and not exists (select 1 from public.notification_queue
+                     where notification_type = 'town_hall_post'
+                       and payload -> 'data' ->> 'town_hall_post_id' = v_post::text));
+  perform pg_temp.probe_ok(v_probe, 'the setting is reset after the call',
+    coalesce(current_setting('naars.broadcast_post', true), '') = '');
+
+  -- a member's own 'announcement'-typed post (20261018_0002 D-S8) is still a Town Hall post
+  insert into public.town_hall_posts (user_id, title, content, type, community_id)
+  values (u3, 'Probe member announcement', 'communities probe', 'announcement', c1)
+  returning id into v_member_post;
+  perform pg_temp.probe_ok(v_probe, 'a member''s announcement-typed post still notifies Town Hall subscribers',
+    exists (select 1 from public.notifications where type = 'town_hall_post' and town_hall_post_id = v_member_post and user_id = u5));
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE broadcast_push OK' as probe;
+
+
+-- =============================================================================================================
+-- membership_update_producers (Phase 4, 20261019_0003, GATED: dry run only until the A5 gate): approval into a
+-- further community writes membership_update (approved) and no user_approved; a first approval writes no
+-- membership_update; a hand-over tells the new owner (owner) and not the old one; being made a co-owner tells the
+-- person; a demotion is silent; a readmit into a further community writes membership_update (approved) and no
+-- user_approved.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'membership_update_producers';
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u5 uuid := pg_temp.u(5);  u7 uuid := pg_temp.u(7);
+  u9 uuid := pg_temp.u(9);  u12 uuid := pg_temp.u(12);
+  c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase4(v_probe, 'membership');
+  perform pg_temp.probe_world();
+
+  -- (a) approval into a further community: u3 is active in C1 and asks C2 (owner u12)
+  perform pg_temp.probe_member(c2, u3, 'member', 'pending', 1);
+  j := pg_temp.probe_call(u12, format('public.approve_community_member(%L::uuid, %L::uuid)', c2, u3));
+  perform pg_temp.probe_ok(v_probe, 'approve into C2 succeeds: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'u3 gets one membership_update for C2 and no user_approved for C2',
+    (select count(*) from public.notifications where user_id = u3 and type = 'membership_update' and community_id = c2) = 1
+    and not exists (select 1 from public.notifications where user_id = u3 and type = 'user_approved' and community_id = c2));
+  perform pg_temp.probe_ok(v_probe, 'its push says approved and names C2',
+    exists (select 1 from public.notification_queue
+             where recipient_user_id = u3 and notification_type = 'membership_update'
+               and payload -> 'data' ->> 'membership_event' = 'approved'
+               and payload -> 'data' ->> 'community_id' = c2::text));
+
+  -- (b) a first approval: u9 has no other active membership
+  j := pg_temp.probe_call(u4, format('public.approve_community_member(%L::uuid, %L::uuid)', c1, u9));
+  perform pg_temp.probe_ok(v_probe, 'approve u9 into C1 succeeds: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'a first approval writes no membership_update',
+    not exists (select 1 from public.notifications where user_id = u9 and type = 'membership_update'));
+
+  -- (c) hand-over: owner u4 → admin u5
+  j := pg_temp.probe_call(u4, format('public.transfer_community_ownership(%L::uuid, %L::uuid)', c1, u5));
+  perform pg_temp.probe_ok(v_probe, 'the hand-over succeeds: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'the new owner is told (owner), the old owner is not',
+    exists (select 1 from public.notification_queue
+             where recipient_user_id = u5 and notification_type = 'membership_update'
+               and payload -> 'data' ->> 'membership_event' = 'owner'
+               and payload -> 'data' ->> 'community_id' = c1::text)
+    and (select count(*) from public.notifications where user_id = u5 and type = 'membership_update' and community_id = c1) = 1
+    and not exists (select 1 from public.notifications where user_id = u4 and type = 'membership_update'));
+
+  -- (d) co-owner: the new owner u5 makes u7 an owner, then a member again
+  j := pg_temp.probe_call(u5, format('public.set_member_role(%L::uuid, %L::uuid, %L)', c1, u7, 'owner'));
+  perform pg_temp.probe_ok(v_probe, 'u7 made an owner: ' || j::text, not pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u5, format('public.set_member_role(%L::uuid, %L::uuid, %L)', c1, u7, 'member'));
+  perform pg_temp.probe_ok(v_probe, 'u7 made a member again: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'u7 got exactly one membership_update (the promotion, not the demotion)',
+    (select count(*) from public.notifications where user_id = u7 and type = 'membership_update' and community_id = c1) = 1);
+
+  -- (e) readmit into a further community: u7 (active in C1) was removed from C2; C2's owner u12 lets them back in
+  perform pg_temp.probe_member(c2, u7, 'member', 'removed', 2);
+  j := pg_temp.probe_call(u12, format('public.readmit_community_member(%L::uuid, %L::uuid)', c2, u7));
+  perform pg_temp.probe_ok(v_probe, 'readmit u7 into C2 succeeds: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'u7 gets one membership_update (approved) for C2 and no user_approved for C2',
+    (select count(*) from public.notifications where user_id = u7 and type = 'membership_update' and community_id = c2) = 1
+    and not exists (select 1 from public.notifications where user_id = u7 and type = 'user_approved' and community_id = c2)
+    and exists (select 1 from public.notification_queue
+                 where recipient_user_id = u7 and notification_type = 'membership_update'
+                   and payload -> 'data' ->> 'membership_event' = 'approved'
+                   and payload -> 'data' ->> 'community_id' = c2::text));
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE membership_update_producers OK' as probe;
 
 select 'PROBE ALL OK' as probe;
