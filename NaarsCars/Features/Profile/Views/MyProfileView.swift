@@ -222,6 +222,10 @@ struct MyProfileView: View {
                     communityName: CommunityContext.shared.name(for: communityId),
                     refreshesRoleFirst: true
                 ))
+                // A push for another community while Members is open changes the item in place:
+                // without a new identity the pushed screen keeps its first view model (its
+                // @StateObject) and shows the first community. The same community keeps the screen.
+                .id(communityId)
             }
             .navigationDestination(isPresented: $showAdminPanel) {
                 AdminPanelView(autoOpenReports: autoOpenAdminReports, onCommunityArchived: { toastMessage = $0 })
