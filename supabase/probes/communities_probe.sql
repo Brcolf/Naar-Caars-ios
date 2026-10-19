@@ -28,6 +28,14 @@
 --     membership_update_producers needs 20261019_0003. Both of those files are GATED (decision A5 point 2): until
 --     they are applied, run their blocks only inside the dry run that creates them (they fail with "Phase 4 part
 --     <x> is not live" otherwise). None of the three holds a DELETE; all run through the MCP.
+--   * Phase 5. geocoding_lookup needs 20261019_0050 (5a). The 5b blocks need their file live and fail with
+--     "File <X> is not live" otherwise: legacy_retired (20261019_0060), invite_codes_dropped (0061),
+--     geocoding_revoked (0062), storage_private (0063; it inserts rows into storage.objects inside its rolled-back
+--     transaction, so SQL editor (owner) if the MCP declines it). After 0060, legacy_bridges prints
+--     'PROBE legacy_bridges SKIPPED' and legacy_retired covers the same ground; short gives its two probe
+--     accounts their default membership directly instead of through the retired approve bridge; broadcast_cap
+--     expects 42501 from send_broadcast_notifications once 0060 block 7 has revoked it. A 5b dry run never pastes
+--     this file: it runs the committed script in supabase/dryruns/ (no commit; probes as savepoints).
 --   * SQL editor: run the whole file. MCP execute_sql: pass the PARAMETERS and HELPERS sections plus the
 --     block(s) in ONE call (the helpers live in the session). The `commit;` after HELPERS is deliberate:
 --     in a multi-statement run it keeps the helpers from being rolled back by the first block's rollback.
@@ -91,6 +99,7 @@
 -- with success = false / a non-empty error.
 --   Phase 3 adds: get_community_reports(p_community_id, p_status), moderate_community_content(p_report_id, p_action, p_reason), get_community_stats(p_community_id) and get_community_stats_fulfilled / _savings(p_community_id, p_period, p_count), get_community_stats_active_requests(p_community_id), send_community_broadcast(p_community_id, p_title, p_body, p_pinned[, p_type]).
 --   Phase 4: create_community(p_name, p_description, p_join_policy, p_timezone); the membership_update producers approve_community_member, readmit_community_member, transfer_community_ownership, set_member_role; send_community_broadcast's push.
+--   Phase 5 adds: get_geocoding_multiplier(p_location_key), put_geocoding_multiplier(p_location_key, p_latitude, p_longitude, p_multiplier).
 
 
 -- =============================================================================================================
@@ -403,6 +412,40 @@ begin
     raise exception 'PROBE % FAILED: Phase 4 part % is not live', p_probe, p_part;
   end if;
 end $f$;
+
+-- Phase 5: p_part 'a' = 20261019_0050 live; 'bridges' = 0060; 'invite_codes' = 0061; 'geocoding' = 0062;
+-- 'storage' = 0063. Every part also needs steps 1-5 and 5a.
+create or replace function pg_temp.probe_require_phase5(p_probe text, p_part text) returns void language plpgsql as $f$
+begin
+  perform pg_temp.probe_require(p_probe);
+  if p_part not in ('a', 'bridges', 'invite_codes', 'geocoding', 'storage') then
+    raise exception 'PROBE % FAILED: unknown Phase 5 part %', p_probe, p_part;
+  end if;
+  if not exists (select 1 from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace and proname = 'get_geocoding_multiplier')
+     or not exists (select 1 from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace and proname = 'put_geocoding_multiplier') then
+    raise exception 'PROBE % FAILED: Phase 5a is not live (no geocoding lookup functions)', p_probe;
+  end if;
+  if p_part = 'bridges' and exists (select 1 from pg_catalog.pg_trigger where not tgisinternal
+                                     and tgname in ('legacy_application_to_membership', 'a_sync_legacy_approval_to_membership')) then
+    raise exception 'PROBE % FAILED: File B (20261019_0060) is not live; the legacy bridges still exist', p_probe;
+  elsif p_part = 'invite_codes' and to_regclass('public.invite_codes') is not null then
+    raise exception 'PROBE % FAILED: File C (20261019_0061) is not live; public.invite_codes exists', p_probe;
+  elsif p_part = 'geocoding' and (has_table_privilege('authenticated', 'public.geocoding_cache', 'select')
+                                  or has_table_privilege('anon', 'public.geocoding_cache', 'select')) then
+    raise exception 'PROBE % FAILED: File D (20261019_0062) is not live; geocoding_cache is still readable', p_probe;
+  elsif p_part = 'storage' and exists (select 1 from storage.buckets
+                                        where id in ('message-images', 'group-images', 'town-hall-images', 'review-images') and public) then
+    raise exception 'PROBE % FAILED: File E (20261019_0063) is not live; a bucket is still public', p_probe;
+  end if;
+end $f$;
+
+-- a storage object row written as the table owner (no JWT; no file is uploaded, the row is rolled back)
+create or replace function pg_temp.probe_storage_object(p_bucket text, p_name text, p_owner uuid) returns void language plpgsql as $f$
+begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into storage.objects (bucket_id, name, owner, owner_id, metadata)
+  values (p_bucket, p_name, p_owner, p_owner::text, '{"mimetype": "image/jpeg", "size": 1}'::jsonb);
+end $f$;
 commit;
 
 
@@ -440,6 +483,16 @@ begin
   v_claimer := pg_temp.probe_account(901);
   v_padmin  := pg_temp.probe_account(902);
   update public.profiles set approved = true where id in (v_claimer, v_padmin);
+  -- Phase 5b retires the approve bridge that turned this UPDATE into a default membership; give both accounts
+  -- the membership directly when the bridge did not (a no-op before 20261019_0060)
+  if v_has_comm then
+    if not exists (select 1 from public.community_members where community_id = d and user_id = v_claimer) then
+      perform pg_temp.probe_member(d, v_claimer, 'member', 'active', 1);
+    end if;
+    if not exists (select 1 from public.community_members where community_id = d and user_id = v_padmin) then
+      perform pg_temp.probe_member(d, v_padmin, 'member', 'active', 1);
+    end if;
+  end if;
   update public.profiles set is_admin = true where id = v_padmin;
   if v_has_comm then
     update public.community_members set role = 'admin'
@@ -779,6 +832,10 @@ declare
   j jsonb;
 begin
   perform pg_temp.probe_require(v_probe);
+  if not exists (select 1 from pg_catalog.pg_trigger where not tgisinternal and tgname = 'legacy_application_to_membership') then
+    raise notice 'PROBE % SKIPPED: the legacy bridges are retired (20261019_0060); legacy_retired covers this', v_probe;
+    return;
+  end if;
   perform pg_temp.probe_world();
   d := public.default_community_id();
 
@@ -1935,6 +1992,7 @@ begin
     and (select count(*) from public.town_hall_posts
           where community_id = c1 and type = 'announcement' and user_id = v_admin) = 3);
 
+  if has_function_privilege('authenticated', 'public.send_broadcast_notifications(text, text, text, boolean)', 'execute') then
   -- the installed admin build's wrapper posts into the default community
   -- the same counting rule as the function: announcements by platform admins and by the community's staff
   v_existing := (select count(*)::int from public.town_hall_posts t
@@ -1949,6 +2007,12 @@ begin
   j := pg_temp.probe_call(v_admin, $q$public.send_broadcast_notifications('Probe wrapper over', 'communities probe', 'broadcast', false)$q$);
   perform pg_temp.probe_ok(v_probe, 'the wrapper refuses the platform admin once the default community has three today: ' || j::text,
     coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = 'P0001');
+  else
+    -- File B block 7 (20261019_0060, D-S3) closed the installed admin build's wrapper to clients
+    j := pg_temp.probe_call(v_admin, $q$public.send_broadcast_notifications('Probe wrapper closed', 'communities probe', 'broadcast', false)$q$);
+    perform pg_temp.probe_ok(v_probe, 'the wrapper is closed to clients after File B block 7: ' || j::text,
+      coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = '42501');
+  end if;
 
   raise notice 'PROBE % OK', v_probe;
 end
@@ -2223,5 +2287,363 @@ end
 $probe$;
 rollback;
 select 'PROBE membership_update_producers OK' as probe;
+
+
+-- =============================================================================================================
+-- geocoding_lookup (Phase 5a, 20261019_0050): an active member writes and reads one multiplier through the two
+-- definer functions and gets back only a number; an unapproved or banned account gets null and cannot write;
+-- anon cannot call either; malformed keys, keys that do not match the coordinates and out-of-range multipliers
+-- are refused; a row older than 24 hours is a miss and a new write refreshes it; no placemark is stored.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'geocoding_lookup';
+  v_member uuid := pg_temp.probe_subject('member');
+  u1 uuid := pg_temp.u(1);  u2 uuid := pg_temp.u(2);
+  v_key constant text := '89.987_-179.987';     -- no real place: the edge of the map
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase5(v_probe, 'a');
+  perform pg_temp.probe_world();
+  perform pg_temp.probe_ok(v_probe, 'the probe key is unused', not exists (select 1 from public.geocoding_cache where location_key = v_key));
+
+  j := pg_temp.probe_call(v_member, format('public.put_geocoding_multiplier(%L, 89.987, -179.987, 1.2)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'an active member writes a multiplier: ' || j::text, j = 'true'::jsonb);
+  perform pg_temp.probe_ok(v_probe, 'the row holds the multiplier, no placemark, a fresh updated_at',
+    exists (select 1 from public.geocoding_cache where location_key = v_key and multiplier = 1.2
+              and placemark_data is null and updated_at > now() - interval '1 minute'));
+
+  j := pg_temp.probe_call(v_member, format('public.get_geocoding_multiplier(%L)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'the member reads back only a number: ' || j::text,
+    jsonb_typeof(j) = 'number' and (j #>> '{}')::numeric = 1.2);
+
+  j := pg_temp.probe_call(u1, format('public.get_geocoding_multiplier(%L)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'an unapproved account reads null: ' || j::text, j = 'null'::jsonb);
+  j := pg_temp.probe_call(u2, format('public.get_geocoding_multiplier(%L)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'a banned account reads null: ' || j::text, j = 'null'::jsonb);
+  j := pg_temp.probe_call(u1, format('public.put_geocoding_multiplier(%L, 89.987, -179.987, 1.5)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'an unapproved account cannot write: ' || j::text,
+    j = 'false'::jsonb and (select multiplier from public.geocoding_cache where location_key = v_key) = 1.2);
+
+  j := pg_temp.probe_call(null, format('public.get_geocoding_multiplier(%L)', v_key), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call the lookup: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and coalesce(j ->> 'sqlstate', '') = '42501');
+  j := pg_temp.probe_call(null, format('public.put_geocoding_multiplier(%L, 89.987, -179.987, 1.1)', v_key), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call the write: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and coalesce(j ->> 'sqlstate', '') = '42501');
+
+  foreach j in array array[
+    pg_temp.probe_call(v_member, $q$public.put_geocoding_multiplier('1.2_3.4', 1.2, 3.4, 1.1)$q$),               -- malformed key
+    pg_temp.probe_call(v_member, $q$public.put_geocoding_multiplier('x; drop', 1.2, 3.4, 1.1)$q$),               -- malformed key
+    pg_temp.probe_call(v_member, format('public.put_geocoding_multiplier(%L, 10.0, 10.0, 1.1)', v_key)),     -- key does not match
+    pg_temp.probe_call(v_member, format('public.put_geocoding_multiplier(%L, 89.987, -179.987, 3.0)', v_key)),  -- out of range
+    pg_temp.probe_call(v_member, format('public.put_geocoding_multiplier(%L, 89.987, -179.987, 0.5)', v_key))]  -- out of range
+  loop
+    perform pg_temp.probe_ok(v_probe, 'a malformed or out-of-range write is refused: ' || j::text, j = 'false'::jsonb);
+  end loop;
+  perform pg_temp.probe_ok(v_probe, 'and the row is unchanged',
+    (select multiplier from public.geocoding_cache where location_key = v_key) = 1.2);
+  j := pg_temp.probe_call(v_member, $q$public.get_geocoding_multiplier('not a key')$q$);
+  perform pg_temp.probe_ok(v_probe, 'a malformed lookup answers null: ' || j::text, j = 'null'::jsonb);
+
+  perform set_config('request.jwt.claims', '', true);
+  update public.geocoding_cache set created_at = now() - interval '25 hours', updated_at = now() - interval '25 hours'
+   where location_key = v_key;
+  j := pg_temp.probe_call(v_member, format('public.get_geocoding_multiplier(%L)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'a row older than 24 hours is a miss: ' || j::text, j = 'null'::jsonb);
+  j := pg_temp.probe_call(v_member, format('public.put_geocoding_multiplier(%L, 89.987, -179.987, 1.1)', v_key));
+  j := pg_temp.probe_call(v_member, format('public.get_geocoding_multiplier(%L)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'a new write refreshes it: ' || j::text, (j #>> '{}')::numeric = 1.1);
+
+  perform pg_temp.probe_ok(v_probe, 'both functions are SECURITY DEFINER with an empty search_path and not callable by anon',
+    (select bool_and(p.prosecdef and p.proconfig @> array['search_path=""'])
+       from pg_catalog.pg_proc p where p.pronamespace = 'public'::regnamespace
+        and p.proname in ('get_geocoding_multiplier', 'put_geocoding_multiplier'))
+    and not has_function_privilege('anon', 'public.get_geocoding_multiplier(text)', 'execute')
+    and not has_function_privilege('anon', 'public.put_geocoding_multiplier(text, numeric, numeric, numeric)', 'execute'));
+
+  if has_table_privilege('authenticated', 'public.geocoding_cache', 'select') then
+    -- before 20261019_0062 the installed build's direct read still works
+    perform pg_temp.probe_ok(v_probe, 'before File D the direct table read still works for a member',
+      pg_temp.probe_count(v_member, format('select 1 from public.geocoding_cache where location_key = %L', v_key)) = 1);
+  end if;
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE geocoding_lookup OK' as probe;
+
+
+-- =============================================================================================================
+-- legacy_retired (Phase 5b, 20261019_0060): the bridges are gone; the installed build's application UPDATE and
+-- approve raise and change nothing, for platform admins too; a member's own flag write raises; the RPC approve
+-- still works; admin_reject_pending_user is closed to clients; an approved account with no membership row cannot
+-- post while a member still posts without naming a community; answers given to the default community stay on
+-- the membership row and are not copied into profiles.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'legacy_retired';
+  d uuid;
+  v_admin  uuid := pg_temp.probe_subject('platform_admin');
+  v_member uuid := pg_temp.probe_subject('member');
+  u3 uuid := pg_temp.u(3);  u6 uuid := pg_temp.u(6);  u8 uuid := pg_temp.u(8);
+  u10 uuid := pg_temp.u(10);  u13 uuid := pg_temp.u(13);  u15 uuid := pg_temp.u(15);
+  v_code text;
+  v_ride uuid;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase5(v_probe, 'bridges');
+  perform pg_temp.probe_world();
+  d := public.default_community_id();
+
+  perform pg_temp.probe_ok(v_probe, 'the bridge functions are gone',
+    not exists (select 1 from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace
+                 and proname in ('legacy_application_to_membership', 'sync_legacy_approval_to_membership')));
+  perform pg_temp.probe_ok(v_probe, 'the four edited bodies are the expected ones',
+    (select md5(prosrc) from pg_catalog.pg_proc where oid = 'public.fill_request_community()'::regprocedure) = '9d4cfb03912a7c4a874cffae239ee605'
+    and (select md5(prosrc) from pg_catalog.pg_proc where oid = 'public.redeem_community_invite(text, text, text)'::regprocedure) = '2ec0702dc3a4d400ca2599d0ebb15693'
+    and (select md5(prosrc) from pg_catalog.pg_proc where oid = 'public.request_to_join_community(uuid, text, text)'::regprocedure) = 'af9a2f5c560d2d74f35ab979e2f3856c'
+    and (select md5(prosrc) from pg_catalog.pg_proc where oid = 'public.protect_admin_fields()'::regprocedure) = 'd963a013278b5ace77565b8397683bf2');
+
+  -- the installed build's application form
+  j := pg_temp.probe_run(u10, format($q$with x as (update public.profiles
+        set heard_about = 'Probe heard', join_reason = 'Probe reason', application_complete = true, application_submitted_at = now()
+        where id = %L returning 1) select to_jsonb(count(*)) from x$q$, u10));
+  perform pg_temp.probe_ok(v_probe, 'the old application UPDATE raises 42501: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and coalesce(j ->> 'sqlstate', '') = '42501');
+  perform pg_temp.probe_ok(v_probe, 'and creates no membership; the flag stays false',
+    not exists (select 1 from public.community_members where user_id = u10)
+    and not (select application_complete from public.profiles where id = u10));
+
+  j := pg_temp.probe_run(u3, format($q$with x as (update public.profiles set application_complete = false where id = %L returning 1)
+                                     select to_jsonb(count(*)) from x$q$, u3));
+  perform pg_temp.probe_ok(v_probe, 'a member''s own application_complete write raises: ' || j::text, coalesce(j ->> 'raised', '') = 'true');
+
+  -- the installed admin build's approve
+  j := pg_temp.probe_run(v_admin, format($q$with x as (update public.profiles set approved = true where id = %L returning 1)
+                                          select to_jsonb(count(*)) from x$q$, u8));
+  perform pg_temp.probe_ok(v_probe, 'a platform admin''s direct approve raises 42501: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and coalesce(j ->> 'sqlstate', '') = '42501');
+  perform pg_temp.probe_ok(v_probe, 'and the applicant is still pending and not approved',
+    exists (select 1 from public.community_members where community_id = d and user_id = u8 and status = 'pending')
+    and not (select approved from public.profiles where id = u8));
+
+  j := pg_temp.probe_call(v_admin, format('public.approve_community_member(%L::uuid, %L::uuid)', d, u8));
+  perform pg_temp.probe_ok(v_probe, 'approve_community_member still works: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'the mirror approves and one welcome is sent',
+    exists (select 1 from public.community_members where community_id = d and user_id = u8 and status = 'active')
+    and (select approved from public.profiles where id = u8)
+    and (select count(*) from public.notifications where user_id = u8 and type = 'user_approved') = 1);
+
+  j := pg_temp.probe_call(v_admin, format('public.admin_reject_pending_user(%L::uuid)', u15));
+  perform pg_temp.probe_ok(v_probe, 'admin_reject_pending_user is closed to clients: ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and coalesce(j ->> 'sqlstate', '') = '42501');
+  perform pg_temp.probe_ok(v_probe, 'and the applicant and their account remain',
+    exists (select 1 from public.profiles where id = u15)
+    and exists (select 1 from public.community_members where community_id = d and user_id = u15 and status = 'pending'));
+
+  -- no default fallback: an approved account with no membership row (a maintenance write, no JWT). The insert
+  -- runs as the table owner so RLS cannot refuse it first: only the fill trigger decides (before File B it
+  -- would have filled the default community).
+  perform set_config('request.jwt.claims', '', true);
+  update public.profiles set approved = true where id = u13;
+  j := pg_temp.probe_run(null, format(
+    $q$insert into public.rides (user_id, date, "time", pickup, destination)
+       values (%L, current_date + 1, '10:00', 'Probe pickup', 'Probe destination') returning to_jsonb(community_id)$q$, u13), 'owner');
+  perform pg_temp.probe_ok(v_probe, 'the fill trigger no longer places such an account in the default community: ' || j::text,
+    pg_temp.probe_refused(j) and coalesce(j ->> 'error', '') like '%Choose a community%');
+  j := pg_temp.probe_run(v_member, format(
+    $q$insert into public.rides (user_id, date, "time", pickup, destination)
+       values (%L, current_date + 1, '10:00', 'Probe pickup', 'Probe destination') returning to_jsonb(id)$q$, v_member));
+  perform pg_temp.probe_ok(v_probe, 'a member still posts without naming a community: ' || j::text, not pg_temp.probe_refused(j));
+  v_ride := (j #>> '{}')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'into one of their live communities',
+    (select community_id from public.rides where id = v_ride) = any (pg_temp.probe_live_communities(v_member)));
+
+  -- answers stay on the membership row
+  j := pg_temp.probe_call(u10, format('public.request_to_join_community(%L::uuid, %L, %L)', d, 'Probe heard', 'Probe reason'));
+  perform pg_temp.probe_ok(v_probe, 'asking to join the default community works: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'the answers are on the membership row and not on the profile',
+    exists (select 1 from public.community_members where community_id = d and user_id = u10 and heard_about = 'Probe heard')
+    and (select heard_about is null and join_reason is null from public.profiles where id = u10));
+
+  j := pg_temp.probe_call(v_admin, format($q$public.create_community_invite(%L::uuid, 5, now() + interval '1 day')$q$, d));
+  v_code := j ->> 'code';
+  perform pg_temp.probe_ok(v_probe, 'a platform admin makes a default-community code: ' || j::text, v_code is not null);
+  j := pg_temp.probe_call(u6, format('public.redeem_community_invite(%L, %L, %L)', v_code, 'Probe heard 6', 'Probe reason 6'));
+  perform pg_temp.probe_ok(v_probe, 'redeeming it works: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'and copies nothing into the profile',
+    exists (select 1 from public.community_members where community_id = d and user_id = u6 and heard_about = 'Probe heard 6')
+    and (select heard_about is null and join_reason is null from public.profiles where id = u6));
+
+  if not has_function_privilege('authenticated', 'public.send_broadcast_notifications(text, text, text, boolean)', 'execute') then
+    perform pg_temp.probe_ok(v_probe, 'block 7 applied: the legacy leaderboards are closed too',
+      not has_function_privilege('authenticated', 'public.get_leaderboard(text, integer)', 'execute')
+      and not has_function_privilege('authenticated', 'public.get_leaderboard(date, date)', 'execute'));
+  end if;
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE legacy_retired OK' as probe;
+
+
+-- =============================================================================================================
+-- invite_codes_dropped (Phase 5b, 20261019_0061): the table and its four functions are gone, delete_user_account is
+-- the expected body and still deletes an account, and no public function names the table.
+-- Run account_deletion and short after it as well.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'invite_codes_dropped';
+  u1 uuid := pg_temp.u(1);
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase5(v_probe, 'invite_codes');
+  perform pg_temp.probe_world();
+  perform pg_temp.probe_ok(v_probe, 'the four invite-code functions are gone',
+    not exists (select 1 from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace
+                 and proname in ('validate_invite_code', 'mark_invite_code_used', 'guard_invite_code_client_update', 'handle_invite_code_used')));
+  perform pg_temp.probe_ok(v_probe, 'no public function names invite_codes',
+    not exists (select 1 from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace and position('invite_codes' in prosrc) > 0));
+  perform pg_temp.probe_ok(v_probe, 'delete_user_account is the expected body',
+    (select md5(prosrc) from pg_catalog.pg_proc where oid = 'public.delete_user_account(uuid)'::regprocedure) = 'bd886e739d25dbe7497ff6b21c5aa248');
+  j := pg_temp.probe_call(u1, format('public.delete_user_account(%L::uuid)', u1));
+  perform pg_temp.probe_ok(v_probe, 'an account still deletes itself: ' || j::text, not pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'and is gone from profiles and auth.users',
+    not exists (select 1 from public.profiles where id = u1) and not exists (select 1 from auth.users where id = u1));
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE invite_codes_dropped OK' as probe;
+
+
+-- =============================================================================================================
+-- geocoding_revoked (Phase 5b, 20261019_0062): no client role can read or write geocoding_cache directly; the two
+-- definer functions still work for an active member.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'geocoding_revoked';
+  v_member uuid := pg_temp.probe_subject('member');
+  v_key constant text := '89.986_-179.986';
+  v_priv text;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_phase5(v_probe, 'geocoding');
+  foreach v_priv in array array['select', 'insert', 'update', 'delete'] loop
+    perform pg_temp.probe_ok(v_probe, format('no %s privilege for anon or authenticated', v_priv),
+      not has_table_privilege('anon', 'public.geocoding_cache', v_priv)
+      and not has_table_privilege('authenticated', 'public.geocoding_cache', v_priv));
+  end loop;
+  j := pg_temp.probe_run(v_member, 'select to_jsonb(count(*)) from public.geocoding_cache');
+  perform pg_temp.probe_ok(v_probe, 'a member''s direct read raises 42501: ' || j::text, coalesce(j ->> 'sqlstate', '') = '42501');
+  j := pg_temp.probe_run(null, 'select to_jsonb(count(*)) from public.geocoding_cache', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon''s direct read raises 42501: ' || j::text, coalesce(j ->> 'sqlstate', '') = '42501');
+  j := pg_temp.probe_run(v_member, format(
+    $q$insert into public.geocoding_cache (latitude, longitude, location_key, multiplier) values (89.986, -179.986, %L, 1.5)
+       returning to_jsonb(id)$q$, v_key));
+  perform pg_temp.probe_ok(v_probe, 'a member''s direct write raises: ' || j::text, coalesce(j ->> 'raised', '') = 'true');
+  j := pg_temp.probe_call(v_member, format('public.put_geocoding_multiplier(%L, 89.986, -179.986, 1.2)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'the definer write still works: ' || j::text, j = 'true'::jsonb);
+  j := pg_temp.probe_call(v_member, format('public.get_geocoding_multiplier(%L)', v_key));
+  perform pg_temp.probe_ok(v_probe, 'the definer lookup still works: ' || j::text, (j #>> '{}')::numeric = 1.2);
+  perform pg_temp.probe_ok(v_probe, 'block 2: no placemark data is left',
+    not exists (select 1 from public.geocoding_cache where placemark_data is not null));
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE geocoding_revoked OK' as probe;
+
+
+-- =============================================================================================================
+-- storage_private (Phase 5b, 20261019_0063): the four buckets are private and avatars public; a message or group
+-- photo is readable by the thread's participants and its uploader only; a Town Hall photo by whoever can read a
+-- post that shows it (guests only for public communities); a review photo by whoever can read the review.
+-- Object rows are inserted as the table owner and rolled back (no file is uploaded).
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'storage_private';
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u7 uuid := pg_temp.u(7);
+  u11 uuid := pg_temp.u(11);  u12 uuid := pg_temp.u(12);
+  c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);
+  v_conv constant uuid := '00000000-0000-4000-e000-000000000501'::uuid;
+  v_base constant text := 'https://probe.invalid/storage/v1/object/public/';
+  v_msg text;  v_grp text;  v_th_public constant text := 'probe-th-public.jpg';  v_th_private constant text := 'probe-th-private.jpg';
+  v_rev text;
+  v_post uuid;
+  v_sql text;
+begin
+  perform pg_temp.probe_require_phase5(v_probe, 'storage');
+  perform pg_temp.probe_world();
+  perform pg_temp.probe_ok(v_probe, 'the four buckets are private and avatars public',
+    not exists (select 1 from storage.buckets where id in ('message-images', 'group-images', 'town-hall-images', 'review-images') and public)
+    and exists (select 1 from storage.buckets where id = 'avatars' and public));
+  perform pg_temp.probe_ok(v_probe, 'no SELECT policy on those buckets is a bare bucket test any more',
+    not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and cmd = 'SELECT'
+                 and qual in ('(bucket_id = ''message-images''::text)', '(bucket_id = ''group-images''::text)',
+                              '(bucket_id = ''town-hall-images''::text)', '(bucket_id = ''review-images''::text)')));
+
+  -- a thread between u3 and u7 (C1 members), photos uploaded by u3 and by u11 (not a participant)
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.conversations (id, created_by) values (v_conv, u3);
+  insert into public.conversation_participants (conversation_id, user_id) values (v_conv, u3), (v_conv, u7)
+    on conflict do nothing;   -- in case a trigger already added the creator
+  v_msg := upper(v_conv::text) || '/probe-msg.jpg';
+  v_grp := upper(v_conv::text) || '/avatar_probe.jpg';
+  perform pg_temp.probe_storage_object('message-images', v_msg, u3);
+  perform pg_temp.probe_storage_object('group-images', v_grp, u3);
+  perform pg_temp.probe_storage_object('message-images', upper(v_conv::text) || '/probe-other.jpg', u11);
+
+  v_sql := format('select 1 from storage.objects where bucket_id = %L and name = %L', 'message-images', v_msg);
+  perform pg_temp.probe_ok(v_probe, 'a participant reads the message photo', pg_temp.probe_count(u7, v_sql) = 1);
+  perform pg_temp.probe_ok(v_probe, 'a non-participant does not', pg_temp.probe_count(u4, v_sql) = 0);
+  perform pg_temp.probe_ok(v_probe, 'anon does not', pg_temp.probe_count(null, v_sql, 'anon') = 0);
+  perform pg_temp.probe_ok(v_probe, 'an uploader who is not a participant reads only their own object',
+    pg_temp.probe_count(u11, format('select 1 from storage.objects where bucket_id = %L and name like %L', 'message-images', upper(v_conv::text) || '/%')) = 1);
+  v_sql := format('select 1 from storage.objects where bucket_id = %L and name = %L', 'group-images', v_grp);
+  perform pg_temp.probe_ok(v_probe, 'a participant reads the group photo; a non-participant and anon do not',
+    pg_temp.probe_count(u7, v_sql) = 1 and pg_temp.probe_count(u4, v_sql) = 0 and pg_temp.probe_count(null, v_sql, 'anon') = 0);
+
+  -- Town Hall: one photo on a post in C2 (public), one on a post in C1 (private)
+  perform pg_temp.probe_storage_object('town-hall-images', v_th_public, u12);
+  perform pg_temp.probe_storage_object('town-hall-images', v_th_private, u3);
+  v_post := pg_temp.probe_post(1, u12, c2);
+  update public.town_hall_posts set image_url = v_base || 'town-hall-images/' || v_th_public where id = v_post;
+  v_post := pg_temp.probe_post(2, u3, c1);
+  update public.town_hall_posts set image_url = v_base || 'town-hall-images/' || v_th_private where id = v_post;
+  v_sql := format('select 1 from storage.objects where bucket_id = %L and name = %L', 'town-hall-images', v_th_public);
+  perform pg_temp.probe_ok(v_probe, 'anon reads a public community''s Town Hall photo', pg_temp.probe_count(null, v_sql, 'anon') = 1);
+  v_sql := format('select 1 from storage.objects where bucket_id = %L and name = %L', 'town-hall-images', v_th_private);
+  perform pg_temp.probe_ok(v_probe, 'a private community''s Town Hall photo: its member yes, anon and a non-member no',
+    pg_temp.probe_count(u7, v_sql) = 1 and pg_temp.probe_count(null, v_sql, 'anon') = 0 and pg_temp.probe_count(u12, v_sql) = 0);
+
+  -- review photo on r(1) (u7's C1 ride, reviewed by u7, helped by u3)
+  -- named like ReviewService's uploads: "<UUID>.jpg" (an uppercase uuid; the app uses a fresh UUID, not the review id,
+  -- ReviewService.swift:60, :196; the policy matches by image_url, so the name's origin does not matter), URL with ?t=
+  v_rev := upper((select v.id from public.reviews v where v.ride_id = pg_temp.r(1) limit 1)::text) || '.jpg';
+  perform pg_temp.probe_storage_object('review-images', v_rev, u7);
+  update public.reviews set image_url = v_base || 'review-images/' || v_rev || '?t=1' where ride_id = pg_temp.r(1);
+  v_sql := format('select 1 from storage.objects where bucket_id = %L and name = %L', 'review-images', v_rev);
+  perform pg_temp.probe_ok(v_probe, 'a review photo: the reviewer and a C1 member yes, a non-member and anon no',
+    pg_temp.probe_count(u7, v_sql) = 1 and pg_temp.probe_count(u3, v_sql) = 1
+    and pg_temp.probe_count(u12, v_sql) = 0 and pg_temp.probe_count(null, v_sql, 'anon') = 0);
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE storage_private OK' as probe;
 
 select 'PROBE ALL OK' as probe;
