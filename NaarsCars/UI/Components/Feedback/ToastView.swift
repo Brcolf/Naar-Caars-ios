@@ -67,7 +67,13 @@ struct ToastModifier: ViewModifier {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     func body(content: Content) -> some View {
-        content
+        // The task acts on the message it was started for, not on the binding's value when it
+        // runs. A message set in the screen's first pass (a launch root taking `RootNotice` in its
+        // `.task`) used to reach the first task, started for nil, through the binding: SwiftUI then
+        // cancelled that task for the new id and its clean-up below cleared the toast the new task
+        // was showing, within a frame (Phase 4 gate, D4).
+        let startedFor = message
+        return content
             .overlay(alignment: .top) {
                 if let msg = message {
                     ToastView(message: msg, style: style)
@@ -78,8 +84,8 @@ struct ToastModifier: ViewModifier {
             .animation(.naarsStandard, value: message != nil)
             // Keyed on the message, not on the toast appearing, so a message that replaces a
             // visible toast gets its own haptic, announcement and full display time.
-            .task(id: message) {
-                guard let msg = message else { return }
+            .task(id: startedFor) {
+                guard let msg = startedFor else { return }
                 switch style {
                 case .success: HapticManager.success()
                 case .warning: HapticManager.error()

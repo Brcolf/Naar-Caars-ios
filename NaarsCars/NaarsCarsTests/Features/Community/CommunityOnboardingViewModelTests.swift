@@ -6,6 +6,7 @@
 //  until the name requirement is known and met, and the name rules match the application form
 //
 
+import SwiftUI
 import XCTest
 @testable import NaarsCars
 
@@ -135,5 +136,70 @@ final class CommunityOnboardingViewModelTests: XCTestCase {
         XCTAssertNil(RootNotice.pending)
         XCTAssertNil(viewModel.takeRootNotice())
         XCTAssertNil(makeViewModel(storedName: "Sam").takeRootNotice(), "a later root does not show it again")
+    }
+
+    /// Phase 4 gate D4: the notice taken in a launch root's first `.task` stays on screen. The
+    /// toast's first task, started for nil, used to read it through the binding and, cancelled for
+    /// the new message, clear it within a frame; onboarding never showed it on device. Hosted in a
+    /// window because the race is between SwiftUI's own tasks; the switch is animated as in ContentView.
+    func testRootNotice_TakenInTheRootsFirstTaskStaysOnScreen() async throws {
+        let notice = "Ballard Neighbors was archived."
+        RootNotice.pending = notice
+        defer { RootNotice.pending = nil }
+        let host = RootNoticeHost()
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UIHostingController(rootView: RootNoticeHostView(host: host))
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+        host.showsRoot = true
+        // Well inside the toast's shortest display time (Constants.Timing.toastMinimumDuration).
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertNil(RootNotice.pending, "the root took it")
+        XCTAssertEqual(host.messages.first, notice)
+        XCTAssertEqual(host.messages.last, notice, "still on screen; message changes: \(host.messages)")
+    }
+}
+
+// MARK: - Root notice host (testRootNotice_TakenInTheRootsFirstTaskStaysOnScreen)
+
+@MainActor @Observable
+private final class RootNoticeHost {
+    var showsRoot = false
+    /// Every value the root's toast message took, in order.
+    @ObservationIgnored var messages: [String?] = []
+}
+
+private struct RootNoticeHostView: View {
+    let host: RootNoticeHost
+
+    var body: some View {
+        Group {
+            if host.showsRoot {
+                NavigationStack { RootNoticeProbe(host: host) }
+            } else {
+                TabView { Text(verbatim: "main").tabItem { Text(verbatim: "main") } }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: host.showsRoot)
+    }
+}
+
+/// The notice code of `CommunityOnboardingView` and `PendingApprovalView`: taken in `.task`,
+/// shown with `.toast(message:)`.
+private struct RootNoticeProbe: View {
+    let host: RootNoticeHost
+    @State private var message: String?
+
+    var body: some View {
+        ScrollView { Text(verbatim: "root") }
+            .task {
+                if let notice = RootNotice.take() { message = notice }
+            }
+            .onChange(of: message) { _, new in host.messages.append(new) }
+            .toast(message: $message)
     }
 }
