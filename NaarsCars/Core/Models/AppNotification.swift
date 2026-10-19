@@ -66,6 +66,9 @@ enum NotificationType: String, Codable, CaseIterable {
     // Account restriction
     case accountRestricted = "account_restricted"
 
+    // Community membership (approved into a community, or made its owner)
+    case membershipUpdate = "membership_update"
+
     case other = "other"
     
     /// Icon name for notification type
@@ -102,6 +105,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return "xmark.circle.fill"
         case .accountRestricted:
             return "exclamationmark.triangle.fill"
+        case .membershipUpdate:
+            return "person.2.badge.gearshape.fill"
         case .other:
             return "bell.fill"
         }
@@ -115,7 +120,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return false
         case .announcement, .adminAnnouncement, .broadcast:  // Board announcements
             return false
-        case .userApproved, .userRejected, .accountRestricted:  // Account status
+        case .userApproved, .userRejected, .accountRestricted,  // Account status
+             .membershipUpdate:  // Community membership changes
             return false
         case .pendingApproval:  // Admin must see pending users
             return false
@@ -184,7 +190,8 @@ extension NotificationType {
              .review, .reviewReceived, .reviewReminder, .reviewRequest,
              .contentReported,
              .pendingApproval, .userApproved, .userRejected,
-             .accountRestricted:
+             .accountRestricted,
+             .membershipUpdate:
             return [.dashboard]
         case .townHallPost, .townHallComment, .townHallReaction,
              .announcement, .adminAnnouncement, .broadcast:

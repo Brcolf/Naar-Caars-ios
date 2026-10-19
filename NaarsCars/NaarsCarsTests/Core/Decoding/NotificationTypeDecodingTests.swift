@@ -13,7 +13,7 @@ final class NotificationTypeDecodingTests: XCTestCase {
     private var allTypes: [NotificationType] { NotificationType.allCases }
 
     func testFixturesContainExactlyAllNotificationTypeRawValues() {
-        XCTAssertEqual(NotificationFixtures.allRawValues.count, 33)
+        XCTAssertEqual(NotificationFixtures.allRawValues.count, 34)
         XCTAssertEqual(Set(NotificationFixtures.allRawValues), Set(NotificationType.allCases.map(\.rawValue)))
     }
 
@@ -51,9 +51,21 @@ final class NotificationTypeDecodingTests: XCTestCase {
         XCTAssertNil(NotificationType(rawValue: "not_a_real_notification_type"))
     }
 
-    func testUnknownRawValueDecodesAsOther() throws {
-        let decoded = try JSONDecoder().decode(NotificationType.self, from: Data("\"membership_update\"".utf8))
+    func testUnknownFutureRawValueDecodesAsOther() throws {
+        let decoded = try JSONDecoder().decode(NotificationType.self, from: Data("\"probe_future_type\"".utf8))
         XCTAssertEqual(decoded, .other)
+    }
+
+    func testDecode_MembershipUpdate() throws {
+        let decoded = try JSONDecoder().decode(NotificationType.self, from: Data("\"membership_update\"".utf8))
+        XCTAssertEqual(decoded, .membershipUpdate)
+
+        let json = #"{"id":"0A000000-0000-0000-0000-000000000004","user_id":"0A000000-0000-0000-0000-000000000002","type":"membership_update","title":"T","body":null,"read":false,"pinned":false,"created_at":"2026-10-19T12:00:00Z"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let notification = try decoder.decode(AppNotification.self, from: Data(json.utf8))
+        XCTAssertEqual(notification.type, .membershipUpdate)
+        XCTAssertEqual(notification.typeRawValue, "membership_update")
     }
 
     func testKnownRawValueDecodesAsItself() throws {
@@ -68,7 +80,7 @@ final class NotificationTypeDecodingTests: XCTestCase {
     }
 
     func testAppNotificationWithUnknownTypeDecodes() throws {
-        let json = #"{"id":"0A000000-0000-0000-0000-000000000001","user_id":"0A000000-0000-0000-0000-000000000002","type":"membership_update","title":"T","body":null,"read":false,"pinned":false,"created_at":"2026-10-17T12:00:00Z"}"#
+        let json = #"{"id":"0A000000-0000-0000-0000-000000000001","user_id":"0A000000-0000-0000-0000-000000000002","type":"probe_future_type","title":"T","body":null,"read":false,"pinned":false,"created_at":"2026-10-17T12:00:00Z"}"#
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         XCTAssertEqual(try decoder.decode(AppNotification.self, from: Data(json.utf8)).type, .other)
@@ -76,7 +88,7 @@ final class NotificationTypeDecodingTests: XCTestCase {
 
     // MARK: - Unknown type kept in the cache
 
-    private static let unknownTypeJSON = #"{"id":"0A000000-0000-0000-0000-000000000003","user_id":"0A000000-0000-0000-0000-000000000002","type":"membership_update","title":"T","body":null,"read":false,"pinned":false,"created_at":"2026-10-17T12:00:00Z"}"#
+    private static let unknownTypeJSON = #"{"id":"0A000000-0000-0000-0000-000000000003","user_id":"0A000000-0000-0000-0000-000000000002","type":"probe_future_type","title":"T","body":null,"read":false,"pinned":false,"created_at":"2026-10-17T12:00:00Z"}"#
 
     private func decodeUnknownTypeNotification() throws -> AppNotification {
         let decoder = JSONDecoder()
@@ -87,12 +99,12 @@ final class NotificationTypeDecodingTests: XCTestCase {
     func testAppNotificationWithUnknownTypeKeepsRawValue() throws {
         let notification = try decodeUnknownTypeNotification()
         XCTAssertEqual(notification.type, .other)
-        XCTAssertEqual(notification.typeRawValue, "membership_update")
+        XCTAssertEqual(notification.typeRawValue, "probe_future_type")
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let object = try JSONSerialization.jsonObject(with: encoder.encode(notification)) as? [String: Any]
-        XCTAssertEqual(object?["type"] as? String, "membership_update")
+        XCTAssertEqual(object?["type"] as? String, "probe_future_type")
     }
 
     func testKnownTypeRawValueMatchesType() {
@@ -114,12 +126,12 @@ final class NotificationTypeDecodingTests: XCTestCase {
 
         let rows = try ModelContext(container).fetch(FetchDescriptor<SDNotification>())
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows.first?.type, "membership_update")
+        XCTAssertEqual(rows.first?.type, "probe_future_type")
         XCTAssertEqual(NotificationType(rawValue: rows.first?.type ?? ""), nil)
 
         let mapped = NotificationGroupingManager().getFilteredNotifications(sdNotifications: rows)
         XCTAssertEqual(mapped.first?.type, .other)
-        XCTAssertEqual(mapped.first?.typeRawValue, "membership_update")
+        XCTAssertEqual(mapped.first?.typeRawValue, "probe_future_type")
     }
 
     /// A row an older build stored as "other" is rewritten when the server row is synced again.
@@ -142,6 +154,6 @@ final class NotificationTypeDecodingTests: XCTestCase {
         try await actor.syncNotifications([notification])
 
         let rows = try ModelContext(container).fetch(FetchDescriptor<SDNotification>())
-        XCTAssertEqual(rows.first?.type, "membership_update")
+        XCTAssertEqual(rows.first?.type, "probe_future_type")
     }
 }

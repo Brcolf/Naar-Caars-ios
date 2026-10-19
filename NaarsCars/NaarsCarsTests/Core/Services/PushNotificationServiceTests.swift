@@ -123,6 +123,12 @@ final class PushNotificationServiceTests: XCTestCase {
         XCTAssertNil(plan?.entityId)
     }
 
+    func testPushRefreshPlan_MembershipUpdateRefreshesMemberships() {
+        let communityId = "0A000000-0000-0000-0000-0000000000A1"
+        let plan = PushRefreshPlan.make(userInfo: ["type": "membership_update", "community_id": communityId])
+        XCTAssertEqual(plan, PushRefreshPlan(domains: [.dashboard], entityId: nil, refreshesMemberships: true))
+    }
+
     func testRefreshPlan_MissingOrUnknownTypeIsNil() {
         XCTAssertNil(PushRefreshPlan.make(userInfo: [:]))
         XCTAssertNil(PushRefreshPlan.make(userInfo: ["type": "some_future_type"]))

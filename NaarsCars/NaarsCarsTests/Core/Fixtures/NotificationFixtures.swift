@@ -41,6 +41,7 @@ enum NotificationFixtures {
         "content_reported",
         "content_hidden",
         "account_restricted",
+        "membership_update",
         "other"
     ]
 
@@ -53,7 +54,8 @@ enum NotificationFixtures {
         "pending_approval",
         "user_approved",
         "user_rejected",
-        "account_restricted"
+        "account_restricted",
+        "membership_update"
     ]
 
     static let preferenceMapping: [String: String?] = [
@@ -89,6 +91,7 @@ enum NotificationFixtures {
         "content_reported": nil,
         "content_hidden": nil,
         "account_restricted": nil,
+        "membership_update": nil,
         "other": nil
     ]
 }

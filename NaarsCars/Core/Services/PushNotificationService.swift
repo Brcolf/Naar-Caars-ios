@@ -879,7 +879,7 @@ struct PushRefreshPlan: Equatable {
     let refreshesMemberships: Bool
 
     /// Push types that can change the person's community memberships (spec §3.7 "Later refreshes").
-    static let membershipRefreshTypes: Set<NotificationType> = [.userApproved, .userRejected, .accountRestricted, .pendingApproval]
+    static let membershipRefreshTypes: Set<NotificationType> = [.userApproved, .userRejected, .accountRestricted, .pendingApproval, .membershipUpdate]
 
     /// Returns nil when `type` is missing or not a known notification type.
     static func make(userInfo: [AnyHashable: Any]) -> PushRefreshPlan? {

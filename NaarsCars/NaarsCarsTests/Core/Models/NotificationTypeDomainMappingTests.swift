@@ -84,4 +84,14 @@ final class NotificationTypeDomainMappingTests: XCTestCase {
         XCTAssertNil(NotificationType.accountRestricted.entityIdKey)
         XCTAssertNil(NotificationType.broadcast.entityIdKey)
     }
+
+    func testMembershipUpdate_RefreshesDashboardWithoutEntityKey() {
+        XCTAssertEqual(NotificationType.membershipUpdate.affectedDomains, [.dashboard])
+        XCTAssertNil(NotificationType.membershipUpdate.entityIdKey)
+    }
+
+    func testMembershipUpdate_IsMandatoryWithNoPreference() {
+        XCTAssertFalse(NotificationType.membershipUpdate.canBeDisabled)
+        XCTAssertNil(NotificationType.membershipUpdate.preferenceKey)
+    }
 }
