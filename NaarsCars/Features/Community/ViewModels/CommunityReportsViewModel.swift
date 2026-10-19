@@ -207,6 +207,10 @@ final class CommunityReportsViewModel: ObservableObject {
             access = .notAdmin
             reports = []
         } catch {
+            // A cancelled request (the pull-to-refresh task ended early, or a newer load superseded this one)
+            // is not a failure the person can act on; the list keeps what it has. Seen on device at the
+            // Phase 3 gate as "Failed to load data" after a short pull.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
             AppLogger.error("community", "fetchCommunityReports(\(requestedFilter)) failed: \(error)")
             guard reportingErrors, generation == loadGeneration, requestedFilter == filter else { return }
             if reports.isEmpty {
