@@ -98,6 +98,8 @@ struct CommunityReportsView: View {
     let communityName: String?
     @StateObject private var viewModel: CommunityReportsViewModel
     @State private var pendingAction: PendingCommunityModeration?
+    /// A failed send, shown inside the sheet that stays open (the list's banner sits under it).
+    @State private var sheetErrorMessage: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
@@ -127,7 +129,7 @@ struct CommunityReportsView: View {
             Task { await viewModel.load() }
         }
         .errorBanner(message: $viewModel.actionErrorMessage)
-        .sheet(item: $pendingAction) { pending in
+        .sheet(item: $pendingAction, onDismiss: { sheetErrorMessage = nil }) { pending in
             CommunityReportActionSheet(
                 pending: pending,
                 note: noteBinding,
@@ -135,6 +137,7 @@ struct CommunityReportsView: View {
                 onCancel: { pendingAction = nil },
                 onConfirm: confirmPendingAction
             )
+            .errorBanner(message: $sheetErrorMessage)
         }
     }
 
@@ -273,8 +276,16 @@ struct CommunityReportsView: View {
     private func confirmPendingAction() {
         // Copy the state before the Task reads it.
         guard let pending = pendingAction else { return }
+        sheetErrorMessage = nil
         Task {
-            await viewModel.moderate(pending.report, action: pending.action, reason: pending.note)
+            let outcome = await viewModel.moderate(pending.report, action: pending.action, reason: pending.note)
+            if outcome == .failed {
+                // Nothing reached the server: the sheet stays open with the note as typed, and the
+                // failure is shown in the sheet instead of under it.
+                sheetErrorMessage = viewModel.actionErrorMessage
+                viewModel.actionErrorMessage = nil
+                return
+            }
             // Success or refusal, the sheet closes: a refusal is shown in the list's banner and
             // the reload has removed the refused button.
             pendingAction = nil

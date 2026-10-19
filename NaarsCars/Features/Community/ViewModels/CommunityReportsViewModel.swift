@@ -114,6 +114,19 @@ extension CommunityReport {
     }
 }
 
+/// How one `moderate` call ended. The view keeps the confirmation sheet, and the note typed in it,
+/// open only after `.failed`: nothing reached the server, so the same action can be sent again.
+enum CommunityModerationOutcome: Equatable {
+    /// The server applied the action.
+    case done
+    /// The server refused it; the reload has removed the refused button.
+    case refused
+    /// The call did not complete (network, decoding); nothing changed on screen.
+    case failed
+    /// Nothing was sent: another action is in flight, the action is no longer offered, or Hide had no reason.
+    case notSent
+}
+
 @MainActor
 final class CommunityReportsViewModel: ObservableObject {
     enum Access: Equatable { case checking, allowed, notAdmin }
@@ -209,13 +222,17 @@ final class CommunityReportsViewModel: ObservableObject {
     /// One action at a time, held through the follow-up reload. A success changes the row before
     /// the reload, so a reload that fails cannot bring back a button for an action that worked.
     @discardableResult
-    func moderate(_ report: CommunityReport, action: CommunityModerationAction, reason: String?) async -> Bool {
+    func moderate(
+        _ report: CommunityReport,
+        action: CommunityModerationAction,
+        reason: String?
+    ) async -> CommunityModerationOutcome {
         guard actingOnReportId == nil, CommunityReportActions.available(for: report).contains(action) else {
-            return false
+            return .notSent
         }
         let trimmed = reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let note: String? = trimmed.isEmpty ? nil : trimmed
-        if action == .hide && note == nil { return false }
+        if action == .hide && note == nil { return .notSent }
 
         actingOnReportId = report.id
         defer { actingOnReportId = nil }
@@ -230,11 +247,11 @@ final class CommunityReportsViewModel: ObservableObject {
             AppLogger.warning("community", "moderate_community_content(\(action)) refused: \(refusal.serverMessage)")
             actionErrorMessage = "community_reports_action_failed".localized
             await reload(reportingErrors: false)
-            return false
+            return .refused
         } catch {
             AppLogger.error("community", "moderate_community_content(\(action)) failed: \(error)")
             actionErrorMessage = "community_error_generic".localized
-            return false
+            return .failed
         }
 
         if let index = reports.firstIndex(where: { $0.id == report.id }) {
@@ -242,6 +259,6 @@ final class CommunityReportsViewModel: ObservableObject {
         }
         HapticManager.success()
         await reload(reportingErrors: false)
-        return true
+        return .done
     }
 }

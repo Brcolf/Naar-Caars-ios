@@ -180,9 +180,9 @@ final class CommunityReportsViewModelTests: XCTestCase {
         let vm = makeViewModel(context: context, admin: admin)
         await vm.load()
 
-        let ok = await vm.moderate(pending, action: .hide, reason: "  ")
+        let outcome = await vm.moderate(pending, action: .hide, reason: "  ")
 
-        XCTAssertFalse(ok)
+        XCTAssertEqual(outcome, .notSent)
         XCTAssertTrue(admin.moderateCommunityContentCalls.isEmpty)
     }
 
@@ -203,11 +203,11 @@ final class CommunityReportsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.actingOnReportId, first.id)
 
         let secondResult = await vm.moderate(second, action: .dismiss, reason: nil)
-        XCTAssertFalse(secondResult)
+        XCTAssertEqual(secondResult, .notSent)
         resume?.resume()
         let firstResult = await firstTask.value
 
-        XCTAssertTrue(firstResult)
+        XCTAssertEqual(firstResult, .done)
         XCTAssertEqual(admin.moderateCommunityContentCalls.count, 1)
         XCTAssertEqual(admin.moderateCommunityContentCalls[0].reportId, first.id)
         XCTAssertEqual(admin.moderateCommunityContentCalls[0].action, .hide)
@@ -225,9 +225,9 @@ final class CommunityReportsViewModelTests: XCTestCase {
 
         admin.fetchCommunityReportsResult = .failure(URLError(.notConnectedToInternet))
         let fetchesBefore = admin.fetchCommunityReportsCalls.count
-        let ok = await vm.moderate(pending, action: .hide, reason: "  Spam  ")
+        let outcome = await vm.moderate(pending, action: .hide, reason: "  Spam  ")
 
-        XCTAssertTrue(ok)
+        XCTAssertEqual(outcome, .done)
         XCTAssertEqual(admin.moderateCommunityContentCalls.first?.reason, "Spam")
         XCTAssertEqual(admin.fetchCommunityReportsCalls.count, fetchesBefore + 1)
         XCTAssertEqual(vm.reports.count, 1)
@@ -253,9 +253,9 @@ final class CommunityReportsViewModelTests: XCTestCase {
         let handled = report(status: "action_taken", contentHidden: true, platformHandled: true)
         admin.fetchCommunityReportsResult = .success([handled])
         let fetchesBefore = admin.fetchCommunityReportsCalls.count
-        let ok = await vm.moderate(pending, action: .dismiss, reason: nil)
+        let outcome = await vm.moderate(pending, action: .dismiss, reason: nil)
 
-        XCTAssertFalse(ok)
+        XCTAssertEqual(outcome, .refused)
         XCTAssertEqual(admin.moderateCommunityContentCalls.count, 1)
         XCTAssertEqual(vm.actionErrorMessage, "community_reports_action_failed".localized)
         XCTAssertEqual(admin.fetchCommunityReportsCalls.count, fetchesBefore + 1)
