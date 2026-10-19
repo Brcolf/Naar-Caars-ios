@@ -79,6 +79,8 @@ struct CommunityInviteContent: View {
                             .accessibilityLabel("community_invite_qr_accessibility".localized)
                     }
 
+                    // The side-by-side form never truncates its titles (see inviteActionButtons), so it
+                    // does not fit at accessibility sizes and the stacked form is chosen.
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: Constants.Spacing.md) {
                             inviteActionButtons(code: code)
@@ -97,6 +99,9 @@ struct CommunityInviteContent: View {
         }
     }
 
+    /// Side by side (`fillsWidth` false) the titles keep their full width on one line: a truncating
+    /// title let `ViewThatFits` keep this form at AX 5 with only the icons and "…" showing. Stacked,
+    /// they may wrap.
     @ViewBuilder
     private func inviteActionButtons(code: String, fillsWidth: Bool = false) -> some View {
         Button {
@@ -105,7 +110,8 @@ struct CommunityInviteContent: View {
             toastMessage = "community_invite_copied".localized
         } label: {
             Label("community_invite_copy".localized, systemImage: "doc.on.doc")
-                .lineLimit(1)
+                .lineLimit(fillsWidth ? nil : 1)
+                .fixedSize(horizontal: !fillsWidth, vertical: false)
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
         }
         .buttonStyle(.bordered)
@@ -114,7 +120,8 @@ struct CommunityInviteContent: View {
         if let message = viewModel.shareMessage {
             ShareLink(item: message) {
                 Label("community_invite_share".localized, systemImage: "square.and.arrow.up")
-                    .lineLimit(1)
+                    .lineLimit(fillsWidth ? nil : 1)
+                    .fixedSize(horizontal: !fillsWidth, vertical: false)
                     .frame(maxWidth: fillsWidth ? .infinity : nil)
             }
             .buttonStyle(.bordered)
