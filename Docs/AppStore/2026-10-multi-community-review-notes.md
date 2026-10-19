@@ -71,13 +71,13 @@ Added 2026-10-18 for the build that lets community owners and admins run their c
 1. **Reviewer's test community.** Sign in as the review account, create a test community (Profile > My communities > Create a community), so the review account is its owner. Profile > Admin Panel then offers that community, with Members, Reports and Settings.
 2. **A report to look at (optional, writes).** From a second test account that belongs to the test community, report one of its Town Hall posts, so the community's Reports list is not empty. Remove the post, the report and the second account's membership after review.
 3. **Legal pages.** The terms, privacy policy and FAQ changed again for Phase 3 (community moderation). Replace `<RELEASE DATE>` and copy both documents to the Notion pages the app opens (`Constants.swift`, privacy policy and terms URLs) before submitting.
-4. **Review Notes size.** The Phase 3 paragraph below is about 900 bytes; with the Phase 2 block (about 2,500 bytes before the account details) the total stays under the 4,000-byte limit.
+4. **Review Notes size.** The Phase 3 paragraph below is about 920 bytes. It replaces one paragraph of the Phase 2 block, which leaves about 2,200 bytes, so the total is about 3,100 bytes before the account details are filled in, under the 4,000-byte limit.
 
-### App Review Notes: Phase 3 paragraph (replaces "What community admins can and cannot see" and the last paragraph of "User-generated content and safety")
+### App Review Notes: Phase 3 paragraph (replaces only the last paragraph of "User-generated content and safety", the one that begins "Every report goes to the platform moderators"; keep "What community admins can and cannot see")
 
 ```text
 Community moderation:
-Owners and admins of a community can hide reported posts, comments, rides and favors in their community, restore what they hid, and dismiss reports. They never see who reported. Reports about a community's owners and admins or their content, every message report and every report about a community go only to the platform moderators (the operator's admins).
+Owners and admins of a community can hide reported posts, comments, rides and favors in their community, restore what they hid, and dismiss reports. They never see who reported, and they never see email addresses or phone numbers. Reports about a community's owners and admins or their content, every message report and every report about a community go only to the platform moderators (the operator's admins).
 Every report also stays in the platform moderators' queue until they review it, whatever a community admin decided. A community admin cannot undo a platform moderator's decision or the automatic hide after several reports. Platform moderators see every report and who filed it, can act in any community, and can archive any community.
 To see it: the review account owns a test community. Profile > Admin Panel > choose the community > Reports. Members and Settings are on the same screen.
 ```
