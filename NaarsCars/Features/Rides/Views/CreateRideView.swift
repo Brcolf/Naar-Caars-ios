@@ -12,6 +12,7 @@ struct CreateRideView: View {
     @StateObject private var viewModel = CreateRideViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onRideCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
@@ -21,6 +22,7 @@ struct CreateRideView: View {
     @State private var locationServiceReady = false
     @State private var showDiscardConfirmation = false
     @State private var showPastTimeConfirmation = false
+    @State private var showDestinationConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -223,18 +225,22 @@ struct CreateRideView: View {
 
                 if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(viewModel.postButtonTitle) {
+                    Button(postButtonVisibleTitle) {
                         // A time earlier today is usually a slip (AM left in place of PM), but
                         // it can be meant, so ask instead of refusing.
                         if viewModel.isEventTimeInPast {
                             showPastTimeConfirmation = true
+                        } else if showsShortPostTitle {
+                            showDestinationConfirmation = true
                         } else {
                             submitRide()
                         }
                     }
                     .disabled(viewModel.isLoading || !viewModel.hasRequiredFields)
                     .accessibilityIdentifier("createRide.post")
-                    .accessibilityLabel(viewModel.requiresCommunityChoice ? viewModel.postButtonTitle : "ride_create_post_accessibility".localized)
+                    .accessibilityLabel(postButtonAccessibilityLabel)
+                    // Voice Control answers to the title on screen as well as the spoken label.
+                    .accessibilityInputLabels([postButtonVisibleTitle, postButtonAccessibilityLabel])
                     .accessibilityHint("ride_create_post_hint".localized)
                 }
                 }
@@ -263,7 +269,19 @@ struct CreateRideView: View {
                 }
                 Button("request_time_passed_change".localized, role: .cancel) {}
             } message: {
-                Text("request_time_passed_message".localized)
+                // With only "Post" on the bar, this alert is where the community is named.
+                Text(showsShortPostTitle
+                     ? "request_time_passed_message".localized + "\n\n" + viewModel.postButtonTitle
+                     : "request_time_passed_message".localized)
+            }
+            // With only "Post" on the bar, the community is named here before anything is
+            // posted, as "Post to <community>" does on the bar (spec D24: a wrong default must
+            // be visible at the moment of posting).
+            .alert(viewModel.postButtonTitle, isPresented: $showDestinationConfirmation) {
+                Button("ride_create_post".localized) {
+                    submitRide()
+                }
+                Button("common_cancel".localized, role: .cancel) {}
             }
             .confirmationDialog(
                 "common_discard_changes_title".localized,
@@ -283,6 +301,22 @@ struct CreateRideView: View {
         // in flight: a swipe mid-request still created the ride, and its id was then consumed
         // by the next, unrelated dismissal of this sheet.
         .interactiveDismissDisabled(viewModel.isLoading || viewModel.hasUnsavedChanges)
+    }
+
+    /// True when the bar shows the short "Post" in place of "Post to <community>". At the
+    /// accessibility text sizes iOS 26 moves a confirmation button that does not fit beside
+    /// Cancel into the "•••" menu, which hides Post. Tapping the short Post names the
+    /// community in an alert before posting (spec D24).
+    private var showsShortPostTitle: Bool {
+        viewModel.requiresCommunityChoice && dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var postButtonVisibleTitle: String {
+        showsShortPostTitle ? "ride_create_post".localized : viewModel.postButtonTitle
+    }
+
+    private var postButtonAccessibilityLabel: String {
+        viewModel.requiresCommunityChoice ? viewModel.postButtonTitle : "ride_create_post_accessibility".localized
     }
 
     private var participantsButtonTitle: String {

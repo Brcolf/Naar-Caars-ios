@@ -194,19 +194,26 @@ struct TownHallPostCard: View {
 
     @ViewBuilder
     private var regularPostContent: some View {
-        // Title row with star rating (if review-related)
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        // Title row with star rating (if review-related). At accessibility text sizes the five
+        // stars left the title one letter wide; stack the stars under the title there instead.
+        let titleRowLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Constants.Spacing.xs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Constants.Spacing.sm))
+        titleRowLayout {
             Text(displayTitle)
                 .font(.naarsTitle3)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.leading)
                 // When the title is the whole post (single-line posts), it is the only rendering
-                // of the text, so it must not be truncated.
-                .lineLimit(showsBody ? 2 : nil)
+                // of the text, so it must not be truncated. Two lines hold only a few words at
+                // accessibility sizes, so the limit is lifted there, as in the author row.
+                .lineLimit(showsBody && !dynamicTypeSize.isAccessibilitySize ? 2 : nil)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer()
+            }
 
             // Visual star rating for review posts
             if let rating = starRating {
