@@ -479,4 +479,85 @@ final class DeepLinkParserTests: XCTestCase {
             PushRefreshPlan(domains: [.townHall], entityId: nil, refreshesMemberships: false)
         )
     }
+
+    // MARK: - Universal Link: https://naarscars.com/join#<code> (multi-community Phase 4)
+
+    private func parsedCode(_ string: String) -> String? {
+        guard let url = URL(string: string) else {
+            XCTFail("Not a URL: \(string)")
+            return nil
+        }
+        if case .joinCommunity(let code) = DeepLinkParser.parse(url: url) {
+            return code
+        }
+        return nil
+    }
+
+    private func assertUnknown(_ string: String, file: StaticString = #filePath, line: UInt = #line) {
+        guard let url = URL(string: string) else {
+            return XCTFail("Not a URL: \(string)", file: file, line: line)
+        }
+        let deepLink = DeepLinkParser.parse(url: url)
+        guard case .unknown = deepLink else {
+            return XCTFail("Expected .unknown for \(string), got \(deepLink.logDescription)", file: file, line: line)
+        }
+    }
+
+    func testParseURL_JoinWithWellFormedFragment() {
+        XCTAssertEqual(parsedCode("https://naarscars.com/join#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    /// Lower case and separators are normalized; a percent-encoded space is decoded first
+    /// (reading `url.fragment` would keep "%20" and leave a 12-character code that is refused).
+    func testParseURL_NormalizesCaseAndSeparators() {
+        XCTAssertEqual(parsedCode("https://naarscars.com/join#nc7k-2pq9-xa"), "NC7K2PQ9XA")
+        XCTAssertEqual(parsedCode("https://naarscars.com/join#NC7K%202PQ9XA"), "NC7K2PQ9XA")
+        XCTAssertEqual(parsedCode("HTTPS://NAARSCARS.COM/join#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    func testParseURL_TrailingSlashPath() {
+        XCTAssertEqual(parsedCode("https://naarscars.com/join/#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    func testParseURL_MalformedOrMissingCodeIsUnknown() {
+        assertUnknown("https://naarscars.com/join")
+        assertUnknown("https://naarscars.com/join#")
+        assertUnknown("https://naarscars.com/join#NC123")
+        assertUnknown("https://naarscars.com/join#NC7K2PQ9X0")
+    }
+
+    func testParseURL_OtherHostSchemeOrPathIsUnknown() {
+        assertUnknown("https://www.naarscars.com/join#NC7K2PQ9XA")
+        assertUnknown("http://naarscars.com/join#NC7K2PQ9XA")
+        assertUnknown("https://naarscars.co/join#NC7K2PQ9XA")
+        assertUnknown("https://naarscars.com/joinx#NC7K2PQ9XA")
+        assertUnknown("https://naarscars.com/invite#NC7K2PQ9XA")
+        assertUnknown("naarscars://join#NC7K2PQ9XA")
+    }
+
+    /// The code is read from the fragment only, which never reaches the web server.
+    func testParseURL_CodeInQueryOrPathIsIgnored() {
+        assertUnknown("https://naarscars.com/join?code=NC7K2PQ9XA")
+        assertUnknown("https://naarscars.com/join/NC7K2PQ9XA")
+        // A query beside a good fragment is ignored, not read.
+        XCTAssertEqual(parsedCode("https://naarscars.com/join?code=NCAAAAAAAA#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    func testJoinCommunityLogDescriptionHidesTheCode() {
+        let deepLink = DeepLink.joinCommunity(code: "NC7K2PQ9XA")
+        XCTAssertFalse(deepLink.logDescription.contains("NC7K2PQ9XA"))
+        XCTAssertEqual(deepLink.logDescription, "joinCommunity(<code>)")
+        XCTAssertEqual(DeepLink.dashboard.logDescription, "dashboard")
+    }
+
+    func testJoinLink_RoundTripsThroughTheParser() {
+        let code = "NC7K2PQ9XA"
+        let link = Constants.URLs.joinLink(code: code)
+        XCTAssertEqual(link, "https://naarscars.com/join#NC7K2PQ9XA")
+        guard let url = URL(string: link) else { return XCTFail("Not a URL: \(link)") }
+        guard case .joinCommunity(let parsed) = DeepLinkParser.parse(url: url) else {
+            return XCTFail("Expected .joinCommunity for \(link)")
+        }
+        XCTAssertEqual(parsed, code)
+    }
 }

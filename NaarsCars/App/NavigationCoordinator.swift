@@ -165,6 +165,17 @@ final class NavigationCoordinator {
         )
     }
 
+    /// A Universal Link: the routing table of `navigate(to:)` without the "open link?" confirmation
+    /// (a tapped link is an explicit user action, like a notification tap). An unrecognized URL
+    /// (`.unknown`) leaves navigation where it was.
+    func applyExternalDeepLink(_ deepLink: DeepLink) {
+        if case .unknown = deepLink {
+            AppLogger.info("navigation", "Ignoring an unrecognized incoming link")
+            return
+        }
+        applyDeepLink(deepLink)
+    }
+
     private func applyDeepLink(
         _ deepLink: DeepLink,
         requestAnchor: RequestNotificationTarget? = nil,
@@ -226,12 +237,16 @@ final class NavigationCoordinator {
             // Reached only from `AppLaunchManager.handleEnterAppIntent` while authenticated
             // (an approval into a further community); every other state relaunches.
             pendingIntent = .myCommunities
+
+        case .joinCommunity:
+            // The code itself is saved in PendingInviteStore by whoever received the link.
+            pendingIntent = .joinCommunity
             
         case .unknown:
             pendingIntent = .dashboard
         }
         
-        AppLogger.info("navigation", "Navigating to: \(deepLink)")
+        AppLogger.info("navigation", "Navigating to: \(deepLink.logDescription)")
     }
 
     private func shouldConfirmDeepLink(for deepLink: DeepLink) -> Bool {
@@ -310,6 +325,9 @@ final class NavigationCoordinator {
             return selectedTab == .requests
         case .enterApp:
             if case .myCommunities = pendingIntent { return true }
+            return false
+        case .joinCommunity:
+            if case .joinCommunity = pendingIntent { return true }
             return false
         case .unknown:
             return false
@@ -403,12 +421,21 @@ final class NavigationCoordinator {
         switch intent {
         case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard:
             return false
-        case .conversation, .announcements, .notifications, .myCommunities:
+        case .conversation, .announcements, .notifications, .myCommunities, .joinCommunity:
             return true
         case .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .communityMembers:
             // Admin-only: silently ignore rather than prompt
             return false
         }
+    }
+
+    /// The guest prompt for an auth-required intent: `.joinCommunity` for `.joinCommunity`,
+    /// `.deepLinkSignIn` otherwise.
+    func guestPromptReason(for intent: NavigationIntent) -> GuestRestrictionReason {
+        if case .joinCommunity = intent {
+            return .joinCommunity
+        }
+        return .deepLinkSignIn
     }
 
     /// Returns true if the intent is admin-only and should be silently dropped for guests.

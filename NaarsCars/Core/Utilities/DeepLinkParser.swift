@@ -32,7 +32,21 @@ enum DeepLink {
     case notifications
     case announcements(notificationId: UUID?)
     case enterApp  // For approved users to enter the main app
+    /// An invite link (`https://naarscars.com/join#<code>`, multi-community Phase 4). The code is
+    /// normalized and well formed. It is a bearer secret: log through `logDescription`, never `"\(self)"`.
+    case joinCommunity(code: String)
     case unknown
+}
+
+extension DeepLink {
+    /// For logs: `joinCommunity(<code>)` for an invite, `"\(self)"` otherwise. The code never
+    /// reaches a log line.
+    var logDescription: String {
+        if case .joinCommunity = self {
+            return "joinCommunity(<code>)"
+        }
+        return "\(self)"
+    }
 }
 
 /// Parser for deep links from push notifications
@@ -190,7 +204,22 @@ struct DeepLinkParser {
     }
 }
 
+// MARK: - Universal Links
 
-
-
-
+extension DeepLinkParser {
+    /// `https://naarscars.com/join#<code>` (spec §4 Phase 4, D15). The code is read from the
+    /// fragment only, which never reaches the web server or a referrer; a code in the query or
+    /// the path is never read. Anything else is `.unknown` and is not routed.
+    static func parse(url: URL) -> DeepLink {
+        guard url.scheme?.lowercased() == "https" else { return .unknown }
+        // The bare domain only: the Associated Domains entitlement names no `www.` host.
+        guard url.host?.lowercased() == Constants.URLs.universalLinkHost else { return .unknown }
+        // `url.path` drops a trailing slash, so `/join/` reads `/join` and `/join/<code>` does not.
+        guard url.path == Constants.URLs.joinPath else { return .unknown }
+        // The decoded fragment: `url.fragment` keeps percent escapes ("%20"), whose digits
+        // `normalize` would keep, turning a good code into a refused one.
+        let code = CommunityInviteCode.normalize(url.fragment(percentEncoded: false) ?? "")
+        guard CommunityInviteCode.isWellFormed(code) else { return .unknown }
+        return .joinCommunity(code: code)
+    }
+}

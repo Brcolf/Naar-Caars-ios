@@ -230,6 +230,11 @@ enum Constants {
         static let privacyPolicy = "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc"
         static let appStore = "https://apps.apple.com/app/naars-cars/id6757571644"
         static let deepLinkBase = "https://naarscars.com"
+        /// The Universal Link domain (the `applinks:` entry of the Associated Domains entitlement).
+        static let universalLinkHost = "naarscars.com"
+        static let joinPath = "/join"
+        /// An invite link. The code goes in the fragment, which browsers never send to the server.
+        static func joinLink(code: String) -> String { "\(deepLinkBase)\(joinPath)#\(code)" }
     }
     
     /// Community limits and lengths. The server enforces every limit; the client validates only

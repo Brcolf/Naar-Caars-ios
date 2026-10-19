@@ -34,6 +34,9 @@ enum NavigationIntent: Equatable {
     case myCommunities
     /// A community's members (made an owner of that community: `membership_update`).
     case communityMembers(UUID)
+    /// Join a community with the code an invite link carried. The code is in `PendingInviteStore`,
+    /// never in the intent; My communities opens Join from the store.
+    case joinCommunity
 
     // Cross-tab surfaces
     case notifications
@@ -49,7 +52,7 @@ enum NavigationIntent: Equatable {
         case .townHallPost, .announcements:
             return .community
         case .profile, .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .myCommunities,
-             .communityMembers:
+             .communityMembers, .joinCommunity:
             return .profile
         }
     }

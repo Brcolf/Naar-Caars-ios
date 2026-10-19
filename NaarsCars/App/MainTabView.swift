@@ -19,7 +19,8 @@ struct MainTabView: View {
     @State private var showGuidelinesAcceptance = false
     @State private var showNotificationsSheet = false
     @State private var isNotificationsSheetVisible = false
-    @State private var showGuestDeepLinkPrompt = false
+    /// The sign-in prompt for a guest who followed an auth-required intent (its reason names the action).
+    @State private var guestPromptReason: GuestRestrictionReason?
     /// A saved invite code opens My communities once per view lifetime.
     @State private var didOfferPendingInvite = false
 
@@ -162,7 +163,7 @@ struct MainTabView: View {
                 }
                 if navigationCoordinator.intentRequiresAuth(intent) {
                     navigationCoordinator.pendingIntent = nil
-                    showGuestDeepLinkPrompt = true
+                    guestPromptReason = navigationCoordinator.guestPromptReason(for: intent)
                     return
                 }
             }
@@ -342,9 +343,9 @@ struct MainTabView: View {
                 )
             }
         }
-        .sheet(isPresented: $showGuestDeepLinkPrompt) {
+        .sheet(item: $guestPromptReason) { reason in
             GuestSignInPromptView(
-                reason: .deepLinkSignIn,
+                reason: reason,
                 onSignUp: {
                     appState.isGuestMode = false
                     AppLaunchManager.shared.exitGuestMode()

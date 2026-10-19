@@ -458,4 +458,38 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertFalse(coordinator.intentRequiresAuth(members))
         XCTAssertEqual(members.targetTab, .profile)
     }
+
+    // MARK: - Universal Link (multi-community Phase 4)
+
+    /// A tapped link is an explicit action, like a notification tap: no "open link?" confirmation
+    /// even with another intent pending.
+    func testApplyExternalDeepLink_JoinCommunitySetsIntentWithoutConfirmation() {
+        coordinator.cancelPendingDeepLink()
+        coordinator.pendingIntent = .dashboard
+
+        coordinator.applyExternalDeepLink(.joinCommunity(code: "NC7K2PQ9XA"))
+
+        XCTAssertFalse(coordinator.showDeepLinkConfirmation)
+        XCTAssertNil(coordinator.pendingDeepLink)
+        XCTAssertEqual(coordinator.pendingIntent, .joinCommunity)
+        XCTAssertEqual(NavigationIntent.joinCommunity.targetTab, .profile)
+    }
+
+    /// An unrecognized URL opens the app where it was.
+    func testApplyExternalDeepLink_UnknownLeavesNavigationAlone() {
+        coordinator.pendingIntent = nil
+        coordinator.selectedTab = .messages
+
+        coordinator.applyExternalDeepLink(.unknown)
+
+        XCTAssertNil(coordinator.pendingIntent)
+        XCTAssertEqual(coordinator.selectedTab, .messages)
+    }
+
+    func testJoinCommunity_RequiresAuthAndPromptsWithTheJoinReason() {
+        XCTAssertTrue(coordinator.intentRequiresAuth(.joinCommunity))
+        XCTAssertFalse(coordinator.intentIsAdminOnly(.joinCommunity))
+        XCTAssertEqual(coordinator.guestPromptReason(for: .joinCommunity).id, GuestRestrictionReason.joinCommunity.id)
+        XCTAssertEqual(coordinator.guestPromptReason(for: .conversation(UUID())).id, GuestRestrictionReason.deepLinkSignIn.id)
+    }
 }

@@ -34,7 +34,8 @@ struct MyProfileView: View {
     @State private var badges: [LeaderboardBadge] = []
     /// Requests to join opened from a notification (`.pendingUsers` / `.pendingMembers` intents).
     @State private var pendingMembersTarget: PendingMembersTarget?
-    /// My communities opened from a `.myCommunities` intent.
+    /// My communities, opened from the Profile row or from a `.myCommunities` / `.joinCommunity`
+    /// intent: one destination, so an intent never pushes a second copy over the row's.
     @State private var showMyCommunities = false
     /// A community's reports opened from a `.communityReports` intent (`content_reported`).
     @State private var communityReportsTarget: UUID?
@@ -165,7 +166,7 @@ struct MyProfileView: View {
                     // used to switch here without being applied, and the intent stayed set.
                     if let intent = navigationCoordinator.pendingIntent {
                         switch intent {
-                        case .pendingUsers, .pendingMembers, .myCommunities, .adminPanel, .adminReports,
+                        case .pendingUsers, .pendingMembers, .myCommunities, .joinCommunity, .adminPanel, .adminReports,
                              .communityReports, .communityMembers, .profile:
                             applyProfileIntent(intent, proxy: proxy)
                         default:
@@ -687,8 +688,10 @@ struct MyProfileView: View {
 
     private func myCommunitiesLink() -> some View {
         let pendingTotal = CommunityContext.shared.administeredPendingTotal
-        return NavigationLink {
-            MyCommunitiesView()
+        // A Button, not a NavigationLink: the row and every intent drive the one
+        // `showMyCommunities` destination (setting it while already true pushes nothing).
+        return Button {
+            showMyCommunities = true
         } label: {
             HStack {
                 Image(systemName: "person.3.fill")
@@ -710,6 +713,7 @@ struct MyProfileView: View {
             .background(Color.naarsCardBackground)
             .cornerRadius(Constants.Radius.card)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("community_my_profile_row".localized)
         .accessibilityValue(pendingTotal > 0 ? "\(pendingTotal)" : "")
         .accessibilityIdentifier("profile.myCommunities")
@@ -748,7 +752,8 @@ struct MyProfileView: View {
         case .pendingMembers(let communityId):
             pendingMembersTarget = .community(communityId, name: nil)
             navigationCoordinator.pendingIntent = nil
-        case .myCommunities:
+        case .myCommunities, .joinCommunity:
+            // `.joinCommunity`: My communities opens Join from the saved code (PendingInviteStore).
             showMyCommunities = true
             navigationCoordinator.pendingIntent = nil
         case .adminPanel:

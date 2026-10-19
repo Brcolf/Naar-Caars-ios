@@ -390,7 +390,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 await AppLaunchManager.shared.handleEnterAppIntent()
             }
 
-        case .unknown:
+        // No push produces `.joinCommunity` (an invite arrives as a Universal Link, whose code is
+        // saved first); routing it here would set an intent with no saved code behind it.
+        case .joinCommunity, .unknown:
             AppLogger.warning("app", "Unknown deep link")
         }
     }
