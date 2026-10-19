@@ -532,4 +532,131 @@ final class CommunityServiceTests: XCTestCase {
         XCTAssertEqual(request.body?["p_approve"] as? Bool, true)
         XCTAssertEqual(decision, LimitDecision(status: .approved, maxOwned: 5))
     }
+
+    // MARK: - Member management and settings (20261017_0005 blocks 11, 22-25)
+
+    private static let memberB = UUID(uuidString: "DDDDDDDD-0000-4000-8000-000000000004")!
+
+    func testRemoveMember_SendsReasonAndDecodesCounts() async throws {
+        respond(with: CommunityFixtures.removeResultJSON)
+        let result = try await service.removeMember(
+            communityId: CommunityFixtures.communityA, userId: Self.memberB, reason: "Repeated no-shows"
+        )
+        let request = try onlyRequest()
+        XCTAssertEqual(request.method, "POST")
+        XCTAssertEqual(request.path, "/rest/v1/rpc/remove_community_member")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_user_id", "p_reason"])
+        XCTAssertEqual((request.body?["p_community_id"] as? String)?.lowercased(), CommunityFixtures.communityA.uuidString.lowercased())
+        XCTAssertEqual((request.body?["p_user_id"] as? String)?.lowercased(), Self.memberB.uuidString.lowercased(), "the target member")
+        XCTAssertEqual(request.body?["p_reason"] as? String, "Repeated no-shows")
+        XCTAssertEqual(result, RemovalResult(reopened: 1, removed: 1, cancelled: 0))
+    }
+
+    func testRemoveMember_NilReasonIsOmitted() async throws {
+        respond(with: CommunityFixtures.removeResultJSON)
+        _ = try await service.removeMember(communityId: CommunityFixtures.communityA, userId: Self.memberB, reason: nil)
+        let request = try onlyRequest()
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_user_id"], "a nil reason is omitted, not sent as null")
+    }
+
+    func testRemoveMember_LastOwnerThrowsLastOwner() async {
+        respond(with: CommunityFixtures.lastOwnerRefusalJSON)
+        do {
+            _ = try await service.removeMember(communityId: CommunityFixtures.communityA, userId: Self.memberB, reason: nil)
+            XCTFail("expected a refusal")
+        } catch let error as CommunityRPCError {
+            XCTAssertEqual(error.code, .lastOwner)
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+    }
+
+    func testReadmitMember_NotRemovedThrowsNotRemoved() async {
+        respond(with: CommunityFixtures.notRemovedRefusalJSON)
+        do {
+            try await service.readmitMember(communityId: CommunityFixtures.communityA, userId: Self.memberB)
+            XCTFail("expected a refusal")
+        } catch let error as CommunityRPCError {
+            XCTAssertEqual(error.code, .notRemoved)
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+        let request = CommunityServiceURLProtocol.recorded.first
+        XCTAssertEqual(request?.path, "/rest/v1/rpc/readmit_community_member")
+        XCTAssertEqual(Set(request?.body?.keys ?? [:].keys), ["p_community_id", "p_user_id"])
+    }
+
+    func testSetMemberRole_SendsRawRole() async throws {
+        respond(with: CommunityFixtures.successJSON)
+        try await service.setMemberRole(communityId: CommunityFixtures.communityA, userId: Self.memberB, role: .admin)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/set_member_role")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_user_id", "p_role"])
+        XCTAssertEqual(request.body?["p_role"] as? String, "admin")
+        XCTAssertEqual((request.body?["p_user_id"] as? String)?.lowercased(), Self.memberB.uuidString.lowercased())
+    }
+
+    func testTransferOwnership_SendsCommunityAndUser() async throws {
+        respond(with: CommunityFixtures.successJSON)
+        try await service.transferOwnership(communityId: CommunityFixtures.communityA, userId: Self.memberB)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/transfer_community_ownership")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_user_id"])
+        XCTAssertEqual((request.body?["p_community_id"] as? String)?.lowercased(), CommunityFixtures.communityA.uuidString.lowercased())
+        XCTAssertEqual((request.body?["p_user_id"] as? String)?.lowercased(), Self.memberB.uuidString.lowercased(), "the new owner, not the caller")
+    }
+
+    func testFetchCommunitySettings_QueriesByIdAndDecodes() async throws {
+        respond(with: CommunityFixtures.communitySettingsRowsJSON)
+        let settings = try await service.fetchCommunitySettings(communityId: CommunityFixtures.communityA)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.method, "GET")
+        XCTAssertEqual(request.path, "/rest/v1/communities")
+        XCTAssertEqual(request.query["id"]?.lowercased(), "eq.\(CommunityFixtures.communityA.uuidString.lowercased())")
+        XCTAssertEqual(request.query["limit"], "1")
+        XCTAssertEqual(settings.id, CommunityFixtures.communityA)
+        XCTAssertEqual(settings.name, "Ballard Neighbors")
+        XCTAssertEqual(settings.description, "Ballard rides and favors.")
+        XCTAssertEqual(settings.joinPolicy, "approve")
+        XCTAssertFalse(settings.membersCanInvite)
+        XCTAssertFalse(settings.isPublic)
+        XCTAssertFalse(settings.isDefault)
+        XCTAssertEqual(settings.timezone, "America/Los_Angeles")
+    }
+
+    func testFetchCommunitySettings_NoRowThrowsNotFound() async {
+        respond(with: "[]")
+        do {
+            _ = try await service.fetchCommunitySettings(communityId: CommunityFixtures.communityA)
+            XCTFail("expected communityNotFound")
+        } catch CommunityServiceError.communityNotFound {
+            // expected
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+    }
+
+    func testUpdateCommunity_SendsOnlyChangedFields() async throws {
+        respond(with: CommunityFixtures.successJSON)
+        try await service.updateCommunity(
+            communityId: CommunityFixtures.communityA,
+            change: CommunitySettingsChange(name: "New name", membersCanInvite: false)
+        )
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/update_community")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_name", "p_members_can_invite"])
+        XCTAssertEqual(request.body?["p_name"] as? String, "New name")
+        XCTAssertEqual(request.body?["p_members_can_invite"] as? Bool, false)
+    }
+
+    func testUpdateCommunity_ClearingDescriptionSendsEmptyString() async throws {
+        respond(with: CommunityFixtures.successJSON)
+        try await service.updateCommunity(
+            communityId: CommunityFixtures.communityA,
+            change: CommunitySettingsChange(description: "")
+        )
+        let request = try onlyRequest()
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_description"])
+        XCTAssertEqual(request.body?["p_description"] as? String, "", "an empty description clears it")
+    }
 }

@@ -79,6 +79,8 @@ struct CommunityRPCError: Error, Equatable, Sendable {
 enum CommunityServiceError: Error {
     /// A membership update matched no row (a PATCH that matches nothing still answers 200).
     case membershipNotUpdated
+    /// `fetchCommunitySettings` found no row: the community is archived, or the caller may not read it.
+    case communityNotFound
 }
 
 /// Reads the `{success, ...}` envelope of the community RPCs.
@@ -472,6 +474,47 @@ extension PlatformLimitRequest: Decodable {
         case createdAt = "created_at"
         case currentMax = "current_max"
         case ownedCount = "owned_count"
+    }
+}
+
+/// What `remove_community_member` did to the removed member's requests in that community
+/// (20261017_0005 block 22): reopened claims, deleted unclaimed requests, cancelled claimed ones.
+struct RemovalResult: Decodable, Equatable, Sendable {
+    let reopened: Int
+    let removed: Int
+    let cancelled: Int
+}
+
+/// One community's editable settings, read from `communities` (readable only while not archived).
+struct CommunitySettings: Decodable, Equatable, Sendable {
+    let id: UUID
+    let name: String
+    let description: String?
+    let joinPolicy: String
+    let membersCanInvite: Bool
+    let isPublic: Bool
+    let isDefault: Bool
+    let timezone: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, timezone
+        case joinPolicy = "join_policy"
+        case membersCanInvite = "members_can_invite"
+        case isPublic = "is_public"
+        case isDefault = "is_default"
+    }
+}
+
+/// A change to `update_community`. nil leaves a field unchanged; `description: ""` clears it
+/// (update_community, 20261017_0005 block 11). The time zone is never sent (no screen edits it).
+struct CommunitySettingsChange: Equatable, Sendable {
+    var name: String? = nil
+    var description: String? = nil
+    var joinPolicy: CommunityJoinPolicy? = nil
+    var membersCanInvite: Bool? = nil
+
+    var isEmpty: Bool {
+        name == nil && description == nil && joinPolicy == nil && membersCanInvite == nil
     }
 }
 

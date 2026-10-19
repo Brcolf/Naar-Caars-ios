@@ -28,7 +28,14 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     var joinStatus: MembershipStatus = .pending
     var members: [CommunityMember] = PreviewCommunityService.sampleApplicants
     var platformCommunities: PlatformCommunities = PreviewCommunityService.samplePlatformCommunities
-    /// When set, approve, reject and archive throw it (the not-admin preview).
+    /// Active members (`fetchCommunityMembers` with `.active`).
+    var activeMembers: [CommunityMember] = PreviewCommunityService.sampleActiveMembers
+    /// Removed members (`fetchCommunityMembers` with `.removed`).
+    var removedMembers: [CommunityMember] = PreviewCommunityService.sampleRemovedMembers
+    var settings: CommunitySettings = PreviewCommunityService.sampleSettings
+    var removal = RemovalResult(reopened: 1, removed: 0, cancelled: 0)
+    /// When set, approve, reject, archive and the member-management and settings writes throw it
+    /// (the not-admin preview).
     var adminRefusal: CommunityRPCError?
     var applicantContact = ApplicantContact(email: "dana.rivera@example.com", phoneNumber: "+1 206 555 0142")
 
@@ -208,8 +215,53 @@ extension PreviewCommunityService: CommunityAdminServiceProtocol {
         ]
     )
 
+    static let sampleActiveMembers: [CommunityMember] = [
+        CommunityMember(
+            id: UUID(), name: "Sam Neighbor", avatarUrl: nil, car: "Blue Civic", role: .owner, status: .active,
+            joinedAt: Date(timeIntervalSince1970: 1_789_000_000), activatedAt: Date(timeIntervalSince1970: 1_789_000_100),
+            heardAbout: nil, joinReason: nil, invitedByName: nil, removalReason: nil
+        ),
+        CommunityMember(
+            id: UUID(), name: "Pat Quinn", avatarUrl: nil, car: nil, role: .admin, status: .active,
+            joinedAt: Date(timeIntervalSince1970: 1_789_100_000), activatedAt: Date(timeIntervalSince1970: 1_789_100_100),
+            heardAbout: "Sam told me about it.", joinReason: "Help run the group.", invitedByName: "Sam Neighbor", removalReason: nil
+        ),
+        CommunityMember(
+            id: UUID(), name: "Dana Rivera", avatarUrl: nil, car: "Green Subaru", role: .member, status: .active,
+            joinedAt: Date(timeIntervalSince1970: 1_790_100_000), activatedAt: Date(timeIntervalSince1970: 1_790_100_100),
+            heardAbout: "A neighbor told me about it at the block party.",
+            joinReason: "I drive to the airport often and would like to share rides.",
+            invitedByName: "Sam Neighbor", removalReason: nil
+        ),
+        CommunityMember(
+            id: UUID(), name: "Maximiliana Alexandrina Featherstonehaugh-Wolfeschlegelstein",
+            avatarUrl: nil, car: nil, role: .member, status: .active,
+            joinedAt: Date(timeIntervalSince1970: 1_790_200_000), activatedAt: Date(timeIntervalSince1970: 1_790_200_100),
+            heardAbout: nil, joinReason: nil, invitedByName: nil, removalReason: nil
+        )
+    ]
+
+    static let sampleRemovedMembers: [CommunityMember] = [
+        CommunityMember(
+            id: UUID(), name: "Jordan Lee", avatarUrl: nil, car: nil, role: .member, status: .removed,
+            joinedAt: Date(timeIntervalSince1970: 1_789_500_000), activatedAt: Date(timeIntervalSince1970: 1_789_500_100),
+            heardAbout: nil, joinReason: nil, invitedByName: nil,
+            removalReason: "Missed three confirmed rides without telling anyone."
+        )
+    ]
+
+    static let sampleSettings = CommunitySettings(
+        id: UUID(), name: "Ballard Neighbors", description: "Ballard rides and favors.",
+        joinPolicy: CommunityJoinPolicy.approve.rawValue, membersCanInvite: true,
+        isPublic: false, isDefault: false, timezone: "America/Los_Angeles"
+    )
+
     func fetchCommunityMembers(communityId: UUID, status: MembershipStatus, limit: Int, offset: Int) async throws -> [CommunityMember] {
-        members
+        switch status {
+        case .active: return activeMembers
+        case .removed: return removedMembers
+        case .pending, .left: return members
+        }
     }
 
     func approveMember(communityId: UUID, userId: UUID) async throws {
@@ -234,6 +286,32 @@ extension PreviewCommunityService: CommunityAdminServiceProtocol {
 
     func decideOwnedCommunityLimit(requestId: UUID, approve: Bool) async throws -> LimitDecision {
         LimitDecision(status: approve ? .approved : .declined, maxOwned: 5)
+    }
+
+    func removeMember(communityId: UUID, userId: UUID, reason: String?) async throws -> RemovalResult {
+        if let adminRefusal { throw adminRefusal }
+        return removal
+    }
+
+    func readmitMember(communityId: UUID, userId: UUID) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func setMemberRole(communityId: UUID, userId: UUID, role: CommunityRole) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func transferOwnership(communityId: UUID, userId: UUID) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func fetchCommunitySettings(communityId: UUID) async throws -> CommunitySettings {
+        if let adminRefusal { throw adminRefusal }
+        return settings
+    }
+
+    func updateCommunity(communityId: UUID, change: CommunitySettingsChange) async throws {
+        if let adminRefusal { throw adminRefusal }
     }
 }
 

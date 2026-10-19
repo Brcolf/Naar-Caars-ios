@@ -194,6 +194,61 @@ private struct LimitDecisionParams: Encodable, Sendable {
     }
 }
 
+private struct RemoveMemberParams: Encodable, Sendable {
+    let communityId: String
+    /// The member being removed, never the caller.
+    let userId: String
+    let reason: String?
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_user_id, p_reason }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(userId, forKey: .p_user_id)
+        try c.encodeIfPresent(reason, forKey: .p_reason)
+    }
+}
+
+private struct SetMemberRoleParams: Encodable, Sendable {
+    let communityId: String
+    let userId: String
+    /// `CommunityRole.rawValue`: owner, admin or member.
+    let role: String
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_user_id, p_role }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(userId, forKey: .p_user_id)
+        try c.encode(role, forKey: .p_role)
+    }
+}
+
+/// `update_community`: only the set fields are sent; `p_timezone` never is. A nil field is omitted
+/// (the server leaves it unchanged); an empty description is sent as "" and clears it.
+private struct UpdateCommunityParams: Encodable, Sendable {
+    let communityId: String
+    let name: String?
+    let description: String?
+    let joinPolicy: String?
+    let membersCanInvite: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case p_community_id, p_name, p_description, p_join_policy, p_members_can_invite
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encodeIfPresent(name, forKey: .p_name)
+        try c.encodeIfPresent(description, forKey: .p_description)
+        try c.encodeIfPresent(joinPolicy, forKey: .p_join_policy)
+        try c.encodeIfPresent(membersCanInvite, forKey: .p_members_can_invite)
+    }
+}
+
 /// Body of the mute update. `muted_until` is sent as an explicit null so a timed mute set
 /// elsewhere is cleared.
 private struct MuteBody: Encodable, Sendable {
@@ -392,5 +447,56 @@ extension CommunityService: CommunityAdminServiceProtocol {
         let params = LimitDecisionParams(requestId: requestId.uuidString, approve: approve)
         let response = try await client.rpc("decide_owned_community_limit", params: params).execute()
         return try CommunityRPC.decode(LimitDecision.self, from: response.data)
+    }
+
+    // MARK: Member management and settings (20261017_0005 blocks 11, 22-25)
+
+    func removeMember(communityId: UUID, userId: UUID, reason: String?) async throws -> RemovalResult {
+        let params = RemoveMemberParams(communityId: communityId.uuidString, userId: userId.uuidString, reason: reason)
+        let response = try await client.rpc("remove_community_member", params: params).execute()
+        return try CommunityRPC.decode(RemovalResult.self, from: response.data)
+    }
+
+    func readmitMember(communityId: UUID, userId: UUID) async throws {
+        let params = MemberDecisionParams(communityId: communityId.uuidString, userId: userId.uuidString)
+        let response = try await client.rpc("readmit_community_member", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func setMemberRole(communityId: UUID, userId: UUID, role: CommunityRole) async throws {
+        let params = SetMemberRoleParams(communityId: communityId.uuidString, userId: userId.uuidString, role: role.rawValue)
+        let response = try await client.rpc("set_member_role", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func transferOwnership(communityId: UUID, userId: UUID) async throws {
+        let params = MemberDecisionParams(communityId: communityId.uuidString, userId: userId.uuidString)
+        let response = try await client.rpc("transfer_community_ownership", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func fetchCommunitySettings(communityId: UUID) async throws -> CommunitySettings {
+        let response = try await client
+            .from("communities")
+            .select("id, name, description, join_policy, members_can_invite, is_public, is_default, timezone")
+            .eq("id", value: communityId.uuidString)
+            .limit(1)
+            .execute()
+        let rows = try DateDecoderFactory.makeSupabaseDecoder().decode([CommunitySettings].self, from: response.data)
+        // The SELECT policy hides archived communities and ones the caller may not read.
+        guard let settings = rows.first else { throw CommunityServiceError.communityNotFound }
+        return settings
+    }
+
+    func updateCommunity(communityId: UUID, change: CommunitySettingsChange) async throws {
+        let params = UpdateCommunityParams(
+            communityId: communityId.uuidString,
+            name: change.name,
+            description: change.description,
+            joinPolicy: change.joinPolicy?.rawValue,
+            membersCanInvite: change.membersCanInvite
+        )
+        let response = try await client.rpc("update_community", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
     }
 }

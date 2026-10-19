@@ -261,6 +261,30 @@ enum CommunityFixtures {
     [{"id": "AAAAAAAA-0000-4000-8000-000000000001"}]
     """
 
+    // MARK: - Member management and settings (20261017_0005 blocks 11, 22-25)
+
+    static let removeResultJSON = """
+    {"success": true, "reopened": 1, "removed": 1, "cancelled": 0}
+    """
+
+    static let lastOwnerRefusalJSON = """
+    {"success": false, "error": "Make someone else owner before removing the owner", "code": "last_owner"}
+    """
+
+    static let notRemovedRefusalJSON = """
+    {"success": false, "error": "This person was not removed", "code": "not_removed"}
+    """
+
+    static let communitySettingsRowsJSON = """
+    [{"id": "AAAAAAAA-0000-4000-8000-000000000001", "name": "Ballard Neighbors", "description": "Ballard rides and favors.",
+      "join_policy": "approve", "members_can_invite": false, "is_public": false, "is_default": false,
+      "timezone": "America/Los_Angeles"}]
+    """
+
+    static let successJSON = """
+    {"success":true}
+    """
+
     // MARK: - AdminService payloads (supabase/migrations/20261018_0001 block 3-4, 20261018_0002 blocks 2-5)
 
     static let reportA = UUID(uuidString: "3E000000-0000-4000-8000-000000000001")!
@@ -615,6 +639,64 @@ final class StubCommunityAdminService: CommunityAdminServiceProtocol {
         decideOwnedCommunityLimitCalls.append((requestId, approve))
         await actionGate?()
         return try decideOwnedCommunityLimitResult.get()
+    }
+
+    // MARK: Member management and settings
+
+    var removeMemberResult: Result<RemovalResult, Error> = .success(RemovalResult(reopened: 0, removed: 0, cancelled: 0))
+    private(set) var removeMemberCalls: [(communityId: UUID, userId: UUID, reason: String?)] = []
+
+    var readmitMemberResult: Result<Void, Error> = .success(())
+    private(set) var readmitMemberCalls: [(communityId: UUID, userId: UUID)] = []
+
+    var setMemberRoleResult: Result<Void, Error> = .success(())
+    private(set) var setMemberRoleCalls: [(communityId: UUID, userId: UUID, role: CommunityRole)] = []
+
+    var transferOwnershipResult: Result<Void, Error> = .success(())
+    private(set) var transferOwnershipCalls: [(communityId: UUID, userId: UUID)] = []
+
+    var fetchCommunitySettingsResult: Result<CommunitySettings, Error> = .success(CommunitySettings(
+        id: CommunityFixtures.communityA, name: "Ballard Neighbors", description: nil, joinPolicy: "approve",
+        membersCanInvite: true, isPublic: false, isDefault: false, timezone: "America/Los_Angeles"
+    ))
+    private(set) var fetchCommunitySettingsCalls: [UUID] = []
+
+    var updateCommunityResult: Result<Void, Error> = .success(())
+    private(set) var updateCommunityCalls: [(communityId: UUID, change: CommunitySettingsChange)] = []
+
+    func removeMember(communityId: UUID, userId: UUID, reason: String?) async throws -> RemovalResult {
+        removeMemberCalls.append((communityId, userId, reason))
+        await actionGate?()
+        return try removeMemberResult.get()
+    }
+
+    func readmitMember(communityId: UUID, userId: UUID) async throws {
+        readmitMemberCalls.append((communityId, userId))
+        await actionGate?()
+        try readmitMemberResult.get()
+    }
+
+    func setMemberRole(communityId: UUID, userId: UUID, role: CommunityRole) async throws {
+        setMemberRoleCalls.append((communityId, userId, role))
+        await actionGate?()
+        try setMemberRoleResult.get()
+    }
+
+    func transferOwnership(communityId: UUID, userId: UUID) async throws {
+        transferOwnershipCalls.append((communityId, userId))
+        await actionGate?()
+        try transferOwnershipResult.get()
+    }
+
+    func fetchCommunitySettings(communityId: UUID) async throws -> CommunitySettings {
+        fetchCommunitySettingsCalls.append(communityId)
+        return try fetchCommunitySettingsResult.get()
+    }
+
+    func updateCommunity(communityId: UUID, change: CommunitySettingsChange) async throws {
+        updateCommunityCalls.append((communityId, change))
+        await actionGate?()
+        try updateCommunityResult.get()
     }
 }
 
