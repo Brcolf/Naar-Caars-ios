@@ -182,6 +182,44 @@ final class CommunityMembersViewModelTests: XCTestCase {
         XCTAssertEqual(admin.removeMemberCalls[0].userId, plainMember.id)
     }
 
+    func testPerform_HoldsGateThroughFollowUpRefresh() async {
+        let (context, _) = await makeContext(role: .owner)
+        let admin = StubCommunityAdminService()
+        admin.fetchCommunityMembersResult = .success([plainMember, otherMember])
+        var resume: CheckedContinuation<Void, Never>?
+        var dashboardEntered = false
+        let vm = CommunityMembersViewModel(
+            communityId: CommunityFixtures.communityA,
+            communityName: "Community A",
+            adminService: admin,
+            communityContext: context,
+            authService: StubMembersAuthService(currentUserId: CommunityFixtures.userA),
+            refreshDashboard: { _ in
+                dashboardEntered = true
+                await withCheckedContinuation { resume = $0 }
+            }
+        )
+        await vm.load()
+
+        let first = Task { await vm.perform(.remove, on: plainMember) }
+        for _ in 0..<200 where !dashboardEntered { await Task.yield() }
+        XCTAssertTrue(dashboardEntered)
+        XCTAssertEqual(admin.removeMemberCalls.count, 1)
+
+        // The RPC has returned and the row is gone, but the follow-up refresh is still running:
+        // the detail screen still holds the original row, so a second tap must do nothing.
+        XCTAssertEqual(vm.actingOnUserId, plainMember.id)
+        let second = await vm.perform(.remove, on: plainMember)
+        XCTAssertFalse(second)
+        XCTAssertEqual(admin.removeMemberCalls.count, 1)
+
+        resume?.resume()
+        let firstResult = await first.value
+        XCTAssertTrue(firstResult)
+        XCTAssertNil(vm.actingOnUserId)
+        XCTAssertNil(vm.actionErrorMessage)
+    }
+
     func testRemove_DropsRowRefreshesDashboardAndStaysGoneWhenReloadFails() async {
         let (context, _) = await makeContext(role: .owner)
         let admin = StubCommunityAdminService()

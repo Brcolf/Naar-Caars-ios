@@ -17,6 +17,9 @@ struct CommunityMemberDetailView: View {
     @State private var pendingAction: CommunityMemberAction?
     @State private var showsRemoveSheet = false
     @State private var popsAfterSheet = false
+    /// Set before a Remove or Let back in that closes this screen: its toast is then left to the
+    /// Members list (shown when it reappears), and the buttons stay off until the screen is gone.
+    @State private var isLeaving = false
 
     init(member: CommunityMember, viewModel: CommunityMembersViewModel) {
         self.member = member
@@ -28,7 +31,16 @@ struct CommunityMemberDetailView: View {
         viewModel.members.first { $0.id == member.id } ?? member
     }
 
-    private var isActing: Bool { viewModel.actingOnUserId != nil }
+    private var isActing: Bool { viewModel.actingOnUserId != nil || isLeaving }
+
+    /// Role and ownership toasts show here, where the action happened. While this screen is closing
+    /// it shows none: clearing it on the way out would drop the Members list's confirmation.
+    private var toastMessage: Binding<String?> {
+        Binding(
+            get: { isLeaving ? nil : viewModel.toastMessage },
+            set: { viewModel.toastMessage = $0 }
+        )
+    }
 
     var body: some View {
         ScrollView {
@@ -52,9 +64,13 @@ struct CommunityMemberDetailView: View {
             Button("common_cancel".localized, role: .cancel) {}
             Button(Self.label(for: action)) {
                 let target = current
+                let closesScreen = action == .readmit
+                if closesScreen { isLeaving = true }
                 Task {
                     let succeeded = await viewModel.perform(action, on: target)
-                    if succeeded && action == .readmit { dismiss() }
+                    if closesScreen {
+                        if succeeded { dismiss() } else { isLeaving = false }
+                    }
                 }
             }
         } message: { action in
@@ -65,17 +81,21 @@ struct CommunityMemberDetailView: View {
         }) {
             RemoveMemberSheet(
                 memberName: current.membersDisplayName,
-                isActing: viewModel.actingOnUserId == member.id,
+                isActing: viewModel.actingOnUserId == member.id || isLeaving,
                 errorMessage: $viewModel.actionErrorMessage
             ) { note in
                 let target = current
+                isLeaving = true
                 let succeeded = await viewModel.perform(.remove, on: target, reason: note)
                 if succeeded {
                     popsAfterSheet = true
                     showsRemoveSheet = false
+                } else {
+                    isLeaving = false
                 }
             }
         }
+        .toast(message: toastMessage)
         .errorBanner(message: $viewModel.actionErrorMessage)
         .accessibilityIdentifier("community.member.detail")
     }

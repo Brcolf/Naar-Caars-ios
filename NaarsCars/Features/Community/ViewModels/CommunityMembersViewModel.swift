@@ -203,10 +203,14 @@ final class CommunityMembersViewModel: ObservableObject {
 
     /// One action at a time. A success changes the row before the follow-up reloads, so a reload
     /// that fails cannot bring a removed member back or show an error for an action that worked.
+    /// The gate stays held until this returns, through the follow-up refreshes: until then the
+    /// detail screen still shows the row it opened, and a second tap would repeat the action and
+    /// be refused (`not_active`, `not_removed`) for something that worked.
     @discardableResult
     func perform(_ action: CommunityMemberAction, on member: CommunityMember, reason: String? = nil) async -> Bool {
         guard actingOnUserId == nil, actions(for: member).contains(action) else { return false }
         actingOnUserId = member.id
+        defer { actingOnUserId = nil }
         actionErrorMessage = nil
         let name = member.membersDisplayName
 
@@ -228,7 +232,6 @@ final class CommunityMembersViewModel: ObservableObject {
                 try await adminService.transferOwnership(communityId: communityId, userId: member.id)
             }
         } catch let refusal as CommunityRPCError {
-            actingOnUserId = nil
             switch refusal.code {
             case nil:
                 // The server's unauthorized answer carries no code: the caller's role changed.
@@ -243,13 +246,11 @@ final class CommunityMembersViewModel: ObservableObject {
             }
             return false
         } catch {
-            actingOnUserId = nil
             AppLogger.error("community", "member action \(action) failed: \(error)")
             actionErrorMessage = "community_error_generic".localized
             return false
         }
 
-        actingOnUserId = nil
         switch action {
         case .remove:
             members.removeAll { $0.id == member.id }
