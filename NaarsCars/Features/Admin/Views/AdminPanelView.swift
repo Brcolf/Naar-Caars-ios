@@ -13,6 +13,7 @@ import SwiftUI
 struct AdminPanelView: View {
     @StateObject private var viewModel: AdminPanelViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showFulfilledOverlay = false
     @State private var showSavingsOverlay = false
     @State private var showActiveRidesOverlay = false
@@ -160,10 +161,15 @@ struct AdminPanelView: View {
             Text("admin_stats".localized)
                 .font(.naarsTitle3)
 
-            HStack(spacing: 16) {
+            // Side by side at standard sizes; stacked at accessibility sizes so a title or a figure
+            // is never broken inside a word or number.
+            let statsLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Constants.Spacing.ms))
+                : AnyLayout(HStackLayout(spacing: Constants.Spacing.md))
+            statsLayout {
                 Button { showFulfilledOverlay = true } label: {
                     StatCard(
-                        title: "Fulfilled",
+                        title: "admin_stat_fulfilled".localized,
                         value: viewModel.hasLoadedStats ? "\(viewModel.fulfilledCount)" : Self.statPlaceholder,
                         icon: "checkmark.circle.fill",
                         color: .naarsSuccess
@@ -173,7 +179,7 @@ struct AdminPanelView: View {
 
                 Button { showSavingsOverlay = true } label: {
                     StatCard(
-                        title: "Savings",
+                        title: "admin_stat_savings".localized,
                         value: viewModel.hasLoadedStats ? viewModel.formattedSavings : Self.statPlaceholder,
                         icon: "dollarsign.circle.fill",
                         color: .naarsSuccess
@@ -183,7 +189,7 @@ struct AdminPanelView: View {
 
                 Button { showActiveRidesOverlay = true } label: {
                     StatCard(
-                        title: "Active",
+                        title: "admin_stat_active".localized,
                         value: viewModel.hasLoadedStats ? "\(viewModel.activeRidesCount)" : Self.statPlaceholder,
                         icon: "clock.fill",
                         color: .naarsWarning
@@ -494,10 +500,15 @@ private struct StatCard: View {
             Text(value)
                 .font(.naarsTitle2)
                 .fontWeight(.bold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             
             Text(title)
                 .font(.naarsCaption)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
         .padding()
