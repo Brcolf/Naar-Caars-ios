@@ -32,7 +32,7 @@ Open any conversation from the Messages tab. You can send text, photos (from cam
 
 ## How do I report inappropriate content?
 
-Tap and hold any message, post, or comment to see the report flag option. You can also report a person from their profile, and a community from its page. Select a reason and submit. Platform moderators review every report and take action as needed. Community admins do not see who reported. Platform moderators do.
+Tap and hold any message, post, or comment to see the report flag option. You can also report a person from their profile, and a community from its page. Select a reason and submit. Community admins review reports about content in their community and can hide it; they never see who reported. Platform moderators review every report, do see who reported, and their decisions stand.
 
 ## How do I block another user?
 

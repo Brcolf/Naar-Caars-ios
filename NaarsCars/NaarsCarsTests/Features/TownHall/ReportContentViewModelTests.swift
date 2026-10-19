@@ -92,4 +92,24 @@ final class ReportContentViewModelTests: XCTestCase {
         XCTAssertTrue(stub.reportCommunityCalls.isEmpty)
         XCTAssertFalse(viewModel.isSubmitting)
     }
+
+    /// The sheet's second footer line ("the community's admins see the report") is shown for every
+    /// report that can carry a community. A community report goes to platform moderators only
+    /// (`report_community`), so it must not claim that community admins see it.
+    func testReachesCommunityAdmins_AllButCommunityReports() {
+        let author = UUID()
+        let reaching: [ReportContext] = [
+            .post(id: UUID(), authorId: author, preview: "A post"),
+            .comment(id: UUID(), authorId: author, preview: "A comment"),
+            .ride(id: UUID(), authorId: author, preview: "A ride"),
+            .favor(id: UUID(), authorId: author, preview: "A favor"),
+            .user(id: UUID(), name: "Someone"),
+            .review(id: UUID(), authorId: author, preview: "A review")
+        ]
+        for context in reaching {
+            XCTAssertTrue(context.reachesCommunityAdmins, "\(context)")
+        }
+        XCTAssertFalse(ReportContext.community(id: UUID(), code: nil, name: "A community").reachesCommunityAdmins)
+        XCTAssertFalse(ReportContext.community(id: nil, code: "ABC123", name: "A community").reachesCommunityAdmins)
+    }
 }

@@ -10377,6 +10377,47 @@
         }
       }
     },
+    "guidelines_7_body_moderation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anyone can create a community. Its owners and admins approve members, remove people, and handle reports about content in it: they can hide a reported post, comment or request, or restore what they hid, and they never see who reported. They see your name, photo, car, your answers when you ask to join and who invited you, never your email or phone number. A community's name, description and public content follow the same rules as any post. Platform moderators review every report in any community, including private ones, and can close a community that breaks these guidelines."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cualquiera puede crear una comunidad. Sus propietarios y administradores aprueban miembros, eliminan personas y gestionan los reportes sobre su contenido: pueden ocultar una publicación, un comentario o una solicitud reportados, o restaurar lo que ocultaron, y nunca ven quién hizo el reporte. Ven tu nombre, foto, coche, tus respuestas cuando pides unirte y quién te invitó, pero nunca tu correo ni tu número de teléfono. El nombre, la descripción y el contenido público de una comunidad siguen las mismas reglas que cualquier publicación. Los moderadores de la plataforma revisan cada reporte en cualquier comunidad, incluidas las privadas, y pueden cerrar una comunidad que incumpla estas normas."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "누구나 커뮤니티를 만들 수 있습니다. 커뮤니티의 소유자와 관리자는 멤버를 승인하고 사람을 내보내며, 커뮤니티 안의 콘텐츠에 대한 신고를 처리합니다. 신고된 게시물, 댓글, 요청을 숨기거나 자신이 숨긴 것을 복원할 수 있으며, 누가 신고했는지는 절대 볼 수 없습니다. 이들에게는 이름, 사진, 차량, 가입을 요청할 때 작성한 답변, 그리고 누가 초대했는지가 표시되며, 이메일이나 전화번호는 절대 표시되지 않습니다. 커뮤니티의 이름, 설명, 공개 콘텐츠도 다른 게시물과 같은 규칙을 따릅니다. 플랫폼 관리자는 비공개 커뮤니티를 포함한 모든 커뮤니티의 모든 신고를 검토하며, 이 가이드라인을 위반하는 커뮤니티를 닫을 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bất kỳ ai cũng có thể tạo một cộng đồng. Chủ sở hữu và quản trị viên của cộng đồng duyệt thành viên, xóa người khỏi cộng đồng và xử lý các báo cáo về nội dung trong đó: họ có thể ẩn một bài đăng, bình luận hoặc yêu cầu bị báo cáo, hoặc khôi phục những gì họ đã ẩn, và họ không bao giờ thấy ai đã báo cáo. Họ thấy tên, ảnh, xe của bạn, các câu trả lời khi bạn xin tham gia và người đã mời bạn, nhưng không bao giờ thấy email hoặc số điện thoại của bạn. Tên, mô tả và nội dung công khai của một cộng đồng tuân theo cùng quy tắc như mọi bài đăng. Người kiểm duyệt của nền tảng xem xét mọi báo cáo trong bất kỳ cộng đồng nào, kể cả cộng đồng riêng tư, và có thể đóng một cộng đồng vi phạm các nguyên tắc này."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任何人都可以创建社区。社区的所有者和管理员负责批准成员、移除成员，并处理对社区内内容的举报：他们可以隐藏被举报的帖子、评论或请求，也可以恢复自己隐藏的内容，但永远看不到举报人是谁。他们能看到你的姓名、照片、车辆、你申请加入时的回答以及邀请你的人，但永远看不到你的电子邮件或电话号码。社区的名称、简介和公开内容与任何帖子遵守相同的规则。平台审核员会审查任何社区（包括私密社区）中的每一条举报，并可以关闭违反这些准则的社区。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任何人都可以建立社群。社群的擁有者和管理員負責核准成員、移除成員，並處理對社群內內容的檢舉：他們可以隱藏被檢舉的貼文、留言或請求，也可以恢復自己隱藏的內容，但永遠看不到檢舉人是誰。他們能看到你的姓名、照片、車輛、你申請加入時的回答以及邀請你的人，但永遠看不到你的電子郵件或電話號碼。社群的名稱、簡介和公開內容與任何貼文遵守相同的規則。平台審核員會審查任何社群（包括私密社群）中的每一則檢舉，並可以關閉違反這些準則的社群。"
+          }
+        }
+      }
+    },
     "guidelines_7_title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10947,6 +10988,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "社區"
+          }
+        }
+      }
+    },
+    "report_note_visible_to_community_admins" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The community's admins see the report and what you write here, but not your name."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los administradores de la comunidad ven el reporte y lo que escribas aquí, pero no tu nombre."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커뮤니티 관리자는 신고 내용과 여기에 작성한 내용을 볼 수 있지만, 이름은 볼 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quản trị viên cộng đồng thấy báo cáo và những gì bạn viết ở đây, nhưng không thấy tên bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社区管理员能看到这条举报和你在这里写的内容，但看不到你的名字。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社群管理員能看到這則檢舉和你在這裡寫的內容，但看不到你的名字。"
           }
         }
       }

@@ -97,7 +97,7 @@ struct CommunityGuideline: Identifiable {
         CommunityGuideline(number: 4, titleKey: "guidelines_4_title", bodyKey: "guidelines_4_body"),
         CommunityGuideline(number: 5, titleKey: "guidelines_5_title", bodyKey: "guidelines_5_body"),
         CommunityGuideline(number: 6, titleKey: "guidelines_6_title", bodyKey: "guidelines_6_body"),
-        CommunityGuideline(number: 7, titleKey: "guidelines_7_title", bodyKey: "guidelines_7_body")
+        CommunityGuideline(number: 7, titleKey: "guidelines_7_title", bodyKey: "guidelines_7_body_moderation")
     ]
 }
 

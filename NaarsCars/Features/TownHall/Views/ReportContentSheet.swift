@@ -18,6 +18,17 @@ enum ReportContext {
     case review(id: UUID, authorId: UUID, preview: String)
     /// A community: one the caller can see, by `id`, or one they hold a valid invite code for, by `code`.
     case community(id: UUID?, code: String?, name: String)
+
+    /// Whether the report can reach the owners and admins of a community, and so whether the
+    /// sheet says they see it. A report about a community (`report_community`) goes to platform
+    /// moderators only; every other kind can carry a community (`handle_new_report`), whose
+    /// admins see it without the reporter.
+    var reachesCommunityAdmins: Bool {
+        switch self {
+        case .post, .comment, .ride, .favor, .user, .review: return true
+        case .community: return false
+        }
+    }
 }
 
 /// Sheet for reporting user-generated content
@@ -128,7 +139,12 @@ struct ReportContentSheet: View {
                 } header: {
                     Text("messaging_description".localized)
                 } footer: {
-                    Text("report_reporter_privacy_note".localized)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("report_reporter_privacy_note".localized)
+                        if context.reachesCommunityAdmins {
+                            Text("report_note_visible_to_community_admins".localized)
+                        }
+                    }
                 }
 
                 // Block the author (same option as the message report sheet)
@@ -218,6 +234,10 @@ struct ReportContentSheet: View {
 }
 
 #if DEBUG
+#Preview("Post") {
+    ReportContentSheet(context: .post(id: UUID(), authorId: UUID(), preview: "Anyone have a ladder I could borrow this weekend?"))
+}
+
 #Preview("Community") {
     ReportContentSheet(context: .community(id: nil, code: "NC7K2PQ9XA", name: "Ballard Neighbors"))
 }

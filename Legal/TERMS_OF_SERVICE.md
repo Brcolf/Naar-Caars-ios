@@ -43,7 +43,7 @@ Your use of the Services is subject to the Naars Cars Community Guidelines (as p
 - Keep requests lawful and appropriate
 - Communicate clearly and respectfully
 
-We may remove content or restrict participation that violates the guidelines or these Terms. The owners and admins of a community decide who belongs to it (section 6); they cannot remove or hide other people's content.
+We may remove content or restrict participation that violates the guidelines or these Terms. The owners and admins of a community decide who belongs to it and may hide reported content in their community (section 6). Only we suspend or ban accounts.
 
 ## 6. Community owners and admins
 
@@ -53,15 +53,22 @@ Anyone with an account may create a community, and becomes its owner. To limit a
 
 ### 6.2 What owners and admins may do
 
-Owners may make other members admins. Within their own community, owners and admins may:
+Within their own community, owners and admins may:
 
 - Approve or decline requests to join, and create invite codes
-- Remove members, optionally with a note
+- Remove members, optionally with a note, and let a removed member back in (only an owner may remove another owner or admin)
 - Send announcements to the community's members
+- Review reports about content and members in their community, without seeing who reported, hide or restore reported posts, comments, rides and favors, and dismiss reports
+
+Owners may also:
+
+- Change the community's name and description, who may join, and whether members may invite people
+- Make members admins, or admins members again, and hand over ownership to another member
+- Archive (close) the community
 
 ### 6.3 What owners and admins may not do
 
-Owners and admins may not see members' or applicants' email addresses or phone numbers, may not see who reported content, may not remove or hide other people's posts, comments or messages (report them to us instead), may not delete anyone's account, and have no powers outside their own community. They must use what they see (such as application answers and who invited whom) only to run their community, and must follow these Terms and the Community Guidelines like any other user. A community's name, description and public content are User Content under section 8 and follow the same rules as any post.
+Owners and admins may not see members' or applicants' email addresses or phone numbers, and may not see who reported content. They may not act on reports about themselves or about their community's other owners and admins, or about content those people wrote (those reports go to us). They may not restore content that we hid or that was hidden automatically after several reports, may not hide content or dismiss a report once we have reviewed that report, may not hide messages (report them to us instead), may not delete anyone's account, and have no powers outside their own community. They must use what they see (such as application answers and who invited whom) only to run their community, and must follow these Terms and the Community Guidelines like any other user. A community's name, description and public content are User Content under section 8 and follow the same rules as any post.
 
 ### 6.4 When an owner's account is closed
 
@@ -116,9 +123,9 @@ You agree not to:
 
 ## 10. Moderation, enforcement, and reporting
 
-Content moderation is done by us. The owners and admins of each community decide who belongs to it, as described in section 6, but cannot remove or hide content. We may (but are not obligated to) monitor, remove, or restrict User Content, members or accounts in any community, and we may investigate and take action we deem appropriate, including suspension or termination of your account, to enforce these Terms and protect users.
+Moderation is shared. The owners and admins of each community decide who belongs to it and handle reports about content in their community, as described in section 6; when they hide your content, you are notified. We (the platform moderators) review every report, whatever a community's owners or admins decided, see who filed it, can act in any community, and our decisions stand. We may (but are not obligated to) monitor, remove, or restrict User Content, members or accounts in any community, and we may investigate and take action we deem appropriate, including suspension or termination of your account, to enforce these Terms and protect users. Only we suspend or terminate accounts.
 
-You can report content, a person, or a community in the app. Platform moderators review every report and see who filed it; the person or community you report is not told who reported them. If you believe content violates these Terms or is unsafe, you can also contact us at [**naarscars@gmail.com**](mailto:naarscars@gmail.com).
+You can report content, a person, or a community in the app. Platform moderators review every report and see who filed it. A report about content in a community, or about one of its members, may also go to that community's owners and admins, who see what was reported, the reason and any note you wrote, but never who filed it. Reports about messages, about a community itself, or about a community's owners and admins or their content go only to us. The person or community you report is not told who reported them. If you believe content violates these Terms or is unsafe, you can also contact us at [**naarscars@gmail.com**](mailto:naarscars@gmail.com).
 
 ## 11. Notifications and communications
 
