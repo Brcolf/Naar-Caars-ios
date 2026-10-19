@@ -60,3 +60,11 @@ With Phases 0-3 built, gated and pushed (`a4e56d4`), the owner extended the buil
 3. **Order:** Phase 4, then 5a, each with its own plan, workflow, gate and push, on this branch; PR #6 remains the single review unit.
 
 The owner's standing instruction on SQL (apply from the orchestrator session, one call per block, dry run and probes first) continues to apply to Phase 4 and 5a; 5b's apply waits for the gate in point 2.
+
+### A6. Answers to the Phase 4 and 5 plan questions (owner, 2026-10-19)
+
+1. **Voice notes are included in Phase 5**: the `audio-messages` bucket joins the four image buckets in 5a (signed audio URLs, prefetch through a narrow protocol rather than a direct `MessagingSyncEngine` → `MessageAudioPlayer` call) and in 5b's bucket flip (File E block 4 runs).
+2. **The 5b NOT APPLIED files are pushed with 5a** on the same branch: the gaps they close are already described in the pushed spec (D16, section 3.8) and the files add remediation, not exposure.
+3. **The first App Store build with communities waits for 5a**, so Files D and E of Phase 5 gate only on the pre-community build aging out.
+
+Planner choices accepted as written, with the owner's standing delegation: the onboarding "Try again" button is relabelled rather than removed (Phase 4 Task 10 d); the community time zone is both the create-form default and the forms' default (Tasks 8 and 9); "All communities" for announcements stays deferred (SQL plan D-S9); the edge functions are not redeployed in Phase 4 (D-S4); only the bare `naarscars.com` hosts `/join`; `delete_user_account`'s successor notice keeps the type `announcement` (D-S3) and moves with Phase 5b if at all; `readmit_community_member` moves to `membership_update` in the gated File C (D-S10); the server-side answer-copy removal stays gated (Phase 5 D-9); File B block 7's revokes are kept in the gated set (Phase 5 D-S3); signed URLs are resolved in memory while the stored public URL stays in the database and SwiftData (D-2); the string keys orphaned by the deletions stay in the catalog until an owner-approved clean-up.
