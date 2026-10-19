@@ -75,3 +75,33 @@ New member-facing surfaces: create a community (with the invite sheet: code, sha
 - Release prerequisite: the legal deliverable (Task 16) must be mirrored to the Notion pages the app opens before this client ships.
 
 **App Store checklist** (spec §5). New system permission: no (the QR code is generated, never scanned). Stores data differently: yes (communities, memberships, invite codes, join answers, community reports; disclosed in the updated privacy policy, terms and FAQ). Account deletion: affected, still available on every route including onboarding and the waiting screen, with the A3 warning before deleting an account that closes communities. Reporting, blocking, moderation: new UGC surfaces (community names and descriptions, join answers) each have a report path (`report_community`); community admins never see who reported. Notification behaviour: routing of `pending_approval` and `user_approved` changes as above; no new type, no delivery change. Third-party SDK, entitlement, privacy-manifest change, payments: none.
+
+## Owner-present steps, run 2026-10-18 evening (signed in, built-in simulator panel)
+
+Build: the branch at `0e1b18f` (Phase 2 through `[P2-fix]` plus the three `[P1-fix]` commits), built into `build/DerivedData`. Device: the owner's `iPhone 16` (iOS 26.5, dark theme), the only simulator booted, shut down afterwards. Three memberships via `-debugCommunityCount 3`. No server writes. Captures in `build/p2-gate/` (gitignored).
+
+**Step 4 captures (dark; AX 5 where noted)**
+
+| Screen | Seen |
+|---|---|
+| Profile | "Admin Panel" and "My communities" rows under the stats card. |
+| My communities, one membership | Seattle row with the Owner chip and "19 members", the ••• menu (Invite people, Requests to join, Mute notifications, Report, Leave), Create and Join rows. At AX 5 the title truncates to "My commu…" and the row stacks cleanly. |
+| My communities, three memberships | Three rows; the 60-character name wraps to three lines without truncation; Member chips and "1 member" on the debug rows. AX 5 same as above. |
+| Requests to join (Seattle) | Empty state "No requests to join / New requests appear here." |
+| Admin Panel | Stats, Send Announcement, Copy App Link, Pending Approvals, Communities, All Members. |
+| Admin → Communities | One row: Seattle, Default and Public chips, "19 members · 0 waiting", created by and date. No row menu: the default community has no archive or privacy action by design (`CommunitiesAdminView` shows the menu only when `actions` is non-empty), so the row-menu capture could not be taken on this data. |
+| Community tab title menu | Verified with the Phase 1 fix (gate doc of Phase 1, "Fixes for the findings above"): chevron, three memberships plus All communities on Requests, switch runs the coordinator refresh. |
+
+Not captured (no data on this account or needs a second account): the saved-code row, the guest Town Hall Report menu, the `.post` report footer, the Leave sheet, join done-pending / done-active, the waiting screen's sheets, the A3 deletion alert. The light-mode pass was not repeated (the owner's theme is dark; Phase 1 captured the same components light).
+
+**Step 5 push fixtures** (foreground app, banner tapped; placeholders filled as in the Phase 1 gate)
+
+| Fixture | Navigation log | Screen |
+|---|---|---|
+| `pending_approval` with `community_id` | `pendingMembers(communityId: 7A8ED131…)` | Requests to join (Seattle). |
+| `pending_approval` without `community_id` | `pendingUsers` | Requests to join (Seattle), through the legacy intent as planned. |
+| `user_approved` while signed in | `enterApp` | My communities came forward; no loading screen, no launch-state change in the log. |
+
+**Step 6 live matrix:** not run. It writes to production (a new community, a second account's join, a decline that sends `user_rejected`, a report, archive / restore) and waits for the owner's go-ahead.
+
+**Carried over:** the iOS 26.4 sign-in storm is addressed by `81fdbc9` (see the Phase 1 gate doc); the offline install-over run is still open.
