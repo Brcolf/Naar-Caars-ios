@@ -98,3 +98,30 @@ Community owners and admins: please update to this version. On an older version,
 - Settings, roles, transfer and archive are owner actions (`update_community`, `set_member_role`, `transfer_community_ownership`, `archive_community`, `20261017_0005` blocks 11, 24, 25, 13); removal and readmission are admin actions (blocks 22, 23).
 - The announcement cap of 3 a day per community also binds platform admins (`send_community_broadcast`, `20261018_0002` block 10).
 - In-app text: guideline 7 (`guidelines_7_body_moderation`) and the report sheet's second footer line (`report_note_visible_to_community_admins`, every report except a community report).
+
+## Phase 4: links, time zones and announcements
+
+Added 2026-10-19.
+
+### Entitlement
+
+The build adds the **Associated Domains** entitlement with `applinks:naarscars.com`. It only lets the app open `https://naarscars.com/join#<code>` links; it grants no new data access and uses no new permission, SDK or data type. **Owner step before archiving:** enable Associated Domains on the App ID `com.NaarsCars` in the developer account and regenerate the provisioning profile, or signing fails. Host `Docs/universal-links/apple-app-site-association` at `https://naarscars.com/.well-known/apple-app-site-association` (and serve a landing page at `/join`) before the release reaches users. Until then a link opens Safari.
+
+### How a reviewer tests a join link
+
+1. Sign in as the review account and create or open a community with an invite code (Profile > My communities > community > Invite people).
+2. In Safari or Notes, open `https://naarscars.com/join#<code>`. The app opens Profile > My communities with the Join sheet for that community. Signed out, the Welcome screen shows "You have an invite. Sign up or sign in to use it." and the code is kept for after sign-in.
+3. Join links are not required to review the app; every invite can also be entered by hand on the Join screen.
+
+### Release notes (What's New), Phase 4
+
+```text
+Open invite links straight into the app, see which community a notification belongs to, and see how many requests another community has. Community owners can set their community's time zone.
+```
+
+Add this sentence only after the announcement server change (File B) is applied: "Announcements now reach every member who has not muted the community as a push notification."
+
+### Checks behind these notes
+
+- The announcement push and the `membership_update` notices are produced by server files that are NOT APPLIED (`20261019_0002`, `20261019_0003`); until they are, notification behaviour is unchanged.
+- Account deletion, reporting and moderation are unchanged; no privacy manifest change.

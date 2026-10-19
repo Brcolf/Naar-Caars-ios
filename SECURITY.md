@@ -697,6 +697,13 @@ enum InviteCodeGenerator {
 }
 ```
 
+### 6.1a Invite Links (Phase 4)
+
+- A join link is `https://naarscars.com/join#<code>`. The code is in the URL fragment only, so it is not sent to the web server, not put in a Referer, and not written to server logs.
+- The app saves a received code on the device (`PendingInviteStore`, in the app's own storage) until it is redeemed or 7 days pass, then discards it. It is never logged.
+- The landing page loads no third-party script and sends `Referrer-Policy: no-referrer`.
+- Entitlement: Associated Domains, `applinks:naarscars.com` only (not `www`). The `apple-app-site-association` file lists the paths `/join` and `/join/`.
+
 ### 6.2 Brute Force Protection
 
 1. **Rate limiting**: 5 attempts per hour per device (see section 5)

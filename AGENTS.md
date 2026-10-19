@@ -81,3 +81,11 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `CommunityReport` has no reporter field (INV-P2). Community screens never call `admin_get_reports` or `admin_moderate_content`; they use `AdminService.fetchCommunityReports` and `moderateCommunityContent`.
 - `content_reported` with `community_id` routes to `.communityReports(communityId)` for a non-platform admin; without it, `.adminReports`. `account_restricted` routes to `.myCommunities`.
 - Coordinator triggers added: `forceFullRefreshAndWait(.dashboard, "removedMember")` and `(.dashboard, "archivedCommunity")`, from ViewModels after an explicit action only. One RPC per tap: a write method returns early while one is in flight.
+
+## Phase 4 (multi-community) facts
+
+- **Notification types**: 34. `membership_update` is the newest; add or change a type in the Swift enum, `NotificationTypeRegistry`, `supabase/functions/_shared/notificationTypes.ts` and the SQL `valid_notification_type` CHECK together; `scripts/validate-notification-types.sh` reads all four. Its server producers and the announcement push (`20261019_0002`, `20261019_0003`) are GATED (NOT APPLIED) until no pre-community build is in use.
+- **Incoming URLs**: `onOpenURL` → `IncomingLinkHandler.handle(_:)` (in `Core/Utilities/PendingInviteStore.swift`) saves the code in `PendingInviteStore` first, then `DeepLinkParser.parse(url:)` → `DeepLink.joinCommunity` → `NavigationCoordinator.applyExternalDeepLink`. The code is read from the fragment only and never logged. Do not add `UIApplicationDelegate` URL methods (`AppDelegate` has none).
+- **Entitlement**: Associated Domains `applinks:naarscars.com`; the owner adds the capability to the App ID and hosts `Docs/universal-links/apple-app-site-association` before an archive.
+- **Navigation**: new intents `communityMembers` and `joinCommunity`; the routing table test covers them.
+- **Do not create new `.swift` files** in a headless run; the project file is not edited by hand.
