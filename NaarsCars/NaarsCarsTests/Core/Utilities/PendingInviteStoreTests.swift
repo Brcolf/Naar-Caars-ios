@@ -243,4 +243,14 @@ final class IncomingLinkHandlerTests: XCTestCase {
         XCTAssertNil(MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: code, hasSheet: false, isVisible: false))
         XCTAssertNil(MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: nil, hasSheet: false, isVisible: true))
     }
+
+    func testStoreChange_HiddenByATabSwitch_OpensJoinOnNextAppear() {
+        XCTAssertTrue(MyCommunitiesView.opensJoinOnNextAppear(storedCode: code, isVisible: false, screenPushedOnTop: false))
+    }
+
+    func testStoreChange_NeverDefersUnderAPushedScreenOrWhenVisibleOrWithNoCode() {
+        XCTAssertFalse(MyCommunitiesView.opensJoinOnNextAppear(storedCode: code, isVisible: false, screenPushedOnTop: true))
+        XCTAssertFalse(MyCommunitiesView.opensJoinOnNextAppear(storedCode: code, isVisible: true, screenPushedOnTop: false))
+        XCTAssertFalse(MyCommunitiesView.opensJoinOnNextAppear(storedCode: nil, isVisible: false, screenPushedOnTop: false))
+    }
 }

@@ -47,11 +47,19 @@ struct MyCommunitiesView: View {
     @State private var joinPrefilledCode: String?
     /// The invite code saved on Welcome before sign-in; re-read in `.task` and after every sheet.
     @State private var storedInviteCode: String? = PendingInviteStore().peek()
-    /// A saved code opens the Join sheet by itself once per view lifetime.
+    /// A code saved before this view first appeared opens the Join sheet by itself once per view
+    /// lifetime. A code saved later is decided by the store-change rule instead, so this is also set
+    /// on every store change.
     @State private var didAutoOpenStoredCode = false
-    /// False while a screen is pushed on top (Admin panel, Members) or this one is popped, so a
-    /// hidden copy never presents the Join sheet on a store change.
+    /// False while a screen is pushed on top (Admin panel, Members), while another tab is selected,
+    /// or once this one is popped, so a hidden copy never presents the Join sheet on a store change.
     @State private var isVisible = false
+    /// True while one of this screen's destinations is pushed on top of it: set by the destination's
+    /// `onAppear`, cleared by this screen's `onAppear`. A tab switch does not change it.
+    @State private var screenPushedOnTop = false
+    /// A code saved while this screen was hidden only by a tab switch (nothing pushed on top): the
+    /// Join sheet opens on the next appearance, which the link's own route brings about.
+    @State private var openJoinOnNextAppear = false
 
     @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -118,12 +126,15 @@ struct MyCommunitiesView: View {
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(for: PendingMembersTarget.self) { target in
             PendingMembersView(target: target)
+                .onAppear { screenPushedOnTop = true }
         }
         .navigationDestination(item: $pendingTarget) { target in
             PendingMembersView(target: target)
+                .onAppear { screenPushedOnTop = true }
         }
         .navigationDestination(item: $membersTarget) { target in
             CommunityMembersView(target: target)
+                .onAppear { screenPushedOnTop = true }
         }
         .navigationDestination(item: $adminPanelTarget) { communityId in
             AdminPanelView(
@@ -131,6 +142,7 @@ struct MyCommunitiesView: View {
                 communityName: viewModel.active.first(where: { $0.communityId == communityId })?.name,
                 onCommunityArchived: { viewModel.toastMessage = $0 }
             )
+            .onAppear { screenPushedOnTop = true }
         }
         .task {
             viewModel.setup(modelContext: modelContext)
@@ -141,19 +153,44 @@ struct MyCommunitiesView: View {
             }
             await viewModel.load()
         }
-        .onAppear { isVisible = true }
+        .onAppear {
+            isVisible = true
+            screenPushedOnTop = false
+            // A link that arrived while another tab was selected: its route brings this screen back.
+            if openJoinOnNextAppear {
+                openJoinOnNextAppear = false
+                storedInviteCode = PendingInviteStore().peek()
+                if let code = Self.joinCodeToOpenOnStoreChange(
+                    storedCode: storedInviteCode,
+                    hasSheet: activeSheet != nil,
+                    isVisible: true
+                ) {
+                    openJoin(with: code)
+                }
+            }
+        }
         .onDisappear { isVisible = false }
-        // A join link opened while this screen is up. With a sheet up or a screen pushed on top the
-        // code only refreshes the saved-code row, whose Use button stays the way in.
+        // A join link opened while this screen exists. Visible with no sheet: Join opens now. Hidden
+        // by a tab switch: Join opens on the next appearance. With a sheet up or a screen pushed on
+        // top the code only refreshes the saved-code row, whose Use button stays the way in.
         .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
             storedInviteCode = PendingInviteStore().peek()
+            // The store-change rule owns this code; the `.task` re-run on the next appearance must not
+            // open it as well (it would open Join after back from a pushed screen).
+            didAutoOpenStoredCode = true
             if let code = Self.joinCodeToOpenOnStoreChange(
                 storedCode: storedInviteCode,
                 hasSheet: activeSheet != nil,
                 isVisible: isVisible
             ) {
-                didAutoOpenStoredCode = true
+                openJoinOnNextAppear = false
                 openJoin(with: code)
+            } else {
+                openJoinOnNextAppear = Self.opensJoinOnNextAppear(
+                    storedCode: storedInviteCode,
+                    isVisible: isVisible,
+                    screenPushedOnTop: screenPushedOnTop
+                )
             }
         }
         .refreshable { await viewModel.load() }
@@ -239,6 +276,13 @@ struct MyCommunitiesView: View {
     static func joinCodeToOpenOnStoreChange(storedCode: String?, hasSheet: Bool, isVisible: Bool) -> String? {
         guard let storedCode, !hasSheet, isVisible else { return nil }
         return storedCode
+    }
+
+    /// Whether a store change that did not open Join now opens it on the next appearance: only when a
+    /// code is saved and this screen is hidden with nothing pushed on top of it (another tab is
+    /// selected). Under a pushed screen the saved-code row is the way in. Pure, for tests.
+    static func opensJoinOnNextAppear(storedCode: String?, isVisible: Bool, screenPushedOnTop: Bool) -> Bool {
+        storedCode != nil && !isVisible && !screenPushedOnTop
     }
 
     // MARK: - Limit
