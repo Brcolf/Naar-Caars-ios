@@ -218,7 +218,15 @@ final class CommunitySettingsViewModel: ObservableObject {
         }
 
         HapticManager.success()
-        archiveConfirmation = String(format: "community_settings_archived_toast".localized, communityName)
+        let confirmation = String(format: "community_settings_archived_toast".localized, communityName)
+        archiveConfirmation = confirmation
+        // The account's only active community: forgetting it ends the last active membership, and
+        // the main UI gives way to onboarding or the waiting screen before any toast here can be
+        // read. Hand the confirmation to whichever root appears; set before forgetMembership,
+        // which is what triggers the move.
+        if communityContext.activeMemberships.map(\.communityId) == [communityId] {
+            RootNotice.pending = confirmation
+        }
         didArchive = true
         await communityContext.forgetMembership(communityId)
         await communityContext.refreshMemberships()

@@ -22,6 +22,8 @@ struct PendingApprovalView: View {
     @State private var showDeleteConfirmation = false
     @State private var showJoinAnother = false
     @State private var showCreate = false
+    /// "<name> was archived." when this screen follows the archive of the account's last active community.
+    @State private var rootNoticeMessage: String?
     /// Recorded by "Join another community"; acted on once its sheet is gone.
     @State private var recordedJoin: JoinResult?
     /// Recorded by Create; acted on once the sheet (and its invite step) is gone.
@@ -108,7 +110,11 @@ struct PendingApprovalView: View {
         .sheet(isPresented: $showCreate, onDismiss: createDismissed) {
             CreateCommunityView(onCreated: { createdCommunityId = $0 })
         }
+        .toast(message: $rootNoticeMessage)
         .task {
+            if let notice = viewModel.takeRootNotice() {
+                rootNoticeMessage = notice
+            }
             // Check notification status on appear
             await checkNotificationStatus()
             

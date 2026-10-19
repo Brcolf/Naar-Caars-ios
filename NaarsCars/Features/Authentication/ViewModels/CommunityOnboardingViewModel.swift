@@ -116,6 +116,14 @@ final class CommunityOnboardingViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Root notice
+
+    /// The confirmation left by an archive of the account's last community (`RootNotice`), once;
+    /// nil afterwards, so it never shows again on this or a later root.
+    func takeRootNotice() -> String? {
+        RootNotice.take()
+    }
+
     // MARK: - Results
 
     /// An active membership opens the app; a pending one opens the waiting screen.

@@ -89,6 +89,42 @@ final class AdminPanelViewModelTests: XCTestCase {
         XCTAssertEqual(AdminPanelScope.community(b).communityId, b)
     }
 
+    // MARK: - Rename
+
+    /// Phase 3 gate follow-up: the panel opened from My communities kept the old name after a
+    /// rename in Settings. The view calls `refreshCommunityName()` when it reappears.
+    func testRefreshCommunityName_PicksUpARename() async {
+        let b = CommunityFixtures.communityB
+        let stub = StubCommunityService(result: .success([
+            CommunityFixtures.membership(b, name: "Ballard Neighbors", role: .owner)
+        ]))
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: CommunityFixtures.userA)
+        await context.refreshMemberships()
+        let vm = makeViewModel(scope: .community(b), communityName: "Ballard Neighbors", context: context)
+        await vm.verifyAdminAccess()
+        XCTAssertEqual(vm.title, "Ballard Neighbors")
+        XCTAssertEqual(vm.broadcastTarget?.communityName, "Ballard Neighbors")
+
+        // Settings saved a new name and refreshed the memberships.
+        stub.result = .success([CommunityFixtures.membership(b, name: "Ballard Riders", role: .owner)])
+        await context.refreshMemberships()
+        XCTAssertEqual(vm.title, "Ballard Neighbors", "the stored name wins until the panel reappears")
+
+        vm.refreshCommunityName()
+
+        XCTAssertEqual(vm.title, "Ballard Riders")
+        XCTAssertEqual(vm.communityName, "Ballard Riders")
+        XCTAssertEqual(vm.broadcastTarget, BroadcastTarget(communityId: b, communityName: "Ballard Riders"))
+        XCTAssertTrue(vm.menuEntries.contains(AdminPanelMenuEntry(scope: .community(b), title: "Ballard Riders")))
+
+        // `.all` has no community name to refresh.
+        let all = makeViewModel(scope: .all, context: context)
+        all.refreshCommunityName()
+        XCTAssertNil(all.communityName)
+        XCTAssertEqual(all.title, "admin_panel_title".localized)
+    }
+
     // MARK: - Title menu
 
     func testMenuEntries_PlatformAdminGetsAllPlusMemberships() async {

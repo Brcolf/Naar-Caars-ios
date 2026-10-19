@@ -123,4 +123,17 @@ final class CommunityOnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.nameError, "community_error_generic".localized)
         XCTAssertFalse(viewModel.optionsEnabled)
     }
+
+    // MARK: - Root notice
+
+    func testTakeRootNotice_ReturnsItOnceAndClearsIt() {
+        RootNotice.pending = "Ballard Neighbors was archived."
+        defer { RootNotice.pending = nil }
+        let viewModel = makeViewModel(storedName: "Sam")
+
+        XCTAssertEqual(viewModel.takeRootNotice(), "Ballard Neighbors was archived.")
+        XCTAssertNil(RootNotice.pending)
+        XCTAssertNil(viewModel.takeRootNotice())
+        XCTAssertNil(makeViewModel(storedName: "Sam").takeRootNotice(), "a later root does not show it again")
+    }
 }

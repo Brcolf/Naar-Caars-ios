@@ -82,4 +82,11 @@ final class PendingApprovalViewModel: ObservableObject {
         if result == .relaunch { decidedRelaunch = true }
         return result
     }
+
+    /// The confirmation left by an archive of the account's last community (`RootNotice`), once:
+    /// an archive can lead here when a request is still waiting in another community. Nil
+    /// afterwards, so onboarding (or a later root) does not show it again.
+    func takeRootNotice() -> String? {
+        RootNotice.take()
+    }
 }

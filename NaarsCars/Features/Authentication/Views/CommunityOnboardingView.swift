@@ -19,6 +19,8 @@ struct CommunityOnboardingView: View {
     @State private var createdCommunityId: UUID?
     @State private var publicListFailed = false
     @State private var showDeleteConfirmation = false
+    /// "<name> was archived." when this screen follows the archive of the account's last community.
+    @State private var rootNoticeMessage: String?
     @FocusState private var nameFocused: Bool
 
     private let service: any CommunityServiceProtocol
@@ -80,6 +82,10 @@ struct CommunityOnboardingView: View {
             message: "account_delete_pre_approval_message".localized
         )
         .task {
+            // Taken first, so the confirmation shows while the name requirement loads.
+            if let notice = viewModel.takeRootNotice() {
+                rootNoticeMessage = notice
+            }
             await viewModel.loadNameRequirement()
             // A code saved on Welcome before sign-in. The join options open it once they are
             // enabled (after the name step); only a redemption or a dead code clears the store.
@@ -89,6 +95,7 @@ struct CommunityOnboardingView: View {
         .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
             viewModel.prefilledCode = PendingInviteStore().peek()
         }
+        .toast(message: $rootNoticeMessage)
         .trackScreen("CommunityOnboarding")
     }
 

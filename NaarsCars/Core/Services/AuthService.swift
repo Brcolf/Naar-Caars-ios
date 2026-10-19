@@ -675,6 +675,8 @@ final class AuthService: ObservableObject {
             // Memberships in memory and the community.* keys of this account (and of the
             // account CommunityContext restored, when that differs).
             CommunityContext.shared.resetForSignOut(userId: userId)
+            // A confirmation waiting for the next launch root never crosses accounts.
+            RootNotice.pending = nil
         }
         // An invite code kept on this device for a sign-up (spec §5 Sign-out row).
         PendingInviteStore().clear()

@@ -126,4 +126,20 @@ final class PendingApprovalViewModelTests: XCTestCase {
         XCTAssertEqual(second, .relaunch)
         XCTAssertEqual(stub.fetchCount, 1)
     }
+
+    // MARK: - Root notice
+
+    /// An archive of the last active community lands here when a request is still waiting
+    /// elsewhere (the application is complete): this root consumes the notice, and onboarding,
+    /// if it follows, does not show it again.
+    func testTakeRootNotice_WaitingScreenConsumesTheArchiveNotice() {
+        RootNotice.pending = "Ballard Neighbors was archived."
+        defer { RootNotice.pending = nil }
+        let viewModel = makeViewModel(StubCommunityService(result: .success([])))
+
+        XCTAssertEqual(viewModel.takeRootNotice(), "Ballard Neighbors was archived.")
+        XCTAssertNil(viewModel.takeRootNotice())
+        let onboarding = CommunityOnboardingViewModel(loadStoredName: { "Sam" }, updateName: { _ in }, relaunch: {})
+        XCTAssertNil(onboarding.takeRootNotice())
+    }
 }

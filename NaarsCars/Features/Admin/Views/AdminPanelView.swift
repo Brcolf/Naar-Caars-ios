@@ -128,7 +128,10 @@ struct AdminPanelView: View {
             // Back from Settings after an archive: the community is gone, so is its panel.
             if didArchiveCommunity {
                 dismiss()
+                return
             }
+            // Back from Settings after a rename: the title and the rows show the new name.
+            viewModel.refreshCommunityName()
         }
         .errorBanner(
             message: $viewModel.statsErrorMessage,

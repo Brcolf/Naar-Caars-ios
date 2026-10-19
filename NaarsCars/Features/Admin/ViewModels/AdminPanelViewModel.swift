@@ -240,6 +240,19 @@ final class AdminPanelViewModel: ObservableObject {
         await verifyAdminAccess()
     }
 
+    /// Picks up a rename of the shown community (the panel reappears when Settings pops; Settings'
+    /// save refreshes the memberships). Keeps the current name when the context has none, and
+    /// renames the announcement target with it. A no-op for `.all`.
+    func refreshCommunityName() {
+        guard let id = scope.communityId, let name = displayName(for: id) else { return }
+        if communityName != name {
+            communityName = name
+        }
+        if let target = broadcastTarget, target.communityId == id, target.communityName != name {
+            broadcastTarget = BroadcastTarget(communityId: id, communityName: name)
+        }
+    }
+
     /// Load the dashboard figures of the current scope. Applied only while the scope is unchanged.
     func loadStats() async {
         let generation = self.generation

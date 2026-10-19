@@ -185,3 +185,24 @@ final class IncomingLinkHandler {
         }
     }
 }
+
+// MARK: - Root notice
+//
+// Kept in this file because the project gets no new Swift file in this change; like the saved
+// invite code above, it is per-device state that the launch roots read and sign-out clears.
+/// One message for whichever launch root appears next (the `WelcomeEntryRoute` idiom): in memory,
+/// read and cleared once. Set by `CommunitySettingsViewModel.archive()` when the archived community
+/// was the account's only active membership, because the main UI (and the Settings toast) is
+/// replaced within a second by onboarding (`.needsApplication`) or the waiting screen
+/// (`.pendingApproval`); each of those roots takes it once from its `.task`. Sign-out clears it in
+/// `AuthService.clearPerAccountLocalState`, so a notice never crosses accounts.
+@MainActor
+enum RootNotice {
+    static var pending: String?
+
+    /// The pending notice, cleared; nil when there is none.
+    static func take() -> String? {
+        defer { pending = nil }
+        return pending
+    }
+}

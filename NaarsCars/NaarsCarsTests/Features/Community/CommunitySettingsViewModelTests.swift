@@ -295,6 +295,57 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isArchiving)
     }
 
+    /// Phase 3 gate follow-up: archiving the account's only active community moves the app to
+    /// onboarding (or the waiting screen), so the confirmation is left for that root, set before
+    /// `forgetMembership` triggers the move.
+    func testArchive_OnlyActiveCommunityLeavesARootNotice() async {
+        RootNotice.pending = nil
+        defer { RootNotice.pending = nil }
+        // A pending request elsewhere is not an active membership.
+        let stub = StubCommunityService(result: .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A", role: .owner),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "Community B", status: .pending)
+        ]))
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: CommunityFixtures.userA)
+        await context.refreshMemberships()
+        var noticeWhenEmptied: String?
+        var emptiedCount = 0
+        context.onActiveMembershipsEmpty = {
+            emptiedCount += 1
+            noticeWhenEmptied = RootNotice.pending
+        }
+        let vm = makeViewModel(context: context, admin: StubCommunityAdminService())
+        await vm.load()
+
+        stub.result = .success([
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "Community B", status: .pending)
+        ])
+        let archived = await vm.archive()
+
+        XCTAssertTrue(archived)
+        let expected = String(format: "community_settings_archived_toast".localized, "Ballard Neighbors")
+        XCTAssertEqual(vm.archiveConfirmation, expected)
+        XCTAssertGreaterThanOrEqual(emptiedCount, 1)
+        XCTAssertEqual(noticeWhenEmptied, expected, "set before forgetMembership ends the last active membership")
+        XCTAssertEqual(RootNotice.pending, expected)
+    }
+
+    func testArchive_WithOtherCommunitiesLeavesNoRootNotice() async {
+        RootNotice.pending = nil
+        defer { RootNotice.pending = nil }
+        let (context, contextStub) = await makeContext(role: .owner)
+        let vm = makeViewModel(context: context, admin: StubCommunityAdminService())
+        await vm.load()
+
+        contextStub.result = .success([CommunityFixtures.membership(CommunityFixtures.communityB, name: "Community B")])
+        let archived = await vm.archive()
+
+        XCTAssertTrue(archived)
+        XCTAssertNotNil(vm.archiveConfirmation)
+        XCTAssertNil(RootNotice.pending, "the main UI stays; its presenter shows the confirmation")
+    }
+
     func testArchive_ForgetsMembershipWhenRefreshFails() async {
         let (context, contextStub) = await makeContext(role: .owner)
         let vm = makeViewModel(context: context, admin: StubCommunityAdminService())
