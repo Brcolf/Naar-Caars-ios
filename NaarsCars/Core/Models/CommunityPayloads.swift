@@ -402,6 +402,19 @@ extension CommunityMember: Decodable {
     }
 }
 
+extension CommunityMember: Hashable {}
+
+extension CommunityMember {
+    /// The same row with another role (after `set_member_role` succeeded).
+    func replacingRole(_ role: CommunityRole) -> CommunityMember {
+        CommunityMember(
+            id: id, name: name, avatarUrl: avatarUrl, car: car, role: role, status: status,
+            joinedAt: joinedAt, activatedAt: activatedAt, heardAbout: heardAbout, joinReason: joinReason,
+            invitedByName: invitedByName, removalReason: removalReason
+        )
+    }
+}
+
 /// `get_platform_communities` (platform admins only).
 struct PlatformCommunities: Equatable, Sendable {
     let communities: [PlatformCommunity]

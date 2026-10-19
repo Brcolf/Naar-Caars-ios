@@ -244,6 +244,8 @@ enum Constants {
         static let inviteExpiryDayChoices = [1, 7, 30, 90]
         static let pendingMembersPageSize = 100
         static let membersPageSize = 500
+        /// Longest note a community admin can attach to a removal (remove_community_member keeps 500)
+        static let removalNoteMaxLength = 500
         /// Rows asked of `search_community_members` when the account-deletion check confirms a successor is not banned (the server caps it at 50)
         static let successorSearchLimit = 50
         /// How long a code kept for a signed-out visitor stays valid (7 days)
