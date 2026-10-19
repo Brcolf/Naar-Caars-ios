@@ -9,11 +9,13 @@ import AuthenticationServices
 import SwiftUI
 
 /// Which community's members the screen shows. `highlightTransfer` adds the "choose who becomes
-/// the owner" card (the last owner leaving).
+/// the owner" card (the last owner leaving). `refreshesRoleFirst` refreshes the memberships before
+/// the role check (opened from a `membership_update` push, whose role change may not be loaded yet).
 struct CommunityMembersTarget: Hashable {
     let communityId: UUID
     let communityName: String?
     var highlightTransfer = false
+    var refreshesRoleFirst = false
 }
 
 /// Members and removed members. No NavigationStack: always pushed (Admin panel, My communities).
@@ -34,7 +36,8 @@ struct CommunityMembersView: View {
         self.target = target
         _viewModel = StateObject(wrappedValue: viewModel() ?? CommunityMembersViewModel(
             communityId: target.communityId,
-            communityName: target.communityName
+            communityName: target.communityName,
+            refreshesRoleFirst: target.refreshesRoleFirst
         ))
     }
 

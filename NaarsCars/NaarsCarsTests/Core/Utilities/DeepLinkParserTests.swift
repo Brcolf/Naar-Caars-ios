@@ -393,4 +393,90 @@ final class DeepLinkParserTests: XCTestCase {
             return XCTFail("Expected .myCommunities deep link, got \(withoutCommunity)")
         }
     }
+
+    // MARK: - membership_update and the announcement push (multi-community Phase 4)
+
+    /// Approved into a further community (`membership_event` `approved`): My communities.
+    func testParse_MembershipUpdateApprovedOpensMyCommunities() {
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "approved",
+            "community_id": UUID().uuidString
+        ])
+        guard case .myCommunities = deepLink else {
+            return XCTFail("Expected .myCommunities deep link, got \(deepLink)")
+        }
+    }
+
+    /// Made an owner (`membership_event` `owner` with `community_id`): that community's members.
+    func testParse_MembershipUpdateOwnerWithCommunityOpensMembers() {
+        let communityId = UUID()
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "owner",
+            "community_id": communityId.uuidString
+        ])
+        guard case .communityMembers(let routedId) = deepLink else {
+            return XCTFail("Expected .communityMembers deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, communityId)
+    }
+
+    /// An owner event without a (well-formed) community falls back to My communities.
+    func testParse_MembershipUpdateOwnerWithoutCommunityOpensMyCommunities() {
+        let withoutCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "owner"
+        ])
+        guard case .myCommunities = withoutCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(withoutCommunity)")
+        }
+
+        let malformedCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "owner",
+            "community_id": "not-a-uuid"
+        ])
+        guard case .myCommunities = malformedCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(malformedCommunity)")
+        }
+    }
+
+    /// An event this build does not know, or none at all, opens My communities.
+    func testParse_MembershipUpdateUnknownOrMissingEventOpensMyCommunities() {
+        let payloads: [[AnyHashable: Any]] = [
+            ["type": "membership_update", "membership_event": "admin", "community_id": UUID().uuidString],
+            ["type": "membership_update", "community_id": UUID().uuidString],
+            ["type": "membership_update"]
+        ]
+        for payload in payloads {
+            let deepLink = DeepLinkParser.parse(userInfo: payload)
+            guard case .myCommunities = deepLink else {
+                return XCTFail("Expected .myCommunities deep link for \(payload), got \(deepLink)")
+            }
+        }
+    }
+
+    /// The payload the real announcement push sends (SQL plan File B; `broadcast_community.apns`)
+    /// opens Announcements at its notification, and the push refreshes Town Hall.
+    func testParse_BroadcastPushOpensAnnouncementsAtItsNotification() {
+        let notificationId = UUID()
+        let payload: [AnyHashable: Any] = [
+            "type": "broadcast",
+            "notification_id": notificationId.uuidString,
+            "community_id": UUID().uuidString,
+            "town_hall_post_id": UUID().uuidString
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: payload)
+        guard case .announcements(let routedId) = deepLink else {
+            return XCTFail("Expected .announcements deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, notificationId)
+
+        XCTAssertEqual(
+            PushRefreshPlan.make(userInfo: payload),
+            PushRefreshPlan(domains: [.townHall], entityId: nil, refreshesMemberships: false)
+        )
+    }
 }

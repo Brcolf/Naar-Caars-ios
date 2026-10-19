@@ -23,8 +23,11 @@ enum DeepLink {
     case adminReports
     /// A community's reports (`content_reported` carrying `community_id`: a community owner's or admin's push).
     case communityReports(communityId: UUID)
-    /// My communities (`account_restricted`: removed from a community).
+    /// My communities (`account_restricted`: removed from a community; `membership_update`:
+    /// approved into a further community).
     case myCommunities
+    /// A community's members (`membership_update` with `membership_event` `owner`: made an owner).
+    case communityMembers(communityId: UUID)
     case dashboard
     case notifications
     case announcements(notificationId: UUID?)
@@ -154,6 +157,17 @@ struct DeepLinkParser {
         // Removed from a community: My communities. A session that just lost its last community
         // is moved to onboarding by the membership refresh every such push triggers.
         case "account_restricted":
+            return .myCommunities
+
+        // A membership change (multi-community Phase 4). Made an owner (`membership_event` `owner`,
+        // with a well-formed `community_id`): that community's members. Every other case (approved
+        // into a further community, an unknown or missing event, no community): My communities.
+        // Read from the payload only; the members screen checks the role itself.
+        case "membership_update":
+            if userInfo["membership_event"] as? String == "owner",
+               let communityId = communityId(from: userInfo) {
+                return .communityMembers(communityId: communityId)
+            }
             return .myCommunities
             
         case "dashboard":

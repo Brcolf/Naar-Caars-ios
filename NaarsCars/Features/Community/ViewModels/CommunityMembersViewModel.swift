@@ -104,6 +104,15 @@ final class CommunityMembersViewModel: ObservableObject {
     private let refreshDashboard: @MainActor (String) async -> Void
     /// Only the newest load writes its result (a list switch or pull-to-refresh can overlap one).
     private var loadGeneration = 0
+    /// Opened from a `membership_update` push: the role in the context can predate the change
+    /// (a banner tapped from the background reaches here with no membership refresh), so the
+    /// first load refreshes the memberships before checking it.
+    private let refreshesRoleFirst: Bool
+    /// This view model has refreshed the memberships at least once in its lifetime (first load with
+    /// `refreshesRoleFirst`, the cold-start wait, a failed role check, or the reload after an
+    /// action). A failed role check refreshes only when this is false, so a real member is not
+    /// refreshed on every pull.
+    private var didRefreshForRole = false
 
     init(
         communityId: UUID,
@@ -113,7 +122,8 @@ final class CommunityMembersViewModel: ObservableObject {
         authService: any AuthServiceProtocol = AuthService.shared,
         refreshDashboard: @escaping @MainActor (String) async -> Void = {
             _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.dashboard, trigger: $0)
-        }
+        },
+        refreshesRoleFirst: Bool = false
     ) {
         self.communityId = communityId
         self.communityName = communityName
@@ -121,6 +131,7 @@ final class CommunityMembersViewModel: ObservableObject {
         self.communityContext = communityContext ?? .shared
         self.authService = authService
         self.refreshDashboard = refreshDashboard
+        self.refreshesRoleFirst = refreshesRoleFirst
     }
 
     // MARK: - Derived
@@ -164,12 +175,22 @@ final class CommunityMembersViewModel: ObservableObject {
         defer { if generation == loadGeneration { isLoading = false } }
         if reportingErrors { loadError = nil }
 
-        if communityContext.isAwaitingMemberships {
+        if refreshesRoleFirst && !didRefreshForRole {
+            // `CommunityContext.refreshMemberships()` touches no sync engine; not a coordinator call.
+            didRefreshForRole = true
+            await communityContext.refreshMemberships()
+        } else if communityContext.isAwaitingMemberships {
+            didRefreshForRole = true
             await communityContext.refreshMemberships()
         }
 
         // `get_community_members` answers the active directory to a plain member, which would read
-        // as an admin list; check the role first.
+        // as an admin list; check the role first. A failed check refreshes once (the role may have
+        // changed elsewhere since the memberships were read) and checks again.
+        if !communityContext.isAdmin(of: communityId) && !didRefreshForRole {
+            didRefreshForRole = true
+            await communityContext.refreshMemberships()
+        }
         guard communityContext.isAdmin(of: communityId) else {
             guard generation == loadGeneration else { return }
             access = .notAdmin
@@ -274,6 +295,7 @@ final class CommunityMembersViewModel: ObservableObject {
     }
 
     private func reloadAfterAction() async {
+        didRefreshForRole = true
         await communityContext.refreshMemberships()
         await reload(reportingErrors: false)
     }

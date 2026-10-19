@@ -38,6 +38,8 @@ struct MyProfileView: View {
     @State private var showMyCommunities = false
     /// A community's reports opened from a `.communityReports` intent (`content_reported`).
     @State private var communityReportsTarget: UUID?
+    /// A community's members opened from a `.communityMembers` intent (`membership_update`: made an owner).
+    @State private var communityMembersTarget: UUID?
     @State private var showAdminPanel = false
     @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
@@ -164,7 +166,7 @@ struct MyProfileView: View {
                     if let intent = navigationCoordinator.pendingIntent {
                         switch intent {
                         case .pendingUsers, .pendingMembers, .myCommunities, .adminPanel, .adminReports,
-                             .communityReports, .profile:
+                             .communityReports, .communityMembers, .profile:
                             applyProfileIntent(intent, proxy: proxy)
                         default:
                             break
@@ -211,6 +213,14 @@ struct MyProfileView: View {
             }
             .navigationDestination(item: $communityReportsTarget) { communityId in
                 CommunityReportsView(communityId: communityId, communityName: CommunityContext.shared.name(for: communityId))
+            }
+            .navigationDestination(item: $communityMembersTarget) { communityId in
+                // Opened from a push: the role change may not be in the memberships yet.
+                CommunityMembersView(target: CommunityMembersTarget(
+                    communityId: communityId,
+                    communityName: CommunityContext.shared.name(for: communityId),
+                    refreshesRoleFirst: true
+                ))
             }
             .navigationDestination(isPresented: $showAdminPanel) {
                 AdminPanelView(autoOpenReports: autoOpenAdminReports, onCommunityArchived: { toastMessage = $0 })
@@ -750,6 +760,9 @@ struct MyProfileView: View {
             navigationCoordinator.pendingIntent = nil
         case .communityReports(let communityId):
             communityReportsTarget = communityId
+            navigationCoordinator.pendingIntent = nil
+        case .communityMembers(let communityId):
+            communityMembersTarget = communityId
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):
             if userId == AuthService.shared.currentUserId {

@@ -16,13 +16,19 @@ final class NotificationNavigationRouter {
     /// Decides which list a `content_reported` row opens: a platform admin's bell row carries a
     /// derived community too, and keeps the platform reports list.
     private let isPlatformAdmin: @MainActor () -> Bool
+    /// Decides which screen a `membership_update` row opens: the community's members for an owner
+    /// or admin of it (an ownership row, read after the push refreshed the memberships), else My
+    /// communities. Rows carry no `membership_event`, so the current role stands in for it.
+    private let isAdminOf: @MainActor (UUID) -> Bool
 
     init(
         authService: AuthService = .shared,
-        isPlatformAdmin: @escaping @MainActor () -> Bool = { AuthService.shared.currentProfile?.isAdmin == true }
+        isPlatformAdmin: @escaping @MainActor () -> Bool = { AuthService.shared.currentProfile?.isAdmin == true },
+        isAdminOf: @escaping @MainActor (UUID) -> Bool = { CommunityContext.shared.isAdmin(of: $0) }
     ) {
         self.authService = authService
         self.isPlatformAdmin = isPlatformAdmin
+        self.isAdminOf = isAdminOf
     }
 
     func handleNotificationTap(
@@ -175,6 +181,13 @@ final class NotificationNavigationRouter {
         case .accountRestricted:
             // Removed from a community: My communities (onboarding follows the membership
             // refresh when it was the last one).
+            return .openMyCommunities
+        case .membershipUpdate:
+            // Made an owner (the person now administers the row's community): its members.
+            // Approved into a further community, or no community on the row: My communities.
+            if let communityId = notification.communityId, isAdminOf(communityId) {
+                return .openCommunityMembers(communityId: communityId)
+            }
             return .openMyCommunities
         case .adminAnnouncement, .announcement, .broadcast:
             return nil

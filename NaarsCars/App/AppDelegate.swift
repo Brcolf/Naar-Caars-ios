@@ -381,7 +381,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         case .profile, .notifications, .announcements, .townHall,
              .townHallPostComments, .townHallPostHighlight,
              .adminPanel, .pendingUsers, .pendingMembers, .adminReports,
-             .communityReports, .myCommunities, .dashboard:
+             .communityReports, .myCommunities, .communityMembers, .dashboard:
             coordinator.applyPushDeepLink(deepLink)
 
         case .enterApp:

@@ -155,6 +155,73 @@ final class CommunityMembersViewModelTests: XCTestCase {
         XCTAssertNil(vm.loadError)
     }
 
+    /// The context still says member (the change was made elsewhere and no refresh ran); the failed
+    /// role check refreshes once and the screen opens as the owner the server now reports.
+    func testLoad_StaleMemberRoleRefreshesOnceBeforeShowingNotAdmin() async {
+        let (context, stub) = await makeContext(role: .member)
+        XCTAssertEqual(stub.fetchCount, 1)
+        stub.result = .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A", role: .owner)
+        ])
+        let admin = StubCommunityAdminService()
+        admin.fetchCommunityMembersResult = .success([plainMember])
+        let vm = makeViewModel(context: context, admin: admin)
+
+        await vm.load()
+
+        XCTAssertEqual(vm.access, .allowed)
+        XCTAssertEqual(stub.fetchCount, 2)
+        XCTAssertEqual(admin.fetchCommunityMembersCalls.count, 1)
+        XCTAssertEqual(vm.actions(for: plainMember), [.transferOwnership, .makeAdmin, .remove])
+    }
+
+    /// A real member: one refresh for the failed check, none on a later load.
+    func testLoad_RealMemberRefreshesOnlyOnce() async {
+        let (context, stub) = await makeContext(role: .member)
+        let admin = StubCommunityAdminService()
+        let vm = makeViewModel(context: context, admin: admin)
+
+        await vm.load()
+        XCTAssertEqual(vm.access, .notAdmin)
+        XCTAssertEqual(stub.fetchCount, 2)
+
+        await vm.load()
+        XCTAssertEqual(vm.access, .notAdmin)
+        XCTAssertEqual(stub.fetchCount, 2)
+        XCTAssertTrue(admin.fetchCommunityMembersCalls.isEmpty)
+    }
+
+    /// Opened from a `membership_update` push: the context says admin (the check would pass), but
+    /// the first load refreshes anyway and picks up the ownership, so owner actions are offered.
+    func testLoad_RefreshesRoleFirstPicksUpANewOwnerOverAStaleAdmin() async {
+        let (context, stub) = await makeContext(role: .admin)
+        stub.result = .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A", role: .owner)
+        ])
+        let admin = StubCommunityAdminService()
+        admin.fetchCommunityMembersResult = .success([adminMember])
+        let vm = CommunityMembersViewModel(
+            communityId: CommunityFixtures.communityA,
+            communityName: "Community A",
+            adminService: admin,
+            communityContext: context,
+            authService: StubMembersAuthService(currentUserId: CommunityFixtures.userA),
+            refreshDashboard: { _ in },
+            refreshesRoleFirst: true
+        )
+
+        await vm.load()
+
+        XCTAssertEqual(vm.access, .allowed)
+        XCTAssertEqual(stub.fetchCount, 2)
+        let offered = vm.actions(for: adminMember)
+        XCTAssertTrue(offered.contains(.transferOwnership))
+        XCTAssertTrue(offered.contains(.makeMember))
+
+        await vm.load()
+        XCTAssertEqual(stub.fetchCount, 2)
+    }
+
     // MARK: - Perform
 
     func testPerform_IgnoresSecondCallWhileActing() async {

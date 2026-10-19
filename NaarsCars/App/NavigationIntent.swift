@@ -32,6 +32,8 @@ enum NavigationIntent: Equatable {
     case communityReports(UUID)
     /// My communities (an approval into a further community while signed in).
     case myCommunities
+    /// A community's members (made an owner of that community: `membership_update`).
+    case communityMembers(UUID)
 
     // Cross-tab surfaces
     case notifications
@@ -46,7 +48,8 @@ enum NavigationIntent: Equatable {
             return .messages
         case .townHallPost, .announcements:
             return .community
-        case .profile, .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .myCommunities:
+        case .profile, .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .myCommunities,
+             .communityMembers:
             return .profile
         }
     }

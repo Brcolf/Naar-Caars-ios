@@ -392,4 +392,70 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertFalse(coordinator.intentRequiresAuth(reports))
         XCTAssertEqual(reports.targetTab, .profile)
     }
+
+    // MARK: - membership_update (multi-community Phase 4)
+
+    func testApplyPushDeepLink_CommunityMembersSetsIntentForProfileTab() {
+        let communityId = UUID()
+        coordinator.applyPushDeepLink(.communityMembers(communityId: communityId))
+        XCTAssertEqual(coordinator.pendingIntent, .communityMembers(communityId))
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+    }
+
+    func testDeferredOpenCommunityMembers_SelectsProfileTab() {
+        let communityId = UUID()
+        coordinator.deferNotificationIntent(.openCommunityMembers(communityId: communityId))
+        coordinator.applyDeferredNotificationIntentIfNeeded()
+        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent, .communityMembers(communityId))
+        XCTAssertNil(coordinator.deferredNotificationIntent)
+    }
+
+    /// An ownership row, read after the push refreshed the memberships: the person administers
+    /// the row's community, so it opens that community's members.
+    func testRouter_MembershipUpdateRowForAnAdminOpensMembers() {
+        let communityId = UUID()
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .membershipUpdate,
+            title: "t",
+            communityId: communityId
+        )
+        var askedAbout: UUID?
+        let router = NotificationNavigationRouter(
+            isPlatformAdmin: { false },
+            isAdminOf: { askedAbout = $0; return true }
+        )
+        XCTAssertEqual(router.notificationIntent(for: notification), .openCommunityMembers(communityId: communityId))
+        XCTAssertEqual(askedAbout, communityId)
+    }
+
+    /// A further-community approval (the person is a plain member there): My communities.
+    func testRouter_MembershipUpdateRowForAMemberOpensMyCommunities() {
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .membershipUpdate,
+            title: "t",
+            communityId: UUID()
+        )
+        let router = NotificationNavigationRouter(isPlatformAdmin: { false }, isAdminOf: { _ in false })
+        XCTAssertEqual(router.notificationIntent(for: notification), .openMyCommunities)
+    }
+
+    func testRouter_MembershipUpdateRowWithoutCommunityOpensMyCommunities() {
+        let notification = AppNotification(
+            userId: UUID(),
+            type: .membershipUpdate,
+            title: "t"
+        )
+        let router = NotificationNavigationRouter(isPlatformAdmin: { true }, isAdminOf: { _ in true })
+        XCTAssertEqual(router.notificationIntent(for: notification), .openMyCommunities)
+    }
+
+    func testCommunityMembersIsAdminOnlyForGuests() {
+        let members = NavigationIntent.communityMembers(UUID())
+        XCTAssertTrue(coordinator.intentIsAdminOnly(members))
+        XCTAssertFalse(coordinator.intentRequiresAuth(members))
+        XCTAssertEqual(members.targetTab, .profile)
+    }
 }
