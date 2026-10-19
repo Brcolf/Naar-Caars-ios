@@ -22,7 +22,13 @@
 -- Apply. Supabase MCP apply_migration, one call per block. Verification: dry run (now) through
 -- supabase/dryruns/20261019_0062_geocoding_cache_direct_access_revoked.dryrun.sql (geocoding_revoked,
 -- geocoding_lookup and short as savepoints), then the not-applied check; at the gate, the three probes after
--- the calls. Outcomes: not yet run. Block 2 cannot be undone (the multipliers are untouched).
+-- the calls. Block 2 cannot be undone (the multipliers are untouched).
+-- Outcomes, 2026-10-19. The script passed the plan's structural check (no commit;, one begin; and one rollback;,
+-- three savepoint pairs, the helpers before begin;) and was sent verbatim as one execute_sql call: it answered
+-- 'DRYRUN 20261019_0062_geocoding_cache_direct_access_revoked.sql OK' (geocoding_revoked, geocoding_lookup and short
+-- all OK inside it). The not-applied check right after answered all_unchanged = true; geocoding_cache still grants
+-- every privilege to anon and authenticated, holds 7 rows and no placemark (20261019_0050 block 3 had cleared them
+-- earlier the same day, so block 2 had nothing to clear). No probe row was left behind.
 -- Rollback. grant select, insert, update, delete, truncate, references, trigger on table public.geocoding_cache
 -- to anon, authenticated; (the grants read in the plan's P2).
 

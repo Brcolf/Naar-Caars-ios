@@ -39,8 +39,16 @@
 -- it themselves and raise on a mismatch. If the MCP declines a block, SQL editor (owner), verbatim.
 -- Verification. Dry run (now): supabase/dryruns/20261019_0060_retire_legacy_bridges.dryrun.sql through the MCP
 -- (every block inside one begin; ... rollback;, with legacy_retired, legacy_bridges, broadcast_cap,
--- privileged_columns, account_deletion and short as savepoints), then the not-applied check. Outcomes: not yet run. At the gate: short after every block; legacy_retired,
--- privileged_columns, account_deletion at the end.
+-- privileged_columns, account_deletion and short as savepoints), then the not-applied check. At the gate: short
+-- after every block; legacy_retired, privileged_columns, account_deletion at the end.
+-- Outcomes, 2026-10-19. The script passed the plan's structural check (no commit;, one begin; and one rollback;,
+-- six savepoint pairs, the helpers before begin;) and was sent verbatim as one execute_sql call: the Supabase MCP
+-- DECLINED it ({"status":"declined"}, no reason given; nothing ran). The plan expected nothing in the script to be
+-- declined. The likely cause is block 5's two DROP FUNCTION statements: the MCP declined DROP FUNCTION in
+-- execute_sql and apply_migration alike on 2026-10-19 (20261019_0001 header). The script was not edited and the
+-- dry run was not retried. The not-applied check right after answered all_unchanged = true. Still to do: this
+-- dry run in the SQL editor (owner; the script verbatim, alone in a tab), then the not-applied check in a new tab.
+-- At the gate, expect block 5 to need the SQL editor too.
 --
 -- Rollback, in reverse order. 7: grant execute on the three functions back to the roles in the plan's P2.
 -- 6: grant execute on function public.admin_reject_pending_user(uuid) to authenticated. 5: re-run

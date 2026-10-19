@@ -27,8 +27,15 @@
 -- Verification. Dry run (now, owner, SQL editor): NOT this file. Paste only
 -- supabase/dryruns/20261019_0061_drop_invite_codes.dryrun.sql, verbatim (it holds blocks 1-3 inside one
 -- begin; ... rollback;, the probe helpers without their commit;, and invite_codes_dropped, account_deletion and
--- short as savepoints), after C0 and the CSV export; then the not-applied check in a new tab. Outcomes: not yet
--- run. At the gate: this file as one transaction, then invite_codes_dropped, short and account_deletion.
+-- short as savepoints), after C0 and the CSV export; then the not-applied check in a new tab. At the gate: this
+-- file as one transaction, then invite_codes_dropped, short and account_deletion.
+-- C0, 2026-10-19 (orchestrator, read only, through the MCP, before any File C dry run). The DDL capture is
+-- supabase/migrations/20261019_0061a_invite_codes_rollback_capture.sql: the four functions' live md5(prosrc) equal
+-- the plan's P1, and their bodies in the capture hash to the same values. The 62 rows (54 never used) were exported
+-- off this repository to /Users/bcolf/Documents/naars-cars-ios-roadmap-research/2026-10-19-invite_codes-backup.csv
+-- (a header row and 62 rows; every line and the whole file checked against an md5 computed on the server; file md5
+-- 50dc9c4c7d7751050f9dcd98dae873a8; owner-only permissions).
+-- Outcomes of the owner's SQL-editor dry run: not yet run.
 --
 -- Rollback. Recreate the table, its constraints, policies and triggers and the four functions from
 -- 20261019_0061a; load the CSV; re-run delete_user_account from 20261017_0004:214-499.
