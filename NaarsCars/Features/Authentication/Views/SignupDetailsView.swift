@@ -215,16 +215,24 @@ struct SignupDetailsView: View {
         .navigationTitle("signup_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
+        // Conditional on purpose: unconditional, the iOS 26 toolbar bridge re-laid out this pushed screen
+        // on every body pass and looped during the push (Docs/qa/2026-10-18-multi-community-phase1-gate.md finding 1).
         .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Button { moveFocus(forward: false) } label: { Image(systemName: "chevron.up") }
-                    .disabled(focusedField == .name)
-                    .accessibilityLabel("auth_keyboard_previous_field".localized)
-                Button { moveFocus(forward: true) } label: { Image(systemName: "chevron.down") }
-                    .disabled(focusedField == .car)
-                    .accessibilityLabel("auth_keyboard_next_field".localized)
-                Spacer()
-                Button("common_done".localized) { focusedField = nil }
+            if focusedField != nil {
+                ToolbarItem(placement: .keyboard) {
+                    Button { moveFocus(forward: false) } label: { Image(systemName: "chevron.up") }
+                        .disabled(focusedField == .name)
+                        .accessibilityLabel("auth_keyboard_previous_field".localized)
+                }
+                ToolbarItem(placement: .keyboard) {
+                    Button { moveFocus(forward: true) } label: { Image(systemName: "chevron.down") }
+                        .disabled(focusedField == .car)
+                        .accessibilityLabel("auth_keyboard_next_field".localized)
+                }
+                ToolbarSpacer(.flexible, placement: .keyboard)
+                ToolbarItem(placement: .keyboard) {
+                    Button("common_done".localized) { focusedField = nil }
+                }
             }
         }
     }

@@ -191,16 +191,24 @@ struct LoginView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        // Conditional on purpose: unconditional, the iOS 26 toolbar bridge re-laid out this pushed screen
+        // on every body pass and looped during the push (Docs/qa/2026-10-18-multi-community-phase1-gate.md finding 1).
         .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Button { if focusedField == .password { focusedField = .email } } label: { Image(systemName: "chevron.up") }
-                    .disabled(focusedField == .email)
-                    .accessibilityLabel("auth_keyboard_previous_field".localized)
-                Button { if focusedField == .email { focusedField = .password } } label: { Image(systemName: "chevron.down") }
-                    .disabled(focusedField == .password)
-                    .accessibilityLabel("auth_keyboard_next_field".localized)
-                Spacer()
-                Button("common_done".localized) { focusedField = nil }
+            if focusedField != nil {
+                ToolbarItem(placement: .keyboard) {
+                    Button { if focusedField == .password { focusedField = .email } } label: { Image(systemName: "chevron.up") }
+                        .disabled(focusedField == .email)
+                        .accessibilityLabel("auth_keyboard_previous_field".localized)
+                }
+                ToolbarItem(placement: .keyboard) {
+                    Button { if focusedField == .email { focusedField = .password } } label: { Image(systemName: "chevron.down") }
+                        .disabled(focusedField == .password)
+                        .accessibilityLabel("auth_keyboard_next_field".localized)
+                }
+                ToolbarSpacer(.flexible, placement: .keyboard)
+                ToolbarItem(placement: .keyboard) {
+                    Button("common_done".localized) { focusedField = nil }
+                }
             }
         }
         .sheet(isPresented: $showPasswordReset) {
