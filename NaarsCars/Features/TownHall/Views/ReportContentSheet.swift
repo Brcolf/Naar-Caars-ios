@@ -20,9 +20,11 @@ enum ReportContext {
     case community(id: UUID?, code: String?, name: String)
 
     /// Whether the report can reach the owners and admins of a community, and so whether the
-    /// sheet says they see it. A report about a community (`report_community`) goes to platform
-    /// moderators only; every other kind can carry a community (`handle_new_report`), whose
-    /// admins see it without the reporter.
+    /// sheet says they may see it. A report about a community (`report_community`) goes to
+    /// platform moderators only; every other kind can carry a community (`handle_new_report`),
+    /// whose admins see it without the reporter, but not always: a person report between people
+    /// who share more than one community, or a report about one of that community's owners or
+    /// admins or their content, goes to platform moderators only. Hence "may see".
     var reachesCommunityAdmins: Bool {
         switch self {
         case .post, .comment, .ride, .favor, .user, .review: return true
@@ -142,7 +144,7 @@ struct ReportContentSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("report_reporter_privacy_note".localized)
                         if context.reachesCommunityAdmins {
-                            Text("report_note_visible_to_community_admins".localized)
+                            Text("report_note_may_be_visible_to_community_admins".localized)
                         }
                     }
                 }

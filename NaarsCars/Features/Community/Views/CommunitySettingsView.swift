@@ -93,10 +93,18 @@ struct CommunitySettingsView: View {
     private var form: some View {
         Form {
             Section {
-                TextField("community_settings_name".localized, text: $viewModel.name)
-                    .disabled(!viewModel.canEdit || isBusy)
-                    .accessibilityLabel("community_settings_name".localized)
-                    .accessibilityIdentifier("community.settings.name")
+                if viewModel.canEdit {
+                    TextField("community_settings_name".localized, text: $viewModel.name)
+                        .disabled(isBusy)
+                        .accessibilityLabel("community_settings_name".localized)
+                        .accessibilityIdentifier("community.settings.name")
+                } else {
+                    readOnlyValue(
+                        viewModel.name,
+                        label: "community_settings_name".localized,
+                        identifier: "community.settings.name"
+                    )
+                }
             } header: {
                 Text("community_settings_name".localized)
             } footer: {
@@ -105,11 +113,19 @@ struct CommunitySettingsView: View {
             }
 
             Section {
-                TextField("community_settings_description".localized, text: $viewModel.description, axis: .vertical)
-                    .lineLimit(3...6)
-                    .disabled(!viewModel.canEdit || isBusy)
-                    .accessibilityLabel("community_settings_description".localized)
-                    .accessibilityIdentifier("community.settings.description")
+                if viewModel.canEdit {
+                    TextField("community_settings_description".localized, text: $viewModel.description, axis: .vertical)
+                        .lineLimit(3...6)
+                        .disabled(isBusy)
+                        .accessibilityLabel("community_settings_description".localized)
+                        .accessibilityIdentifier("community.settings.description")
+                } else {
+                    readOnlyValue(
+                        viewModel.description,
+                        label: "community_settings_description".localized,
+                        identifier: "community.settings.description"
+                    )
+                }
             } header: {
                 Text("community_settings_description".localized)
             } footer: {
@@ -162,6 +178,24 @@ struct CommunitySettingsView: View {
         .refreshable { await viewModel.load() }
     }
 
+    /// A value the caller cannot change (an admin who is not an owner): the section header is the
+    /// title (secondary), the value is plain primary text on the screen's ground instead of a white
+    /// field, so nothing on the row suggests it can be edited (a gray value in a white row read as
+    /// an empty field's placeholder).
+    private func readOnlyValue(_ value: String, label: String, identifier: String) -> some View {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Text(trimmed.isEmpty ? "—".localized : trimmed)
+            .font(.naarsBody)
+            .foregroundColor(.primary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowBackground(Color.naarsBackground)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityValue(trimmed.isEmpty ? "—".localized : trimmed)
+            .accessibilityIdentifier(identifier)
+    }
+
     private var trimmedNameCount: Int {
         viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines).count
     }
@@ -175,7 +209,8 @@ struct CommunitySettingsView: View {
     private var notAdminState: some View {
         VStack(spacing: Constants.Spacing.md) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 48))
+                .font(.largeTitle)
+                .imageScale(.large)
                 .foregroundColor(.secondary)
                 .accessibilityHidden(true)
             Text("community_pending_not_admin".localized)

@@ -224,14 +224,15 @@ final class CommunitySettingsViewModel: ObservableObject {
 
     // MARK: - Private
 
-    /// A refusal with no code is the server's unauthorized answer: the caller's role changed, so
-    /// the screen reloads (into the not-admin state when the role is gone).
+    /// `update_community` and `archive_community` send no refusal code, and their code-less refusals
+    /// are not all about roles ("already archived", "the default community cannot be archived",
+    /// "not found", a name, description or time zone the server rejects), so a code-less refusal
+    /// reads as the generic error (`localizedMessage` gives it for a nil code), never as "your role
+    /// may have changed"; no refusal code means a role change for these RPCs. The screen still
+    /// reloads after one, so a role that did change lands it in the read-only or not-admin state.
     private func handleRefusal(_ refusal: CommunityRPCError) async {
-        guard refusal.code == nil else {
-            errorMessage = refusal.localizedMessage
-            return
-        }
-        errorMessage = "community_member_action_not_allowed".localized
+        errorMessage = refusal.localizedMessage
+        guard refusal.code == nil else { return }
         await communityContext.refreshMemberships()
         await reload(reportingErrors: false)
     }

@@ -118,7 +118,9 @@ struct AdminPanelView: View {
         .task {
             // Verify admin access when view first appears (only once due to hasVerified flag)
             await viewModel.verifyAdminAccess()
-            if autoOpenReports {
+            // Only after a successful check: a failed one shows the access-denied state, and the
+            // platform reports must not be pushed over it.
+            if autoOpenReports && viewModel.isAdmin {
                 showReports = true
             }
         }

@@ -1644,6 +1644,47 @@
         }
       }
     },
+    "admin_pin_footer_members" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If enabled, the announcement will appear pinned at the top of the community members' notification feeds for 7 days."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si está habilitado, el anuncio aparecerá fijado en la parte superior del feed de notificaciones de los miembros de la comunidad durante 7 días."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "활성화하면 공지가 7일 동안 커뮤니티 멤버의 알림 피드 상단에 고정됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nếu bật, thông báo sẽ được ghim ở đầu nguồn cấp thông báo của các thành viên cộng đồng trong 7 ngày."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用后，公告将在社区成员的通知栏顶部置顶7天。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用後，公告將在社群成員的通知欄頂部置頂7天。"
+          }
+        }
+      }
+    },
     "admin_reports_community_unnamed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9188,6 +9229,47 @@
         }
       }
     },
+    "community_reports_count_accessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reports: %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reportes: %lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "신고: %lld건"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Báo cáo: %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "举报：%lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢舉：%lld"
+          }
+        }
+      }
+    },
     "community_reports_empty_body" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11111,6 +11193,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "社區"
+          }
+        }
+      }
+    },
+    "report_note_may_be_visible_to_community_admins" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The community's admins may see the report and what you write here, but not your name."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es posible que los administradores de la comunidad vean el reporte y lo que escribas aquí, pero no tu nombre."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커뮤니티 관리자가 신고 내용과 여기에 작성한 내용을 볼 수도 있지만, 이름은 볼 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quản trị viên cộng đồng có thể thấy báo cáo và những gì bạn viết ở đây, nhưng không thấy tên bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社区管理员可能会看到这条举报和你在这里写的内容，但看不到你的名字。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "社群管理員可能會看到這則檢舉和你在這裡寫的內容，但看不到你的名字。"
           }
         }
       }

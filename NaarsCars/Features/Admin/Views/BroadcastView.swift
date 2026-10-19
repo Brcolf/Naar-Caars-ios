@@ -65,7 +65,7 @@ struct BroadcastView: View {
                 Toggle("admin_pin_toggle".localized, isOn: $viewModel.pinToNotifications)
                     .font(.naarsBody)
             } footer: {
-                Text("admin_pin_footer".localized)
+                Text("admin_pin_footer_members".localized)
             }
 
             Section {
@@ -78,7 +78,7 @@ struct BroadcastView: View {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         } else {
-                            Text("admin_send_broadcast".localized)
+                            Text("admin_send_announcement".localized)
                                 .fontWeight(.semibold)
                         }
                         Spacer()
@@ -139,7 +139,7 @@ struct BroadcastView: View {
         } message: {
             Text("admin_broadcast_discard_message".localized)
         }
-        .alert("admin_send_broadcast".localized, isPresented: $showingConfirmation) {
+        .alert("admin_send_announcement".localized, isPresented: $showingConfirmation) {
             Button("common_cancel".localized, role: .cancel) {}
             Button("admin_send".localized, role: .none) {
                 Task {

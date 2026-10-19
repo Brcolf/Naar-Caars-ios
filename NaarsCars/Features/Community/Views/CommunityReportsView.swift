@@ -183,8 +183,8 @@ struct CommunityReportsView: View {
                         Text(filter.labelKey.localized)
                             .font(.naarsSubheadline)
                             .fontWeight(isSelected ? .semibold : .regular)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, Constants.Spacing.ms)
+                            .padding(.vertical, Constants.Spacing.sm)
                             .background(Capsule().fill(isSelected ? Color.naarsPrimary : Color.naarsCardBackground))
                             .foregroundColor(isSelected ? .white : .primary)
                     }
@@ -231,7 +231,8 @@ struct CommunityReportsView: View {
     private var notAdminState: some View {
         VStack(spacing: Constants.Spacing.md) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 48))
+                .font(.largeTitle)
+                .imageScale(.large)
                 .foregroundColor(.secondary)
                 .accessibilityHidden(true)
             Text("community_pending_not_admin".localized)
@@ -358,7 +359,7 @@ private struct CommunityReportCard: View {
             NaarsChip(text: report.reportTypeLabel, tint: report.reportTypeTint)
             if report.reportCount > 1 {
                 NotificationBadge(count: report.reportCount)
-                    .accessibilityLabel("\(report.reportCount)")
+                    .accessibilityLabel(String(format: "community_reports_count_accessibility".localized, report.reportCount))
             }
         }
         if dynamicTypeSize.isAccessibilitySize {

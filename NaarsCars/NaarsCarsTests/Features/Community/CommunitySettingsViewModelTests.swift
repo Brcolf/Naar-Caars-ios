@@ -281,7 +281,7 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         XCTAssertFalse(platform.canArchive)
     }
 
-    func testSave_RefusalWithoutCodeShowsNotAllowedAndReloads() async {
+    func testSave_RefusalWithoutCodeShowsGenericErrorAndReloads() async {
         let (context, contextStub) = await makeContext(role: .owner)
         let admin = StubCommunityAdminService()
         let vm = makeViewModel(context: context, admin: admin)
@@ -294,7 +294,8 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         let saved = await vm.save()
 
         XCTAssertFalse(saved)
-        XCTAssertEqual(vm.errorMessage, "community_member_action_not_allowed".localized)
+        // A code-less refusal is not necessarily about roles: it reads as the generic error.
+        XCTAssertEqual(vm.errorMessage, "community_error_generic".localized)
         XCTAssertEqual(vm.access, .notAdmin)
         XCTAssertNil(vm.toastMessage)
     }
