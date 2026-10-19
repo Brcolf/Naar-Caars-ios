@@ -7,19 +7,47 @@
 
 import SwiftUI
 
-/// Admin panel dashboard view
-/// Only accessible to users with is_admin = true
+/// Admin panel dashboard view.
+/// `.all` (every community) is for platform admins (is_admin = true); a community scope is for
+/// that community's owners and admins, and for platform admins. The server decides every action.
 struct AdminPanelView: View {
-    @StateObject private var viewModel = AdminPanelViewModel()
+    @StateObject private var viewModel: AdminPanelViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showFulfilledOverlay = false
     @State private var showSavingsOverlay = false
     @State private var showActiveRidesOverlay = false
     @State private var showReports = false
-    var autoOpenReports: Bool = false
+    /// Set by Settings after an archive; the panel then closes itself when it is shown again.
+    @State private var didArchiveCommunity = false
+    private let autoOpenReports: Bool
+    /// Receives "<name> was archived." for the presenter to show: the panel closes right after an
+    /// archive, so a toast of its own would not be seen.
+    private let onCommunityArchived: (_ confirmation: String) -> Void
 
     /// Shown in a stat tile until the figures have loaded, so a failed load does not read as 0
     private static let statPlaceholder = "—"
+
+    init(
+        scope: AdminPanelScope = .all,
+        communityName: String? = nil,
+        autoOpenReports: Bool = false,
+        onCommunityArchived: @escaping (_ confirmation: String) -> Void = { _ in }
+    ) {
+        _viewModel = StateObject(wrappedValue: AdminPanelViewModel(initialScope: scope, communityName: communityName))
+        self.autoOpenReports = autoOpenReports
+        self.onCommunityArchived = onCommunityArchived
+    }
+
+    /// Previews and tests: a view model built on stand-in services.
+    init(
+        viewModel: @autoclosure @escaping () -> AdminPanelViewModel,
+        autoOpenReports: Bool = false,
+        onCommunityArchived: @escaping (_ confirmation: String) -> Void = { _ in }
+    ) {
+        _viewModel = StateObject(wrappedValue: viewModel())
+        self.autoOpenReports = autoOpenReports
+        self.onCommunityArchived = onCommunityArchived
+    }
 
     var body: some View {
         Group {
@@ -67,7 +95,22 @@ struct AdminPanelView: View {
                 }
             }
         }
-        .navigationTitle("admin_panel_title".localized)
+        .navigationTitle(viewModel.title)
+        .communityTitleMenu(enabled: viewModel.menuEntries.count > 1) {
+            ForEach(viewModel.menuEntries) { entry in
+                let isCurrent = entry.scope == viewModel.scope
+                Button {
+                    Task { await viewModel.select(entry.scope) }
+                } label: {
+                    if isCurrent {
+                        Label(entry.title, systemImage: "checkmark")
+                    } else {
+                        Text(entry.title)
+                    }
+                }
+                .accessibilityAddTraits(isCurrent ? .isSelected : [])
+            }
+        }
         .navigationDestination(isPresented: $showReports) {
             AdminReportsView()
         }
@@ -76,6 +119,12 @@ struct AdminPanelView: View {
             await viewModel.verifyAdminAccess()
             if autoOpenReports {
                 showReports = true
+            }
+        }
+        .onAppear {
+            // Back from Settings after an archive: the community is gone, so is its panel.
+            if didArchiveCommunity {
+                dismiss()
             }
         }
         .errorBanner(
@@ -144,13 +193,13 @@ struct AdminPanelView: View {
             }
         }
         .sheet(isPresented: $showFulfilledOverlay) {
-            AdminFulfilledOverlay()
+            AdminFulfilledOverlay(communityId: viewModel.scope.communityId)
         }
         .sheet(isPresented: $showSavingsOverlay) {
-            AdminSavingsOverlay()
+            AdminSavingsOverlay(communityId: viewModel.scope.communityId)
         }
         .sheet(isPresented: $showActiveRidesOverlay) {
-            AdminActiveRidesOverlay()
+            AdminActiveRidesOverlay(communityId: viewModel.scope.communityId)
         }
     }
     
@@ -159,7 +208,8 @@ struct AdminPanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("admin_quick_actions".localized)
                 .font(.naarsTitle3)
-            
+
+            if viewModel.scope == .all {
             NavigationLink(destination: BroadcastView()) {
                 HStack {
                     Image(systemName: "megaphone.fill")
@@ -182,7 +232,8 @@ struct AdminPanelView: View {
             .accessibilityIdentifier("admin.broadcast")
             .accessibilityLabel("admin_send_announcement".localized)
             .accessibilityHint("admin_send_announcement_hint".localized)
-            
+            }
+
             Button(action: {
                 let items: [Any] = [
                     "admin_share_message".localized,
@@ -223,7 +274,114 @@ struct AdminPanelView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("admin_management".localized)
                 .font(.naarsTitle3)
-            
+
+            switch viewModel.scope {
+            case .all:
+                allCommunitiesRows
+            case .community(let communityId):
+                communityRows(communityId)
+            }
+        }
+    }
+
+    // MARK: - One community
+
+    @ViewBuilder
+    private func communityRows(_ communityId: UUID) -> some View {
+        let name = viewModel.communityName
+        let pending = viewModel.pendingCount ?? 0
+        managementRow(
+            title: "community_action_requests".localized,
+            accessibilityTitle: pending > 0
+                ? "\("community_action_requests".localized) (\(pending))"
+                : "community_action_requests".localized,
+            hint: "admin_pending_approvals_hint".localized,
+            systemImage: "person.badge.clock",
+            tint: .naarsWarning,
+            badgeCount: pending,
+            identifier: "admin.panel.requests"
+        ) {
+            PendingMembersView(target: .community(communityId, name: name))
+        }
+
+        managementRow(
+            title: "admin_panel_members".localized,
+            hint: "admin_panel_members_hint".localized,
+            systemImage: "person.3.fill",
+            tint: .naarsPrimary,
+            identifier: "admin.panel.members"
+        ) {
+            CommunityMembersView(target: CommunityMembersTarget(communityId: communityId, communityName: name))
+        }
+
+        managementRow(
+            title: "admin_reports_title".localized,
+            hint: "admin_panel_reports_community_hint".localized,
+            systemImage: "flag.fill",
+            tint: .naarsError,
+            identifier: "admin.panel.reports"
+        ) {
+            CommunityReportsView(communityId: communityId, communityName: name)
+        }
+
+        managementRow(
+            title: "admin_panel_settings".localized,
+            hint: "admin_panel_settings_hint".localized,
+            systemImage: "gearshape.fill",
+            tint: .naarsPrimary,
+            identifier: "admin.panel.settings"
+        ) {
+            CommunitySettingsView(communityId: communityId, onArchived: { confirmation in
+                didArchiveCommunity = true
+                onCommunityArchived(confirmation)
+            })
+        }
+    }
+
+    /// A management row for the community scope; the `.all` rows keep their own markup.
+    private func managementRow<Destination: View>(
+        title: String,
+        accessibilityTitle: String? = nil,
+        hint: String,
+        systemImage: String,
+        tint: Color,
+        badgeCount: Int = 0,
+        identifier: String,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        NavigationLink(destination: destination()) {
+            HStack {
+                Image(systemName: systemImage)
+                    .foregroundColor(tint)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .foregroundColor(.primary)
+                Spacer()
+                if badgeCount > 0 {
+                    NotificationBadge(count: badgeCount)
+                }
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.naarsCaption)
+                    .accessibilityHidden(true)
+            }
+            .padding()
+            .background(Color.naarsBackgroundSecondary)
+            .cornerRadius(Constants.Radius.card)
+            .overlay(
+                RoundedRectangle(cornerRadius: Constants.Radius.card)
+                    .stroke(Color(.separator), lineWidth: 1)
+            )
+        }
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(accessibilityTitle ?? title)
+        .accessibilityHint(hint)
+    }
+
+    // MARK: - Every community (platform admins)
+
+    @ViewBuilder
+    private var allCommunitiesRows: some View {
             NavigationLink(destination: PendingMembersView(target: .defaultCommunity)) {
                 HStack {
                     Image(systemName: "clock.fill")
@@ -315,7 +473,6 @@ struct AdminPanelView: View {
             .accessibilityIdentifier("admin.reports")
             .accessibilityLabel("admin_reports_title".localized)
             .accessibilityHint("admin_reports_hint".localized)
-        }
     }
 }
 
@@ -353,7 +510,50 @@ private struct StatCard: View {
     }
 }
 
+#if DEBUG
+@MainActor
+enum AdminPanelPreview {
+    static let capitolHill = PreviewCommunityService.membership(name: "Capitol Hill Carpool", role: .admin, memberCount: 9)
+
+    /// Seattle (member, default), Ballard (owner, two requests) and Capitol Hill (admin): two
+    /// administered communities, so the title menu is enabled in both scopes.
+    static func viewModel(platformAdmin: Bool, scope: AdminPanelScope) -> AdminPanelViewModel {
+        let context = CommunityContext(
+            service: PreviewCommunityService(),
+            defaults: UserDefaults(suiteName: "preview")!,
+            platformAdminProvider: { platformAdmin }
+        )
+        context.debugSetMemberships([
+            PreviewCommunityService.sampleMemberships[0],
+            PreviewCommunityService.sampleMemberships[1],
+            capitolHill
+        ])
+        return AdminPanelViewModel(
+            initialScope: scope,
+            adminService: PreviewAdminService(),
+            communityAdminService: PreviewCommunityService(),
+            communityContext: context,
+            verifyPlatformAdmin: {}
+        )
+    }
+
+    static var ballardId: UUID { PreviewCommunityService.sampleMemberships[1].communityId }
+}
+
 #Preview {
     AdminPanelView()
 }
+
+#Preview("All communities") {
+    NavigationStack {
+        AdminPanelView(viewModel: AdminPanelPreview.viewModel(platformAdmin: true, scope: .all))
+    }
+}
+
+#Preview("One community") {
+    NavigationStack {
+        AdminPanelView(viewModel: AdminPanelPreview.viewModel(platformAdmin: false, scope: .community(AdminPanelPreview.ballardId)))
+    }
+}
+#endif
 

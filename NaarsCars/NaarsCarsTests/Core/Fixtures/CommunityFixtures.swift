@@ -702,7 +702,8 @@ final class StubCommunityAdminService: CommunityAdminServiceProtocol {
 
 /// Stub for `AdminServiceProtocol`. One result and one call log per method.
 final class StubAdminService: AdminServiceProtocol {
-    /// Awaited by `sendBroadcast` and `moderateCommunityContent` before they return (a slow request).
+    /// Awaited by `sendBroadcast`, `moderateCommunityContent` and `fetchDashboardStats` before they
+    /// return (a slow request).
     var actionGate: (() async -> Void)?
 
     var fetchDashboardStatsResult: Result<AdminDashboardStats, Error> = .success(
@@ -730,6 +731,7 @@ final class StubAdminService: AdminServiceProtocol {
 
     func fetchDashboardStats(communityId: UUID?) async throws -> AdminDashboardStats {
         fetchDashboardStatsCalls.append(communityId)
+        await actionGate?()
         return try fetchDashboardStatsResult.get()
     }
 

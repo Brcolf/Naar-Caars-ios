@@ -78,9 +78,12 @@ struct MyProfileView: View {
                                 xp: viewModel.totalXP
                             )
                             
-                            // Admin Panel Link (below stats)
-                            if profile.isAdmin {
-                                adminPanelLink()
+                            // Admin Panel Link (below stats): platform admins and admins of any community
+                            if let adminScope = AdminPanelScope.initial(
+                                isPlatformAdmin: profile.isAdmin,
+                                administered: CommunityContext.shared.administeredCommunities
+                            ) {
+                                adminPanelLink(scope: adminScope)
                             }
 
                             myCommunitiesLink()
@@ -204,7 +207,7 @@ struct MyProfileView: View {
                 MyCommunitiesView()
             }
             .navigationDestination(isPresented: $showAdminPanel) {
-                AdminPanelView(autoOpenReports: autoOpenAdminReports)
+                AdminPanelView(autoOpenReports: autoOpenAdminReports, onCommunityArchived: { toastMessage = $0 })
                     .onDisappear { autoOpenAdminReports = false }
             }
             .refreshable {
@@ -640,8 +643,12 @@ struct MyProfileView: View {
     
     // MARK: - Admin Panel Link
     
-    private func adminPanelLink() -> some View {
-        NavigationLink(destination: AdminPanelView()) {
+    private func adminPanelLink(scope: AdminPanelScope) -> some View {
+        NavigationLink(destination: AdminPanelView(
+            scope: scope,
+            communityName: CommunityContext.shared.name(for: scope.communityId),
+            onCommunityArchived: { toastMessage = $0 }
+        )) {
             HStack {
                 Image(systemName: "shield.fill")
                     .foregroundColor(.naarsPrimary)

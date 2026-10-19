@@ -36,6 +36,8 @@ struct MyCommunitiesView: View {
     @State private var pendingTarget: PendingMembersTarget?
     /// The Members screen opened to choose a new owner after a `last_owner` refusal.
     @State private var membersTarget: CommunityMembersTarget?
+    /// The community whose Admin panel is open.
+    @State private var adminPanelTarget: UUID?
     /// Recorded by Create and Join; acted on in the sheet's `onDismiss`.
     @State private var createdCommunityId: UUID?
     @State private var joinResult: JoinResult?
@@ -119,6 +121,13 @@ struct MyCommunitiesView: View {
         }
         .navigationDestination(item: $membersTarget) { target in
             CommunityMembersView(target: target)
+        }
+        .navigationDestination(item: $adminPanelTarget) { communityId in
+            AdminPanelView(
+                scope: .community(communityId),
+                communityName: viewModel.active.first(where: { $0.communityId == communityId })?.name,
+                onCommunityArchived: { viewModel.toastMessage = $0 }
+            )
         }
         .task {
             viewModel.setup(modelContext: modelContext)
@@ -272,6 +281,14 @@ struct MyCommunitiesView: View {
     @ViewBuilder
     private func activeMenu(_ membership: CommunityMembership) -> some View {
         let isAdmin = viewModel.isAdmin(of: membership.communityId)
+        if isAdmin {
+            Button {
+                adminPanelTarget = membership.communityId
+            } label: {
+                Label("admin_panel_open".localized, systemImage: "shield")
+            }
+            .accessibilityIdentifier("community.my.adminPanel")
+        }
         if membership.canInvite {
             Button {
                 activeSheet = .invite(membership)

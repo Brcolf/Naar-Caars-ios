@@ -296,6 +296,7 @@
 		AC410C973085C8F000D921E2 /* CommunityReportsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */; };
 		AC410C993085C92500D921E2 /* CommunityReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C983085C92500D921E2 /* CommunityReportsViewModel.swift */; };
 		AC410C9B3085C96600D921E2 /* CommunityReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */; };
+		AC410C9E3085CFCC00D921E2 /* AdminPanelViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C9D3085CFCC00D921E2 /* AdminPanelViewModelTests.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -865,6 +866,7 @@
 		AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityReportsViewModelTests.swift; sourceTree = "<group>"; };
 		AC410C983085C92500D921E2 /* CommunityReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityReportsViewModel.swift; sourceTree = "<group>"; };
 		AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityReportsView.swift; sourceTree = "<group>"; };
+		AC410C9D3085CFCC00D921E2 /* AdminPanelViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminPanelViewModelTests.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1514,6 +1516,14 @@
 				AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */,
 			);
 			path = Community;
+			sourceTree = "<group>";
+		};
+		AC410C9C3085CF9000D921E2 /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				AC410C9D3085CFCC00D921E2 /* AdminPanelViewModelTests.swift */,
+			);
+			path = Admin;
 			sourceTree = "<group>";
 		};
 		AC4F1E182F23340500CC5DBA /* Storage */ = {
@@ -2388,6 +2398,7 @@
 				AC9DDD2C2F2B139C003465D3 /* TownHall */,
 				ACDCBE192F0B79BD00956D1C /* Profile */,
 				AC410C3D3085525C00D921E2 /* Community */,
+				AC410C9C3085CF9000D921E2 /* Admin */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -3074,6 +3085,7 @@
 				F7A2B4C5D6E7481A9B3C4D62 /* ReviewPromptProviderTests.swift in Sources */,
 				AC410C73308575B900D921E2 /* PendingApprovalViewModelTests.swift in Sources */,
 				AC12006E2F3AE5E10043BFAE /* WebhookPayloadDecodingTests.swift in Sources */,
+				AC410C9E3085CFCC00D921E2 /* AdminPanelViewModelTests.swift in Sources */,
 				AC12006F2F3AE5E10043BFAE /* RealtimePayloadDecodingTests.swift in Sources */,
 				AC410C7730857BF000D921E2 /* PendingInviteStoreTests.swift in Sources */,
 				AC1200702F3AE5E10043BFAE /* NotificationTypeDecodingTests.swift in Sources */,

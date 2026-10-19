@@ -215,6 +215,31 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertEqual(ctx.memberships.map(\.communityId), [a, b])
     }
 
+    func testCommunityContext_AdministeredCommunitiesAreActiveOwnerAndAdminRows() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB, c = CommunityFixtures.communityC
+        let pendingOwned = UUID(uuidString: "DDDDDDDD-0000-4000-8000-0000000000D4")!
+        let (ctx, _) = makeContext(.success([
+            CommunityFixtures.membership(a, name: "A", role: .owner),
+            CommunityFixtures.membership(b, name: "B", role: .member),
+            CommunityFixtures.membership(pendingOwned, name: "D", status: .pending, role: .owner),
+            CommunityFixtures.membership(c, name: "C", role: .admin)
+        ]))
+        ctx.restore(for: uid)
+        XCTAssertFalse(ctx.isAdminOfAnyCommunity)
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(ctx.administeredCommunities.map(\.communityId), [a, c])
+        XCTAssertTrue(ctx.isAdminOfAnyCommunity)
+
+        let (memberOnly, _) = makeContext(.success([CommunityFixtures.membership(b, name: "B", role: .member)]))
+        memberOnly.restore(for: uid)
+        await memberOnly.refreshMemberships()
+        XCTAssertTrue(memberOnly.administeredCommunities.isEmpty)
+        XCTAssertFalse(memberOnly.isAdminOfAnyCommunity)
+    }
+
     // MARK: - Launch ordering (beginDeferredSession)
 
     func testBeginDeferredSession_RestoresContextBeforeEnginesStart() {

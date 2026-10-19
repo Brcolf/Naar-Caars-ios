@@ -9,7 +9,7 @@ internal import Combine
 import Foundation
 
 enum CommunityAdminAction: Equatable {
-    case requestsToJoin, archive, restore, makePrivate, makePublic
+    case requestsToJoin, archive, restore, makePrivate, makePublic, openAdminPanel
 }
 
 @MainActor
@@ -35,9 +35,14 @@ final class CommunitiesAdminViewModel: ObservableObject {
 
     /// The actions a row offers. The default community is never offered Archive or Make private:
     /// the server refuses both (it stays public and is never archived while a member remains).
+    /// Every community that is not archived opens its Admin panel (first in the menu), including
+    /// one the platform admin does not belong to.
     static func actions(for community: PlatformCommunity) -> [CommunityAdminAction] {
         let isArchived = community.archivedAt != nil
         var actions: [CommunityAdminAction] = []
+        if !isArchived {
+            actions.append(.openAdminPanel)
+        }
         if community.pendingCount > 0 && !isArchived {
             actions.append(.requestsToJoin)
         }
@@ -95,10 +100,10 @@ final class CommunitiesAdminViewModel: ObservableObject {
 
     // MARK: - Community actions
 
-    /// Runs one action. Requests to join is navigation and does nothing here. The action is checked
+    /// Runs one action. Requests to join and Open admin panel are navigation and do nothing here. The action is checked
     /// again against the row as last loaded, so a stale menu cannot archive the default community.
     func perform(_ action: CommunityAdminAction, on community: PlatformCommunity) async {
-        guard busyId == nil, action != .requestsToJoin else { return }
+        guard busyId == nil, action != .requestsToJoin, action != .openAdminPanel else { return }
         let current = communities.first(where: { $0.id == community.id }) ?? community
         guard Self.actions(for: current).contains(action) else { return }
 
@@ -116,7 +121,7 @@ final class CommunitiesAdminViewModel: ObservableObject {
                 try await adminService.setCommunityPublic(communityId: current.id, isPublic: false)
             case .makePublic:
                 try await adminService.setCommunityPublic(communityId: current.id, isPublic: true)
-            case .requestsToJoin:
+            case .requestsToJoin, .openAdminPanel:
                 return
             }
         } catch let refusal as CommunityRPCError {
@@ -148,7 +153,7 @@ final class CommunitiesAdminViewModel: ObservableObject {
         case .archive: return "admin_communities_archived_toast"
         case .restore: return "admin_communities_restored_toast"
         case .makePrivate: return "admin_communities_made_private_toast"
-        case .makePublic, .requestsToJoin: return "admin_communities_made_public_toast"
+        case .makePublic, .requestsToJoin, .openAdminPanel: return "admin_communities_made_public_toast"
         }
     }
 
@@ -190,7 +195,7 @@ private extension PlatformCommunity {
         case .restore: archivedAt = nil
         case .makePrivate: isPublic = false
         case .makePublic: isPublic = true
-        case .requestsToJoin: break
+        case .requestsToJoin, .openAdminPanel: break
         }
         return PlatformCommunity(
             id: id, name: name, description: description, createdBy: createdBy, creatorName: creatorName,

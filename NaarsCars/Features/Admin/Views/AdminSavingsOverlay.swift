@@ -14,7 +14,14 @@ struct AdminSavingsOverlay: View {
     @State private var isLoading = false
     @State private var error: String?
 
-    private let adminService = AdminService.shared
+    /// nil = every community (platform admins); otherwise that community's figures.
+    let communityId: UUID?
+    private let adminService: any AdminServiceProtocol
+
+    init(communityId: UUID? = nil, service: any AdminServiceProtocol = AdminService.shared) {
+        self.communityId = communityId
+        self.adminService = service
+    }
 
     private var total: Double {
         periods.reduce(0) { $0 + $1.totalSavings }
@@ -95,7 +102,7 @@ struct AdminSavingsOverlay: View {
         defer { isLoading = false }
 
         do {
-            periods = try await adminService.fetchSavingsBreakdown(communityId: nil, period: selectedPeriod, count: 12)
+            periods = try await adminService.fetchSavingsBreakdown(communityId: communityId, period: selectedPeriod, count: 12)
         } catch {
             self.error = "common_load_error".localized
             AppLogger.error("admin", "Savings overlay error: \(error.localizedDescription)")

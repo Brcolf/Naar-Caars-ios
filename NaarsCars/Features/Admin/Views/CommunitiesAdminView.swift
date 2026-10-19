@@ -19,6 +19,8 @@ struct CommunitiesAdminView: View {
     @StateObject private var viewModel: CommunitiesAdminViewModel
     @State private var confirmation: PendingConfirmation?
     @State private var requestsTarget: PendingMembersTarget?
+    /// The community whose Admin panel is open.
+    @State private var adminPanelTarget: UUID?
 
     @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> CommunitiesAdminViewModel = CommunitiesAdminViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -50,6 +52,13 @@ struct CommunitiesAdminView: View {
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $requestsTarget) { target in
             PendingMembersView(target: target)
+        }
+        .navigationDestination(item: $adminPanelTarget) { communityId in
+            AdminPanelView(
+                scope: .community(communityId),
+                communityName: viewModel.communities.first(where: { $0.id == communityId })?.name,
+                onCommunityArchived: { viewModel.toastMessage = $0 }
+            )
         }
         .task { await viewModel.load() }
         .alert(
@@ -224,6 +233,13 @@ struct CommunitiesAdminView: View {
     private func menuItems(_ actions: [CommunityAdminAction], for community: PlatformCommunity) -> some View {
         ForEach(actions, id: \.self) { action in
             switch action {
+            case .openAdminPanel:
+                Button {
+                    adminPanelTarget = community.id
+                } label: {
+                    Label(actionTitle(action), systemImage: systemImage(action))
+                }
+                .accessibilityIdentifier("admin.communities.openPanel")
             case .requestsToJoin:
                 Button {
                     requestsTarget = .community(community.id, name: community.name)
@@ -291,6 +307,7 @@ struct CommunitiesAdminView: View {
         case .restore: return "admin_communities_restore".localized
         case .makePrivate: return "admin_communities_make_private".localized
         case .makePublic: return "admin_communities_make_public".localized
+        case .openAdminPanel: return "admin_communities_open_panel".localized
         }
     }
 
@@ -301,6 +318,7 @@ struct CommunitiesAdminView: View {
         case .restore: return "arrow.uturn.backward"
         case .makePrivate: return "lock"
         case .makePublic: return "globe"
+        case .openAdminPanel: return "shield"
         }
     }
 

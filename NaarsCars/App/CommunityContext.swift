@@ -178,6 +178,17 @@ final class CommunityContext {
         memberships.filter { $0.status == .pending }
     }
 
+    /// The active owner and admin memberships, in membership order (the Admin panel's communities
+    /// for someone who is not a platform admin). Pending rows are left out.
+    var administeredCommunities: [CommunityMembership] {
+        memberships.filter(Self.isActiveAdmin)
+    }
+
+    /// True when the member owns or administers at least one community (platform admin not counted).
+    var isAdminOfAnyCommunity: Bool {
+        memberships.contains(where: Self.isActiveAdmin)
+    }
+
     /// Requests to join waiting in the communities the member administers.
     var administeredPendingTotal: Int {
         memberships.filter(Self.isActiveAdmin).reduce(0) { $0 + ($1.pendingCount ?? 0) }
