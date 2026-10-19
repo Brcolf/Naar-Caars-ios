@@ -36,7 +36,7 @@ Light and dark: nothing clipped or overlapping, contrast readable in dark everyw
 6. **`ReportContentSheet` at AX 5:** the reason icons still touch their labels (Phase 2 finding 6, shared by every report type, not new).
 7. **Not seen in a preview (below the fold, or only in menus and alerts):** the member detail's action buttons at AX 5 (seen at the default size: Make owner, Make admin, Remove from community); the remove sheet's Remove button at AX 5; the reports list's person, platform-handled ("Platform moderators handled this report") and auto-hidden cards (the first two cards and the Ride card header were seen); the reports filter capsules beyond "Pending, All, Re…" at AX 5 (they sit in a horizontal `ScrollView`, `CommunityReportsView.swift:176`, so they scroll rather than clip); guidelines section 7 at AX 5; the archive alert, the "choose a new owner" alert, the title menu open and the My communities admin menu. All are in the O1 capture list.
 
-## Not run: owner steps (pending)
+## Owner steps as planned (from the headless gate)
 
 Each needs the owner signed in on the simulator through the built-in panel, a second account, or a write to production (writes only with the owner's go-ahead). The orchestrator runs them later with the owner.
 
@@ -46,6 +46,87 @@ Each needs the owner signed in on the simulator through the built-in panel, a se
 - **O4. Installed build (optional, pending)**: Admin → Stats on an App Store build shows the runbook's step 1 snapshot figures.
 - **O5. Shut down, push and update the draft PR (pending, owner).**
 - **Carried from Phase 2, still open:** the Phase 2 render findings 1-4 (invite sheet AX 5 buttons, the "1 times" plural, the owned-limit sheet title, the two retry buttons on onboarding) have no fix commit on this branch; the offline install-over run.
+
+## Owner-present steps, run 2026-10-19 morning (two simulators, driven by the orchestrator)
+
+The owner asked that these steps run without them, so the orchestrator drove two of the owner's simulators through the built-in panel: the owner's `iPhone 16` (iOS 26.5, CAA2F1FD…, their own platform-admin account, dark theme) and `iPhone 17 (26.5)` (7CFBFB78…, simulator appearance dark, text size large), on which the two throwaway accounts were created through the app's own Sign Up. Build: the branch at `930e906` (`[P3-fix]` through the members-row fix; the earlier part of the run used `b7f4282` and was repeated after the fix where it mattered). Captures are in `build/p3-gate/captures/` (gitignored), `00`–`57` from this pass and `58`+ from the Opus agent that finished the tail (its log: `build/p3-gate/opus-steps-log.md`). Server checks ran through the Supabase MCP after every write. Test accounts: "P3 Second" (owner of the test community), "P3 Third" (joined by code), and the owner's account (joined by code, approved by the second account).
+
+**Side effects on real accounts.** Every test report fanned out to the platform admins as designed: the three admins other than the owner each received four `content_reported` rows and pushes (12 in all) plus the "New community: P3 Live Check" announcement from the community's creation. No real member received anything else; the test announcements went only to the test community's members.
+
+### O3. Live matrix (writes), in plan order
+
+| Step | Outcome | Evidence |
+|---|---|---|
+| Create "P3 Live Check" as the second account | Done through onboarding ("Start your own community", approval on), then the invite sheet (one-use code, then a two-use code) and the guidelines | `02-*`, `03-*`; `communities` row, `join_policy = approve` |
+| Owner's account joins by code, approved on the second device | The code resolved to the community with its two join questions; the request showed on the second account's Requests to join (Profile badge 1) and was approved; the owner's My communities then listed two memberships and the Requests and Community title menus offered both | `10-*`, `11-*`, `12-*`, `13-*`; membership pending → active, `user_approved` row |
+| Third account joins by the two-use code, approved | Same flow; the two-use code reached 2/2 | `14-*`, `15-*`, `16-*`; `community_invites.use_count = 2` |
+| Third account posts twice (as that user, through SQL) | Two posts in the test community; the owner's Community tab menu showed "2 new" and the feed listed both | `18-*` |
+| Owner reports post 1 (Spam, with a note) | The second account got one `content_reported` row with `source_user_id` null and a queued push carrying `community_id`; the three other platform admins got one row each **with** the reporter; the author and reporter got none | `19-*`; `reports` row, `notifications`, `notification_queue` |
+| Community Reports list (second account) | Privacy banner, the card with type, preview, "Posted by", the reporter's note, Hide and Dismiss, **no reporter**; Admin → Reports on the owner's device showed the same report with "Reported by" and Hide / Dismiss | `30-*`, `21-*` |
+| Hide with a reason (community admin) | Post hidden (`hidden_by` = second account, reason stored), `reports.community_status = action_taken`, `status` still `pending`, one `hide` event, the author got "Your content was hidden" with the reason; the owner's Admin → Reports still listed it as pending with Hide / Dismiss | `31-*`, `32-*`, `33-*` |
+| Restore (community admin) | Post visible again, `content_hidden = false`, `restore` event by the second account | `33-second-reports-all-restore`, `34-*` |
+| Platform admin hides post 2 from Admin → Reports | `hidden_by` = owner, `reports.status = action_taken`, `reviewed_by` = owner; the community list showed "Platform moderators handled this report." with no actions; the owner then restored it (Resolved filter → Restore) | `35-*`, `37-*`, `38-*`, `39-*`, `40-*` |
+| Person report about the third account (by the owner, as that user through SQL) | The community list offered Dismiss only ("To act on a person, remove them in Members."); dismissed for the community (`community_status = dismissed`, `status` pending) and then by the owner in Admin → Reports | `42-*`, `43-*`, `46-*` |
+| Community report (by the third account) | Never reached the community list; Admin → Reports labelled it **Community** with the community's name and Dismiss worked (`dismiss` event with `target_type = community`), which closes the Phase 2 follow-up | `41-*`, `43-owner-*`, `44-*` |
+| Make admin, then member | Role changed on the server each time, the chip and actions followed | `23-*` |
+| Make owner, hand back | The second account became admin and the detail lost its actions; ownership was handed back as the third account through SQL. After the hand-back the detail showed no actions until the app was foregrounded (the membership cache refreshes on foreground, not on a transfer done elsewhere); then Make owner / Make admin / Remove returned | `24-*`, `25-*` |
+| Remove with a note | Sheet footer reads "Only this community's admins and platform moderators see this note"; the member moved to the Removed list with the note under their name; `removal_reason` held the text; the third account got `account_restricted` ("A community admin removed you.", no note) with `community_id` in the push | `26-*`, `27-*`, `28-*` |
+| Let back in | Active again, `removal_reason` cleared, `user_approved` row | `28-second-removed-member-detail-let-back-in`, `29-*` |
+| Settings | "Members can invite" off, Save: `members_can_invite = false`; later renamed to "P3 Live Check renamed" | `09-*`, `57-second-settings-renamed-before-save` |
+| Announcements | Two sent as the second account through SQL, the third from the app (pinned); each reached the two other members; the fourth was refused from the app with "P3 Live Check has already sent 3 announcements today. Try again tomorrow." and wrote no row | `51-*`, `52-*`, `53-*`, `54-*` |
+| Admin → Reports: dismiss the community report | Done (see above); there was no "P2 Live Check" report left to dismiss, so a fresh community report from the third account stood in for it | `44-*` |
+| Owner's account leaves the test community | Leave sheet, then My communities back to one membership; membership `left` | `57-owner-leave-p3-sheet` |
+
+### O2. Push fixtures
+
+| Fixture | Device | Route logged | Screen |
+|---|---|---|---|
+| `content_reported_platform_admin.apns` (no `community_id`) | owner's | `Navigating to: adminReports` | Admin → Reports, pending list | 
+| `account_restricted_community.apns` | owner's | `Navigating to: myCommunities` | My communities |
+| `content_reported_community_admin.apns` | second | `Navigating to: communityReports(communityId: 6D5E97BF…)` | Profile tab, that community's Reports (subtitle the community name). The second account's app had never asked iOS for notification permission, so the first train showed no banner; Account Settings → "Turn On Notifications" raised the prompt inside the app, Allow, and the next train's banner was tapped. |
+
+### O1. Captures
+
+Dark captures of every Phase 3 screen in the lists of Tasks 3–9 were taken on the way through the matrix: Profile with the Admin Panel row (community owner who is not a platform admin), the panel in a community scope and, on the owner's device, in the All scope and the P3 scope with the title menu open, Members (owner view, three members, the Removed list, search), member detail in each action set, the remove sheet, Reports (empty, pending, all, the platform-handled row, the person report, the dismissed filter), the hide / restore / dismiss sheets, settings as owner, Send Announcement (empty, filled, confirm, the daily-limit error, the discard alert), My communities' admin menu, the guidelines section 7 (light, dark and AX 5), and the Requests tab with one and two memberships. AX 5 on device: the admin panel's stat tiles stack with no broken word (render finding 1 fixed, `f97b8f0`). The light and AX 5 pass of the panel, Members, Reports and Settings, the Spanish type chip, the "choose a new owner" path and the archive are in the Opus agent's part below.
+
+### Found on device and fixed
+
+1. **Members rows did nothing** (`930e906`): `CommunityMembersView` is pushed with a destination-style link (Admin Panel) or `navigationDestination(item:)` (My communities), and from such a screen its own `navigationDestination(for:)` was invisible to the rows' `NavigationLink(value:)`; SwiftUI logged "Invalid Configuration" at each tap. The row is now a `Button` that sets `selectedMember`, presented through `navigationDestination(item:)`. Verified on the second device after a rebuild.
+2. **Pull-to-refresh on community Reports showed "Failed to load data"** when the pull's task was cancelled before the request returned (`URLError.cancelled`); the list was replaced by the error view. `CommunityReportsViewModel.reload` now returns silently on a cancelled request (`8ee7da4`; Debug build exit 0, `CommunityReportsViewModelTests` 9 of 9 passed on the headless simulator).
+
+### Tail of the owner steps, run by an Opus agent on the second device (log: `build/p3-gate/opus-steps-log.md`)
+
+| Step | Outcome | Evidence |
+|---|---|---|
+| Settings: "Approve new members manually" off, Save | `join_policy` went from `approve` to `invite`; `members_can_invite` stayed false. The first tap on the toggle knob did not register, the second did. After Save the button greyed out with no toast | `58-*` |
+| Leave as the sole owner with other members | The ordinary Leave sheet shows first; the "Choose a new owner first" alert appears after confirming it (the server answers `last_owner`), and its action pushes Members with the transfer banner "Choose who becomes the owner. You'll become an admin." Backed out without transferring; the account stayed owner | `59-*`, `60-*` |
+| Light: admin panel, Members, Reports (All), Settings | All clean. The 21-character title fills the full width; no scope chevron with one community; the off-toggle track is the system's pale grey | `61-*` to `64-*` |
+| Light + AX 5: panel, Members, Reports | Stat tiles stack; Members rows stack avatar above name; report card headers stack icon, type, chip. The Management rows centre their wrapped text and hyphenate "Mem-bers"; the Reports filter row cuts the third chip at the edge with no fade (it scrolls). Nothing clipped | `64b-*`, `65-*`, `66-*`, `66b-*`, `66c-*` |
+| Spanish (`-AppleLanguages (es)`) | Type chips "Usuario" / "Publicación", reason chips "Acoso" / "Spam", filters Pendientes / Todos / Resueltos / Descartados, Members "Propietario" and "Se unió el oct 19, 2026" (month first: the simulator region stays US). No Phase 3 string in English. Outside Phase 3, the Profile stat labels "No Rating", "My Savings", "Fulfilled", "XP" stay English | `67-*`, `67a-*`, `67c-*` |
+| Archive | Alert text as designed; `archived_at` set, the row kept. The confirmation toast "… was archived." showed on Profile for under a second before the app moved to the onboarding root, because the archived community was the account's only one | `68-*`, `69-*`, `69b-*` |
+| Revoke the spare code | `revoke_community_invite` as the second account: `revoked_at` set for the one-use code; the two-use code was already fully used and redemption checks `archived_at` | SQL |
+| Second account deletes itself | From the onboarding root's "Delete Account" link: generic confirmation, "Account Deleted", Welcome. The A3 owned-community warning did not show because the only owned community was already archived (`communitiesClosedByDeletion` counts live ones). `auth.users` and `profiles` rows gone; the community row stays archived with `created_by` null | `70-*`, `70b-*`, `71-*` |
+| Third account deletes itself | Run by the orchestrator (the agent declined to type a password into the live app): signed in, landed on the onboarding root (its only community archived), deleted from the same link. Both throwaway accounts are gone; the community keeps only the owner's `left` row; no test post or report remains, and the six moderation events stay as the append-only log | `72-*`; SQL |
+
+### Final headless run on the fixed code
+
+Full unit suite, signed out, on `iPhone 16 Tests` at `8ee7da4` (every `[P3-fix]` commit included), the plan's single-simulator flags: **641 cases, 608 passed, 0 failed, 33 skipped** (the session-gated classes), `xcodebuild` exit 0, result bundle `build/p3-gate/final-full.xcresult`. No simulator was left booted.
+
+### Observed, left as follow-ups
+
+- After an ownership transfer performed elsewhere, the member detail keeps the old action set until the app is foregrounded (the membership cache refreshes on foreground). A role change made on the same screen refreshes at once.
+- The first Sign Up on the iPhone 17 (iOS 26.5) rendered normally; the iOS 26.4 push storm from the Phase 1 gate was not seen.
+- The Admin Panel opened from My communities keeps the community's old name in its title after a rename in Settings until it is reopened (the panel from Profile → Admin Panel showed the new name).
+- The archive confirmation toast is not readable when the archived community was the account's only one: the onboarding root replaces the screen within a second.
+- The A3 owned-community warning on account deletion cannot show for a community that was archived first; the onboarding root's "Delete Account" link uses the generic confirmation.
+- At AX 5 the Management rows of the admin panel centre and hyphenate their labels, and the Reports filter row has no edge fade.
+- The Profile stat labels ("No Rating", "My Savings", "Fulfilled", "XP") are not localized (predates Phase 3).
+- The owner's platform-admin account had nothing to approve on the test community in the end, so `admin_moderate_content` on a community report was exercised with a fresh report rather than the "P2 Live Check" one the plan names (none was left over).
+
+### Not run
+
+- O4 (an installed App Store build's Admin → Stats against the runbook snapshot): no App Store build of this branch exists yet.
+- The offline install-over run carried from Phase 2.
 
 ## PR Impact Summary
 
