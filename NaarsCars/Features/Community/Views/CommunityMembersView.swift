@@ -20,6 +20,12 @@ struct CommunityMembersTarget: Hashable {
 struct CommunityMembersView: View {
     let target: CommunityMembersTarget
     @StateObject private var viewModel: CommunityMembersViewModel
+    /// The member whose detail is pushed. Driven by a binding, not a value-based link: this screen is itself
+    /// pushed with a destination-style `NavigationLink` (Admin Panel) or `navigationDestination(item:)`
+    /// (My communities), and from such a screen a `navigationDestination(for:)` is not visible to a
+    /// `NavigationLink(value:)`; SwiftUI logs "Invalid Configuration" and the row does nothing (found on
+    /// device at the Phase 3 gate). The item-driven form is what every other pushed screen in the app uses.
+    @State private var selectedMember: CommunityMember?
 
     init(
         target: CommunityMembersTarget,
@@ -45,7 +51,7 @@ struct CommunityMembersView: View {
         .background(Color.naarsBackground)
         .navigationTitle("community_members_title".localized)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: CommunityMember.self) { member in
+        .navigationDestination(item: $selectedMember) { member in
             CommunityMemberDetailView(member: member, viewModel: viewModel)
         }
         .task { await viewModel.load() }
@@ -110,7 +116,9 @@ struct CommunityMembersView: View {
             ContentUnavailableView.search(text: viewModel.query)
         } else {
             ForEach(viewModel.filteredMembers) { member in
-                NavigationLink(value: member) {
+                Button {
+                    selectedMember = member
+                } label: {
                     CommunityMemberRow(member: member, isRemovedList: viewModel.list == .removed)
                 }
                 .buttonStyle(.plain)
