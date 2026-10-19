@@ -7,6 +7,7 @@
 //  archive that forgets the membership and refreshes the dashboard
 //
 
+internal import Combine
 import XCTest
 @testable import NaarsCars
 
@@ -226,15 +227,25 @@ final class CommunitySettingsViewModelTests: XCTestCase {
 
         // The server no longer lists the archived community.
         contextStub.result = .success([CommunityFixtures.membership(CommunityFixtures.communityB, name: "Community B")])
+        // The screen closes when didArchive turns true, so the confirmation must already be set.
+        var confirmationWhenClosing: String?
+        let closing = vm.$didArchive.dropFirst().sink { [weak vm] archived in
+            if archived { confirmationWhenClosing = vm?.archiveConfirmation }
+        }
         let archived = await vm.archive()
+        closing.cancel()
 
         XCTAssertTrue(archived)
         XCTAssertTrue(vm.didArchive)
+        let expected = String(format: "community_settings_archived_toast".localized, "Ballard Neighbors")
+        XCTAssertEqual(confirmationWhenClosing, expected)
+        XCTAssertEqual(vm.archiveConfirmation, expected)
         XCTAssertEqual(admin.archiveCommunityCalls, [CommunityFixtures.communityA])
         XCTAssertNil(context.membership(for: CommunityFixtures.communityA))
         XCTAssertNotNil(context.membership(for: CommunityFixtures.communityB))
         XCTAssertEqual(triggers, ["archivedCommunity"])
-        XCTAssertNotNil(vm.toastMessage)
+        // Not this screen's toast: it is gone by the time the refreshes finish.
+        XCTAssertNil(vm.toastMessage)
         XCTAssertNil(vm.errorMessage)
         XCTAssertFalse(vm.isArchiving)
     }

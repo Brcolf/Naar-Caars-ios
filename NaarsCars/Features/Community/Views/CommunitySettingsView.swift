@@ -10,14 +10,16 @@ import SwiftUI
 /// Community settings. No NavigationStack: always pushed (Admin panel).
 struct CommunitySettingsView: View {
     let communityId: UUID
-    private let onArchived: () -> Void
+    /// Called once after an archive, with the confirmation text ("<name> was archived.") for the
+    /// presenter to show: this screen dismisses itself right away, so its own toast cannot.
+    private let onArchived: (_ confirmation: String) -> Void
     @StateObject private var viewModel: CommunitySettingsViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showArchiveAlert = false
 
     init(
         communityId: UUID,
-        onArchived: @escaping () -> Void = {},
+        onArchived: @escaping (_ confirmation: String) -> Void = { _ in },
         viewModel: @autoclosure @escaping () -> CommunitySettingsViewModel? = nil
     ) {
         self.communityId = communityId
@@ -65,7 +67,7 @@ struct CommunitySettingsView: View {
         .task { await viewModel.load() }
         .onChange(of: viewModel.didArchive) { _, archived in
             guard archived else { return }
-            onArchived()
+            onArchived(viewModel.archiveConfirmation ?? "")
             dismiss()
         }
         .alert(

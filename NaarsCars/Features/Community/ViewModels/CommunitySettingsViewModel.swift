@@ -26,6 +26,10 @@ final class CommunitySettingsViewModel: ObservableObject {
     /// Shown in the error banner.
     @Published var errorMessage: String?
     @Published var toastMessage: String?
+    /// The confirmation shown after an archive ("<name> was archived."). Set before `didArchive`,
+    /// because the screen closes as soon as `didArchive` turns true and hands this text to its
+    /// presenter (`CommunitySettingsView.onArchived`); this screen's own toast is gone by then.
+    @Published private(set) var archiveConfirmation: String?
     @Published private(set) var didArchive = false
 
     let communityId: UUID
@@ -186,9 +190,10 @@ final class CommunitySettingsViewModel: ObservableObject {
 
     // MARK: - Archive
 
-    /// Archives the community. A success forgets the membership locally before the refreshes, so a
-    /// refresh that fails cannot bring it back; forgetting the last active membership runs
-    /// `onActiveMembershipsEmpty` (account status re-check).
+    /// Archives the community. A success sets `archiveConfirmation`, then `didArchive` (the screen
+    /// closes and its presenter shows the confirmation), then forgets the membership locally before
+    /// the refreshes, so a refresh that fails cannot bring it back; forgetting the last active
+    /// membership runs `onActiveMembershipsEmpty` (account status re-check).
     @discardableResult
     func archive() async -> Bool {
         guard canArchive, !isArchiving, !isSaving else { return false }
@@ -209,11 +214,11 @@ final class CommunitySettingsViewModel: ObservableObject {
         }
 
         HapticManager.success()
+        archiveConfirmation = String(format: "community_settings_archived_toast".localized, communityName)
         didArchive = true
         await communityContext.forgetMembership(communityId)
         await communityContext.refreshMemberships()
         await refreshDashboard("archivedCommunity")
-        toastMessage = String(format: "community_settings_archived_toast".localized, communityName)
         return true
     }
 
