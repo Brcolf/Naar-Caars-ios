@@ -30,7 +30,10 @@
 -- storage.*.
 --
 -- Verification. Dry run (with 20261019_0001 and 20261019_0002) and probe membership_update_producers and short.
--- Outcomes: not yet run.
+-- Outcomes, 2026-10-19 (dry run only, rolled back; the P1 values above are the live ones of that day):
+-- membership_update_producers OK (all five steps) and short OK; the three calls are listed in 20261019_0001's
+-- header. 20261019_0001 is live since 2026-10-19, so the CHECK and the should_notify_user arm this file needs are
+-- in place. Repeat P1 and the dry run before applying (runbook step 6).
 --
 -- What old clients see (why it is gated). A membership_update row on the installed pre-community build fails its
 -- bell list decode (no tolerant decoder in that build). Phase 1-3 builds show the row as a generic notification

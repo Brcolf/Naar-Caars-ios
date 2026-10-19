@@ -1,6 +1,18 @@
 -- 20261019_0001_phase4_registry_and_timezone.sql
 --
--- NOT APPLIED. Phase 4 of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
+-- APPLIED 2026-10-19, blocks 1-3 (Supabase MCP apply_migration, one call per block; migration-history versions
+-- 20261019170958 20261019_0001_block_1, 20261019171054 20261019_0001_block_2, 20261019171309
+-- 20261019_0001_block_2_exact, 20261019171329 20261019_0001_block_3). Deployed md5(prosrc): should_notify_user
+-- f31e9deafd9adb48a7a4f57849d5522d, create_community(text, text, text, text) b499c74a3371cc051f02a4bcd19b54f3; both
+-- equal the text between this file's $function$ delimiters. Block 2 ran twice: the first call sent the body without
+-- the blank line after END IF (deployed md5 2dfa65e9e3aa8e35fa5e9225dde634a3 for about two minutes), the second the
+-- file's text byte for byte. Block 3 deviates from the plan: the MCP (execute_sql and apply_migration alike)
+-- declines DROP FUNCTION, so the three-argument overload was renamed to public.create_community_pre_p4 and stripped
+-- of every EXECUTE grant in the same call that created the four-argument function (block 3 below is the text that
+-- ran; create_community was never missing and never ambiguous). BLOCK 4 (NOT APPLIED, SQL editor, owner) drops the
+-- renamed function; until then it exists, callable by nobody but postgres (routine_privileges: postgres:EXECUTE),
+-- and P5 ("exactly one create_community") already holds.
+-- Phase 4 of the multi-community design (Docs/superpowers/specs/2026-10-07-multi-community-design.md
 -- §4 "Phase 4"), under the owner's decisions (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md,
 -- amendment A5, which wins where they differ).
 --
@@ -30,16 +42,29 @@
 -- Verification. Dry run with 20261019_0002 and 20261019_0003 and the probe blocks phase4_registry, broadcast_push,
 -- membership_update_producers, broadcast_cap, community_moderation and short (supabase/probes/communities_probe.sql;
 -- each block's begin / rollback turned into a savepoint and a rollback to it). Then short after each block,
--- phase4_registry after block 3. Outcomes: not yet run.
+-- phase4_registry after block 3.
+-- Outcomes, 2026-10-19. The dry run was split into three rolled-back execute_sql calls so block 1's ACCESS
+-- EXCLUSIVE lock on notifications was held for seconds at a time (set local lock_timeout = '5s'); because the MCP
+-- declines the drop function, the dry run renamed the old overload instead, as the apply later did:
+--   1. A1-A3, B1-B2, C1-C4 + phase4_registry + short: OK.
+--   2. A1-A2, B1-B2, C1-C4 + broadcast_push + membership_update_producers (savepoints): OK.
+--   3. A2, B1-B2 + broadcast_cap + community_moderation (savepoints; no ALTER, so no table lock): OK.
+-- Apply: P1 (573a3cfacd6f824e592d502575398df8, a68446277de8720faa48d1d0384f371a), P2 (33 values, no
+-- membership_update) and P5 (one overload) re-read just before block 1; short after block 1 (the CHECK carries
+-- membership_update); short after block 2; phase4_registry + short after block 3 (a known zone is stored, an unknown
+-- one and the three-argument call keep the column default, exactly one create_community, the renamed overload answers
+-- 42501 to authenticated, anon gets 42501 on create_community). All OK, every probe rolled back.
 --
 -- What old clients see. Nothing. No function writes a membership_update row yet; should_notify_user's new arm has
 -- no caller; the installed build never calls create_community, and the Phase 2 / Phase 3 builds' three-argument
 -- call resolves to the new function with p_timezone null.
 --
--- Rollback, in reverse order: create_community — drop function public.create_community(text, text, text, text),
--- then the three-argument body from 20261017_0005 block 8 with its grants (only while no client sends p_timezone:
--- after the Phase 4 client ships, a rollback breaks its Create); should_notify_user from 20261017_0001 call 1h.1;
--- the CHECK without 'membership_update' (only while no row has that type).
+-- Rollback, in reverse order: create_community — drop function public.create_community(text, text, text, text)
+-- (SQL editor), then, while block 4 has not run, alter function public.create_community_pre_p4(text, text, text)
+-- rename to create_community and grant execute to authenticated, service_role; after block 4, the three-argument
+-- body from 20261017_0005 block 8 with its grants (only while no client sends p_timezone: after the Phase 4 client
+-- ships, a rollback breaks its Create); should_notify_user from 20261017_0001 call 1h.1; the CHECK without
+-- 'membership_update' (only while no row has that type).
 
 
 -- ============================================================================================
@@ -130,9 +155,12 @@ $function$;
 -- Changes: p_timezone text default null (last, so every existing call, named or positional, still resolves);
 -- v_tz validated against pg_timezone_names; set on the new row after the insert, so the column default stays the
 -- only place that names the fallback zone. Everything else is the live body.
--- One call: the drop and the create run together; create_community is never missing between two calls.
+-- One call: the rename and the create run together; create_community is never missing between two calls.
+-- As applied (2026-10-19): the plan's "drop function public.create_community(text, text, text);" is declined by the
+-- MCP, so the old overload is renamed and loses every EXECUTE grant instead; block 4 drops it.
 -- ============================================================================================
-drop function public.create_community(text, text, text);
+alter function public.create_community(text, text, text) rename to create_community_pre_p4;
+revoke all on function public.create_community_pre_p4(text, text, text) from public, anon, authenticated, service_role;
 
 create function public.create_community(
     p_name text,
@@ -240,3 +268,12 @@ revoke all on function public.create_community(text, text, text, text) from publ
 grant execute on function public.create_community(text, text, text, text) to authenticated, service_role;
 
 notify pgrst, 'reload schema';
+
+
+-- ============================================================================================
+-- BLOCK 4: drop the renamed three-argument overload   ** NOT APPLIED. SQL editor (owner): the MCP declines
+--          DROP FUNCTION. **
+-- Nothing depends on it: the function has no EXECUTE grant (postgres only), PostgREST does not expose it to any
+-- client role, and create_community resolves to the four-argument function for every caller. Run when convenient.
+-- ============================================================================================
+drop function public.create_community_pre_p4(text, text, text);

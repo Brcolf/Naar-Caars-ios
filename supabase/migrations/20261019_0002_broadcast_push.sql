@@ -28,7 +28,10 @@
 -- with the value above; stop on a mismatch. No block removes rows, drops a policy, or writes to auth.* / storage.*.
 --
 -- Verification. Dry run (with 20261019_0001 and 20261019_0003) and probe broadcast_push and broadcast_cap
--- (supabase/probes/communities_probe.sql). Outcomes: not yet run.
+-- (supabase/probes/communities_probe.sql). Outcomes, 2026-10-19 (dry run only, rolled back; the P1 values above
+-- are the live ones of that day): broadcast_push OK and broadcast_cap OK, with community_moderation OK as the
+-- regression probe of notify_town_hall_post; the three calls are listed in 20261019_0001's header. Repeat P1 and
+-- the dry run before applying (runbook step 6).
 --
 -- What old clients see (why it is gated). The installed pre-community build's members stop receiving the "New in
 -- Town Hall" bell row and batched push for an announcement; instead each receives one push of type broadcast with

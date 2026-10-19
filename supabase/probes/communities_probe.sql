@@ -2001,7 +2001,8 @@ select 'PROBE posts_delete_policy OK' as probe;
 -- =============================================================================================================
 -- phase4_registry (Phase 4, 20261019_0001): the CHECK accepts membership_update and still refuses an unknown
 -- type; should_notify_user answers true for it; create_community stores a known p_timezone, falls back to the
--- column default for an unknown or missing one, and the Phase 2 / 3 three-argument call still resolves.
+-- column default for an unknown or missing one, and the Phase 2 / 3 three-argument call still resolves; the
+-- renamed old overload (create_community_pre_p4, until the owner runs block 4) is callable by nobody; anon is refused.
 -- =============================================================================================================
 begin;
 do $probe$
@@ -2061,6 +2062,13 @@ begin
   perform pg_temp.probe_ok(v_probe, 'exactly one create_community',
     (select count(*) from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace and proname = 'create_community') = 1);
 
+  if to_regprocedure('public.create_community_pre_p4(text, text, text)') is not null then
+    j := pg_temp.probe_call(u16, format('public.create_community_pre_p4(%L, %L, %L)', 'Probe Old Overload', 'communities probe', 'invite'));
+    perform pg_temp.probe_ok(v_probe, 'the renamed three-argument overload is not callable by authenticated: ' || j::text,
+      coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = '42501');
+  end if;
+  j := pg_temp.probe_call(null, format('public.create_community(%L, %L, %L)', 'Probe Anon', 'communities probe', 'invite'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call create_community: ' || j::text, coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = '42501');
   raise notice 'PROBE % OK', v_probe;
 end
 $probe$;
