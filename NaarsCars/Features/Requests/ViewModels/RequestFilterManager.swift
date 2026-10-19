@@ -210,6 +210,24 @@ final class RequestFilterManager {
         return fetched.filter { scope.includes($0.communityId) }
     }
 
+    /// Requests the current filter would list under `.all` but `scope` hides: what the "N more" hint counts.
+    /// 0 for `.all`. Rows with no community are shown by every narrow and never count; rows the list hides for
+    /// time (getFilteredRequests) never count.
+    func countOutsideScope(in context: ModelContext, filter: RequestFilter, scope: RequestsScope) -> Int {
+        guard scope != .all else { return 0 }
+        let everything = getFilteredRequests(
+            rides: fetchFilteredRides(in: context, filter: filter, scope: .all),
+            favors: fetchFilteredFavors(in: context, filter: filter, scope: .all),
+            filter: filter
+        ).count
+        let narrowed = getFilteredRequests(
+            rides: fetchFilteredRides(in: context, filter: filter, scope: scope),
+            favors: fetchFilteredFavors(in: context, filter: filter, scope: scope),
+            filter: filter
+        ).count
+        return max(0, everything - narrowed)
+    }
+
     func computeFilterBadgeCounts(
         in context: ModelContext,
         requestNotificationSummaries: [String: RequestNotificationSummary],

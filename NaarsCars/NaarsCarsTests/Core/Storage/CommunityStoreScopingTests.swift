@@ -414,6 +414,53 @@ final class CommunityStoreScopingTests: XCTestCase {
         XCTAssertEqual(manager.fetchFilteredFavors(in: context, filter: .open).count, 3)
     }
 
+    func testCountOutsideScope_CountsOtherCommunitiesOnly() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let future = Date().addingTimeInterval(7 * 86_400)
+        for community in [communityA, communityB, communityB, nil] {
+            context.insert(SDRide(id: UUID(), userId: userId, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: community))
+        }
+        try context.save()
+        XCTAssertEqual(RequestFilterManager().countOutsideScope(in: context, filter: .open, scope: .community(communityA)), 2)
+    }
+
+    func testCountOutsideScope_AllScopeIsZero() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let future = Date().addingTimeInterval(7 * 86_400)
+        context.insert(SDRide(id: UUID(), userId: userId, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: communityB))
+        try context.save()
+        XCTAssertEqual(RequestFilterManager().countOutsideScope(in: context, filter: .open, scope: .all), 0)
+    }
+
+    func testCountOutsideScope_FollowsTheFilter() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let future = Date().addingTimeInterval(7 * 86_400)
+        let previousUser = AuthService.shared.currentUserId
+        AuthService.shared.currentUserId = userId
+        defer { AuthService.shared.currentUserId = previousUser }
+        let claimer = UUID()
+        let ride = SDRide(id: UUID(), userId: claimer, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: communityB)
+        ride.status = "confirmed"
+        ride.claimedBy = userId
+        context.insert(ride)
+        try context.save()
+        let manager = RequestFilterManager()
+        XCTAssertEqual(manager.countOutsideScope(in: context, filter: .claimed, scope: .community(communityA)), 1)
+        XCTAssertEqual(manager.countOutsideScope(in: context, filter: .open, scope: .community(communityA)), 0)
+    }
+
+    func testCountOutsideScope_SkipsRowsTheListHidesForTime() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let past = Date().addingTimeInterval(-3 * 86_400)
+        context.insert(SDRide(id: UUID(), userId: userId, date: past, time: "12:00:00", pickup: "P", destination: "D", communityId: communityB))
+        try context.save()
+        XCTAssertEqual(RequestFilterManager().countOutsideScope(in: context, filter: .open, scope: .community(communityA)), 0)
+    }
+
     func testNarrowScope_BadgeCountsCountOnlyScopedRequests() throws {
         let container = try makeContainer()
         let context = ModelContext(container)

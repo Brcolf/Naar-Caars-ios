@@ -30,6 +30,8 @@ final class RequestsDashboardViewModel: ObservableObject {
     @Published var filteredRides: [SDRide] = []
     @Published var filteredFavors: [SDFavor] = []
     @Published var filteredRequests: [RequestItem] = []
+    /// Requests the current filter lists under All communities but the narrowed scope hides (0 when not narrowed).
+    @Published private(set) var otherCommunitiesCount: Int = 0
 
     var unseenRequestKeys: Set<String> { summaryManager.unseenRequestKeys }
     var requestNotificationSummaries: [String: RequestNotificationSummary] { summaryManager.requestNotificationSummaries }
@@ -239,6 +241,7 @@ final class RequestsDashboardViewModel: ObservableObject {
         filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: communityContext.requestsScope)
         filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: communityContext.requestsScope)
         filteredRequests = filterManager.getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filter)
+        otherCommunitiesCount = filterManager.countOutsideScope(in: context, filter: filter, scope: communityContext.requestsScope)
         refreshFilterBadgeCounts()
     }
 

@@ -171,6 +171,9 @@ struct RequestsDashboardView: View {
             ScrollView {
                 LazyVStack(spacing: Constants.Spacing.md, pinnedViews: [.sectionHeaders]) {
                     Section(header: filterHeaderView) {
+                        if viewModel.otherCommunitiesCount > 0 {
+                            otherCommunitiesHint(count: viewModel.otherCommunitiesCount)
+                        }
                         if viewModel.isLoading && filteredRequests.isEmpty {
                             // Show skeleton loading
                             VStack(spacing: Constants.Spacing.md) {
@@ -255,6 +258,25 @@ struct RequestsDashboardView: View {
                 navigationCoordinator.pendingIntent = nil
             }
         }
+    }
+
+    private func otherCommunitiesHint(count: Int) -> some View {
+        HStack(spacing: Constants.Spacing.sm) {
+            Text(String(format: (count == 1 ? "requests_other_communities_hint_one" : "requests_other_communities_hint_other").localized, count))
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextSecondary)
+                .accessibilityIdentifier("requests.otherCommunities.hint")
+            Spacer(minLength: 0)
+            Button("requests_other_communities_show_all".localized) {
+                communityContext.requestsScope = .all
+            }
+            .buttonStyle(.borderless)
+            .font(.naarsSubheadline)
+            .accessibilityLabel("requests_other_communities_show_all".localized)
+            .accessibilityIdentifier("requests.otherCommunities.showAll")
+        }
+        .padding(.horizontal)
+        .accessibilityElement(children: .contain)
     }
 
     private var filterHeaderView: some View {
