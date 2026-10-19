@@ -228,8 +228,8 @@ final class CommunitySettingsViewModel: ObservableObject {
     /// are not all about roles ("already archived", "the default community cannot be archived",
     /// "not found", a name, description or time zone the server rejects), so a code-less refusal
     /// reads as the generic error (`localizedMessage` gives it for a nil code), never as "your role
-    /// may have changed"; no refusal code means a role change for these RPCs. The screen still
-    /// reloads after one, so a role that did change lands it in the read-only or not-admin state.
+    /// may have changed": for these RPCs a missing code does not identify a role change. The screen
+    /// still reloads after one, so a role that did change lands it in the read-only or not-admin state.
     private func handleRefusal(_ refusal: CommunityRPCError) async {
         errorMessage = refusal.localizedMessage
         guard refusal.code == nil else { return }

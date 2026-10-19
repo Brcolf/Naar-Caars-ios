@@ -125,7 +125,8 @@ struct PendingMembersView: View {
     private var notAdminState: some View {
         VStack(spacing: Constants.Spacing.md) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 48))
+                .font(.largeTitle)
+                .imageScale(.large)
                 .foregroundColor(.secondary)
                 .accessibilityHidden(true)
             Text("community_pending_not_admin".localized)
