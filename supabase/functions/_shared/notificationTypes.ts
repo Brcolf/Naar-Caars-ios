@@ -31,6 +31,7 @@ export const NOTIFICATION_TYPES = {
   USER_APPROVED: 'user_approved',
   USER_REJECTED: 'user_rejected',
   ACCOUNT_RESTRICTED: 'account_restricted',
+  MEMBERSHIP_UPDATE: 'membership_update',
   OTHER: 'other',
 } as const
 
