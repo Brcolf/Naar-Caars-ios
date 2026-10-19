@@ -293,6 +293,9 @@
 		AC410C913085C33B00D921E2 /* CommunitySettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */; };
 		AC410C933085C37800D921E2 /* CommunitySettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */; };
 		AC410C953085C3A700D921E2 /* CommunitySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */; };
+		AC410C973085C8F000D921E2 /* CommunityReportsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */; };
+		AC410C993085C92500D921E2 /* CommunityReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C983085C92500D921E2 /* CommunityReportsViewModel.swift */; };
+		AC410C9B3085C96600D921E2 /* CommunityReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -859,6 +862,9 @@
 		AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySettingsViewModelTests.swift; sourceTree = "<group>"; };
 		AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySettingsViewModel.swift; sourceTree = "<group>"; };
 		AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySettingsView.swift; sourceTree = "<group>"; };
+		AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityReportsViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C983085C92500D921E2 /* CommunityReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityReportsViewModel.swift; sourceTree = "<group>"; };
+		AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityReportsView.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1489,6 +1495,7 @@
 				AC410C6430855F0C00D921E2 /* OwnedLimitRequestViewModel.swift */,
 				AC410C8A3085BC2900D921E2 /* CommunityMembersViewModel.swift */,
 				AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */,
+				AC410C983085C92500D921E2 /* CommunityReportsViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1504,6 +1511,7 @@
 				AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */,
 				AC410C883085BBE400D921E2 /* CommunityMembersViewModelTests.swift */,
 				AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */,
+				AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1667,6 +1675,7 @@
 				AC410C8C3085BC4B00D921E2 /* CommunityMembersView.swift */,
 				AC410C8E3085BC7A00D921E2 /* CommunityMemberDetailView.swift */,
 				AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */,
+				AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2656,6 +2665,7 @@
 				AC410C233084E78500D921E2 /* CommunityServiceProtocol.swift in Sources */,
 				AC410C69308561BC00D921E2 /* CommunitiesAdminViewModel.swift in Sources */,
 				06238E65BA4246C1A044E2E5 /* View+Extensions.swift in Sources */,
+				AC410C9B3085C96600D921E2 /* CommunityReportsView.swift in Sources */,
 				C18A928FEE624F3EBF15DBB4 /* Typography.swift in Sources */,
 				ACD19A682F174C75009C1DE5 /* MessagingDebugView.swift in Sources */,
 				AC305F2F2F0DB8920063AFDF /* ClaimButton.swift in Sources */,
@@ -2984,6 +2994,7 @@
 				6EE30517C86B4654BA40560D /* UI/Components/Messaging/MessageInputBar.swift in Sources */,
 				BPCELL012F3B00000000001A /* BubblePath.swift in Sources */,
 				1BE25CCB8B304E4C86A726D8 /* UI/Components/Messaging/Cells/MessageCellConfig.swift in Sources */,
+				AC410C993085C92500D921E2 /* CommunityReportsViewModel.swift in Sources */,
 				929F582D7CA948F4B7D47EB5 /* UI/Components/Messaging/Cells/MessageCellView.swift in Sources */,
 				3F36ADBA1092400BB0EBCA05 /* MessageReaction.swift in Sources */,
 				A15A05DEAFC5DFB47F6F95FA /* UIImage+Resize.swift in Sources */,
@@ -3080,6 +3091,7 @@
 				DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */,
 				28B926AB58164D40896CFF72 /* FavorTests.swift in Sources */,
 				C8CEEF770B7A4F8598CD5E47 /* RateLimiterTests.swift in Sources */,
+				AC410C973085C8F000D921E2 /* CommunityReportsViewModelTests.swift in Sources */,
 				850ABDE68A3C493EA11B2742 /* CacheManagerTests.swift in Sources */,
 				80050E94680D403DB1A864A3 /* ReplyContextBuilderTests.swift in Sources */,
 				5E0303F50D30446C923902CE /* ImageCompressorTests.swift in Sources */,

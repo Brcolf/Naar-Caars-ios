@@ -8573,6 +8573,375 @@
         }
       }
     },
+    "community_reports_action_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This report can't be changed here. A platform moderator may have handled it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este reporte no se puede cambiar aquí. Es posible que un moderador de la plataforma ya lo haya gestionado."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 신고는 여기에서 변경할 수 없습니다. 플랫폼 운영자가 이미 처리했을 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể thay đổi báo cáo này tại đây. Có thể người kiểm duyệt của nền tảng đã xử lý nó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法在此更改这条举报。平台审核员可能已经处理过了。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在此變更這則檢舉。平台審核員可能已經處理過了。"
+          }
+        }
+      }
+    },
+    "community_reports_empty_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reports about posts, comments, requests and members of this community appear here."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aquí aparecen los reportes sobre publicaciones, comentarios, solicitudes y miembros de esta comunidad."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 커뮤니티의 게시물, 댓글, 요청, 멤버에 대한 신고가 여기에 표시됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các báo cáo về bài đăng, bình luận, yêu cầu và thành viên của cộng đồng này sẽ hiển thị ở đây."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "针对本社区帖子、评论、请求和成员的举报会显示在这里。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "針對本社群貼文、留言、請求和成員的檢舉會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "community_reports_empty_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No reports"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin reportes"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "신고 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có báo cáo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有举报"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有檢舉"
+          }
+        }
+      }
+    },
+    "community_reports_hide_author_told" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The author is told it was hidden and sees your reason."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se avisa al autor de que se ocultó y verá tu motivo."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작성자에게 숨겨졌다는 알림이 가며 작성자는 사유를 볼 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tác giả sẽ được thông báo rằng nội dung đã bị ẩn và thấy lý do của bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者会收到内容已被隐藏的通知，并能看到你的理由。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者會收到內容已被隱藏的通知，並能看到你的理由。"
+          }
+        }
+      }
+    },
+    "community_reports_person_dismiss_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To act on a person, remove them in Members."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para tomar medidas sobre una persona, quítala en Miembros."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사람에 대해 조치하려면 멤버에서 내보내세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Để xử lý một người, hãy xóa họ trong mục Thành viên."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如需处理某个人，请在“成员”中将其移除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如需處理某個人，請在「成員」中將其移除。"
+          }
+        }
+      }
+    },
+    "community_reports_platform_handled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platform moderators handled this report."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los moderadores de la plataforma gestionaron este reporte."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플랫폼 운영자가 이 신고를 처리했습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Người kiểm duyệt của nền tảng đã xử lý báo cáo này."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "平台审核员已处理这条举报。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "平台審核員已處理這則檢舉。"
+          }
+        }
+      }
+    },
+    "community_reports_restore_platform_only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden by platform moderators or automatically after several reports. Only platform moderators can restore it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultado por los moderadores de la plataforma o automáticamente tras varios reportes. Solo los moderadores de la plataforma pueden restaurarlo."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플랫폼 운영자가 숨겼거나 여러 번 신고되어 자동으로 숨겨졌습니다. 플랫폼 운영자만 복원할 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã bị người kiểm duyệt của nền tảng ẩn hoặc tự động ẩn sau nhiều báo cáo. Chỉ người kiểm duyệt của nền tảng mới có thể khôi phục."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已被平台审核员隐藏，或在多次举报后被自动隐藏。只有平台审核员可以恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已被平台審核員隱藏，或在多次檢舉後被自動隱藏。只有平台審核員可以恢復。"
+          }
+        }
+      }
+    },
+    "community_reports_scope_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You don't see who reported. Reports about this community's owners and admins, and about anything you posted, go to platform moderators."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ves quién hizo el reporte. Los reportes sobre los propietarios y administradores de esta comunidad, y sobre cualquier cosa que hayas publicado, van a los moderadores de la plataforma."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "누가 신고했는지는 보이지 않습니다. 이 커뮤니티의 소유자와 관리자에 대한 신고, 그리고 내가 올린 게시물에 대한 신고는 플랫폼 운영자에게 전달됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bạn không thấy ai đã báo cáo. Các báo cáo về chủ sở hữu và quản trị viên của cộng đồng này, và về bất cứ điều gì bạn đã đăng, sẽ được chuyển đến người kiểm duyệt của nền tảng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你看不到举报人是谁。针对本社区所有者和管理员的举报，以及针对你发布的任何内容的举报，都会交给平台审核员处理。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你看不到檢舉人是誰。針對本社群擁有者和管理員的檢舉，以及針對你發布的任何內容的檢舉，都會交由平台審核員處理。"
+          }
+        }
+      }
+    },
+    "community_reports_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reports"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reportes"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "신고"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Báo cáo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "举报"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢舉"
+          }
+        }
+      }
+    },
     "community_requested_toast" : {
       "extractionState" : "manual",
       "localizations" : {
