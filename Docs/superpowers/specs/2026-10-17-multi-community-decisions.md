@@ -50,3 +50,13 @@
 ### A4. Sequencing relative to the Android initiative
 
 Communities are built first (roadmap ordering A). The harness phases are not part of this build; the existing rolled-back-probe discipline from the 2026-10 migrations is used instead, plus a committed probe script (`supabase/probes/communities_probe.sql`).
+
+### A5. Scope extended to Phases 4 and 5 (owner decision, 2026-10-19)
+
+With Phases 0-3 built, gated and pushed (`a4e56d4`), the owner extended the build to the spec's Phases 4 and 5 on the same branch and draft PR, Phase 4 first. Three decisions shape it:
+
+1. **Universal Links are built in full in Phase 4**: the client code (`onOpenURL` → `DeepLinkParser` → `.joinCommunity(code)` → the join sheet; signed out → `PendingInviteStore` and the Welcome banner) and the `com.apple.developer.associated-domains` entitlement `applinks:naarscars.com`. The owner enables the Associated Domains capability on the App ID (team `WT4DGUYKL4`, bundle `com.NaarsCars`) and hosts the `apple-app-site-association` file at `https://naarscars.com/.well-known/` **before the next archive**, since an entitlement the provisioning profile lacks fails the archive; the Phase 4 plan gives the exact file and steps. Simulator verification needs neither.
+2. **Phase 5 is split.** *5a, built now:* delete the dead invite UI and the superseded screens with their project references (through the Xcode MCP file tools, not by hand), stop writing `heard_about` / `join_reason` to `profiles` for new rows, add a definer geocoding lookup and move the client to it, move the client to signed storage URLs (they work while the buckets are still public). *5b, gated:* the legacy bridges, the `fill_request_community` fallback and `is_default` dependence, the `admin_reject_pending_user` revoke, the `invite_codes` drop, the `geocoding_cache` SELECT revoke and the bucket flip to private are written, dry-run and probed, with headers **NOT APPLIED until the owner confirms from App Store Connect that no pre-community build remains in use**. The same gate applies to any Phase 4 server change that would alter what the installed build receives (the `membership_update` producers and the real `broadcast` push): registry entries ship now, producers are gated.
+3. **Order:** Phase 4, then 5a, each with its own plan, workflow, gate and push, on this branch; PR #6 remains the single review unit.
+
+The owner's standing instruction on SQL (apply from the orchestrator session, one call per block, dry run and probes first) continues to apply to Phase 4 and 5a; 5b's apply waits for the gate in point 2.
