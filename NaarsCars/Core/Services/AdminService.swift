@@ -22,6 +22,88 @@ private struct BroadcastParams: Codable, Sendable {
     let p_pinned: Bool
 }
 
+// MARK: - Community RPC parameters (explicit keys; optionals are omitted when nil)
+
+/// `p_community_id` only; nil means every community (platform admins only).
+private struct StatsScopeParams: Encodable, Sendable {
+    let communityId: String?
+
+    private enum CodingKeys: String, CodingKey { case p_community_id }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(communityId, forKey: .p_community_id)
+    }
+}
+
+private struct StatsBreakdownParams: Encodable, Sendable {
+    let communityId: String?
+    let period: String
+    let count: Int
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_period, p_count }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(communityId, forKey: .p_community_id)
+        try c.encode(period, forKey: .p_period)
+        try c.encode(count, forKey: .p_count)
+    }
+}
+
+/// `p_type` is omitted: the server default is 'broadcast'.
+private struct CommunityBroadcastParams: Encodable, Sendable {
+    let communityId: String
+    let title: String
+    let body: String
+    let pinned: Bool
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_title, p_body, p_pinned }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(title, forKey: .p_title)
+        try c.encode(body, forKey: .p_body)
+        try c.encode(pinned, forKey: .p_pinned)
+    }
+}
+
+private struct CommunityReportsParams: Encodable, Sendable {
+    let communityId: String
+    let status: String?
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_status }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encodeIfPresent(status, forKey: .p_status)
+    }
+}
+
+private struct CommunityModerationParams: Encodable, Sendable {
+    let reportId: String
+    let action: String
+    let reason: String?
+
+    private enum CodingKeys: String, CodingKey { case p_report_id, p_action, p_reason }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(reportId, forKey: .p_report_id)
+        try c.encode(action, forKey: .p_action)
+        try c.encodeIfPresent(reason, forKey: .p_reason)
+    }
+}
+
+/// The `{success: true, rows: [...]}` payload of the three statistics breakdowns.
+private struct StatsRows<Row: Decodable>: Decodable {
+    let rows: [Row]
+
+    private enum CodingKeys: String, CodingKey { case rows }
+}
+
 // MARK: - Admin Stats DTOs
 
 struct AdminDashboardStats: Decodable {
@@ -204,67 +286,101 @@ final class AdminService {
         return profiles
     }
     
-    /// Fetch admin dashboard summary stats via RPC
-    func fetchDashboardStats() async throws -> AdminDashboardStats {
-        try await verifyAdminStatus()
+    // MARK: - Figures (by community)
+    //
+    // The server checks the caller (`can_read_community_stats`, 20261018_0002 block 1): a platform
+    // admin for every community or any one, a community's owners and admins for theirs. These calls
+    // do not run `verifyAdminStatus()`, so a community admin reaches them.
 
+    /// Summary figures for one community, or every community when `communityId` is nil.
+    func fetchDashboardStats(communityId: UUID?) async throws -> AdminDashboardStats {
+        let params = StatsScopeParams(communityId: communityId?.uuidString)
         let response = try await supabase
-            .rpc("admin_dashboard_stats")
+            .rpc("get_community_stats", params: params)
             .execute()
 
-        let stats = try JSONDecoder().decode(AdminDashboardStats.self, from: response.data)
-
+        let stats = try CommunityRPC.decode(AdminDashboardStats.self, from: response.data)
         AppLogger.info("admin", "Dashboard stats: \(stats.fulfilledCount) fulfilled, $\(stats.totalSavings) savings, \(stats.activeRidesCount) active")
         return stats
     }
 
-    /// Fetch fulfilled requests breakdown by period
-    func fetchFulfilledBreakdown(period: String, count: Int = 12) async throws -> [FulfilledPeriod] {
-        try await verifyAdminStatus()
-
-        let params: [String: AnyCodable] = [
-            "p_period": AnyCodable(period),
-            "p_count": AnyCodable(count)
-        ]
-
+    /// Fulfilled requests by period for one community, or every community when `communityId` is nil.
+    func fetchFulfilledBreakdown(communityId: UUID?, period: String, count: Int) async throws -> [FulfilledPeriod] {
+        let params = StatsBreakdownParams(communityId: communityId?.uuidString, period: period, count: count)
         let response = try await supabase
-            .rpc("admin_stats_fulfilled", params: params)
+            .rpc("get_community_stats_fulfilled", params: params)
             .execute()
-
-        let decoder = DateDecoderFactory.makeSupabaseDecoder()
-        let periods = try decoder.decode([FulfilledPeriod]?.self, from: response.data)
-        return periods ?? []
+        return try CommunityRPC.decode(StatsRows<FulfilledPeriod>.self, from: response.data).rows
     }
 
-    /// Fetch savings breakdown by period
-    func fetchSavingsBreakdown(period: String, count: Int = 12) async throws -> [SavingsPeriod] {
-        try await verifyAdminStatus()
-
-        let params: [String: AnyCodable] = [
-            "p_period": AnyCodable(period),
-            "p_count": AnyCodable(count)
-        ]
-
+    /// Savings by period for one community, or every community when `communityId` is nil.
+    func fetchSavingsBreakdown(communityId: UUID?, period: String, count: Int) async throws -> [SavingsPeriod] {
+        let params = StatsBreakdownParams(communityId: communityId?.uuidString, period: period, count: count)
         let response = try await supabase
-            .rpc("admin_stats_savings", params: params)
+            .rpc("get_community_stats_savings", params: params)
             .execute()
-
-        let decoder = DateDecoderFactory.makeSupabaseDecoder()
-        let periods = try decoder.decode([SavingsPeriod]?.self, from: response.data)
-        return periods ?? []
+        return try CommunityRPC.decode(StatsRows<SavingsPeriod>.self, from: response.data).rows
     }
 
-    /// Fetch all active (unfinished) rides and favors
-    func fetchActiveRequests() async throws -> [ActiveRequestRow] {
-        try await verifyAdminStatus()
-
+    /// Active (unfinished) rides and favors of one community, or every community when `communityId` is nil.
+    func fetchActiveRequests(communityId: UUID?) async throws -> [ActiveRequestRow] {
+        let params = StatsScopeParams(communityId: communityId?.uuidString)
         let response = try await supabase
-            .rpc("admin_stats_active_rides")
+            .rpc("get_community_stats_active_requests", params: params)
             .execute()
+        return try CommunityRPC.decode(StatsRows<ActiveRequestRow>.self, from: response.data).rows
+    }
 
-        let decoder = DateDecoderFactory.makeSupabaseDecoder()
-        let requests = try decoder.decode([ActiveRequestRow]?.self, from: response.data)
-        return requests ?? []
+    // MARK: - Announcements (by community)
+
+    /// Posts an announcement to one community's Town Hall and tells its members.
+    /// `send_community_broadcast` raises instead of answering an envelope: SQLSTATE P0001 (3 a day)
+    /// becomes `AdminServiceError.broadcastDailyLimit`, 42501 `.notCommunityAdmin`.
+    /// - Returns: the number of members told
+    func sendBroadcast(communityId: UUID, title: String, message: String, pinToNotifications: Bool) async throws -> Int {
+        let params = CommunityBroadcastParams(
+            communityId: communityId.uuidString,
+            title: title,
+            body: message,
+            pinned: pinToNotifications
+        )
+        do {
+            let response = try await supabase
+                .rpc("send_community_broadcast", params: params)
+                .execute()
+            let count = try JSONDecoder().decode(Int.self, from: response.data)
+            AppLogger.info("admin", "Sent an announcement to \(count) members of \(communityId)")
+            return count
+        } catch let error as PostgrestError {
+            switch error.code {
+            case "P0001":
+                throw AdminServiceError.broadcastDailyLimit
+            case "42501":
+                throw AdminServiceError.notCommunityAdmin
+            default:
+                throw error
+            }
+        }
+    }
+
+    // MARK: - Community reports (by community)
+
+    /// A community's reports, without the reporter (INV-P2). `status` nil = every status.
+    func fetchCommunityReports(communityId: UUID, status: String?) async throws -> [CommunityReport] {
+        let params = CommunityReportsParams(communityId: communityId.uuidString, status: status)
+        let response = try await supabase
+            .rpc("get_community_reports", params: params)
+            .execute()
+        return try CommunityRPC.decode(CommunityReportsPayload.self, from: response.data).reports
+    }
+
+    /// Hide, restore or dismiss for one report of a community the caller administers.
+    func moderateCommunityContent(reportId: UUID, action: CommunityModerationAction, reason: String?) async throws {
+        let params = CommunityModerationParams(reportId: reportId.uuidString, action: action.rawValue, reason: reason)
+        let response = try await supabase
+            .rpc("moderate_community_content", params: params)
+            .execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
     }
     
     // MARK: - User Management
@@ -510,3 +626,5 @@ final class AdminService {
 }
 
 extension AdminService: ApplicantContactFetching {}
+
+extension AdminService: AdminServiceProtocol {}

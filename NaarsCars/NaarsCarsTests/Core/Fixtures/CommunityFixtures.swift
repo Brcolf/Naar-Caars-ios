@@ -261,6 +261,81 @@ enum CommunityFixtures {
     [{"id": "AAAAAAAA-0000-4000-8000-000000000001"}]
     """
 
+    // MARK: - AdminService payloads (supabase/migrations/20261018_0001 block 3-4, 20261018_0002 blocks 2-5)
+
+    static let reportA = UUID(uuidString: "3E000000-0000-4000-8000-000000000001")!
+    static let reportB = UUID(uuidString: "3E000000-0000-4000-8000-000000000002")!
+    static let postA = UUID(uuidString: "4E000000-0000-4000-8000-000000000001")!
+    static let rideA = UUID(uuidString: "5E000000-0000-4000-8000-000000000001")!
+
+    static let communityStatsJSON = """
+    {"success":true,"fulfilled_count":3,"total_savings":12.5,"active_rides_count":2}
+    """
+
+    static let fulfilledRowsJSON = """
+    {"success": true, "rows": [
+      {"period_start": "2026-10-01", "ride_count": 2, "favor_count": 1, "total_count": 3},
+      {"period_start": "2026-09-01", "ride_count": 0, "favor_count": 4, "total_count": 4}
+    ]}
+    """
+
+    static let savingsRowsJSON = """
+    {"success": true, "rows": [
+      {"period_start": "2026-10-01", "total_savings": 40.25, "ride_count": 2},
+      {"period_start": "2026-09-01", "total_savings": 0, "ride_count": 1}
+    ]}
+    """
+
+    static let activeRequestRowsJSON = """
+    {"success": true, "rows": [
+      {"id": "5E000000-0000-4000-8000-000000000001", "type": "ride", "title": "Ballard", "subtitle": "SEA Airport",
+       "date": "2026-10-20", "time": "08:30:00", "status": "open", "claimed_by": null,
+       "poster_name": "Sam Neighbor", "claimer_name": null},
+      {"id": "6E000000-0000-4000-8000-000000000001", "type": "favor", "title": "Water plants", "subtitle": null,
+       "date": "2026-10-21", "time": null, "status": "confirmed", "claimed_by": "0A000000-0000-4000-8000-0000000000A1",
+       "poster_name": "Dana Rivera", "claimer_name": "Sam Neighbor"}
+    ]}
+    """
+
+    /// The first report carries stray reporter keys, which must be ignored; the second has no `can_restore` key.
+    static let communityReportsJSON = """
+    {"success": true, "reports": [
+      {"report_id": "3E000000-0000-4000-8000-000000000001", "target_type": "town_hall_post",
+       "reported_user_id": null, "reported_user_name": null,
+       "author_id": "0A000000-0000-4000-8000-0000000000A1", "author_name": "Sam Neighbor",
+       "reported_post_id": "4E000000-0000-4000-8000-000000000001", "reported_comment_id": null,
+       "reported_ride_id": null, "reported_favor_id": null,
+       "town_hall_post_id": "4E000000-0000-4000-8000-000000000001",
+       "report_type": "spam", "description": "Posted three times\\nin one hour", "status": "action_taken",
+       "created_at": "2026-10-17T09:00:00.123456+00:00", "reviewed_at": "2026-10-17T10:00:00+00:00",
+       "content_preview": "Free couch, come get it", "content_hidden": true,
+       "can_restore": true, "platform_handled": false, "report_count": 2,
+       "reporter_id": "0A000000-0000-4000-8000-0000000000B2", "reporter_name": "Riley Reporter"},
+      {"report_id": "3E000000-0000-4000-8000-000000000002", "target_type": "ride",
+       "reported_user_id": null, "reported_user_name": null,
+       "author_id": "DDDDDDDD-0000-4000-8000-000000000004", "author_name": "Dana Rivera",
+       "reported_post_id": null, "reported_comment_id": null,
+       "reported_ride_id": "5E000000-0000-4000-8000-000000000001", "reported_favor_id": null,
+       "town_hall_post_id": null,
+       "report_type": "inappropriate", "description": null, "status": "action_taken",
+       "created_at": "2026-10-16T09:00:00+00:00", "reviewed_at": "2026-10-16T12:00:00+00:00",
+       "content_preview": "Ballard -> SEA Airport", "content_hidden": true,
+       "platform_handled": true, "report_count": 1}
+    ]}
+    """
+
+    static let statsRefusalJSON = """
+    {"success": false, "error": "Only this community's admins can see its statistics"}
+    """
+
+    static let reportsRefusalWithoutCodeJSON = """
+    {"success": false, "error": "Only this community's admins can see its reports"}
+    """
+
+    static let moderateSuccessJSON = """
+    {"success": true}
+    """
+
     static func membership(
         _ id: UUID,
         name: String,
@@ -540,6 +615,72 @@ final class StubCommunityAdminService: CommunityAdminServiceProtocol {
         decideOwnedCommunityLimitCalls.append((requestId, approve))
         await actionGate?()
         return try decideOwnedCommunityLimitResult.get()
+    }
+}
+
+/// Stub for `AdminServiceProtocol`. One result and one call log per method.
+final class StubAdminService: AdminServiceProtocol {
+    /// Awaited by `sendBroadcast` and `moderateCommunityContent` before they return (a slow request).
+    var actionGate: (() async -> Void)?
+
+    var fetchDashboardStatsResult: Result<AdminDashboardStats, Error> = .success(
+        AdminDashboardStats(fulfilledCount: 0, totalSavings: 0, activeRidesCount: 0)
+    )
+    private(set) var fetchDashboardStatsCalls: [UUID?] = []
+
+    var fetchFulfilledBreakdownResult: Result<[FulfilledPeriod], Error> = .success([])
+    private(set) var fetchFulfilledBreakdownCalls: [(communityId: UUID?, period: String, count: Int)] = []
+
+    var fetchSavingsBreakdownResult: Result<[SavingsPeriod], Error> = .success([])
+    private(set) var fetchSavingsBreakdownCalls: [(communityId: UUID?, period: String, count: Int)] = []
+
+    var fetchActiveRequestsResult: Result<[ActiveRequestRow], Error> = .success([])
+    private(set) var fetchActiveRequestsCalls: [UUID?] = []
+
+    var sendBroadcastResult: Result<Int, Error> = .success(0)
+    private(set) var sendBroadcastCalls: [(communityId: UUID, title: String, message: String, pinToNotifications: Bool)] = []
+
+    var fetchCommunityReportsResult: Result<[CommunityReport], Error> = .success([])
+    private(set) var fetchCommunityReportsCalls: [(communityId: UUID, status: String?)] = []
+
+    var moderateCommunityContentResult: Result<Void, Error> = .success(())
+    private(set) var moderateCommunityContentCalls: [(reportId: UUID, action: CommunityModerationAction, reason: String?)] = []
+
+    func fetchDashboardStats(communityId: UUID?) async throws -> AdminDashboardStats {
+        fetchDashboardStatsCalls.append(communityId)
+        return try fetchDashboardStatsResult.get()
+    }
+
+    func fetchFulfilledBreakdown(communityId: UUID?, period: String, count: Int) async throws -> [FulfilledPeriod] {
+        fetchFulfilledBreakdownCalls.append((communityId, period, count))
+        return try fetchFulfilledBreakdownResult.get()
+    }
+
+    func fetchSavingsBreakdown(communityId: UUID?, period: String, count: Int) async throws -> [SavingsPeriod] {
+        fetchSavingsBreakdownCalls.append((communityId, period, count))
+        return try fetchSavingsBreakdownResult.get()
+    }
+
+    func fetchActiveRequests(communityId: UUID?) async throws -> [ActiveRequestRow] {
+        fetchActiveRequestsCalls.append(communityId)
+        return try fetchActiveRequestsResult.get()
+    }
+
+    func sendBroadcast(communityId: UUID, title: String, message: String, pinToNotifications: Bool) async throws -> Int {
+        sendBroadcastCalls.append((communityId, title, message, pinToNotifications))
+        await actionGate?()
+        return try sendBroadcastResult.get()
+    }
+
+    func fetchCommunityReports(communityId: UUID, status: String?) async throws -> [CommunityReport] {
+        fetchCommunityReportsCalls.append((communityId, status))
+        return try fetchCommunityReportsResult.get()
+    }
+
+    func moderateCommunityContent(reportId: UUID, action: CommunityModerationAction, reason: String?) async throws {
+        moderateCommunityContentCalls.append((reportId, action, reason))
+        await actionGate?()
+        try moderateCommunityContentResult.get()
     }
 }
 

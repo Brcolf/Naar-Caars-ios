@@ -87,7 +87,7 @@ struct AdminFulfilledOverlay: View {
         defer { isLoading = false }
 
         do {
-            periods = try await adminService.fetchFulfilledBreakdown(period: selectedPeriod)
+            periods = try await adminService.fetchFulfilledBreakdown(communityId: nil, period: selectedPeriod, count: 12)
         } catch {
             self.error = "common_load_error".localized
             AppLogger.error("admin", "Fulfilled overlay error: \(error.localizedDescription)")

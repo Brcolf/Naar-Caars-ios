@@ -85,7 +85,7 @@ final class AdminPanelViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let stats = try await adminService.fetchDashboardStats()
+            let stats = try await adminService.fetchDashboardStats(communityId: nil)
             fulfilledCount = stats.fulfilledCount
             totalSavings = stats.totalSavings
             activeRidesCount = stats.activeRidesCount
