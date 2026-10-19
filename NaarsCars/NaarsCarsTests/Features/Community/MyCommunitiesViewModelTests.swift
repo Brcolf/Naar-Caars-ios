@@ -133,6 +133,36 @@ final class MyCommunitiesViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    func testLeave_LastOwnerRefusalOffersTransfer() async throws {
+        let (context, _) = await makeContext()
+        let service = StubCommunityService(result: .success([]))
+        service.leaveCommunityResult = .failure(CommunityRPCError(code: .lastOwner, serverMessage: "A community needs an owner"))
+        var triggers: [String] = []
+        let vm = MyCommunitiesViewModel(
+            service: service,
+            communityContext: context,
+            refreshDashboard: { triggers.append($0) }
+        )
+        let membershipA = try XCTUnwrap(vm.active.first { $0.communityId == CommunityFixtures.communityA })
+
+        let left = await vm.leave(membershipA)
+
+        XCTAssertFalse(left)
+        XCTAssertEqual(vm.newOwnerNeededFor, membershipA)
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertNil(vm.toastMessage)
+        XCTAssertEqual(triggers, [])
+        XCTAssertTrue(vm.active.contains { $0.communityId == CommunityFixtures.communityA })
+        XCTAssertNil(vm.busyCommunityId)
+
+        // Any other refusal still shows its message.
+        service.leaveCommunityResult = .failure(CommunityRPCError(code: .notMember))
+        vm.newOwnerNeededFor = nil
+        _ = await vm.leave(membershipA)
+        XCTAssertNil(vm.newOwnerNeededFor)
+        XCTAssertEqual(vm.errorMessage, CommunityRPCError(code: .notMember).localizedMessage)
+    }
+
     // MARK: - Owned-community limit request
 
     func testLimitRequestRange_IsTotalAtAndAboveTheCeiling() async throws {

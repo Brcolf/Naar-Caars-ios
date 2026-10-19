@@ -290,6 +290,9 @@
 		AC410C8B3085BC2900D921E2 /* CommunityMembersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C8A3085BC2900D921E2 /* CommunityMembersViewModel.swift */; };
 		AC410C8D3085BC4B00D921E2 /* CommunityMembersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C8C3085BC4B00D921E2 /* CommunityMembersView.swift */; };
 		AC410C8F3085BC7A00D921E2 /* CommunityMemberDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C8E3085BC7A00D921E2 /* CommunityMemberDetailView.swift */; };
+		AC410C913085C33B00D921E2 /* CommunitySettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */; };
+		AC410C933085C37800D921E2 /* CommunitySettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */; };
+		AC410C953085C3A700D921E2 /* CommunitySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */; };
 		AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */; };
 		AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */; };
 		AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */; };
@@ -853,6 +856,9 @@
 		AC410C8A3085BC2900D921E2 /* CommunityMembersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMembersViewModel.swift; sourceTree = "<group>"; };
 		AC410C8C3085BC4B00D921E2 /* CommunityMembersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMembersView.swift; sourceTree = "<group>"; };
 		AC410C8E3085BC7A00D921E2 /* CommunityMemberDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMemberDetailView.swift; sourceTree = "<group>"; };
+		AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySettingsViewModelTests.swift; sourceTree = "<group>"; };
+		AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySettingsViewModel.swift; sourceTree = "<group>"; };
+		AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySettingsView.swift; sourceTree = "<group>"; };
 		AC4F1DF02F20BA4800CC5DBA /* ImageViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewerView.swift; sourceTree = "<group>"; };
 		AC4F1DF12F20BA4800CC5DBA /* LinkPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewView.swift; sourceTree = "<group>"; };
 		AC4F1DF22F20BA4800CC5DBA /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
@@ -1482,6 +1488,7 @@
 				AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */,
 				AC410C6430855F0C00D921E2 /* OwnedLimitRequestViewModel.swift */,
 				AC410C8A3085BC2900D921E2 /* CommunityMembersViewModel.swift */,
+				AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1496,6 +1503,7 @@
 				AC410C703085723F00D921E2 /* CommunityOnboardingViewModelTests.swift */,
 				AC410C72308575B900D921E2 /* PendingApprovalViewModelTests.swift */,
 				AC410C883085BBE400D921E2 /* CommunityMembersViewModelTests.swift */,
+				AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1658,6 +1666,7 @@
 				AC410C6630855F0C00D921E2 /* OwnedLimitRequestSheet.swift */,
 				AC410C8C3085BC4B00D921E2 /* CommunityMembersView.swift */,
 				AC410C8E3085BC7A00D921E2 /* CommunityMemberDetailView.swift */,
+				AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2667,6 +2676,7 @@
 				AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */,
 				ACDCBE272F0B7DAE00956D1C /* Secrets.swift in Sources */,
 				ACDCBE272F0B7DAD00956D1C /* AuthService.swift in Sources */,
+				AC410C953085C3A700D921E2 /* CommunitySettingsView.swift in Sources */,
 				ACDCBE252F0B7D9C00956D1C /* SupabaseService.swift in Sources */,
 				AC305F3F2F0DBC430063AFDF /* AnyCodable.swift in Sources */,
 				AC35AB5C2F0F080F0012096B /* TownHallFeedView.swift in Sources */,
@@ -2735,6 +2745,7 @@
 				BDEC40AA79CACB7F0B3FFF58 /* ApplicationFieldsView.swift in Sources */,
 				AC410C8D3085BC4B00D921E2 /* CommunityMembersView.swift in Sources */,
 				BAN0ACC7V1EW00000000BLD1 /* BannedAccountView.swift in Sources */,
+				AC410C933085C37800D921E2 /* CommunitySettingsViewModel.swift in Sources */,
 				AC305EF32F0DB7BD0063AFDF /* LoginViewModel.swift in Sources */,
 				AC8197AD2F14C271003BB08B /* ReviewService.swift in Sources */,
 				AC8197AE2F14C271003BB08B /* BadgeCountManager.swift in Sources */,
@@ -3082,6 +3093,7 @@
 				AC410C813085B72500D921E2 /* AdminServiceTests.swift in Sources */,
 				AC9DDD332F2B139C003465D3 /* FavorDetailViewModelTests.swift in Sources */,
 				AC9DDD342F2B139C003465D3 /* CreateFavorViewModelTests.swift in Sources */,
+				AC410C913085C33B00D921E2 /* CommunitySettingsViewModelTests.swift in Sources */,
 				AC9DDD352F2B139C003465D3 /* NotificationsListViewModelTests.swift in Sources */,
 				AC12007B2F3AE6160043BFAE /* ClaimServiceTests.swift in Sources */,
 				AC12007C2F3AE6160043BFAE /* FavorServiceTests.swift in Sources */,

@@ -34,6 +34,8 @@ struct MyCommunitiesView: View {
     @StateObject private var viewModel: MyCommunitiesViewModel
     @State private var activeSheet: ActiveSheet?
     @State private var pendingTarget: PendingMembersTarget?
+    /// The Members screen opened to choose a new owner after a `last_owner` refusal.
+    @State private var membersTarget: CommunityMembersTarget?
     /// Recorded by Create and Join; acted on in the sheet's `onDismiss`.
     @State private var createdCommunityId: UUID?
     @State private var joinResult: JoinResult?
@@ -115,6 +117,9 @@ struct MyCommunitiesView: View {
         .navigationDestination(item: $pendingTarget) { target in
             PendingMembersView(target: target)
         }
+        .navigationDestination(item: $membersTarget) { target in
+            CommunityMembersView(target: target)
+        }
         .task {
             viewModel.setup(modelContext: modelContext)
             storedInviteCode = PendingInviteStore().peek()
@@ -130,6 +135,30 @@ struct MyCommunitiesView: View {
         }
         .toast(message: $viewModel.toastMessage)
         .errorBanner(message: $viewModel.errorMessage)
+        .alert(
+            "community_leave_needs_owner_title".localized,
+            isPresented: Binding(
+                get: { viewModel.newOwnerNeededFor != nil },
+                set: { if !$0 { viewModel.newOwnerNeededFor = nil } }
+            ),
+            presenting: viewModel.newOwnerNeededFor
+        ) { membership in
+            Button("community_leave_needs_owner_action".localized) {
+                let target = CommunityMembersTarget(
+                    communityId: membership.communityId,
+                    communityName: membership.name,
+                    highlightTransfer: true
+                )
+                viewModel.newOwnerNeededFor = nil
+                membersTarget = target
+            }
+            .accessibilityIdentifier("community.my.chooseNewOwner")
+            Button("common_cancel".localized, role: .cancel) {
+                viewModel.newOwnerNeededFor = nil
+            }
+        } message: { membership in
+            Text(String(format: "community_leave_needs_owner_body".localized, membership.name))
+        }
     }
 
     // MARK: - Saved invite code

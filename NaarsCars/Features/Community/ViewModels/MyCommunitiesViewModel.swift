@@ -71,6 +71,9 @@ final class MyCommunitiesViewModel: ObservableObject {
     @Published var errorMessage: String?
     /// The community a leave or mute is running for; one action at a time.
     @Published private(set) var busyCommunityId: UUID?
+    /// Set instead of `errorMessage` when a leave is refused with `last_owner`: the view offers
+    /// to choose a new owner on the community's Members screen.
+    @Published var newOwnerNeededFor: CommunityMembership?
 
     private let service: any CommunityServiceProtocol
     private let communityContext: CommunityContext
@@ -172,7 +175,11 @@ final class MyCommunitiesViewModel: ObservableObject {
         do {
             _ = try await service.leaveCommunity(communityId: membership.communityId)
         } catch let refusal as CommunityRPCError {
-            errorMessage = refusal.localizedMessage
+            if refusal.code == .lastOwner {
+                newOwnerNeededFor = membership
+            } else {
+                errorMessage = refusal.localizedMessage
+            }
             return false
         } catch {
             AppLogger.error("community", "leaveCommunity failed: \(error)")
