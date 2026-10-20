@@ -8,6 +8,150 @@
 import XCTest
 @testable import NaarsCars
 
+/// Answers TownHallService's PostgREST calls while a test has activated it. The page read
+/// (`GET town_hall_posts`) returns the page JSON and, when held, waits until
+/// `releaseHeldPages()` without blocking the loading thread, so a second call can start while
+/// the first is in flight. The enrichment reads return `[]`, a single-row read (`.single()`)
+/// answers 406 (no row) and every write answers 201.
+final class TownHallPageURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var active = false
+    private static var pageJSON = "[]"
+    private static var holdsPages = false
+    private static var held: [(runLoop: CFRunLoop, deliver: () -> Void)] = []
+    private static var pageRequests = 0
+    private static var writes = 0
+
+    static func activate(pageJSON json: String, holdPages: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        active = true
+        pageJSON = json
+        holdsPages = holdPages
+        held = []
+        pageRequests = 0
+        writes = 0
+    }
+
+    static func deactivate() {
+        releaseHeldPages()
+        lock.lock(); defer { lock.unlock() }
+        active = false
+        pageJSON = "[]"
+        holdsPages = false
+    }
+
+    /// Page reads that reached the "server" (a joined call makes none).
+    static var pageRequestCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return pageRequests
+    }
+
+    static var writeCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return writes
+    }
+
+    /// Answers every held page read, and stops holding new ones until `holdPages(true)`.
+    static func releaseHeldPages() {
+        lock.lock()
+        let pending = held
+        held = []
+        holdsPages = false
+        lock.unlock()
+        for item in pending {
+            CFRunLoopPerformBlock(item.runLoop, CFRunLoopMode.commonModes.rawValue, item.deliver)
+            CFRunLoopWakeUp(item.runLoop)
+        }
+    }
+
+    static func holdPages(_ hold: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        holdsPages = hold
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return active
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let request = self.request
+        let method = request.httpMethod ?? "GET"
+        let accept = request.value(forHTTPHeaderField: "Accept") ?? ""
+        let isPage = method == "GET" && (request.url?.path ?? "").hasSuffix("/town_hall_posts")
+            && !accept.contains("vnd.pgrst.object")
+        let status: Int
+        let body: String
+        var hold = false
+        Self.lock.lock()
+        if method != "GET" {
+            Self.writes += 1
+            status = 201
+            body = "[]"
+        } else if accept.contains("vnd.pgrst.object") {
+            status = 406
+            body = #"{"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"JSON object requested, multiple (or no) rows returned"}"#
+        } else if isPage {
+            Self.pageRequests += 1
+            hold = Self.holdsPages
+            status = 200
+            body = Self.pageJSON
+        } else {
+            status = 200
+            body = "[]"
+        }
+        Self.lock.unlock()
+
+        let deliver: () -> Void = { [weak self] in
+            guard let self else { return }
+            let response = HTTPURLResponse(
+                url: request.url ?? URL(string: "https://localhost")!,
+                statusCode: status,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: Data(body.utf8))
+            self.client?.urlProtocolDidFinishLoading(self)
+        }
+        guard hold else { return deliver() }
+        // Answered later on this loading thread's run loop, as URLProtocol requires.
+        let runLoop = CFRunLoopGetCurrent()!
+        Self.lock.lock()
+        Self.held.append((runLoop, deliver))
+        Self.lock.unlock()
+    }
+
+    override func stopLoading() {}
+}
+
+/// Records each read of the blocked set and whether it happened on the main thread.
+private final class BlockedSetReads: @unchecked Sendable {
+    private let lock = NSLock()
+    private let blocked: Set<UUID>
+    private var onMainThread: [Bool] = []
+
+    init(blocked: Set<UUID>) { self.blocked = blocked }
+
+    func read() -> Set<UUID> {
+        lock.lock(); defer { lock.unlock() }
+        onMainThread.append(Thread.isMainThread)
+        return blocked
+    }
+
+    var count: Int {
+        lock.lock(); defer { lock.unlock() }
+        return onMainThread.count
+    }
+
+    var allOnMainThread: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return !onMainThread.isEmpty && onMainThread.allSatisfy { $0 }
+    }
+}
+
 @MainActor
 final class TownHallServiceTests: XCTestCase {
     var townHallService: TownHallService!
@@ -188,7 +332,70 @@ final class TownHallServiceTests: XCTestCase {
             XCTFail("Failed to create system post: \(error.localizedDescription)")
         }
     }
+
+    // MARK: - Page reads (stubbed; no network)
+
+    private static func pageJSON(_ rows: [(id: UUID, author: UUID)]) -> String {
+        let objects = rows.map { row in
+            #"{"id":"\#(row.id.uuidString)","user_id":"\#(row.author.uuidString)","content":"Post","created_at":"2026-10-20T10:00:00.000Z","updated_at":"2026-10-20T10:00:00.000Z"}"#
+        }
+        return "[" + objects.joined(separator: ",") + "]"
+    }
+
+    /// Activates the stub for one test; deactivated and unregistered when the test ends.
+    private func stubPageReads(_ json: String, holdPages: Bool) {
+        TownHallPageURLProtocol.activate(pageJSON: json, holdPages: holdPages)
+        URLProtocol.registerClass(TownHallPageURLProtocol.self)
+        addTeardownBlock {
+            TownHallPageURLProtocol.deactivate()
+            URLProtocol.unregisterClass(TownHallPageURLProtocol.self)
+        }
+    }
+
+    private func waitForPageRequests(_ count: Int, timeout: TimeInterval = 5) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while TownHallPageURLProtocol.pageRequestCount < count {
+            guard Date() < deadline else {
+                XCTFail("expected \(count) page requests, saw \(TownHallPageURLProtocol.pageRequestCount)")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    /// The shared page fetch runs on the deduplicator's task, off the main thread, and returns its
+    /// posts unfiltered; each caller removes blocked authors after it returns, on its own
+    /// (main-actor) executor. Two identical calls make one page request and two reads of the
+    /// blocked set, both on the main thread, and both results leave the blocked author out.
+    func testFetchPostsPage_FiltersBlockedAuthorsAfterTheSharedFetch() async throws {
+        let blockedAuthor = UUID()
+        let otherAuthor = UUID()
+        let blockedPost = UUID()
+        let otherPost = UUID()
+        stubPageReads(Self.pageJSON([(blockedPost, blockedAuthor), (otherPost, otherAuthor)]), holdPages: true)
+        let service = try XCTUnwrap(townHallService)
+        let reads = BlockedSetReads(blocked: [blockedAuthor])
+        service.blockedAuthorIds = { reads.read() }
+        defer { service.blockedAuthorIds = { MessageService.shared.cachedBlockedUserIds } }
+        let communityId = UUID()   // a page key no other test uses
+
+        let first = Task { @MainActor in
+            try await service.fetchPostsPage(limit: 20, offset: 0, communityId: communityId)
+        }
+        try await waitForPageRequests(1)
+        let second = Task { @MainActor in
+            try await service.fetchPostsPage(limit: 20, offset: 0, communityId: communityId)
+        }
+        try await Task.sleep(for: .milliseconds(300))   // the second call reaches the deduplicator
+        TownHallPageURLProtocol.releaseHeldPages()
+        let results = try await [first.value, second.value]
+
+        XCTAssertEqual(TownHallPageURLProtocol.pageRequestCount, 1, "the second call joined the first")
+        for result in results {
+            XCTAssertEqual(result.posts.map(\.id), [otherPost])
+            XCTAssertEqual(result.serverCount, 2, "counted before the blocked-author filter")
+        }
+        XCTAssertEqual(reads.count, 2, "one read per caller, none inside the shared fetch")
+        XCTAssertTrue(reads.allOnMainThread, "read on the callers' main-actor executor")
+    }
 }
-
-
-

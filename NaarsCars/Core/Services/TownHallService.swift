@@ -22,6 +22,9 @@ final class TownHallService {
     private let rateLimiter = RateLimiter.shared
     /// Joins identical page reads that overlap (see `fetchPostsPage`).
     private let pageRequests = RequestDeduplicator()
+    /// The authors whose posts the page read leaves out. Read on the caller's executor after the
+    /// shared fetch returns, never inside it (see `fetchPostsPage`). Internal so tests can stand in.
+    var blockedAuthorIds: () -> Set<UUID> = { MessageService.shared.cachedBlockedUserIds }
 
     // MARK: - Initialization
     
@@ -51,14 +54,24 @@ final class TownHallService {
     /// page at the same moment. An identical call made while one is in flight waits for it and
     /// gets the same result, instead of a second page read plus its four enrichment reads. The key
     /// holds the user, so a read never serves another account across a sign-out.
+    ///
+    /// The shared fetch runs on the deduplicator's task, off the main thread, so it returns the
+    /// posts unfiltered. Posts by blocked authors are removed here, after it returns, on the
+    /// caller's executor (the main actor for every caller), because `MessageService` writes
+    /// `cachedBlockedUserIds` on the main actor. Each joined caller filters with the set current
+    /// when its own call returns.
     func fetchPostsPage(limit: Int = 20, offset: Int = 0, communityId: UUID? = nil) async throws -> (posts: [TownHallPost], serverCount: Int) {
         let userId = AuthService.shared.currentUserId
         let key = "townHallPostsPage:\(limit):\(offset):\(communityId?.uuidString ?? "all"):\(userId?.uuidString ?? "none")"
-        return try await pageRequests.fetch(key: key) { [self] in
+        let page = try await pageRequests.fetch(key: key) { [self] in
             try await self.fetchPostsPageFromServer(limit: limit, offset: offset, communityId: communityId, userId: userId)
         }
+        let blockedIds = blockedAuthorIds()
+        guard !blockedIds.isEmpty else { return page }
+        return (page.posts.filter { !blockedIds.contains($0.userId) }, page.serverCount)
     }
 
+    /// One page with its enrichment, not filtered for blocked authors (`fetchPostsPage` does that).
     private func fetchPostsPageFromServer(limit: Int, offset: Int, communityId: UUID?, userId: UUID?) async throws -> (posts: [TownHallPost], serverCount: Int) {
         var query = supabase
             .from("town_hall_posts")
@@ -78,12 +91,6 @@ final class TownHallService {
         // Enrich with author profiles, vote counts, comment counts, and review data.
         // The lookups only depend on this page of posts, so they run concurrently.
         posts = await enrichPosts(posts, userId: userId)
-
-        // Filter out posts from blocked users
-        let blockedIds = MessageService.shared.cachedBlockedUserIds
-        if !blockedIds.isEmpty {
-            posts = posts.filter { !blockedIds.contains($0.userId) }
-        }
 
         AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
         return (posts, serverCount)
