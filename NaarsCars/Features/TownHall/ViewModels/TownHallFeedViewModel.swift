@@ -87,6 +87,12 @@ final class TownHallFeedViewModel: ObservableObject {
     /// The last first-page fetch came back short, so that page is the whole feed and nothing in
     /// memory can be a page scrolled in beyond it (see keepingPagedPosts).
     private var firstPageIsWholeFeed = false
+    /// `loadPosts` has run its first load; later calls are re-entries of the feed.
+    private var hasLoadedPosts = false
+    /// When the current community's last `refreshFromNetwork` succeeded (coordinator refresh and
+    /// enrichment page). A re-entry within `Constants.Timing.refreshStalenessWindow` of it skips
+    /// the refresh.
+    private var lastRefreshSucceededAt: Date?
 
     init(
         repository: TownHallRepository? = nil,
@@ -121,6 +127,28 @@ final class TownHallFeedViewModel: ObservableObject {
 
     /// Load initial posts
     func loadPosts() async {
+        // `.task` calls this on every appearance (tab switch, Back from a profile). Once posts are
+        // on screen, bindPosts has applied every store save made while the feed was off screen, so
+        // re-reading the store only swapped the list for a copy and rendered every visible card
+        // again. Only the in-memory enrichment (votes, comment counts, reviews) can be behind.
+        if hasLoadedPosts && !posts.isEmpty {
+            // A block made on a profile opened from a card: hide that author's posts now, as the
+            // store re-read used to.
+            if posts.contains(where: { messageService.isBlocked($0.userId) }) {
+                posts.removeAll { messageService.isBlocked($0.userId) }
+            }
+            if error != nil { error = nil }
+            if let last = lastRefreshSucceededAt,
+               Date().timeIntervalSince(last) < Constants.Timing.refreshStalenessWindow {
+                return
+            }
+            Task {
+                await refreshFromNetwork(showLoading: false, trigger: "manualReload:townHall")
+            }
+            return
+        }
+        hasLoadedPosts = true
+
         error = nil
         isLoading = true
         defer { isLoading = false }
@@ -284,6 +312,7 @@ final class TownHallFeedViewModel: ObservableObject {
         let wasUnfiltered = activeCommunityId == nil
         activeCommunityId = newCommunityId
         generation += 1
+        lastRefreshSucceededAt = nil
 
         if wasUnfiltered {
             // Launch resolution nil → X: for a member of one community the rows are the same, so
@@ -558,6 +587,7 @@ final class TownHallFeedViewModel: ObservableObject {
         }
 
         guard let failure else {
+            lastRefreshSucceededAt = Date()
             error = nil
             // A refresh that worked supersedes an earlier "couldn't refresh" banner.
             if bannerMessage == "townhall_refresh_failed".localized { bannerMessage = nil }
