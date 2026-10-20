@@ -1,6 +1,6 @@
 # Performance pass: baseline, findings, fixes
 
-Date: 2026-10-20 (baseline measured 2026-10-19, 21:03 to 21:44). Branch `claude/naarscars-multi-community-roadmap-f08594`. Baseline taken at `0af6e16`; the last fix is `5fffcd6`. Everything below was measured in a **Debug build on the iOS Simulator**. No Release build and no physical iPhone was measured.
+Date: 2026-10-20 (baseline measured 2026-10-19, 21:03 to 21:44). Branch `claude/naarscars-multi-community-roadmap-f08594`. Baseline taken at `0af6e16`; the last fix of the pass is `5fffcd6`, and the review follow-ups (`4812026` to `8d174ca`) are under "Review follow-ups" in section 6. Everything below was measured in a **Debug build on the iOS Simulator**. No Release build and no physical iPhone was measured.
 
 ## 1. For the owner: Debug versus Release on your phone
 
@@ -190,6 +190,8 @@ Verification: Debug build exit 0, no new warnings. `PersistentImageServiceTests`
 
 Not measured: the Requests tab-switch image wait (Open Requests is empty, so no image) and the 56 MB My Requests swing (needs the My Requests filter). Callers that pass no size still decode at full size; see section 7.
 
+Corrected by the review follow-up `4812026`: the size passed to ImageIO capped the long side, so portrait feed photos and avatars were decoded below the size they are shown at. The size is now the short side, and the feed passes 1128 px instead of 1440. See "Review follow-ups" below; the figures above were measured before that change.
+
 ### F3. Requests re-entry passes (`84506d7`)
 
 `setup(modelContext:)` returns early when handed the context it already holds, and the list pass in `loadRequests` skips the badge counts on a local-only re-entry because `refreshUnseenRequestKeys` recomputes them right after with fresher summaries. One file, +12 -4. The first load, pull-to-refresh, filter and scope changes are unchanged.
@@ -220,6 +222,8 @@ A later independent run on `5b3fc13` (load 11.0 to 9.2, 3 appearances) counted 2
 
 Tests: `TownHallFeedViewModelTests` 8 passed, 2 skipped (session-gated). A stale entry still fetches the page twice at that commit, which is what F7 addresses. The Town Hall to Leaderboard segment switch builds a new ViewModel and still takes the first-load path.
 
+The 30 s skip also skipped changes made elsewhere. Three are handled by the review follow-up `5e91b00`: a block whose refresh returns after the feed reappeared, an unblock made in Settings, and the Town Hall post a review creates. One is accepted: **a moderator who hides a post from admin or community Reports and returns to the feed within 30 s still sees the post until they pull to refresh or the 30 s pass.**
+
 ### F5. Requests empty state without the skeleton (`5b3fc13`)
 
 `RequestFilterManager.hasStoredRequests(in:)` runs two `fetchCount` queries, and `loadRequests` shows the skeleton only when the filter has no rows **and** the store has none. The refresh and its coordinator call are unchanged. Two files, +12 -1.
@@ -232,6 +236,8 @@ Tests: `TownHallFeedViewModelTests` 8 passed, 2 skipped (session-gated). A stale
 | 4 | 0.75 s (load 2.22) | not run |
 
 Baseline: 1.05 to 1.22 s. The `manualReload:requests` refresh still runs in every "after" run. Tests: `CommunityStoreScopingTests` 21 passed. Side effects: a filter with no rows over a filled store shows its empty state during the first refresh and a row may appear after; an empty store (first sign-in) still shows the skeleton; after a failed first load the retry shows the empty state. The forced first-load refresh still repeats a launch refresh the coordinator had skipped as fresh (about 1 s of network, `saved=false`); that is a `RefreshCoordinator` contract question and was left alone.
+
+Review follow-up `5e44b37`: the store-rows shortcut now applies only to a plain load, so the error panel's Retry and pull-to-refresh show the skeleton again until the refresh returns. **Left as a product call: on a cold launch, a filter with no rows over a filled store shows its empty state for about a second, and a row the first sync adds can then appear in it.**
 
 ### F6. Community badge cleared once per visit (`9479aad`)
 
@@ -255,6 +261,8 @@ Tests: `BadgeCountManagerTests` 13 passed. Behavior change: returning from a pus
 
 Each visit now logs one "Started new request" and one "Request already in-flight" for the page key. Tests: 56 cases across `TownHallFeedViewModelTests`, `TownHallServiceTests`, `TownHallPostTests`, `PerformanceImprovementsTests` and `CommunityStoreScopingTests`: 49 passed, 7 skipped (session-gated). Behavior change: a refresh that starts while an earlier page fetch is in flight (for example after creating a post) receives that earlier result; the window is one fetch, under a second. The vote counts could not be seen on screen because none of the visible posts had votes; the enriched value is the same as before. The deduplicator logs its key (which holds user and community ids) at info level.
 
+Review follow-ups: `7e26e3b` moves the blocked-author filter out of the shared fetch, which ran off the main thread and read a set the main actor writes (a data race); `136ae1e` adds a write count to the key, so a refresh after a write no longer receives a page fetched before it. The window described above is closed for Town Hall writes made through the app's services.
+
 ### F8. Town Hall decode off the caller's actor (`5fffcd6`)
 
 A `@concurrent` `decodePosts` helper now decodes both the page and `fetchPost(id:)`. Signatures, the protocol, the blocked-author filter and the coordinator are unchanged. One file, +12 -5. Most of this finding was already resolved by F7: running inside the deduplicator's task moved the page decode off the main thread.
@@ -270,6 +278,44 @@ Tests: `TownHallServiceTests`, `TownHallFeedViewModelTests`, `CommunityStoreScop
 ### Test coverage of the whole pass
 
 The full unit suite ran at `138538f` (742 cases, 0 failed) and again on the final code, `f1a99e6` (the report commit after it changes only this file), signed out, on "iPhone 16 Tests" (iOS 26.5): **745 cases, 712 passed, 0 failed, 33 skipped**. The 33 skips are the usual session-gated live-backend cases (`TownHallServiceTests` 5, `NotificationsListViewModelTests` 5, `RideServiceTests` 4, `NotificationServiceTests` 4, `LeaderboardServiceTests` 4, `FavorServiceTests` 3, `PushNotificationServiceTests` 2, `TownHallFeedViewModelTests` 2, and one each in `MessageServiceTests`, `MyProfileViewModelTests`, `ReviewPromptProviderTests`, `CompletionPromptProviderTests`). Commits between the two runs ran the targeted classes listed above. Release build (simulator SDK, `-configuration Release`) on `f1a99e6`: exit 0, 0 errors. The fragile-system changes are F1 and the sign-out fix for section 7 item 1 (`RefreshCoordinator`); F6 touches a view that calls the badge manager but not `BadgeCountManager` itself.
+
+### Review follow-ups (2026-10-20)
+
+An independent read-only review of the pass's commits found seven issues. Each was checked against the code before it was changed; all seven were confirmed as described. Fixes, one commit per finding (items 1, 2 and 7 share one):
+
+| # | Finding (commit reviewed) | Fix | Commit | Test |
+|---|---|---|---|---|
+| 1 | Portrait list images decoded below their shown width (`8606c8e`). `kCGImageSourceThumbnailMaxPixelSize` caps the long side, and feed photos are shown aspect-fit at the card's width: a 945x2048 screenshot was decoded at 664x1440 for a 987 px card (stretched 1.5x), a 9:16 photo 1.22x. | `PersistentImageService` reads the source's pixel width and height and asks for a long side of `min(long, target * long / short)`, so the short side is the target, or the source's own when smaller (never upscaled). Memory key unchanged (stored file name plus target). `Constants.Storage.feedImageMaxPixelSize` is now a short side: 1128 px, the card on the widest iPhone (440 pt less 64 pt of padding) at 3x. Kept at 1440 it would have decoded a 3:4 photo at 1440x1920 (11 MB) for a card at most 1128 px wide; at 1128 it is 1128x1504 (6.8 MB), close to the 1080x1440 measured in F2. A landscape photo now decodes wider than the card, by its aspect ratio. | `4812026` | `PersistentImageServiceTests`: a portrait fit-width target decodes at least the target wide with the long side within the source's; a source smaller than the target comes back at its own size (150x400 for 300, 40x30 for 100); the existing downsample case now expects a 100 px short side (400x300 to about 134x100). |
+| 2 | Avatars decoded below the circle they fill (`8606c8e`): aspect-fill shows the short side, so a 3:4 avatar in a 120 pt circle was decoded 270x360 and stretched 1.33x. | The item 1 formula. `AvatarView` passes `size * displayScale` and `AvatarUIView` `size * scale`, both the circle's side in pixels (confirmed). | `4812026` | `PersistentImageServiceTests`: an avatar-style fill target gives a short side of at least the target, portrait and landscape. |
+| 3 | Data race on `MessageService.cachedBlockedUserIds` (`5498a43`): the page fetch now runs inside the `RequestDeduplicator` task, off the main thread, and read the set that `refreshBlockedUsers` writes on the main actor. | The shared closure returns the posts unfiltered with `serverCount`; `fetchPostsPage` removes blocked authors after `pageRequests.fetch` returns, on the caller's executor (the main actor for `TownHallSyncEngine` and `TownHallFeedViewModel`). Each joined caller filters with its own current set. The set is read through an internal `blockedAuthorIds` closure (default `MessageService.shared.cachedBlockedUserIds`) so a test can stand in. | `7e26e3b` | `TownHallServiceTests.testFetchPostsPage_FiltersBlockedAuthorsAfterTheSharedFetch`, stubbed with a new test URLProtocol (`TownHallPageURLProtocol`, holds the page read until released) because the class was otherwise live-backend or session-gated: two identical calls make one page request; both results leave the blocked author out with `serverCount` 2; the set is read twice, once per caller, both times on the main thread. |
+| 4 | Feed re-entry within 30 s missed changes made elsewhere (`8a8b867`). | (c) and (d): `MessageService.refreshBlockedUsers` posts the new `.blockedUsersDidChange` (`NotificationNames.swift`) when the set changes; `TownHallFeedViewModel` hides newly blocked authors and drops `lastRefreshSucceededAt`, so the next appearance refreshes. (b): `open()` with a target missing from a list this generation has already refreshed drops `lastRefreshSucceededAt` and starts `refreshAfterPostCreated()` (the existing `postCreated:townHall` trigger; no new coordinator trigger); the target still resolves at once. This also runs for a push or bell row whose post is not in the list (one extra refresh). | `5e91b00` | `TownHallFeedViewModelTests.testBlockedUsersChange_RefiltersAndEndsTheReentrySkip` ((d) then (c), with the blocked set set through the real `refreshBlockedUsers` against a stubbed `get_blocked_users`) and `testOpenTargetMissingFromRefreshedList_RefreshesAsAfterACreatedPost` ((b)). |
+| 5 | A refresh after a write could join a page fetch that began before it (`5498a43`): vote, then pull-to-refresh while a pre-vote fetch is in flight, and the joined result put the old counts back in the vote cache. | A write count in `TownHallService` (`OSAllocatedUnfairLock`) is part of the page key. `noteWrite()` bumps it when each write returns, success or not: `TownHallService` `createPost`, `createSystemPost`, `deletePost`, `votePost`; `TownHallCommentService` `createComment`, `createReply`, `deleteComment`, `voteComment`; `TownHallVoteService` `votePost`, `voteComment` (no callers today). The review's own post goes through `createPost` (`ReviewService`). Reads that start together still join. Moderation (admin and community Reports) writes through its own RPCs and does not bump the count. | `136ae1e` | `TownHallServiceTests.testFetchPostsPage_ReadAfterAWriteDoesNotJoinAReadFromBeforeIt`: two overlapping identical reads join (one page request); a read started after `votePost` while a pre-vote read is held makes its own request (three in all). |
+| 6 | The Requests empty state replaced the skeleton on Retry and pull-to-refresh (`5b3fc13`). | The store-rows shortcut applies only when `forceRefresh` is false; the cold-launch gain stays. | `5e44b37` | None. There is no `RequestsDashboardViewModelTests`, no test class constructs the ViewModel, and it calls `RefreshCoordinator.shared` directly, so testing the `isLoading` timing needs a coordinator seam this change does not add. `CommunityStoreScopingTests` and `RequestNotificationMappingTests` ran (22 passed). |
+| 7 | Magic number: the fallback display scale `3` in `AvatarUIView` (`8606c8e`). | `Constants.Storage.fallbackDisplayScale` (the surrounding code reads `traitCollection.displayScale` and falls back when it is 0). | `4812026` | Covered by the build. |
+
+Accepted, stated plainly:
+
+- **Town Hall (F4, case a):** a moderator who hides a post from admin or community Reports and returns to the feed within 30 s still sees it until they pull to refresh or the 30 s pass.
+- **Community badge (F6):** going Back into the feed from a screen pushed inside the Community tab no longer marks that community's Town Hall rows read; only arriving on the tab does.
+- **Requests cold launch (F5):** a filter with no rows over a filled store shows its empty state for about a second, and a row the first sync adds can then appear in it.
+
+**Interleaved saves since F1 (`138538f`).** The review could not tell by reading whether a `BackgroundSyncActor` save that interleaves with a main-context save of the same rows throws, or which value wins. `BackgroundSyncActorConversationSyncTests.testDashboardSyncInterleavedWithMainContextSaves_ActorSaveDoesNotThrow` (`8d174ca`) runs `syncAllWithChangeDetection` from `Task.detached` while the main context flips `SDNotification.read` on the same 20 rows and saves, 50 rounds on a SQLite store, the main save landing at three different points relative to the job. Answer: **no save threw**, the actor's or the main context's, in three runs (150 rounds: two targeted runs and the full suite). **The later save wins the whole row, not each property.**
+
+| Run | `read` held the actor's value | the main context's | differed between rows | stored title went back to the previous round's |
+|---|---|---|---|---|
+| 1 (targeted) | 44 | 4 | 2 | 2 |
+| 2 (targeted) | 36 | 12 | 2 | 7 |
+| 3 (inside the full suite) | 5 | 41 | 4 | 14 |
+
+The main context never sets the title, so a title that went back means a main-context save made from a snapshot older than the actor's save overwrote the actor's write, row and all. The rounds runs 2 and 3 list (the first five of each: 8, 11, 14, 17, 20 and 5, 8, 11, 14, 20) are all rounds where the main save came 1 ms after the job started. In the app the next sync writes the server's values again, so such a revert lasts until then. Before F1 the actor job ran on the main thread and could not overlap main-actor code, so this window was one main-queue turn (the main context merging the actor's save) rather than the whole job. No engine was changed; whether to act on it is a fragile-system decision for the owner.
+
+Verification of the follow-ups (Lane B, "iPhone 16 Tests", never signed in):
+
+- Debug build (`-sdk iphonesimulator -configuration Debug`): exit 0, 0 errors, no warnings in the touched files.
+- Targeted classes, run after each change: `PersistentImageServiceTests` 8 passed; `TownHallServiceTests` 3 passed, 5 skipped; `TownHallFeedViewModelTests` with `MessageServiceTests` 16 passed, 3 skipped; `BackgroundSyncActorConversationSyncTests`, `CommunityStoreScopingTests` and `RequestNotificationMappingTests` 26 passed. All skips are the usual session-gated ones.
+- Full unit suite, signed out, on `8d174ca` (`build/p5b-gate/TestResults-followup.xcresult`): **753 cases, 720 passed, 0 failed, 33 skipped**. The 33 skips are the same session-gated cases as before (`TownHallServiceTests` 5, `NotificationsListViewModelTests` 5, `RideServiceTests` 4, `NotificationServiceTests` 4, `LeaderboardServiceTests` 4, `FavorServiceTests` 3, `PushNotificationServiceTests` 2, `TownHallFeedViewModelTests` 2, and one each in `MessageServiceTests`, `MyProfileViewModelTests`, `ReviewPromptProviderTests`, `CompletionPromptProviderTests`); the 8 new cases all passed (745 before).
+- Release build (`-configuration Release`, simulator SDK) on `8d174ca`: exit 0, 0 errors, no warnings in the touched files.
+- Not done: Lane B screenshots of the feed photos and avatars after items 1 and 2 (optional), any check on the owner's simulator or a device, and a test for item 6.
 
 ## 7. What remains open
 
@@ -287,6 +333,8 @@ The full unit suite ran at `138538f` (742 cases, 0 failed) and again on the fina
 | 10 | Not measured: Release builds, any physical device, tab-switch latency in seconds after the fixes, cold-launch time after the fixes, a sync that changes rows on the owner's device, the My Requests scroll after F2, and a Time Profiler trace (`xctrace` refuses the simulator). | The Release procedure in section 1 covers the first two. |
 | 11 | Optional cleanups, each saving network or a few milliseconds: delete the dead `RequestMapView`, `batchGeocode` and `createMapRequests`; fetch only the author and comment count in `fetchPost(id:)`; skip the notification download when nothing in the visible community can be unread; take the narrowed count in `countOutsideScope` from `filteredRequests.count`. | None is a lag fix. |
 | 12 | CLAUDE.md audit note 3 (`loadMore` writes SwiftData on the main actor) is out of date: later pages stay in memory. | Documentation only; this pass did not edit CLAUDE.md. |
+| 13 | Since F1 a main-context save made from a snapshot older than a concurrent `BackgroundSyncActor` save of the same row overwrites the whole row, including fields the main context did not change, until the next sync writes the server's values again. Nothing throws. | Found by the review follow-up test (`8d174ca`, see "Review follow-ups"). Sync engines and SwiftData are fragile systems; no change was made. |
+| 14 | Moderation (admin and community Reports) does not bump the Town Hall page-key write count, and the feed's 30 s re-entry skip does not see a hide made there. | Accepted (F4 case a); pull-to-refresh shows it. |
 
 ## 8. Impact summary
 
@@ -300,3 +348,9 @@ The full unit suite ran at `138538f` (742 cases, 0 failed) and again on the fina
 | `9479aad` | `CommunityTabView.swift` | No (calls `BadgeCountManager`, unchanged) | The Community badge not clearing on arrival; `MainTabView` still does. |
 | `5498a43` | `TownHallService.swift` | No | A refresh after a write receiving a result older than the write (window under 1 s). |
 | `5fffcd6` | `TownHallService.swift` | No | A decode isolation error; the build is clean. |
+| `4812026` | `PersistentImageService.swift`, `Constants.swift`, `CachedAsyncImage.swift`, `AvatarUIView.swift`, `PersistentImageServiceTests.swift` | No | A caller that shows the long side at full size (none today) would get a larger bitmap than it needs; the cache key is unchanged. |
+| `7e26e3b` | `TownHallService.swift`, `TownHallServiceTests.swift` | No | A caller of `fetchPostsPage` off the main actor would read the blocked set off it again; both callers are `@MainActor`. |
+| `136ae1e` | `TownHallService.swift`, `TownHallCommentService.swift`, `TownHallVoteService.swift`, `TownHallServiceTests.swift` | No | A write method without `noteWrite()` would let a later read join an earlier one; every write in the three services calls it. Moderation RPCs do not. |
+| `5e91b00` | `MessageService.swift`, `NotificationNames.swift`, `TownHallFeedViewModel.swift`, `TownHallFeedViewModelTests.swift` | No | A screen that filters by the blocked set and does not observe `.blockedUsersDidChange` keeps its old list until it reloads, as before. |
+| `5e44b37` | `RequestsDashboardViewModel.swift` | No | None outside the ViewModel. |
+| `8d174ca` | `BackgroundSyncActorConversationSyncTests.swift` | No (test only; it probes the F1 sync engine change) | Nothing; no engine changed. |
