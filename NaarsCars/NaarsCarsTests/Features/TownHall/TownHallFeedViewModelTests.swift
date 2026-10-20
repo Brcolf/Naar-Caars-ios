@@ -434,6 +434,137 @@ final class TownHallFeedViewModelTests: XCTestCase {
         withExtendedLifetime(harness.container) {}
     }
 
+    // MARK: - Changes made elsewhere inside the 30 s re-entry skip (review of 8a8b867)
+
+    /// Sets MessageService's blocked set through its real refresh against a stubbed
+    /// `get_blocked_users`, which posts `.blockedUsersDidChange` when the set changes. Self-contained:
+    /// the session user and the URL stub are restored before it returns.
+    private func setBlockedUsers(_ ids: [UUID]) async {
+        let rows = ids.map {
+            #"{"blocked_id":"\#($0.uuidString)","blocked_name":"Blocked","blocked_avatar_url":null,"blocked_at":"2026-10-20T10:00:00Z","reason":null}"#
+        }
+        let json = "[" + rows.joined(separator: ",") + "]"
+        let previousUser = AuthService.shared.currentUserId
+        AuthService.shared.currentUserId = UUID(uuidString: "0D000000-0000-4000-8000-00000000AAAA")!
+        CommunityServiceURLProtocol.reset()
+        CommunityServiceURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["Content-Type": "application/json"])!
+            return (response, Data(json.utf8))
+        }
+        URLProtocol.registerClass(CommunityServiceURLProtocol.self)
+        await MessageService.shared.refreshBlockedUsers()
+        URLProtocol.unregisterClass(CommunityServiceURLProtocol.self)
+        CommunityServiceURLProtocol.reset()
+        AuthService.shared.currentUserId = previousUser
+    }
+
+    private func waitUntil(timeout: TimeInterval = 3, _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    /// (d) A block whose refresh returns after the feed reappeared (Back before `blockUser`
+    /// finished), and (c) an unblock made in Settings, both inside the 30 s re-entry skip: the feed
+    /// observes `.blockedUsersDidChange`, hides the blocked author at once, and its next appearance
+    /// refreshes so an unblocked author's posts come back.
+    func testBlockedUsersChange_RefiltersAndEndsTheReentrySkip() async throws {
+        let harness = try makeScopingHarness()
+        let repo = harness.repository
+        let communityA = self.communityA
+        let blockedAuthor = UUID(uuidString: "0D000000-0000-4000-8000-0000000000BB")!
+        let authorsPost = TownHallPost(
+            id: UUID(), userId: blockedAuthor, content: "By the author who gets blocked",
+            communityId: communityA, createdAt: base.addingTimeInterval(30), updatedAt: base.addingTimeInterval(30)
+        )
+        let page = [authorsPost] + harness.aPage
+        harness.fetcher.pagesByCommunity = [communityA: page]
+        let recorder = FeedTestRecorder()
+        let refresher: @MainActor (String) async -> RefreshResult? = { trigger in
+            recorder.refreshTriggers.append(trigger)
+            try? repo.upsertPosts(page, replaceAll: true, syncScope: .community(communityA))
+            return .completed(.empty)
+        }
+        harness.context.communityTabId = communityA
+        addTeardownBlock { @MainActor [weak self] in await self?.setBlockedUsers([]) }
+        await setBlockedUsers([])
+        let vm = TownHallFeedViewModel(
+            repository: repo,
+            postFetcher: harness.fetcher,
+            communityContext: harness.context,
+            refreshTownHall: refresher
+        )
+
+        await vm.loadPosts()
+        XCTAssertTrue(vm.posts.contains { $0.id == authorsPost.id })
+        await vm.loadPosts()   // a re-entry inside 30 s skips the refresh
+        XCTAssertEqual(recorder.refreshTriggers, ["manualReload:townHall"])
+
+        // (d) The block's refresh returns after the feed reappeared.
+        await setBlockedUsers([blockedAuthor])
+        try await waitUntil { !vm.posts.contains { $0.id == authorsPost.id } }
+        XCTAssertFalse(vm.posts.contains { $0.id == authorsPost.id }, "hidden without another appearance")
+        XCTAssertEqual(recorder.refreshTriggers.count, 1, "hiding is local")
+        await vm.loadPosts()
+        try await waitUntil { recorder.refreshTriggers.count == 2 }
+        XCTAssertEqual(recorder.refreshTriggers.count, 2, "the next appearance refreshes")
+        try await Task.sleep(for: .milliseconds(100))   // that refresh finishes
+        XCTAssertFalse(vm.posts.contains { $0.id == authorsPost.id })
+
+        // (c) Unblocked elsewhere, then back to the feed inside 30 s of that refresh.
+        await setBlockedUsers([])
+        try await Task.sleep(for: .milliseconds(100))   // deliver the notification
+        await vm.loadPosts()
+        try await waitUntil { vm.posts.contains { $0.id == authorsPost.id } }
+        XCTAssertEqual(recorder.refreshTriggers.count, 3, "the unblock ended the re-entry skip")
+        XCTAssertTrue(vm.posts.contains { $0.id == authorsPost.id }, "the unblocked author's post is back")
+        withExtendedLifetime(harness.container) {}
+    }
+
+    /// (b) The review flow opens the Town Hall post it has just created. A target missing from a
+    /// list the feed has already refreshed starts the post-created refresh without holding the
+    /// comments sheet, so the post is in the feed when the sheet closes, inside the 30 s skip too.
+    func testOpenTargetMissingFromRefreshedList_RefreshesAsAfterACreatedPost() async throws {
+        let harness = try makeScopingHarness()
+        let repo = harness.repository
+        let fetcher = harness.fetcher
+        let communityA = self.communityA
+        fetcher.pagesByCommunity = [communityA: harness.aPage]
+        let recorder = FeedTestRecorder()
+        let refresher: @MainActor (String) async -> RefreshResult? = { trigger in
+            recorder.refreshTriggers.append(trigger)
+            try? repo.upsertPosts(fetcher.pagesByCommunity[communityA] ?? [], replaceAll: true, syncScope: .community(communityA))
+            return .completed(.empty)
+        }
+        harness.context.communityTabId = communityA
+        let vm = TownHallFeedViewModel(
+            repository: repo,
+            postFetcher: fetcher,
+            communityContext: harness.context,
+            refreshTownHall: refresher
+        )
+        await vm.loadPosts()
+
+        // The review's post now exists on the server; the feed has not seen it.
+        let reviewPost = CommunityFixtures.post(UUID(), community: communityA, createdAt: base.addingTimeInterval(50))
+        fetcher.pagesByCommunity[communityA] = [reviewPost] + harness.aPage
+        fetcher.postsById[reviewPost.id] = reviewPost
+        await vm.loadPosts()   // inside 30 s: skipped
+        XCTAssertEqual(recorder.refreshTriggers, ["manualReload:townHall"])
+
+        // The review flow's intent carries no community.
+        await vm.open(NavigationCoordinator.TownHallNavigationTarget(postId: reviewPost.id, mode: .openComments))
+        XCTAssertEqual(vm.pendingFeedAction, .openComments(reviewPost.id), "the comments sheet opens at once")
+        vm.consumeFeedAction()
+
+        try await waitUntil { vm.posts.contains { $0.id == reviewPost.id } }
+        XCTAssertTrue(vm.posts.contains { $0.id == reviewPost.id }, "the review post is in the feed")
+        XCTAssertEqual(recorder.refreshTriggers, ["manualReload:townHall", "postCreated:townHall"])
+        withExtendedLifetime(harness.container) {}
+    }
+
     private func waitForFeedAction(_ vm: TownHallFeedViewModel, timeout: TimeInterval = 3) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while vm.pendingFeedAction == nil, Date() < deadline {

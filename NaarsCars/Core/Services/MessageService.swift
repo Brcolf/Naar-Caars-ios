@@ -31,7 +31,11 @@ final class MessageService {
         guard let userId = AuthService.shared.currentUserId else { return }
         do {
             let blocked = try await getBlockedUsers(userId: userId)
-            cachedBlockedUserIds = Set(blocked.map { $0.blockedId })
+            let blockedIds = Set(blocked.map { $0.blockedId })
+            guard blockedIds != cachedBlockedUserIds else { return }
+            cachedBlockedUserIds = blockedIds
+            // Screens that filtered by the old set (the Town Hall feed) re-filter on this.
+            NotificationCenter.default.post(name: .blockedUsersDidChange, object: nil)
         } catch {
             AppLogger.error("messaging", "Failed to refresh blocked users: \(error)")
         }

@@ -14,6 +14,10 @@ extension Notification.Name {
     // MARK: - Messaging
     static let conversationUpdated = Notification.Name("conversationUpdated")
     static let messageReactionChanged = Notification.Name("messageReactionChanged")
+    /// Posted by `MessageService` after `cachedBlockedUserIds` changed (a block, an unblock, or a
+    /// refresh that found a different set), on the thread that refreshed it (the main thread for
+    /// every caller). No object or userInfo: observers read `MessageService.isBlocked`.
+    static let blockedUsersDidChange = Notification.Name("blockedUsersDidChange")
 
     // MARK: - Prompts
     static let dismissNotificationsSurface = Notification.Name("dismissNotificationsSurface")

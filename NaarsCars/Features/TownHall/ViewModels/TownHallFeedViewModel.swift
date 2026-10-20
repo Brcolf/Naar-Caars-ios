@@ -77,6 +77,7 @@ final class TownHallFeedViewModel: ObservableObject {
 
     private var postsCancellable: AnyCancellable?
     private var voteCancellable: AnyCancellable?
+    private var blockedUsersCancellable: AnyCancellable?
     private var postVoteCache: [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] = [:]
     /// Posts with a vote request in flight; further taps on them wait for it.
     private var votesInFlight: Set<UUID> = []
@@ -121,6 +122,7 @@ final class TownHallFeedViewModel: ObservableObject {
         self.activeCommunityId = resolvedContext.communityTabId
         bindPosts()
         bindVoteNotifications()
+        bindBlockedUsersNotifications()
     }
 
     // MARK: - Public Methods
@@ -409,6 +411,14 @@ final class TownHallFeedViewModel: ObservableObject {
 
         // 3. Resolve against the list now, or when the current generation's refresh finishes.
         pendingNavigation = target
+        // A target missing from a list this generation has already refreshed can be newer than
+        // that refresh: the review flow opens the Town Hall post it has just created. Refresh the
+        // way a created post does, or the 30 s re-entry skip in loadPosts leaves the feed without
+        // it after its comments sheet closes. The target still resolves now, without waiting.
+        if finishedRefreshGeneration == generation, !posts.contains(where: { $0.id == target.postId }) {
+            lastRefreshSucceededAt = nil
+            Task { await refreshAfterPostCreated() }
+        }
         resolvePendingNavigation()
     }
 
@@ -519,6 +529,27 @@ final class TownHallFeedViewModel: ObservableObject {
         let storedIds = Set(stored.map(\.id))
         let paged = existing.filter { $0.createdAt < windowEnd && !storedIds.contains($0.id) }
         return (stored + paged).filter { !messageService.isBlocked($0.userId) }
+    }
+
+    /// A block or unblock made anywhere (a profile, Settings, a comment) changes which authors the
+    /// feed may show. Hide newly blocked authors now, and drop the freshness mark so the next
+    /// appearance refreshes: an unblocked author's posts were left out of the last page and only a
+    /// fetch brings them back. This also covers a block whose refresh returns after the feed has
+    /// already reappeared (Back from the profile before `blockUser` finished).
+    private func bindBlockedUsersNotifications() {
+        blockedUsersCancellable = NotificationCenter.default.publisher(for: .blockedUsersDidChange)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.blockedUsersDidChange()
+                }
+            }
+    }
+
+    private func blockedUsersDidChange() {
+        lastRefreshSucceededAt = nil
+        if posts.contains(where: { messageService.isBlocked($0.userId) }) {
+            posts.removeAll { messageService.isBlocked($0.userId) }
+        }
     }
 
     private func bindVoteNotifications() {
