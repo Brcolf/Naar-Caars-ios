@@ -8,7 +8,7 @@
 import Foundation
 
 /// Utilities for formatting invite codes and generating share messages
-/// Used by InvitationWorkflowView, AdminInviteView, and InviteCodeRow
+/// Formats community invite codes for display.
 enum InviteCodeFormatter {
 
     /// Format an invite code with visual separators for readability
