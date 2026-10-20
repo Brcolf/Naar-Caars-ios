@@ -1,9 +1,15 @@
 -- 20261019_0002_broadcast_push.sql
 --
--- NOT APPLIED. GATED (decision A5 point 2): apply only after the owner confirms from App Store Connect that no
--- pre-community build remains in use. Phase 4 of the multi-community design (spec §4 "Phase 4", D13: "a real
--- broadcast push honouring canBeDisabled = false and the community mute, routed to Announcements, replacing the
--- Town Hall side door").
+-- APPLIED 2026-10-20, both blocks, through the Supabase MCP apply_migration, one call per block (migration-history
+-- versions 20261020161841 20261019_0002_block_1, 20261020161946 20261019_0002_block_2). The A5 gate (decision A5
+-- point 2: apply only after the owner confirms from App Store Connect that no pre-community build remains in use)
+-- opened on 2026-10-20, when the owner confirmed it. Deployed md5(prosrc): notify_town_hall_post
+-- 8067912ecd96ed2a655a82c1a9d247f7, send_community_broadcast(uuid, text, text, boolean, text)
+-- 1f4f2dfbe34141fa821967370d33a309; both equal the text between this file's $function$ delimiters (python3 -I over
+-- this file). Grants unchanged by CREATE OR REPLACE: notify_town_hall_post postgres, service_role;
+-- send_community_broadcast postgres, authenticated, service_role. No deviation: each block ran as written below.
+-- Phase 4 of the multi-community design (spec §4 "Phase 4", D13: "a real broadcast push honouring canBeDisabled =
+-- false and the community mute, routed to Announcements, replacing the Town Hall side door").
 --
 -- What it does.
 --   * send_community_broadcast (block 2, edited in place from the live body, md5(prosrc)
@@ -32,8 +38,22 @@
 -- are the live ones of that day): broadcast_push OK and broadcast_cap OK, with community_moderation OK as the
 -- regression probe of notify_town_hall_post; the three calls are listed in 20261019_0001's header. Repeat P1 and
 -- the dry run before applying (runbook step 6).
+-- Outcomes, 2026-10-20 (runbook step 6, with 20261019_0003).
+--   P1, read just before the dry run: notify_town_hall_post 5c5d85a295dd292f6a92f73f2bfa2ce0 and
+--   send_community_broadcast b49920cb7b9aacbb0a5b0bc9cf85f864, equal to the values above; the live bodies differ from
+--   the blocks below only by the edits named in "What it does". The read-only neighbours (create_notification,
+--   queue_push_notification, notify_user_in_community, get_badge_counts, send_broadcast_notifications,
+--   process_batched_notifications) still have the plan's P1 values.
+--   Dry run, three rolled-back execute_sql calls, each beginning with set local lock_timeout = '5s', each carrying the
+--   probe PARAMETERS and HELPERS (no commit), each probe under its own savepoint, and an in-transaction check that the
+--   created bodies hash to the file's text: (1) B1-B2, C1-C4 + short: OK. (2) B1-B2, C1-C4 + broadcast_push +
+--   membership_update_producers: OK. (3) B1-B2 + broadcast_cap + community_moderation: OK. After each call the live
+--   md5 values were still the P1 values. 20261019_0001 is live, so no File A block was part of the calls.
+--   Apply: short after block 1 and after block 2 (rolled back; PARAMETERS and the helpers short calls): OK, and the
+--   md5 read after each block was the deployed value above. At the end of runbook step 6, short, broadcast_push and
+--   membership_update_producers in one rolled-back call with the full HELPERS: OK.
 --
--- What old clients see (why it is gated). The installed pre-community build's members stop receiving the "New in
+-- What old clients see (why it was gated). The installed pre-community build's members stop receiving the "New in
 -- Town Hall" bell row and batched push for an announcement; instead each receives one push of type broadcast with
 -- the announcement's own title and body, also when Town Hall notifications are off. The installed build routes a
 -- broadcast push to its Announcements list (DeepLinkParser on main), so nothing breaks, but what it receives

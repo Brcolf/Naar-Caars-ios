@@ -1,7 +1,18 @@
 -- 20261019_0003_membership_update_producers.sql
 --
--- NOT APPLIED. GATED (decision A5 point 2): apply only after the owner confirms from App Store Connect that no
--- pre-community build remains in use. Phase 4 of the multi-community design (spec §4 "Phase 4": "one new
+-- APPLIED 2026-10-20, all four blocks, through the Supabase MCP apply_migration, one call per block, in order 1 → 4
+-- (migration-history versions 20261020162036 20261019_0003_block_1, 20261020162118 20261019_0003_block_2,
+-- 20261020162205 20261019_0003_block_3, 20261020162248 20261019_0003_block_4). The A5 gate (decision A5 point 2:
+-- apply only after the owner confirms from App Store Connect that no pre-community build remains in use) opened on
+-- 2026-10-20, when the owner confirmed it. Deployed md5(prosrc): approve_community_member(uuid, uuid)
+-- 36592c11a95bc2be8ed6f139f620fb10, transfer_community_ownership(uuid, uuid) ddf6c52db636356a0f8f5ca18dc281b0,
+-- set_member_role(uuid, uuid, text) 0713102ad24de6fccabbb2a18ba0d40b, readmit_community_member(uuid, uuid)
+-- 3d21b1ee1f2798d4ba31c6a0cd76eb5a; each equals the text between this file's $function$ delimiters (python3 -I over
+-- this file). Grants unchanged by CREATE OR REPLACE (all four: postgres, authenticated, service_role). No deviation:
+-- each block ran as written below. Right after the apply: 0 notifications and 0 notification_queue rows of type
+-- membership_update (the first comes with a real further-community approval, readmit, hand-over or co-owner), and
+-- the functions whose body names membership_update are these four and should_notify_user.
+-- Phase 4 of the multi-community design (spec §4 "Phase 4": "one new
 -- notification type, membership_update, … to give ownership changes and second-community approvals their own tap
 -- route"; it replaces D22's reuse of user_approved for a further community). Needs 20261019_0001 (the CHECK and the
 -- should_notify_user arm; without them create_notification returns null or the insert fails the whole RPC).
@@ -34,8 +45,20 @@
 -- membership_update_producers OK (all five steps) and short OK; the three calls are listed in 20261019_0001's
 -- header. 20261019_0001 is live since 2026-10-19, so the CHECK and the should_notify_user arm this file needs are
 -- in place. Repeat P1 and the dry run before applying (runbook step 6).
+-- Outcomes, 2026-10-20 (runbook step 6, with 20261019_0002).
+--   P1, read just before the dry run: approve_community_member d46e6536ada7419c1f63b8e988f1f670,
+--   transfer_community_ownership 8fc784bfc93916789137a8328d4929d8, set_member_role 4e00bbdc2abcf3d993e8377324655689,
+--   readmit_community_member 3045087b5df74f503cb1986da444160e, equal to the values above; the live bodies differ from
+--   the blocks below only by the edits named in "What it does". notify_user_in_community still
+--   fb4722eeda9389814118aa6ae7db8302, should_notify_user f31e9deafd9adb48a7a4f57849d5522d (20261019_0001).
+--   Dry run: the three rolled-back calls recorded in 20261019_0002's header ((1) B + C + short, (2) B + C +
+--   broadcast_push + membership_update_producers, (3) B + broadcast_cap + community_moderation): all OK.
+--   Apply: before each block the live md5 was the value above; short after each of the four blocks (rolled back):
+--   OK, and the md5 read after each block was the deployed value above. At the end, short, broadcast_push and
+--   membership_update_producers in one rolled-back call with the full HELPERS: OK (all five steps of
+--   membership_update_producers).
 --
--- What old clients see (why it is gated). A membership_update row on the installed pre-community build fails its
+-- What old clients see (why it was gated). A membership_update row on the installed pre-community build fails its
 -- bell list decode (no tolerant decoder in that build). Phase 1-3 builds show the row as a generic notification
 -- (.other) whose tap opens the dashboard, and their push tap opens nothing in particular; the Phase 4 build routes
 -- both. An installed-build second device of someone approved into a further community no longer gets the
