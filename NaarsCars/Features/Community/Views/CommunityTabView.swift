@@ -74,13 +74,9 @@ struct CommunityTabView: View {
                     }
                 }
             }
-            .onAppear {
-                // Clear the visible community's badge when viewing Community tab
-                let visibleCommunityId = communityContext.communityTabId
-                Task {
-                    await BadgeCountManager.shared.clearCommunityBadge(visibleCommunityId: visibleCommunityId)
-                }
-            }
+            // Arriving on the tab (a tap or a routed push) clears the visible community's badge in
+            // MainTabView's onChange(selectedTab). A second clear here in .onAppear ran beside it
+            // on every visit (two get_badge_counts calls) and again on every pop back to this root.
             .onChange(of: communityContext.communityTabId) { _, newCommunityId in
                 // Switching communities marks the newly visible one read. A change while the
                 // tab is not on screen (a membership refresh) marks nothing read.
