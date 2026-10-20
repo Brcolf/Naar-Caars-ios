@@ -1,6 +1,36 @@
 -- 20261019_0060_retire_legacy_bridges.sql
 --
--- NOT APPLIED. GATED: apply only after the owner confirms from App Store Connect that no pre-community build
+-- PARTIALLY APPLIED 2026-10-20: blocks 1, 2, 3, 4, 6 and 7 through the Supabase MCP apply_migration, one call per
+-- block, in file order (migration-history versions 20261020163133 20261019_0060_block_1, 20261020163217
+-- 20261019_0060_block_2, 20261020163259 20261019_0060_block_3, 20261020163341 20261019_0060_block_4, 20261020163419
+-- 20261019_0060_block_6, 20261020163456 20261019_0060_block_7). BLOCK 5 IS NOT APPLIED: it is DROP TRIGGER / DROP
+-- FUNCTION, which the MCP declines, so it is the owner's SQL-editor step (text below and in
+-- Docs/qa/2026-10-20-5b-owner-sql-steps.md). The gate (A5 point 2: no pre-community build remains in use) opened on
+-- 2026-10-20, when the owner confirmed it from App Store Connect. Deployed md5(prosrc): fill_request_community
+-- 9d4cfb03912a7c4a874cffae239ee605, redeem_community_invite(text, text, text) 2ec0702dc3a4d400ca2599d0ebb15693,
+-- request_to_join_community(uuid, text, text) af9a2f5c560d2d74f35ab979e2f3856c, protect_admin_fields
+-- d963a013278b5ace77565b8397683bf2: the four values this file names (blocks 2-3 also checked them themselves).
+-- Grants after the apply: fill_request_community postgres, service_role; redeem_community_invite and
+-- request_to_join_community postgres, authenticated, service_role (kept by CREATE OR REPLACE); protect_admin_fields
+-- unchanged; admin_reject_pending_user postgres, service_role (block 6); get_leaderboard (both) and
+-- send_broadcast_notifications postgres, service_role (block 7). The two bridge triggers and their functions are
+-- still in place until block 5 runs.
+--   The state between block 4 and block 5 is the one the plan's runbook orders ("block 4 before block 5"): a
+--   direct write of approved or application_complete under an end-user JWT raises 42501 before a bridge could act,
+--   so the installed build's two direct writes fail and change nothing; the mirror (naars.membership_mirror) and
+--   writes with no JWT pass as before. Blocks 6 and 7 are revokes on functions unrelated to block 5 and were applied
+--   before it in file order; the runbook names no order between them and block 5.
+--
+-- Owner's SQL-editor step, the exact text of block 5 (run it alone in a new tab; it is one transaction there):
+--   drop trigger if exists legacy_application_to_membership on public.profiles;
+--   drop trigger if exists a_sync_legacy_approval_to_membership on public.profiles;
+--   drop function if exists public.legacy_application_to_membership();
+--   drop function if exists public.sync_legacy_approval_to_membership();
+-- Then the not-applied check: bridges_present false as well, every File C / D / E column as before; then the probes
+-- legacy_retired (OK), legacy_bridges (SKIPPED), privileged_columns, account_deletion and short. Block 5 runs before
+-- File C (the plan's order: File B, then D, then the owner's C and E).
+--
+-- (Before the gate.) GATED: apply only after the owner confirms from App Store Connect that no pre-community build
 -- remains in use (Docs/superpowers/specs/2026-10-17-multi-community-decisions.md, A5 point 2). Phase 5b of the
 -- multi-community design (§4 "Phase 5": retire the legacy bridges, the rollout fallback in
 -- fill_request_community and the is_default dependence; admin_reject_pending_user revoked from authenticated;
@@ -49,6 +79,32 @@
 -- dry run was not retried. The not-applied check right after answered all_unchanged = true. Still to do: this
 -- dry run in the SQL editor (owner; the script verbatim, alone in a tab), then the not-applied check in a new tab.
 -- At the gate, expect block 5 to need the SQL editor too.
+-- Outcomes, 2026-10-20 (the gate). P1 re-read: the eight live values above (fill_request_community 6241f67f…,
+-- redeem_community_invite f18e6af6…, request_to_join_community da89c233…, protect_admin_fields 48424e05…,
+-- legacy_application_to_membership 38736139…, sync_legacy_approval_to_membership 52390660…, admin_reject_pending_user
+-- f5366ee2…, get_leaderboard f97d8b82… / c52c79d1…, send_broadcast_notifications e238abe6…) all unchanged. P2 grants
+-- as the plan records them. P3: approved accounts with no membership row 0, approved and application_complete mirror
+-- drift 0 and 0, pending default-community applicants 0, profiles with heard_about or join_reason 5, live
+-- communities 2, profiles 19. Block 4's precondition holds: only recompute_profile_membership_flags and
+-- sync_legacy_approval_to_membership write either flag.
+--   Subset dry run (the MCP declines the committed script because of block 5): blocks 1-4, 6, 7 inside
+--   begin; ... rollback; with set local lock_timeout = '5s', the probe PARAMETERS and HELPERS, the probes under
+--   savepoints and an in-transaction md5 check of the four edited bodies; three execute_sql calls, because a failing
+--   probe ends its call: (S1) broadcast_cap (its block-7 branch, 42501), privileged_columns, account_deletion, short:
+--   all OK. (S2) legacy_retired: FAILED as expected, "File B (20261019_0060) is not live; the legacy bridges still
+--   exist" (its first statement requires block 5). (S3) legacy_bridges: FAILED as expected, "the old application
+--   UPDATE succeeds: {... sqlstate 42501, approved and application_complete follow community memberships}" (it
+--   prints SKIPPED only once block 5 has dropped the bridges; with block 4 in and the bridges present, block 4
+--   refuses the write first, which is the intended state). After each call the live state was unchanged (md5s,
+--   grants, both bridges, no probe rows). The probes were not edited.
+--   Apply: short after each of the six blocks (rolled back): OK. At the end, one rolled-back call with the full
+--   HELPERS: short, broadcast_cap (42501 branch), privileged_columns and account_deletion OK; legacy_retired FAILED
+--   as expected with the S2 message (in this call its block was sent cut after its first two checks, which does
+--   not change the outcome: it stops at its first statement; the unedited block ran in S2).
+--   Not-applied check after the apply: false in fill_request_community_unchanged,
+--   redeem_community_invite_unchanged, request_to_join_community_unchanged, protect_admin_fields_unchanged,
+--   admin_reject_pending_user_open and send_broadcast_notifications_open (the six blocks applied); true in
+--   bridges_present (block 5 pending) and in every File C, D and E column; all_unchanged false.
 --
 -- Rollback, in reverse order. 7: grant execute on the three functions back to the roles in the plan's P2.
 -- 6: grant execute on function public.admin_reject_pending_user(uuid) to authenticated. 5: re-run
