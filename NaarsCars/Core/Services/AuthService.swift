@@ -487,6 +487,12 @@ final class AuthService: ObservableObject {
         PendingInviteStore().clear()
         // Signed storage URLs were issued under this account's access; the next account signs its own.
         await StorageURLSigner.shared.reset()
+        // Both caches below are account-scoped: the photos this account could read (with the
+        // image buckets private, the files on disk are the only copy outside the server), and
+        // REST responses with its content. A guest or the next account on this device was served
+        // from them (5b gate G4). Local file removal only; cannot hang.
+        PersistentImageService.shared.clearCache()   // disk and memory
+        URLCache.shared.removeAllCachedResponses()
     }
 
     /// Poll for profile creation after signup with exponential backoff
