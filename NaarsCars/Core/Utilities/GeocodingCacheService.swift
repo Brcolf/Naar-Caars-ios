@@ -2,54 +2,51 @@
 //  GeocodingCacheService.swift
 //  NaarsCars
 //
-//  Reverse-geocoding fallback, cache read/write, and cache cleanup for ride cost estimation
+//  Reverse-geocoding fallback and the place-multiplier cache (read and written only through
+//  get_geocoding_multiplier / put_geocoding_multiplier) for ride cost estimation
 //
 
 import Foundation
 import CoreLocation
 import Supabase
 
-// MARK: - Geocoding Cache Types & Methods
+// MARK: - RPC parameters (explicit keys)
+
+/// `get_geocoding_multiplier(p_location_key text) -> numeric` (20261019_0050 block 1).
+/// Answers the cached multiplier for an active account and a fresh, well-formed key; null otherwise.
+private struct GeocodingLookupParams: Encodable, Sendable {
+    let locationKey: String
+
+    private enum CodingKeys: String, CodingKey { case p_location_key }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(locationKey, forKey: .p_location_key)
+    }
+}
+
+/// `put_geocoding_multiplier(p_location_key text, p_latitude numeric, p_longitude numeric, p_multiplier numeric)
+/// -> boolean` (20261019_0050 block 2). No placemark data is sent; the server answers false on any refusal.
+private struct GeocodingWriteParams: Encodable, Sendable {
+    let locationKey: String
+    let latitude: Double
+    let longitude: Double
+    let multiplier: Double
+
+    private enum CodingKeys: String, CodingKey { case p_location_key, p_latitude, p_longitude, p_multiplier }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(locationKey, forKey: .p_location_key)
+        try c.encode(latitude, forKey: .p_latitude)
+        try c.encode(longitude, forKey: .p_longitude)
+        try c.encode(multiplier, forKey: .p_multiplier)
+    }
+}
+
+// MARK: - Geocoding Cache Methods
 
 extension RideCostEstimator {
-    
-    // MARK: - Cache Model Types
-    
-    struct GeocodingCacheRow: Decodable {
-        let multiplier: Double
-    }
-    
-    struct GeocodingCacheUpsert: Encodable {
-        let latitude: Double
-        let longitude: Double
-        let locationKey: String
-        let multiplier: Double
-        let placemarkData: PlacemarkData?
-        
-        enum CodingKeys: String, CodingKey {
-            case latitude
-            case longitude
-            case locationKey = "location_key"
-            case multiplier
-            case placemarkData = "placemark_data"
-        }
-    }
-    
-    struct PlacemarkData: Encodable {
-        let name: String?
-        let thoroughfare: String?
-        let subThoroughfare: String?
-        let locality: String?
-        let subLocality: String?
-        let administrativeArea: String?
-        let subAdministrativeArea: String?
-        let postalCode: String?
-        let country: String?
-        let isoCountryCode: String?
-        let areasOfInterest: [String]?
-        let ocean: String?
-        let inlandWater: String?
-    }
     
     // MARK: - Reverse Geocoding Fallback
     
@@ -73,137 +70,89 @@ extension RideCostEstimator {
         await upsertGeocodingCache(
             coordinate: coordinate,
             locationKey: locationKey,
-            multiplier: multiplier,
-            placemark: placemark
+            multiplier: multiplier
         )
         
         return multiplier
     }
     
-    /// Cleanup old cache entries. Call on app launch or periodically.
-    static func cleanupGeocodingCache() async {
-        guard await ensureGeocodingCacheAvailable() else { return }
-        
-        let cutoffDate = Date().addingTimeInterval(-Double(geocodingCacheCleanupDays) * 24 * 60 * 60)
-        let cutoffString = isoTimestamp(for: cutoffDate)
-        
-        do {
-            let supabase = await MainActor.run { SupabaseService.shared.client }
-            try await supabase
-                .from(geocodingCacheTable)
-                .delete()
-                .lt("created_at", value: cutoffString)
-                .execute()
-            
-            AppLogger.info("rideCost", "Cleaned geocoding cache entries before \(cutoffString)")
-        } catch {
-            AppLogger.error("rideCost", "Failed to cleanup geocoding cache: \(error.localizedDescription)")
-        }
-    }
+    // MARK: - Cache Read/Write (definer RPCs; the client never reads or writes the cache table)
     
-    // MARK: - Cache Read/Write
-    
+    /// The cached multiplier for `locationKey`, or nil on a miss, a refusal or an error.
+    /// Freshness (24 hours) and the active-account check are decided by the server.
     static func fetchCachedMultiplier(locationKey: String) async -> Double? {
-        guard await ensureGeocodingCacheAvailable() else { return nil }
-        
-        let cutoffDate = Date().addingTimeInterval(-geocodingCacheTtlHours * 60 * 60)
-        let cutoffString = isoTimestamp(for: cutoffDate)
+        guard geocodingCacheAvailable != false else { return nil }
         
         do {
             let supabase = await MainActor.run { SupabaseService.shared.client }
             let response = try await supabase
-                .from(geocodingCacheTable)
-                .select("multiplier")
-                .eq("location_key", value: locationKey)
-                .gte("created_at", value: cutoffString)
-                .order("created_at", ascending: false)
-                .limit(1)
+                .rpc("get_geocoding_multiplier", params: GeocodingLookupParams(locationKey: locationKey))
                 .execute()
+            geocodingCacheAvailable = true
             
-            let rows = try JSONDecoder().decode([GeocodingCacheRow].self, from: response.data)
-            if let cached = rows.first {
-                return cached.multiplier
+            if let cached = try JSONDecoder().decode(Double?.self, from: response.data) {
+                return cached
             }
             
             AppLogger.info("rideCost", "Cache miss for \(locationKey)")
         } catch {
-            if isMissingGeocodingCacheTable(error) {
+            if isMissingGeocodingFunction(error) {
                 geocodingCacheAvailable = false
+                AppLogger.warning("rideCost", "Geocoding lookup function missing. Caching disabled for this session.")
+            } else {
+                AppLogger.warning("rideCost", "Cache read failed for \(locationKey): \(error.localizedDescription)")
             }
-            AppLogger.warning("rideCost", "Cache read failed for \(locationKey): \(error.localizedDescription)")
         }
         
         return nil
     }
     
+    /// Stores the multiplier computed on the device for `locationKey`. Best effort: a refusal
+    /// (`false`) is logged and ignored.
     static func upsertGeocodingCache(
         coordinate: CLLocationCoordinate2D,
         locationKey: String,
-        multiplier: Double,
-        placemark: CLPlacemark
+        multiplier: Double
     ) async {
-        guard await ensureGeocodingCacheAvailable() else { return }
+        guard geocodingCacheAvailable != false else { return }
         
-        let payload = GeocodingCacheUpsert(
+        let params = GeocodingWriteParams(
+            locationKey: locationKey,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
-            locationKey: locationKey,
-            multiplier: multiplier,
-            placemarkData: placemarkPayload(from: placemark)
+            multiplier: multiplier
         )
         
         do {
             let supabase = await MainActor.run { SupabaseService.shared.client }
-            try await supabase
-                .from(geocodingCacheTable)
-                .upsert(payload, onConflict: "location_key")
+            let response = try await supabase
+                .rpc("put_geocoding_multiplier", params: params)
                 .execute()
+            geocodingCacheAvailable = true
             
-            AppLogger.info("rideCost", "Cache upserted for \(locationKey)")
-        } catch {
-            if isMissingGeocodingCacheTable(error) {
-                geocodingCacheAvailable = false
+            let stored = (try? JSONDecoder().decode(Bool?.self, from: response.data)) ?? nil
+            if stored == true {
+                AppLogger.info("rideCost", "Cache written for \(locationKey)")
+            } else {
+                AppLogger.info("rideCost", "Cache write not accepted for \(locationKey)")
             }
-            AppLogger.error("rideCost", "Cache write failed for \(locationKey): \(error.localizedDescription)")
+        } catch {
+            if isMissingGeocodingFunction(error) {
+                geocodingCacheAvailable = false
+                AppLogger.warning("rideCost", "Geocoding write function missing. Caching disabled for this session.")
+            } else {
+                AppLogger.warning("rideCost", "Cache write failed for \(locationKey): \(error.localizedDescription)")
+            }
         }
     }
     
     // MARK: - Cache Availability
     
-    static func ensureGeocodingCacheAvailable() async -> Bool {
-        if let available = geocodingCacheAvailable {
-            return available
-        }
-        
-        do {
-            let supabase = await MainActor.run { SupabaseService.shared.client }
-            _ = try await supabase
-                .from(geocodingCacheTable)
-                .select("id")
-                .limit(1)
-                .execute()
-            
-            geocodingCacheAvailable = true
-            return true
-        } catch {
-            if isMissingGeocodingCacheTable(error) {
-                geocodingCacheAvailable = false
-                AppLogger.warning("rideCost", "geocoding_cache table missing. Caching disabled.")
-            } else {
-                AppLogger.warning("rideCost", "Cache availability check failed: \(error.localizedDescription)")
-            }
-            
-            return false
-        }
-    }
-    
-    static func isMissingGeocodingCacheTable(_ error: Error) -> Bool {
+    /// True when PostgREST could not find the function (`PGRST202`) or Postgres reports an
+    /// undefined function (`42883`): the lookup is then turned off for the session.
+    static func isMissingGeocodingFunction(_ error: Error) -> Bool {
         guard let postgrestError = error as? PostgrestError else { return false }
-        if postgrestError.code == "42P01" {
-            return true
-        }
-        let message = postgrestError.message.lowercased()
-        return message.contains("geocoding_cache") && message.contains("does not exist")
+        return postgrestError.code == "PGRST202" || postgrestError.code == "42883"
     }
     
     // MARK: - Geocoding Helpers
@@ -337,29 +286,5 @@ extension RideCostEstimator {
         ]
         
         return keywords.contains { hints.contains($0) }
-    }
-    
-    static func placemarkPayload(from placemark: CLPlacemark) -> PlacemarkData {
-        PlacemarkData(
-            name: placemark.name,
-            thoroughfare: placemark.thoroughfare,
-            subThoroughfare: placemark.subThoroughfare,
-            locality: placemark.locality,
-            subLocality: placemark.subLocality,
-            administrativeArea: placemark.administrativeArea,
-            subAdministrativeArea: placemark.subAdministrativeArea,
-            postalCode: placemark.postalCode,
-            country: placemark.country,
-            isoCountryCode: placemark.isoCountryCode,
-            areasOfInterest: placemark.areasOfInterest,
-            ocean: placemark.ocean,
-            inlandWater: placemark.inlandWater
-        )
-    }
-    
-    static func isoTimestamp(for date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
     }
 }
