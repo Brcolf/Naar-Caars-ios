@@ -250,7 +250,7 @@ Despite its name, `notifications_insert_service_only` is a self-only check, not 
 
 ### 2.11 invite_codes
 
-**Status (2026-10-19):** since Phase 5a no client code reads or writes this table; community invites (`community_invites` and the community RPCs) are the only codes. File C (`20261019_0061`, GATED, NOT APPLIED) drops the table at the Phase 5b gate. The policies below describe the live table until then.
+**Status (2026-10-19):** since Phase 5a no client code reads or writes this table; community invites (`community_invites` and the community RPCs) are the only codes. File C (`20261019_0061`) dropped the table on 2026-10-20: the owner ran it in the SQL editor after confirming from App Store Connect that no pre-community build remains in use. The table, its policies, `validate_invite_code()` and `mark_invite_code_used()` no longer exist, and `delete_user_account()` no longer references the table. The policies below are kept as a record of the retired table.
 
 The redemption flow has a non-obvious split: the `invite_codes_update_mark_as_used` policy lets *any* authenticated user transition an unused code to "used by self" — that's how strangers redeem the code they were given. There is a row-level UPDATE on the lookup, not an INSERT into a redemptions table.
 
@@ -392,7 +392,7 @@ Scheduled reminders to ride/favor claimers asking them to mark a request complet
 
 ### 2.24 geocoding_cache
 
-**Update (2026-10-19):** the live policies read `is_active_user` in all three operations (the table below says `true`, which is out of date). Since Phase 5a the client reads and writes only through `get_geocoding_multiplier(text)` and `put_geocoding_multiplier(text, numeric, numeric, numeric)` (`20261019_0050`, applied): SECURITY DEFINER, `search_path=""`, an active account is required, the key, the coordinates and the multiplier range (0.9-1.5) are validated, and only the multiplier is returned or stored; no placemark data is written. File D (`20261019_0062`, GATED, NOT APPLIED) revokes direct table access from `anon` and `authenticated`; builds without the Phase 5a client still use the table until then.
+**Update (2026-10-19):** the live policies read `is_active_user` in all three operations (the table below says `true`, which is out of date). Since Phase 5a the client reads and writes only through `get_geocoding_multiplier(text)` and `put_geocoding_multiplier(text, numeric, numeric, numeric)` (`20261019_0050`, applied): SECURITY DEFINER, `search_path=""`, an active account is required, the key, the coordinates and the multiplier range (0.9-1.5) are validated, and only the multiplier is returned or stored; no placemark data is written. File D (`20261019_0062`, applied 2026-10-20) revoked direct table access from `anon` and `authenticated`: the three policies below can no longer be reached from a client role, and only the two definer functions touch the table.
 
 Shared cache of address-to-coordinates lookups. Any authenticated user can read or write any row — there's no per-user ownership and no row-level filtering. The cache key is the (address, region) tuple; collisions overwrite.
 
@@ -409,7 +409,7 @@ This is a deliberate trade: cache hit-rate matters more than per-user isolation,
 State read on 2026-10-19: six buckets, all public (`message-images`, `group-images`, `town-hall-images`, `review-images`, `audio-messages`, `avatars`), each with public SELECT policies on `storage.objects`; INSERT, UPDATE and DELETE policies are separate and unchanged by Phase 5.
 
 - **Phase 5a (applied in the client):** the app reads the four image buckets and `audio-messages` through signed URLs (`StorageURLSigner`), with a 1-hour lifetime and an in-memory cache only. A signed URL is never stored in the database, SwiftData, a disk-cache file name or `URLCache`, and is never logged. Avatars stay public. Stored values are unchanged (the plain public URL the upload returned).
-- **Phase 5b File E (`20261019_0063`, GATED, NOT APPLIED, SQL editor):** the five buckets become private and the public SELECT policies are dropped. Who can read an object: `message-images`, `group-images` and `audio-messages`, the uploader or a participant of the conversation in the path (including one who left, within their window); `town-hall-images` and `review-images`, the uploader or anyone, guests included, who can read a post or review that names the object (the post's and review's own policies decide). Owners read their own uploads. Gate: no pre-community build in use and every build in use contains the Phase 5a client; otherwise those photos stop loading.
+- **Phase 5b File E (`20261019_0063`, applied 2026-10-20; the bucket flips and the five new policies through the MCP, the nine `drop policy` statements by the owner in the SQL editor):** the five buckets are private, the old public SELECT policies are dropped, and the public route answers 400. Who can read an object: `message-images`, `group-images` and `audio-messages`, the uploader or a participant of the conversation in the path (including one who left, within their window); `town-hall-images` and `review-images`, the uploader or anyone, guests included, who can read a post or review that names the object (the post's and review's own policies decide). Owners read their own uploads. The gate (no pre-community build in use, and every build in use contains the Phase 5a client, since without it those photos stop loading) was confirmed by the owner from App Store Connect on 2026-10-20.
 
 ### 2.25 xp_events
 
@@ -686,7 +686,7 @@ For production deployment, implement server-side rate limiting via Supabase Edge
 
 ## 6. Invite Code Security
 
-**Legacy codes retired (Phase 5a, 2026-10-19):** the `NC` + 8 character codes below were the single-use invite codes of the old sign-up flow. No client code generates, validates or redeems them any more, and File C (`20261019_0061`, GATED) drops the table. Community invites are the only codes. The generator shown below was deleted with the client code and is kept as a record of the format.
+**Legacy codes retired (Phase 5a, 2026-10-19):** the `NC` + 8 character codes below were the single-use invite codes of the old sign-up flow. No client code generates, validates or redeems them any more, and File C (`20261019_0061`, applied 2026-10-20) dropped the table. Community invites are the only codes. The generator shown below was deleted with the client code and is kept as a record of the format.
 
 ### 6.1 Code Format
 
