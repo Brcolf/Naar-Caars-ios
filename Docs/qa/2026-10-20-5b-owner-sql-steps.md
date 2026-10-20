@@ -1,5 +1,31 @@
 # Phase 5b: the owner's SQL-editor steps (2026-10-20)
 
+## Outcome
+
+The owner ran all four steps on 2026-10-20: File B block 5, the File C dry run, File C, and File E's nine `drop policy` lines. The orchestrator then verified the result through the MCP.
+
+- **Check.** `20261019_phase5b_not_applied_check.sql`, sent verbatim, reads **false in every column** (`all_unchanged` false), which is the "After Step 4" column below. Phase 5b is fully applied: `20261019_0060`, `0061`, `0062` and `0063` all read APPLIED in their headers.
+- **Account deletion.** `delete_user_account` is `bd886e739d25dbe7497ff6b21c5aa248`, the value File C requires. Its body is `20261017_0004`'s body with the one `invite_codes` line removed, and its grants are kept.
+- **No leftovers.** No public function body contains the string `invite_codes`. (A plain `ilike '%invite_codes%'` matches `unwind_member_requests` only because `_` is a LIKE wildcard and its text contains the words "invite codes".) No `legacy_*` or invite-code function remains, and both bridge triggers are gone.
+- **Storage.** The five buckets are private and avatars public. The only SELECT policies on `storage.objects` are "Avatar public read" and the five new ones.
+- **Probes**, each rolled back, all through the MCP:
+  - `account_deletion` OK. It ran first, because it is the App Store 5.1.1(v) check.
+  - `legacy_retired` OK.
+  - `legacy_bridges` SKIPPED (the bridges are gone).
+  - `privileged_columns` OK.
+  - `short` OK.
+  - `invite_codes_dropped` OK.
+  - `broadcast_cap` OK (its 42501 branch).
+  - `geocoding_revoked` OK.
+  - `geocoding_lookup` OK.
+  - `storage_private` OK. The MCP accepted its inserts into `storage.objects`, so it did not need the SQL editor.
+- **Still the owner's:**
+  1. The full probe file in the SQL editor ("After all four steps", item 1). Its `posts_delete_policy` block holds DELETE statements the MCP declines, and the rest of the full matrix (`noop_default`, `isolation`, `community_moderation` and the others) was not run in this pass. The last row must be `PROBE ALL OK`.
+  2. iOS plan Task 12 Step 4: the two-simulator check that photos and voice notes load, and that the public route answers 400.
+  3. The release notes, App Store review notes and privacy-policy items under "Not SQL, but due now".
+
+The sections below are the instructions as written before the owner's run. They are kept as the record.
+
 The owner confirmed from App Store Connect on 2026-10-20 that no pre-community build remains in use (the A5 gate) and that every build in use contains the Phase 5a client (D-S9). Everything the Supabase MCP accepts has been applied from the orchestrator session. What is left are statements the MCP declines (`DROP TRIGGER`, `DROP FUNCTION`, `DROP TABLE`, `DROP POLICY`, and the `delete_user_account` body, which deletes from `auth.*` and `storage.*`). They run in the Supabase dashboard's SQL editor, in the order below.
 
 ## Where things stand

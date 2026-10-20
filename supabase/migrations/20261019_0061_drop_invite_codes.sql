@@ -1,6 +1,28 @@
 -- 20261019_0061_drop_invite_codes.sql
 --
--- NOT APPLIED. GATED: apply only after the owner confirms from App Store Connect that no pre-community build
+-- APPLIED 2026-10-20 by the owner in the SQL editor, this whole file as one transaction (Step 3 of
+-- Docs/qa/2026-10-20-5b-owner-sql-steps.md), after the dry-run script in a separate tab (Step 2). Nothing of this
+-- file went through the MCP, so it is not in the migration history. Before the owner's run, re-read through the MCP:
+-- invite_codes still held the 62 rows of the C0 capture and CSV (54 with no used_by), and the four functions and
+-- delete_user_account still had the P1 md5 values. Verified through the MCP afterwards:
+--   * public.invite_codes is gone; validate_invite_code, mark_invite_code_used, guard_invite_code_client_update and
+--     handle_invite_code_used are gone.
+--   * No public function body contains the string invite_codes: position('invite_codes' in prosrc) and an escaped
+--     LIKE ('%invite\_codes%' escape '\') find none. A plain ilike '%invite_codes%' matches unwind_member_requests
+--     only because '_' is a LIKE wildcard and its body contains the words "invite codes"; it is not a table reference.
+--   * delete_user_account deployed md5(prosrc) bd886e739d25dbe7497ff6b21c5aa248, the value block 1 requires. That is
+--     20261017_0004's body (md5 135aca113be1ebf5281c03c288ee32c6) with its one line
+--     "    delete from public.invite_codes where created_by = p_user_id;" removed: python3 -I over 20261017_0004 finds
+--     the line exactly once, and the body without it hashes to bd886e73…. Grants kept: postgres, authenticated,
+--     service_role.
+--   * Probes after all four owner steps (rolled back, PARAMETERS and HELPERS in each call, probes under savepoints):
+--     account_deletion OK (run first: App Store 5.1.1(v)), invite_codes_dropped OK, short OK.
+--   * Final not-applied check: every column false (invite_codes_exists, validate_invite_code_exists and
+--     delete_user_account_unchanged among them), all_unchanged false.
+-- Rollback material: supabase/migrations/20261019_0061a_invite_codes_rollback_capture.sql and the CSV kept off the
+-- repository (2026-10-19), then delete_user_account from 20261017_0004:214-499.
+--
+-- (Before the gate.) GATED: apply only after the owner confirms from App Store Connect that no pre-community build
 -- remains in use (A5 point 2). SQL EDITOR (owner), as ONE transaction: delete_user_account's body deletes
 -- from auth.users and storage.objects and the file drops a table, which the Supabase MCP declines.
 -- Phase 5b of the multi-community design (§4 "Phase 5": invite_codes and its policies / triggers dropped in a
@@ -35,7 +57,9 @@
 -- off this repository to /Users/bcolf/Documents/naars-cars-ios-roadmap-research/2026-10-19-invite_codes-backup.csv
 -- (a header row and 62 rows; every line and the whole file checked against an md5 computed on the server; file md5
 -- 50dc9c4c7d7751050f9dcd98dae873a8; owner-only permissions).
--- Outcomes of the owner's SQL-editor dry run: not yet run.
+-- Outcomes of the owner's SQL-editor dry run: run by the owner on 2026-10-20 (Step 2 of the owner-steps document)
+-- before this file; the owner then ran this file, and the orchestrator relayed both as done. The dry run's own output
+-- was not seen in the orchestrator session; the state checks and probes above were.
 --
 -- Rollback. Recreate the table, its constraints, policies and triggers and the four functions from
 -- 20261019_0061a; load the CSV; re-run delete_user_account from 20261017_0004:214-499.

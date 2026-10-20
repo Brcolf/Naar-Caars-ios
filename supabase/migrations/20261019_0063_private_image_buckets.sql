@@ -1,5 +1,19 @@
 -- 20261019_0063_private_image_buckets.sql
 --
+-- APPLIED 2026-10-20, all four blocks. Block 1, block 3, and block 4's bucket update and create policy through the
+-- Supabase MCP apply_migration (the migration-history versions in the paragraph below); the nine DROP POLICY
+-- statements (block 2's seven and block 4's two, quoted below) by the owner in the SQL editor the same day, as
+-- Step 4 of Docs/qa/2026-10-20-5b-owner-sql-steps.md (not in the migration history). Verified through the MCP
+-- afterwards: message-images, group-images, town-hall-images, review-images and audio-messages are private and
+-- avatars public. The SELECT policies on storage.objects are "Avatar public read" and the five new ones
+-- (message_images_read_participants, group_images_read_participants, town_hall_images_read_visible,
+-- review_images_read_visible, audio_messages_read_participants); the nine old ones are gone. Probes after all four
+-- owner steps (rolled back, PARAMETERS and HELPERS, probes under savepoints): storage_private OK, the full unedited
+-- block through the MCP (its inserts into storage.objects were accepted and rolled back; the five buckets held 34
+-- objects before and after); short OK. Final not-applied check: every column false, all_unchanged false. Still to do outside
+-- SQL: iOS plan Task 12 Step 4 (the two-simulator check, and the public route answering 400). The paragraphs that
+-- follow are the partial-apply record, kept as history.
+--
 -- PARTIALLY APPLIED 2026-10-20 through the Supabase MCP apply_migration, one call per block, in file order:
 -- block 1 (20261020164600 20261019_0063_block_1), block 3 (20261020164642 20261019_0063_block_3), and block 4
 -- WITHOUT its two drop policy lines (20261020164719 20261019_0063_block_4: the audio-messages update and the

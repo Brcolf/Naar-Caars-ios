@@ -1,5 +1,18 @@
 -- 20261019_0060_retire_legacy_bridges.sql
 --
+-- APPLIED 2026-10-20, all seven blocks. Blocks 1, 2, 3, 4, 6 and 7 through the Supabase MCP apply_migration (the
+-- migration-history versions in the paragraph below); block 5 (its two DROP TRIGGER and two DROP FUNCTION
+-- statements, quoted below) by the owner in the SQL editor the same day, as Step 1 of
+-- Docs/qa/2026-10-20-5b-owner-sql-steps.md (not in the migration history). Verified through the MCP afterwards:
+-- neither bridge trigger nor either bridge function exists; fill_request_community 9d4cfb03912a7c4a874cffae239ee605,
+-- redeem_community_invite 2ec0702dc3a4d400ca2599d0ebb15693, request_to_join_community
+-- af9a2f5c560d2d74f35ab979e2f3856c, protect_admin_fields d963a013278b5ace77565b8397683bf2 (unchanged since the MCP
+-- apply). Probes after all four owner steps (rolled back; probe PARAMETERS and HELPERS in each call, each probe under
+-- a savepoint): account_deletion OK (run first), legacy_retired OK (the full block), legacy_bridges SKIPPED (the
+-- trigger it tests for is gone, so it takes its SKIPPED branch), privileged_columns OK, short OK, broadcast_cap OK
+-- (its 42501 branch). Final not-applied check (supabase/dryruns/20261019_phase5b_not_applied_check.sql, verbatim):
+-- every column false, all_unchanged false. The paragraphs that follow are the partial-apply record, kept as history.
+--
 -- PARTIALLY APPLIED 2026-10-20: blocks 1, 2, 3, 4, 6 and 7 through the Supabase MCP apply_migration, one call per
 -- block, in file order (migration-history versions 20261020163133 20261019_0060_block_1, 20261020163217
 -- 20261019_0060_block_2, 20261020163259 20261019_0060_block_3, 20261020163341 20261019_0060_block_4, 20261020163419
