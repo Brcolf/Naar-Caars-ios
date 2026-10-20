@@ -71,9 +71,8 @@ final class TownHallService {
             .range(from: offset, to: offset + limit - 1)
             .execute()
 
-        // Decode posts with custom date decoder
-        let decoder = createDateDecoder()
-        var posts: [TownHallPost] = try decoder.decode([TownHallPost].self, from: response.data)
+        // Decode posts with custom date decoder, off the caller's actor
+        var posts: [TownHallPost] = try await Self.decodePosts(response.data)
         let serverCount = posts.count
 
         // Enrich with author profiles, vote counts, comment counts, and review data.
@@ -126,8 +125,7 @@ final class TownHallService {
             .limit(1)
             .execute()
 
-        let decoder = createDateDecoder()
-        let rows = try decoder.decode([TownHallPost].self, from: response.data)
+        let rows = try await Self.decodePosts(response.data)
         guard let post = rows.first else { return nil }
         if MessageService.shared.cachedBlockedUserIds.contains(post.userId) {
             return nil
@@ -558,6 +556,15 @@ final class TownHallService {
     /// Create date decoder for town hall posts
     private func createDateDecoder() -> JSONDecoder {
         DateDecoderFactory.makeMessagingDecoder()
+    }
+
+    /// Decodes `town_hall_posts` rows on the concurrent pool. A nonisolated async method runs on
+    /// its caller's executor (Approachable Concurrency), and the page and single-post fetches are
+    /// called from `@MainActor` (`TownHallSyncEngine`, `TownHallFeedViewModel`), so an inline
+    /// decode would run on the main thread.
+    @concurrent
+    private static func decodePosts(_ data: Data) async throws -> sending [TownHallPost] {
+        try DateDecoderFactory.makeMessagingDecoder().decode([TownHallPost].self, from: data)
     }
 }
 
