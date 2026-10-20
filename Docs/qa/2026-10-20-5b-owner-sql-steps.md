@@ -19,10 +19,10 @@ The owner ran all four steps on 2026-10-20: File B block 5, the File C dry run, 
   - `geocoding_revoked` OK.
   - `geocoding_lookup` OK.
   - `storage_private` OK. The MCP accepted its inserts into `storage.objects`, so it did not need the SQL editor.
-- **Still the owner's:**
-  1. The full probe file in the SQL editor ("After all four steps", item 1). Its `posts_delete_policy` block holds DELETE statements the MCP declines, and the rest of the full matrix (`noop_default`, `isolation`, `community_moderation` and the others) was not run in this pass. The last row must be `PROBE ALL OK`.
-  2. iOS plan Task 12 Step 4: the two-simulator check that photos and voice notes load, and that the public route answers 400.
-  3. The release notes, App Store review notes and privacy-policy items under "Not SQL, but due now".
+- **Done since:**
+  1. The full probe file ("After all four steps", item 1): the owner ran `supabase/probes/communities_probe.sql` in the SQL editor on 2026-10-20 and its last row read `PROBE ALL OK` (the editor clips the column to "PROBE ALL O"; the screenshot was shown to the orchestrator). That covers `posts_delete_policy` and the rest of the full matrix.
+  2. iOS plan Task 12 Step 4, the two-simulator check: run the same day, `Docs/qa/2026-10-20-multi-community-phase5b-gate.md`.
+- **Still the owner's:** the release notes, App Store review notes and privacy-policy items under "Not SQL, but due now".
 
 The sections below are the instructions as written before the owner's run. They are kept as the record.
 

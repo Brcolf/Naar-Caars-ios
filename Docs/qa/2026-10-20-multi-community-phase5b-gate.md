@@ -71,10 +71,10 @@ Two simulators driven through the built-in panel: the owner's `iPhone 16` (`CAA2
 
 ## Step 5: still open
 
-- **The full probe file in the SQL editor** (owner): `supabase/probes/communities_probe.sql`, whole file in one tab; its last row must be `PROBE ALL OK`. Still due per the owner-steps Outcome (its `posts_delete_policy` block holds statements the MCP declines; the rest of the full matrix was not run in the 5b pass).
+- **The full probe file in the SQL editor: done.** The owner ran `supabase/probes/communities_probe.sql` on 2026-10-20 and its last row read `PROBE ALL OK`, which covers `posts_delete_policy` and the rest of the full matrix.
 - **Privacy policy** (owner): tighten the sentence in `Legal/PRIVACY_POLICY.md` §7 that says images may be reachable by URL. It is now true only for avatars and for the one CDN copy above; G4 is relevant to what the policy says about deletion.
 - **Release notes and App Store review notes** (Phase 4 runbook step 6): announcements now arrive as a push for every member who has not muted the community, also when Town Hall notifications are off.
-- **CLAUDE.md Current State and `SECURITY.md` §2.11, §2.24, §2.28** move from "gated" to "applied" (plan Step 5); not done in this gate.
+- **CLAUDE.md Current State and `SECURITY.md` §2.11, §2.24, §2.28** moved from "gated" to "applied" the same day (`e2163a8`, `4d53860`).
 - **From this run:** G3 (G1, G2, G4 and G5 are fixed, see Findings); the O3 group-photo sign and the O4 guest sign on a device whose image cache does not already hold the file; the O3 group-photo write (needs a group of three); the CDN copy of `7DDF55E7`.
 - Nothing was pushed.
 
