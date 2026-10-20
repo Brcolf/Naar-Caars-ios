@@ -385,53 +385,6 @@ final class ProfileService {
         return try JSONDecoder().decode(ProfileStats.self, from: response.data)
     }
 
-    // MARK: - Invite Codes Operations
-    
-    /// Fetch invite codes for a user
-    /// - Parameter userId: The user ID
-    /// - Returns: Array of invite codes ordered by created_at descending
-    /// - Throws: AppError if fetch fails
-    func fetchInviteCodes(forUserId userId: UUID) async throws -> [InviteCode] {
-        let codes: [InviteCode] = try await supabase
-            .from("invite_codes")
-            .select()
-            .eq("created_by", value: userId.uuidString)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-        
-        return codes
-    }
-    
-    /// Generate a new invite code for a user
-    /// Uses InviteCodeGenerator for secure 8-character codes
-    /// - Parameter userId: The user ID
-    /// - Returns: The newly created invite code
-    /// - Throws: AppError if generation fails
-    func generateInviteCode(userId: UUID) async throws -> InviteCode {
-        // Generate secure 8-character code
-        let code = InviteCodeGenerator.generate()
-        
-        let newCode = InviteCode(
-            id: UUID(),
-            code: code,
-            createdBy: userId,
-            usedBy: nil,
-            usedAt: nil,
-            createdAt: Date()
-        )
-        
-        let insertedCode: InviteCode = try await supabase
-            .from("invite_codes")
-            .insert(newCode)
-            .select()
-            .single()
-            .execute()
-            .value
-        
-        return insertedCode
-    }
-    
     // MARK: - Savings & XP Operations
 
     /// Fetch total savings for a user (all time)
