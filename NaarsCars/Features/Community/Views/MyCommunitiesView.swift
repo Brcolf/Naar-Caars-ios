@@ -124,10 +124,6 @@ struct MyCommunitiesView: View {
         .background(Color.naarsBackground)
         .navigationTitle("community_my_title".localized)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: PendingMembersTarget.self) { target in
-            PendingMembersView(target: target)
-                .onAppear { screenPushedOnTop = true }
-        }
         .navigationDestination(item: $pendingTarget) { target in
             PendingMembersView(target: target)
                 .onAppear { screenPushedOnTop = true }
@@ -393,16 +389,27 @@ struct MyCommunitiesView: View {
         }
     }
 
+    /// Sets `pendingTarget`, as the ••• menu does. A `NavigationLink(value:)` did nothing here: this
+    /// screen is itself pushed (from Profile), and a value link cannot see a pushed screen's own
+    /// `navigationDestination(for:)` (5b gate G2).
     private func requestsLink(_ membership: CommunityMembership, count: Int) -> some View {
-        NavigationLink(value: PendingMembersTarget.community(membership.communityId, name: membership.name)) {
+        Button {
+            pendingTarget = .community(membership.communityId, name: membership.name)
+        } label: {
             HStack(spacing: Constants.Spacing.sm) {
                 Label("community_action_requests".localized, systemImage: "person.badge.clock")
                     .font(.naarsSubheadline)
                     .foregroundColor(.naarsTextPrimary)
                 Spacer(minLength: 0)
                 NotificationBadge(count: count)
+                Image(systemName: "chevron.right")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(requestsTitle(count: count))
         .accessibilityIdentifier("community.my.requests")
     }
