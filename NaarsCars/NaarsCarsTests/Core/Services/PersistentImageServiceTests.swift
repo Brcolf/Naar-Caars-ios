@@ -235,4 +235,36 @@ final class PersistentImageServiceTests: XCTestCase {
         XCTAssertNil(service.downloadSession.configuration.urlCache)
         try await waitForCachedFile(named: "A1.jpg")   // let the detached write land before tearDown clears
     }
+
+    /// A Town Hall card inserted while its tab is off screen appears and disappears at once, which
+    /// cancels its load before the download (the 5b gate's G1: -999 once per frame). That load must
+    /// not count as a failure, or the card shows the error view and starts the next load.
+    func testGetImage_FromACancelledTask_IsNotAFailure() async throws {
+        let urlString = serve(Self.pngData(width: 1, height: 1), as: "cancelled-load.png")
+        let outcome = await Task { () -> CachedImageLoadOutcome in
+            withUnsafeCurrentTask { $0?.cancel() }
+            let image = await service.getImage(for: urlString, maxPixelSize: 100)
+            return CachedImageLoadOutcome(gotImage: image != nil, cancelled: Task.isCancelled)
+        }.value
+        XCTAssertNotEqual(outcome, .failed)
+        if outcome == .show {
+            try await waitForCachedFile(named: "cancelled-load.png")
+        }
+    }
+}
+
+/// The state rule `CachedAsyncImage` applies when a load returns.
+final class CachedImageLoadOutcomeTests: XCTestCase {
+    func testCancelledWithoutAnImage_ChangesNothing() {
+        XCTAssertEqual(CachedImageLoadOutcome(gotImage: false, cancelled: true), .unchanged)
+    }
+
+    func testFinishedWithoutAnImage_IsAFailure() {
+        XCTAssertEqual(CachedImageLoadOutcome(gotImage: false, cancelled: false), .failed)
+    }
+
+    func testAnImageIsShownEvenWhenTheLoadWasCancelled() {
+        XCTAssertEqual(CachedImageLoadOutcome(gotImage: true, cancelled: false), .show)
+        XCTAssertEqual(CachedImageLoadOutcome(gotImage: true, cancelled: true), .show)
+    }
 }
