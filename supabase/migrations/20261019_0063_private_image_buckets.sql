@@ -1,6 +1,45 @@
 -- 20261019_0063_private_image_buckets.sql
 --
--- NOT APPLIED. GATED: apply only after the owner confirms from App Store Connect that no pre-community build
+-- PARTIALLY APPLIED 2026-10-20 through the Supabase MCP apply_migration, one call per block, in file order:
+-- block 1 (20261020164600 20261019_0063_block_1), block 3 (20261020164642 20261019_0063_block_3), and block 4
+-- WITHOUT its two drop policy lines (20261020164719 20261019_0063_block_4: the audio-messages update and the
+-- audio_messages_read_participants policy). NOT APPLIED: block 2 and the two drop policy lines of block 4, nine
+-- DROP POLICY statements the MCP declines; they are the owner's SQL-editor step (text below and in
+-- Docs/qa/2026-10-20-5b-owner-sql-steps.md). Contrary to the plan's expectation the MCP accepted the writes to
+-- storage.buckets and the create policy statements on storage.objects. Both gate conditions were confirmed by the
+-- owner on 2026-10-20 from App Store Connect (A5 point 2 and D-S9: every build in use contains the Phase 5a
+-- client, which reads these buckets through signed URLs).
+--   State now: message-images, group-images, town-hall-images, review-images and audio-messages are private
+--   (public route 400), avatars public; the five new read policies exist; the nine old read policies (seven image,
+--   two audio) still exist, and because permissive policies are OR'ed they still let anyone, anon included, read
+--   every object of those buckets through the storage API (sign a URL, download). So until the owner runs the drops
+--   the read rule is no stricter than before this file, and nothing a Phase 5a client does stops working. This
+--   split replaces the file's one-transaction apply (the orchestrator's instruction of 2026-10-20, after the owner's
+--   D-S9 confirmation); the file is not to be run again as a whole (its create policy statements would fail on the
+--   existing names and roll the whole transaction back).
+--   Outcomes, 2026-10-20. P2 re-read: six public buckets, the ten SELECT policies of the plan's P2 (seven image, two
+--   audio, avatar), 34 objects in the five buckets. Subset dry run (blocks 1, 3, 4 without the drops, inside
+--   begin; ... rollback; with the probe PARAMETERS and HELPERS, probes under savepoints): short OK; storage_private
+--   FAILED as expected at its second check, "no SELECT policy on those buckets is a bare bucket test any more" (its
+--   first check, the four buckets private and avatars public, passed); afterwards all buckets were still public and
+--   no new policy existed. Apply: short after each of the three calls: OK; then storage_private again: the same
+--   expected failure (in that call its block was sent cut after the message-image checks, which does not change
+--   the outcome; the unedited block ran in the dry run). The probe was not edited. Not-applied check afterwards:
+--   buckets_all_public false, new_storage_read_policies_absent false, old_storage_read_policies_present true.
+--
+-- Owner's SQL-editor step, the exact text (run it alone in a new tab, in this order, after File C):
+--   drop policy if exists "Allow public read access on message-images" on storage.objects;
+--   drop policy if exists "Message image read" on storage.objects;
+--   drop policy if exists "Allow public read access on group-images" on storage.objects;
+--   drop policy if exists "Anyone can view group images" on storage.objects;
+--   drop policy if exists "Allow public read access on town-hall-images" on storage.objects;
+--   drop policy if exists "Town hall public read" on storage.objects;
+--   drop policy if exists "Allow public access to review images" on storage.objects;
+--   drop policy if exists "Allow public read access on audio-messages" on storage.objects;
+--   drop policy if exists "Anyone can view audio messages" on storage.objects;
+-- Then the not-applied check (old_storage_read_policies_present false) and storage_private (OK).
+--
+-- (Before the gate.) GATED: apply only after the owner confirms from App Store Connect that no pre-community build
 -- remains in use (A5 point 2) AND that every build in use contains the Phase 5a client (it downloads these
 -- buckets through signed URLs). SQL EDITOR (owner), as ONE transaction: DROP POLICY and the write to
 -- storage.buckets are declined by the Supabase MCP. Phase 5b (§4 "Phase 5": private storage buckets with
