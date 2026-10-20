@@ -182,6 +182,8 @@ final class AuthService: ObservableObject {
         // Track whether auth user was created so we can clean up on failure
         var createdAuthUserId: String?
 
+        // Nothing identifying in these sign-up lines (5b gate G5: the address was logged).
+        AppLogger.auth.info("Sign-up started")
         do {
             // 1. Create auth user with Supabase
             let authResponse = try await supabase.client.auth.signUp(
@@ -246,10 +248,10 @@ final class AuthService: ObservableObject {
             // Signup fully succeeded — clear the tracking variable so cleanup doesn't fire
             createdAuthUserId = nil
 
-            AppLogger.auth.info("User signed up successfully: \(email)")
+            AppLogger.auth.info("Sign-up succeeded")
 
         } catch {
-            AppLogger.auth.error("Signup failed for \(email): \(error.localizedDescription)")
+            AppLogger.auth.error("Sign-up failed: \(error.localizedDescription)")
 
             // Clean up orphaned auth user if one was created before the failure
             if let orphanedId = createdAuthUserId {
