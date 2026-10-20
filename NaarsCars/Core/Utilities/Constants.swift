@@ -134,6 +134,10 @@ enum Constants {
         static let refreshStalenessWindow: TimeInterval = 30.0
         /// Safety poll interval (5 minutes)
         static let refreshSafetyPollInterval: TimeInterval = 300.0
+        /// Sign-out: longest `RefreshCoordinator.reset()` waits for the refreshes it cancelled to
+        /// finish before the SwiftData wipe (a job already inside `BackgroundSyncActor` runs to its
+        /// save, 16 to 120 ms measured). Bounds the wait so sign-out cannot hang (3s).
+        static let refreshResetDrainTimeout: TimeInterval = 3.0
         /// Conversations-list poll interval used ONLY while push notifications are not authorized
         /// and the messages tab is visible (push-off fallback, commit 7dd1494). Ticks route through
         /// RefreshCoordinator.refreshIfNeeded, so the 30s staleness window and failure backoff still apply.

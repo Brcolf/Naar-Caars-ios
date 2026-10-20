@@ -11,7 +11,7 @@ import SwiftData
 ///
 /// INVARIANTS:
 /// - At most ONE refresh Task per domain at any time (enforced by isInFlight guard + assert)
-/// - Tasks are cancelled ONLY during reset() (sign-out)
+/// - Tasks are cancelled ONLY during reset() (sign-out), which waits (bounded) for them to finish
 /// - All engine calls happen in executeFullSync/executeTargetedSync (nowhere else)
 /// - State transitions: .refreshing never transitions to .refreshing
 @MainActor
@@ -197,8 +197,33 @@ final class RefreshCoordinator {
         safetyPollTimer = nil
     }
 
-    /// Sign-out teardown. Cancels all in-flight tasks, clears all state.
-    func reset() {
+    /// Sign-out teardown. Cancels all in-flight tasks, waits for them to finish, clears all state.
+    ///
+    /// The wait closes a sign-out race: a sync job that has entered `BackgroundSyncActor` does not
+    /// check cancellation and runs to its `save()`, and the caller wipes SwiftData right after this
+    /// returns, so returning first let the job's rows outlive sign-out. An engine checks
+    /// `Task.isCancelled` before entering the actor, so a cancelled task that has not entered it
+    /// ends at once. While waiting, the cancelled domains stay `.refreshing`, so a trigger in that
+    /// window joins instead of starting a new sync. The wait ends after `drainTimeout` regardless.
+    func reset(drainTimeout: TimeInterval = Constants.Timing.refreshResetDrainTimeout) async {
+        stopSafetyPoll()
+        var cancelledTasks: [Task<Void, Never>] = []
+        for (_, state) in states {
+            if case .refreshing(let task, _) = state {
+                task.cancel()
+                cancelledTasks.append(task)
+            }
+        }
+        // A forceFullRefreshAndWait caller resumed by a cancelled task reads nil, as documented.
+        lastResults.removeAll()
+        if !cancelledTasks.isEmpty {
+            let finished = await Self.waitForCompletion(of: cancelledTasks, timeout: drainTimeout)
+            if !finished {
+                AppLogger.warning("refresh", "reset: cancelled refreshes still running after \(drainTimeout)s")
+            }
+        }
+        // A refresh started for another domain while waiting is cancelled too (not awaited), so
+        // it cannot mark its domain hydrated after the state below is cleared.
         for (_, state) in states {
             if case .refreshing(let task, _) = state {
                 task.cancel()
@@ -208,10 +233,33 @@ final class RefreshCoordinator {
         failureCounts.removeAll()
         lastTriggers.removeAll()
         lastResults.removeAll()
-        stopSafetyPoll()
         visibleDomain = nil
         activeConversationId = nil
         clearAllSyncTimestamps()
+    }
+
+    /// Waits until every task in `tasks` has finished or `timeout` seconds have passed, and
+    /// returns false on timeout. `Task.value` keeps waiting when its waiter is cancelled, so a task
+    /// group cannot bound it (the group waits for every child); the two waits race through a stream.
+    private static func waitForCompletion(of tasks: [Task<Void, Never>], timeout: TimeInterval) async -> Bool {
+        let (outcomes, continuation) = AsyncStream.makeStream(of: Bool.self)
+        let waiter = Task {
+            for task in tasks { await task.value }
+            continuation.yield(true)
+        }
+        let timer = Task {
+            do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+            continuation.yield(false)
+        }
+        var finished = false
+        for await outcome in outcomes {
+            finished = outcome
+            break
+        }
+        timer.cancel()
+        waiter.cancel()
+        continuation.finish()
+        return finished
     }
 
     // MARK: - Refresh Decision Logic
@@ -270,6 +318,9 @@ final class RefreshCoordinator {
     /// Dispatches full sync to the appropriate engine.
     /// Later tasks will wire these to actual engine implementations.
     private func executeFullSync(_ domain: Domain) async throws -> RefreshMetrics {
+        #if DEBUG
+        if let fullSyncOverrideForTesting { return try await fullSyncOverrideForTesting(domain) }
+        #endif
         switch domain {
         case .dashboard:
             return try await DashboardSyncEngine.shared.performFullSync()
@@ -426,6 +477,9 @@ final class RefreshCoordinator {
     // MARK: - Testing Helpers
 
     #if DEBUG
+    /// Stands in for the engine of every full sync on this instance (tests only; never set on `shared`).
+    var fullSyncOverrideForTesting: ((Domain) async throws -> RefreshMetrics)?
+
     func markSyncedForTesting(_ domain: Domain, at date: Date = Date()) {
         states[domain] = .hydrated(lastSync: date)
         UserDefaults.standard.set(date, forKey: "refresh.lastSync.\(domain.rawValue)")
