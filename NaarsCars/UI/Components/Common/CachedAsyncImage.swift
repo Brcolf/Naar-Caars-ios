@@ -12,15 +12,21 @@ import SwiftUI
 /// Provides a smooth opacity transition when the image loads.
 struct CachedAsyncImage<Placeholder: View, ErrorView: View>: View {
     let url: URL?
+    /// Longest side, in pixels, to decode the image at (the shown size times the display scale).
+    /// Nil keeps the full-size image.
+    let maxPixelSize: CGFloat?
     let placeholder: () -> Placeholder
     let errorView: () -> ErrorView
     
     @State private var image: UIImage?
+    /// The URL `image` was loaded for, so a card that reappears in a lazy stack does not load it again.
+    @State private var loadedURL: URL?
     @State private var isLoading = false
     @State private var hasFailed = false
     
     init(
         url: URL?,
+        maxPixelSize: CGFloat? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder = { ProgressView() },
         @ViewBuilder errorView: @escaping () -> ErrorView = {
             Image(systemName: "photo")
@@ -28,6 +34,7 @@ struct CachedAsyncImage<Placeholder: View, ErrorView: View>: View {
         }
     ) {
         self.url = url
+        self.maxPixelSize = maxPixelSize
         self.placeholder = placeholder
         self.errorView = errorView
     }
@@ -55,17 +62,19 @@ struct CachedAsyncImage<Placeholder: View, ErrorView: View>: View {
             return
         }
         
+        if image != nil, loadedURL == url { return }
         guard !isLoading else { return }
         isLoading = true
         hasFailed = false
         
         let urlString = url.absoluteString
-        let loaded = await PersistentImageService.shared.getImage(for: urlString)
+        let loaded = await PersistentImageService.shared.getImage(for: urlString, maxPixelSize: maxPixelSize)
         
         if let loaded {
             withAnimation(.easeIn(duration: 0.2)) {
                 self.image = loaded
             }
+            loadedURL = url
         } else {
             hasFailed = true
         }

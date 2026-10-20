@@ -261,6 +261,7 @@ struct TownHallPostCard: View {
         if let imageUrl = post.imageUrl, !imageUrl.isEmpty {
             CachedAsyncImage(
                 url: URL(string: imageUrl),
+                maxPixelSize: Constants.Storage.feedImageMaxPixelSize,
                 placeholder: {
                     ProgressView()
                         .frame(maxWidth: .infinity)

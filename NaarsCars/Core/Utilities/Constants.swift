@@ -222,6 +222,11 @@ enum Constants {
         static let signedURLRenewMargin: TimeInterval = 300
         /// Max signed URLs kept in memory; past it the entry with the earliest expiry goes
         static let signedURLCacheMaxEntries = 500
+        /// Byte budget of the decoded, display-sized images PersistentImageService keeps in
+        /// memory (cost = bitmap bytes); NSCache evicts past it, and a memory warning empties it
+        static let imageMemoryCacheMaxBytes = 80 * 1_024 * 1_024
+        /// Longest side, in pixels, a feed photo is decoded at: a 3:4 photo at full card width on a 3x screen
+        static let feedImageMaxPixelSize: CGFloat = 1440
     }
     
     /// External URLs

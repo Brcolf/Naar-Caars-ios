@@ -48,6 +48,17 @@ final class PersistentImageServiceTests: XCTestCase {
         }
     }()
 
+    /// 400x300 pixels (scale 1), larger than the display-sized request below.
+    private static let largePNGData: Data = {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300), format: format)
+        return renderer.pngData { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+        }
+    }()
+
     override func setUp() {
         super.setUp()
         service.clearCache()
@@ -111,6 +122,30 @@ final class PersistentImageServiceTests: XCTestCase {
         XCTAssertNotNil(second)
         XCTAssertEqual(resolver.callCount, 1)
         XCTAssertEqual(CommunityServiceURLProtocol.recorded.count, requestsAfterFirst)
+    }
+
+    func testGetImage_DisplaySizedRequestIsDownsampledAndReused() async throws {
+        CommunityServiceURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["Content-Type": "image/png"])!
+            return (response, PersistentImageServiceTests.largePNGData)
+        }
+        let firstImage = await service.getImage(for: storedString, maxPixelSize: 100)
+        let first = try XCTUnwrap(firstImage)
+        let cgImage = try XCTUnwrap(first.cgImage)
+        XCTAssertLessThanOrEqual(max(cgImage.width, cgImage.height), 100)
+        XCTAssertEqual(cgImage.width, 100)   // 400x300 -> 100x75, aspect kept
+
+        try await waitForCachedFile(named: "A1.jpg")
+        let requestsAfterFirst = CommunityServiceURLProtocol.recorded.count
+        let second = await service.getImage(for: storedString, maxPixelSize: 100)
+        XCTAssertTrue(first === second, "the same URL and size should come from the memory cache")
+        XCTAssertEqual(CommunityServiceURLProtocol.recorded.count, requestsAfterFirst)
+
+        // The full-size path is unchanged: a new, full-size image from the disk cache.
+        let full = await service.getImage(for: storedString)
+        XCTAssertEqual(full?.cgImage?.width, 400)
+        XCTAssertFalse(full === first)
     }
 
     func testGetImage_ResolvedDownloadLeavesNoURLCacheEntry() async throws {

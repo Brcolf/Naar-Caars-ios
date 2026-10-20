@@ -15,6 +15,8 @@ struct AvatarView: View {
     var badges: [LeaderboardBadge] = []
     var userId: UUID? = nil
 
+    @Environment(\.displayScale) private var displayScale
+
     private var initials: String {
         let components = name.components(separatedBy: " ")
         if components.count >= 2 {
@@ -64,6 +66,7 @@ struct AvatarView: View {
                 if let imageUrl = imageUrl, !imageUrl.isEmpty {
                     CachedAsyncImage(
                         url: URL(string: imageUrl),
+                        maxPixelSize: size * displayScale,
                         placeholder: { ProgressView() },
                         errorView: { initialsView }
                     )
