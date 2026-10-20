@@ -1,6 +1,21 @@
 -- 20261019_0062_geocoding_cache_direct_access_revoked.sql
 --
--- NOT APPLIED. GATED: apply only after the owner confirms from App Store Connect that no pre-community build
+-- APPLIED 2026-10-20, both blocks, through the Supabase MCP apply_migration, one call per block (migration-history
+-- versions 20261020164134 20261019_0062_block_1, 20261020164213 20261019_0062_block_2). Both gate conditions were
+-- confirmed by the owner on 2026-10-20 from App Store Connect: no pre-community build remains in use (A5 point 2),
+-- and every build in use contains the Phase 5a client (D-S9). Before the apply: anon and authenticated held every
+-- table privilege (P2), 9 rows, 0 placemarks, the three policies present, get_geocoding_multiplier
+-- 438807f01da2c4e5606bd01c0758763a and put_geocoding_multiplier cfdad42429b7447a3f7ff00826c04091 (20261019_0050's
+-- deployed values). After: no table privilege for anon or authenticated (information_schema lists none), 0
+-- placemarks (block 2 changed no row), the policies and the two definer functions unchanged. No deviation.
+--   Outcomes, 2026-10-20. Dry run: the committed script sent verbatim as one execute_sql call answered
+--   'DRYRUN 20261019_0062_geocoding_cache_direct_access_revoked.sql OK' (geocoding_revoked, geocoding_lookup, short
+--   OK); right after, the grants were still in place and no probe row was left. Apply: short after block 1
+--   (rolled back): OK; after block 2, one rolled-back call with short, geocoding_revoked and geocoding_lookup: all
+--   OK (these short calls carried the PARAMETERS and the helpers the probes call). Not-applied check afterwards:
+--   geocoding_cache_readable false, as expected.
+--
+-- (Before the gate.) GATED: apply only after the owner confirms from App Store Connect that no pre-community build
 -- remains in use (A5 point 2) AND that every build in use contains the Phase 5a client (its ride-cost lookup
 -- calls get_geocoding_multiplier / put_geocoding_multiplier, 20261019_0050). Phase 5b (§4 "Phase 5":
 -- geocoding_cache read through a definer lookup, direct SELECT revoked; D16).
