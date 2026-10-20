@@ -485,6 +485,8 @@ final class AuthService: ObservableObject {
         }
         // An invite code kept on this device for a sign-up (spec §5 Sign-out row).
         PendingInviteStore().clear()
+        // Signed storage URLs were issued under this account's access; the next account signs its own.
+        await StorageURLSigner.shared.reset()
     }
 
     /// Poll for profile creation after signup with exponential backoff

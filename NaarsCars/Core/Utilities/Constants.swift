@@ -216,6 +216,12 @@ enum Constants {
         static let audioPlaybackCacheMaxBytes: Int64 = 100 * 1_024 * 1_024
         /// Trim target when audio cache exceeds budget
         static let audioPlaybackCacheTrimTargetBytes: Int64 = 80 * 1_024 * 1_024
+        /// Seconds a signed storage URL stays valid (createSignedURL expiresIn)
+        static let signedURLLifetime: Int = 3600
+        /// A cached signed URL is renewed when less than this many seconds of its lifetime remain
+        static let signedURLRenewMargin: TimeInterval = 300
+        /// Max signed URLs kept in memory; past it the entry with the earliest expiry goes
+        static let signedURLCacheMaxEntries = 500
     }
     
     /// External URLs

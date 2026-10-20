@@ -16,6 +16,13 @@ final class PersistentImageService {
     
     private let fileManager = FileManager.default
     private let cacheDirectory: URL
+
+    /// Turns a stored URL into the URL to download from (a signed URL for the private-to-be buckets).
+    /// Internal so tests can inject a stub; the result is never stored or logged.
+    var urlResolver: any StorageURLResolving = StorageURLSigner.shared
+
+    /// Every download goes through this session: no URLCache, so a signed URL never reaches disk.
+    var downloadSession: URLSession = .signedStorageDownload
     
     private init() {
         let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
@@ -33,7 +40,8 @@ final class PersistentImageService {
     func getImage(for urlString: String) async -> UIImage? {
         guard let url = URL(string: urlString) else { return nil }
 
-        // 1. Check disk cache (off-main via detached task)
+        // 1. Check disk cache (off-main via detached task). The key is the stored URL's
+        // file name, never the signed URL's.
         let fileName = url.lastPathComponent
         let fileURL = cacheDirectory.appendingPathComponent(fileName)
 
@@ -48,9 +56,10 @@ final class PersistentImageService {
 
         if let cachedImage { return cachedImage }
 
-        // 2. Download if not in cache
+        // 2. Download if not in cache, from the resolved (possibly signed) URL
+        let downloadURL = await urlResolver.resolvedURL(for: url)
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, _) = try await downloadSession.data(from: downloadURL)
             if let image = UIImage(data: data) {
                 // Save to disk cache (off-main)
                 let saveURL = fileURL
@@ -60,7 +69,9 @@ final class PersistentImageService {
                 return image
             }
         } catch {
-            AppLogger.error("images", "Failed to download image: \(error)")
+            // Domain and code only: a URLError's description carries the (signed) failing URL.
+            let ns = error as NSError
+            AppLogger.error("images", "Failed to download image: \(ns.domain) \(ns.code)")
         }
 
         return nil
