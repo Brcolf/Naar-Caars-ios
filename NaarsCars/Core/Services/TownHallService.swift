@@ -20,7 +20,9 @@ final class TownHallService {
     
     private let supabase = SupabaseService.shared.client
     private let rateLimiter = RateLimiter.shared
-    
+    /// Joins identical page reads that overlap (see `fetchPostsPage`).
+    private let pageRequests = RequestDeduplicator()
+
     // MARK: - Initialization
     
     private init() {}
@@ -43,7 +45,21 @@ final class TownHallService {
     ///
     /// A nil `communityId` means "no community filter": RLS still returns only the caller's
     /// communities. A non-nil id adds `community_id = id` to the query.
+    ///
+    /// On every Community visit the Town Hall sync (`TownHallSyncEngine.performFullSync`) and the
+    /// feed's enrichment fetch (`TownHallFeedViewModel.refreshFromNetwork`) ask for the same first
+    /// page at the same moment. An identical call made while one is in flight waits for it and
+    /// gets the same result, instead of a second page read plus its four enrichment reads. The key
+    /// holds the user, so a read never serves another account across a sign-out.
     func fetchPostsPage(limit: Int = 20, offset: Int = 0, communityId: UUID? = nil) async throws -> (posts: [TownHallPost], serverCount: Int) {
+        let userId = AuthService.shared.currentUserId
+        let key = "townHallPostsPage:\(limit):\(offset):\(communityId?.uuidString ?? "all"):\(userId?.uuidString ?? "none")"
+        return try await pageRequests.fetch(key: key) { [self] in
+            try await self.fetchPostsPageFromServer(limit: limit, offset: offset, communityId: communityId, userId: userId)
+        }
+    }
+
+    private func fetchPostsPageFromServer(limit: Int, offset: Int, communityId: UUID?, userId: UUID?) async throws -> (posts: [TownHallPost], serverCount: Int) {
         var query = supabase
             .from("town_hall_posts")
             .select()
@@ -62,8 +78,8 @@ final class TownHallService {
 
         // Enrich with author profiles, vote counts, comment counts, and review data.
         // The lookups only depend on this page of posts, so they run concurrently.
-        posts = await enrichPosts(posts, userId: AuthService.shared.currentUserId)
-        
+        posts = await enrichPosts(posts, userId: userId)
+
         // Filter out posts from blocked users
         let blockedIds = MessageService.shared.cachedBlockedUserIds
         if !blockedIds.isEmpty {
