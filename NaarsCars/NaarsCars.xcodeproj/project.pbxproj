@@ -342,6 +342,8 @@
 		ACBB62ED3086FE560016DEE5 /* StorageURLSigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBB62EC3086FE560016DEE5 /* StorageURLSigner.swift */; };
 		ACBB62EF3086FE770016DEE5 /* StorageURLSignerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBB62EE3086FE760016DEE5 /* StorageURLSignerTests.swift */; };
 		ACBB62F13086FE8B0016DEE5 /* PersistentImageServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBB62F03086FE8B0016DEE5 /* PersistentImageServiceTests.swift */; };
+		ACBB62F3308701BD0016DEE5 /* VoiceNotePrefetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBB62F2308701BD0016DEE5 /* VoiceNotePrefetching.swift */; };
+		ACBB62F5308701C80016DEE5 /* MessageAudioPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBB62F4308701C80016DEE5 /* MessageAudioPlayerTests.swift */; };
 		ACBF4A992F12CA56006A7C8A /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4A952F12CA56006A7C8A /* FilterBar.swift */; };
 		ACBF4A9A2F12CA56006A7C8A /* RequestPin.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4A962F12CA56006A7C8A /* RequestPin.swift */; };
 		ACBF4A9B2F12CA56006A7C8A /* RequestPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACBF4A972F12CA56006A7C8A /* RequestPreviewCard.swift */; };
@@ -892,6 +894,8 @@
 		ACBB62EC3086FE560016DEE5 /* StorageURLSigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageURLSigner.swift; sourceTree = "<group>"; };
 		ACBB62EE3086FE760016DEE5 /* StorageURLSignerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageURLSignerTests.swift; sourceTree = "<group>"; };
 		ACBB62F03086FE8B0016DEE5 /* PersistentImageServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentImageServiceTests.swift; sourceTree = "<group>"; };
+		ACBB62F2308701BD0016DEE5 /* VoiceNotePrefetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceNotePrefetching.swift; sourceTree = "<group>"; };
+		ACBB62F4308701C80016DEE5 /* MessageAudioPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageAudioPlayerTests.swift; sourceTree = "<group>"; };
 		ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		ACBF4A952F12CA56006A7C8A /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
 		ACBF4A962F12CA56006A7C8A /* RequestPin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestPin.swift; sourceTree = "<group>"; };
@@ -1224,6 +1228,7 @@
 				AC410C543085582000D921E2 /* ApplicantContactFetching.swift */,
 				AC410C843085B77700D921E2 /* AdminServiceProtocol.swift */,
 				ACBB62EA3086FE550016DEE5 /* StorageURLResolving.swift */,
+				ACBB62F2308701BD0016DEE5 /* VoiceNotePrefetching.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -1572,6 +1577,7 @@
 				AC1200842F3AE63E0043BFAE /* ConversationParticipantsViewModelTests.swift */,
 				AC9DDD222F2B139C003465D3 /* InAppToastManagerTests.swift */,
 				TAPBACK0000000000000004 /* TapbackArtworkTests.swift */,
+				ACBB62F4308701C80016DEE5 /* MessageAudioPlayerTests.swift */,
 			);
 			path = Messaging;
 			sourceTree = "<group>";
@@ -2810,6 +2816,7 @@
 				AC305F062F0DB81A0063AFDF /* ClaimService.swift in Sources */,
 				AC305F072F0DB81A0063AFDF /* PushNotificationService.swift in Sources */,
 				226D413C793345DCB91FEB97 /* App/AppDelegate.swift in Sources */,
+				ACBB62F3308701BD0016DEE5 /* VoiceNotePrefetching.swift in Sources */,
 				ACBF4B0E2F12CBF6006A7C8A /* AppleSignInViewModel.swift in Sources */,
 				AC27A00F2F1EFB6800E3B58F /* GuidelinesAcceptanceSheet.swift in Sources */,
 				MSGLIST0000000000000002 /* MessageListItem.swift in Sources */,
@@ -3049,6 +3056,7 @@
 				AC9DDD352F2B139C003465D3 /* NotificationsListViewModelTests.swift in Sources */,
 				AC12007B2F3AE6160043BFAE /* ClaimServiceTests.swift in Sources */,
 				AC12007C2F3AE6160043BFAE /* FavorServiceTests.swift in Sources */,
+				ACBB62F5308701C80016DEE5 /* MessageAudioPlayerTests.swift in Sources */,
 				AC410C5D30855BB500D921E2 /* MyCommunitiesViewModelTests.swift in Sources */,
 				AC12007D2F3AE6160043BFAE /* RideServiceTests.swift in Sources */,
 				AC1200762F3AE6090043BFAE /* BadgeCountManagerTests.swift in Sources */,

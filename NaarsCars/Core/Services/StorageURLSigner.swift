@@ -12,8 +12,8 @@ import Supabase
 actor StorageURLSigner: StorageURLResolving {
     static let shared = StorageURLSigner()
 
-    /// The buckets 5b makes private. "audio-messages" joins only through Task 8 (D-1). Avatars are never signed.
-    static let signedBuckets: Set<String> = ["message-images", "group-images", "town-hall-images", "review-images"]
+    /// The buckets 5b makes private: the four image buckets and "audio-messages" (decisions A6 point 1). Avatars are never signed.
+    static let signedBuckets: Set<String> = ["message-images", "group-images", "town-hall-images", "review-images", "audio-messages"]
 
     private struct Entry {
         let url: URL

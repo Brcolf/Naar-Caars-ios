@@ -119,6 +119,18 @@ final class StorageURLSignerTests: XCTestCase {
         XCTAssertEqual(calls.first?.expiresIn, lifetime)
     }
 
+    func testResolve_AudioMessagesAreSigned() async {
+        let stub = StubStorageObjectSigning()
+        let signer = makeSigner(stub, clock: StorageTestClock())
+        let stored = storedURL("audio-messages", "C0/V1.m4a")
+        let resolved = await signer.resolvedURL(for: stored)
+        XCTAssertTrue(resolved.query?.contains("token=t1") ?? false)
+        let calls = await stub.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.bucket, "audio-messages")
+        XCTAssertEqual(calls.first?.path, "C0/V1.m4a")
+    }
+
     func testResolve_SignsOncePerPathWithinTheLifetime() async {
         let stub = StubStorageObjectSigning()
         let clock = StorageTestClock()

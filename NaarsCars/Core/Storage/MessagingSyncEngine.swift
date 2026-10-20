@@ -24,6 +24,9 @@ final class MessagingSyncEngine: SyncEngineProtocol {
     /// Short correlation token for log tracing (subscribe → hydrate → save → UI)
     private var refreshId: String = ""
     private let messageService = MessageService.shared
+    /// Warms a received voice note through the signed storage path (decisions A6 point 1). Lazy so the
+    /// player is created only when the first voice note arrives.
+    private lazy var voiceNotePrefetcher: any VoiceNotePrefetching = MessageAudioPlayer.shared
     let health = SyncHealthMetrics()
 
     /// Outcome of one child task in the subscribe-then-fetch race (see `subscribeToConversation`).
@@ -169,11 +172,10 @@ final class MessagingSyncEngine: SyncEngineProtocol {
                         self.conversationService.unhideConversationForUser(conversationId: message.conversationId, userId: userId)
                     }
 
-                    // Audio pre-caching: warm URLCache so the first tap (MessageAudioPlayer downloads
-                    // the whole file) is a cache hit. Only on insert — edits, unsends and moderation
+                    // Audio pre-caching: fill the voice-note player's temp-file cache so the first tap
+                    // plays without a download. Only on insert — edits, unsends and moderation
                     // hides re-deliver the same URL. Images are not pre-fetched here: the visible cell
-                    // loads them through PersistentImageService immediately, so the URLCache warm-up
-                    // was a second full download of the same bytes.
+                    // loads them through PersistentImageService immediately.
                     if result == .inserted, let audioUrl = message.audioUrl {
                         precacheMedia(url: audioUrl)
                     }
@@ -507,7 +509,10 @@ final class MessagingSyncEngine: SyncEngineProtocol {
 
     private func precacheMedia(url: String) {
         guard let mediaURL = URL(string: url) else { return }
-        URLSession.shared.dataTask(with: mediaURL).resume() // Simple pre-fetch into URLCache
+        // Fire-and-forget, as before: the realtime handler does not wait for the download.
+        // Not URLCache: a signed URL must never reach its disk store.
+        let prefetcher = voiceNotePrefetcher
+        Task { await prefetcher.prefetch(mediaURL) }
     }
 
     /// Retry pending messages via the durable MessageSendWorker
