@@ -61,9 +61,11 @@ final class PersistentImageService {
     /// Get an image from cache or download it if not present
     /// - Parameters:
     ///   - urlString: The URL string of the image
-    ///   - maxPixelSize: When set, the image is decoded off the main thread at no more than this
-    ///     many pixels on its long side (never upscaled) and kept in the memory cache, so the same
-    ///     URL and size returns the same instance. Nil returns the full-size, lazily decoded image
+    ///   - maxPixelSize: The pixels the caller shows the image's short side at (a fit-to-width
+    ///     card's width, an aspect-fill square's side). When set, the image is decoded off the main
+    ///     thread with its short side at this size, or at the source's own size when that is
+    ///     smaller (never upscaled), and kept in the memory cache, so the same URL and size returns
+    ///     the same instance. Nil returns the full-size, lazily decoded image
     ///     as before, not memory-cached (the full-screen viewer, and the message bubbles, which
     ///     downsample themselves).
     /// - Returns: The UIImage if found or downloaded, nil otherwise
@@ -125,24 +127,45 @@ final class PersistentImageService {
         return nil
     }
 
-    /// With a pixel cap, ImageIO decodes straight to a bitmap no larger than the cap on its long
-    /// side, applies the EXIF orientation and decodes now (on the calling, background, thread), so
-    /// Core Animation has nothing left to decode when the image is shown. Without one, the lazily
-    /// decoded full-size image, as before.
+    /// With a pixel size, ImageIO decodes straight to a bitmap whose short side is that size (or
+    /// the source's own when smaller: never upscaled), applies the EXIF orientation and decodes now
+    /// (on the calling, background, thread), so Core Animation has nothing left to decode when the
+    /// image is shown. Without one, the lazily decoded full-size image, as before.
     private static func makeImage(from data: Data, maxPixelSize: Int?) -> UIImage? {
         guard let maxPixelSize else { return UIImage(data: data) }
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+            return UIImage(data: data)
+        }
         let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+            kCGImageSourceThumbnailMaxPixelSize: thumbnailLongSide(of: source, shortSide: maxPixelSize)
         ]
-        if let source = CGImageSourceCreateWithData(data as CFData, sourceOptions),
-           let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) {
+        if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) {
             return UIImage(cgImage: cgImage)
         }
         return UIImage(data: data)
+    }
+
+    /// `kCGImageSourceThumbnailMaxPixelSize` caps the long side, but callers show the short side
+    /// at full size: a fit-to-width card shows a portrait photo's width, and an aspect-fill circle
+    /// shows the short side of any avatar. Capping the long side at the shown size decoded a
+    /// 945x2048 screenshot at 664x1440 for a 987-pixel card. So the long side asked for is the one
+    /// that gives the short side `shortSide` pixels, and never more than the source's own long side.
+    /// A source whose size cannot be read keeps `shortSide` as the cap on the long side.
+    private static func thumbnailLongSide(of source: CGImageSource, shortSide: Int) -> Int {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              width > 0, height > 0 else {
+            return shortSide
+        }
+        let long = max(width, height)
+        let short = min(width, height)
+        let needed = (Double(shortSide) * Double(long) / Double(short)).rounded(.up)
+        return min(long, Int(needed))
     }
 
     private func remember(_ image: UIImage, forKey key: NSString?) {

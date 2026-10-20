@@ -12,7 +12,8 @@ import SwiftUI
 /// Provides a smooth opacity transition when the image loads.
 struct CachedAsyncImage<Placeholder: View, ErrorView: View>: View {
     let url: URL?
-    /// Longest side, in pixels, to decode the image at (the shown size times the display scale).
+    /// Pixels to decode the image's short side at: the shown width of a fit-to-width image or the
+    /// side of an aspect-fill square, times the display scale (see `PersistentImageService`).
     /// Nil keeps the full-size image.
     let maxPixelSize: CGFloat?
     let placeholder: () -> Placeholder

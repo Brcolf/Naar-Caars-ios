@@ -93,9 +93,10 @@ final class AvatarUIView: UIView {
             initialsLabel.isHidden = true
             imageView.image = nil
 
-            // Decode at the shown size, not the camera's (an avatar file can be 2304x3072).
-            // Before the view is in a window the trait scale can be 0; 3 is the largest iPhone scale.
-            let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 3
+            // Decode at the shown size, not the camera's (an avatar file can be 2304x3072): the
+            // circle's side in pixels, which the image's short side fills (aspect fill).
+            // Before the view is in a window the trait scale can be 0.
+            let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : Constants.Storage.fallbackDisplayScale
             let maxPixelSize: CGFloat? = size > 0 ? size * scale : nil
 
             Task { [weak self] in

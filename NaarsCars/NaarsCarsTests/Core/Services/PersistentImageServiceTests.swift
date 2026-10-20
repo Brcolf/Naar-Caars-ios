@@ -133,8 +133,10 @@ final class PersistentImageServiceTests: XCTestCase {
         let firstImage = await service.getImage(for: storedString, maxPixelSize: 100)
         let first = try XCTUnwrap(firstImage)
         let cgImage = try XCTUnwrap(first.cgImage)
-        XCTAssertLessThanOrEqual(max(cgImage.width, cgImage.height), 100)
-        XCTAssertEqual(cgImage.width, 100)   // 400x300 -> 100x75, aspect kept
+        // 400x300 for a 100-pixel target: the short side is 100, the long side 134 (aspect kept).
+        XCTAssertGreaterThanOrEqual(min(cgImage.width, cgImage.height), 100)
+        XCTAssertLessThanOrEqual(cgImage.width, 134)
+        XCTAssertLessThan(cgImage.width, 400, "downsampled")
 
         try await waitForCachedFile(named: "A1.jpg")
         let requestsAfterFirst = CommunityServiceURLProtocol.recorded.count
@@ -146,6 +148,84 @@ final class PersistentImageServiceTests: XCTestCase {
         let full = await service.getImage(for: storedString)
         XCTAssertEqual(full?.cgImage?.width, 400)
         XCTAssertFalse(full === first)
+    }
+
+    // MARK: - Display-sized decode: the short side is the shown size
+
+    /// A PNG of `width` x `height` pixels (scale 1).
+    private static func pngData(width: Int, height: Int) -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let size = CGSize(width: width, height: height)
+        return UIGraphicsImageRenderer(size: size, format: format).pngData { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+
+    /// Serves `data` for every download, under a stored URL of its own so the disk cache of one
+    /// source never answers for another.
+    private func serve(_ data: Data, as fileName: String) -> String {
+        CommunityServiceURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["Content-Type": "image/png"])!
+            return (response, data)
+        }
+        return "https://example.supabase.co/storage/v1/object/public/town-hall-images/C0/\(fileName)"
+    }
+
+    private func decodedPixels(_ urlString: String, target: CGFloat) async throws -> (width: Int, height: Int) {
+        let loaded = await service.getImage(for: urlString, maxPixelSize: target)
+        let cgImage = try XCTUnwrap(loaded?.cgImage)
+        return (cgImage.width, cgImage.height)
+    }
+
+    /// A tall screenshot shown at the card's width: the width is decoded at the target, not the
+    /// long side (a long-side cap decoded 945x2048 at 664x1440 for a 987-pixel card).
+    func testGetImage_PortraitFitWidthTarget_DecodesAtLeastTheTargetWide() async throws {
+        let url = serve(Self.pngData(width: 150, height: 400), as: "portrait.png")
+
+        let narrow = try await decodedPixels(url, target: 100)
+        XCTAssertGreaterThanOrEqual(narrow.width, 100, "the view would stretch a narrower bitmap")
+        XCTAssertLessThan(narrow.width, 150, "still downsampled")
+        XCTAssertLessThanOrEqual(narrow.height, 400, "the long side never passes the source's")
+
+        let wider = try await decodedPixels(url, target: 120)
+        XCTAssertGreaterThanOrEqual(wider.width, 120)
+        XCTAssertLessThanOrEqual(wider.height, 400)
+        try await waitForCachedFile(named: "portrait.png")
+    }
+
+    /// A target above the source's short side gets the source's own size: ImageIO never upscales,
+    /// and the long side asked for is capped at the source's.
+    func testGetImage_SourceSmallerThanTarget_ReturnsTheSourceSize() async throws {
+        let url = serve(Self.pngData(width: 150, height: 400), as: "small-portrait.png")
+        let decoded = try await decodedPixels(url, target: 300)
+        XCTAssertEqual(decoded.width, 150)
+        XCTAssertEqual(decoded.height, 400)
+
+        let tinyURL = serve(Self.pngData(width: 40, height: 30), as: "tiny.png")
+        let tiny = try await decodedPixels(tinyURL, target: 100)
+        XCTAssertEqual(tiny.width, 40)
+        XCTAssertEqual(tiny.height, 30)
+        try await waitForCachedFile(named: "small-portrait.png")
+        try await waitForCachedFile(named: "tiny.png")
+    }
+
+    /// An avatar fills its circle (aspect fill), so the short side covers the circle in either
+    /// orientation (a long-side cap gave a 3:4 avatar a short side of 90 for a 120-pixel circle).
+    func testGetImage_AvatarFillTarget_ShortSideCoversTheCircle() async throws {
+        let portraitURL = serve(Self.pngData(width: 300, height: 400), as: "avatar-portrait.png")
+        let portrait = try await decodedPixels(portraitURL, target: 120)
+        XCTAssertGreaterThanOrEqual(min(portrait.width, portrait.height), 120)
+        XCTAssertLessThan(portrait.width, 300, "still downsampled")
+
+        let landscapeURL = serve(Self.pngData(width: 400, height: 300), as: "avatar-landscape.png")
+        let landscape = try await decodedPixels(landscapeURL, target: 120)
+        XCTAssertGreaterThanOrEqual(min(landscape.width, landscape.height), 120)
+        XCTAssertLessThan(landscape.width, 400, "still downsampled")
+        try await waitForCachedFile(named: "avatar-portrait.png")
+        try await waitForCachedFile(named: "avatar-landscape.png")
     }
 
     func testGetImage_ResolvedDownloadLeavesNoURLCacheEntry() async throws {

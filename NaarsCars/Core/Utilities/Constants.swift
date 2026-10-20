@@ -229,8 +229,13 @@ enum Constants {
         /// Byte budget of the decoded, display-sized images PersistentImageService keeps in
         /// memory (cost = bitmap bytes); NSCache evicts past it, and a memory warning empties it
         static let imageMemoryCacheMaxBytes = 80 * 1_024 * 1_024
-        /// Longest side, in pixels, a feed photo is decoded at: a 3:4 photo at full card width on a 3x screen
-        static let feedImageMaxPixelSize: CGFloat = 1440
+        /// Pixels a feed photo's short side is decoded at: the card's width on the widest iPhone
+        /// (440 pt less 64 pt of padding) at 3x. A portrait photo is then never shown wider than it
+        /// was decoded; a landscape one is decoded wider than the card, by its aspect ratio.
+        static let feedImageMaxPixelSize: CGFloat = 1128
+        /// Display scale assumed by a UIKit view that is not in a window yet (its trait scale is 0):
+        /// the largest iPhone scale, so a decoded avatar is never smaller than its circle
+        static let fallbackDisplayScale: CGFloat = 3
     }
     
     /// External URLs
