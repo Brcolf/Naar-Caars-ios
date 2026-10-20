@@ -398,4 +398,42 @@ final class TownHallServiceTests: XCTestCase {
         XCTAssertEqual(reads.count, 2, "one read per caller, none inside the shared fetch")
         XCTAssertTrue(reads.allOnMainThread, "read on the callers' main-actor executor")
     }
+
+    /// A page read that starts after a write does not join one that started before it: the write
+    /// count is part of the key, so a refresh after a vote cannot receive the pre-vote counts.
+    /// Without a write in between, the same two calls join (one page request).
+    func testFetchPostsPage_ReadAfterAWriteDoesNotJoinAReadFromBeforeIt() async throws {
+        stubPageReads(Self.pageJSON([(UUID(), UUID())]), holdPages: true)
+        let service = try XCTUnwrap(townHallService)
+        let communityId = UUID()   // a page key no other test uses
+
+        // Control: no write between the two calls, so they join.
+        let first = Task { @MainActor in
+            try await service.fetchPostsPage(limit: 20, offset: 0, communityId: communityId)
+        }
+        try await waitForPageRequests(1)
+        let joined = Task { @MainActor in
+            try await service.fetchPostsPage(limit: 20, offset: 0, communityId: communityId)
+        }
+        try await Task.sleep(for: .milliseconds(300))   // the second call reaches the deduplicator
+        TownHallPageURLProtocol.releaseHeldPages()
+        _ = try await [first.value, joined.value]
+        XCTAssertEqual(TownHallPageURLProtocol.pageRequestCount, 1, "identical overlapping reads join")
+
+        // A vote between the two calls: the second goes to the server.
+        TownHallPageURLProtocol.holdPages(true)
+        let beforeVote = Task { @MainActor in
+            try await service.fetchPostsPage(limit: 20, offset: 0, communityId: communityId)
+        }
+        try await waitForPageRequests(2)
+        try await service.votePost(postId: UUID(), userId: UUID(), voteType: .upvote)
+        XCTAssertEqual(TownHallPageURLProtocol.writeCount, 1, "the vote was written")
+        let afterVote = Task { @MainActor in
+            try await service.fetchPostsPage(limit: 20, offset: 0, communityId: communityId)
+        }
+        try await waitForPageRequests(3)
+        TownHallPageURLProtocol.releaseHeldPages()
+        _ = try await [beforeVote.value, afterVote.value]
+        XCTAssertEqual(TownHallPageURLProtocol.pageRequestCount, 3, "the read after the vote did not join the one before it")
+    }
 }

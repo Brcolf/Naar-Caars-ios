@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 import Supabase
 
 /// Service for town hall operations
@@ -25,6 +26,8 @@ final class TownHallService {
     /// The authors whose posts the page read leaves out. Read on the caller's executor after the
     /// shared fetch returns, never inside it (see `fetchPostsPage`). Internal so tests can stand in.
     var blockedAuthorIds: () -> Set<UUID> = { MessageService.shared.cachedBlockedUserIds }
+    /// Counts Town Hall writes; part of the page key (see `fetchPostsPage` and `noteWrite()`).
+    private let writeEpoch = OSAllocatedUnfairLock(initialState: 0)
 
     // MARK: - Initialization
     
@@ -53,7 +56,9 @@ final class TownHallService {
     /// feed's enrichment fetch (`TownHallFeedViewModel.refreshFromNetwork`) ask for the same first
     /// page at the same moment. An identical call made while one is in flight waits for it and
     /// gets the same result, instead of a second page read plus its four enrichment reads. The key
-    /// holds the user, so a read never serves another account across a sign-out.
+    /// holds the user, so a read never serves another account across a sign-out. It also holds the
+    /// write count, so a read that starts after a Town Hall write (a vote, a post, a comment) never
+    /// joins one that started before it and would return the counts from before the write.
     ///
     /// The shared fetch runs on the deduplicator's task, off the main thread, so it returns the
     /// posts unfiltered. Posts by blocked authors are removed here, after it returns, on the
@@ -62,7 +67,8 @@ final class TownHallService {
     /// when its own call returns.
     func fetchPostsPage(limit: Int = 20, offset: Int = 0, communityId: UUID? = nil) async throws -> (posts: [TownHallPost], serverCount: Int) {
         let userId = AuthService.shared.currentUserId
-        let key = "townHallPostsPage:\(limit):\(offset):\(communityId?.uuidString ?? "all"):\(userId?.uuidString ?? "none")"
+        let epoch = writeEpoch.withLock { $0 }
+        let key = "townHallPostsPage:\(epoch):\(limit):\(offset):\(communityId?.uuidString ?? "all"):\(userId?.uuidString ?? "none")"
         let page = try await pageRequests.fetch(key: key) { [self] in
             try await self.fetchPostsPageFromServer(limit: limit, offset: offset, communityId: communityId, userId: userId)
         }
@@ -94,6 +100,13 @@ final class TownHallService {
 
         AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
         return (posts, serverCount)
+    }
+
+    /// Every Town Hall write calls this when it returns, success or not (a write that threw may
+    /// still have reached the server): this service's, `TownHallCommentService`'s and
+    /// `TownHallVoteService`'s. A page read keyed before it is then never joined after it.
+    func noteWrite() {
+        writeEpoch.withLock { $0 &+= 1 }
     }
 
     /// Fetch the town hall post ID associated with a review
@@ -150,6 +163,7 @@ final class TownHallService {
     /// - Returns: Created post
     /// - Throws: AppError if creation fails or rate limited
     func createPost(userId: UUID, content: String, imageUrl: String? = nil, communityId: UUID? = nil) async throws -> TownHallPost {
+        defer { noteWrite() }
         // Validate content length
         guard content.count <= 500 else {
             throw AppError.invalidInput("Post content must be 500 characters or less")
@@ -212,6 +226,7 @@ final class TownHallService {
     /// - Returns: Created post
     /// - Throws: AppError if creation fails
     func createSystemPost(userId: UUID, content: String, type: PostType) async throws -> TownHallPost {
+        defer { noteWrite() }
         // Generate title from content for system posts
         let title = generateTitle(from: content)
         
@@ -249,6 +264,7 @@ final class TownHallService {
     ///   - userId: User ID attempting to delete (must be author)
     /// - Throws: AppError if deletion fails or user is not author
     func deletePost(postId: UUID, userId: UUID) async throws {
+        defer { noteWrite() }
         // Verify user is the author
         let response = try await supabase
             .from("town_hall_posts")
@@ -289,6 +305,7 @@ final class TownHallService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func votePost(postId: UUID, userId: UUID, voteType: VoteType?) async throws {
+        defer { noteWrite() }
         // Check if user already voted on this post
         let existingVoteResponse = try? await supabase
             .from("town_hall_votes")

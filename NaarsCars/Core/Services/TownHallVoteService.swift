@@ -32,6 +32,8 @@ final class TownHallVoteService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func votePost(postId: UUID, userId: UUID, voteType: VoteType?) async throws {
+        // A page read that started before this write is not joined by one after it.
+        defer { TownHallService.shared.noteWrite() }
         // Check if user already voted on this post
         let existingVoteResponse = try? await supabase
             .from("town_hall_votes")
@@ -107,6 +109,8 @@ final class TownHallVoteService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func voteComment(commentId: UUID, userId: UUID, voteType: VoteType?) async throws {
+        // A page read that started before this write is not joined by one after it.
+        defer { TownHallService.shared.noteWrite() }
         // Check if user already voted on this comment
         let existingVoteResponse = try? await supabase
             .from("town_hall_votes")
