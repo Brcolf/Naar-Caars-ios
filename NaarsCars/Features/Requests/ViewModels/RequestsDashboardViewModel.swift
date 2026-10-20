@@ -153,8 +153,11 @@ final class RequestsDashboardViewModel: ObservableObject {
             // Show cached SwiftData data immediately
             refreshFilteredRequests(updatingBadgeCounts: !readsLocalOnly)
 
-            // Only show loading spinner if there's no cached data to display
+            // Only show the skeleton when nothing is cached. A filter with no rows over a filled
+            // store shows its empty state at once (the refresh below still runs and updates it);
+            // gating on the filter held the skeleton for a whole network round trip.
             let hasCachedData = !filteredRequests.isEmpty
+                || (modelContext.map { filterManager.hasStoredRequests(in: $0) } ?? false)
             if showLoadingIndicator && !hasCachedData { isLoading = true }
             defer { if !Task.isCancelled { isLoading = false } }
 

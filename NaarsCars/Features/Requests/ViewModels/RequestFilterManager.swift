@@ -210,6 +210,14 @@ final class RequestFilterManager {
         return fetched.filter { scope.includes($0.communityId) }
     }
 
+    /// Whether the store holds any ride or favor, whatever the filter or scope. The dashboard's
+    /// skeleton stands for "nothing cached yet"; an empty filter over a filled store already has
+    /// its answer (the empty state). Two COUNT queries, no rows loaded.
+    func hasStoredRequests(in context: ModelContext) -> Bool {
+        ((try? context.fetchCount(FetchDescriptor<SDRide>())) ?? 0) > 0
+            || ((try? context.fetchCount(FetchDescriptor<SDFavor>())) ?? 0) > 0
+    }
+
     /// Requests the current filter would list under `.all` but `scope` hides: what the "N more" hint counts.
     /// 0 for `.all`. Rows with no community are shown by every narrow and never count; rows the list hides for
     /// time (getFilteredRequests) never count.
