@@ -93,7 +93,10 @@ enum MapError: LocalizedError {
 final class MapService {
     static let shared = MapService()
     
-    private let geocoder = CLGeocoder()
+    // No shared CLGeocoder. One instance runs one request at a time: a request started on it
+    // while another is in flight never calls its completion handler, so its await never returns
+    // (the ride-cost estimate geocodes both addresses at once and hung that way). Each
+    // `geocode(address:)` call makes its own.
     
     private init() {}
     
@@ -118,6 +121,9 @@ final class MapService {
         }
         
         AppLogger.info("map", "Geocoding: '\(trimmedAddress)'")
+        
+        // This call's own geocoder (see the note above `init`); the attempts below run one after the other on it.
+        let geocoder = CLGeocoder()
         
         // Strategy: If it looks like a POI (no numbers at start, or contains "Airport", "Station", etc.), 
         // try MKLocalSearch first as it's much better for these.
