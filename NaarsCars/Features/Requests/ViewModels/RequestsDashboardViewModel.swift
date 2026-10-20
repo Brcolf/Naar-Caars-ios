@@ -103,6 +103,10 @@ final class RequestsDashboardViewModel: ObservableObject {
 
     /// Set up the model context for SwiftData operations
     func setup(modelContext: ModelContext) {
+        // `.task` calls this on every appearance. With the same context the lists are already
+        // on screen, and `loadRequests` re-reads them one turn later; a second pass here only
+        // repeated the SwiftData fetches and filtering on the main actor.
+        guard self.modelContext !== modelContext else { return }
         self.modelContext = modelContext
         refreshFilteredRequests()
     }
@@ -142,8 +146,12 @@ final class RequestsDashboardViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             error = nil
 
+            // A `.task` re-entry reads SwiftData only and returns through refreshUnseenRequestKeys,
+            // which recomputes the filter badge counts in this same job; skip them here.
+            let readsLocalOnly = !forceRefresh && hasPerformedInitialLoad
+
             // Show cached SwiftData data immediately
-            refreshFilteredRequests()
+            refreshFilteredRequests(updatingBadgeCounts: !readsLocalOnly)
 
             // Only show loading spinner if there's no cached data to display
             let hasCachedData = !filteredRequests.isEmpty
@@ -154,7 +162,7 @@ final class RequestsDashboardViewModel: ObservableObject {
             // explicit pull-to-refresh. Every later `.task` re-entry (tab switch, pop back)
             // re-reads SwiftData; staleness-gated refreshes stay with MainTabView's tab-change
             // trigger and app-foreground, as the coordinator contract requires.
-            guard forceRefresh || !hasPerformedInitialLoad else {
+            guard !readsLocalOnly else {
                 await refreshUnseenRequestKeys()
                 return
             }
@@ -236,7 +244,7 @@ final class RequestsDashboardViewModel: ObservableObject {
         await refreshUnseenRequestKeys()
     }
 
-    private func refreshFilteredRequests() {
+    private func refreshFilteredRequests(updatingBadgeCounts: Bool = true) {
         guard let context = modelContext else { return }
         filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: communityContext.requestsScope)
         filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: communityContext.requestsScope)
@@ -247,7 +255,7 @@ final class RequestsDashboardViewModel: ObservableObject {
         otherCommunitiesCount = communityContext.hasMultipleCommunities
             ? filterManager.countOutsideScope(in: context, filter: filter, scope: communityContext.requestsScope)
             : 0
-        refreshFilterBadgeCounts()
+        if updatingBadgeCounts { refreshFilterBadgeCounts() }
     }
 
     private func refreshFilterBadgeCounts() {
