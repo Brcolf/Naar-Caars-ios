@@ -3,7 +3,7 @@
 //  NaarsCarsTests
 //
 //  Onboarding, the root of `.needsApplication`: one relaunch per screen, the options stay closed
-//  until the name requirement is known and met, and the name rules match the application form
+//  until the name requirement is known and met, and the name rules match the sign-up form
 //
 
 import SwiftUI
@@ -95,6 +95,18 @@ final class CommunityOnboardingViewModelTests: XCTestCase {
 
         XCTAssertEqual(savedNames, [])
         XCTAssertFalse(viewModel.optionsEnabled)
+    }
+
+    func testNameProblem_RejectsPlaceholderEmptyAndShortNames() {
+        // Same rules and messages as the sign-up form's name field (moved from ApplicationFieldsViewModel).
+        XCTAssertEqual(CommunityOnboardingViewModel.nameProblem(""), "signup_error_name_required".localized)
+        XCTAssertEqual(CommunityOnboardingViewModel.nameProblem(CommunityOnboardingViewModel.applePlaceholderName),
+                       "signup_error_name_required".localized)
+        XCTAssertEqual(CommunityOnboardingViewModel.nameProblem("A"), "signup_error_name_too_short".localized)
+        XCTAssertEqual(CommunityOnboardingViewModel.nameProblem(String(repeating: "a", count: 101)),
+                       "signup_error_name_too_long".localized)
+        XCTAssertNil(CommunityOnboardingViewModel.nameProblem("Sam Neighbor"))
+        XCTAssertEqual(CommunityOnboardingViewModel.applePlaceholderName, "Apple User")   // AuthService+AppleSignIn.swift:378
     }
 
     func testSaveName_SuccessClearsNeedsNameAndOpensOptions() async {

@@ -81,7 +81,6 @@
 		6464C27B6B61CA0C7BACBEF0 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6A4D3E7AEFF12B3E1539D8 /* ToastView.swift */; };
 		64BC8D2ADE0A0DB165CD7AC9 /* MapSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5B6126D1DEB66F5840190A /* MapSnapshotCache.swift */; };
 		651EB16F25F14DBFAEBB220F /* AdminActiveRidesOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2DA70245FC43A1B820199C /* AdminActiveRidesOverlay.swift */; };
-		6686F4E6FDCFDCB4D862B44F /* ApplicationFieldsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */; };
 		682EB3BE508C3EFCBC05E667 /* LeaderboardServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0F6FD786DF1C8E070CA9582 /* LeaderboardServiceTests.swift */; };
 		68D217611818470CA0DF68E9 /* CompletionPromptViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA95B657AEBD47D585A99153 /* CompletionPromptViewTests.swift */; };
 		695FADB8BD984A3FA2164BDF /* Features/Rides/ViewModels/RideDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15474C282BD40949AB74BEB /* Features/Rides/ViewModels/RideDetailViewModel.swift */; };
@@ -427,7 +426,6 @@
 		BAN0ACC7V1EW00000000BLD1 /* BannedAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAN0ACC7V1EW00000000F1L3 /* BannedAccountView.swift */; };
 		BB02F82EF439230EA9DA35FD /* ReportMessageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C197E50D604B91F7E343DD90 /* ReportMessageSheet.swift */; };
 		BB6705E6EDE1409D910974CC /* RequestReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5179A2C7372483EB7DF87B2 /* RequestReviewSection.swift */; };
-		BDEC40AA79CACB7F0B3FFF58 /* ApplicationFieldsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A9C853D4E5C8E6CD58D5A7D /* ApplicationFieldsView.swift */; };
 		BEF93674259771482A6DF63C /* TownHallServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD428FE713A748A2C8171AAE /* TownHallServiceTests.swift */; };
 		BF048099E99A742FD137D2B1 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DF267C946A4C7EA0397EBC /* HapticManager.swift */; };
 		BF1002426490EDB6C2FC5F45 /* NotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375B48CBA80744E052507899 /* NotificationServiceTests.swift */; };
@@ -591,7 +589,6 @@
 		375B48CBA80744E052507899 /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
 		38092A64DA1E4019975DEE4A /* Core/Services/FavorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Services/FavorService.swift; sourceTree = "<group>"; };
 		385F3F64ED6F3F0825347EA8 /* BackgroundSyncActorConversationSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncActorConversationSyncTests.swift; sourceTree = "<group>"; };
-		3A9C853D4E5C8E6CD58D5A7D /* ApplicationFieldsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationFieldsView.swift; sourceTree = "<group>"; };
 		3AA1B6566B98CE829519567B /* ConversationAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAvatar.swift; sourceTree = "<group>"; };
 		3BC18919E2F1481A9600FBDE /* Core/Models/RequestQA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models/RequestQA.swift; sourceTree = "<group>"; };
 		3C0A5A56807B4F1AB895F960 /* GuestRestrictionReason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestRestrictionReason.swift; sourceTree = "<group>"; };
@@ -1064,7 +1061,6 @@
 		E8C3A1B6F5D24C1A9B7C3D54 /* LeaveReviewViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveReviewViewModelTests.swift; sourceTree = "<group>"; };
 		E9479DA69459CB1835C68CC9 /* RefreshMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshMetrics.swift; sourceTree = "<group>"; };
 		EA18F86136B84CB396BD5C56 /* UI/Components/AddressText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI/Components/AddressText.swift; sourceTree = "<group>"; };
-		EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationFieldsViewModel.swift; sourceTree = "<group>"; };
 		EAA13F58C91D42D592759C0A /* Favor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Favor.swift; sourceTree = "<group>"; };
 		EE20096272154C709693972B /* Features/Rides/Views/EditRideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Rides/Views/EditRideView.swift; sourceTree = "<group>"; };
 		EE4CB4DA6D7C4FDAAD8F19F5 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
@@ -1353,7 +1349,6 @@
 				AC305EE82F0DB7BD0063AFDF /* LoginViewModel.swift */,
 				AC305EE92F0DB7BD0063AFDF /* PasswordResetViewModel.swift */,
 				AC305EEA2F0DB7BD0063AFDF /* SignupViewModel.swift */,
-				EA5B5C3967A9025054E9BF17 /* ApplicationFieldsViewModel.swift */,
 				23239C057D89CB4022E7A1EB /* BannedAccountViewModel.swift */,
 				AC410C6C308571E200D921E2 /* CommunityOnboardingViewModel.swift */,
 				AC410C74308575EF00D921E2 /* PendingApprovalViewModel.swift */,
@@ -1372,7 +1367,6 @@
 				AC305EEC2F0DB7BD0063AFDF /* LoginView.swift */,
 				C355237CBEC66D52CDB81B38 /* WelcomeView.swift */,
 				D8A6AB2505544FA7BC855CEE /* GuestProfileView.swift */,
-				3A9C853D4E5C8E6CD58D5A7D /* ApplicationFieldsView.swift */,
 				BAN0ACC7V1EW00000000F1L3 /* BannedAccountView.swift */,
 				AC305EED2F0DB7BD0063AFDF /* PasswordResetView.swift */,
 				AC305EEE2F0DB7BD0063AFDF /* SignupDetailsView.swift */,
@@ -2695,7 +2689,6 @@
 				AC410C33308544F600D921E2 /* CommunityPayloads.swift in Sources */,
 				F1038ADCF9B8304BBB6755C1 /* WelcomeView.swift in Sources */,
 				1B41AEFD518F439BBCB357AA /* GuestProfileView.swift in Sources */,
-				BDEC40AA79CACB7F0B3FFF58 /* ApplicationFieldsView.swift in Sources */,
 				AC410C8D3085BC4B00D921E2 /* CommunityMembersView.swift in Sources */,
 				BAN0ACC7V1EW00000000BLD1 /* BannedAccountView.swift in Sources */,
 				AC410C933085C37800D921E2 /* CommunitySettingsViewModel.swift in Sources */,
@@ -2982,7 +2975,6 @@
 				8C0B03CA56EED6889B48D5DD /* ProfileService+Search.swift in Sources */,
 				AC410C253084E78500D921E2 /* CommunityService.swift in Sources */,
 				E847D7FC5A2CEA01ED03C0CC /* AdminReportsViewModel.swift in Sources */,
-				6686F4E6FDCFDCB4D862B44F /* ApplicationFieldsViewModel.swift in Sources */,
 				8852F44B2282A755C77AD0C7 /* BannedAccountViewModel.swift in Sources */,
 				AC2923A8F6BA835EEB5D8CD7 /* MessageDetailsViewModel.swift in Sources */,
 				AA2D7B0379391DA9DFA89ACD /* ReportMessageViewModel.swift in Sources */,

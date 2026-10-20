@@ -22,6 +22,11 @@ final class CommunityOnboardingViewModel: ObservableObject {
     /// An invite code to open as soon as the options are enabled (filled from `PendingInviteStore`).
     @Published var prefilledCode: String?
 
+    /// Apple sends the person's name only on the first authorization. A repeat authorization
+    /// (for example after starting on the Sign In screen) creates the profile with this
+    /// placeholder, which admins and later neighbours would otherwise see.
+    static let applePlaceholderName = "Apple User"
+
     private let loadStoredName: @MainActor () async -> String?
     private let updateName: @MainActor (String) async throws -> Void
     private let relaunch: @MainActor () -> Void
@@ -47,7 +52,7 @@ final class CommunityOnboardingViewModel: ObservableObject {
 
     // MARK: - Profile access
 
-    /// The same read `ApplicationFieldsViewModel.loadNameRequirement` makes. Nil on any failure.
+    /// The read the name step makes. Nil on any failure.
     static func storedNameFromProfile() async -> String? {
         guard let userId = await SignedInUser.resolveId(authService: AuthService.shared) else { return nil }
         if let profile = AuthService.shared.currentProfile, profile.id == userId {
@@ -56,7 +61,7 @@ final class CommunityOnboardingViewModel: ObservableObject {
         return try? await ProfileService.shared.fetchProfile(userId: userId).name
     }
 
-    /// The name update `ApplicationFieldsViewModel.submitApplication` makes.
+    /// The name update the name step makes.
     static func saveNameToProfile(_ name: String) async throws {
         guard let userId = await SignedInUser.resolveId(authService: AuthService.shared) else {
             throw AppError.unauthorized
@@ -73,18 +78,35 @@ final class CommunityOnboardingViewModel: ObservableObject {
 
     // MARK: - Name
 
+    /// Same rules and messages as the name field on the sign-up form. Nil when the name is fine.
+    static func nameProblem(_ trimmedName: String) -> String? {
+        if trimmedName.isEmpty || trimmedName == applePlaceholderName {
+            return "signup_error_name_required".localized
+        }
+        if trimmedName.count < 2 {
+            return "signup_error_name_too_short".localized
+        }
+        if trimmedName.count > 100 {
+            return "signup_error_name_too_long".localized
+        }
+        if !Validators.isSafeUserInput(trimmedName) {
+            return "signup_error_name_invalid_characters".localized
+        }
+        return nil
+    }
+
     /// Join and Create wait until the name requirement is known and, when needed, met.
     var optionsEnabled: Bool {
         hasLoadedNameRequirement && !needsName && !isSavingName
     }
 
     /// A blank or placeholder stored name needs replacing. A failed read leaves the name step
-    /// off, as the application form did.
+    /// off.
     func loadNameRequirement() async {
         let stored = await loadStoredName()
         if let stored {
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
-            needsName = trimmed.isEmpty || trimmed == ApplicationFieldsViewModel.applePlaceholderName
+            needsName = trimmed.isEmpty || trimmed == Self.applePlaceholderName
         } else {
             needsName = false
         }
@@ -95,7 +117,7 @@ final class CommunityOnboardingViewModel: ObservableObject {
     func saveName() async -> Bool {
         guard !isSavingName else { return false }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let problem = ApplicationFieldsViewModel.nameProblem(trimmed) {
+        if let problem = Self.nameProblem(trimmed) {
             nameError = problem
             return false
         }
