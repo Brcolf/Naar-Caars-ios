@@ -114,17 +114,49 @@ actor StorageURLSigner: StorageURLResolving {
     }
 }
 
-/// Signs through the app's Supabase client (the caller's own access applies).
+/// Signs with the app's Supabase client settings and the caller's own access, but sends the request
+/// through `session`, which has no URLCache. The sign answer carries the token in its body, and the
+/// shared client's own session (URLSession.shared, URLCache.shared on disk) stored it in Cache.db.
 struct SupabaseStorageSigner: StorageObjectSigning {
+    /// Tests pass a session with a stub protocol; it must keep urlCache == nil.
+    let session: URLSession
+
+    init(session: URLSession = .signedStorageDownload) {
+        self.session = session
+    }
+
     func signedURL(bucket: String, path: String, expiresIn: Int) async throws -> URL {
         let client = await MainActor.run { SupabaseService.shared.client }
-        return try await client.storage.from(bucket).createSignedURL(path: path, expiresIn: expiresIn)
+        let shared = client.storage.configuration
+        let session = self.session
+        let storage = SupabaseStorageClient(configuration: StorageClientConfiguration(
+            url: shared.url,
+            headers: shared.headers,
+            encoder: shared.encoder,
+            decoder: shared.decoder,
+            session: StorageHTTPSession(
+                fetch: { request in
+                    // As the shared client does for each request: the signed-in caller's token
+                    // replaces the key's Bearer header; a guest keeps the key's.
+                    var request = request
+                    if let token = try? await client.auth.session.accessToken {
+                        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    }
+                    return try await session.data(for: request)
+                },
+                upload: { _, _ in throw URLError(.unsupportedURL) }
+            ),
+            logger: shared.logger,
+            useNewHostname: shared.useNewHostname
+        ))
+        return try await storage.from(bucket).createSignedURL(path: path, expiresIn: expiresIn)
     }
 }
 
 extension URLSession {
-    /// The only session that downloads a stored object of a signed bucket. Ephemeral, urlCache = nil,
-    /// requestCachePolicy = .reloadIgnoringLocalCacheData: a signed URL (and its token) never reaches URLCache's disk store.
+    /// The only session that downloads a stored object of a signed bucket, and the one the sign request goes
+    /// through (`SupabaseStorageSigner`). Ephemeral, urlCache = nil, requestCachePolicy = .reloadIgnoringLocalCacheData:
+    /// neither a signed URL nor the sign answer that carries its token reaches URLCache's disk store.
     static let signedStorageDownload: URLSession = makeSignedStorageDownloadSession()
 
     /// protocolClasses is for tests only (a custom session does not reliably pick up URLProtocol.registerClass).

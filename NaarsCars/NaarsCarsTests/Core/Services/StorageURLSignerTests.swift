@@ -3,7 +3,7 @@
 //  NaarsCarsTests
 //
 //  Parsing, signing once per object, renewal, in-flight dedup, fallback, the cache bound,
-//  reset, the sign route and the no-cache download session.
+//  reset, the sign route, and the no-cache session the sign request and the download use.
 //
 
 import XCTest
@@ -244,20 +244,24 @@ final class StorageURLSignerTests: XCTestCase {
     // MARK: - Production signer and session
 
     func testSupabaseStorageSigner_PostsToTheSignRoute() async throws {
+        // The stub is reachable only through the session handed to the signer (it is not registered
+        // process-wide), so a sign request sent through the shared client's session would not reach it.
         CommunityServiceURLProtocol.reset()
-        URLProtocol.registerClass(CommunityServiceURLProtocol.self)
-        defer {
-            CommunityServiceURLProtocol.reset()
-            URLProtocol.unregisterClass(CommunityServiceURLProtocol.self)
-        }
+        defer { CommunityServiceURLProtocol.reset() }
         CommunityServiceURLProtocol.requestHandler = { request in
-            let body = #"{"signedURL":"/object/sign/message-images/C0/A1.jpg?token=t"}"#
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+            // The shared client's key headers go with the sign request; without them, answer 401.
+            let hasKey = request.value(forHTTPHeaderField: "apikey")?.isEmpty == false
+            let hasBearer = request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Bearer ") == true
+            let body = (hasKey && hasBearer)
+                ? #"{"signedURL":"/object/sign/message-images/C0/A1.jpg?token=t"}"#
+                : #"{"statusCode":"401","error":"Unauthorized","message":"missing key"}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: (hasKey && hasBearer) ? 200 : 401, httpVersion: nil,
                                            headerFields: ["Content-Type": "application/json"])!
             return (response, Data(body.utf8))
         }
+        let session = URLSession.makeSignedStorageDownloadSession(protocolClasses: [CommunityServiceURLProtocol.self])
 
-        let url = try await SupabaseStorageSigner().signedURL(bucket: "message-images", path: "C0/A1.jpg", expiresIn: 3600)
+        let url = try await SupabaseStorageSigner(session: session).signedURL(bucket: "message-images", path: "C0/A1.jpg", expiresIn: 3600)
 
         let request = try XCTUnwrap(CommunityServiceURLProtocol.recorded.last)
         XCTAssertEqual(request.method, "POST")
@@ -270,5 +274,14 @@ final class StorageURLSignerTests: XCTestCase {
         let configuration = URLSession.signedStorageDownload.configuration
         XCTAssertNil(configuration.urlCache)
         XCTAssertEqual(configuration.requestCachePolicy, .reloadIgnoringLocalCacheData)
+    }
+
+    /// The sign answer carries the token, so the sign request must not go through a session with a
+    /// URLCache (the shared Supabase client's session stored it in Cache.db).
+    func testSupabaseStorageSigner_SignsThroughTheSessionWithNoURLCache() {
+        let signer = SupabaseStorageSigner()
+        XCTAssertTrue(signer.session === URLSession.signedStorageDownload)
+        XCTAssertNil(signer.session.configuration.urlCache)
+        XCTAssertEqual(signer.session.configuration.requestCachePolicy, .reloadIgnoringLocalCacheData)
     }
 }
