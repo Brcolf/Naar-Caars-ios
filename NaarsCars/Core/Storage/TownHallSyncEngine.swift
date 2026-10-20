@@ -72,8 +72,11 @@ final class TownHallSyncEngine: SyncEngineProtocol {
             return .empty
         }
         // Prunes every local post absent from this page: the store holds the first page of the
-        // scope synced last.
-        let metrics = try await backgroundActor.syncPostsWithChangeDetection(posts)
+        // scope synced last. Entered from a detached task so the actor's executor runs the job off
+        // the main thread (it runs each job on the thread that enqueues it).
+        let metrics = try await Task.detached(priority: .userInitiated) {
+            try await backgroundActor.syncPostsWithChangeDetection(posts)
+        }.value
         // Posted ONLY after a successful BackgroundSyncActor save; TownHallRepository's posts
         // publisher re-reads SwiftData on it (same contract as DashboardSyncEngine's *DidSync).
         if metrics.savedToStore {

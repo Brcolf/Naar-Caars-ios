@@ -94,11 +94,17 @@ final class DashboardSyncEngine: SyncEngineProtocol {
         guard !Task.isCancelled else { throw CancellationError() }
 
         guard let backgroundActor else { return .empty }
-        let result = try await backgroundActor.syncAllWithChangeDetection(
-            rides: rides, favors: favors, notifications: notifications,
-            // Guests fetched no notifications (empty array above); nil keeps that a no-op.
-            notificationPruneHorizon: userId == nil ? nil : notificationPruneHorizon
-        )
+        // Guests fetched no notifications (empty array above); nil keeps that a no-op.
+        let pruneHorizon = userId == nil ? nil : notificationPruneHorizon
+        // Enter the actor from a detached task: its DefaultSerialModelExecutor runs each job on the
+        // thread that enqueues it, so awaiting it from this @MainActor method ran the whole fetch,
+        // compare and save on the main thread.
+        let result = try await Task.detached(priority: .userInitiated) {
+            try await backgroundActor.syncAllWithChangeDetection(
+                rides: rides, favors: favors, notifications: notifications,
+                notificationPruneHorizon: pruneHorizon
+            )
+        }.value
         let metrics = result.metrics
 
         // Posted ONLY after a successful BackgroundSyncActor save, and only for the entity sets that
