@@ -51,7 +51,16 @@ struct RideDetailView: View {
     @State private var showMapsChoiceDialog = false
     @State private var showReportSheet = false
     @State private var hasReported = false
+    /// Set once the first load has returned.
+    @State private var hasFinishedFirstLoad = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// A load returned with no ride, no error and no "unavailable" answer (a request cancelled after
+    /// the ride went away while this screen stayed open). Nothing but the title drew; now the
+    /// unavailable state does.
+    private var loadEndedWithNothing: Bool {
+        hasFinishedFirstLoad && !viewModel.isLoading && viewModel.error == nil
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -59,7 +68,7 @@ struct RideDetailView: View {
                 LazyVStack(alignment: .leading, spacing: Constants.Spacing.lg) {
                     if let ride = viewModel.ride {
                         rideDetails(ride: ride)
-                    } else if viewModel.isUnavailable {
+                    } else if viewModel.isUnavailable || loadEndedWithNothing {
                         // Deleted, or hidden by moderators. Reached from a stale card, an old
                         // notification or a link; there is nothing to retry, only a way back.
                         EmptyStateView(
@@ -160,6 +169,7 @@ struct RideDetailView: View {
         .refreshable { await viewModel.loadRide(id: rideId) }
         .task {
             await viewModel.loadRide(id: rideId)
+            hasFinishedFirstLoad = true
             if !(viewModel.ride?.isModerationHidden ?? false) {
                 viewModel.checkCalendarOffer()
             }
