@@ -66,7 +66,6 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `pending_approval` with `community_id` routes to `.pendingMembers(communityId)`; without it, `.pendingUsers` opens the default community's Requests to join; `.enterApp` while authenticated opens My communities.
 - The Profile badge reads `pending_members_total`; never aggregate pending counts on the client. `clearCommunityBadge(visibleCommunityId:)` clears only the visible community's Town Hall rows.
 - Community RPC refusals (`{success:false, error, code}`) throw `CommunityRPCError`. Shared community sheets record a result and the presenter acts on it in `onDismiss`. `PreviewCommunityService` is the only app-target preview stand-in.
-- Dead files awaiting deletion: `ApplicationFieldsView`, `PendingUsersView`, `PendingUsersViewModel`, `PendingUserDetailView`.
 
 ## Communities (Phase 1)
 
@@ -81,6 +80,12 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `CommunityReport` has no reporter field (INV-P2). Community screens never call `admin_get_reports` or `admin_moderate_content`; they use `AdminService.fetchCommunityReports` and `moderateCommunityContent`.
 - `content_reported` with `community_id` routes to `.communityReports(communityId)` for a non-platform admin; without it, `.adminReports`. `account_restricted` routes to `.myCommunities`.
 - Coordinator triggers added: `forceFullRefreshAndWait(.dashboard, "removedMember")` and `(.dashboard, "archivedCommunity")`, from ViewModels after an explicit action only. One RPC per tap: a write method returns early while one is in flight.
+
+## Phase 5a (multi-community) facts
+
+- **Signed image URLs**: images of `message-images`, `group-images`, `town-hall-images`, `review-images` and voice notes (`audio-messages`) are read through `StorageURLSigner` (via `PersistentImageService.getImage(for:)`, `CachedAsyncImage`, `MessageAudioPlayer`). Never persist or log a signed URL, never download these with `URLSession.shared`, and store only the URL the upload returned.
+- **Ride-cost geocoding**: `GeocodingCacheService` uses only `get_geocoding_multiplier` / `put_geocoding_multiplier`; it never reads or writes `geocoding_cache` and sends no placemark data. The client no longer touches `invite_codes`.
+- Phase 5b server files (`20261019_0060`-`0063`) are GATED, NOT APPLIED.
 
 ## Phase 4 (multi-community) facts
 
