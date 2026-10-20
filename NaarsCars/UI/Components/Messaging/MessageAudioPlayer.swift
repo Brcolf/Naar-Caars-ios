@@ -134,7 +134,12 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
         }
         
         let downloadURL = await urlResolver.resolvedURL(for: url)
-        let (data, _) = try await downloadSession.data(from: downloadURL)
+        let (data, response) = try await downloadSession.data(from: downloadURL)
+        // A non-2xx body (for example a storage error after a signing fallback) is never written or cached,
+        // so the next tap or prefetch downloads again.
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
         let fileName = "audio-\(abs(url.absoluteString.hashValue)).m4a"
         let fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try data.write(to: fileUrl, options: .atomic)

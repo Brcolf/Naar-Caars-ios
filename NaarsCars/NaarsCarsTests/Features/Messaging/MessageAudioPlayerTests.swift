@@ -60,4 +60,38 @@ final class MessageAudioPlayerTests: XCTestCase {
 
         try? FileManager.default.removeItem(at: fileURL)
     }
+
+    func testResolvePlayableURL_ErrorStatusIsNotCachedAndDownloadsAgain() async throws {
+        CommunityServiceURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil,
+                                           headerFields: ["Content-Type": "application/json"])!
+            return (response, Data(#"{"error":"Bucket not found"}"#.utf8))
+        }
+
+        do {
+            _ = try await player.resolvePlayableUrl(for: storedURL)
+            XCTFail("a 400 answer must throw")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .badServerResponse)
+        }
+        let requestsAfterFailure = CommunityServiceURLProtocol.recorded.count
+        XCTAssertEqual(requestsAfterFailure, 1)
+
+        // Nothing was cached: prefetch (errors dropped) downloads again and still caches nothing.
+        await player.prefetch(storedURL)
+        XCTAssertEqual(CommunityServiceURLProtocol.recorded.count, requestsAfterFailure + 1)
+
+        // Once storage answers 200, the next call downloads again and plays the real body.
+        CommunityServiceURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["Content-Type": "audio/m4a"])!
+            return (response, Data([0x0A, 0x0B]))
+        }
+        let fileURL = try await player.resolvePlayableUrl(for: storedURL)
+        XCTAssertEqual(CommunityServiceURLProtocol.recorded.count, requestsAfterFailure + 2)
+        XCTAssertEqual(try Data(contentsOf: fileURL), Data([0x0A, 0x0B]))
+        XCTAssertEqual(resolver.callCount, 3)
+
+        try? FileManager.default.removeItem(at: fileURL)
+    }
 }
