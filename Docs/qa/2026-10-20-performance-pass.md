@@ -334,6 +334,8 @@ Verification of the post-gate fixes (G1 `48bd1ee`, G2 `e0f3670`, G4 `5e560f7`, G
 
 ## 7. What remains open
 
+Follow-up: the phone-log pass (`Docs/qa/2026-10-20-phone-log-performance-pass.md`) fixes item 5 (`e639cc0`, `d0e3aab`) and the notification-download part of item 11 (`2f9fdac`, `b665dfe`), also fixes the Leaderboard refetch and the bell's forced sync, instruments the slow send, and measures the launch metrics; items 7 and 9 stay open there.
+
 | # | Item | Notes |
 |---|---|---|
 | 1 | **Sign-out race with the detached sync writes (from F1): fixed in `f1a99e6`.** `RefreshCoordinator.reset()` now waits for the refreshes it cancels to finish, at most `Constants.Timing.refreshResetDrainTimeout` (3 s), before it clears state and returns, so a job already inside `BackgroundSyncActor` saves before `AuthService` wipes SwiftData. | Two new `RefreshCoordinatorTests` cases (a cancelled job's write lands before `reset()` returns; a job that never ends releases `reset()` at the timeout); both fail with the wait disabled. The race itself was found by reading the code and was not reproduced on a device. |
