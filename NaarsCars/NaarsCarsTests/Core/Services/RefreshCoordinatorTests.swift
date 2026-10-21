@@ -157,4 +157,105 @@ final class RefreshCoordinatorTests: XCTestCase {
         let snapshot = coordinator.diagnosticSnapshot()
         XCTAssertEqual(snapshot.domains.count, RefreshDomain.allCases.count)
     }
+
+    // MARK: - forceFullRefreshAndWait(unlessCurrent:) (performance pass, item 5: the bell's open)
+
+    /// Counts the full syncs this coordinator runs (the engine is never reached).
+    private func countFullSyncs() -> () -> Int {
+        var calls = 0
+        coordinator.fullSyncOverrideForTesting = { _ in
+            calls += 1
+            return .empty
+        }
+        return { calls }
+    }
+
+    func testForceFullRefreshAndWaitUnlessCurrent_SkipsRightAfterAFullSync() async {
+        let calls = countFullSyncs()
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+
+        let result = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "open", unlessCurrent: true)
+
+        XCTAssertEqual(calls(), 1, "a full sync with no push since is current")
+        guard case .skipped(.fresh)? = result else {
+            return XCTFail("expected .skipped(.fresh), got \(String(describing: result))")
+        }
+    }
+
+    /// A push may bring rows a targeted sync does not fetch (bell rows). Badges only here: with no
+    /// session it makes no request, while a dashboard targeted refresh would reach the real engine.
+    func testForceFullRefreshAndWaitUnlessCurrent_RunsAgainAfterAPush() async {
+        let calls = countFullSyncs()
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+        coordinator.performTargetedRefresh(.badges, entityId: UUID(), trigger: "push:new_ride")
+
+        let result = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "open", unlessCurrent: true)
+
+        XCTAssertEqual(calls(), 2)
+        guard case .completed? = result else {
+            return XCTFail("expected .completed, got \(String(describing: result))")
+        }
+    }
+
+    /// A push that lands while a full sync runs may not be in it: the sync counts from its start.
+    func testForceFullRefreshAndWaitUnlessCurrent_RunsAgainAfterAPushDuringTheSync() async {
+        var calls = 0
+        var release: CheckedContinuation<Void, Never>?
+        coordinator.fullSyncOverrideForTesting = { _ in
+            calls += 1
+            if calls == 1 { await withCheckedContinuation { release = $0 } }
+            return .empty
+        }
+        coordinator.forceFullRefresh(.dashboard, trigger: "test")
+        guard case .refreshing(let task, _)? = coordinator.stateForTesting(.dashboard) else {
+            return XCTFail("dashboard should be refreshing")
+        }
+        for _ in 0..<200 where release == nil { await Task.yield() }
+        coordinator.performTargetedRefresh(.badges, entityId: UUID(), trigger: "push:new_ride")
+        release?.resume()
+        await task.value
+
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "open", unlessCurrent: true)
+
+        XCTAssertEqual(calls, 2)
+    }
+
+    /// A push delivered while the app was suspended reaches no handler; the foreground stands in for it.
+    func testForceFullRefreshAndWaitUnlessCurrent_RunsAgainAfterAForeground() async {
+        let calls = countFullSyncs()
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+        coordinator.handleAppForegrounded()
+
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "open", unlessCurrent: true)
+
+        XCTAssertEqual(calls(), 2)
+    }
+
+    /// A full sync from before the session started (a guest's fetches no bell rows) is not current.
+    func testForceFullRefreshAndWaitUnlessCurrent_RunsAgainAfterASessionStart() async {
+        let calls = countFullSyncs()
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+        coordinator.initializeStates()
+
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "open", unlessCurrent: true)
+
+        XCTAssertEqual(calls(), 2)
+    }
+
+    func testForceFullRefreshAndWaitUnlessCurrent_RunsWhenTheFullSyncIsOlderThanTheWindow() async {
+        let calls = countFullSyncs()
+        coordinator.markSyncedForTesting(.dashboard, at: Date().addingTimeInterval(-(coordinator.stalenessWindow + 1)))
+
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "open", unlessCurrent: true)
+
+        XCTAssertEqual(calls(), 1)
+    }
+
+    func testForceFullRefreshAndWait_DefaultStillForces() async {
+        let calls = countFullSyncs()
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+
+        XCTAssertEqual(calls(), 2, "pull-to-refresh and Retry keep forcing")
+    }
 }

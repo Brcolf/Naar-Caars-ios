@@ -31,6 +31,7 @@ internal import Combine
     private var modelContext: ModelContext?
     private let notificationService: any NotificationServiceProtocol
     private let authService: any AuthServiceProtocol
+    private let refreshCoordinator: RefreshCoordinator
     private let groupingManager: NotificationGroupingManager
     private let navigationRouter: NotificationNavigationRouter
     private let realtimeHandler: NotificationRealtimeHandler
@@ -47,10 +48,13 @@ internal import Combine
         notificationService: any NotificationServiceProtocol = NotificationService.shared,
         authService: any AuthServiceProtocol = AuthService.shared,
         completionPromptProvider: (any CompletionPromptProviding)? = nil,
-        reviewPromptProvider: (any ReviewPromptProviding)? = nil
+        reviewPromptProvider: (any ReviewPromptProviding)? = nil,
+        refreshCoordinator: RefreshCoordinator? = nil
     ) {
         self.notificationService = notificationService
         self.authService = authService
+        // Resolved here, not as a default argument: `RefreshCoordinator.shared` is main-actor isolated.
+        self.refreshCoordinator = refreshCoordinator ?? .shared
         self.completionPromptProvider = completionPromptProvider
         self.reviewPromptProvider = reviewPromptProvider
         groupingManager = NotificationGroupingManager()
@@ -132,9 +136,14 @@ internal import Combine
                 refreshUnreadCount(from: context, userId: userId)
             }
             guard !Task.isCancelled else { isLoading = false; return }
-            let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(
+            // Opening the bell is not a reload: when a full dashboard sync has run since the last push,
+            // foreground or session start, and within the staleness window, it already holds every bell
+            // row, and the coordinator skips (`.skipped` lands in the else branch below). Pull-to-refresh
+            // and Retry pass forceRefresh and always reach the network.
+            let result = await refreshCoordinator.forceFullRefreshAndWait(
                 .dashboard,
-                trigger: forceRefresh ? "pullToRefresh:notifications" : "manualReload:notifications"
+                trigger: forceRefresh ? "pullToRefresh:notifications" : "manualReload:notifications",
+                unlessCurrent: !forceRefresh
             )
             guard !Task.isCancelled else { isLoading = false; return }
             if case .failed(let error, _)? = result {
@@ -180,7 +189,7 @@ internal import Combine
             if modelContext == nil {
                 await loadNotifications()
             }
-            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationMarkedRead")
+            _ = await refreshCoordinator.forceFullRefreshAndWait(.badges, trigger: "notificationMarkedRead")
         } catch {
             // The list keeps its rows; a failed write is not a failed load, so `error` is untouched.
             restoreNotificationsUnreadLocally(flipped)
@@ -202,7 +211,7 @@ internal import Combine
             if modelContext == nil {
                 await loadNotifications()
             }
-            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationsMarkAllRead")
+            _ = await refreshCoordinator.forceFullRefreshAndWait(.badges, trigger: "notificationsMarkAllRead")
             return true
         } catch {
             restoreNotificationsUnreadLocally(flipped)
@@ -249,7 +258,7 @@ internal import Combine
             await loadNotifications()
         }
         if let badgeTrigger {
-            _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: badgeTrigger)
+            _ = await refreshCoordinator.forceFullRefreshAndWait(.badges, trigger: badgeTrigger)
         }
         return true
     }
@@ -539,7 +548,7 @@ internal import Combine
             notificationTypes: resolvedTypes,
             includeReviews: false
         )
-        _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationActionResolved")
+        _ = await refreshCoordinator.forceFullRefreshAndWait(.badges, trigger: "notificationActionResolved")
     }
 
     private func markGroupAsRead(_ group: NotificationGroup) {
@@ -579,7 +588,7 @@ internal import Combine
                 }
             }
             if needsBadgeRefresh {
-                _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.badges, trigger: "notificationGroupMarkedRead")
+                _ = await self.refreshCoordinator.forceFullRefreshAndWait(.badges, trigger: "notificationGroupMarkedRead")
             }
         }
     }

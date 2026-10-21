@@ -138,7 +138,8 @@ struct NotificationsListView: View {
             // the failure is reported by the banner and the list stays.
             ErrorView(
                 error: error.localizedDescription,
-                retryAction: { Task { await viewModel.loadNotifications() } }
+                // Retry always reaches the network; only the open may be skipped by the coordinator.
+                retryAction: { Task { await viewModel.loadNotifications(forceRefresh: true) } }
             )
         } else if data.isEmpty {
             EmptyStateView(
