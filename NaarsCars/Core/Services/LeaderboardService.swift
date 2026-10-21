@@ -101,6 +101,14 @@ struct CommunityLeaderboardParams: Encodable, Sendable {
     }
 }
 
+/// The two reads LeaderboardViewModel makes, so its tests can count them without the live backend.
+/// Kept in this file because new Swift files cannot be added to the project in this run; move it to
+/// Core/Protocols when convenient.
+protocol LeaderboardFetching: AnyObject {
+    func fetchLeaderboard(period: LeaderboardPeriod, communityId: UUID?) async throws -> [LeaderboardEntry]
+    func fetchSpotlights(period: LeaderboardPeriod, communityId: UUID?) async throws -> [SpotlightEntry]
+}
+
 /// Service for leaderboard operations
 /// Uses server-side database function for efficient calculation
 final class LeaderboardService {
@@ -233,3 +241,4 @@ final class LeaderboardService {
     
 }
 
+extension LeaderboardService: LeaderboardFetching {}

@@ -13,6 +13,9 @@ struct CommunityTabView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var communityContext = CommunityContext.shared
     @State private var badgeManager = BadgeCountManager.shared
+    /// Owned here, not by LeaderboardView: the segment switch below rebuilds LeaderboardView, and a
+    /// ViewModel it owned started over with an empty cache (and This Month) on every return.
+    @StateObject private var leaderboardViewModel = LeaderboardViewModel(communityContext: CommunityContext.shared)
     
     enum CommunityView: String, CaseIterable {
         case townHall = "community_town_hall"
@@ -40,7 +43,7 @@ struct CommunityTabView: View {
                     case .townHall:
                         TownHallFeedView()
                     case .leaderboard:
-                        LeaderboardView()
+                        LeaderboardView(viewModel: leaderboardViewModel)
                     }
                 }
             }

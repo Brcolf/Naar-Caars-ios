@@ -31,7 +31,7 @@ final class LeaderboardViewModel: ObservableObject {
 
     // MARK: - Private Properties
 
-    private let leaderboardService = LeaderboardService.shared
+    private let leaderboardService: any LeaderboardFetching
     private let authService: any AuthServiceProtocol
     private let communityContext: CommunityContext?
 
@@ -41,7 +41,12 @@ final class LeaderboardViewModel: ObservableObject {
     /// The period and community whose rows are in `entries` and `spotlights`.
     private var displayedKey: LeaderboardCacheKey?
 
-    init(authService: any AuthServiceProtocol = AuthService.shared, communityContext: CommunityContext? = nil) {
+    init(
+        leaderboardService: any LeaderboardFetching = LeaderboardService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
+    ) {
+        self.leaderboardService = leaderboardService
         self.authService = authService
         self.communityContext = communityContext
     }
@@ -57,8 +62,9 @@ final class LeaderboardViewModel: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Load leaderboard with caching
-    /// Shows cached data immediately, refreshes in background if cache is valid
+    /// Load leaderboard with caching.
+    /// Rows cached for this period and community within `Constants.CacheTTL.leaderboard` are shown
+    /// without a request; pull-to-refresh (`refresh()`) is the way to fetch them again sooner.
     func loadLeaderboard() async {
         let period = currentKey
         error = nil
@@ -70,8 +76,8 @@ final class LeaderboardViewModel: ObservableObject {
             show(entries: cached.entries, spotlights: cached.spotlights, for: period)
             // A load still in flight for the period the user just left no longer owns the spinner.
             isLoading = false
-            // Refresh in background; the rows on screen are still fresh, so a failure stays quiet.
-            Task { await fetchFresh(period: period, showLoading: false, reportsFailure: false) }
+            // No background refetch: the view calls this on every appearance (each return to the
+            // tab or the segment), and each refetch was two RPCs for rows that are still fresh.
             return
         }
 

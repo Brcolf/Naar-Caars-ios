@@ -12,7 +12,8 @@ import SwiftUI
 /// draws a second navigation bar under the Community one and pushes profiles inside the segment.
 struct LeaderboardView: View {
     @State private var communityContext = CommunityContext.shared
-    @StateObject private var viewModel = LeaderboardViewModel(communityContext: CommunityContext.shared)
+    /// Owned by CommunityTabView, so the cache and the chosen period outlive a segment switch.
+    @ObservedObject var viewModel: LeaderboardViewModel
     /// The load for the latest community change; a newer change cancels it. The ViewModel ignores
     /// the outcome of a load whose community is no longer the current one, so a cancelled one
     /// shows nothing.
@@ -129,6 +130,6 @@ struct LeaderboardView: View {
 #Preview {
     // The view relies on its host's NavigationStack (CommunityTabView in the app).
     NavigationStack {
-        LeaderboardView()
+        LeaderboardView(viewModel: LeaderboardViewModel(communityContext: CommunityContext.shared))
     }
 }
