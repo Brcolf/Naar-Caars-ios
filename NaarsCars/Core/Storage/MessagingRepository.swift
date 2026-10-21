@@ -327,11 +327,42 @@ final class MessagingRepository {
         return try modelContext.fetch(fetchDescriptor).first
     }
 
+#if DEBUG
+    /// DEBUG-only durations of the three steps of a `save(changedConversationIds:)`. The
+    /// publish steps include the subscribers' sinks, which run inline on `send`.
+    struct SaveTimings {
+        let context: TimeInterval
+        let conversationsPublish: TimeInterval
+        let messagesPublish: TimeInterval
+    }
+
+    /// The step durations of the most recent successful `save(changedConversationIds:)`, read
+    /// by the send-path sub-timings in `MessageSendManager`.
+    private(set) var lastSaveTimings: SaveTimings?
+#endif
+
     func save(changedConversationIds: Set<UUID> = []) throws {
+#if DEBUG
+        lastSaveTimings = nil
+        let saveStart = Date()
+#endif
         guard let modelContext = modelContext else { return }
         try modelContext.save()
+#if DEBUG
+        let contextSaved = Date()
+#endif
         refreshConversationsPublisher(changedConversationIds: changedConversationIds)
+#if DEBUG
+        let conversationsPublished = Date()
+#endif
         refreshMessagesPublishers(changedConversationIds: changedConversationIds)
+#if DEBUG
+        lastSaveTimings = SaveTimings(
+            context: contextSaved.timeIntervalSince(saveStart),
+            conversationsPublish: conversationsPublished.timeIntervalSince(contextSaved),
+            messagesPublish: Date().timeIntervalSince(conversationsPublished)
+        )
+#endif
     }
     
     /// Save the SwiftData context without triggering any publisher refreshes.

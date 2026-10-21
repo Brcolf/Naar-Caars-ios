@@ -8,6 +8,7 @@
 import XCTest
 import CoreLocation
 import Realtime
+import SwiftData
 @testable import NaarsCars
 
 @MainActor
@@ -536,3 +537,151 @@ final class ReadReceiptStatusTests: XCTestCase {
     }
 }
 
+
+// MARK: - Send path: saved before the network, DEBUG sub-timings (phone-log performance pass, item 1)
+
+/// Lock-protected value shared between the URL stub (URL loading thread) and the test.
+private final class LockedTestValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    func get() -> Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func set(_ newValue: Value) {
+        lock.lock()
+        value = newValue
+        lock.unlock()
+    }
+}
+
+@MainActor
+final class MessageSendManagerSendPathTests: XCTestCase {
+    private var originalContext: ModelContext?
+    private var originalUserId: UUID?
+    private var container: ModelContainer?
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        // MessagingRepository is a process-wide singleton configured by the host app: point it at
+        // an in-memory store for this test and put the app's context back in tearDown.
+        originalContext = MessagingRepository.shared.modelContextForWorker
+        originalUserId = AuthService.shared.currentUserId
+        let container = try ModelContainer(
+            for: SDConversation.self, SDMessage.self, SDDeletedMessage.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        self.container = container
+        MessagingRepository.shared.setup(modelContext: container.mainContext)
+        URLProtocol.registerClass(ClaimServiceURLProtocol.self)
+    }
+
+    override func tearDownWithError() throws {
+        ClaimServiceURLProtocol.requestHandler = nil
+        URLProtocol.unregisterClass(ClaimServiceURLProtocol.self)
+        if let originalContext {
+            MessagingRepository.shared.setup(modelContext: originalContext)
+        }
+        AuthService.shared.currentUserId = originalUserId
+        container = nil
+        try super.tearDownWithError()
+    }
+
+    /// The optimistic row is saved as `sending` before the messages insert is requested, the
+    /// server's row replaces it, and every send-path sub-timing records one sample.
+    func testSendSavesSendingRowBeforeInsertAndRecordsEachSubTiming() async throws {
+        let container = try XCTUnwrap(self.container)
+        let userId = UUID()
+        let conversationId = UUID()
+        let serverId = UUID()
+        AuthService.shared.currentUserId = userId
+
+        let context = container.mainContext
+        context.insert(SDConversation(id: conversationId, createdBy: userId, participantIds: [userId]))
+        try context.save()
+
+        // imagePrepare (image sends), viewCommitted and snapshotApplied (open thread) are not
+        // recorded by a text send without a screen.
+        let keys = [
+            MessageSendTimings.rateLimitCheck,
+            MessageSendTimings.haptic,
+            MessageSendTimings.optimisticUpsert,
+            MessageSendTimings.optimisticSave,
+            MessageSendTimings.saveContext,
+            MessageSendTimings.saveConversationsPublish,
+            MessageSendTimings.saveMessagesPublish,
+            MessageSendTimings.mainActorResume,
+            MessageSendTimings.serverCall
+        ]
+        for key in keys {
+            await PerformanceMonitor.shared.reset(operation: key)
+        }
+
+        let statusesAtInsert = LockedTestValue<[String]?>(nil)
+        let reportedError = LockedTestValue<AppError?>(nil)
+        ClaimServiceURLProtocol.requestHandler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path.hasSuffix("/rest/v1/messages"), request.httpMethod == "POST" {
+                // A context of its own sees only what the send has saved to the store.
+                let rows = try ModelContext(container).fetch(
+                    FetchDescriptor<SDMessage>(predicate: #Predicate { $0.conversationId == conversationId })
+                )
+                statusesAtInsert.set(rows.map { $0.status })
+                let body = """
+                {"id":"\(serverId.uuidString)","conversation_id":"\(conversationId.uuidString)",\
+                "from_id":"\(userId.uuidString)","text":"perf timing check","image_url":null,\
+                "read_by":[],"created_at":"2026-10-20T12:00:00.000Z","message_type":"text","reply_to_id":null}
+                """
+                let response = HTTPURLResponse(
+                    url: url, statusCode: 201, httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, Data(body.utf8))
+            }
+            if url.path.hasSuffix("/rest/v1/conversations"), request.httpMethod == "PATCH" {
+                return (HTTPURLResponse(url: url, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+            }
+            throw URLError(.cannotConnectToHost)
+        }
+
+        await MessageSendManager().sendMessage(
+            conversationId: conversationId,
+            messageText: "perf timing check",
+            image: nil,
+            setMessageText: { _ in },
+            setError: { reportedError.set($0) }
+        )
+
+        XCTAssertNil(reportedError.get())
+        XCTAssertEqual(
+            statusesAtInsert.get(), [MessageSendStatus.sending.rawValue],
+            "the optimistic row must be saved as sending before the messages insert is requested"
+        )
+        let rows = try context.fetch(
+            FetchDescriptor<SDMessage>(predicate: #Predicate { $0.conversationId == conversationId })
+        )
+        XCTAssertEqual(rows.map { $0.id }, [serverId], "the server's row replaces the optimistic one")
+        XCTAssertEqual(rows.first?.status, MessageSendStatus.sent.rawValue)
+
+        // The samples are recorded by detached tasks; wait for them.
+        var counts: [String: Int] = [:]
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            for key in keys {
+                counts[key] = await PerformanceMonitor.shared.getStats(for: key)?.count ?? 0
+            }
+            if counts.values.allSatisfy({ $0 > 0 }) { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        } while Date() < deadline
+        for key in keys {
+            XCTAssertEqual(counts[key], 1, "\(key) should have exactly one sample")
+        }
+    }
+}

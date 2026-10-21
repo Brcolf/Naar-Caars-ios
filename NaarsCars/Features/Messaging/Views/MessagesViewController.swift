@@ -468,6 +468,14 @@ final class MessagesViewController: UIViewController {
             } else {
                 dataSource?.apply(snapshot, animatingDifferences: true)
             }
+#if DEBUG
+            // Send sub-timing: the snapshot holding a new optimistic row has been applied.
+            if !previousMessages.isEmpty, let newest = config.messages.last {
+                MessageSendTimings.recordNewSendingRows([newest], operation: MessageSendTimings.snapshotApplied) {
+                    previousMessages[$0] != nil
+                }
+            }
+#endif
 
             // On initial load with unread messages, scroll to the first unread — but only when
             // there really are unread messages (the first-unread id is computed once from the

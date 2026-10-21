@@ -347,8 +347,19 @@ final class ConversationDetailViewModel {
                         }
                     }
 
+#if DEBUG
+                    let previousMessages = self.messages
+#endif
                     let previousMessageCount = self.messages.count
                     self.messages = pending
+#if DEBUG
+                    // Send sub-timing: a new optimistic row committed to `messages`.
+                    if !previousMessages.isEmpty {
+                        MessageSendTimings.recordNewSendingRows(pending, operation: MessageSendTimings.viewCommitted) { id in
+                            previousMessages.contains { $0.id == id }
+                        }
+                    }
+#endif
                     self.scheduleReplyContextHydration()
                     // loadMessages() marks read against the local cache only (often just the
                     // conversation list's last message). Messages that REST hydration adds

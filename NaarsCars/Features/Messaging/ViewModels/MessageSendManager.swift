@@ -48,20 +48,40 @@ final class MessageSendManager {
             return
         }
 
+#if DEBUG
+        var timings = MessageSendTimings(hasImage: image != nil, reply: replyToId != nil)
+        timings.start()
+#endif
         let rateLimitKey = "send_message_\(conversationId.uuidString)"
         let canSend = await rateLimiter.checkAndRecord(action: rateLimitKey, minimumInterval: Constants.RateLimits.messageSend)
+#if DEBUG
+        timings.stop(MessageSendTimings.rateLimitCheck)
+#endif
         guard canSend else {
+#if DEBUG
+            timings.flush()
+#endif
             setError(.rateLimitExceeded("messaging_rate_limit_send".localized))
             return
         }
 
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count <= Constants.Limits.messageTextMaxLength else {
+#if DEBUG
+            timings.flush()
+#endif
             await setError(.invalidInput("messaging_too_long".localized))
             return
         }
         setMessageText("")
+#if DEBUG
+        timings.start()
+#endif
         HapticManager.lightImpact()
+#if DEBUG
+        timings.stop(MessageSendTimings.haptic)
+        timings.start()
+#endif
 
         // Compress image off the main thread (once, reuse for both local storage and upload)
         // Also capture the resized dimensions for aspect-ratio rendering
@@ -82,6 +102,11 @@ final class MessageSendManager {
         if let imageData = compressedImageData {
             localPath = LocalAttachmentStorage.save(data: imageData, extension: "jpg")
         }
+#if DEBUG
+        if image != nil {
+            timings.stop(MessageSendTimings.imagePrepare)
+        }
+#endif
 
         let localId = UUID()
         let optimisticMessage = Message(
@@ -98,12 +123,30 @@ final class MessageSendManager {
         )
 
         do {
+#if DEBUG
+            timings.start()
+#endif
             try repository.upsertMessage(optimisticMessage)
+#if DEBUG
+            timings.stop(MessageSendTimings.optimisticUpsert)
+            timings.start()
+#endif
             try repository.save(changedConversationIds: Set([conversationId]))
+#if DEBUG
+            timings.stop(MessageSendTimings.optimisticSave)
+            timings.addSaveSteps(repository.lastSaveTimings)
+#endif
         } catch {
             AppLogger.error("messaging", "Failed to persist optimistic message: \(error.localizedDescription)")
         }
 
+        // localVisible means persisted and published to the repository's subscribers, not on
+        // screen: the detail view model commits the row in a coalesce Task that runs only after
+        // this method suspends (messaging.send.viewCommitted and snapshotApplied measure that).
+#if DEBUG
+        // mainActorResume: from the localVisible capture to the line after its await returns.
+        timings.start()
+#endif
         await PerformanceMonitor.shared.record(
             operation: "messaging.send.localVisible",
             duration: Date().timeIntervalSince(sendStart),
@@ -113,6 +156,10 @@ final class MessageSendManager {
                 "reply": replyToId != nil
             ]
         )
+#if DEBUG
+        timings.stop(MessageSendTimings.mainActorResume)
+        timings.flush()
+#endif
 
         var imageUrl: String? = nil
         if let imageData = compressedImageData {
@@ -131,6 +178,9 @@ final class MessageSendManager {
         }
 
         do {
+#if DEBUG
+            timings.start()
+#endif
             let sentMessage = try await messageService.sendMessage(
                 conversationId: conversationId,
                 fromId: fromId,
@@ -140,6 +190,10 @@ final class MessageSendManager {
                 imageHeight: imageHeight,
                 replyToId: replyToId
             )
+#if DEBUG
+            timings.stop(MessageSendTimings.serverCall)
+            timings.flush()
+#endif
 
             replaceOptimisticMessage(localId: localId, conversationId: conversationId, with: sentMessage)
             if let localPath = localPath {
@@ -156,6 +210,11 @@ final class MessageSendManager {
                 slowThreshold: Constants.Performance.messageSendServerAcceptSlowThreshold
             )
         } catch {
+#if DEBUG
+            // Only the server call throws in this block.
+            timings.stop(MessageSendTimings.serverCall)
+            timings.flush()
+#endif
             updateMessageStatus(id: localId, conversationId: conversationId, status: .failed, syncError: error.localizedDescription)
             HapticManager.error()
             setError(AppError.processingError(error.localizedDescription))
@@ -508,3 +567,88 @@ final class MessageSendManager {
         }.value
     }
 }
+
+#if DEBUG
+/// DEBUG-only sub-timings of a text or image send, to find where the time between the tap and
+/// the optimistic save goes on a device. Durations come from synchronous timestamps taken at each
+/// boundary; `flush()` hands them to `PerformanceMonitor` in one detached utility task, so
+/// recording adds no suspension point before the optimistic insert and does not delay the
+/// network call. Metadata is `hasImage` and `reply` only.
+struct MessageSendTimings {
+    static let rateLimitCheck = "messaging.send.rateLimitCheck"
+    static let haptic = "messaging.send.haptic"
+    static let imagePrepare = "messaging.send.imagePrepare"
+    static let optimisticUpsert = "messaging.send.optimisticUpsert"
+    static let optimisticSave = "messaging.send.optimisticSave"
+    static let saveContext = "messaging.send.save.context"
+    static let saveConversationsPublish = "messaging.send.save.conversationsPublish"
+    static let saveMessagesPublish = "messaging.send.save.messagesPublish"
+    static let mainActorResume = "messaging.send.mainActorResume"
+    static let serverCall = "messaging.send.serverCall"
+    static let viewCommitted = "messaging.send.viewCommitted"
+    static let snapshotApplied = "messaging.send.snapshotApplied"
+
+    private let hasImage: Bool
+    private let reply: Bool
+    private var samples: [(operation: String, duration: TimeInterval)] = []
+    private var stepStart = Date()
+
+    init(hasImage: Bool, reply: Bool) {
+        self.hasImage = hasImage
+        self.reply = reply
+    }
+
+    /// Starts timing the next step.
+    mutating func start() {
+        stepStart = Date()
+    }
+
+    /// Ends the step started by the last `start()`.
+    mutating func stop(_ operation: String) {
+        add(operation, duration: Date().timeIntervalSince(stepStart))
+    }
+
+    mutating func add(_ operation: String, duration: TimeInterval) {
+        samples.append((operation, duration))
+    }
+
+    /// Adds the three steps of the repository's last save.
+    mutating func addSaveSteps(_ saveTimings: MessagingRepository.SaveTimings?) {
+        guard let saveTimings else { return }
+        add(Self.saveContext, duration: saveTimings.context)
+        add(Self.saveConversationsPublish, duration: saveTimings.conversationsPublish)
+        add(Self.saveMessagesPublish, duration: saveTimings.messagesPublish)
+    }
+
+    /// Records the collected samples off the caller's actor and clears them.
+    mutating func flush() {
+        guard !samples.isEmpty else { return }
+        let samples = self.samples
+        let hasImage = self.hasImage
+        let reply = self.reply
+        self.samples.removeAll()
+        Task.detached(priority: .utility) {
+            for sample in samples {
+                await PerformanceMonitor.shared.record(
+                    operation: sample.operation,
+                    duration: sample.duration,
+                    metadata: ["hasImage": hasImage, "reply": reply]
+                )
+            }
+        }
+    }
+
+    /// Records `operation` for each `.sending` row of `rows` that `wasPresent` does not know,
+    /// as now minus the row's `createdAt` (stamped just before the optimistic upsert). Callers
+    /// skip a first load, where a `.sending` row left from an earlier session would count its age.
+    static func recordNewSendingRows(_ rows: [Message], operation: String, wasPresent: (UUID) -> Bool) {
+        let now = Date()
+        for row in rows where row.sendStatus == .sending && !wasPresent(row.id) {
+            let hasImage = row.imageUrl != nil || (row.localAttachmentPath != nil && !row.isAudioMessage)
+            var timings = MessageSendTimings(hasImage: hasImage, reply: row.replyToId != nil)
+            timings.add(operation, duration: now.timeIntervalSince(row.createdAt))
+            timings.flush()
+        }
+    }
+}
+#endif
