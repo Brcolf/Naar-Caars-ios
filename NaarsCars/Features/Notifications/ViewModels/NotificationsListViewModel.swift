@@ -32,6 +32,10 @@ internal import Combine
     private let notificationService: any NotificationServiceProtocol
     private let authService: any AuthServiceProtocol
     private let refreshCoordinator: RefreshCoordinator
+    private let badgeCounts: any BadgeCountManaging
+    /// Unread groups in the stored bell rows, grouped as the list and the server's `bell_total` group
+    /// them; set by `refreshUnreadCount`. Not observed: it only decides whether an open may skip the sync.
+    @ObservationIgnored private var storedUnreadGroupCount = 0
     private let groupingManager: NotificationGroupingManager
     private let navigationRouter: NotificationNavigationRouter
     private let realtimeHandler: NotificationRealtimeHandler
@@ -49,12 +53,14 @@ internal import Combine
         authService: any AuthServiceProtocol = AuthService.shared,
         completionPromptProvider: (any CompletionPromptProviding)? = nil,
         reviewPromptProvider: (any ReviewPromptProviding)? = nil,
-        refreshCoordinator: RefreshCoordinator? = nil
+        refreshCoordinator: RefreshCoordinator? = nil,
+        badgeCounts: (any BadgeCountManaging)? = nil
     ) {
         self.notificationService = notificationService
         self.authService = authService
-        // Resolved here, not as a default argument: `RefreshCoordinator.shared` is main-actor isolated.
+        // Resolved here, not as default arguments: both `shared` instances are main-actor isolated.
         self.refreshCoordinator = refreshCoordinator ?? .shared
+        self.badgeCounts = badgeCounts ?? BadgeCountManager.shared
         self.completionPromptProvider = completionPromptProvider
         self.reviewPromptProvider = reviewPromptProvider
         groupingManager = NotificationGroupingManager()
@@ -140,10 +146,14 @@ internal import Combine
             // foreground or session start, and within the staleness window, it already holds every bell
             // row, and the coordinator skips (`.skipped` lands in the else branch below). Pull-to-refresh
             // and Retry pass forceRefresh and always reach the network.
+            // A skip also needs the stored rows to hold every unread group the bell badge counts: a Town
+            // Hall row is written at once but its push is batched for up to 5 minutes, so no push has
+            // marked the store stale while the badge (refreshed on any tab change) already counts it.
+            let storeCoversBadge = storedUnreadGroupCount >= badgeCounts.bellBadgeCount
             let result = await refreshCoordinator.forceFullRefreshAndWait(
                 .dashboard,
                 trigger: forceRefresh ? "pullToRefresh:notifications" : "manualReload:notifications",
-                unlessCurrent: !forceRefresh
+                unlessCurrent: !forceRefresh && storeCoversBadge
             )
             guard !Task.isCancelled else { isLoading = false; return }
             if case .failed(let error, _)? = result {
@@ -321,8 +331,10 @@ internal import Combine
     private func refreshUnreadCount(from context: ModelContext, userId: UUID) {
         let fetchDescriptor = FetchDescriptor<SDNotification>(predicate: #Predicate { $0.userId == userId })
         if let notifications = try? context.fetch(fetchDescriptor) {
-            let unread = getFilteredNotifications(sdNotifications: notifications).filter { !$0.read }
+            let filtered = getFilteredNotifications(sdNotifications: notifications)
+            let unread = filtered.filter { !$0.read }
             let markAllEligible = unread.filter { !Self.bulkReadExcludedTypes.contains($0.type) }.count
+            storedUnreadGroupCount = NotificationGrouping.groupBellNotifications(from: filtered).filter(\.hasUnread).count
             // Assign only on change: these are observed, and this also runs each time the list reappears.
             if unreadCount != unread.count {
                 unreadCount = unread.count

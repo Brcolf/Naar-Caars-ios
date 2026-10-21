@@ -6,6 +6,7 @@
 //
 
 import AuthenticationServices
+import SwiftData
 import XCTest
 @testable import NaarsCars
 
@@ -22,6 +23,18 @@ private final class StubNotificationsAuthService: AuthServiceProtocol {
     func sendPasswordReset(email: String) async throws {}
     func signUpWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws {}
     func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws -> AppleLoginResult { .success }
+}
+
+/// Answers only `bellBadgeCount` (the server's `bell_total`); the async methods are unused here.
+private final class StubBadgeCounts: BadgeCountManaging {
+    var bellBadgeCount: Int
+
+    init(bell: Int) { bellBadgeCount = bell }
+
+    func refreshAllBadges(reason: String) async {}
+    func clearMessagesBadge(for conversationId: UUID?) async {}
+    func clearCommunityBadge(visibleCommunityId: UUID?) async {}
+    func fetchBadgeCountsPayload(includeDetails: Bool) async throws -> String { "" }
 }
 
 @MainActor
@@ -182,7 +195,8 @@ final class NotificationsListViewModelTests: XCTestCase {
         _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
         let viewModel = NotificationsListViewModel(
             authService: StubNotificationsAuthService(currentUserId: UUID()),
-            refreshCoordinator: coordinator
+            refreshCoordinator: coordinator,
+            badgeCounts: StubBadgeCounts(bell: 0)
         )
 
         await viewModel.loadNotifications()
@@ -192,6 +206,56 @@ final class NotificationsListViewModelTests: XCTestCase {
 
         await viewModel.refreshNotifications()
         XCTAssertEqual(syncs, [.dashboard, .dashboard], "pull-to-refresh still forces one")
+    }
+
+    /// A Town Hall row is written at once but its push is batched for up to 5 minutes, so a current
+    /// full sync can lack a row the bell badge (`bell_total`) already counts. The open then syncs. The
+    /// stored rows are compared as unread groups, as the server counts them: three unread rows about
+    /// one ride are one group, so a raw row count (3) would hide the missing second group.
+    func testOpenSyncsWhenTheBadgeCountsAGroupTheStoredRowsLack() async throws {
+        var syncs: [RefreshDomain] = []
+        let coordinator = RefreshCoordinator()
+        coordinator.fullSyncOverrideForTesting = { domain in
+            syncs.append(domain)
+            return .empty
+        }
+        self.coordinator = coordinator
+        _ = await coordinator.forceFullRefreshAndWait(.dashboard, trigger: "test")
+
+        // The grouping manager keeps rows of AuthService's user when one is signed in.
+        let userId = AuthService.shared.currentUserId ?? UUID()
+        let container = try ModelContainer(
+            for: SDNotification.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+        let rideId = UUID()
+        for type in ["new_ride", "ride_claimed", "qa_question"] {
+            context.insert(SDNotification(id: UUID(), userId: userId, type: type, title: "t", rideId: rideId))
+        }
+        try context.save()
+
+        // The badge counts the stored ride group only: the open skips.
+        let covered = NotificationsListViewModel(
+            authService: StubNotificationsAuthService(currentUserId: userId),
+            refreshCoordinator: coordinator,
+            badgeCounts: StubBadgeCounts(bell: 1)
+        )
+        covered.setup(modelContext: context)
+        defer { covered.stop() }
+        await covered.loadNotifications()
+        XCTAssertEqual(syncs, [.dashboard], "the stored rows hold every unread group the badge counts")
+
+        // The badge counts a second group (a Town Hall post whose push is still batched): the open syncs.
+        let behind = NotificationsListViewModel(
+            authService: StubNotificationsAuthService(currentUserId: userId),
+            refreshCoordinator: coordinator,
+            badgeCounts: StubBadgeCounts(bell: 2)
+        )
+        behind.setup(modelContext: context)
+        defer { behind.stop() }
+        await behind.loadNotifications()
+        XCTAssertEqual(syncs, [.dashboard, .dashboard], "a group the stored rows lack makes the open sync")
     }
 }
 

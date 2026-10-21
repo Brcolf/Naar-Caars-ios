@@ -19,7 +19,9 @@ enum BadgeTab: String {
     case profile = "profile"
 }
 
-extension BadgeCountManager: BadgeCountManaging {}
+extension BadgeCountManager: BadgeCountManaging {
+    var bellBadgeCount: Int { counts.bell }
+}
 
 /// Manager for badge counts on tab bar icons
 /// Tracks unread notifications and new content for each tab
