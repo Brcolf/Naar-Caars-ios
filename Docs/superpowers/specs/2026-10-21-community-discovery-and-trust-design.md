@@ -15,20 +15,21 @@ The balance, in the owner's words: new users should feel welcome and existing us
 ## 2. Goals, non-goals, anti-goals
 
 **Goals**
-- Anyone finds a listed community by typing a town or ZIP: guest, new account or member.
+- Anyone finds a listed community by typing its name, or a town or ZIP, or by tapping "Use my location": guest, new account or member.
+- Two owners who agree can merge their communities into one (2026-10-21 addition).
 - An owner makes a community open, ask-to-join or invite-only, listed or hidden, and can change it later.
 - No member of any community reads a street address before being connected to that request. The server enforces it.
 - In open communities the poster chooses the helper.
 - Questions about a request are asked and answered on the request, in public.
 - Four tabs plus Explore, with every Phase 1 to 5 feature in a clear place.
 
-**Non-goals (this version):** merging two communities (a later Manage action); "Use my location" in Explore (later, with the while-using permission); chat screen changes beyond a closed state.
+**Non-goals (this version):** chat screen changes beyond a closed state; location for anything but the one search (no background location, no tracking, no stored coordinates of a person).
 
-**Anti-goals (do not build):** an address directory for a town; a friend or follower system; any location permission; a platform-admin gate on creating communities; a mixed feed where someone misjudges what a stranger sees (every card states its rules).
+**Anti-goals (do not build):** an address directory for a town; a friend or follower system; a location permission used for anything other than the search the person just asked for; a platform-admin gate on creating communities; a mixed feed where someone misjudges what a stranger sees (every card states its rules).
 
 ## 3. Constraints
 
-- **App Store.** Account deletion, Sign in with Apple, reporting, blocking, moderation and guest mode stay intact. New user content (offer notes, answers) gets a report path. The privacy policy, terms and App Privacy answers are reviewed for areas, stored coordinates of typed addresses, and offers. No new permission.
+- **App Store.** Account deletion, Sign in with Apple, reporting, blocking, moderation and guest mode stay intact. New user content (offer notes, answers) gets a report path. The privacy policy, terms and App Privacy answers are reviewed for areas, stored coordinates of typed addresses, offers, and the one new permission: "while using" location, asked only when the person taps "Use my location" in Explore, with an `NSLocationWhenInUseUsageDescription` that says exactly that; the device location goes into that one search request and is never stored or logged, which the App Privacy answers must state correctly (**Builder's call:** check whether the optional-disclosure exemption for data used only to service a request applies, or declare Location as collected for app functionality, not linked, not for tracking).
 - **The server is the boundary.** As with `guest_rides` / `guest_favors` and the `moderate_*` RPCs, who sees an address, who may offer, message or post is decided by RLS, views, triggers or SECURITY DEFINER RPCs. Screens only explain.
 - **No pre-community build remains** (confirmed 2026-10-20). Every user is on a build of this branch, not always the newest; 4.10 says what each older build sees.
 - **The shipped schema is extended, not replaced,** and it is the live one: Phase 4 Files B and C and the four Phase 5b files were all applied on 2026-10-20, so every new migration starts from those function bodies. An RPC whose signature changes gets a new name, not a defaulted parameter (the existing rule).
@@ -68,11 +69,15 @@ Members get one `announcement` bell row saying what changed. Today's hidden comm
 
 A listed community has a service area: a center and a preset radius (1, 2, 5, 10 miles), geocoded from a town or ZIP the owner types. `communities` gains center, radius, area name and creation reason. **Builder's call:** use the town or ZIP centroid MapKit returns and refuse street-level results, so a center is never a home.
 
-**Search.** The client geocodes the typed place with MapKit (`MKGeocodingRequest`, which also retires the deprecated `CLGeocoder` calls) and calls a new RPC (for example `find_communities_near(p_lat, p_lng)`), callable by guests. It returns listed, unarchived communities whose circle covers the point, nearest first: name, policy, area, distance from the searched place, member count. The point is not stored or logged. No location permission. **Builder's call:** great-circle math in SQL; no PostGIS.
+**Search, by name or by place.** One field in Explore. What the person types is searched two ways at once and shown in two groups: **"By name"**, listed, unarchived communities whose name contains the text (case-insensitive, two characters or more; a new RPC, for example `search_communities_by_name(p_query)`, callable by guests, capped at 20 rows), and **"Near <place>"**, when MapKit resolves the text as a town or ZIP (`MKGeocodingRequest`, which also retires the deprecated `CLGeocoder` calls): a new RPC (for example `find_communities_near(p_lat, p_lng)`), callable by guests, returns listed, unarchived communities whose circle covers the point, nearest first, with name, policy, area, distance from the searched place and member count. Hidden communities never appear in either group. Neither the text nor the point is stored or logged. **Builder's call:** great-circle math in SQL, no PostGIS; whether the two RPCs are one with two optional arguments.
+
+**"Use my location"** (2026-10-21 addition) is a button beside the field. Tapping it asks for "while using" location the first time, with a purpose string that says it finds communities near you and nothing else. On permission, the device location is reverse-geocoded on the device to the town or ZIP, which fills the field, and the search runs as if typed; the coordinates go only into that one `find_communities_near` call. A refusal leaves the field for typing, with no nag. Location is never read at any other time, never in the background, and never for a member's requests or areas.
 
 **The nearby check stays soft.** "I want a user to be aware of existing communities but not restricted." When the new circle overlaps listed communities, the create flow shows them with links and requires a short reason. No approval gate ("may have to revisit this later if there is abuse"). The server re-checks the overlap and refuses a missing reason. The same check runs when a community becomes listed or moves its area.
 
 **Platform admins** see each new or newly listed community with its area and reason in Admin → Communities (`get_platform_communities` gains both) and as an `announcement` bell row without push, the A1 pattern.
+
+**Merging two communities** (2026-10-21 addition, the owner's "if we can"): see 4.12.
 
 ### 4.3 The Requests feed
 
@@ -181,12 +186,12 @@ Owner duties, community reports (now with area previews), platform moderation, b
 - **Builder's call, "maybe there is a way to shrink it slightly".** The system draws the search tab at the bar's height and documents no size control. Use what it supports (`tabBarMinimizeBehavior(.onScrollDown)` shrinks the bar while scrolling) and never replace the system bar. Show the owner a device capture. Under the iOS 27 SDK a search tab may be drawn prominent by default; check.
 - Check on a device that the search tab can carry a badge. If not, keep the button and show the count in Explore and on Manage.
 
-**Explore (S3),** one screen for guests, newcomers and members. Before typing: your communities with role chips and "Requests to join N" for admins, "Waiting for approval", a saved invite code (`PendingInviteStore`, Use code and Remove), "Have an invite code?" (a guest gets the sign-in prompt) and "Start a community". After typing: results nearest first with policy chip, area, distance and member count. With none: "No community here yet. Sign up to start one." My communities and its admin entries move here from Profile.
+**Explore (S3),** one screen for guests, newcomers and members, with one search field and a "Use my location" button beside it (4.2). Before typing: your communities with role chips and "Requests to join N" for admins, "Waiting for approval", a saved invite code (`PendingInviteStore`, Use code and Remove), "Have an invite code?" (a guest gets the sign-in prompt) and "Start a community". After typing: the "By name" group, then "Near <place>" nearest first, each row with policy chip, area, distance (place results) and member count. With none in either: "No community here yet. Sign up to start one." My communities and its admin entries move here from Profile.
 
 **Community page (S4),** opened from Explore and from "About this community" in the title menu:
 - A plain rule sentence. Open: "Anyone nearby can join. Helpers see only the area until a poster accepts them. No phone numbers are shown. Messaging opens when a poster accepts a helper." Ask to join: "An admin approves every member. A helper's claim confirms at once, and only then are addresses shared."
 - The service-area circle on a small map, live requests at area level, recent Town Hall posts.
-- Visitors: a floating glass Join or Ask to join bar (guests get the sign-up prompt). Members: Invite, Mute, Report this community, Leave, leaderboard, guidelines; owners and admins also Manage, which opens today's admin panel.
+- Visitors: a floating glass Join or Ask to join bar (guests get the sign-up prompt). Members: Invite, Mute, Report this community, Leave, leaderboard, guidelines; owners and admins also Manage, which opens today's admin panel, where the owner also finds "Merge with another community" (4.12).
 - Signed-in visitors read it through a new definer RPC (for example `get_community_preview`): listed communities only, areas only. Later, possibly: show guests less if gated content grows.
 
 **Profile** keeps you: stats, reviews, settings, share, sign out, Delete Account, and the platform admin panel for platform admins only.
@@ -205,7 +210,7 @@ Owner duties, community reports (now with area previews), platform moderation, b
 
 **Release 1, the navigation shell with today's behaviour.** Client: the `Tab` migration, four tabs and Explore (a flat list of listed communities until search exists), the Town Hall rename, the community page without its map, the leaderboard move, the slimmer Profile, Welcome, chips and filters, Helping, the push behaviours. Server: `get_community_preview` and the `public_profiles` extension. A Phase 5a build sees no difference.
 
-**Release 2, discovery.** Server: service-area columns, the owner's listed switch with its CHECK (no data migration: hidden approval communities keep their policy), `find_communities_near`, the overlap check, a new-name create RPC with area and reason, `update_community_access`, the platform list. Client: search, Start a community steps 2 to 4 (Open not offered yet), settings switches, search-first Get started, "Join another" on the waiting screen. A Release 1 build lists new listed communities and still creates hidden ones through the old RPC.
+**Release 2, discovery.** Server: service-area columns, the owner's listed switch with its CHECK (no data migration: hidden approval communities keep their policy), `search_communities_by_name` and `find_communities_near`, the overlap check, a new-name create RPC with area and reason, `update_community_access`, the platform list, the merge proposal table and RPCs (4.12), the `is_test` flag and the example-content columns and refresh job (4.11). Client: search by name and place, "Use my location" with its permission string, Start a community steps 2 to 4 (Open not offered yet), settings switches, Merge under Manage, search-first Get started, "Join another" on the waiting screen, the Example chip and the refused offer on examples. A Release 1 build lists new listed communities and still creates hidden ones through the old RPC.
 
 **Release 3, trust, in two server steps.**
 - **3a, additive:** area columns and trigger, the member views (still returning addresses to members), `request_offers` and its RPCs, the answer RPC, request threads, cool-off checks, the narrowed reach function (unused), and the four types in every registry layer.
@@ -226,11 +231,21 @@ The owner wants guests and new accounts to have "something to consider as they e
 
 **Builder's call:** the refresh function's exact schedule and the client's handling of `is_example` in the SwiftData trio and the filter manager (the chip, the exemption from the 12-hour rule, the refused offer).
 
+### 4.12 Merging two communities
+
+Two owners who agree can make their communities one. "It might even be worth going so far as to allowing owners of groups to merge their groups if they mutually agree." **Orchestrator's calls**, the owner may overrule:
+
+- **Who and how.** The owner of community A opens Manage → "Merge with another community", searches for B by name (listed or not, if they know the name; a hidden community can be found this way only by its exact name) and proposes: "Merge A into B" or "Merge B into A", with a note. The owner of B gets a push and a bell row (an `announcement` row addressed to that owner, with `community_id`; no new notification type) and sees the proposal under Manage with Accept and Decline. A proposal expires after 7 days; one pending proposal per community at a time; either owner can withdraw. Platform admins see proposals and merges in Admin → Communities.
+- **What the merge does**, in one server transaction (`merge_communities`, SECURITY DEFINER, run by the accepting owner's RPC): the surviving community keeps its name, settings, area and owner. Every active member of the merged community becomes an active member of the survivor; its owner and admins become admins of the survivor (the survivor's owner can change that afterwards); someone already in both keeps their higher role. Pending join requests, open and in-progress requests (with their offers, Q&A and reminders), Town Hall posts and comments, invites and reports move to the survivor; completed history moves too, so stats and leaderboards follow people. Muted-community settings carry over. The merged community is archived with a notice saying where its members now are, and its invite codes stop working. Conversations are not community-scoped and are untouched.
+- **Rules.** Both communities must be unarchived; the survivor's owner limit is unaffected (the merged community leaves the proposer's count); if the two have different join policies, the survivor's applies to everyone from then on and both owners see that in the confirmation ("Members of B will follow A's rules: Ask to join, areas until a claim"). A merge between an open community and an approval or invite community shows an extra warning, because it changes who can see whom. The merge is irreversible; both confirmations say so.
+- **Who is told.** Every active member of both communities gets one `announcement` bell row with push ("A and B are now one community: <survivor>"), sent as a system announcement through the existing broadcast path, not counted against the owners' daily announcement limit.
+- **Release.** Ships with Release 2 (discovery), after the nearby check, since the two answer the same problem. **Builder's call:** the exact table for proposals (for example `community_merge_proposals`), the role mapping details, and what the Requests filter does when a chosen community disappears (recommended: it is replaced by the survivor).
+
 ## 5. Left to the builder, and open questions
 
 **Builder's calls:** each one marked above, plus RPC and column names (the ones here are proposals); new `forceFullRefreshAndWait` triggers after offer actions (for example `.dashboard` and `.badges` with "offerDecision"), added to CLAUDE.md's sanctioned list; the CLAUDE.md, SECURITY.md, legal and App Privacy updates each release needs; probes and fixture tests for every seam touched.
 
-**Answered by the owner on 2026-10-21:** the default Seattle community is renamed "Test Community", stays listed, and holds example content for new users to explore; its old member content is hidden, and permanent deletion is the owner's script (4.10, 4.11).
+**Answered by the owner on 2026-10-21:** the default Seattle community is renamed "Test Community", stays listed, and holds example content for new users to explore; its old member content is hidden, and permanent deletion is the owner's script (4.10, 4.11). The owner also asked, the same day, for search by name, "Use my location" and community merging in this pass (2, 4.2, 4.12) and approved the orchestrator's calls below as written.
 
 **Settled by the orchestrator (overrule if wrong):** hidden communities keep approval or invite (4.1); no phones anywhere (4.6); a 24-hour cool-off (4.8); the example-content mechanism and the `is_test` flag (4.10, 4.11); a request keeps the rule it was posted under (4.1); only the owner changes the two switches and the area (4.1); community admins see areas (4.4); no offer timeout and a declined helper cannot re-offer on that request (4.5); the push behaviours (4.9).
 
