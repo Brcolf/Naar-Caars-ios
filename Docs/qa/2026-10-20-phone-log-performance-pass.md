@@ -473,6 +473,73 @@ Residuals the fixes leave, stated plainly:
 - A signed-in unit run was not done (it writes to the live app).
 - Nothing was seen on a device for items 1, 2, 3 and 5.
 
+### Device check (2026-10-21)
+
+**Setup.** The run used the owner's simulator "iPhone 16" (`CAA2F1FD`, iOS 26.5), signed in as the owner, from 13:53 to 14:04.
+
+- **Build.** The Debug build of `b665dfe`. The installed bundle was identical to `build/DerivedData` (dylib sha `53e2205f`), so nothing was installed.
+- **Launch.** With `simctl`, no debugger: `launch.performCriticalLaunch - 376.73ms | authState=authenticated, result=success, state=ready_authenticated, hasSession=true`.
+- **Server state.** Every badge refresh logged `Counts synced: requests=0, messages=0, community=0, bell=1`. The Community tab's community has no posts. A dashboard sync stores 132 rows, and the bell list has 131.
+- **Keyboard.** A hardware keyboard was connected, so no software keyboard was up during the send.
+- **Files.** The raw log is `build/phonelog/device-check.log` and the step times are in `device-check-steps.txt` (local).
+- **The one write.** One message, "Perf timing check", was sent and unsent in the owner's two-person thread with Alice The Admin, `0B9787B7`. The thread used on 2026-10-20, `D15889AA`, is not in the list any more; see finding 2 below.
+
+| Item | Outcome | Lines from the log |
+|---|---|---|
+| 2, Messages list | **Holds.** Each of the four Messages re-entries within 30 s of a full conversations sync skipped, with no sync. Each appearance outside the window ran exactly one sync. | 13:55:07: `[conversations] skipped:fresh \| trigger=tabAppear \| state=hydrated(23s ago)`, then `[conversations] skipped:current \| trigger=manualReload:conversations \| state=hydrated(24s ago)`. The same skip came at 12 s, at 0 s after a `tabAppear` sync, and 19 s after the safety poll. A Back 60 s after the last sync: `[conversations] started(full) \| trigger=manualReload:conversations \| state=hydrated(60s ago)`. **But** `Fetched 10 conversations via RPC` still appears on every appearance, from the list's own paging (finding 1) |
+| 3, Community visit | **Holds**, with the Community badge at 0. Three visits made no bell download. | `Refreshing badges (clearCommunityBadge.skipped)` at 13:56:14, 13:57:29 and 13:58:07, with no `Fetched N notifications from network` after the tab line |
+| 4, Leaderboard | **Holds.** The first show fetched one pair. A return about 20 s later, after Town Hall, a return after leaving the tab, about 70 s after the first show, and a Community visit that opened on the Leaderboard, at about 90 s, fetched nothing and showed the rows. The period stayed on This Month. | First show only: `Fetched 2 leaderboard entries for period: This Month` and `Fetched 0 spotlight entries for period: This Month` (13:56:38). There were no further leaderboard lines |
+| 5, bell | **Holds.** The first open, 50 s after the last full dashboard sync, synced once. The second open, 16 s later, with no push and no app switch in between, skipped. | `[dashboard] started(full) \| trigger=manualReload:notifications \| state=hydrated(50s ago)` with `Fetched 131 notifications from network`, then `[dashboard] skipped:current \| trigger=manualReload:notifications \| state=hydrated(15s ago)` and nothing fetched |
+| 1, send sub-timings | Every key was logged, including `viewCommitted` and `snapshotApplied`. The message row `18CD86B0` was unsent from the bubble menu (`Unsent message: 18CD86B0…`). A read-only select shows one row, text empty, `deleted_at` set 29 s after `created_at`, and no duplicate. | See the table below |
+
+Send timings on the simulator, signed in, with a real network (ms):
+
+| Key | 2026-10-21 | Phone log |
+|---|---|---|
+| `rateLimitCheck` | 12.05 | n/a |
+| `haptic` | 4.98 | n/a |
+| `optimisticUpsert` | 29.84 | n/a |
+| `optimisticSave` | 65.38 | n/a |
+| `save.context` | 46.35 | n/a |
+| `save.conversationsPublish` | 12.01 | n/a |
+| `save.messagesPublish` | 6.99 | n/a |
+| `localVisible` | 114.52 | 2,974.98 |
+| `mainActorResume` | 281.84 | n/a |
+| `viewCommitted` | 380.35 | n/a |
+| `snapshotApplied` | 405.09 | n/a |
+| `serverCall` | 1,357.92 | n/a |
+| `serverAccepted` | 1,765.68 (`SLOW:`) | 3,462.56 |
+
+**What the timings show.** On the simulator, the local save takes 115 ms. The largest local part is the 282 ms the main thread stays busy after the save, before the thread's view model shows the row. The bubble is applied 405 ms after the row is created. This repeats the 277 ms seen on 2026-10-20. The phone's 2.5 s is still unexplained, because the simulator had no software keyboard. The phone run in section 1 is still the one that will name the slow step.
+
+**Request counts.** The run covers 13:53:06 to 14:03:45, with two safety polls, four thread opens, and the send and unsend. The counting rules are those of `baseline-counts.md`.
+
+- **Conversations:** 25 `Fetched N conversations via RPC` lines. 8 are coordinator syncs: launch 1, `tabAppear` 2, `manualReload` 3 and the safety poll 2. The other 17 are the list's paging.
+- **Bell list:** 8 downloads of 131 rows, all inside dashboard syncs. None came from the Community clear; the baseline had 2 in S4 and S7c.
+- **Dashboard:** 8 full syncs: launch, 5 `tabAppear`, 1 bell open and 1 safety poll.
+- **Town Hall:** 7 page fetches. 3 of them are `manualReload:townHall` on a feed appearance, at 33 s, 23 s and 17 s after the previous Town Hall sync.
+- **Leaderboard:** 1 pair.
+- **Badges:** 15 requests: `init` and `mainTabAppear` 2 ms apart at launch, `clearRequestsBadge` 5, `clearMessagesBadge` 3, `clearCommunityBadge.skipped` 3 and `safetyPoll` 2.
+- **Messages:** 4 message fetches.
+- **`SLOW:` lines:** one, `SLOW: messaging.send.serverAccepted took 1765.68ms (threshold: 500.00ms)`.
+
+The launch shape matches baseline S1: 4 started, 1 joined, 2 badge requests.
+
+**Findings.** None of these comes from this pass's commits.
+
+1. **The Messages list pages through the server on every appearance, outside the coordinator.** This pass's fixes left it alone; it dates from January (`8d71c8d`).
+   - **What the log shows.** `[ConversationsList] Reached bottom, loading more conversations`, then `[ConversationsListVM] Fetching more conversations at offset 10` (and `offset 20`) ran 17 times. That was once or twice per appearance, including the re-entries the coordinator skipped. It also ran when leaving the tab, when the badge clear re-applied the unread counts to the list.
+   - **Cause.** After this fresh sign-in the store held 11 conversations, and the list shows 10, exactly one page. On each appearance, `loadConversations` re-applies the stored rows and sets `currentOffset` to 10, and the invisible bottom anchor appears at once. Then `loadMoreConversations()` fetches the same pages again.
+   - **Why the baseline did not show it.** On 2026-10-20 the store held 14 rows.
+   - **Side effect.** Twice, the rows moved between a screenshot and the tap that followed, and the tap opened the next thread instead (App Reviewer, then Michael C).
+2. **A thread whose newest message was unsent disappears from the list after a fresh sign-in.**
+   - **What the store shows.** The Alice thread `D15889AA` has 23 messages on the server and was updated last. The local store holds it with one message, the unsent one.
+   - **Cause.** `MessagingRepository.getConversations` skips deleted messages when it picks the last message, so the row has none. `removingEmptyDuplicates` then hides it, as an empty untitled thread whose members match another thread that has messages.
+   - **Effect.** The row comes back only once its messages are hydrated, which needs the thread to be opened, and the list offers no way to open it. Thread `0B9787B7` stayed visible after this run's unsend, because its other messages were already stored.
+3. **A Community tab return 17 s after the feed's own sync forced another Town Hall sync.** The log shows `[townHall] skipped:fresh | trigger=tabAppear | state=hydrated(17s ago)`, then `[townHall] started(full) | trigger=manualReload:townHall | state=hydrated(17s ago)`. That return followed a Town Hall segment switch, so it is likely the same cause as open item 5.
+
+**Device state afterwards.** The owner is still signed in, on the Requests tab. Theme and text size are unchanged. The log stream is stopped.
+
 ## 6. What remains open
 
 | # | Item | Notes |
