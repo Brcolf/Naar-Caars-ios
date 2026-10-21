@@ -185,6 +185,9 @@ final class MessageDetailsViewModel: ObservableObject {
             
             AppLogger.info("messaging", "[MessageDetailsPopup] Successfully added participants, reloading list")
             await loadParticipants()
+            // The stored row's members change only through a conversations sync; the Messages list
+            // forces one on its next appearance (an untitled group's row is named from its members).
+            NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
         } catch {
             AppLogger.error("messaging", "[MessageDetailsPopup] Failed to add participants: \(error.localizedDescription)")
             // The participants INSERT policy admits the conversation's creator only (42501 for
