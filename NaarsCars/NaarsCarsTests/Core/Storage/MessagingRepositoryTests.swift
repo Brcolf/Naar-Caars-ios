@@ -5,6 +5,7 @@
 //  Unit tests for MessagingRepository unread count updates
 //
 
+import SwiftData
 import XCTest
 @testable import NaarsCars
 
@@ -116,5 +117,52 @@ final class MessagingRepositoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result, 2)
+    }
+
+    // MARK: - Last message when every stored message is unsent (device check 2026-10-21, finding 2)
+
+    /// After a fresh sign-in the store holds only the server's newest message per thread. When that
+    /// one was unsent, the thread had no last message, and the list hid it as an empty duplicate of
+    /// another thread with the same members (the Alice thread `D15889AA`, 23 messages on the server).
+    /// Both threads now stay; a thread with an older visible message still shows that one.
+    func testThreadWhoseOnlyStoredMessageIsUnsentStaysInTheList() throws {
+        let repository = MessagingRepository.shared
+        let originalContext = repository.modelContextForWorker
+        let container = try ModelContainer(
+            for: SDConversation.self, SDMessage.self, SDDeletedMessage.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        repository.setup(modelContext: container.mainContext)
+        defer {
+            if let originalContext { repository.setup(modelContext: originalContext) }
+        }
+
+        let me = UUID()
+        let alice = UUID()
+        let now = Date()
+        let unsentOnly = UUID()
+        let withHistory = UUID()
+        let unsentId = UUID()
+        let visibleId = UUID()
+        let context = container.mainContext
+        context.insert(SDConversation(id: unsentOnly, createdBy: me, updatedAt: now, participantIds: [me, alice]))
+        context.insert(SDConversation(id: withHistory, createdBy: me, updatedAt: now.addingTimeInterval(-60), participantIds: [me, alice]))
+        context.insert(SDMessage(id: unsentId, conversationId: unsentOnly, fromId: me, text: "", createdAt: now.addingTimeInterval(-30), deletedAt: now))
+        context.insert(SDMessage(id: visibleId, conversationId: withHistory, fromId: alice, text: "hi", createdAt: now.addingTimeInterval(-120)))
+        // Its newest message is unsent as well, but an older visible one is stored: that one stays the preview.
+        context.insert(SDMessage(id: UUID(), conversationId: withHistory, fromId: me, text: "", createdAt: now.addingTimeInterval(-90), deletedAt: now))
+        try context.save()
+
+        let conversations = try repository.getConversations(for: me)
+        let byId = Dictionary(uniqueKeysWithValues: conversations.map { ($0.id, $0) })
+        XCTAssertEqual(byId[unsentOnly]?.lastMessage?.id, unsentId, "the unsent message is the thread's last message")
+        XCTAssertEqual(byId[unsentOnly]?.lastMessage?.isUnsent, true)
+        XCTAssertEqual(byId[withHistory]?.lastMessage?.id, visibleId, "a stored visible message still wins")
+
+        let shown = ConversationsListViewModel.removingEmptyDuplicates(
+            ConversationsListViewModel.removingEmptyShells(conversations, currentUserId: me),
+            currentUserId: me
+        )
+        XCTAssertEqual(Set(shown.map(\.id)), [unsentOnly, withHistory], "both threads with the same members stay in the list")
     }
 }

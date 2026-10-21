@@ -114,7 +114,23 @@ final class MessagingRepository {
                 )
                 var msgFetch = msgDescriptor
                 msgFetch.fetchLimit = 1
-                let lastSDMessage = (try? modelContext.fetch(msgFetch))?.first
+                var lastSDMessage = (try? modelContext.fetch(msgFetch))?.first
+                if lastSDMessage == nil {
+                    // Every stored message is unsent. After a fresh sign-in the store holds only the
+                    // server's newest message per thread, which can be an unsent one; with no last
+                    // message the list took the thread for an empty duplicate of another thread with
+                    // the same members and hid it. The row shows the unsent line instead.
+                    var unsentFetch = FetchDescriptor<SDMessage>(
+                        predicate: #Predicate<SDMessage> {
+                            $0.conversationId == convId
+                            && $0.messageType != "system"
+                            && $0.deletedAt != nil
+                        },
+                        sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+                    )
+                    unsentFetch.fetchLimit = 1
+                    lastSDMessage = (try? modelContext.fetch(unsentFetch))?.first
+                }
                 lastMessage = lastSDMessage.map { MessagingMapper.mapToMessage($0) }
             }
 

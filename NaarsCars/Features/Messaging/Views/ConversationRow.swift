@@ -73,8 +73,10 @@ struct ConversationRow: View {
                     // Preview text with icon for media messages
                     if let lastMessage = conversationDetail.lastMessage {
                         HStack(spacing: Constants.Spacing.xs) {
-                            // Show icon for media messages
-                            if lastMessage.isAudioMessage {
+                            // Show icon for media messages (none beside an unsent line)
+                            if lastMessage.isUnsent {
+                                EmptyView()
+                            } else if lastMessage.isAudioMessage {
                                 Image(systemName: "waveform")
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
@@ -125,6 +127,12 @@ struct ConversationRow: View {
     private func messagePreviewText(_ message: Message) -> String {
         if MessageService.shared.isBlocked(message.fromId) {
             return "messaging_blocked_user_message".localized
+        }
+        if message.isUnsent {
+            // The thread's newest stored message was unsent: the same line the thread shows.
+            return message.fromId == AuthService.shared.currentUserId
+                ? "messaging_you_unsent_a_message".localized
+                : "messaging_this_message_was_unsent".localized
         }
         if message.isAudioMessage {
             return "messaging_voice_message".localized
