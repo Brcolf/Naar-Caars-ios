@@ -69,6 +69,10 @@ struct MessageSearchResult: Identifiable {
     /// surfaced without `otherParticipants` (the coordinator path stores IDs only).
     private var hydrationTask: Task<Void, Never>?
     private var lastRemoteSyncAt: Date = .distantPast
+    /// Set by a `.conversationUpdated` post without a message: a conversation this device created,
+    /// renamed, re-imaged, added members to, left or deleted. No push reports the device's own change
+    /// and a full sync from before it can still be current, so the next appearance forces one sync.
+    @ObservationIgnored private var needsSyncOnNextAppearance = false
     /// Push-off fallback poll (see Constants.Timing.conversationsPushOffPollInterval).
     /// Owned here so the View never owns polling. Started/stopped by the View's appear/disappear
     /// lifecycle via startPushOffPoll()/stopPushOffPoll(); stop() also tears it down.
@@ -105,6 +109,19 @@ struct MessageSearchResult: Identifiable {
         hasStartedObservation = true
         setupUnreadCountObservers()
         setupLocalObservation()
+        setupLocalChangeObserver()
+    }
+
+    /// A post with a message is a realtime message event, which the repository publisher already
+    /// delivers; only the conversation-level changes made on this device set the flag.
+    private func setupLocalChangeObserver() {
+        NotificationCenter.default.publisher(for: .conversationUpdated)
+            .filter { $0.userInfo?["message"] == nil }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.needsSyncOnNextAppearance = true
+            }
+            .store(in: &cancellables)
     }
 
     private func setupLocalObservation() {
@@ -397,9 +414,10 @@ struct MessageSearchResult: Identifiable {
         refreshCoordinator.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
     }
 
-    /// Show the stored conversations and, when `forceRemote` is true, wait on a coordinator sync.
-    /// The list's appearance passes false; pull-to-refresh, the error Retry and the reload after
-    /// composing keep the default.
+    /// Show the stored conversations and wait on a coordinator sync. `forceRemote` true (pull-to-refresh,
+    /// the error Retry, the reload after composing) always syncs. The list's appearance passes false:
+    /// the coordinator then skips when a current full sync covers it (`unlessCurrent`), except once
+    /// after a change made on this device (`needsSyncOnNextAppearance`).
     func loadConversations(trigger: String = "manualReload:conversations", forceRemote: Bool = true) async {
         // Skeleton rows only for the first load of a session. Someone with no conversations at
         // all would otherwise see the skeleton flash on every later reload.
@@ -437,18 +455,19 @@ struct MessageSearchResult: Identifiable {
             AppLogger.warning("messaging", "[ConversationsListVM] Error loading local conversations: \(error)")
         }
 
-        // A tab appearance or Back from a thread is not a reload. The coordinator's tabAppear trigger
-        // (MainTabView.onChange(of: selectedTab)) owns the network, and its save reaches this list through
-        // the repository publisher subscribed in start(). Only a session's first load with nothing stored
-        // waits on the coordinator: it joins the launch or tabAppear sync already in flight, so the skeleton
-        // clears when that sync lands.
-        guard forceRemote || (conversations.isEmpty && lastRemoteSyncAt == .distantPast) else { return }
+        // A tab appearance or Back from a thread is not a reload. It asks the coordinator with
+        // unlessCurrent: a full sync that ran since the last push, foreground or session start and
+        // within the staleness window (the tabAppear or launch sync) is not repeated, one in flight is
+        // joined, and otherwise one sync runs. A Back gets no tabAppear, so without this call a thread
+        // that changed with no push (muted, push off) stayed stale until a tab switch.
+        let forced = forceRemote || needsSyncOnNextAppearance
 
         let now = Date()
         guard now.timeIntervalSince(lastRemoteSyncAt) >= Constants.Timing.messagingListRemoteSyncMinInterval else {
             return
         }
         lastRemoteSyncAt = now
+        needsSyncOnNextAppearance = false
 
         // 2. Remote sync is owned by RefreshCoordinator → MessagingSyncEngine.refreshConversationList()
         //    → BackgroundSyncActor; the repository publisher re-emits after that save. The task is stored
@@ -460,12 +479,18 @@ struct MessageSearchResult: Identifiable {
                 loadTask = nil
                 if showLoading { isLoading = false }
             }
-            let result = await refreshCoordinator.forceFullRefreshAndWait(.conversations, trigger: trigger)
+            let result = await refreshCoordinator.forceFullRefreshAndWait(
+                .conversations,
+                trigger: trigger,
+                unlessCurrent: !forced
+            )
             guard !Task.isCancelled else { return }
             if case .failed(let error, _)? = result {
                 AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
                 return
             }
+            // Skipped: nothing was fetched, and the stored rows were read and hydrated above.
+            if case .skipped? = result { return }
             do {
                 let updatedConversations = try repository.getConversations(for: userId)
                 self.applyLocalConversations(updatedConversations, animated: false)

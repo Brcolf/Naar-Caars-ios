@@ -199,8 +199,9 @@ final class ConversationsListViewModelTests: XCTestCase {
     // MARK: - Appearance does not force a sync (performance pass, item 2)
 
     /// The list's appearance (a tab visit, Back from a thread) used to force a conversations sync on
-    /// top of the coordinator's staleness-gated tabAppear sync. It now leaves the network to the
-    /// coordinator; the explicit reloads (pull-to-refresh, Retry, the reload after composing) still force.
+    /// top of the coordinator's staleness-gated tabAppear sync. It now asks with unlessCurrent, so a
+    /// current full sync is not repeated; the explicit reloads (pull-to-refresh, Retry, the reload
+    /// after composing) still force.
     func testAppearanceAfterASyncDoesNotForceAnotherConversationsSync() async throws {
         var syncs: [RefreshDomain] = []
         let coordinator = RefreshCoordinator()
@@ -217,15 +218,17 @@ final class ConversationsListViewModelTests: XCTestCase {
         await viewModel.refreshConversations()
         XCTAssertEqual(syncs, [.conversations])
 
-        // Past the list's own minimum interval, so only `forceRemote: false` keeps the appearance
-        // off the network (the domain is fresh, which a forced call ignores).
+        // Past the list's own minimum interval, so only the coordinator's unlessCurrent keeps the
+        // appearance off the network (the domain is fresh, which a forced call ignores).
         try await Task.sleep(for: .seconds(Constants.Timing.messagingListRemoteSyncMinInterval + 0.2))
 
         await viewModel.loadConversations(forceRemote: false)
         for _ in 0..<50 { await Task.yield() }
         XCTAssertEqual(syncs, [.conversations], "an appearance must not force another conversations sync")
 
-        // Control: the default, used by Retry and the reload after composing, still forces one.
+        // Control: the default, used by Retry and the reload after composing, still forces one
+        // (after the minimum interval, which the appearance's coordinator call restarted).
+        try await Task.sleep(for: .seconds(Constants.Timing.messagingListRemoteSyncMinInterval + 0.2))
         await viewModel.loadConversations()
         for _ in 0..<200 where syncs.count < 2 { await Task.yield() }
         XCTAssertEqual(syncs, [.conversations, .conversations])
@@ -258,5 +261,83 @@ final class ConversationsListViewModelTests: XCTestCase {
         release?.resume()
         for _ in 0..<200 where viewModel.isLoading { await Task.yield() }
         XCTAssertFalse(viewModel.isLoading, "the skeleton clears once the sync lands")
+    }
+
+    // MARK: - Appearance after a change no push reports (review of the performance pass)
+
+    /// A Back gets no tabAppear. When no full sync covers the appearance (older than the staleness
+    /// window, so a muted or push-off thread may have changed), the appearance syncs once.
+    func testAppearanceSyncsWhenTheLastFullSyncIsOutsideTheWindow() async throws {
+        var syncs: [RefreshDomain] = []
+        let coordinator = RefreshCoordinator()
+        coordinator.fullSyncOverrideForTesting = { domain in
+            syncs.append(domain)
+            return .empty
+        }
+        self.coordinator = coordinator
+        let viewModel = ConversationsListViewModel(
+            authService: StubListAuthService(currentUserId: UUID()),
+            refreshCoordinator: coordinator
+        )
+
+        // An earlier load this session (so this is not the first-load path), then the sync ages
+        // past the staleness window.
+        await viewModel.refreshConversations()
+        XCTAssertEqual(syncs, [.conversations])
+        coordinator.markSyncedForTesting(.conversations, at: Date().addingTimeInterval(-(coordinator.stalenessWindow + 1)))
+        try await Task.sleep(for: .seconds(Constants.Timing.messagingListRemoteSyncMinInterval + 0.2))
+
+        await viewModel.loadConversations(forceRemote: false)
+        for _ in 0..<200 where syncs.count < 2 { await Task.yield() }
+        XCTAssertEqual(syncs, [.conversations, .conversations], "an appearance with no current full sync syncs")
+    }
+
+    /// A conversation created, renamed, re-imaged, joined or left on this device posts
+    /// `.conversationUpdated` without a message; no push reports it, and the last full sync can still
+    /// be current. The next appearance forces one sync. A realtime message post (with a message) does not.
+    func testAppearanceAfterALocalConversationChangeForcesOneSync() async throws {
+        var syncs: [RefreshDomain] = []
+        let coordinator = RefreshCoordinator()
+        coordinator.fullSyncOverrideForTesting = { domain in
+            syncs.append(domain)
+            return .empty
+        }
+        self.coordinator = coordinator
+        let userId = UUID()
+        let viewModel = ConversationsListViewModel(
+            authService: StubListAuthService(currentUserId: userId),
+            refreshCoordinator: coordinator
+        )
+        viewModel.start()
+        defer { viewModel.stop() }
+        let interval = Constants.Timing.messagingListRemoteSyncMinInterval + 0.2
+
+        await viewModel.refreshConversations()
+        XCTAssertEqual(syncs, [.conversations])
+
+        // A realtime message event: the repository publisher delivers it; no sync.
+        let conversationId = UUID()
+        NotificationCenter.default.post(
+            name: .conversationUpdated,
+            object: conversationId,
+            userInfo: ["message": Message(id: UUID(), conversationId: conversationId, fromId: userId, text: "x"), "event": "insert"]
+        )
+        try await Task.sleep(for: .seconds(interval))
+        await viewModel.loadConversations(forceRemote: false)
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(syncs, [.conversations], "a message post does not force a sync")
+
+        // A conversation-level change made on this device.
+        NotificationCenter.default.post(name: .conversationUpdated, object: conversationId)
+        try await Task.sleep(for: .seconds(interval))
+        await viewModel.loadConversations(forceRemote: false)
+        for _ in 0..<200 where syncs.count < 2 { await Task.yield() }
+        XCTAssertEqual(syncs, [.conversations, .conversations], "the appearance after a local change syncs")
+
+        // Once: the next appearance is covered by that sync again.
+        try await Task.sleep(for: .seconds(interval))
+        await viewModel.loadConversations(forceRemote: false)
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(syncs, [.conversations, .conversations], "the flag forces one sync, not every appearance")
     }
 }

@@ -510,6 +510,11 @@ final class ConversationService {
             )
         }
 
+        // Only a conversations sync stores the row, and the creator gets no push for it: the
+        // Messages list syncs on its next appearance (a profile, ride or favor opens the thread
+        // outside the list, often within the staleness window of the last sync).
+        NotificationCenter.default.post(name: .conversationUpdated, object: conversation.id)
+
         return conversation
     }
     
