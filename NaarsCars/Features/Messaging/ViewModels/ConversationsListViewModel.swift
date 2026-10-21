@@ -55,6 +55,7 @@ struct MessageSearchResult: Identifiable {
     private let authService: any AuthServiceProtocol
     private let muteService = ConversationMuteService.shared
     private let participantService = ConversationParticipantService.shared
+    private let refreshCoordinator: RefreshCoordinator
     private var cancellables = Set<AnyCancellable>()
 #if DEBUG
     /// Test hook: number of Combine subscriptions installed by `start()`.
@@ -77,12 +78,15 @@ struct MessageSearchResult: Identifiable {
         conversationService: any ConversationServiceProtocol = ConversationService.shared,
         profileService: any ProfileServiceProtocol = ProfileService.shared,
         messageService: any MessageServiceProtocol = MessageService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        refreshCoordinator: RefreshCoordinator? = nil
     ) {
         self.conversationService = conversationService
         self.profileService = profileService
         self.messageService = messageService
         self.authService = authService
+        // Resolved here, not as a default argument: `RefreshCoordinator.shared` is main-actor isolated.
+        self.refreshCoordinator = refreshCoordinator ?? .shared
     }
 
     /// Whether `start()` has registered the repository / NotificationCenter observers.
@@ -390,10 +394,13 @@ struct MessageSearchResult: Identifiable {
         // The coordinator owns the decision, dedup and backoff. Conversations the refresh
         // surfaces arrive through the repository publisher, which hydrates missing
         // participant profiles itself (hydrateMissingProfilesIfNeeded).
-        RefreshCoordinator.shared.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
+        refreshCoordinator.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
     }
 
-    func loadConversations(trigger: String = "manualReload:conversations") async {
+    /// Show the stored conversations and, when `forceRemote` is true, wait on a coordinator sync.
+    /// The list's appearance passes false; pull-to-refresh, the error Retry and the reload after
+    /// composing keep the default.
+    func loadConversations(trigger: String = "manualReload:conversations", forceRemote: Bool = true) async {
         // Skeleton rows only for the first load of a session. Someone with no conversations at
         // all would otherwise see the skeleton flash on every later reload.
         let showLoading = Self.shouldShowLoading(conversations: conversations) && lastRemoteSyncAt == .distantPast
@@ -429,7 +436,14 @@ struct MessageSearchResult: Identifiable {
         } catch {
             AppLogger.warning("messaging", "[ConversationsListVM] Error loading local conversations: \(error)")
         }
-        
+
+        // A tab appearance or Back from a thread is not a reload. The coordinator's tabAppear trigger
+        // (MainTabView.onChange(of: selectedTab)) owns the network, and its save reaches this list through
+        // the repository publisher subscribed in start(). Only a session's first load with nothing stored
+        // waits on the coordinator: it joins the launch or tabAppear sync already in flight, so the skeleton
+        // clears when that sync lands.
+        guard forceRemote || (conversations.isEmpty && lastRemoteSyncAt == .distantPast) else { return }
+
         let now = Date()
         guard now.timeIntervalSince(lastRemoteSyncAt) >= Constants.Timing.messagingListRemoteSyncMinInterval else {
             return
@@ -446,7 +460,7 @@ struct MessageSearchResult: Identifiable {
                 loadTask = nil
                 if showLoading { isLoading = false }
             }
-            let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.conversations, trigger: trigger)
+            let result = await refreshCoordinator.forceFullRefreshAndWait(.conversations, trigger: trigger)
             guard !Task.isCancelled else { return }
             if case .failed(let error, _)? = result {
                 AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")

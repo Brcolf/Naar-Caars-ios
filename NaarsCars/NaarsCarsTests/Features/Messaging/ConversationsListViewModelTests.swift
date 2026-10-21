@@ -5,11 +5,36 @@
 //  Unit tests for ConversationsListViewModel helpers
 //
 
+import AuthenticationServices
 import XCTest
 @testable import NaarsCars
 
+/// Answers only `currentUserId` (the `StubProfileAuthService` pattern); every other method is unused here.
+private final class StubListAuthService: AuthServiceProtocol {
+    var currentUserId: UUID?
+    var currentProfile: Profile? { nil }
+
+    init(currentUserId: UUID?) { self.currentUserId = currentUserId }
+
+    func signIn(email: String, password: String) async throws {}
+    func signUp(email: String, password: String, name: String, car: String?) async throws {}
+    func signOut() async throws {}
+    func sendPasswordReset(email: String) async throws {}
+    func signUpWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws {}
+    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws -> AppleLoginResult { .success }
+}
+
 @MainActor
 final class ConversationsListViewModelTests: XCTestCase {
+    /// A private coordinator per test (never `shared`); `reset()` clears the `refresh.lastSync.*` keys it wrote.
+    private var coordinator: RefreshCoordinator?
+
+    override func tearDown() async throws {
+        await coordinator?.reset()
+        coordinator = nil
+        try await super.tearDown()
+    }
+
     private func makeConversationDetails(id: UUID = UUID()) -> ConversationWithDetails {
         ConversationWithDetails(conversation: Conversation(id: id, createdBy: UUID()))
     }
@@ -169,5 +194,69 @@ final class ConversationsListViewModelTests: XCTestCase {
         let result = ConversationsListViewModel.removingEmptyDuplicates(input, currentUserId: me)
 
         XCTAssertEqual(result.map(\.id), input.map(\.id))
+    }
+
+    // MARK: - Appearance does not force a sync (performance pass, item 2)
+
+    /// The list's appearance (a tab visit, Back from a thread) used to force a conversations sync on
+    /// top of the coordinator's staleness-gated tabAppear sync. It now leaves the network to the
+    /// coordinator; the explicit reloads (pull-to-refresh, Retry, the reload after composing) still force.
+    func testAppearanceAfterASyncDoesNotForceAnotherConversationsSync() async throws {
+        var syncs: [RefreshDomain] = []
+        let coordinator = RefreshCoordinator()
+        coordinator.fullSyncOverrideForTesting = { domain in
+            syncs.append(domain)
+            return .empty
+        }
+        self.coordinator = coordinator
+        let viewModel = ConversationsListViewModel(
+            authService: StubListAuthService(currentUserId: UUID()),
+            refreshCoordinator: coordinator
+        )
+
+        await viewModel.refreshConversations()
+        XCTAssertEqual(syncs, [.conversations])
+
+        // Past the list's own minimum interval, so only `forceRemote: false` keeps the appearance
+        // off the network (the domain is fresh, which a forced call ignores).
+        try await Task.sleep(for: .seconds(Constants.Timing.messagingListRemoteSyncMinInterval + 0.2))
+
+        await viewModel.loadConversations(forceRemote: false)
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(syncs, [.conversations], "an appearance must not force another conversations sync")
+
+        // Control: the default, used by Retry and the reload after composing, still forces one.
+        await viewModel.loadConversations()
+        for _ in 0..<200 where syncs.count < 2 { await Task.yield() }
+        XCTAssertEqual(syncs, [.conversations, .conversations])
+    }
+
+    /// A session's first load with nothing stored still waits on the coordinator, so the skeleton
+    /// stays up until that sync lands instead of showing "no conversations".
+    func testFirstEmptyAppearanceWaitsOnTheCoordinator() async {
+        var syncs: [RefreshDomain] = []
+        var release: CheckedContinuation<Void, Never>?
+        let coordinator = RefreshCoordinator()
+        coordinator.fullSyncOverrideForTesting = { domain in
+            syncs.append(domain)
+            await withCheckedContinuation { release = $0 }
+            return .empty
+        }
+        self.coordinator = coordinator
+        // A random user id: the repository's participant filter returns no stored rows.
+        let viewModel = ConversationsListViewModel(
+            authService: StubListAuthService(currentUserId: UUID()),
+            refreshCoordinator: coordinator
+        )
+
+        await viewModel.loadConversations(forceRemote: false)
+        for _ in 0..<200 where release == nil { await Task.yield() }
+
+        XCTAssertEqual(syncs, [.conversations], "a first load with nothing stored waits on one coordinator sync")
+        XCTAssertTrue(viewModel.isLoading, "the skeleton stays up while that sync is in flight")
+
+        release?.resume()
+        for _ in 0..<200 where viewModel.isLoading { await Task.yield() }
+        XCTAssertFalse(viewModel.isLoading, "the skeleton clears once the sync lands")
     }
 }
