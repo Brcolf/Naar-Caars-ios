@@ -155,7 +155,8 @@ extension BadgeCountManager: BadgeCountManaging {
 
     /// `bypassDebounce` is only for a refresh that follows this device's own server write
     /// (rows just marked read): a debounced skip would leave the counts showing those rows
-    /// until the next push or safety poll. Push-driven refreshes keep the debounce.
+    /// until the next push or safety poll. Push-driven refreshes keep the debounce. The one
+    /// other use is the Community visit's decision refresh (`clearCommunityBadge`).
     private func refreshAllBadges(reason: String, bypassDebounce: Bool) async {
         guard let userId = authService.currentUserId else { return }
 
@@ -308,9 +309,11 @@ extension BadgeCountManager: BadgeCountManaging {
         // The badge RPC already says whether anything here is unread, so do not download the
         // bell list (up to `NotificationService.fetchLimit` rows) when nothing can be cleared.
         if !Self.communityClearNeedsFetch(counts, visibleCommunityId: visibleCommunityId, countsAreCurrent: badgeCountsAreCurrent) {
-            // The tab visit's refresh, as before (debounced). Decide again on what it returns, so a
-            // row that arrived without a push (push off) is still cleared on this visit.
-            await refreshAllBadges(reason: "clearCommunityBadge.skipped")
+            // Decide again on fresh counts, so a row that arrived without a push (push off, or a Town
+            // Hall push still batched) is cleared on this visit. Not debounced: an entry within 5 s of
+            // another tab's refresh would otherwise decide on counts from before the row. One badge
+            // RPC per Community entry or switch, user-driven, not a push burst.
+            await refreshAllBadges(reason: "clearCommunityBadge.skipped", bypassDebounce: true)
             guard Self.communityClearNeedsFetch(counts, visibleCommunityId: visibleCommunityId, countsAreCurrent: badgeCountsAreCurrent) else { return }
         }
 
