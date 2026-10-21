@@ -239,4 +239,62 @@ final class BadgeCountManagerTests: XCTestCase {
 
         XCTAssertEqual(ids, [fixture.aPostUnread.id, fixture.bCommentUnread.id, fixture.nilReactionUnread.id])
     }
+
+    // The guard that decides from `community_total` / `community_details` whether a Community
+    // visit downloads the bell list to look for rows to mark read.
+
+    private func makeCommunityCounts(community: Int, unreadById: [UUID: Int]) -> BadgeCountManager.BadgeCounts {
+        var counts = BadgeCountManager.BadgeCounts()
+        counts.community = community
+        counts.communityUnreadById = unreadById
+        return counts
+    }
+
+    func testCommunityClearNeedsFetch_NothingUnreadSkips() {
+        let counts = makeCommunityCounts(community: 0, unreadById: [:])
+
+        XCTAssertFalse(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: UUID(), countsAreCurrent: true))
+    }
+
+    func testCommunityClearNeedsFetch_VisibleCommunityUnreadFetches() {
+        let communityA = UUID()
+        let counts = makeCommunityCounts(community: 2, unreadById: [communityA: 2])
+
+        XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: communityA, countsAreCurrent: true))
+    }
+
+    func testCommunityClearNeedsFetch_OnlyAnotherCommunityUnreadSkips() {
+        let communityA = UUID()
+        let communityB = UUID()
+        let counts = makeCommunityCounts(community: 1, unreadById: [communityB: 1])
+
+        XCTAssertFalse(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: communityA, countsAreCurrent: true))
+    }
+
+    func testCommunityClearNeedsFetch_RowsWithNoCommunityFetch() {
+        let communityA = UUID()
+        let communityB = UUID()
+        let counts = makeCommunityCounts(community: 2, unreadById: [communityB: 1])
+
+        XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: communityA, countsAreCurrent: true))
+    }
+
+    func testCommunityClearNeedsFetch_NoVisibleCommunityFetchesWhenAnyUnread() {
+        let counts = makeCommunityCounts(community: 1, unreadById: [UUID(): 1])
+
+        XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: nil, countsAreCurrent: true))
+    }
+
+    func testCommunityClearNeedsFetch_ServerWithoutDetailsFetches() {
+        let counts = makeCommunityCounts(community: 1, unreadById: [:])
+
+        XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: UUID(), countsAreCurrent: true))
+    }
+
+    func testCommunityClearNeedsFetch_CountsNotCurrentAlwaysFetch() {
+        let counts = makeCommunityCounts(community: 0, unreadById: [:])
+
+        XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: UUID(), countsAreCurrent: false))
+        XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: nil, countsAreCurrent: false))
+    }
 }

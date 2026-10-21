@@ -88,6 +88,24 @@ extension BadgeCountManager: BadgeCountManaging {}
             .map(\.id)
     }
 
+    /// Whether opening the Community tab (or switching its community) can find a Town Hall row to
+    /// mark read, judged from the server's counts: the visible community's `community_details`
+    /// total, or rows with no community (`community_total` minus every community's total). With
+    /// no visible community, any unread Town Hall row. Counts that are stale or not loaded yet
+    /// always fetch. The counts only decide whether to fetch; no badge is computed here.
+    static func communityClearNeedsFetch(
+        _ counts: BadgeCounts,
+        visibleCommunityId: UUID?,
+        countsAreCurrent: Bool
+    ) -> Bool {
+        guard countsAreCurrent else { return true }
+        guard counts.community > 0 else { return false }
+        guard let visibleCommunityId else { return true }
+        if (counts.communityUnreadById[visibleCommunityId] ?? 0) > 0 { return true }
+        let labelled = counts.communityUnreadById.values.reduce(0, +)
+        return counts.community > labelled
+    }
+
     private(set) var counts = BadgeCounts()
 
     /// True when badge values are being served from cached/zero data due to RPC failure.
@@ -102,6 +120,10 @@ extension BadgeCountManager: BadgeCountManaging {}
 
     /// Timestamp of last completed refresh
     private var lastRefreshTime: Date = .distantPast
+    /// The counts came from a successful badge RPC this session (not the cached or zero fallback).
+    private var badgeCountsAreCurrent: Bool {
+        !isBadgeStale && lastRefreshTime != .distantPast
+    }
     /// Consecutive badge RPC failures
     private var badgeRpcFailureCount: Int = 0
     /// Backoff window when badge RPC is failing due schema/function issues
@@ -280,6 +302,15 @@ extension BadgeCountManager: BadgeCountManaging {}
     /// opening the tab does not clear communities the person did not look at.
     func clearCommunityBadge(visibleCommunityId: UUID?) async {
         guard let userId = authService.currentUserId else { return }
+
+        // The badge RPC already says whether anything here is unread, so do not download the
+        // bell list (up to `NotificationService.fetchLimit` rows) when nothing can be cleared.
+        if !Self.communityClearNeedsFetch(counts, visibleCommunityId: visibleCommunityId, countsAreCurrent: badgeCountsAreCurrent) {
+            // The tab visit's refresh, as before (debounced). Decide again on what it returns, so a
+            // row that arrived without a push (push off) is still cleared on this visit.
+            await refreshAllBadges(reason: "clearCommunityBadge.skipped")
+            guard Self.communityClearNeedsFetch(counts, visibleCommunityId: visibleCommunityId, countsAreCurrent: badgeCountsAreCurrent) else { return }
+        }
 
         do {
             // Use cached notifications (no forceRefresh) to avoid a full 30-day network fetch
