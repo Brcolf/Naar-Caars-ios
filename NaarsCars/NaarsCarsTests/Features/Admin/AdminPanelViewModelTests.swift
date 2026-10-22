@@ -48,6 +48,7 @@ final class AdminPanelViewModelTests: XCTestCase {
         context: CommunityContext,
         admin: StubAdminService = StubAdminService(),
         communityAdmin: StubCommunityAdminService = StubCommunityAdminService(),
+        merge: StubCommunityService = StubCommunityService(result: .success([])),
         verify: @escaping @MainActor () async throws -> Void = {}
     ) -> AdminPanelViewModel {
         AdminPanelViewModel(
@@ -55,6 +56,7 @@ final class AdminPanelViewModelTests: XCTestCase {
             communityName: communityName,
             adminService: admin,
             communityAdminService: communityAdmin,
+            mergeService: merge,
             communityContext: context,
             verifyPlatformAdmin: verify
         )
@@ -304,5 +306,44 @@ final class AdminPanelViewModelTests: XCTestCase {
         XCTAssertTrue(CommunitiesAdminViewModel.actions(for: platformCommunity(isDefault: true)).contains(.openAdminPanel))
         XCTAssertFalse(CommunitiesAdminViewModel.actions(for: platformCommunity(archived: true)).contains(.openAdminPanel))
         XCTAssertEqual(CommunitiesAdminViewModel.actions(for: platformCommunity(archived: true)), [.restore])
+    }
+
+    // MARK: - Merge
+
+    func testCommunityScope_OwnerLoadsTheIncomingMergeCount() async {
+        let b = CommunityFixtures.communityB
+        let context = await makeContext([CommunityFixtures.membership(b, name: "Ballard Neighbors", role: .owner)])
+        let merge = StubCommunityService(result: .success([]))
+        merge.fetchMergeProposalResult = .success(CommunityFixtures.mergeProposal(direction: .incoming))
+        let vm = makeViewModel(scope: .community(b), context: context, merge: merge)
+
+        await vm.verifyAdminAccess()
+
+        XCTAssertEqual(merge.fetchMergeProposalCalls, [b])
+        XCTAssertEqual(vm.incomingMergeCount, 1)
+        XCTAssertTrue(vm.isOwnerOfScope)
+
+        // An outgoing proposal is not waiting for this owner; a failure leaves 0.
+        merge.fetchMergeProposalResult = .success(CommunityFixtures.mergeProposal(direction: .outgoing))
+        await vm.loadIncomingMergeCount()
+        XCTAssertEqual(vm.incomingMergeCount, 0)
+        merge.fetchMergeProposalResult = .failure(URLError(.notConnectedToInternet))
+        await vm.loadIncomingMergeCount()
+        XCTAssertEqual(vm.incomingMergeCount, 0)
+    }
+
+    func testCommunityScope_AdminDoesNotLoadMerge() async {
+        let b = CommunityFixtures.communityB
+        let context = await makeContext([CommunityFixtures.membership(b, name: "Ballard Neighbors", role: .admin)])
+        let merge = StubCommunityService(result: .success([]))
+        merge.fetchMergeProposalResult = .success(CommunityFixtures.mergeProposal(direction: .incoming))
+        let vm = makeViewModel(scope: .community(b), context: context, merge: merge)
+
+        await vm.verifyAdminAccess()
+
+        XCTAssertTrue(vm.isAdmin)
+        XCTAssertTrue(merge.fetchMergeProposalCalls.isEmpty)
+        XCTAssertEqual(vm.incomingMergeCount, 0)
+        XCTAssertFalse(vm.isOwnerOfScope)
     }
 }

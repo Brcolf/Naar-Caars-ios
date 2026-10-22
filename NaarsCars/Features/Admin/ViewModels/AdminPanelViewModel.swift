@@ -68,12 +68,17 @@ final class AdminPanelViewModel: ObservableObject {
     @Published private(set) var communityName: String?
     /// Where an announcement goes; nil until resolved, and when it could not be.
     @Published private(set) var broadcastTarget: BroadcastTarget?
+    /// 1 when another community's owner proposed a merge with the shown community and it waits for
+    /// this owner's answer, else 0. Loaded only for the owner in a community scope.
+    @Published private(set) var incomingMergeCount = 0
 
     // MARK: - Private Properties
 
     private let adminService: any AdminServiceProtocol
     private let communityAdminService: any CommunityAdminServiceProtocol
     private let communityContext: CommunityContext
+    /// nil: no merge call is made (a stand-in admin service that does not also serve merges).
+    private let mergeService: (any CommunityMergeServiceProtocol)?
     private let verifyPlatformAdmin: @MainActor () async throws -> Void
     /// The community the panel was opened on, kept in the menu even when it is not a membership
     /// (a platform admin opening it from Admin → Communities).
@@ -89,6 +94,7 @@ final class AdminPanelViewModel: ObservableObject {
         communityName: String? = nil,
         adminService: any AdminServiceProtocol = AdminService.shared,
         communityAdminService: any CommunityAdminServiceProtocol = CommunityService.shared,
+        mergeService: (any CommunityMergeServiceProtocol)? = nil,
         communityContext: CommunityContext? = nil,
         verifyPlatformAdmin: @escaping @MainActor () async throws -> Void = { try await AdminService.shared.verifyAdminStatus() }
     ) {
@@ -96,6 +102,8 @@ final class AdminPanelViewModel: ObservableObject {
         self.scope = initialScope
         self.adminService = adminService
         self.communityAdminService = communityAdminService
+        // Never `CommunityService.shared` as a silent fallback: a stand-in admin service makes no merge call.
+        self.mergeService = mergeService ?? (communityAdminService as? any CommunityMergeServiceProtocol)
         self.communityContext = context
         self.verifyPlatformAdmin = verifyPlatformAdmin
         if let id = initialScope.communityId {
@@ -150,6 +158,12 @@ final class AdminPanelViewModel: ObservableObject {
             entries.append(extra)
         }
         return entries
+    }
+
+    /// The caller is the active owner of the shown community (the merge row). False for `.all`.
+    var isOwnerOfScope: Bool {
+        guard let row = communityContext.membership(for: scope.communityId), row.status == .active else { return false }
+        return row.role == .owner
     }
 
     /// Requests to join waiting in the shown community (nil for `.all`).
@@ -217,6 +231,8 @@ final class AdminPanelViewModel: ObservableObject {
         await loadStats()
         guard generation == self.generation, isAdmin else { return }
         await resolveBroadcastTarget()
+        guard generation == self.generation, isAdmin else { return }
+        await loadIncomingMergeCount()
     }
 
     /// Switches the panel to another scope: the previous figures are dropped at once, so the
@@ -237,6 +253,7 @@ final class AdminPanelViewModel: ObservableObject {
         statsErrorMessage = nil
         isLoading = false
         broadcastTarget = nil
+        incomingMergeCount = 0
         await verifyAdminAccess()
     }
 
@@ -281,6 +298,25 @@ final class AdminPanelViewModel: ObservableObject {
             self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             statsErrorMessage = "admin_stats_load_failed".localized
             AppLogger.error("admin", "Error loading stats: \(error.localizedDescription)")
+        }
+    }
+
+    /// Reads the shown community's open merge proposal: 1 when it is incoming, else 0. Only the
+    /// owner in a community scope asks; a failure leaves 0.
+    func loadIncomingMergeCount() async {
+        guard let id = scope.communityId, isOwnerOfScope, let mergeService else {
+            incomingMergeCount = 0
+            return
+        }
+        let generation = self.generation
+        do {
+            let proposal = try await mergeService.fetchMergeProposal(communityId: id)
+            guard generation == self.generation else { return }
+            incomingMergeCount = proposal?.direction == .incoming ? 1 : 0
+        } catch {
+            AppLogger.warning("admin", "fetchMergeProposal failed: \(error.localizedDescription)")
+            guard generation == self.generation else { return }
+            incomingMergeCount = 0
         }
     }
 

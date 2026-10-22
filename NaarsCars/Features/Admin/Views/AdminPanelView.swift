@@ -132,6 +132,10 @@ struct AdminPanelView: View {
             }
             // Back from Settings after a rename: the title and the rows show the new name.
             viewModel.refreshCommunityName()
+            // Back from Merge after answering: the badge reads again only while it shows.
+            if viewModel.incomingMergeCount > 0 {
+                Task { await viewModel.loadIncomingMergeCount() }
+            }
         }
         .errorBanner(
             message: $viewModel.statsErrorMessage,
@@ -348,6 +352,27 @@ struct AdminPanelView: View {
                 didArchiveCommunity = true
                 onCommunityArchived(confirmation)
             })
+        }
+
+        if viewModel.isOwnerOfScope {
+            let incoming = viewModel.incomingMergeCount
+            managementRow(
+                title: "community_merge_row".localized,
+                accessibilityTitle: incoming > 0
+                    ? "\("community_merge_row".localized) (\(incoming))"
+                    : "community_merge_row".localized,
+                hint: "community_merge_row_hint".localized,
+                systemImage: "arrow.triangle.merge",
+                tint: .naarsPrimary,
+                badgeCount: incoming,
+                identifier: "admin.panel.merge"
+            ) {
+                // Merged away: the community is gone, so is its panel (as after an archive).
+                CommunityMergeView(communityId: communityId, communityName: name ?? "", onMergedAway: { confirmation in
+                    didArchiveCommunity = true
+                    onCommunityArchived(confirmation)
+                })
+            }
         }
     }
 

@@ -325,6 +325,9 @@
 		AC7A1D80308AC8A400908D08 /* CommunityAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */; };
 		AC7A1D82308ACB4300908D08 /* CommunityMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D81308ACB4300908D08 /* CommunityMerge.swift */; };
 		AC7A1D84308ACB4300908D08 /* CommunityMergeServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D83308ACB4300908D08 /* CommunityMergeServiceProtocol.swift */; };
+		AC7A1D86308ACD2300908D08 /* CommunityMergeViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D85308ACD2300908D08 /* CommunityMergeViewModelTests.swift */; };
+		AC7A1D88308ACD9800908D08 /* CommunityMergeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D87308ACD9800908D08 /* CommunityMergeViewModel.swift */; };
+		AC7A1D8A308ACE0700908D08 /* CommunityMergeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D89308ACE0700908D08 /* CommunityMergeView.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -898,6 +901,9 @@
 		AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessView.swift; sourceTree = "<group>"; };
 		AC7A1D81308ACB4300908D08 /* CommunityMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMerge.swift; sourceTree = "<group>"; };
 		AC7A1D83308ACB4300908D08 /* CommunityMergeServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeServiceProtocol.swift; sourceTree = "<group>"; };
+		AC7A1D85308ACD2300908D08 /* CommunityMergeViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeViewModelTests.swift; sourceTree = "<group>"; };
+		AC7A1D87308ACD9800908D08 /* CommunityMergeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeViewModel.swift; sourceTree = "<group>"; };
+		AC7A1D89308ACE0700908D08 /* CommunityMergeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeView.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1504,6 +1510,7 @@
 				AC7A1D71308AAD6D00908D08 /* ExploreSearchViewModel.swift */,
 				AC7A1D77308AB88E00908D08 /* ServiceAreaDraftModel.swift */,
 				AC7A1D7D308AC85C00908D08 /* CommunityAccessViewModel.swift */,
+				AC7A1D87308ACD9800908D08 /* CommunityMergeViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1524,6 +1531,7 @@
 				AC7A1D6F308AAD2800908D08 /* ExploreSearchViewModelTests.swift */,
 				AC7A1D75308AB83D00908D08 /* ServiceAreaDraftModelTests.swift */,
 				AC7A1D7B308AC7FB00908D08 /* CommunityAccessViewModelTests.swift */,
+				AC7A1D85308ACD2300908D08 /* CommunityMergeViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1709,6 +1717,7 @@
 				AC7A1D73308AB19100908D08 /* CommunitySearchResultsView.swift */,
 				AC7A1D79308AB8EC00908D08 /* ServiceAreaPicker.swift */,
 				AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */,
+				AC7A1D89308ACE0700908D08 /* CommunityMergeView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2687,6 +2696,7 @@
 				4B35515A6EE441D4B9FBA18A /* UI/Components/AddressText.swift in Sources */,
 				AC305F242F0DB86A0063AFDF /* SkeletonFavorCard.swift in Sources */,
 				AC305F252F0DB86A0063AFDF /* SkeletonMessageRow.swift in Sources */,
+				AC7A1D8A308ACE0700908D08 /* CommunityMergeView.swift in Sources */,
 				AC7A1D78308AB88E00908D08 /* ServiceAreaDraftModel.swift in Sources */,
 				AC305F412F0ECDAE0063AFDF /* UserSearchView.swift in Sources */,
 				AC305F292F0DB86A0063AFDF /* SkeletonView.swift in Sources */,
@@ -2812,6 +2822,7 @@
 				A1B2C3D4E5F647A8B9C0D1E2 /* XPEvent.swift in Sources */,
 				A2B3C4D5E6F748A9B0C1D2E3 /* UserSavingsPeriod.swift in Sources */,
 				1F9DB8AF994C4A7198BC39C7 /* TownHallPost.swift in Sources */,
+				AC7A1D88308ACD9800908D08 /* CommunityMergeViewModel.swift in Sources */,
 				4F38377B814A4C1DABEE16D3 /* RateLimiter.swift in Sources */,
 				3F520A1C460F4FA98D68876A /* CacheManager.swift in Sources */,
 				D70D95F2A0D840B2BDBD8F41 /* ImageCompressor.swift in Sources */,
@@ -3156,6 +3167,7 @@
 				AC9DDD372F2B139C003465D3 /* CreatePostViewModelTests.swift in Sources */,
 				AC9DDD382F2B139C003465D3 /* InAppToastManagerTests.swift in Sources */,
 				TAPBACK0000000000000003 /* TapbackArtworkTests.swift in Sources */,
+				AC7A1D86308ACD2300908D08 /* CommunityMergeViewModelTests.swift in Sources */,
 				9EA284B4C7D741C6BAB08C47 /* LeaderboardBadgeTests.swift in Sources */,
 				AC1200812F3AE6270043BFAE /* LeaderboardEntryTests.swift in Sources */,
 				AC1200822F3AE6270043BFAE /* TownHallPostTests.swift in Sources */,
