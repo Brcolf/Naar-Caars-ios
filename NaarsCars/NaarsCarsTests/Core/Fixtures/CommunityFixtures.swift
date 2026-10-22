@@ -273,6 +273,52 @@ enum CommunityFixtures {
         )
     }
 
+    // MARK: Merge (20261021_0022). Invented communities.
+
+    static let harborRiders = UUID(uuidString: "6B000000-0000-4000-8000-000000000001")!
+    static let fremontPorchClub = UUID(uuidString: "6B000000-0000-4000-8000-000000000002")!
+    static let mergeProposalId = UUID(uuidString: "6C000000-0000-4000-8000-000000000001")!
+
+    /// `get_community_merge_proposal` as the server answers it. "Harbor Riders" proposes to "Fremont Porch
+    /// Club" and names it the survivor.
+    static func mergeProposalJSON(direction: String) -> String {
+        """
+        {
+          "success": true,
+          "proposal": {
+            "id": "\(mergeProposalId.uuidString)",
+            "direction": "\(direction)",
+            "from": {"id": "\(harborRiders.uuidString)", "name": "Harbor Riders", "join_policy": "approve", "member_count": 14},
+            "to": {"id": "\(fremontPorchClub.uuidString)", "name": "Fremont Porch Club", "join_policy": "open", "member_count": 31},
+            "survivor_id": "\(fremontPorchClub.uuidString)",
+            "note": "Same neighbours, one place to ask.",
+            "proposed_by_name": "Dana Rivera",
+            "created_at": "2026-10-22T12:00:00+00:00",
+            "expires_at": "2026-10-29T12:00:00+00:00"
+          }
+        }
+        """
+    }
+
+    static func mergeProposal(
+        direction: CommunityMergeProposal.Direction = .incoming,
+        fromPolicy: CommunityJoinPolicy = .approve,
+        toPolicy: CommunityJoinPolicy = .open,
+        survivorIsFrom: Bool = false
+    ) -> CommunityMergeProposal {
+        CommunityMergeProposal(
+            id: mergeProposalId,
+            direction: direction,
+            from: .init(id: harborRiders, name: "Harbor Riders", joinPolicy: fromPolicy.rawValue, memberCount: 14),
+            to: .init(id: fremontPorchClub, name: "Fremont Porch Club", joinPolicy: toPolicy.rawValue, memberCount: 31),
+            survivorId: survivorIsFrom ? harborRiders : fremontPorchClub,
+            note: "Same neighbours, one place to ask.",
+            proposedByName: "Dana Rivera",
+            createdAt: Date(timeIntervalSince1970: 1_792_000_000),
+            expiresAt: Date(timeIntervalSince1970: 1_792_604_800)
+        )
+    }
+
     /// Release 1's `communityPreviewJSON` plus the area keys and `is_example` (20261021_0021 block 7).
     static let communityPreviewWithAreaJSON = """
     {
@@ -513,7 +559,7 @@ enum CommunityFixtures {
     """
 }
 
-final class StubCommunityService: CommunityServiceProtocol {
+final class StubCommunityService: CommunityServiceProtocol, CommunityMergeServiceProtocol {
     var result: Result<[CommunityMembership], Error>
     var gate: (() async -> Void)?
     private(set) var fetchCount = 0
@@ -586,6 +632,27 @@ final class StubCommunityService: CommunityServiceProtocol {
 
     var fetchServiceAreaResult: Result<ServiceArea?, Error> = .success(nil)
     private(set) var fetchServiceAreaCalls: [UUID] = []
+
+    // MARK: Merge (empty answers unless a test sets them)
+
+    var searchMergeTargetsResult: Result<[MergeTarget], Error> = .success([])
+    private(set) var searchMergeTargetsCalls: [(communityId: UUID, query: String)] = []
+
+    var proposeMergeResult: Result<UUID, Error> = .success(CommunityFixtures.mergeProposalId)
+    private(set) var proposeMergeCalls: [(communityId: UUID, otherId: UUID, survivorId: UUID, note: String?)] = []
+
+    var fetchMergeProposalResult: Result<CommunityMergeProposal?, Error> = .success(nil)
+    private(set) var fetchMergeProposalCalls: [UUID] = []
+
+    /// A decline answers nil; an accept answers the outcome.
+    var respondToMergeResult: Result<CommunityMergeOutcome?, Error> = .success(nil)
+    private(set) var respondToMergeCalls: [(proposalId: UUID, accept: Bool)] = []
+
+    var withdrawMergeResult: Result<Void, Error> = .success(())
+    private(set) var withdrawMergeCalls: [UUID] = []
+
+    var fetchMyCommunityMergesResult: Result<[CommunityMerge], Error> = .success([])
+    private(set) var fetchMyCommunityMergesCalls = 0
 
     init(result: Result<[CommunityMembership], Error>) {
         self.result = result
@@ -695,6 +762,39 @@ final class StubCommunityService: CommunityServiceProtocol {
     func fetchServiceArea(communityId: UUID) async throws -> ServiceArea? {
         fetchServiceAreaCalls.append(communityId)
         return try fetchServiceAreaResult.get()
+    }
+
+    func searchMergeTargets(communityId: UUID, query: String) async throws -> [MergeTarget] {
+        searchMergeTargetsCalls.append((communityId, query))
+        return try searchMergeTargetsResult.get()
+    }
+
+    func proposeMerge(communityId: UUID, otherId: UUID, survivorId: UUID, note: String?) async throws -> UUID {
+        proposeMergeCalls.append((communityId, otherId, survivorId, note))
+        await actionGate?()
+        return try proposeMergeResult.get()
+    }
+
+    func fetchMergeProposal(communityId: UUID) async throws -> CommunityMergeProposal? {
+        fetchMergeProposalCalls.append(communityId)
+        return try fetchMergeProposalResult.get()
+    }
+
+    func respondToMerge(proposalId: UUID, accept: Bool) async throws -> CommunityMergeOutcome? {
+        respondToMergeCalls.append((proposalId, accept))
+        await actionGate?()
+        return try respondToMergeResult.get()
+    }
+
+    func withdrawMerge(proposalId: UUID) async throws {
+        withdrawMergeCalls.append(proposalId)
+        await actionGate?()
+        try withdrawMergeResult.get()
+    }
+
+    func fetchMyCommunityMerges() async throws -> [CommunityMerge] {
+        fetchMyCommunityMergesCalls += 1
+        return try fetchMyCommunityMergesResult.get()
     }
 }
 

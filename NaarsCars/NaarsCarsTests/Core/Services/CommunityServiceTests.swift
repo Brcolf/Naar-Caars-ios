@@ -845,4 +845,141 @@ final class CommunityServiceTests: XCTestCase {
         XCTAssertEqual(listed.body?["p_listed"] as? Bool, true)
         XCTAssertEqual(listed.body?["p_radius_miles"] as? Int, 10)
     }
+
+    // MARK: - Merge (20261021_0022)
+
+    func testSearchMergeTargets_SendsCommunityAndQuery() async throws {
+        respond(with: """
+        {"success": true, "communities": [
+          {"id": "\(CommunityFixtures.fremontPorchClub.uuidString)", "name": "Fremont Porch Club", "join_policy": "open",
+           "is_public": true, "member_count": 31, "area_name": "Fremont"},
+          {"id": "\(CommunityFixtures.communityC.uuidString)", "name": "Quiet Hidden Club", "join_policy": "invite",
+           "is_public": false, "member_count": 4, "area_name": null}
+        ]}
+        """)
+        let rows = try await service.searchMergeTargets(communityId: CommunityFixtures.harborRiders, query: "Fremont")
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/search_merge_targets")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_query"])
+        XCTAssertEqual((request.body?["p_community_id"] as? String)?.lowercased(), CommunityFixtures.harborRiders.uuidString.lowercased())
+        XCTAssertEqual(request.body?["p_query"] as? String, "Fremont")
+        XCTAssertEqual(rows.map(\.name), ["Fremont Porch Club", "Quiet Hidden Club"])
+        XCTAssertEqual(rows[0].memberCount, 31)
+        XCTAssertTrue(rows[0].isPublic)
+        XCTAssertEqual(rows[0].areaName, "Fremont")
+        XCTAssertEqual(rows[1].joinPolicy, "invite")
+        XCTAssertFalse(rows[1].isPublic)
+        XCTAssertNil(rows[1].areaName)
+    }
+
+    func testProposeMerge_SendsSurvivorAndNote() async throws {
+        respond(with: #"{"success": true, "proposal_id": "\#(CommunityFixtures.mergeProposalId.uuidString)"}"#)
+        let id = try await service.proposeMerge(
+            communityId: CommunityFixtures.harborRiders,
+            otherId: CommunityFixtures.fremontPorchClub,
+            survivorId: CommunityFixtures.fremontPorchClub,
+            note: "One place to ask"
+        )
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/propose_community_merge")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id", "p_other_id", "p_survivor_id", "p_note"])
+        XCTAssertEqual((request.body?["p_other_id"] as? String)?.lowercased(), CommunityFixtures.fremontPorchClub.uuidString.lowercased())
+        XCTAssertEqual((request.body?["p_survivor_id"] as? String)?.lowercased(), CommunityFixtures.fremontPorchClub.uuidString.lowercased())
+        XCTAssertEqual(request.body?["p_note"] as? String, "One place to ask")
+        XCTAssertEqual(id, CommunityFixtures.mergeProposalId)
+
+        CommunityServiceURLProtocol.reset()
+        respond(with: #"{"success": true, "proposal_id": "\#(CommunityFixtures.mergeProposalId.uuidString)"}"#)
+        _ = try await service.proposeMerge(
+            communityId: CommunityFixtures.harborRiders, otherId: CommunityFixtures.fremontPorchClub,
+            survivorId: CommunityFixtures.harborRiders, note: nil
+        )
+        XCTAssertEqual(Set(try onlyRequest().body?.keys ?? [:].keys), ["p_community_id", "p_other_id", "p_survivor_id"],
+                       "a missing note is omitted")
+    }
+
+    func testFetchMergeProposal_DecodesIncomingAndNull() async throws {
+        respond(with: CommunityFixtures.mergeProposalJSON(direction: "incoming"))
+        let proposal = try await service.fetchMergeProposal(communityId: CommunityFixtures.fremontPorchClub)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/get_community_merge_proposal")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id"])
+        let found = try XCTUnwrap(proposal)
+        XCTAssertEqual(found.direction, .incoming)
+        XCTAssertEqual(found.id, CommunityFixtures.mergeProposalId)
+        XCTAssertEqual(found.survivor.name, "Fremont Porch Club")
+        XCTAssertEqual(found.merged.name, "Harbor Riders")
+        XCTAssertEqual(found.from.memberCount, 14)
+        XCTAssertEqual(found.to.joinPolicy, "open")
+        XCTAssertEqual(found.note, "Same neighbours, one place to ask.")
+        XCTAssertEqual(found.proposedByName, "Dana Rivera")
+        XCTAssertLessThan(found.createdAt, found.expiresAt)
+
+        CommunityServiceURLProtocol.reset()
+        respond(with: #"{"success": true, "proposal": null}"#)
+        let none = try await service.fetchMergeProposal(communityId: CommunityFixtures.fremontPorchClub)
+        XCTAssertNil(none)
+    }
+
+    func testRespondToMerge_AcceptDecodesOutcome() async throws {
+        respond(with: """
+        {"success": true, "survivor_id": "\(CommunityFixtures.fremontPorchClub.uuidString)", "merged_id": "\(CommunityFixtures.harborRiders.uuidString)"}
+        """)
+        let outcome = try await service.respondToMerge(proposalId: CommunityFixtures.mergeProposalId, accept: true)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/respond_to_community_merge")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_proposal_id", "p_accept"])
+        XCTAssertEqual(request.body?["p_accept"] as? Bool, true)
+        XCTAssertEqual(outcome, CommunityMergeOutcome(survivorId: CommunityFixtures.fremontPorchClub, mergedId: CommunityFixtures.harborRiders))
+    }
+
+    func testRespondToMerge_DeclineReturnsNil() async throws {
+        respond(with: #"{"success": true}"#)
+        let outcome = try await service.respondToMerge(proposalId: CommunityFixtures.mergeProposalId, accept: false)
+        XCTAssertEqual(try onlyRequest().body?["p_accept"] as? Bool, false)
+        XCTAssertNil(outcome)
+    }
+
+    func testRespondToMerge_ClosedProposalThrowsTheTypedError() async {
+        respond(with: #"{"success": false, "error": "This merge proposal is no longer open", "code": "proposal_closed"}"#)
+        do {
+            _ = try await service.respondToMerge(proposalId: CommunityFixtures.mergeProposalId, accept: true)
+            XCTFail("expected a refusal")
+        } catch let error as CommunityRPCError {
+            XCTAssertEqual(error.code, .proposalClosed)
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+    }
+
+    func testWithdrawMerge_SendsTheProposal() async throws {
+        respond(with: #"{"success": true}"#)
+        try await service.withdrawMerge(proposalId: CommunityFixtures.mergeProposalId)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/withdraw_community_merge")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_proposal_id"])
+        XCTAssertEqual((request.body?["p_proposal_id"] as? String)?.lowercased(), CommunityFixtures.mergeProposalId.uuidString.lowercased())
+    }
+
+    func testFetchMyCommunityMerges_Decodes() async throws {
+        respond(with: """
+        {"success": true, "merges": [
+          {"merged_id": "\(CommunityFixtures.harborRiders.uuidString)", "merged_name": "Harbor Riders",
+           "survivor_id": "\(CommunityFixtures.fremontPorchClub.uuidString)", "survivor_name": "Fremont Porch Club",
+           "merged_at": "2026-10-22T12:00:00.123456+00:00"}
+        ]}
+        """)
+        let merges = try await service.fetchMyCommunityMerges()
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/get_my_community_merges")
+        XCTAssertEqual(merges.count, 1)
+        XCTAssertEqual(merges[0].mergedName, "Harbor Riders")
+        XCTAssertEqual(merges[0].survivorId, CommunityFixtures.fremontPorchClub)
+        XCTAssertEqual(merges[0].survivorName, "Fremont Porch Club")
+
+        CommunityServiceURLProtocol.reset()
+        respond(with: #"{"success": true, "merges": []}"#)
+        let none = try await service.fetchMyCommunityMerges()
+        XCTAssertTrue(none.isEmpty)
+    }
 }

@@ -334,6 +334,66 @@ private struct UpdateCommunityParams: Encodable, Sendable {
     }
 }
 
+// MARK: Merge parameters (20261021_0022)
+
+/// `search_merge_targets(p_community_id, p_query)`. The query is never logged.
+private struct SearchMergeTargetsParams: Encodable, Sendable {
+    let communityId: String
+    let query: String
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_query }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(query, forKey: .p_query)
+    }
+}
+
+/// `propose_community_merge(p_community_id, p_other_id, p_survivor_id, p_note)`; a nil note is omitted.
+private struct ProposeMergeParams: Encodable, Sendable {
+    let communityId: String
+    let otherId: String
+    let survivorId: String
+    let note: String?
+
+    private enum CodingKeys: String, CodingKey { case p_community_id, p_other_id, p_survivor_id, p_note }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(otherId, forKey: .p_other_id)
+        try c.encode(survivorId, forKey: .p_survivor_id)
+        try c.encodeIfPresent(note, forKey: .p_note)
+    }
+}
+
+/// `respond_to_community_merge(p_proposal_id, p_accept)`.
+private struct RespondToMergeParams: Encodable, Sendable {
+    let proposalId: String
+    let accept: Bool
+
+    private enum CodingKeys: String, CodingKey { case p_proposal_id, p_accept }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(proposalId, forKey: .p_proposal_id)
+        try c.encode(accept, forKey: .p_accept)
+    }
+}
+
+/// `withdraw_community_merge(p_proposal_id)`.
+private struct WithdrawMergeParams: Encodable, Sendable {
+    let proposalId: String
+
+    private enum CodingKeys: String, CodingKey { case p_proposal_id }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(proposalId, forKey: .p_proposal_id)
+    }
+}
+
 /// Body of the mute update. `muted_until` is sent as an explicit null so a timed mute set
 /// elsewhere is cleared.
 private struct MuteBody: Encodable, Sendable {
@@ -635,5 +695,54 @@ extension CommunityService: CommunityAdminServiceProtocol {
         let params = UpdateAccessParams(communityId: communityId.uuidString, change: change)
         let response = try await client.rpc("update_community_access", params: params).execute()
         try CommunityRPC.decodeSuccess(from: response.data)
+    }
+}
+
+// MARK: - Merge (20261021_0022)
+
+extension CommunityService: CommunityMergeServiceProtocol {
+    func searchMergeTargets(communityId: UUID, query: String) async throws -> [MergeTarget] {
+        let params = SearchMergeTargetsParams(communityId: communityId.uuidString, query: query)
+        let response = try await client.rpc("search_merge_targets", params: params).execute()
+        return try CommunityRPC.decode(MergeTargetResults.self, from: response.data).communities
+    }
+
+    func proposeMerge(communityId: UUID, otherId: UUID, survivorId: UUID, note: String?) async throws -> UUID {
+        let params = ProposeMergeParams(
+            communityId: communityId.uuidString,
+            otherId: otherId.uuidString,
+            survivorId: survivorId.uuidString,
+            note: note
+        )
+        let response = try await client.rpc("propose_community_merge", params: params).execute()
+        return try CommunityRPC.decode(ProposedMerge.self, from: response.data).proposalId
+    }
+
+    func fetchMergeProposal(communityId: UUID) async throws -> CommunityMergeProposal? {
+        let params = CommunityIdParams(communityId: communityId.uuidString)
+        let response = try await client.rpc("get_community_merge_proposal", params: params).execute()
+        return try CommunityRPC.decode(CommunityMergeProposalResult.self, from: response.data).proposal
+    }
+
+    func respondToMerge(proposalId: UUID, accept: Bool) async throws -> CommunityMergeOutcome? {
+        let params = RespondToMergeParams(proposalId: proposalId.uuidString, accept: accept)
+        let response = try await client.rpc("respond_to_community_merge", params: params).execute()
+        // A decline answers `{success: true}` with nothing else; only an accept carries the outcome.
+        guard accept else {
+            try CommunityRPC.decodeSuccess(from: response.data)
+            return nil
+        }
+        return try CommunityRPC.decode(CommunityMergeOutcome.self, from: response.data)
+    }
+
+    func withdrawMerge(proposalId: UUID) async throws {
+        let params = WithdrawMergeParams(proposalId: proposalId.uuidString)
+        let response = try await client.rpc("withdraw_community_merge", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func fetchMyCommunityMerges() async throws -> [CommunityMerge] {
+        let response = try await client.rpc("get_my_community_merges").execute()
+        return try CommunityRPC.decode(CommunityMergeList.self, from: response.data).merges
     }
 }

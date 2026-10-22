@@ -323,6 +323,8 @@
 		AC7A1D7C308AC7FB00908D08 /* CommunityAccessViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7B308AC7FB00908D08 /* CommunityAccessViewModelTests.swift */; };
 		AC7A1D7E308AC85C00908D08 /* CommunityAccessViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7D308AC85C00908D08 /* CommunityAccessViewModel.swift */; };
 		AC7A1D80308AC8A400908D08 /* CommunityAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */; };
+		AC7A1D82308ACB4300908D08 /* CommunityMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D81308ACB4300908D08 /* CommunityMerge.swift */; };
+		AC7A1D84308ACB4300908D08 /* CommunityMergeServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D83308ACB4300908D08 /* CommunityMergeServiceProtocol.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -894,6 +896,8 @@
 		AC7A1D7B308AC7FB00908D08 /* CommunityAccessViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessViewModelTests.swift; sourceTree = "<group>"; };
 		AC7A1D7D308AC85C00908D08 /* CommunityAccessViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessViewModel.swift; sourceTree = "<group>"; };
 		AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessView.swift; sourceTree = "<group>"; };
+		AC7A1D81308ACB4300908D08 /* CommunityMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMerge.swift; sourceTree = "<group>"; };
+		AC7A1D83308ACB4300908D08 /* CommunityMergeServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeServiceProtocol.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1268,6 +1272,7 @@
 				ACBB62EA3086FE550016DEE5 /* StorageURLResolving.swift */,
 				ACBB62F2308701BD0016DEE5 /* VoiceNotePrefetching.swift */,
 				AC7A1D6B308AAA7300908D08 /* PlaceGeocoding.swift */,
+				AC7A1D83308ACB4300908D08 /* CommunityMergeServiceProtocol.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -2114,6 +2119,7 @@
 				AC410C32308544F600D921E2 /* CommunityPayloads.swift */,
 				AC410C823085B77700D921E2 /* CommunityModerationPayloads.swift */,
 				AC7A1D67308AA69B00908D08 /* CommunityDiscovery.swift */,
+				AC7A1D81308ACB4300908D08 /* CommunityMerge.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2866,6 +2872,7 @@
 				ACBF4B0C2F12CBDA006A7C8A /* RequestMapView.swift in Sources */,
 				ACBF4AE12F12CB30006A7C8A /* BroadcastViewModel.swift in Sources */,
 				ACBF4AE22F12CB30006A7C8A /* AdminPanelViewModel.swift in Sources */,
+				AC7A1D82308ACB4300908D08 /* CommunityMerge.swift in Sources */,
 				ACBF4AE42F12CB30006A7C8A /* UserManagementViewModel.swift in Sources */,
 				ACBF4AE52F12CB30006A7C8A /* UserManagementView.swift in Sources */,
 				C9E5DEACEB49342E093CC1B6 /* MemberDetailView.swift in Sources */,
@@ -2939,6 +2946,7 @@
 				57570E6D1FCD4CCAB7E480D2 /* Features/Favors/ViewModels/FavorDetailViewModel.swift in Sources */,
 				108440524D2E46CDB5C92EEB /* Features/Favors/Views/FavorDetailView.swift in Sources */,
 				AC7A1D68308AA69B00908D08 /* CommunityDiscovery.swift in Sources */,
+				AC7A1D84308ACB4300908D08 /* CommunityMergeServiceProtocol.swift in Sources */,
 				41B955527CAF4F59BECA3D82 /* Features/Messaging/ViewModels/ConversationDetailViewModel.swift in Sources */,
 				6D5101EBFBE8476BB7D9058E /* Features/Messaging/ViewModels/ConversationsListViewModel.swift in Sources */,
 				AC410C413085526C00D921E2 /* CreateCommunityViewModel.swift in Sources */,

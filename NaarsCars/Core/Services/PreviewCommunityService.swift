@@ -47,6 +47,12 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     /// The answer to `checkCommunityArea` (overlapping communities); empty previews "no overlap".
     var overlappingCommunities: [CommunitySearchResult] = []
     var serviceArea: ServiceArea? = PreviewCommunityService.sampleArea
+    /// The answer to `searchMergeTargets`.
+    var mergeTargets: [MergeTarget] = PreviewCommunityService.sampleMergeTargets
+    /// The answer to `fetchMergeProposal`; nil previews "no open proposal".
+    var mergeProposal: CommunityMergeProposal?
+    /// The answer to `fetchMyCommunityMerges`.
+    var myCommunityMerges: [CommunityMerge] = []
 
     init() {}
 
@@ -368,6 +374,42 @@ extension PreviewCommunityService: CommunityAdminServiceProtocol {
     func updateCommunityAccess(communityId: UUID, change: CommunityAccessChange) async throws {
         if let adminRefusal { throw adminRefusal }
     }
+}
+
+// MARK: - Merge
+
+extension PreviewCommunityService: CommunityMergeServiceProtocol {
+    static let sampleMergeTargets: [MergeTarget] = [
+        MergeTarget(
+            id: UUID(), name: "Fremont Porch Club", joinPolicy: CommunityJoinPolicy.open.rawValue,
+            isPublic: true, memberCount: 31, areaName: "Fremont"
+        ),
+        MergeTarget(
+            id: UUID(), name: "Harbor Riders", joinPolicy: CommunityJoinPolicy.invite.rawValue,
+            isPublic: false, memberCount: 14, areaName: nil
+        )
+    ]
+
+    func searchMergeTargets(communityId: UUID, query: String) async throws -> [MergeTarget] { mergeTargets }
+
+    func proposeMerge(communityId: UUID, otherId: UUID, survivorId: UUID, note: String?) async throws -> UUID {
+        if let adminRefusal { throw adminRefusal }
+        return UUID()
+    }
+
+    func fetchMergeProposal(communityId: UUID) async throws -> CommunityMergeProposal? { mergeProposal }
+
+    func respondToMerge(proposalId: UUID, accept: Bool) async throws -> CommunityMergeOutcome? {
+        if let adminRefusal { throw adminRefusal }
+        guard accept, let proposal = mergeProposal else { return nil }
+        return CommunityMergeOutcome(survivorId: proposal.survivorId, mergedId: proposal.merged.id)
+    }
+
+    func withdrawMerge(proposalId: UUID) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func fetchMyCommunityMerges() async throws -> [CommunityMerge] { myCommunityMerges }
 }
 
 // MARK: - Applicant contact
