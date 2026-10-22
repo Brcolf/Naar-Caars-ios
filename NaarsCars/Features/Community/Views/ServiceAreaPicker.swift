@@ -111,8 +111,10 @@ struct ServiceAreaPicker: View {
 }
 
 /// The nearby check: the listed communities already serving the area, each with View, and the
-/// reason a new one needs; or "none", or a failure with Retry. Place it inside a `Form`. It runs
-/// the check itself when it appears with an unchecked area (a failure waits for Retry).
+/// reason a new one needs; or "none", or a failure with Retry. Place it inside a `Form`. While it
+/// is on screen it runs the check itself for an unchecked area, again after the area changes (a
+/// failure waits for Retry). Off screen nothing runs: a screen that needs the answer before the
+/// section scrolls into view calls `checkNearby()` itself.
 struct NearbyCheckSection: View {
     @ObservedObject var model: ServiceAreaDraftModel
     let onView: (UUID) -> Void
@@ -121,11 +123,17 @@ struct NearbyCheckSection: View {
 
     var body: some View {
         Group {
-            if model.isCheckingNearby {
+            if model.isCheckingNearby || awaitsCheck {
                 Section {
+                    // The check starts from this row: it is on screen exactly while an area waits
+                    // for one, and a new area (a radius or place edit) restarts it through the id.
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel("common_loading".localized)
+                        .task(id: model.area) {
+                            guard awaitsCheck, !model.isCheckingNearby else { return }
+                            await model.checkNearby()
+                        }
                 }
             } else if model.nearbyCheckFailed {
                 Section {
@@ -149,10 +157,11 @@ struct NearbyCheckSection: View {
                 }
             }
         }
-        .task(id: model.area) {
-            guard model.area != nil, !model.nearbyChecked, !model.nearbyCheckFailed, !model.isCheckingNearby else { return }
-            await model.checkNearby()
-        }
+    }
+
+    /// An area with no answer yet and no failure (a failure waits for Retry).
+    private var awaitsCheck: Bool {
+        model.area != nil && !model.nearbyChecked && !model.nearbyCheckFailed
     }
 
     @ViewBuilder
@@ -296,6 +305,32 @@ private enum ServiceAreaPreviewData {
         return model
     }
 
+    /// A draft whose query resolved to Seattle; the section runs the nearby check itself.
+    @MainActor
+    static func resolvedUnchecked() -> ServiceAreaDraftModel {
+        let service = PreviewCommunityService()
+        service.overlappingCommunities = Array(PreviewCommunityService.sampleSearchResults.prefix(2))
+        let model = ServiceAreaDraftModel(geocoder: PreviewPlaceGeocoder(), service: service)
+        model.placeQuery = "Seattle"
+        Task { await model.resolvePlace() }
+        return model
+    }
+
+    /// A checked draft whose radius then changes on screen; the section checks the new area itself.
+    @MainActor
+    static func radiusChangedAfterCheck() -> ServiceAreaDraftModel {
+        let service = PreviewCommunityService()
+        service.overlappingCommunities = Array(PreviewCommunityService.sampleSearchResults.prefix(2))
+        let model = ServiceAreaDraftModel(geocoder: PreviewPlaceGeocoder(), service: service)
+        model.placeQuery = "Seattle"
+        Task {
+            await model.resolvePlace()
+            await model.checkNearby()
+            model.radiusMiles = 5
+        }
+        return model
+    }
+
     /// A street address typed where a town is expected.
     @MainActor
     static func streetRefused() -> ServiceAreaDraftModel {
@@ -323,6 +358,29 @@ private enum ServiceAreaPreviewData {
     model.reason = "We want a group just for parents at one school."
     return NavigationStack {
         Form {
+            NearbyCheckSection(model: model, onView: { _ in })
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.naarsBackground)
+    }
+}
+
+#Preview("Checks nearby by itself") {
+    let model = ServiceAreaPreviewData.resolvedUnchecked()
+    return NavigationStack {
+        Form {
+            NearbyCheckSection(model: model, onView: { _ in })
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.naarsBackground)
+    }
+}
+
+#Preview("Re-checks after a radius change") {
+    let model = ServiceAreaPreviewData.radiusChangedAfterCheck()
+    return NavigationStack {
+        Form {
+            ServiceAreaPicker(model: model)
             NearbyCheckSection(model: model, onView: { _ in })
         }
         .scrollContentBackground(.hidden)
