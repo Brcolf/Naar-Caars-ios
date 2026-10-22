@@ -157,6 +157,42 @@ enum CommunityInviteCode {
 enum CommunityJoinPolicy: String, Sendable {
     case invite
     case approve
+    case open
+
+    /// The text of the policy chip.
+    var chipText: String {
+        switch self {
+        case .open: return "community_policy_open".localized
+        case .approve: return "community_policy_ask_to_join".localized
+        case .invite: return "community_policy_invite_only".localized
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .open: return "globe"
+        case .approve: return "lock.fill"
+        case .invite: return "key.fill"
+        }
+    }
+
+    /// The subtitle under a community name in a list row.
+    var subtitleText: String {
+        switch self {
+        case .open: return "community_policy_subtitle_open".localized
+        case .approve: return "community_policy_ask_to_join".localized
+        case .invite: return "community_policy_invite_only".localized
+        }
+    }
+
+    /// One plain sentence on what joining this community means.
+    var ruleSentence: String {
+        switch self {
+        case .open: return "community_rule_open".localized
+        case .approve: return "community_rule_ask_to_join".localized
+        case .invite: return "community_rule_invite_only".localized
+        }
+    }
 }
 
 // MARK: - Payloads

@@ -182,6 +182,53 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertTrue(ctx.memberships.isEmpty)
     }
 
+    private func listed(_ id: UUID, policy: String) -> PublicCommunity {
+        PublicCommunity(id: id, name: "Listed", description: nil, joinPolicy: policy, isDefault: false)
+    }
+
+    func testJoinPolicy_ReadsTheMembershipThenTheListedCommunity() async {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let (ctx, stub) = makeContext()
+        ctx.debugSetMemberships([CommunityFixtures.membership(a, name: "A", joinPolicy: "approve")])
+        stub.fetchPublicCommunitiesResult = .success([listed(b, policy: "invite")])
+        _ = await ctx.loadListedCommunities()
+
+        XCTAssertEqual(ctx.joinPolicy(for: a), .approve)
+        XCTAssertEqual(ctx.joinPolicy(for: b), .invite)
+        XCTAssertNil(ctx.joinPolicy(for: UUID()))
+        XCTAssertNil(ctx.joinPolicy(for: nil))
+    }
+
+    func testLoadListedCommunities_KeepsThePreviousListOnFailureAndReportsCancellation() async {
+        let b = CommunityFixtures.communityB
+        let (ctx, stub) = makeContext()
+        stub.fetchPublicCommunitiesResult = .success([listed(b, policy: "open")])
+        var ok = await ctx.loadListedCommunities()
+        XCTAssertEqual(ok, true)
+        XCTAssertEqual(ctx.listedCommunities.map(\.id), [b])
+
+        stub.fetchPublicCommunitiesResult = .failure(URLError(.notConnectedToInternet))
+        ok = await ctx.loadListedCommunities()
+        XCTAssertEqual(ok, false)
+        XCTAssertEqual(ctx.listedCommunities.map(\.id), [b])
+
+        stub.fetchPublicCommunitiesResult = .failure(CancellationError())
+        ok = await ctx.loadListedCommunities()
+        XCTAssertNil(ok, "a cancelled load is neither a success nor a failure")
+        XCTAssertEqual(ctx.listedCommunities.map(\.id), [b])
+    }
+
+    func testResetForSignOut_EmptiesListedCommunities() async {
+        let (ctx, stub) = makeContext()
+        stub.fetchPublicCommunitiesResult = .success([listed(CommunityFixtures.communityB, policy: "open")])
+        _ = await ctx.loadListedCommunities()
+        XCTAssertFalse(ctx.listedCommunities.isEmpty)
+
+        ctx.resetForSignOut(userId: nil)
+
+        XCTAssertTrue(ctx.listedCommunities.isEmpty)
+    }
+
     func testCommunityContext_ResetWithoutRestoreRemovesSigningOutUsersKeys() {
         let uid = UUID()
         let a = CommunityFixtures.communityA

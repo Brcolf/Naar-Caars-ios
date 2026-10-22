@@ -109,6 +109,9 @@ final class CommunityContext {
         }
     }
 
+    /// Communities anyone may find (`fetchPublicCommunities`), loaded by `loadListedCommunities()`.
+    private(set) var listedCommunities: [PublicCommunity] = []
+
     // MARK: - Init
 
     init(
@@ -129,6 +132,16 @@ final class CommunityContext {
     func name(for communityId: UUID?) -> String? {
         guard let communityId else { return nil }
         return memberships.first { $0.communityId == communityId }?.name
+    }
+
+    /// The join policy of a community: the member's own row first, else the listed community's.
+    /// Nil for a nil id, an unknown id, or a policy this build does not know.
+    func joinPolicy(for communityId: UUID?) -> CommunityJoinPolicy? {
+        guard let communityId else { return nil }
+        if let row = memberships.first(where: { $0.communityId == communityId }) {
+            return CommunityJoinPolicy(rawValue: row.joinPolicy)
+        }
+        return listedCommunities.first { $0.id == communityId }.flatMap { CommunityJoinPolicy(rawValue: $0.joinPolicy) }
     }
 
     /// Text for a community chip: nil with one active membership, and nil when `respectingScope`
@@ -241,6 +254,22 @@ final class CommunityContext {
         }
     }
 
+    /// Loads the listed communities. True on success, false on failure (the previous list is kept),
+    /// nil when the load was cancelled (a cancelled pull-to-refresh is not a failure). Never throws.
+    func loadListedCommunities() async -> Bool? {
+        do {
+            listedCommunities = try await service.fetchPublicCommunities()
+            return true
+        } catch is CancellationError {
+            return nil
+        } catch let error as URLError where error.code == .cancelled {
+            return nil
+        } catch {
+            AppLogger.warning("community", "Listed communities load failed; keeping the previous list: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     /// Drops one membership locally after the server confirmed it ended (a leave or a withdrawn
     /// request), so it disappears even when the follow-up `refreshMemberships()` fails. The tab,
     /// the Requests narrow and the last community posted to normalise as on a load. Calls
@@ -270,6 +299,7 @@ final class CommunityContext {
         restoredUserId = nil
         lastRefreshAttempt = nil
         memberships = []
+        listedCommunities = []
         hasLoadedMemberships = false
         setCommunityTabId(nil)
         setRequestsScope(.all)

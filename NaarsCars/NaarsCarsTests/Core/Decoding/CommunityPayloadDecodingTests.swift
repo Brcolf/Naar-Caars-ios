@@ -73,4 +73,28 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertEqual(profiles[0].id, UUID(uuidString: "DDDDDDDD-0000-4000-8000-000000000004"))
         XCTAssertEqual(profiles[0].name, "Sam Neighbor")
     }
+
+    func testJoinPolicy_ParsesServerValuesAndRejectsUnknown() {
+        XCTAssertEqual(CommunityJoinPolicy(rawValue: "open"), .open)
+        XCTAssertEqual(CommunityJoinPolicy(rawValue: "approve"), .approve)
+        XCTAssertEqual(CommunityJoinPolicy(rawValue: "invite"), .invite)
+        XCTAssertNil(CommunityJoinPolicy(rawValue: "public"))
+    }
+
+    func testJoinPolicy_ChipSubtitleRuleAndIcon() {   // English literals: the test locale is en
+        XCTAssertEqual(CommunityJoinPolicy.approve.chipText, "Ask to join")
+        XCTAssertEqual(CommunityJoinPolicy.invite.subtitleText, "Invite only")
+        XCTAssertEqual(CommunityJoinPolicy.open.subtitleText, "Open community")
+        XCTAssertEqual(CommunityJoinPolicy.approve.ruleSentence, "An admin approves every member. A helper's claim confirms at once.")
+        XCTAssertEqual(CommunityJoinPolicy.open.ruleSentence,
+                       "Anyone nearby can join. Helpers see only the area until a poster accepts them. No phone numbers are shown. Messaging opens when a poster accepts a helper.")
+        XCTAssertEqual([CommunityJoinPolicy.open, .approve, .invite].map(\.systemImage), ["globe", "lock.fill", "key.fill"])
+    }
+
+    func testMonogramInitials() {
+        XCTAssertEqual(CommunityMonogram.initials(for: "Ballard Neighbors"), "BN")
+        XCTAssertEqual(CommunityMonogram.initials(for: "test community seattle"), "TC")
+        XCTAssertEqual(CommunityMonogram.initials(for: "Solo"), "S")
+        XCTAssertEqual(CommunityMonogram.initials(for: "   "), "?")
+    }
 }
