@@ -434,6 +434,81 @@ final class TownHallFeedViewModelTests: XCTestCase {
         withExtendedLifetime(harness.container) {}
     }
 
+    // MARK: - The "Now in <community>" notice (Community Release 1, Task 7)
+
+    /// A context holding two active memberships (A primary, B), with the Community tab on A.
+    private func makeTwoMembershipContext(_ harness: ScopingHarness) async throws -> CommunityContext {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: harness.suiteName))
+        let context = CommunityContext(
+            service: StubCommunityService(result: .success([
+                CommunityFixtures.membership(communityA, name: "A", isPrimary: true),
+                CommunityFixtures.membership(communityB, name: "B")
+            ])),
+            defaults: defaults
+        )
+        context.restore(for: UUID())
+        await context.refreshMemberships()
+        return context
+    }
+
+    /// A target in another community switches the tab and says so, once.
+    func testOpen_TargetInAnotherCommunity_SetsTheNowInNotice() async throws {
+        let harness = try makeScopingHarness()
+        let context = try await makeTwoMembershipContext(harness)
+        XCTAssertEqual(context.communityTabId, communityA)
+        let vm = TownHallFeedViewModel(
+            repository: harness.repository,
+            postFetcher: harness.fetcher,
+            communityContext: context,
+            refreshTownHall: { _ in nil }
+        )
+        XCTAssertNil(vm.communitySwitchNotice)
+
+        await vm.open(NavigationCoordinator.TownHallNavigationTarget(postId: b1, mode: .highlightPost, communityId: communityB))
+
+        XCTAssertEqual(context.communityTabId, communityB)
+        XCTAssertEqual(vm.communitySwitchNotice, String(format: "townhall_now_in_community".localized, "B"))
+        withExtendedLifetime(harness.container) {}
+    }
+
+    /// A target in the community already shown opens in place; there is nothing to announce.
+    func testOpen_TargetInTheShownCommunity_SetsNoNotice() async throws {
+        let harness = try makeScopingHarness()
+        let context = try await makeTwoMembershipContext(harness)
+        XCTAssertEqual(context.communityTabId, communityA)
+        let vm = TownHallFeedViewModel(
+            repository: harness.repository,
+            postFetcher: harness.fetcher,
+            communityContext: context,
+            refreshTownHall: { _ in nil }
+        )
+
+        await vm.open(NavigationCoordinator.TownHallNavigationTarget(postId: a1, mode: .openComments, communityId: communityA))
+
+        XCTAssertEqual(context.communityTabId, communityA)
+        XCTAssertNil(vm.communitySwitchNotice)
+        withExtendedLifetime(harness.container) {}
+    }
+
+    /// The person chose the community in the title menu: they know where they are.
+    func testTitleMenuSwitch_SetsNoNotice() async throws {
+        let harness = try makeScopingHarness()
+        let context = try await makeTwoMembershipContext(harness)
+        let vm = TownHallFeedViewModel(
+            repository: harness.repository,
+            postFetcher: harness.fetcher,
+            communityContext: context,
+            refreshTownHall: { _ in nil }
+        )
+
+        context.communityTabId = communityB   // what the title menu's button does
+        await vm.activeCommunityDidChange()
+
+        XCTAssertEqual(vm.activeCommunityId, communityB)
+        XCTAssertNil(vm.communitySwitchNotice)
+        withExtendedLifetime(harness.container) {}
+    }
+
     // MARK: - Changes made elsewhere inside the 30 s re-entry skip (review of 8a8b867)
 
     /// Sets MessageService's blocked set through its real refresh against a stubbed

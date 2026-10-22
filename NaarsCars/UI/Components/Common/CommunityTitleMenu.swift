@@ -13,6 +13,10 @@ import SwiftUI
 /// So while `enabled` the modifier switches the title to `.inline`, and otherwise leaves it
 /// `.automatic` (the large title of the previous build).
 ///
+/// The caller decides when the menu is worth showing. The Town Hall tab enables it for every
+/// member, of one community or several, because the menu also holds "About this community" and
+/// "Find communities"; a guest, who has no memberships, gets none.
+///
 /// The modifier always takes one structural path: a `.toolbar`, a `navigationSubtitle` and a
 /// `toolbarTitleDisplayMode` are applied in every state and only their values change. An
 /// `if`/`else` on `enabled` would give `content` a different structural identity per branch, so
@@ -21,7 +25,7 @@ import SwiftUI
 /// `@State` lost.
 ///
 /// With `enabled == false` the toolbar holds no `ToolbarTitleMenu` and the subtitle is empty,
-/// so a member of one community sees a title with neither modifier (no chevron, no subtitle).
+/// so the title shows neither modifier (no chevron, no subtitle).
 /// Do not swap the conditional item for an always-present `toolbarTitleMenu { if enabled { ... } }`:
 /// an empty title menu still draws the chevron once the title is inline. Apply it to the same
 /// view that carries `.navigationTitle`. Shared by the Community tab and Requests so neither
@@ -44,7 +48,7 @@ struct CommunityTitleMenuModifier<MenuContent: View>: ViewModifier {
 }
 
 extension View {
-    /// Shows `menu` as the navigation title menu only when `enabled` (more than one active membership).
+    /// Shows `menu` as the navigation title menu only when `enabled`.
     func communityTitleMenu<M: View>(
         enabled: Bool,
         subtitle: String? = nil,

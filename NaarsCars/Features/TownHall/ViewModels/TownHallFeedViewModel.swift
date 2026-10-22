@@ -42,6 +42,10 @@ final class TownHallFeedViewModel: ObservableObject {
     /// The action for the last target passed to `open(_:)`; the view performs it and calls
     /// `consumeFeedAction()`.
     @Published private(set) var pendingFeedAction: TownHallFeedAction?
+    /// "Now in <community>", set only when `open(_:)` switches the Community tab to the community
+    /// of a push, bell row or deep link target. The title menu's switch sets nothing: the person
+    /// chose it. The view shows it as an info toast, which clears it when it goes.
+    @Published var communitySwitchNotice: String?
 
     // MARK: - Private Properties
 
@@ -405,6 +409,9 @@ final class TownHallFeedViewModel: ObservableObject {
         // 2. Switch only to an active membership other than the one shown.
         if let communityId, activeIds.contains(communityId), communityId != activeCommunityId {
             communityContext.communityTabId = communityId
+            if let name = communityContext.name(for: communityId) {
+                communitySwitchNotice = String(format: "townhall_now_in_community".localized, name)
+            }
             await activeCommunityDidChange()
             guard request == navigationRequest else { return }
         }

@@ -110,6 +110,8 @@ struct TownHallFeedView: View {
             }
             .toast(message: $toastMessage)
             .toast(message: $warningToastMessage, style: .warning)
+            // "Now in <community>" after a push, bell row or link switched the community.
+            .toast(message: $viewModel.communitySwitchNotice, style: .info)
             // A failed vote, delete, next page or refresh keeps the loaded posts on screen.
             .errorBanner(message: $viewModel.bannerMessage)
             .trackScreen("TownHallFeed")
