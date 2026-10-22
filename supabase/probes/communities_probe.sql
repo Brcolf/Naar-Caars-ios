@@ -112,7 +112,7 @@
 --   Phase 4: create_community(p_name, p_description, p_join_policy, p_timezone); the membership_update producers approve_community_member, readmit_community_member, transfer_community_ownership, set_member_role; send_community_broadcast's push.
 --   Phase 5 adds: get_geocoding_multiplier(p_location_key), put_geocoding_multiplier(p_location_key, p_latitude, p_longitude, p_multiplier).
 --   Release 1 adds: get_community_preview(p_community_id) (refusal code 'not_listed'), is_listed_request(p_ride_id, p_favor_id).
---   Release 2 adds: 0020 great_circle_miles(lat1, lng1, lat2, lng2) and can_discover_community(p_community_id) (internal), the trigger guard_example_content (42501 'example_flag_reserved' / 'example_request'); 0021 search_communities_by_name(p_query), find_communities_near(p_lat, p_lng), check_community_area(p_center_lat, p_center_lng, p_radius_miles[, p_community_id]), overlapping_listed_communities(p_center_lat, p_center_lng, p_radius_miles, p_exclude), create_community_with_area(p_name[, p_description, p_join_policy, p_timezone, p_listed, p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason]), update_community_access(p_community_id, p_listed, p_join_policy[, p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason]); 0022 post_community_announcement(p_community_id, p_author, p_title, p_body, p_pinned, p_type, p_system_event, p_push_data), merge_communities(p_proposal_id, p_actor), search_merge_targets(p_community_id, p_query), propose_community_merge(p_community_id, p_other_id, p_survivor_id[, p_note]), get_community_merge_proposal(p_community_id), respond_to_community_merge(p_proposal_id, p_accept), withdraw_community_merge(p_proposal_id); 0023 set_example_content(p_type, p_id, p_is_example), refresh_example_requests() (internal).
+--   Release 2 adds: 0020 great_circle_miles(lat1, lng1, lat2, lng2) and can_discover_community(p_community_id) (internal), the trigger guard_example_content (42501 'example_flag_reserved' / 'example_request'); 0021 search_communities_by_name(p_query), find_communities_near(p_lat, p_lng), check_community_area(p_center_lat, p_center_lng, p_radius_miles[, p_community_id]), overlapping_listed_communities(p_center_lat, p_center_lng, p_radius_miles, p_exclude) (internal), create_community_with_area(p_name[, p_description, p_join_policy, p_timezone, p_listed, p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason]), update_community_access(p_community_id, p_listed, p_join_policy[, p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason]) (refusal codes not_owner, invalid, default_stays_listed, invalid_area, needs_area, reason_required), and get_community_preview's refusal code 'merged' (with merged_into_id, merged_into_name); 0022 post_community_announcement(p_community_id, p_author, p_title, p_body, p_pinned, p_type, p_system_event, p_push_data), merge_communities(p_proposal_id, p_actor), search_merge_targets(p_community_id, p_query), propose_community_merge(p_community_id, p_other_id, p_survivor_id[, p_note]), get_community_merge_proposal(p_community_id), respond_to_community_merge(p_proposal_id, p_accept), withdraw_community_merge(p_proposal_id); 0023 set_example_content(p_type, p_id, p_is_example), refresh_example_requests() (internal).
 
 
 -- =============================================================================================================
@@ -3383,5 +3383,630 @@ end
 $probe$;
 rollback;
 select 'PROBE listed_reviews OK' as probe;
+
+
+-- =============================================================================================================
+-- discovery_search (Release 2, 20261021_0021 Blocks 1-3 and 7; rulings R-G1 and R-G4): the EXECUTE, definer,
+-- search_path and volatility of every File B function; search by name (case, the wildcards % and _ and the
+-- backslash taken literally, trimming, fewer than 2 characters, the 60-character cut, names that start with the
+-- text first); search near a point (the distance, the edge of a circle, 3 miles north, the antimeridian, invalid
+-- points); hidden C1 (an area its owner set) in neither search for anyone, its owner included; listed test
+-- community C4 (owner u16) in both and in get_community_preview for its owner and a platform admin only; a banned
+-- member not counted; the row shape; nothing written by any search, preview or area check (pg_stat_xact_user_tables
+-- of this transaction, so concurrent live writes cannot disturb it; communities, notifications and
+-- community_listing_events included); 20 rows at most with 25 matching communities; get_community_preview of
+-- merged communities ('merged' when the survivor is discoverable to the caller, not_listed otherwise); an archived
+-- C2 gone from both searches. Probe areas sit where no live area is (C2 at (0.5, -150.0), radius 2); every
+-- "returns nothing" check reads probe ids only (00000000-0000-4000-b000-...).
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'discovery_search';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  u2 uuid := pg_temp.u(2);  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u12 uuid := pg_temp.u(12);
+  u16 uuid := pg_temp.u(16);
+  c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);  c3 uuid := pg_temp.c(3);  c4 uuid;
+  c6 uuid := pg_temp.c(6);  c7 uuid := pg_temp.c(7);  c8 uuid := pg_temp.c(8);  c9 uuid := pg_temp.c(9);
+  v_ids constant jsonpath := '$.communities[*].id ? (@ starts with "00000000-0000-4000-b000-")';
+  v_keys constant text[] := array['id', 'name', 'description', 'join_policy', 'area_name', 'area_radius_miles',
+                                  'member_count', 'distance_miles'];
+  v_sixty constant text := rpad('Probe Sixty Nine ', 60, 'x');
+  v_writes bigint;
+  v_fn text;
+  v_q text;
+  v_subs uuid[];
+  v_modes text[];
+  i int;
+  n int;
+  j jsonb;
+  k jsonb;
+begin
+  perform pg_temp.probe_require_release2(v_probe, 'b');
+  perform pg_temp.probe_world();
+  perform pg_temp.probe_ok(v_probe, 'the platform admin subject resolves', v_admin is not null);
+
+  -- EXECUTE (ruling R-G1), definer, search_path, volatility
+  foreach v_fn in array array['public.search_communities_by_name(text)',
+                              'public.find_communities_near(double precision, double precision)',
+                              'public.get_community_preview(uuid)'] loop
+    perform pg_temp.probe_ok(v_probe, v_fn || ': EXECUTE for anon, authenticated and service_role, none for public',
+      has_function_privilege('anon', v_fn, 'execute')
+      and has_function_privilege('authenticated', v_fn, 'execute')
+      and has_function_privilege('service_role', v_fn, 'execute')
+      and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                       where p.oid = v_fn::regprocedure and a.grantee = 0));
+  end loop;
+  foreach v_fn in array array['public.check_community_area(double precision, double precision, integer, uuid)',
+      'public.create_community_with_area(text, text, text, text, boolean, text, double precision, double precision, integer, text)',
+      'public.update_community_access(uuid, boolean, text, text, double precision, double precision, integer, text)',
+      'public.set_community_public(uuid, boolean)', 'public.get_platform_communities()'] loop
+    perform pg_temp.probe_ok(v_probe, v_fn || ': EXECUTE for authenticated and service_role, none for anon or public',
+      not has_function_privilege('anon', v_fn, 'execute')
+      and has_function_privilege('authenticated', v_fn, 'execute')
+      and has_function_privilege('service_role', v_fn, 'execute')
+      and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                       where p.oid = v_fn::regprocedure and a.grantee = 0));
+  end loop;
+  v_fn := 'public.overlapping_listed_communities(double precision, double precision, integer, uuid)';
+  perform pg_temp.probe_ok(v_probe, v_fn || ': EXECUTE for service_role only (no anon, authenticated or public)',
+    not has_function_privilege('anon', v_fn, 'execute')
+    and not has_function_privilege('authenticated', v_fn, 'execute')
+    and has_function_privilege('service_role', v_fn, 'execute')
+    and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                     where p.oid = v_fn::regprocedure and a.grantee = 0));
+  perform pg_temp.probe_ok(v_probe, 'the nine File B functions are security definer with search_path ""',
+    (select count(*) from pg_catalog.pg_proc p
+      where p.pronamespace = 'public'::regnamespace
+        and p.proname in ('search_communities_by_name', 'find_communities_near', 'overlapping_listed_communities',
+                          'check_community_area', 'create_community_with_area', 'update_community_access',
+                          'set_community_public', 'get_community_preview', 'get_platform_communities')
+        and p.prosecdef and p.proconfig = array['search_path=""']) = 9);
+  perform pg_temp.probe_ok(v_probe, 'search_communities_by_name and find_communities_near are stable',
+    (select count(*) from pg_catalog.pg_proc p
+      where p.pronamespace = 'public'::regnamespace
+        and p.proname in ('search_communities_by_name', 'find_communities_near') and p.provolatile = 's') = 2);
+  j := pg_temp.probe_call(null, 'public.check_community_area(0.5, -150.0, 1)', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call check_community_area (42501): ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501');
+  j := pg_temp.probe_call(u3, 'public.overlapping_listed_communities(0.5, -150.0, 1, null)');
+  perform pg_temp.probe_ok(v_probe, 'a member cannot call overlapping_listed_communities (42501): ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501');
+
+  -- the world: C2 'Probe Town' (0.5, -150.0) radius 2 with banned u2 active in it; listed test community C4 (owner
+  -- u16) at the same point, radius 1; hidden C1, whose owner sets an area at the same point through
+  -- update_community_access; listed C6 at (0, 179.99), radius 10; listed C7 'Test Probe Seven', C8
+  -- 'Probe 100% Eight' and C9 (a 60-character name), no area
+  perform pg_temp.probe_area(c2, 'Probe Town', 0.5, -150.0, 2);
+  perform pg_temp.probe_member(c2, u2, 'member', 'active', 3);
+  c4 := pg_temp.probe_test_community(4, u16);
+  perform pg_temp.probe_area(c4, 'Probe Town Test', 0.5, -150.0, 1);
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, false, %L, %L, 0.5, -150.0, 2)',
+                                      c1, 'approve', 'Probe One Area'));
+  perform pg_temp.probe_ok(v_probe, 'C1''s owner sets an area on hidden C1: ' || j::text,
+    j ->> 'success' = 'true' and j ->> 'changed' = 'true');
+  perform pg_temp.probe_ok(v_probe, 'C1 stays hidden with its area and no listing event',
+    (select not c.is_public and c.area_name = 'Probe One Area' and c.area_radius_miles = 2
+       from public.communities c where c.id = c1)
+    and not exists (select 1 from public.community_listing_events e where e.community_id = c1));
+  perform pg_temp.probe_community(6, 'Probe Dateline Six', u12, true, 'approve');
+  perform pg_temp.probe_area(c6, 'Probe Dateline', 0, 179.99, 10);
+  perform pg_temp.probe_community(7, 'Test Probe Seven', u12, true, 'approve');
+  perform pg_temp.probe_community(8, 'Probe 100% Eight', u12, true, 'approve');
+  perform pg_temp.probe_community(9, v_sixty, u12, true, 'approve');
+
+  v_writes := (select coalesce(sum(t.n_tup_ins + t.n_tup_upd + t.n_tup_del), 0)
+                 from pg_catalog.pg_stat_xact_user_tables t);
+
+  -- search by name
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', 'two'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: ''two'' finds C2 only: ' || left(j::text, 500),
+    j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = jsonb_build_array(c2));
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = c2::text);
+  perform pg_temp.probe_ok(v_probe, 'the row has exactly the eight keys: ' || coalesce(k::text, 'null'),
+    k ?& v_keys and (select count(*) from jsonb_object_keys(k)) = 8);
+  perform pg_temp.probe_ok(v_probe, 'C2''s row: name, policy, area, 1 member (banned u2 not counted), no distance: ' || k::text,
+    k ->> 'name' = 'Probe Public Two' and k ->> 'join_policy' = 'approve' and k ->> 'area_name' = 'Probe Town'
+    and (k ->> 'area_radius_miles')::int = 2 and (k ->> 'member_count')::int = 1
+    and k -> 'distance_miles' = 'null'::jsonb and k ->> 'description' = 'communities probe');
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', 'PROBE PUBLIC'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: ''PROBE PUBLIC'' matches case-insensitively: ' || left(j::text, 500),
+    jsonb_path_query_array(j, v_ids) = jsonb_build_array(c2));
+  foreach v_q in array array['o', '%', '_', '\', ' ', ''] loop
+    j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', v_q), 'anon');
+    perform pg_temp.probe_ok(v_probe, format('anon: %L (fewer than 2 characters) answers success with no row: %s', v_q, j),
+      j = '{"success": true, "communities": []}'::jsonb);
+  end loop;
+  j := pg_temp.probe_call(null, 'public.search_communities_by_name(null)', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: null answers success with no row: ' || j::text,
+    j = '{"success": true, "communities": []}'::jsonb);
+  foreach v_q in array array['%%', '__', 'o%', '_o', 'e\', '\\', '\%'] loop
+    j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', v_q), 'anon');
+    perform pg_temp.probe_ok(v_probe, format('anon: %L is literal (no probe name holds it), success, no error: %s', v_q, left(j::text, 300)),
+      not (j ? 'raised') and j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = '[]'::jsonb);
+  end loop;
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', '0%'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: ''0%'' finds only the name that holds it literally: ' || left(j::text, 500),
+    jsonb_path_query_array(j, v_ids) = jsonb_build_array(c8));
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', '  probe  '), 'anon');
+  k := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', 'probe'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: ''  probe  '' answers what ''probe'' answers, with rows: ' || left(j::text, 300),
+    j = k and jsonb_array_length(j -> 'communities') > 0);
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', repeat('x', 200)), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: a 200-character query answers success with no probe row: ' || left(j::text, 300),
+    not (j ? 'raised') and j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = '[]'::jsonb);
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', v_sixty || 'yyyy'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: only the first 60 characters are used (a 64-character query finds C9): ' || left(j::text, 300),
+    jsonb_path_query_array(j, v_ids) = jsonb_build_array(c9));
+  j := pg_temp.probe_call(u16, format('public.search_communities_by_name(%L)', 'test'));
+  perform pg_temp.probe_ok(v_probe, 'u16: ''test'' lists the name that starts with it (C7) before the one that holds it (C4): ' || left(j::text, 500),
+    jsonb_path_query_array(j, v_ids) = jsonb_build_array(c7, c4));
+
+  -- hidden C1 is never listed, for its owner, a member, anon or a platform admin
+  v_subs := array[u4, u3, null, v_admin];
+  v_modes := array['user', 'user', 'anon', 'user'];
+  for i in 1 .. 4 loop
+    j := pg_temp.probe_call(v_subs[i], format('public.search_communities_by_name(%L)', 'community one'), v_modes[i]);
+    k := pg_temp.probe_call(v_subs[i], 'public.find_communities_near(0.5038, -150.0)', v_modes[i]);
+    perform pg_temp.probe_ok(v_probe, format('hidden C1 is in neither search for subject %s: %s / %s', i, left(j::text, 300), left(k::text, 300)),
+      j ->> 'success' = 'true' and k ->> 'success' = 'true'
+      and not (jsonb_path_query_array(j, v_ids) ? c1::text) and not (jsonb_path_query_array(k, v_ids) ? c1::text));
+  end loop;
+
+  -- test community C4: its owner and a platform admin find it; u3 and anon do not
+  v_subs := array[u16, v_admin, u3, null];
+  v_modes := array['user', 'user', 'user', 'anon'];
+  for i in 1 .. 4 loop
+    j := pg_temp.probe_call(v_subs[i], format('public.search_communities_by_name(%L)', 'probe test'), v_modes[i]);
+    k := pg_temp.probe_call(v_subs[i], 'public.find_communities_near(0.5, -150.0)', v_modes[i]);
+    perform pg_temp.probe_ok(v_probe, format('C4 is in both searches for subject %s exactly when it is u16 or the platform admin: %s / %s',
+                                             i, left(j::text, 300), left(k::text, 300)),
+      (jsonb_path_query_array(j, v_ids) ? c4::text) = (i <= 2) and (jsonb_path_query_array(k, v_ids) ? c4::text) = (i <= 2));
+    j := pg_temp.probe_call(v_subs[i], format('public.get_community_preview(%L::uuid)', c4), v_modes[i]);
+    perform pg_temp.probe_ok(v_probe, format('get_community_preview(C4) for subject %s: %s', i, left(j::text, 300)),
+      case when i <= 2 then j ->> 'success' = 'true' and j #>> '{community,id}' = c4::text
+           else j ->> 'success' = 'false' and j ->> 'code' = 'not_listed' and not (j ? 'raised') end);
+  end loop;
+
+  -- search near a point
+  j := pg_temp.probe_call(null, 'public.find_communities_near(0.5038, -150.0)', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: a point 0.26 miles from C2''s centre finds C2 only: ' || left(j::text, 500),
+    j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = jsonb_build_array(c2));
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = c2::text);
+  perform pg_temp.probe_ok(v_probe, 'C2''s row has the eight keys and distance_miles 0.3: ' || k::text,
+    k ?& v_keys and (select count(*) from jsonb_object_keys(k)) = 8
+    and (k ->> 'distance_miles')::numeric = 0.3 and (k ->> 'member_count')::int = 1);
+  j := pg_temp.probe_call(null, 'public.find_communities_near(0.5275, -150.0)', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: a point 1.9 miles away is inside C2''s 2-mile circle: ' || left(j::text, 300),
+    jsonb_path_query_array(j, v_ids) = jsonb_build_array(c2));
+  j := pg_temp.probe_call(null, 'public.find_communities_near(0.5304, -150.0)', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: a point 2.1 miles away is outside it: ' || left(j::text, 300),
+    j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = '[]'::jsonb);
+  foreach v_q in array array['anon', 'user'] loop
+    j := pg_temp.probe_call(case when v_q = 'user' then u16 end, 'public.find_communities_near(0.5434, -150.0)', v_q);
+    perform pg_temp.probe_ok(v_probe, format('%s: a point 3 miles north finds no probe community: %s', v_q, left(j::text, 300)),
+      j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = '[]'::jsonb);
+  end loop;
+  j := pg_temp.probe_call(null, 'public.find_communities_near(0, -179.99)', 'anon');
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = c6::text);
+  perform pg_temp.probe_ok(v_probe, 'anon: C6 (centre (0, 179.99), radius 10) is found from (0, -179.99), 1.4 miles away: ' || left(j::text, 300),
+    jsonb_path_query_array(j, v_ids) = jsonb_build_array(c6) and (k ->> 'distance_miles')::numeric = 1.4);
+  foreach v_q in array array['91, 0', '-90.0001, 0', '0, -181', '0, 180.0001', 'null, 0', '0, null', 'null, null',
+                             '''NaN''::double precision, 0', '0, ''Infinity''::double precision'] loop
+    j := pg_temp.probe_call(null, format('public.find_communities_near(%s)', v_q), 'anon');
+    perform pg_temp.probe_ok(v_probe, format('anon: (%s) answers invalid_area without an exception: %s', v_q, j),
+      not (j ? 'raised') and j ->> 'success' = 'false' and j ->> 'code' = 'invalid_area'
+      and j ->> 'error' = 'Choose a town or ZIP code');
+  end loop;
+  j := pg_temp.probe_call(null, 'public.find_communities_near(-90, 180)', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon: the corner (-90, 180) is a valid point: ' || left(j::text, 300),
+    j ->> 'success' = 'true');
+
+  perform pg_temp.probe_ok(v_probe, 'no search, preview or refusal above wrote a row (communities, notifications and community_listing_events included)',
+    (select coalesce(sum(t.n_tup_ins + t.n_tup_upd + t.n_tup_del), 0) from pg_catalog.pg_stat_xact_user_tables t) = v_writes);
+
+  -- 20 rows at most: 25 more listed communities named 'Probe Many NN' at C2's centre, radius 1
+  for n in 1 .. 25 loop
+    perform pg_temp.probe_community(110 + n, 'Probe Many ' || lpad(n::text, 2, '0'), u12, true, 'approve');
+    perform pg_temp.probe_area(pg_temp.c(110 + n), 'Probe Many Area', 0.5, -150.0, 1);
+  end loop;
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', 'probe many'), 'anon');
+  k := pg_temp.probe_call(null, 'public.find_communities_near(0.5, -150.0)', 'anon');
+  perform pg_temp.probe_ok(v_probe, format('anon: 25 matches give 20 rows by name (%s) and near (%s)',
+                                           jsonb_array_length(j -> 'communities'), jsonb_array_length(k -> 'communities')),
+    jsonb_array_length(j -> 'communities') = 20 and jsonb_array_length(k -> 'communities') = 20);
+  perform pg_temp.probe_ok(v_probe, 'by name they come in name order: ' || left(j::text, 300),
+    j #>> '{communities,0,name}' = 'Probe Many 01' and j #>> '{communities,19,name}' = 'Probe Many 20');
+
+  -- get_community_preview of merged communities: C3 (private) merged into listed C2 answers 'merged';
+  -- C6 merged into hidden C1 and C8 merged into test C4 answer not_listed, except C8 to C4's owner
+  perform set_config('request.jwt.claims', '', true);
+  update public.communities set archived_at = now(), merged_into_id = c2, merged_at = now() where id = c3;
+  update public.communities set archived_at = now(), merged_into_id = c1, merged_at = now() where id = c6;
+  update public.communities set archived_at = now(), merged_into_id = c4, merged_at = now() where id = c8;
+  foreach v_q in array array['anon', 'user'] loop
+    j := pg_temp.probe_call(case when v_q = 'user' then u3 end, format('public.get_community_preview(%L::uuid)', c3), v_q);
+    perform pg_temp.probe_ok(v_probe, format('%s: C3 merged into C2 answers merged with C2''s id and name: %s', v_q, j),
+      not (j ? 'raised') and j ->> 'success' = 'false' and j ->> 'code' = 'merged'
+      and j ->> 'merged_into_id' = c2::text and j ->> 'merged_into_name' = 'Probe Public Two');
+  end loop;
+  j := pg_temp.probe_call(u4, format('public.get_community_preview(%L::uuid)', c6));
+  k := pg_temp.probe_call(null, format('public.get_community_preview(%L::uuid)', c6), 'anon');
+  perform pg_temp.probe_ok(v_probe, format('C6 merged into hidden C1 answers not_listed to C1''s owner and anon: %s / %s', j, k),
+    j ->> 'code' = 'not_listed' and k ->> 'code' = 'not_listed' and not (j ? 'merged_into_id') and not (k ? 'merged_into_id'));
+  j := pg_temp.probe_call(u16, format('public.get_community_preview(%L::uuid)', c8));
+  k := pg_temp.probe_call(u3, format('public.get_community_preview(%L::uuid)', c8));
+  perform pg_temp.probe_ok(v_probe, format('C8 merged into test C4: merged for C4''s owner, not_listed for u3: %s / %s', j, k),
+    j ->> 'code' = 'merged' and j ->> 'merged_into_id' = c4::text and k ->> 'code' = 'not_listed'
+    and not (k ? 'merged_into_id'));
+
+  -- an archived C2 is gone from both searches, and C3 merged into it is now not_listed
+  update public.communities set archived_at = now() where id = c2;
+  j := pg_temp.probe_call(null, format('public.search_communities_by_name(%L)', 'two'), 'anon');
+  k := pg_temp.probe_call(null, 'public.find_communities_near(0.5038, -150.0)', 'anon');
+  perform pg_temp.probe_ok(v_probe, format('an archived C2 is in neither search: %s / %s', left(j::text, 300), left(k::text, 300)),
+    j ->> 'success' = 'true' and k ->> 'success' = 'true'
+    and not (jsonb_path_query_array(j, v_ids) ? c2::text) and not (jsonb_path_query_array(k, v_ids) ? c2::text));
+  j := pg_temp.probe_call(null, format('public.get_community_preview(%L::uuid)', c3), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'C3 merged into the archived C2 answers not_listed: ' || j::text,
+    j ->> 'code' = 'not_listed' and not (j ? 'merged_into_id'));
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE discovery_search OK' as probe;
+
+
+-- =============================================================================================================
+-- listing_rules (Release 2, 20261021_0021 Blocks 3-8; rulings R-G4, R8, R12 and R21; C2 'Probe Town' at (0.5,
+-- -150.0), radius 2). check_community_area: the overlap with distance, itself excluded, nothing far away, invalid
+-- areas. create_community_with_area: a hidden creation (no area, no event) that ignores area arguments; needs_area,
+-- invalid_area (radius 3, a house number, a missing or out-of-range or NaN centre, a short or long name),
+-- reason_required (none, blank, over 300 characters); with a reason, the created_listed event names C2 and the
+-- reason, every platform admin gets one announcement bell row with it and no push; a listed 'Seattle 98101' with no
+-- overlap and no reason (an empty overlap list); 'open' refused. update_community_access: anon has no EXECUTE; the
+-- refusal order (an admin of C1, a non-member, an unknown id; null switches, 'open', a partial or invalid area);
+-- set_community_public needs an area to list; needs_area; reason_required; listed with its event, the members'
+-- notices (not the owner's, not a pending applicant's), the admins' notices, no push; a repeat changes nothing; a
+-- policy change; an area move (area_moved, no member notice); a reason over 300 characters; unlisting; the default
+-- community stays listed. get_community_preview: the area keys and is_example on every request.
+-- get_platform_communities: the new keys, the newest listing event, the merge keys, merge_proposals, refused to a
+-- non-admin.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'listing_rules';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  v_downer uuid := pg_temp.probe_subject('default_owner');
+  d uuid := public.default_community_id();
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u5 uuid := pg_temp.u(5);  u6 uuid := pg_temp.u(6);
+  u7 uuid := pg_temp.u(7);  u9 uuid := pg_temp.u(9);  u10 uuid := pg_temp.u(10);  u11 uuid := pg_temp.u(11);
+  u12 uuid := pg_temp.u(12);  u13 uuid := pg_temp.u(13);  u15 uuid := pg_temp.u(15);  u16 uuid := pg_temp.u(16);
+  c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);  c3 uuid := pg_temp.c(3);
+  v_ids constant jsonpath := '$.communities[*].id ? (@ starts with "00000000-0000-4000-b000-")';
+  v_keys constant text[] := array['area_name', 'area_center_lat', 'area_center_lng', 'area_radius_miles', 'is_test',
+                                  'merged_into_id', 'merged_into_name', 'listing_event', 'listing_reason',
+                                  'listing_overlaps', 'listing_event_at'];
+  v_title constant text := 'Probe Community One changed how people join';
+  v_admins uuid[];
+  v_members uuid[] := array[pg_temp.u(3), pg_temp.u(5), pg_temp.u(7), pg_temp.u(11)];
+  v_new uuid;
+  v_far uuid;
+  v_ride uuid := pg_temp.r(51);
+  v_calls text[];
+  v_codes text[];
+  v_n bigint;
+  v_e bigint;
+  i int;
+  j jsonb;
+  k jsonb;
+begin
+  perform pg_temp.probe_require_release2(v_probe, 'b');
+  perform pg_temp.probe_world();
+  perform pg_temp.probe_area(c2, 'Probe Town', 0.5, -150.0, 2);
+  v_admins := array(select p.id from public.profiles p where p.is_admin and not coalesce(p.is_banned, false));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin and default owner subjects resolve; a platform admin exists',
+    v_admin is not null and v_downer is not null and cardinality(v_admins) > 0);
+
+  -- check_community_area
+  j := pg_temp.probe_call(u13, 'public.check_community_area(0.52, -150.0, 1)');
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = c2::text);
+  perform pg_temp.probe_ok(v_probe, 'a 1-mile area 1.4 miles from C2''s centre overlaps C2 only: ' || left(j::text, 500),
+    j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = jsonb_build_array(c2)
+    and (k ->> 'distance_miles')::numeric = 1.4 and (select count(*) from jsonb_object_keys(k)) = 8
+    and (k ->> 'member_count')::int = 1);
+  j := pg_temp.probe_call(u12, format('public.check_community_area(0.52, -150.0, 1, %L::uuid)', c2));
+  perform pg_temp.probe_ok(v_probe, 'C2 is excluded when the check is for C2 itself: ' || left(j::text, 300),
+    j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = '[]'::jsonb);
+  j := pg_temp.probe_call(u13, 'public.check_community_area(0.5, -140.0, 1)');
+  perform pg_temp.probe_ok(v_probe, 'an area far from every probe area overlaps none: ' || left(j::text, 300),
+    j ->> 'success' = 'true' and jsonb_path_query_array(j, v_ids) = '[]'::jsonb);
+  for i in 1 .. 6 loop
+    j := pg_temp.probe_call(u13, 'public.check_community_area(' ||
+           (array['0.5, -150.0, 3', 'null, -150.0, 1', '91, 0, 1', '0, -181, 1', '0.5, -150.0, null',
+                  '''NaN''::double precision, 0, 1'])[i] || ')');
+    perform pg_temp.probe_ok(v_probe, format('check_community_area case %s answers invalid_area: %s', i, j),
+      not (j ? 'raised') and j ->> 'success' = 'false' and j ->> 'code' = 'invalid_area');
+  end loop;
+
+  -- create_community_with_area: hidden, no area, no listing event
+  j := pg_temp.probe_call(u6, format('public.create_community_with_area(%L, null, %L)', 'Probe Hidden Six', 'invite'));
+  perform pg_temp.probe_ok(v_probe, 'u6 creates a hidden invite community: ' || j::text, j ->> 'success' = 'true');
+  v_new := (j ->> 'community_id')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'it is hidden, invite, without an area, owned by u6, with no listing event',
+    (select not c.is_public and c.join_policy = 'invite' and c.area_name is null and c.area_center_lat is null
+            and c.area_center_lng is null and c.area_radius_miles is null
+       from public.communities c where c.id = v_new)
+    and exists (select 1 from public.community_members m
+                 where m.community_id = v_new and m.user_id = u6 and m.role = 'owner' and m.status = 'active')
+    and not exists (select 1 from public.community_listing_events e where e.community_id = v_new));
+  j := pg_temp.probe_call(u15, format(
+    'public.create_community_with_area(p_name => %L, p_listed => false, p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1, p_reason => %L)',
+    'Probe Hidden Fifteen', 'Probe Ignored', 'Probe ignored reason'));
+  perform pg_temp.probe_ok(v_probe, 'a hidden creation with area arguments succeeds: ' || j::text, j ->> 'success' = 'true');
+  perform pg_temp.probe_ok(v_probe, 'and ignores the area and the reason',
+    (select not c.is_public and c.area_name is null and c.area_radius_miles is null
+       from public.communities c where c.id = (j ->> 'community_id')::uuid)
+    and not exists (select 1 from public.community_listing_events e where e.community_id = (j ->> 'community_id')::uuid));
+
+  -- create_community_with_area refusals (u13), none of which creates anything
+  v_calls := array[
+    '',
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 3', 'Probe Overlap'),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1', '5412 Probe Ln NW'),
+    format(', p_area_name => %L, p_center_lng => -150.0, p_radius_miles => 1', 'Probe Overlap'),
+    format(', p_area_name => %L, p_center_lat => 91, p_center_lng => -150.0, p_radius_miles => 1', 'Probe Overlap'),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -181, p_radius_miles => 1', 'Probe Overlap'),
+    format(', p_area_name => %L, p_center_lat => %L::double precision, p_center_lng => -150.0, p_radius_miles => 1', 'Probe Overlap', 'NaN'),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1', ' P '),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1', repeat('x', 81)),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1', 'Probe Overlap'),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1, p_reason => %L', 'Probe Overlap', '   '),
+    format(', p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1, p_reason => %L', 'Probe Overlap', repeat('x', 301))];
+  v_codes := array['needs_area', 'invalid_area', 'invalid_area', 'invalid_area', 'invalid_area', 'invalid_area',
+                   'invalid_area', 'invalid_area', 'invalid_area', 'reason_required', 'reason_required', 'reason_required'];
+  for i in 1 .. cardinality(v_calls) loop
+    j := pg_temp.probe_call(u13, format('public.create_community_with_area(p_name => %L, p_join_policy => %L, p_listed => true%s)',
+                                        'Probe Listed Thirteen', 'approve', v_calls[i]));
+    perform pg_temp.probe_ok(v_probe, format('listed creation case %s answers %s: %s', i, v_codes[i], j),
+      not (j ? 'raised') and j ->> 'success' = 'false' and j ->> 'code' = v_codes[i]);
+  end loop;
+  perform pg_temp.probe_ok(v_probe, 'no refusal created a community',
+    not exists (select 1 from public.communities c where c.created_by = u13));
+  j := pg_temp.probe_call(u16, format('public.create_community_with_area(p_name => %L, p_reason => %L)',
+                                      'Probe Long Reason', repeat('x', 301)));
+  perform pg_temp.probe_ok(v_probe, 'a reason over 300 characters is refused even for a hidden creation (R12): ' || j::text,
+    j ->> 'code' = 'reason_required' and not exists (select 1 from public.communities c where c.created_by = u16));
+
+  -- listed, overlapping C2, with a reason: the event, the admins' bell rows, no push
+  j := pg_temp.probe_call(u13, format(
+    'public.create_community_with_area(p_name => %L, p_join_policy => %L, p_listed => true, p_area_name => %L, p_center_lat => 0.52, p_center_lng => -150.0, p_radius_miles => 1, p_reason => %L)',
+    'Probe Listed Thirteen', 'approve', '  Probe Overlap  ', 'Probe reason'));
+  perform pg_temp.probe_ok(v_probe, 'u13 creates a listed community over C2 with a reason: ' || j::text, j ->> 'success' = 'true');
+  v_new := (j ->> 'community_id')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'it is listed with the trimmed area',
+    (select c.is_public and c.join_policy = 'approve' and c.area_name = 'Probe Overlap' and c.area_center_lat = 0.52
+            and c.area_center_lng = -150.0 and c.area_radius_miles = 1
+       from public.communities c where c.id = v_new));
+  perform pg_temp.probe_ok(v_probe, 'one created_listed event with the area, C2 and the reason',
+    (select count(*) from public.community_listing_events e where e.community_id = v_new) = 1
+    and exists (select 1 from public.community_listing_events e
+                 where e.community_id = v_new and e.event = 'created_listed' and e.actor_id = u13
+                   and e.area_name = 'Probe Overlap' and e.area_center_lat = 0.52 and e.area_center_lng = -150.0
+                   and e.area_radius_miles = 1 and e.overlapping_ids = array[c2] and e.reason = 'Probe reason'));
+  perform pg_temp.probe_ok(v_probe, 'every platform admin got exactly one announcement bell row with the area and the reason, and nobody else',
+    (select count(*) from public.notifications n where n.community_id = v_new) = cardinality(v_admins)
+    and (select count(distinct n.user_id) from public.notifications n
+          where n.community_id = v_new and n.type = 'announcement' and n.user_id = any (v_admins)
+            and n.title = 'New community: Probe Listed Thirteen'
+            and n.body = 'Created by Probe 513. Listed · Probe Overlap (1 mi). Reason: Probe reason') = cardinality(v_admins));
+  perform pg_temp.probe_ok(v_probe, 'no push was queued for those rows',
+    not exists (select 1 from public.notification_queue q
+                 where q.payload -> 'data' ->> 'notification_id' in
+                       (select n.id::text from public.notifications n where n.community_id = v_new)));
+
+  -- listed, no overlap, no reason, a label with a ZIP code after the town (R-G4, R21)
+  j := pg_temp.probe_call(u10, format(
+    'public.create_community_with_area(p_name => %L, p_listed => true, p_area_name => %L, p_center_lat => 0.5, p_center_lng => -140.0, p_radius_miles => 1)',
+    'Probe Far Ten', 'Seattle 98101'));
+  perform pg_temp.probe_ok(v_probe, 'u10 creates a listed community with no overlap and no reason: ' || j::text, j ->> 'success' = 'true');
+  v_far := (j ->> 'community_id')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'one created_listed event with an empty overlap list and no reason',
+    (select count(*) from public.community_listing_events e where e.community_id = v_far) = 1
+    and exists (select 1 from public.community_listing_events e
+                 where e.community_id = v_far and e.event = 'created_listed' and e.overlapping_ids = '{}'::uuid[]
+                   and e.reason is null and e.area_name = 'Seattle 98101'));
+  perform pg_temp.probe_ok(v_probe, 'the admins'' rows say listed without a reason',
+    (select count(distinct n.user_id) from public.notifications n
+      where n.community_id = v_far and n.user_id = any (v_admins)
+        and n.body = 'Created by Probe 510. Listed · Seattle 98101 (1 mi).') = cardinality(v_admins));
+  j := pg_temp.probe_call(u13, format('public.create_community_with_area(%L, null, %L)', 'Probe Open', 'open'));
+  perform pg_temp.probe_ok(v_probe, 'the open policy is refused with code invalid: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'code' = 'invalid');
+
+  -- update_community_access: refusals in order (ruling R8)
+  j := pg_temp.probe_call(null, format('public.update_community_access(%L::uuid, true, %L)', c1, 'approve'), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call update_community_access (42501): ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501');
+  j := pg_temp.probe_call(u5, format('public.update_community_access(%L::uuid, true, %L)', c1, 'approve'));
+  k := pg_temp.probe_call(u13, format('public.update_community_access(%L::uuid, true, %L)', c1, 'approve'));
+  perform pg_temp.probe_ok(v_probe, format('an admin of C1 and a non-member get not_owner: %s / %s', j, k),
+    j ->> 'code' = 'not_owner' and k ->> 'code' = 'not_owner');
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L)', gen_random_uuid(), 'approve'));
+  k := pg_temp.probe_call(u4, format('public.update_community_access(null, true, %L)', 'approve'));
+  perform pg_temp.probe_ok(v_probe, format('an unknown or null id gets invalid: %s / %s', j, k),
+    j ->> 'code' = 'invalid' and k ->> 'code' = 'invalid');
+  v_calls := array[format('null, %L', 'approve'), 'true, null', format('true, %L', 'open'),
+                   format('true, %L, %L', 'approve', 'Probe One Area'),
+                   format('true, %L, %L, 0.48, -150.0, 3', 'approve', 'Probe One Area'),
+                   format('true, %L, %L, 0.48, -150.0, 1', 'approve', '12 Probe Street')];
+  v_codes := array['invalid', 'invalid', 'invalid', 'invalid_area', 'invalid_area', 'invalid_area'];
+  for i in 1 .. cardinality(v_calls) loop
+    j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, %s)', c1, v_calls[i]));
+    perform pg_temp.probe_ok(v_probe, format('C1''s owner, case %s (%s), gets %s: %s', i, v_calls[i], v_codes[i], j),
+      not (j ? 'raised') and j ->> 'success' = 'false' and j ->> 'code' = v_codes[i]);
+  end loop;
+
+  -- set_community_public needs an area to list (unlisting does not)
+  j := pg_temp.probe_call(v_admin, format('public.set_community_public(%L::uuid, true)', c1));
+  perform pg_temp.probe_ok(v_probe, 'set_community_public lists no community without an area: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'code' = 'needs_area'
+    and not (select c.is_public from public.communities c where c.id = c1));
+  j := pg_temp.probe_call(v_admin, format('public.set_community_public(%L::uuid, false)', c2));
+  perform pg_temp.probe_ok(v_probe, 'set_community_public unlists C2 (control): ' || j::text,
+    j ->> 'success' = 'true' and not (select c.is_public from public.communities c where c.id = c2));
+  j := pg_temp.probe_call(v_admin, format('public.set_community_public(%L::uuid, true)', c2));
+  perform pg_temp.probe_ok(v_probe, 'and lists C2 again, which has an area: ' || j::text,
+    j ->> 'success' = 'true' and (select c.is_public from public.communities c where c.id = c2));
+
+  -- hidden -> listed
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L)', c1, 'approve'));
+  perform pg_temp.probe_ok(v_probe, 'listing C1 without an area gets needs_area: ' || j::text, j ->> 'code' = 'needs_area');
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L, %L, 0.48, -150.0, 1)',
+                                     c1, 'approve', 'Probe One Area'));
+  perform pg_temp.probe_ok(v_probe, 'listing C1 over C2 without a reason gets reason_required: ' || j::text,
+    j ->> 'code' = 'reason_required'
+    and (select not c.is_public and c.area_name is null from public.communities c where c.id = c1));
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L, %L, 0.48, -150.0, 1, %L)',
+                                     c1, 'approve', 'Probe One Area', 'Probe reason'));
+  perform pg_temp.probe_ok(v_probe, 'with a reason C1 is listed: ' || j::text,
+    j ->> 'success' = 'true' and j ->> 'changed' = 'true'
+    and (select c.is_public and c.join_policy = 'approve' and c.area_name = 'Probe One Area' and c.area_center_lat = 0.48
+                and c.area_radius_miles = 1 from public.communities c where c.id = c1));
+  perform pg_temp.probe_ok(v_probe, 'one listed event naming C2 and the reason',
+    (select count(*) from public.community_listing_events e where e.community_id = c1) = 1
+    and exists (select 1 from public.community_listing_events e
+                 where e.community_id = c1 and e.event = 'listed' and e.actor_id = u4 and e.overlapping_ids = array[c2]
+                   and e.reason = 'Probe reason' and e.area_name = 'Probe One Area' and e.area_radius_miles = 1));
+  perform pg_temp.probe_ok(v_probe, 'u3, u5, u7 and u11 each got one "changed how people join" row; u4 and pending u9 none',
+    (select count(*) from public.notifications n
+      where n.community_id = c1 and n.title = v_title and n.type = 'announcement'
+        and n.body = 'Listed · Ask to join.' and n.user_id = any (v_members)) = 4
+    and (select count(distinct n.user_id) from public.notifications n
+          where n.community_id = c1 and n.title = v_title and n.user_id = any (v_members)) = 4
+    and not exists (select 1 from public.notifications n
+                     where n.community_id = c1 and n.title = v_title and n.user_id in (u4, u9)));
+  perform pg_temp.probe_ok(v_probe, 'every platform admin got one "Now listed" row with the area and the reason',
+    (select count(distinct n.user_id) from public.notifications n
+      where n.community_id = c1 and n.type = 'announcement' and n.user_id = any (v_admins)
+        and n.title = 'Now listed: Probe Community One'
+        and n.body = 'Probe One Area (1 mi). Reason: Probe reason') = cardinality(v_admins)
+    and (select count(*) from public.notifications n
+          where n.community_id = c1 and n.title = 'Now listed: Probe Community One') = cardinality(v_admins));
+  perform pg_temp.probe_ok(v_probe, 'no push was queued for those rows (probe_world''s new_ride rows for C1 are not counted)',
+    not exists (select 1 from public.notification_queue q
+                 where q.payload -> 'data' ->> 'notification_id' in
+                       (select n.id::text from public.notifications n
+                         where n.community_id = c1
+                           and n.title in (v_title, 'Now listed: Probe Community One'))));
+
+  -- the same values again change nothing
+  v_n := (select count(*) from public.notifications n where n.community_id = c1);
+  v_e := (select count(*) from public.community_listing_events e where e.community_id = c1);
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L, %L, 0.48, -150.0, 1, %L)',
+                                     c1, 'approve', 'Probe One Area', 'Probe reason'));
+  perform pg_temp.probe_ok(v_probe, 'a repeat answers changed = false and writes no row: ' || j::text,
+    j ->> 'success' = 'true' and j ->> 'changed' = 'false'
+    and (select count(*) from public.notifications n where n.community_id = c1) = v_n
+    and (select count(*) from public.community_listing_events e where e.community_id = c1) = v_e);
+
+  -- a policy change (no area sent): members told, no listing event
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L)', c1, 'invite'));
+  perform pg_temp.probe_ok(v_probe, 'C1 becomes invite only: ' || j::text,
+    j ->> 'changed' = 'true'
+    and (select c.join_policy = 'invite' and c.area_name = 'Probe One Area' from public.communities c where c.id = c1)
+    and (select count(*) from public.community_listing_events e where e.community_id = c1) = v_e
+    and (select count(*) from public.notifications n
+          where n.community_id = c1 and n.title = v_title and n.body = 'Listed · Invite only.'
+            and n.user_id = any (v_members)) = 4);
+
+  -- an area move while listed, away from every area: area_moved, no member notice, no reason needed
+  v_n := (select count(*) from public.notifications n where n.community_id = c1);
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L, %L, 0.5, -145.0, 2)',
+                                     c1, 'invite', 'Probe One Far'));
+  perform pg_temp.probe_ok(v_probe, 'C1 moves its area: ' || j::text,
+    j ->> 'changed' = 'true'
+    and (select c.area_name = 'Probe One Far' and c.area_center_lng = -145.0 and c.area_radius_miles = 2
+           from public.communities c where c.id = c1)
+    and exists (select 1 from public.community_listing_events e
+                 where e.community_id = c1 and e.event = 'area_moved' and e.overlapping_ids = '{}'::uuid[]
+                   and e.reason is null and e.area_name = 'Probe One Far')
+    and (select count(*) from public.notifications n where n.community_id = c1) = v_n);
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L, %L, 0.48, -150.0, 1)',
+                                     c1, 'invite', 'Probe One Area'));
+  perform pg_temp.probe_ok(v_probe, 'moving it back over C2 without a reason gets reason_required: ' || j::text,
+    j ->> 'code' = 'reason_required');
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, true, %L, null, null, null, null, %L)',
+                                     c1, 'approve', repeat('x', 301)));
+  perform pg_temp.probe_ok(v_probe, 'a reason over 300 characters gets reason_required with no overlap (R12): ' || j::text,
+    j ->> 'code' = 'reason_required'
+    and (select c.join_policy from public.communities c where c.id = c1) = 'invite');
+
+  -- unlisting: members told, no listing event; the default community stays listed
+  v_e := (select count(*) from public.community_listing_events e where e.community_id = c1);
+  j := pg_temp.probe_call(u4, format('public.update_community_access(%L::uuid, false, %L)', c1, 'invite'));
+  perform pg_temp.probe_ok(v_probe, 'C1 is hidden again, members told, no listing event: ' || j::text,
+    j ->> 'changed' = 'true' and not (select c.is_public from public.communities c where c.id = c1)
+    and (select count(*) from public.community_listing_events e where e.community_id = c1) = v_e
+    and (select count(*) from public.notifications n
+          where n.community_id = c1 and n.title = v_title and n.body = 'Hidden · Invite only.'
+            and n.user_id = any (v_members)) = 4);
+  j := pg_temp.probe_call(v_downer, format('public.update_community_access(%L::uuid, false, %L)', d,
+                                           (select c.join_policy from public.communities c where c.id = d)));
+  perform pg_temp.probe_ok(v_probe, 'the default community''s owner cannot unlist it: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'code' = 'default_stays_listed');
+
+  -- get_community_preview: the area keys, and is_example on every request
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id)
+  values (v_ride, u12, current_date + 2, '09:00', 'Probe pickup', 'Probe destination', 'open', c2);
+  j := pg_temp.probe_call(u3, format('public.get_community_preview(%L::uuid)', c2));
+  perform pg_temp.probe_ok(v_probe, 'C2''s preview carries its area: ' || left(j::text, 500),
+    j ->> 'success' = 'true' and j #>> '{community,area_name}' = 'Probe Town'
+    and (j #>> '{community,area_center_lat}')::double precision = 0.5
+    and (j #>> '{community,area_center_lng}')::double precision = -150.0
+    and (j #>> '{community,area_radius_miles}')::int = 2);
+  perform pg_temp.probe_ok(v_probe, 'every request carries is_example; the ride''s is false: ' || (j -> 'requests')::text,
+    jsonb_array_length(j -> 'requests') > 0
+    and not exists (select 1 from jsonb_array_elements(j -> 'requests') e where jsonb_typeof(e -> 'is_example') <> 'boolean'
+                       or not (e ? 'is_example'))
+    and exists (select 1 from jsonb_array_elements(j -> 'requests') e
+                 where e ->> 'id' = v_ride::text and e -> 'is_example' = 'false'::jsonb));
+
+  -- get_platform_communities: the new keys and the newest listing event
+  update public.communities set archived_at = now(), merged_into_id = c2, merged_at = now() where id = c3;
+  j := pg_temp.probe_call(v_admin, 'public.get_platform_communities()');
+  perform pg_temp.probe_ok(v_probe, 'the platform list answers with an empty merge_proposals list: ' || left(j::text, 300),
+    j ->> 'success' = 'true' and j -> 'merge_proposals' = '[]'::jsonb and j ? 'limit_requests');
+  perform pg_temp.probe_ok(v_probe, 'every community row has the eleven new keys',
+    not exists (select 1 from jsonb_array_elements(j -> 'communities') e where not (e ?& v_keys)));
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = v_new::text);
+  perform pg_temp.probe_ok(v_probe, 'u13''s community: created_listed, the reason, C2 by name, the area: ' || coalesce(k::text, 'null'),
+    k ->> 'listing_event' = 'created_listed' and k ->> 'listing_reason' = 'Probe reason'
+    and k -> 'listing_overlaps' = '["Probe Public Two"]'::jsonb and k ->> 'listing_event_at' is not null
+    and k ->> 'area_name' = 'Probe Overlap' and (k ->> 'area_center_lat')::double precision = 0.52
+    and (k ->> 'area_center_lng')::double precision = -150.0 and (k ->> 'area_radius_miles')::int = 1
+    and k -> 'is_test' = 'false'::jsonb and k -> 'merged_into_id' = 'null'::jsonb
+    and k -> 'merged_into_name' = 'null'::jsonb);
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = v_far::text);
+  perform pg_temp.probe_ok(v_probe, 'u10''s community: an empty overlap list and no reason: ' || coalesce(k::text, 'null'),
+    k ->> 'listing_event' = 'created_listed' and k -> 'listing_overlaps' = '[]'::jsonb
+    and k -> 'listing_reason' = 'null'::jsonb);
+  k := (select e from jsonb_array_elements(j -> 'communities') e where e ->> 'id' = c3::text);
+  perform pg_temp.probe_ok(v_probe, 'C3: no listing event, merged into C2 by id and name: ' || coalesce(k::text, 'null'),
+    k -> 'listing_event' = 'null'::jsonb and k -> 'listing_overlaps' = 'null'::jsonb
+    and k -> 'listing_event_at' = 'null'::jsonb
+    and k ->> 'merged_into_id' = c2::text and k ->> 'merged_into_name' = 'Probe Public Two');
+  j := pg_temp.probe_call(u4, 'public.get_platform_communities()');
+  perform pg_temp.probe_ok(v_probe, 'the platform list is refused to a community owner: ' || j::text,
+    j ->> 'success' = 'false');
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE listing_rules OK' as probe;
 
 select 'PROBE ALL OK' as probe;
