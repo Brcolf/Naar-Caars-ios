@@ -93,10 +93,9 @@ enum MapError: LocalizedError {
 final class MapService {
     static let shared = MapService()
     
-    // No shared CLGeocoder. One instance runs one request at a time: a request started on it
-    // while another is in flight never calls its completion handler, so its await never returns
-    // (the ride-cost estimate geocodes both addresses at once and hung that way). Each
-    // `geocode(address:)` call makes its own.
+    // Addresses are geocoded through `PlaceGeocoder` (`MKGeocodingRequest`, one request object per
+    // call), which replaced the deprecated `CLGeocoder`. A shared `CLGeocoder` once hung the ride-cost
+    // estimate, which geocodes both addresses at once; per-call requests keep that from coming back.
     
     private init() {}
     
@@ -122,9 +121,6 @@ final class MapService {
         
         AppLogger.info("map", "Geocoding: '\(trimmedAddress)'")
         
-        // This call's own geocoder (see the note above `init`); the attempts below run one after the other on it.
-        let geocoder = CLGeocoder()
-        
         // Strategy: If it looks like a POI (no numbers at start, or contains "Airport", "Station", etc.), 
         // try MKLocalSearch first as it's much better for these.
         let looksLikePOI = !(trimmedAddress.first?.isNumber ?? false) ||
@@ -140,49 +136,30 @@ final class MapService {
             }
         }
 
-        // Attempt 1: Try geocoding with region hint
-        do {
-            let placemarks = try await geocoder.geocodeAddressString(
-                trimmedAddress,
-                in: Self.seattleRegion
-            )
-            
-            if let location = placemarks.first?.location?.coordinate {
-                AppLogger.info("map", "Success with region hint: \(location.latitude), \(location.longitude)")
-                return location
-            }
-        } catch {
-            // Only log if it's not a "not found" error to reduce noise
-            if (error as NSError).code != 8 {
-                AppLogger.warning("map", "Region hint error: \(error.localizedDescription)")
-            }
-        }
-        
-        // Attempt 2: Try without region hint
-        do {
-            let placemarks = try await geocoder.geocodeAddressString(trimmedAddress)
-            
-            if let location = placemarks.first?.location?.coordinate {
-                AppLogger.info("map", "Success without region hint: \(location.latitude), \(location.longitude)")
-                return location
-            }
-        } catch {
-            if (error as NSError).code != 8 {
-                AppLogger.warning("map", "Without region hint error: \(error.localizedDescription)")
-            }
-        }
-        
-        // Attempt 3: Try with ", WA" appended
+        // Attempts 1-3: MapKit geocoding (see the note above `init`), first bounded to the Seattle
+        // region, then unbounded, then with ", WA" appended.
+        let seattleRegion = MKCoordinateRegion(
+            center: Self.seattleRegion.center,
+            latitudinalMeters: Self.seattleRegion.radius * 2,
+            longitudinalMeters: Self.seattleRegion.radius * 2
+        )
+        var queries: [(address: String, region: MKCoordinateRegion?)] = [
+            (trimmedAddress, seattleRegion),
+            (trimmedAddress, nil)
+        ]
         if !trimmedAddress.localizedCaseInsensitiveContains(", wa") {
-            let waAddress = "\(trimmedAddress), WA"
+            queries.append(("\(trimmedAddress), WA", nil))
+        }
+        for (index, query) in queries.enumerated() {
             do {
-                let placemarks = try await geocoder.geocodeAddressString(waAddress)
-                if let location = placemarks.first?.location?.coordinate {
-                    AppLogger.info("map", "Success with WA suffix: \(location.latitude), \(location.longitude)")
-                    return location
+                if let place = try await PlaceGeocoder.shared.place(forAddress: query.address, in: query.region) {
+                    AppLogger.info("map", "Success with geocoding attempt \(index + 1)")
+                    return CLLocationCoordinate2D(latitude: place.point.latitude, longitude: place.point.longitude)
                 }
             } catch {
-                AppLogger.info("map", "WA suffix geocoding failed: \(error.localizedDescription)")
+                if (error as? MKError)?.code != .placemarkNotFound {
+                    AppLogger.warning("map", "Geocoding attempt \(index + 1) error: \(error.localizedDescription)")
+                }
             }
         }
         

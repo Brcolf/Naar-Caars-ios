@@ -954,3 +954,40 @@ final class StubTownHallPostFetcher: TownHallPostFetching {
         postsById[id]
     }
 }
+
+/// Stub for `PlaceGeocoding`: forward answers by exact query (and address), one reverse answer,
+/// and every call recorded.
+final class StubPlaceGeocoder: PlaceGeocoding {
+    var forwardResults: [String: GeocodedPlace] = [:]
+    private(set) var forwardCalls: [String] = []
+    var reverseResult: GeocodedPlace?
+    private(set) var reverseCalls: [GeoPoint] = []
+
+    func resolveTownOrZIP(_ query: String) async throws -> GeocodedPlace? {
+        forwardCalls.append(query)
+        return forwardResults[query]
+    }
+
+    func resolveTownOrZIP(at point: GeoPoint) async throws -> GeocodedPlace? {
+        reverseCalls.append(point)
+        return reverseResult
+    }
+
+    func place(forAddress address: String) async throws -> GeocodedPlace? {
+        forwardCalls.append(address)
+        return forwardResults[address]
+    }
+}
+
+/// Stub for `OneShotLocating`: a set access state and fix (returned whatever `access` says, so a
+/// test controls both), and the number of fixes asked for.
+final class StubLocator: OneShotLocating {
+    var access: LocationAccess = .allowed
+    var location: GeoPoint?
+    private(set) var currentLocationCalls = 0
+
+    func currentLocation(timeout: TimeInterval) async -> GeoPoint? {
+        currentLocationCalls += 1
+        return location
+    }
+}

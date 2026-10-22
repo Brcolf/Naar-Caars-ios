@@ -819,16 +819,17 @@ struct FavorDetailView: View {
         let googleMapsWebUrl = URL(string: "\(Constants.URLs.googleMapsSearch)?api=1&query=\(location)")
         
         // Apple Maps via MKMapItem
-        let appleMapsOpen = {
-            let geocoder = CLGeocoder()
+        let appleMapsOpen: () -> Void = {
             Task {
                 do {
-                    let placemarks = try await geocoder.geocodeAddressString(favor.location)
-                    guard let placemark = placemarks.first else {
+                    guard let place = try await PlaceGeocoder.shared.place(forAddress: favor.location) else {
                         throw NSError(domain: "Maps", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not geocode address"])
                     }
                     
-                    let mapItem = MKMapItem(placemark: MKPlacemark(placemark: placemark))
+                    let mapItem = MKMapItem(
+                        location: CLLocation(latitude: place.point.latitude, longitude: place.point.longitude),
+                        address: MKAddress(fullAddress: favor.location, shortAddress: nil)
+                    )
                     mapItem.name = favor.title
                     
                     let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]

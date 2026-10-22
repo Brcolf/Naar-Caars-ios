@@ -311,6 +311,9 @@
 		AC7A1D633089AAA600908D08 /* CommunityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D623089AAA600908D08 /* CommunityPageView.swift */; };
 		AC7A1D663089C68700908D08 /* RequestsHeaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D653089C68700908D08 /* RequestsHeaderTests.swift */; };
 		AC7A1D68308AA69B00908D08 /* CommunityDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D67308AA69B00908D08 /* CommunityDiscovery.swift */; };
+		AC7A1D6A308AAA2300908D08 /* PlaceQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D69308AAA2300908D08 /* PlaceQueryTests.swift */; };
+		AC7A1D6C308AAA7300908D08 /* PlaceGeocoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D6B308AAA7300908D08 /* PlaceGeocoding.swift */; };
+		AC7A1D6E308AAA9300908D08 /* PlaceGeocoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D6D308AAA9300908D08 /* PlaceGeocoder.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -870,6 +873,9 @@
 		AC7A1D623089AAA600908D08 /* CommunityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageView.swift; sourceTree = "<group>"; };
 		AC7A1D653089C68700908D08 /* RequestsHeaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsHeaderTests.swift; sourceTree = "<group>"; };
 		AC7A1D67308AA69B00908D08 /* CommunityDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityDiscovery.swift; sourceTree = "<group>"; };
+		AC7A1D69308AAA2300908D08 /* PlaceQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceQueryTests.swift; sourceTree = "<group>"; };
+		AC7A1D6B308AAA7300908D08 /* PlaceGeocoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceGeocoding.swift; sourceTree = "<group>"; };
+		AC7A1D6D308AAA9300908D08 /* PlaceGeocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceGeocoder.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1243,6 +1249,7 @@
 				AC410C843085B77700D921E2 /* AdminServiceProtocol.swift */,
 				ACBB62EA3086FE550016DEE5 /* StorageURLResolving.swift */,
 				ACBB62F2308701BD0016DEE5 /* VoiceNotePrefetching.swift */,
+				AC7A1D6B308AAA7300908D08 /* PlaceGeocoding.swift */,
 			);
 			path = Protocols;
 			sourceTree = "<group>";
@@ -2041,6 +2048,7 @@
 				AC410C343085452000D921E2 /* PreviewCommunityService.swift */,
 				AC410C863085B79000D921E2 /* PreviewAdminService.swift */,
 				ACBB62EC3086FE560016DEE5 /* StorageURLSigner.swift */,
+				AC7A1D6D308AAA9300908D08 /* PlaceGeocoder.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -2314,6 +2322,7 @@
 				6269689ACFD3BFE689480804 /* FlightCodeParserTests.swift */,
 				AC410C7630857BF000D921E2 /* PendingInviteStoreTests.swift */,
 				ACBB62E83086FBA00016DEE5 /* GeocodingCacheServiceTests.swift */,
+				AC7A1D69308AAA2300908D08 /* PlaceQueryTests.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -2665,6 +2674,7 @@
 				AC1200B12F3C11110043BFAE /* SyncEngineProtocol.swift in Sources */,
 				AC1200B32F3C11110043BFAE /* SyncEngineOrchestrator.swift in Sources */,
 				D15000012F3D00010043BFAE /* NotificationGroupingManager.swift in Sources */,
+				AC7A1D6C308AAA7300908D08 /* PlaceGeocoding.swift in Sources */,
 				D15000022F3D00010043BFAE /* NotificationNavigationRouter.swift in Sources */,
 				D15000032F3D00010043BFAE /* NotificationRealtimeHandler.swift in Sources */,
 				AC410C7930857C2700D921E2 /* PendingInviteStore.swift in Sources */,
@@ -2804,6 +2814,7 @@
 				AC410C7B30857C4600D921E2 /* InviteCodeEntrySheet.swift in Sources */,
 				AC305ED22F0DB79E0063AFDF /* CreateFavorView.swift in Sources */,
 				ACD19A552F14D3A8009C1DE5 /* AppLogger.swift in Sources */,
+				AC7A1D6E308AAA9300908D08 /* PlaceGeocoder.swift in Sources */,
 				AC12004B2F37B2090043BFAE /* LocalAttachmentStorage.swift in Sources */,
 				ACD19A642F160FFA009C1DE5 /* ConversationDisplayNameCache.swift in Sources */,
 				ACBF4AFD2F12CB86006A7C8A /* LanguageSettingsView.swift in Sources */,
@@ -3109,6 +3120,7 @@
 				AC2B00012F9A0001FACEDB01 /* NotificationTypeDomainMappingTests.swift in Sources */,
 				AC2B00032F9A0003FACEDB03 /* RefreshCoordinatorTests.swift in Sources */,
 				AC9DDD392F2B139C003465D3 /* ConversationsListViewModelTests.swift in Sources */,
+				AC7A1D6A308AAA2300908D08 /* PlaceQueryTests.swift in Sources */,
 				AC7A1D5F3089A8C700908D08 /* CommunityPageViewModelTests.swift in Sources */,
 				7B8F9E1C2D3E4F5A6B7C8D9E /* MessageServiceTests.swift in Sources */,
 				7FC1B85E59ED46EC979DDA25 /* ProfileServiceTests.swift in Sources */,
