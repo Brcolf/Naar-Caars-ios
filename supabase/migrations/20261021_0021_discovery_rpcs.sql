@@ -55,6 +55,40 @@
 -- false / true), as that header records. create_community(text, text, text, text) unchanged
 -- (b499c74a3371cc051f02a4bcd19b54f3). No header or grant changed.
 --
+-- Final-review fix (Block 9), APPLIED 2026-10-22 through the MCP apply_migration as 20261021_0021_block_9 (version
+-- 20261022192256), text byte for byte from this file. The whole-branch review (finding I2) found that Test
+-- Community's 10-mile Seattle area (S5a's data) made it an overlapping community for every listed community created
+-- or listed in Seattle: check_community_area at Seattle points returned it (1.3 and 6.7 miles), so a real owner had
+-- to give a reason for a community beside the example community, and every platform admin's bell row carried it.
+-- Block 9 re-creates overlapping_listed_communities(double precision, double precision, integer, uuid) from Block
+-- 3's live body (md5 6bba53d116095861adb7ff5e24541780, read live before the edit) with one predicate, `and not
+-- c.is_default`, the review's first option, which spec 4.11 supports (Test Community holds example content only).
+-- check_community_area, create_community_with_area and update_community_access call it, so all three stop naming
+-- the default community; find_communities_near and search_communities_by_name do not call it and still return it.
+--   Deployed md5(prosrc) 51866bc733377f21504ef80408d2e8e6 (equal to the text between this file's Block 9
+--   $function$ delimiters, python3 -I); sql, stable, security definer, search_path ""; ACL
+--   {postgres=X/postgres,service_role=X/postgres}, anon false / authenticated false (internal, as before). Live
+--   check after the apply (rolled back, a signed-in non-member): check_community_area(47.6205, -122.3493, 2) and
+--   (47.70, -122.30, 1) return no community; find_communities_near(47.6205, -122.3493) still returns Test Community.
+--   Probe listing_rules gains: with a 10-mile probe area on the default community, check_community_area inside it
+--   returns nothing and a listed creation inside it needs no reason (an empty overlap list), while
+--   find_communities_near still finds the default community there (control). Owner decision: the alternatives were
+--   no area for Test Community, or keeping the overlap and explaining it in the create screen's copy; revert with
+--   the rollback below if the owner prefers either.
+--   Rollback (MCP): Block 3's overlapping_listed_communities text (md5 6bba53d116095861adb7ff5e24541780); the ACL
+--   stays as it is.
+--   Verification, 2026-10-22. Live md5 read first (the rollback source above, equal to this file's text). Dry run:
+--   supabase/dryruns/20261021_0021_0022_final_fix.dryrun.sql (PARAMETERS, HELPERS without commit, begin, 0021 Block 9,
+--   0022 Block 11, the probes listing_rules, community_merge and short as savepoints, rollback; no commit, one begin,
+--   one rollback, 3 savepoints and 3 releases), sent in one execute_sql call with full-line comments stripped:
+--   DRYRUN 20261021_0021_0022_final_fix OK on the first attempt; both md5 values unchanged afterwards. Apply order:
+--   0022 Block 11 (version 20261022192214), PROBE short OK, then 0021 Block 9 (version 20261022192256), PROBE short
+--   OK. Then the whole probe file as task S6 ran it (seven rolled-back calls, PARAMETERS and the whole HELPERS section
+--   in each, full-line comments stripped): 34 blocks, each call's last row its last block's OK (legacy_bridges
+--   returns at its SKIPPED notice); posts_delete_policy and storage_private stay the owner's SQL-editor blocks.
+--   Afterwards: no probe account, community, proposal, listing event, block or merged community was left; 11
+--   example rows, 4 test communities, the five triggers enabled, the cron job active.
+--
 -- File B of Community Release 2 (discovery: community areas, search, listing rules, merging, example content;
 -- Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-design.md 4.2, 4.6, 4.10; plan
 -- Docs/superpowers/plans/2026-10-21-community-release2-discovery-sql.md, task S2, with the orchestrator's rulings
@@ -1032,3 +1066,42 @@ $function$;
 
 revoke all on function public.get_platform_communities() from public, anon;
 grant execute on function public.get_platform_communities() to authenticated, service_role;
+
+
+-- ============================================================================================
+-- BLOCK 9: public.overlapping_listed_communities(...)   live md5 6bba53d116095861adb7ff5e24541780 (Block 3)
+-- Final review I2: the default community (Test Community, example content only, spec 4.11) is never an overlap, so
+-- a real owner in its area is not asked for a reason and the nearby check does not point at it. One predicate,
+-- `and not c.is_default`; find_communities_near and search still return it. Same signature, same ACL (internal).
+-- ============================================================================================
+create or replace function public.overlapping_listed_communities(
+  p_center_lat double precision, p_center_lng double precision, p_radius_miles integer, p_exclude uuid)
+returns table (id uuid, name text, description text, join_policy text, area_name text, area_radius_miles integer,
+               member_count integer, distance_miles numeric)
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select d.id, d.name, d.description, d.join_policy, d.area_name, d.area_radius_miles,
+         (select count(*) from public.community_members m
+            join public.profiles p on p.id = m.user_id
+           where m.community_id = d.id and m.status = 'active'
+             and not coalesce(p.is_banned, false))::integer,
+         round(d.miles::numeric, 1)
+    from (
+      select c.id, c.name, c.description, c.join_policy, c.area_name, c.area_radius_miles,
+             public.great_circle_miles(c.area_center_lat, c.area_center_lng, p_center_lat, p_center_lng) as miles
+        from public.communities c
+       where c.is_public and c.archived_at is null and c.area_radius_miles is not null
+         and c.id is distinct from p_exclude
+         and not c.is_default
+    ) d
+   where d.miles < d.area_radius_miles + p_radius_miles
+     and public.can_discover_community(d.id)
+   order by d.miles, d.name, d.id
+   limit 20;
+$function$;
+
+revoke all on function public.overlapping_listed_communities(double precision, double precision, integer, uuid)
+  from public, anon, authenticated;

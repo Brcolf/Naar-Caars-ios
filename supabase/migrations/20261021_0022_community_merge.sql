@@ -53,6 +53,40 @@
 -- unarchive_community: anon false, authenticated true. post_community_announcement, merge_communities: anon false,
 -- authenticated false. community_merge_proposals is empty and no community is merged. No header or grant changed.
 --
+-- Final-review fix (Block 11), APPLIED 2026-10-22 through the MCP apply_migration as 20261021_0022_block_11 (version
+-- 20261022192214), text byte for byte from this file. The whole-branch review (finding I1) found that a proposal
+-- pushes every other owner of the target community, with the proposer's community name in the text, and that
+-- withdraw-then-propose had no limit and ignored blocks. Block 11 re-creates propose_community_merge(uuid, uuid,
+-- uuid, text) from Block 5's live body (md5 71a9052450623653c2f6ffc0bac5cd8a, read live before the edit) with three
+-- additions and nothing else: (1) a per-caller transaction advisory lock before the two per-community locks;
+-- (2) after the other-community checks, a block either way between the caller and an active owner of the other
+-- community refuses with code invalid ('Choose another community to merge with', which does not say why), writing
+-- no proposal and no notice; (3) after the 7-day decline rule, a proposal between the two (either direction)
+-- withdrawn within 24 hours refuses with code recently_declined ('This merge was withdrawn in the last 24 hours'),
+-- and a caller with 3 proposals created in the last 24 hours refuses with code rate_limited ('Too many merge
+-- proposals today. Try again tomorrow'). Both codes are in the client's CommunityRefusalCode, so no client change.
+--   Deployed md5(prosrc) b20a74be1b63ffdd2b4db70cda47186f (equal to the text between this file's Block 11
+--   $function$ delimiters, python3 -I); plpgsql, security definer, search_path "", volatile; ACL
+--   {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}, anon false / authenticated true (the
+--   live ACL restated). Probe community_merge gains: re-proposing within 24 hours of a withdrawal refused in both
+--   directions (and allowed 25 hours later), a caller's fourth proposal in 24 hours refused with nothing written and
+--   no new notice, a block either way refused with no proposal and no notice, and a block with an admin (not an
+--   owner) of the other community as the control.
+--   Not done (review option (c), optional): propose still accepts a hidden or test community by id; a hidden one
+--   is proposable by design (spec 4.12, exact name), and the block, cool-down and cap close the push path.
+--   Rollback (MCP): Block 5's text (md5 71a9052450623653c2f6ffc0bac5cd8a); the ACL stays as it is.
+--   Verification, 2026-10-22. Live md5 read first (the rollback source above, equal to this file's text). Dry run:
+--   supabase/dryruns/20261021_0021_0022_final_fix.dryrun.sql (PARAMETERS, HELPERS without commit, begin, 0021 Block 9,
+--   0022 Block 11, the probes listing_rules, community_merge and short as savepoints, rollback; no commit, one begin,
+--   one rollback, 3 savepoints and 3 releases), sent in one execute_sql call with full-line comments stripped:
+--   DRYRUN 20261021_0021_0022_final_fix OK on the first attempt; both md5 values unchanged afterwards. Apply order:
+--   0022 Block 11 (version 20261022192214), PROBE short OK, then 0021 Block 9 (version 20261022192256), PROBE short
+--   OK. Then the whole probe file as task S6 ran it (seven rolled-back calls, PARAMETERS and the whole HELPERS section
+--   in each, full-line comments stripped): 34 blocks, each call's last row its last block's OK (legacy_bridges
+--   returns at its SKIPPED notice); posts_delete_policy and storage_private stay the owner's SQL-editor blocks.
+--   Afterwards: no probe account, community, proposal, listing event, block or merged community was left; 11
+--   example rows, 4 test communities, the five triggers enabled, the cron job active.
+--
 -- File C of Community Release 2 (discovery: community areas, search, listing rules, merging, example content;
 -- Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-design.md 4.12; plan
 -- Docs/superpowers/plans/2026-10-21-community-release2-discovery-sql.md, task S3, with the orchestrator's rulings
@@ -1094,3 +1128,131 @@ $function$;
 
 revoke all on function public.unarchive_community(uuid) from public, anon;
 grant execute on function public.unarchive_community(uuid) to authenticated, service_role;
+
+
+-- ============================================================================================
+-- BLOCK 11: public.propose_community_merge(uuid, uuid, uuid, text)   live md5 71a9052450623653c2f6ffc0bac5cd8a
+-- (Block 5). Final review I1: a proposal pushes the other community's owners, so it now has limits. Refused with
+-- code invalid when the caller and an active owner of the other community have blocked each other (either way);
+-- with code recently_declined when a proposal between the two was withdrawn in the last 24 hours (either
+-- direction); with code rate_limited when the caller has made 3 proposals in the last 24 hours (a per-caller
+-- advisory lock keeps two calls from passing the count together). Same signature, same ACL.
+-- ============================================================================================
+create or replace function public.propose_community_merge(
+  p_community_id uuid,
+  p_other_id uuid,
+  p_survivor_id uuid,
+  p_note text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_uid uuid := (select auth.uid());
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_from record;
+  v_other record;
+  v_survivor_name text;
+  v_body text;
+  v_id uuid;
+  v_owner uuid;
+begin
+  if v_uid is null or not coalesce(public.my_community_role(p_community_id) = 'owner', false) then
+    return jsonb_build_object('success', false, 'error', 'Only the owner can merge this community',
+                              'code', 'not_owner');
+  end if;
+  if p_other_id is null or p_other_id = p_community_id then
+    return jsonb_build_object('success', false, 'error', 'Choose another community to merge with', 'code', 'invalid');
+  end if;
+
+  -- One proposal at a time per caller (the daily cap below), then per community, smaller id first.
+  perform pg_advisory_xact_lock(hashtextextended('community_merge_proposer:' || v_uid::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('community_merge:' || least(p_community_id, p_other_id)::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('community_merge:' || greatest(p_community_id, p_other_id)::text, 0));
+
+  update public.community_merge_proposals
+     set status = 'expired'
+   where status = 'pending' and expires_at <= now()
+     and (from_community_id in (p_community_id, p_other_id) or to_community_id in (p_community_id, p_other_id));
+
+  if p_survivor_id is null or p_survivor_id not in (p_community_id, p_other_id)
+     or char_length(coalesce(v_note, '')) > 300 then
+    return jsonb_build_object('success', false, 'error', 'Choose another community to merge with', 'code', 'invalid');
+  end if;
+
+  select c.name, c.is_default into v_from from public.communities c where c.id = p_community_id;
+  select c.name, c.is_default, c.archived_at, c.merged_into_id into v_other
+    from public.communities c where c.id = p_other_id;
+  if not found or v_other.archived_at is not null or v_other.merged_into_id is not null then
+    return jsonb_build_object('success', false, 'error', 'Choose another community to merge with', 'code', 'invalid');
+  end if;
+  -- A block between the caller and an owner of the other community, either way: no proposal, no notice (the
+  -- answer does not say why).
+  if exists (select 1
+               from public.community_members m
+               join public.blocked_users b
+                 on (b.blocker_id = v_uid and b.blocked_id = m.user_id)
+                 or (b.blocker_id = m.user_id and b.blocked_id = v_uid)
+              where m.community_id = p_other_id and m.status = 'active' and m.role = 'owner') then
+    return jsonb_build_object('success', false, 'error', 'Choose another community to merge with', 'code', 'invalid');
+  end if;
+  if v_from.is_default or v_other.is_default then
+    return jsonb_build_object('success', false, 'error', 'The default community cannot be merged',
+                              'code', 'default_community');
+  end if;
+  if exists (select 1 from public.community_merge_proposals p
+              where p.status = 'pending'
+                and (p.from_community_id in (p_community_id, p_other_id)
+                     or p.to_community_id in (p_community_id, p_other_id))) then
+    return jsonb_build_object('success', false,
+                              'error', 'A merge proposal is already open for one of these communities',
+                              'code', 'merge_pending');
+  end if;
+  if exists (select 1 from public.community_merge_proposals p
+              where p.status = 'declined' and p.decided_at > now() - interval '7 days'
+                and ((p.from_community_id = p_community_id and p.to_community_id = p_other_id)
+                     or (p.from_community_id = p_other_id and p.to_community_id = p_community_id))) then
+    return jsonb_build_object('success', false, 'error', 'This merge was declined in the last 7 days',
+                              'code', 'recently_declined');
+  end if;
+  if exists (select 1 from public.community_merge_proposals p
+              where p.status = 'withdrawn' and p.decided_at > now() - interval '24 hours'
+                and ((p.from_community_id = p_community_id and p.to_community_id = p_other_id)
+                     or (p.from_community_id = p_other_id and p.to_community_id = p_community_id))) then
+    return jsonb_build_object('success', false, 'error', 'This merge was withdrawn in the last 24 hours',
+                              'code', 'recently_declined');
+  end if;
+  if (select count(*) from public.community_merge_proposals p
+       where p.proposed_by = v_uid and p.created_at > now() - interval '24 hours') >= 3 then
+    return jsonb_build_object('success', false, 'error', 'Too many merge proposals today. Try again tomorrow',
+                              'code', 'rate_limited');
+  end if;
+
+  insert into public.community_merge_proposals (from_community_id, to_community_id, survivor_community_id,
+                                                proposed_by, note)
+  values (p_community_id, p_other_id, p_survivor_id, v_uid, v_note)
+  returning id into v_id;
+
+  v_survivor_name := case when p_survivor_id = p_community_id then v_from.name else v_other.name end;
+  v_body := v_from.name || ' proposes making ' || v_from.name || ' and ' || v_other.name || ' one community: '
+            || v_survivor_name || '. Open Manage in ' || v_other.name || ' to accept or decline.';
+  for v_owner in
+    select m.user_id
+      from public.community_members m
+      join public.profiles p on p.id = m.user_id
+     where m.community_id = p_other_id and m.status = 'active' and m.role = 'owner'
+       and not coalesce(p.is_banned, false) and m.user_id <> v_uid
+  loop
+    perform public.notify_user_in_community(
+      v_owner, 'announcement', 'Merge proposal from ' || v_from.name, v_body, p_other_id, true, '{}'::jsonb, v_uid
+    );
+  end loop;
+
+  return jsonb_build_object('success', true, 'proposal_id', v_id);
+end
+$function$;
+
+revoke all on function public.propose_community_merge(uuid, uuid, uuid, text) from public, anon;
+grant execute on function public.propose_community_merge(uuid, uuid, uuid, text) to authenticated, service_role;

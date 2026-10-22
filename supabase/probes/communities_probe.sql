@@ -3685,7 +3685,9 @@ select 'PROBE discovery_search OK' as probe;
 -- policy change; an area move (area_moved, no member notice); a reason over 300 characters; unlisting; the default
 -- community stays listed. get_community_preview: the area keys and is_example on every request.
 -- get_platform_communities: the new keys, the newest listing event, the merge keys, merge_proposals, refused to a
--- non-admin.
+-- non-admin. Block 9 (final review I2): the default community, given a probe area for the transaction, is never an
+-- overlap (check_community_area, and a listed creation inside its area needs no reason) while find_communities_near
+-- still finds it there.
 -- =============================================================================================================
 begin;
 do $probe$
@@ -3971,6 +3973,28 @@ begin
   perform pg_temp.probe_ok(v_probe, 'the default community''s owner cannot unlist it: ' || j::text,
     j ->> 'success' = 'false' and j ->> 'code' = 'default_stays_listed');
 
+  -- the default community is never an overlap (I2): a 10-mile probe area for it, away from every live area
+  perform pg_temp.probe_area(d, 'Probe Default Area', 0.5, -160.0, 10);
+  perform pg_temp.probe_ok(v_probe, 'the default community is listed and unarchived (the case is not vacuous)',
+    exists (select 1 from public.communities c where c.id = d and c.is_public and c.archived_at is null
+              and c.area_radius_miles = 10));
+  j := pg_temp.probe_call(u13, 'public.find_communities_near(0.52, -160.0)');
+  perform pg_temp.probe_ok(v_probe, 'control: find_communities_near finds the default community in its area: '
+                                    || left(j::text, 300),
+    jsonb_path_exists(j, '$.communities[*].id ? (@ == $d)', jsonb_build_object('d', d)));
+  j := pg_temp.probe_call(u13, 'public.check_community_area(0.52, -160.0, 2)');
+  perform pg_temp.probe_ok(v_probe, 'check_community_area inside the default community''s area returns nothing: '
+                                    || left(j::text, 300),
+    j ->> 'success' = 'true' and j -> 'communities' = '[]'::jsonb);
+  j := pg_temp.probe_call(u16, format(
+    'public.create_community_with_area(p_name => %L, p_listed => true, p_area_name => %L, p_center_lat => 0.52, p_center_lng => -160.0, p_radius_miles => 2)',
+    'Probe Beside Default', 'Probe Default Town'));
+  perform pg_temp.probe_ok(v_probe, 'a listed creation inside the default community''s area needs no reason: ' || j::text,
+    j ->> 'success' = 'true'
+    and exists (select 1 from public.community_listing_events e
+                 where e.community_id = (j ->> 'community_id')::uuid and e.event = 'created_listed'
+                   and e.overlapping_ids = '{}'::uuid[] and e.reason is null));
+
   -- get_community_preview: the area keys, and is_example on every request
   perform set_config('request.jwt.claims', '', true);
   insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id)
@@ -4041,7 +4065,10 @@ select 'PROBE listing_rules OK' as probe;
 -- the archive notice for u7 (R15), the system announcement and its pushes (not the accepter, not the muted), the
 -- D14 cap not counting it, get_my_community_merges, the preview, the platform list, no restore (R16); the default
 -- community refused; one owner of both (C6 into C2); an archived side (C1 into C5) withdrawn; a stale pending
--- proposal reads 'expired' in the platform list; merge_communities closed to clients.
+-- proposal reads 'expired' in the platform list; merge_communities closed to clients. Block 11 (final review I1):
+-- re-proposing within 24 hours of a withdrawal answers recently_declined in both directions, a caller's fourth
+-- proposal within 24 hours answers rate_limited and writes nothing, and a block between the caller and an owner of
+-- the other community (either way) answers invalid with no proposal and no notice (an admin's block does not).
 -- =============================================================================================================
 begin;
 do $probe$
@@ -4053,7 +4080,7 @@ declare
   u11 uuid := pg_temp.u(11);  u12 uuid := pg_temp.u(12);  u13 uuid := pg_temp.u(13);  u14 uuid := pg_temp.u(14);
   u16 uuid := pg_temp.u(16);
   c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);  c3 uuid := pg_temp.c(3);
-  c4 uuid;  c5 uuid;  c6 uuid;  c7 uuid;  c8 uuid;
+  c4 uuid;  c5 uuid;  c6 uuid;  c7 uuid;  c8 uuid;  c9 uuid;  c10 uuid;
   v_ids constant jsonpath := '$.communities[*].id ? (@ starts with "00000000-0000-4000-b000-")';
   v_open_ride uuid := pg_temp.r(61);
   v_done_ride uuid := pg_temp.r(62);
@@ -4323,6 +4350,13 @@ begin
   j := pg_temp.probe_call(u14, format('public.withdraw_community_merge(%L::uuid)', v_prop));
   perform pg_temp.probe_ok(v_probe, 'a withdrawn proposal cannot be withdrawn again: ' || j::text,
     j ->> 'code' = 'proposal_closed');
+  j := pg_temp.probe_call(u12, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c2, c3, c2));
+  k := pg_temp.probe_call(u14, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c3, c2, c2));
+  perform pg_temp.probe_ok(v_probe, 'withdrawn within 24 hours, either direction (I1): ' || j::text || ' / ' || k::text,
+    j ->> 'code' = 'recently_declined' and k ->> 'code' = 'recently_declined'
+    and (select count(*) from public.community_merge_proposals
+          where from_community_id in (c2, c3) and to_community_id in (c2, c3)) = 2);
+  update public.community_merge_proposals set decided_at = now() - interval '25 hours' where id = v_prop;
 
   -- expiry
   j := pg_temp.probe_call(u12, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c2, c3, c2));
@@ -4338,10 +4372,20 @@ begin
     and (select status from public.community_merge_proposals where id = v_prop) = 'expired'
     and exists (select 1 from public.communities where id = c3 and archived_at is null));
 
+  -- the daily cap (I1): u12 has made three proposals today; the fourth writes nothing
+  n := (select count(*) from public.notifications where user_id = u14 and title = 'Merge proposal from Probe Public Two');
+  j := pg_temp.probe_call(u12, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c2, c3, c2));
+  perform pg_temp.probe_ok(v_probe, 'u12''s fourth proposal within 24 hours answers rate_limited: ' || j::text,
+    j ->> 'code' = 'rate_limited'
+    and (select count(*) from public.community_merge_proposals where proposed_by = u12) = 3
+    and (select count(*) from public.notifications
+          where user_id = u14 and title = 'Merge proposal from Probe Public Two') = n);
+  update public.community_merge_proposals set created_at = created_at - interval '25 hours' where proposed_by = u12;
+
   -- the merge
   j := pg_temp.probe_call(u12, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c2, c3, c2));
   v_prop := (j ->> 'proposal_id')::uuid;
-  perform pg_temp.probe_ok(v_probe, 'a fourth proposal: ' || j::text, v_prop is not null);
+  perform pg_temp.probe_ok(v_probe, 'a fourth proposal, a day later: ' || j::text, v_prop is not null);
   j := pg_temp.probe_call(u14, format('public.respond_to_community_merge(%L::uuid, true)', v_prop));
   perform pg_temp.probe_ok(v_probe, 'u14 accepts: C2 survives, C3 is merged: ' || j::text,
     j ->> 'success' = 'true' and j ->> 'survivor_id' = c2::text and j ->> 'merged_id' = c3::text);
@@ -4543,11 +4587,26 @@ begin
   perform pg_temp.probe_ok(v_probe, 'R16 control: an archive that is not a merge can still be restored: ' || j::text,
     j ->> 'success' = 'true' and exists (select 1 from public.communities where id = c5 and archived_at is null));
 
-  -- a stale pending proposal
+  -- blocks (I1): u11 (owner of C9) blocked u16; u16 blocked u5 (owner of C10, admin of C1)
   c7 := pg_temp.probe_community(7, 'Probe Seven', u16, false, 'approve');
+  c9 := pg_temp.probe_community(9, 'Probe Nine', u11, false, 'approve');
+  c10 := pg_temp.probe_community(10, 'Probe Ten', u5, false, 'approve');
+  insert into public.blocked_users (blocker_id, blocked_id, reason) values (u11, u16, 'communities probe');
+  insert into public.blocked_users (blocker_id, blocked_id, reason) values (u16, u5, 'communities probe');
+  j := pg_temp.probe_call(u16, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c7, c9, c7));
+  k := pg_temp.probe_call(u16, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c7, c10, c7));
+  perform pg_temp.probe_ok(v_probe, 'a block either way between the caller and the other owner: invalid, nothing '
+                                    || 'written, nobody told: ' || j::text || ' / ' || k::text,
+    j ->> 'code' = 'invalid' and k ->> 'code' = 'invalid'
+    and not exists (select 1 from public.community_merge_proposals where c7 in (from_community_id, to_community_id))
+    and not exists (select 1 from public.notifications where title = 'Merge proposal from Probe Seven'));
+
+  -- a stale pending proposal (also the block control: u16 blocked C1's admin u5, not its owner u4)
   j := pg_temp.probe_call(u16, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c7, c1, c1));
   v_prop := (j ->> 'proposal_id')::uuid;
-  perform pg_temp.probe_ok(v_probe, 'u16 proposes C7 into C1: ' || j::text, v_prop is not null);
+  perform pg_temp.probe_ok(v_probe, 'u16 proposes C7 into C1: ' || j::text,
+    v_prop is not null
+    and (select count(*) from public.notifications where user_id = u4 and title = 'Merge proposal from Probe Seven') = 1);
   perform set_config('request.jwt.claims', '', true);
   update public.community_merge_proposals set expires_at = now() - interval '1 minute' where id = v_prop;
   j := pg_temp.probe_call(v_admin, 'public.get_platform_communities()');
