@@ -41,6 +41,12 @@
 --     exists). reputation adapts: once Release 1 is live, u5 (active in public C2) is readable by every signed-in
 --     account, so its "shares no community" check reads u3 (C1 only, private) and a new check reads u5. Neither
 --     new block holds a DELETE; both run through the MCP.
+--   * Release 2. test_flag_visibility and example_guard need 20261021_0020; discovery_search and listing_rules need
+--     0021; community_merge needs 0022 (broadcast_cap and broadcast_push are its regression probes); example_content
+--     needs 0023. None holds a DELETE; all run through the MCP. listed_reviews (ruling R9, 0020 Block 11) also needs
+--     0020. Each fails with "Release 2 part <x> is not live" otherwise (pg_temp.probe_require_release2: part a =
+--     0020, b = 0021, c = 0022, d = 0023, cumulative). noop_default adapts: once communities.is_test exists, its
+--     guest expectations leave out test communities, as the guest views and policies of 0020 do.
 --   * SQL editor: run the whole file. MCP execute_sql: pass the PARAMETERS and HELPERS sections plus the
 --     block(s) in ONE call (the helpers live in the session). The `commit;` after HELPERS is deliberate:
 --     in a multi-statement run it keeps the helpers from being rolled back by the first block's rollback.
@@ -106,6 +112,7 @@
 --   Phase 4: create_community(p_name, p_description, p_join_policy, p_timezone); the membership_update producers approve_community_member, readmit_community_member, transfer_community_ownership, set_member_role; send_community_broadcast's push.
 --   Phase 5 adds: get_geocoding_multiplier(p_location_key), put_geocoding_multiplier(p_location_key, p_latitude, p_longitude, p_multiplier).
 --   Release 1 adds: get_community_preview(p_community_id) (refusal code 'not_listed'), is_listed_request(p_ride_id, p_favor_id).
+--   Release 2 adds: 0020 great_circle_miles(lat1, lng1, lat2, lng2) and can_discover_community(p_community_id) (internal), the trigger guard_example_content (42501 'example_flag_reserved' / 'example_request'); 0021 search_communities_by_name(p_query), find_communities_near(p_lat, p_lng), check_community_area(p_center_lat, p_center_lng, p_radius_miles[, p_community_id]), overlapping_listed_communities(p_center_lat, p_center_lng, p_radius_miles, p_exclude), create_community_with_area(p_name[, p_description, p_join_policy, p_timezone, p_listed, p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason]), update_community_access(p_community_id, p_listed, p_join_policy[, p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason]); 0022 post_community_announcement(p_community_id, p_author, p_title, p_body, p_pinned, p_type, p_system_event, p_push_data), merge_communities(p_proposal_id, p_actor), search_merge_targets(p_community_id, p_query), propose_community_merge(p_community_id, p_other_id, p_survivor_id[, p_note]), get_community_merge_proposal(p_community_id), respond_to_community_merge(p_proposal_id, p_accept), withdraw_community_merge(p_proposal_id); 0023 set_example_content(p_type, p_id, p_is_example), refresh_example_requests() (internal).
 
 
 -- =============================================================================================================
@@ -462,6 +469,58 @@ begin
     raise exception 'PROBE % FAILED: Release 1 is not live', p_probe;
   end if;
 end $f$;
+
+-- Release 2 (20261021_0020-0023): fails unless steps 1-5 and Release 1 are live and, cumulatively, every part up to
+-- p_part: 'a' 0020 (communities.is_test and guard_example_content), 'b' 0021 (search_communities_by_name), 'c' 0022
+-- (merge_communities), 'd' 0023 (refresh_example_requests). In a dry run: created earlier in the same transaction.
+create or replace function pg_temp.probe_require_release2(p_probe text, p_part text) returns void language plpgsql as $f$
+declare
+  v_part text;
+  v_fn text;
+begin
+  perform pg_temp.probe_require(p_probe);
+  if p_part is null or p_part not in ('a', 'b', 'c', 'd') then
+    raise exception 'PROBE % FAILED: unknown Release 2 part %', p_probe, p_part;
+  end if;
+  if to_regprocedure('public.get_community_preview(uuid)') is null then
+    raise exception 'PROBE % FAILED: Release 2 part % is not live (Release 1 is not live)', p_probe, p_part;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'communities' and column_name = 'is_test')
+     or not exists (select 1 from pg_catalog.pg_proc
+                     where pronamespace = 'public'::regnamespace and proname = 'guard_example_content') then
+    raise exception 'PROBE % FAILED: Release 2 part a is not live', p_probe;
+  end if;
+  foreach v_part in array array['b', 'c', 'd'] loop
+    exit when v_part > p_part;
+    v_fn := case v_part when 'b' then 'search_communities_by_name'
+                        when 'c' then 'merge_communities'
+                        else 'refresh_example_requests' end;
+    if not exists (select 1 from pg_catalog.pg_proc where pronamespace = 'public'::regnamespace and proname = v_fn) then
+      raise exception 'PROBE % FAILED: Release 2 part % is not live', p_probe, v_part;
+    end if;
+  end loop;
+end $f$;
+
+-- a community's service area (20261021_0020 Block 1), written as the table owner (no JWT); the CHECKs apply
+create or replace function pg_temp.probe_area(p_community uuid, p_name text, p_lat double precision,
+                                              p_lng double precision, p_radius int)
+returns void language plpgsql as $f$
+begin
+  perform set_config('request.jwt.claims', '', true);
+  update public.communities
+     set area_name = p_name, area_center_lat = p_lat, area_center_lng = p_lng, area_radius_miles = p_radius
+   where id = p_community;
+end $f$;
+
+-- a listed 'approve' probe community pg_temp.c(n) flagged is_test (20261021_0020), owner p_owner, as the table owner
+create or replace function pg_temp.probe_test_community(n int, p_owner uuid) returns uuid language plpgsql as $f$
+begin
+  perform set_config('request.jwt.claims', '', true);
+  perform pg_temp.probe_community(n, 'Probe Test ' || n, p_owner, true, 'approve');
+  update public.communities set is_test = true where id = pg_temp.c(n);
+  return pg_temp.c(n);
+end $f$;
 commit;
 
 
@@ -577,7 +636,8 @@ select 'PROBE short OK' as probe;
 -- noop_default: no change for the default community. Each active member reads exactly the rides, favors and
 -- posts they read before (visible rows of their live communities plus their own); an unapproved account
 -- reads no foreign rows; anon reads the guest views and the posts of public communities; public_profiles
--- shows a member every co-member and anon every active member of a public community; XP unchanged; the rides
+-- shows a member every co-member and anon every active member of a public community (once 20261021_0020 is live,
+-- public and not a test community); XP unchanged; the rides
 -- SELECT of a member of three communities shows the InitPlan (index scan reported).
 -- =============================================================================================================
 begin;
@@ -629,11 +689,13 @@ begin
     pg_temp.probe_count(v_un, format('select 1 from public.town_hall_posts where user_id <> %L', v_un)) = 0);
 
   v_exp := (select count(*) from public.rides r join public.communities c on c.id = r.community_id
-             where r.hidden_at is null and c.is_public and c.archived_at is null);
+             where r.hidden_at is null and c.is_public and c.archived_at is null
+               and not coalesce((to_jsonb(c) ->> 'is_test')::boolean, false));
   v_got := pg_temp.probe_count(null, 'select 1 from public.guest_rides', 'anon');
   perform pg_temp.probe_ok(v_probe, format('anon reads %s guest rides, expected %s', v_got, v_exp), v_got = v_exp);
   v_exp := (select count(*) from public.favors f join public.communities c on c.id = f.community_id
-             where f.hidden_at is null and c.is_public and c.archived_at is null);
+             where f.hidden_at is null and c.is_public and c.archived_at is null
+               and not coalesce((to_jsonb(c) ->> 'is_test')::boolean, false));
   v_got := pg_temp.probe_count(null, 'select 1 from public.guest_favors', 'anon');
   perform pg_temp.probe_ok(v_probe, format('anon reads %s guest favors, expected %s', v_got, v_exp), v_got = v_exp);
   perform pg_temp.probe_ok(v_probe, 'anon reads 0 rides and 0 favors from the tables',
@@ -643,7 +705,8 @@ begin
     pg_temp.probe_count(null, $q$select 1 from public.guest_rides where pickup <> '' or destination <> ''$q$, 'anon') = 0
     and pg_temp.probe_count(null, $q$select 1 from public.guest_favors where location <> ''$q$, 'anon') = 0);
   v_exp := (select count(*) from public.town_hall_posts t join public.communities c on c.id = t.community_id
-             where t.hidden_at is null and c.is_public and c.archived_at is null);
+             where t.hidden_at is null and c.is_public and c.archived_at is null
+               and not coalesce((to_jsonb(c) ->> 'is_test')::boolean, false));
   v_got := pg_temp.probe_count(null, 'select 1 from public.town_hall_posts', 'anon');
   perform pg_temp.probe_ok(v_probe, format('anon reads %s posts, expected %s', v_got, v_exp), v_got = v_exp);
 
@@ -654,7 +717,8 @@ begin
     v_got = cardinality(v_ids));
   v_exp := (select count(distinct m.user_id) from public.community_members m
               join public.communities c on c.id = m.community_id
-             where m.status = 'active' and c.is_public and c.archived_at is null);
+             where m.status = 'active' and c.is_public and c.archived_at is null
+               and not coalesce((to_jsonb(c) ->> 'is_test')::boolean, false));
   v_got := pg_temp.probe_count(null, 'select 1 from public.public_profiles', 'anon');
   perform pg_temp.probe_ok(v_probe, format('anon reads %s public_profiles rows, expected %s', v_got, v_exp), v_got = v_exp);
 
@@ -2865,5 +2929,459 @@ end
 $probe$;
 rollback;
 select 'PROBE listed_profiles OK' as probe;
+
+
+-- =============================================================================================================
+-- test_flag_visibility (Release 2, 20261021_0020): File A's schema (Blocks 1-6: the area columns and their CHECKs,
+-- is_test, the merge columns, the two definer-only tables and the one-pending rule, the 'merged' event, the example
+-- columns, the distance helper, the helpers' EXECUTE) and the is_test filter (Blocks 6-9). A listed test community
+-- C4 (owner u16, its only member) beside listed C2 (owner u12), each with an area, an open ride, an open favor and a
+-- post: anon reads no row of C4 from communities, guest_rides, guest_favors and town_hall_posts and one of each for
+-- C2; u3 (in neither) reads C2 and not C4 from communities; C4's owner and a platform admin read C4; anon's and u3's
+-- public_profiles and u3's my_visible_profile_ids() leave out u16 and keep u12; is_listed_request is false for C4's
+-- requests and true for C2's; can_discover_community answers per caller and refuses a direct client call;
+-- guest_rides and guest_favors end with is_example.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'test_flag_visibility';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  u3 uuid := pg_temp.u(3);  u12 uuid := pg_temp.u(12);  u16 uuid := pg_temp.u(16);
+  c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);  c3 uuid := pg_temp.c(3);  c4 uuid;
+  v_ride2 uuid := pg_temp.r(41);
+  v_ride4 uuid := pg_temp.r(42);
+  v_favor2 uuid;
+  v_favor4 uuid;
+  v_post2 uuid;
+  v_post4 uuid;
+  v_def text;
+  v_sql text;
+  v_state text;
+  v_t text;
+  v_d double precision;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_release2(v_probe, 'a');
+  perform pg_temp.probe_world();
+
+  -- Block 1: columns and CHECKs
+  perform pg_temp.probe_ok(v_probe, 'communities has the seven new columns with their types',
+    (select count(*) from information_schema.columns
+      where table_schema = 'public' and table_name = 'communities'
+        and (column_name, data_type) in (('area_name', 'text'), ('area_center_lat', 'double precision'),
+              ('area_center_lng', 'double precision'), ('area_radius_miles', 'integer'), ('is_test', 'boolean'),
+              ('merged_into_id', 'uuid'), ('merged_at', 'timestamp with time zone'))) = 7);
+  perform pg_temp.probe_ok(v_probe, 'communities.is_test is not null with default false',
+    exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'communities' and column_name = 'is_test'
+               and is_nullable = 'NO' and column_default = 'false'));
+  perform pg_temp.probe_ok(v_probe, 'the five communities CHECKs exist',
+    (select count(*) from pg_catalog.pg_constraint
+      where conrelid = 'public.communities'::regclass and contype = 'c'
+        and conname in ('communities_area_all_or_none', 'communities_area_radius', 'communities_area_center',
+                        'communities_area_name', 'communities_hidden_not_open')) = 5);
+  perform pg_temp.probe_ok(v_probe, 'communities_hidden_not_open reads is_public or join_policy <> open',
+    (select pg_catalog.pg_get_constraintdef(oid) from pg_catalog.pg_constraint
+      where conrelid = 'public.communities'::regclass and conname = 'communities_hidden_not_open')
+      like '%is_public OR (join_policy <> ''open''::text)%');
+  foreach v_sql in array array[
+      format('select pg_temp.probe_area(%L::uuid, %L, 0.5, -150.0, 3)', c2, 'Probe Area'),
+      format('select pg_temp.probe_area(%L::uuid, %L, 91, -150.0, 2)', c2, 'Probe Area'),
+      format('select pg_temp.probe_area(%L::uuid, %L, 0.5, -181, 2)', c2, 'Probe Area'),
+      format('select pg_temp.probe_area(%L::uuid, %L, %L::double precision, -150.0, 2)', c2, 'Probe Area', 'NaN'),
+      format('select pg_temp.probe_area(%L::uuid, %L, 0.5, -150.0, 2)', c2, '  P  '),
+      format('select pg_temp.probe_area(%L::uuid, %L, 0.5, -150.0, 2)', c2, repeat('x', 81)),
+      format('select pg_temp.probe_area(%L::uuid, null, 0.5, -150.0, 2)', c2),
+      format('select pg_temp.probe_area(%L::uuid, %L, 0.5, null, 2)', c2, 'Probe Area')]
+  loop
+    begin
+      execute v_sql;
+      v_state := 'none';
+    exception when others then
+      v_state := sqlstate;
+    end;
+    perform pg_temp.probe_ok(v_probe, format('a bad area is refused by a CHECK (23514, got %s): %s', v_state, v_sql),
+      v_state = '23514');
+  end loop;
+  c4 := pg_temp.probe_test_community(4, u16);
+  perform pg_temp.probe_area(c2, 'Probe Area Two', 0.5, -150.0, 2);
+  perform pg_temp.probe_area(c4, 'Probe Area Four', 0.52, -150.0, 1);
+  perform pg_temp.probe_area(c3, 'Probe Area Three', -0.5, 180, 10);
+  perform pg_temp.probe_ok(v_probe, 'C2, C3 and C4 carry their areas; C4 is a listed test community',
+    (select count(*) from public.communities where id in (c2, c3, c4) and area_radius_miles is not null) = 3
+    and (select is_public and is_test from public.communities where id = c4));
+
+  -- Blocks 2-5: the two tables, the one-pending rule, the 'merged' event, the example columns
+  foreach v_t in array array['public.community_listing_events', 'public.community_merge_proposals'] loop
+    perform pg_temp.probe_ok(v_probe, v_t || ' has RLS on and no policy',
+      (select c.relrowsecurity from pg_catalog.pg_class c where c.oid = v_t::regclass)
+      and not exists (select 1 from pg_catalog.pg_policy p where p.polrelid = v_t::regclass));
+    perform pg_temp.probe_ok(v_probe, v_t || ' grants nothing to anon or authenticated',
+      not has_table_privilege('anon', v_t, 'select,insert,update,delete,truncate,references,trigger')
+      and not has_table_privilege('authenticated', v_t, 'select,insert,update,delete,truncate,references,trigger'));
+  end loop;
+  j := pg_temp.probe_run(u3, 'select to_jsonb(count(*)) from public.community_listing_events');
+  perform pg_temp.probe_ok(v_probe, 'a member''s direct read of community_listing_events raises 42501: ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501');
+  insert into public.community_merge_proposals (from_community_id, to_community_id, survivor_community_id, proposed_by)
+  values (c2, c1, c2, u12);
+  foreach v_sql in array array[
+      format('insert into public.community_merge_proposals (from_community_id, to_community_id, survivor_community_id) values (%L, %L, %L)', c2, c3, c2),
+      format('insert into public.community_merge_proposals (from_community_id, to_community_id, survivor_community_id) values (%L, %L, %L)', c3, c1, c1)]
+  loop
+    begin
+      execute v_sql;
+      v_state := 'none';
+    exception when others then
+      v_state := sqlstate;
+    end;
+    perform pg_temp.probe_ok(v_probe, format('a second pending proposal from or to one community is refused (23505, got %s)', v_state),
+      v_state = '23505');
+  end loop;
+  foreach v_sql in array array[
+      format('insert into public.community_merge_proposals (from_community_id, to_community_id, survivor_community_id) values (%L, %L, %L)', c3, c3, c3),
+      format('insert into public.community_merge_proposals (from_community_id, to_community_id, survivor_community_id) values (%L, %L, %L)', c3, c4, c1)]
+  loop
+    begin
+      execute v_sql;
+      v_state := 'none';
+    exception when others then
+      v_state := sqlstate;
+    end;
+    perform pg_temp.probe_ok(v_probe, format('a proposal to itself or with a third survivor is refused (23514, got %s)', v_state),
+      v_state = '23514');
+  end loop;
+  perform pg_temp.probe_ok(v_probe, 'a new proposal is pending and expires in 7 days',
+    exists (select 1 from public.community_merge_proposals
+             where from_community_id = c2 and status = 'pending' and expires_at = created_at + interval '7 days'));
+  v_def := (select pg_catalog.pg_get_constraintdef(oid) from pg_catalog.pg_constraint
+             where conrelid = 'public.community_membership_events'::regclass
+               and conname = 'community_membership_events_event_check');
+  perform pg_temp.probe_ok(v_probe, 'the membership event CHECK allows the 11 live events and merged: ' || coalesce(v_def, 'null'),
+    (select count(*) from unnest(array['applied', 'invited', 'approved', 'rejected', 'removed', 'readmitted', 'left',
+                                       'role_changed', 'ownership_transferred', 'archived', 'unarchived', 'merged']) e
+      where v_def like '%''' || e || '''%') = 12);
+  perform pg_temp.probe_ok(v_probe, 'rides, favors and town_hall_posts have is_example boolean not null default false',
+    (select count(*) from information_schema.columns
+      where table_schema = 'public' and table_name in ('rides', 'favors', 'town_hall_posts')
+        and column_name = 'is_example' and data_type = 'boolean' and is_nullable = 'NO'
+        and column_default = 'false') = 3);
+  perform pg_temp.probe_ok(v_probe, 'town_hall_posts.system_event is text',
+    exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'town_hall_posts' and column_name = 'system_event'
+               and data_type = 'text'));
+  perform pg_temp.probe_ok(v_probe, 'the eight File A indexes exist',
+    (select count(*) from pg_catalog.pg_indexes
+      where schemaname = 'public'
+        and indexname in ('communities_listed_live', 'community_listing_events_community_created',
+                          'community_merge_one_pending_from', 'community_merge_one_pending_to',
+                          'community_merge_proposals_to_status', 'rides_examples', 'favors_examples',
+                          'town_hall_posts_examples')) = 8);
+
+  -- Block 6: the distance and the EXECUTE of every function File A creates or re-creates
+  v_d := public.great_circle_miles(0, 0, 0, 1);
+  perform pg_temp.probe_ok(v_probe, format('one degree of longitude at the equator is about 69.09 miles (%s)', v_d),
+    v_d between 69.0 and 69.2);
+  v_d := public.great_circle_miles(0, 179.9, 0, -179.9);
+  perform pg_temp.probe_ok(v_probe, format('0.2 degrees across the antimeridian is about 13.8 miles (%s)', v_d),
+    v_d between 13.7 and 13.9);
+  perform pg_temp.probe_ok(v_probe, 'a point is 0 miles from itself',
+    public.great_circle_miles(47.6062, -122.3321, 47.6062, -122.3321) = 0);
+  foreach v_t in array array[
+      'public.great_circle_miles(double precision, double precision, double precision, double precision)',
+      'public.can_discover_community(uuid)', 'public.guard_example_content()'] loop
+    perform pg_temp.probe_ok(v_probe, v_t || ': EXECUTE for service_role only (no anon, authenticated or public)',
+      not has_function_privilege('anon', v_t, 'execute')
+      and not has_function_privilege('authenticated', v_t, 'execute')
+      and has_function_privilege('service_role', v_t, 'execute')
+      and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                       where p.oid = v_t::regprocedure and a.grantee = 0));
+  end loop;
+  foreach v_t in array array['public.my_visible_profile_ids()', 'public.is_listed_request(uuid, uuid)'] loop
+    perform pg_temp.probe_ok(v_probe, v_t || ': EXECUTE kept for anon, authenticated and service_role, none for public',
+      has_function_privilege('anon', v_t, 'execute')
+      and has_function_privilege('authenticated', v_t, 'execute')
+      and has_function_privilege('service_role', v_t, 'execute')
+      and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                       where p.oid = v_t::regprocedure and a.grantee = 0));
+  end loop;
+  j := pg_temp.probe_call(u3, format('public.can_discover_community(%L::uuid)', c2));
+  perform pg_temp.probe_ok(v_probe, 'a client''s direct call of can_discover_community raises 42501: ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501');
+
+  -- Blocks 7-9: C2 and C4 each get an open ride, an open favor and a post (as the table owner)
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id)
+  values (v_ride2, u12, current_date + 2, '09:00', 'Probe pickup', 'Probe destination', 'open', c2),
+         (v_ride4, u16, current_date + 2, '09:00', 'Probe pickup', 'Probe destination', 'open', c4);
+  insert into public.favors (user_id, title, location, date, status, community_id)
+  values (u12, 'Probe favor', 'Probe location', current_date + 2, 'open', c2) returning id into v_favor2;
+  insert into public.favors (user_id, title, location, date, status, community_id)
+  values (u16, 'Probe favor', 'Probe location', current_date + 2, 'open', c4) returning id into v_favor4;
+  v_post2 := pg_temp.probe_post(41, u12, c2);
+  v_post4 := pg_temp.probe_post(42, u16, c4);
+
+  foreach v_t in array array['public.communities|id', 'public.guest_rides|community_id',
+                             'public.guest_favors|community_id', 'public.town_hall_posts|community_id'] loop
+    v_sql := format('select 1 from %s where %I = ', split_part(v_t, '|', 1), split_part(v_t, '|', 2));
+    perform pg_temp.probe_ok(v_probe, 'anon reads one C2 row from ' || split_part(v_t, '|', 1) || ' (control)',
+      pg_temp.probe_count(null, v_sql || quote_literal(c2), 'anon') = 1);
+    perform pg_temp.probe_ok(v_probe, 'anon reads no C4 row from ' || split_part(v_t, '|', 1),
+      pg_temp.probe_count(null, v_sql || quote_literal(c4), 'anon') = 0);
+  end loop;
+
+  perform pg_temp.probe_ok(v_probe, 'u3 reads C2 from communities (control)',
+    pg_temp.probe_count(u3, format('select 1 from public.communities where id = %L', c2)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u3 (not in C4) reads no C4 row from communities',
+    pg_temp.probe_count(u3, format('select 1 from public.communities where id = %L', c4)) = 0);
+  perform pg_temp.probe_ok(v_probe, 'u16 (C4''s owner) reads C4',
+    pg_temp.probe_count(u16, format('select 1 from public.communities where id = %L', c4)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'the platform admin subject resolves', v_admin is not null);
+  perform pg_temp.probe_ok(v_probe, 'the platform admin reads C4',
+    pg_temp.probe_count(v_admin, format('select 1 from public.communities where id = %L', c4)) = 1);
+
+  perform pg_temp.probe_ok(v_probe, 'u16 is active in no listed community but C4',
+    not exists (select 1 from public.community_members m
+                  join public.communities c on c.id = m.community_id
+                 where m.user_id = u16 and m.status = 'active' and c.id <> c4
+                   and c.is_public and c.archived_at is null));
+  perform pg_temp.probe_ok(v_probe, 'anon reads u12 in public_profiles (control)',
+    pg_temp.probe_count(null, format('select 1 from public.public_profiles where id = %L', u12), 'anon') = 1);
+  perform pg_temp.probe_ok(v_probe, 'anon does not read u16 in public_profiles',
+    pg_temp.probe_count(null, format('select 1 from public.public_profiles where id = %L', u16), 'anon') = 0);
+  perform pg_temp.probe_ok(v_probe, 'u3 reads u12 in public_profiles (control)',
+    pg_temp.probe_count(u3, format('select 1 from public.public_profiles where id = %L', u12)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u3 does not read u16 in public_profiles',
+    pg_temp.probe_count(u3, format('select 1 from public.public_profiles where id = %L', u16)) = 0);
+  j := pg_temp.probe_call(u3, 'public.my_visible_profile_ids()');
+  perform pg_temp.probe_ok(v_probe, 'my_visible_profile_ids() for u3 keeps u12 and leaves out u16: ' || j::text,
+    jsonb_typeof(j) = 'array' and j ? u12::text and not (j ? u16::text));
+
+  perform pg_temp.probe_ok(v_probe, 'is_listed_request is true for the C2 ride and favor (control)',
+    public.is_listed_request(v_ride2, null) and public.is_listed_request(null, v_favor2));
+  perform pg_temp.probe_ok(v_probe, 'is_listed_request is false for the C4 ride and favor',
+    not public.is_listed_request(v_ride4, null) and not public.is_listed_request(null, v_favor4));
+
+  -- can_discover_community as definer code calls it: the table owner, with the caller's JWT claims
+  perform set_config('request.jwt.claims', json_build_object('sub', u3, 'role', 'authenticated')::text, true);
+  perform pg_temp.probe_ok(v_probe, 'u3 discovers C2, and neither C4 nor its own private C1',
+    public.can_discover_community(c2) and not public.can_discover_community(c4) and not public.can_discover_community(c1));
+  perform set_config('request.jwt.claims', json_build_object('sub', u16, 'role', 'authenticated')::text, true);
+  perform pg_temp.probe_ok(v_probe, 'C4''s owner discovers C4', public.can_discover_community(c4));
+  perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role', 'authenticated')::text, true);
+  perform pg_temp.probe_ok(v_probe, 'a platform admin discovers C4', public.can_discover_community(c4));
+  perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  perform pg_temp.probe_ok(v_probe, 'a guest discovers C2 and not C4, an unknown id or null',
+    public.can_discover_community(c2) and not public.can_discover_community(c4)
+    and not public.can_discover_community(gen_random_uuid()) and not public.can_discover_community(null));
+  perform set_config('request.jwt.claims', '', true);
+
+  foreach v_t in array array['guest_rides', 'guest_favors'] loop
+    perform pg_temp.probe_ok(v_probe, v_t || ' ends with is_example',
+      (select c.column_name::text from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = v_t
+        order by c.ordinal_position desc limit 1) = 'is_example');
+  end loop;
+  j := pg_temp.probe_run(null, format('select to_jsonb(is_example) from public.guest_rides where id = %L', v_ride2), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon reads is_example = false on the C2 ride: ' || j::text, j = 'false'::jsonb);
+
+  -- an archived listed community is not discoverable
+  update public.communities set archived_at = now() where id = c2;
+  perform set_config('request.jwt.claims', json_build_object('sub', u12, 'role', 'authenticated')::text, true);
+  perform pg_temp.probe_ok(v_probe, 'an archived C2 is not discoverable, even by its owner', not public.can_discover_community(c2));
+  perform set_config('request.jwt.claims', '', true);
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE test_flag_visibility OK' as probe;
+
+
+-- =============================================================================================================
+-- example_guard (Release 2, 20261021_0020 Block 10): a client cannot set is_example on a ride, a favor or a post,
+-- nor system_event on a post, at insert, nor change is_example on a ride by update, its own included (42501
+-- 'example_flag_reserved'); the table owner (as definer code, no JWT) can; a C1 member's claim of an example ride
+-- or favor is refused with 42501 'example_request' and the same claim of an ordinary open ride succeeds; the poster
+-- can still edit an example ride's notes. Clients have no UPDATE policy on town_hall_posts, so the guard's
+-- post-update branch is a second line only.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'example_guard';
+  v_member uuid := pg_temp.probe_subject('member');
+  u3 uuid := pg_temp.u(3);  u7 uuid := pg_temp.u(7);  u11 uuid := pg_temp.u(11);
+  c1 uuid := pg_temp.c(1);
+  v_example uuid := pg_temp.r(2);    -- u3's open C1 ride (probe_world)
+  v_control uuid := pg_temp.r(52);   -- u11's open C1 ride
+  v_own uuid;
+  v_favor uuid;
+  v_post uuid;
+  v_sql text;
+  v_state text;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_release2(v_probe, 'a');
+  perform pg_temp.probe_world();
+  perform pg_temp.probe_ok(v_probe, 'an existing member subject resolves', v_member is not null);
+
+  -- the member subject's own ordinary ride (the guard lets it through: control)
+  j := pg_temp.probe_run(v_member, format(
+    $q$insert into public.rides (user_id, date, "time", pickup, destination, notes)
+       values (%L, current_date + 2, '10:00', 'Probe pickup', 'Probe destination', 'communities probe')
+       returning to_jsonb(id)$q$, v_member));
+  perform pg_temp.probe_ok(v_probe, 'the member inserts an ordinary ride (control): ' || coalesce(j ->> 'error', ''),
+    not pg_temp.probe_refused(j));
+  v_own := (j #>> '{}')::uuid;
+
+  foreach v_sql in array array[
+      format($q$insert into public.rides (user_id, date, "time", pickup, destination, is_example)
+                values (%L, current_date + 2, '10:00', 'Probe pickup', 'Probe destination', true) returning to_jsonb(id)$q$, v_member),
+      format($q$insert into public.favors (user_id, title, location, date, is_example)
+                values (%L, 'Probe favor', 'Probe location', current_date + 2, true) returning to_jsonb(id)$q$, v_member),
+      format($q$insert into public.town_hall_posts (user_id, title, content, is_example)
+                values (%L, 'Probe post', 'communities probe post', true) returning to_jsonb(id)$q$, v_member),
+      format($q$insert into public.town_hall_posts (user_id, title, content, system_event)
+                values (%L, 'Probe post', 'communities probe post', 'community_merged') returning to_jsonb(id)$q$, v_member),
+      format($q$with x as (update public.rides set is_example = true where id = %L returning 1)
+                select to_jsonb(count(*)) from x$q$, v_own)]
+  loop
+    j := pg_temp.probe_run(v_member, v_sql);
+    perform pg_temp.probe_ok(v_probe, format('refused with 42501 example_flag_reserved: %s -> %s', left(v_sql, 60), j),
+      coalesce(j ->> 'sqlstate', '') = '42501' and coalesce(j ->> 'error', '') = 'example_flag_reserved');
+  end loop;
+  perform pg_temp.probe_ok(v_probe, 'the member''s ride is still not an example',
+    not (select r.is_example from public.rides r where r.id = v_own));
+
+  -- the table owner (definer code) marks u3's open C1 ride r(2) as an example
+  j := pg_temp.probe_run(null, format(
+    $q$with x as (update public.rides set is_example = true where id = %L returning 1) select to_jsonb(count(*)) from x$q$,
+    v_example), 'owner');
+  perform pg_temp.probe_ok(v_probe, 'the table owner marks r(2) as an example: ' || j::text, j = '1'::jsonb);
+
+  j := pg_temp.probe_run(u7, format(
+    $q$with x as (update public.rides set status = 'confirmed', claimed_by = %L where id = %L returning 1)
+       select to_jsonb(count(*)) from x$q$, u7, v_example));
+  perform pg_temp.probe_ok(v_probe, 'a C1 member''s claim of the example ride is refused with 42501 example_request: ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501' and coalesce(j ->> 'error', '') = 'example_request');
+  perform pg_temp.probe_ok(v_probe, 'the example ride is still open and unclaimed',
+    exists (select 1 from public.rides r where r.id = v_example and r.status::text = 'open' and r.claimed_by is null));
+
+  j := pg_temp.probe_run(u3, format(
+    $q$with x as (update public.rides set notes = 'Probe notes edited' where id = %L returning 1)
+       select to_jsonb(count(*)) from x$q$, v_example));
+  perform pg_temp.probe_ok(v_probe, 'the poster still edits the example ride''s notes: ' || j::text, j = '1'::jsonb);
+  j := pg_temp.probe_run(u3, format(
+    $q$with x as (update public.rides set is_example = false where id = %L returning 1)
+       select to_jsonb(count(*)) from x$q$, v_example));
+  perform pg_temp.probe_ok(v_probe, 'the poster cannot clear is_example (42501 example_flag_reserved): ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501' and coalesce(j ->> 'error', '') = 'example_flag_reserved');
+
+  -- an example favor, written by the table owner, cannot be claimed either
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.favors (user_id, title, location, date, status, community_id, is_example)
+  values (u3, 'Probe example favor', 'Probe location', current_date + 3, 'open', c1, true)
+  returning id into v_favor;
+  j := pg_temp.probe_run(u7, format(
+    $q$with x as (update public.favors set status = 'confirmed', claimed_by = %L where id = %L returning 1)
+       select to_jsonb(count(*)) from x$q$, u7, v_favor));
+  perform pg_temp.probe_ok(v_probe, 'a C1 member''s claim of the example favor is refused with 42501 example_request: ' || j::text,
+    coalesce(j ->> 'sqlstate', '') = '42501' and coalesce(j ->> 'error', '') = 'example_request');
+
+  -- control: a second, ordinary open C1 ride, claimed the same way
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id)
+  values (v_control, u11, current_date + 3, '11:00', 'Probe pickup', 'Probe destination', 'open', c1);
+  j := pg_temp.probe_run(u7, format(
+    $q$with x as (update public.rides set status = 'confirmed', claimed_by = %L where id = %L returning 1)
+       select to_jsonb(count(*)) from x$q$, u7, v_control));
+  perform pg_temp.probe_ok(v_probe, 'the same claim of an ordinary open ride succeeds (control): ' || j::text, j = '1'::jsonb);
+
+  -- the definer path for posts: the table owner writes a post with system_event and is_example
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.town_hall_posts (user_id, title, content, community_id, system_event, is_example)
+  values (u3, 'Probe system post', 'communities probe post', c1, 'community_merged', true)
+  returning id into v_post;
+  perform pg_temp.probe_ok(v_probe, 'the table owner writes a post with system_event and is_example', v_post is not null);
+  begin
+    insert into public.town_hall_posts (user_id, title, content, community_id, system_event)
+    values (u3, 'Probe system post', 'communities probe post', c1, 'other_event');
+    v_state := 'none';
+  exception when others then
+    v_state := sqlstate;
+  end;
+  perform pg_temp.probe_ok(v_probe, 'system_event accepts only community_merged (23514, got ' || v_state || ')',
+    v_state = '23514');
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE example_guard OK' as probe;
+
+
+-- =============================================================================================================
+-- listed_reviews (Release 2, 20261021_0020 Block 11, ruling R9): a signed-in account with no membership and
+-- approved false (u10) reads the review of a completed request in a listed community (C2) and not one in a listed
+-- test community (C4), nor the C2 request itself; the C4 review stays readable by its writer (control); an approved
+-- account in neither (u3) reads the C2 review and not the C4 one; anon reads no review through the table beyond what
+-- the guest views give it (reviews_select_anon_guest): the C2 review through them, not the C4 review.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'listed_reviews';
+  u3 uuid := pg_temp.u(3);  u5 uuid := pg_temp.u(5);  u10 uuid := pg_temp.u(10);  u12 uuid := pg_temp.u(12);
+  u13 uuid := pg_temp.u(13);  u16 uuid := pg_temp.u(16);
+  c2 uuid := pg_temp.c(2);  c4 uuid;
+  v_rev2 uuid;
+  v_rev4 uuid;
+begin
+  perform pg_temp.probe_require_release2(v_probe, 'a');
+  perform pg_temp.probe_world();
+  c4 := pg_temp.probe_test_community(4, u16);
+
+  -- a completed C2 ride (u12 posted, u5 made a C2 member and helped) and a completed C4 ride (u16 posted, u13 made a
+  -- C4 member and helped), each reviewed by its poster, as in listed_profiles
+  perform pg_temp.probe_member(c2, u5, 'member', 'active', 5);
+  perform pg_temp.probe_member(c4, u13, 'member', 'active', 5);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, claimed_by, community_id)
+  values (pg_temp.r(61), u12, current_date - 3, '09:00', 'Probe pickup', 'Probe destination', 'completed', u5, c2),
+         (pg_temp.r(62), u16, current_date - 3, '09:00', 'Probe pickup', 'Probe destination', 'completed', u13, c4);
+  insert into public.reviews (reviewer_id, fulfiller_id, ride_id, rating, comment)
+  values (u12, u5, pg_temp.r(61), 4, 'Probe review') returning id into v_rev2;
+  insert into public.reviews (reviewer_id, fulfiller_id, ride_id, rating, comment)
+  values (u16, u13, pg_temp.r(62), 5, 'Probe review') returning id into v_rev4;
+
+  perform pg_temp.probe_ok(v_probe, 'u10 has no membership and is not approved (the old gate is false for it)',
+    not exists (select 1 from public.community_members m where m.user_id = u10)
+    and not coalesce((select p.approved from public.profiles p where p.id = u10), false));
+  perform pg_temp.probe_ok(v_probe, 'u10 reads the review of the completed C2 ride',
+    pg_temp.probe_count(u10, format('select 1 from public.reviews where id = %L', v_rev2)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u10 does not read the C2 ride itself',
+    pg_temp.probe_count(u10, format('select 1 from public.rides where id = %L', pg_temp.r(61))) = 0);
+  perform pg_temp.probe_ok(v_probe, 'the C4 review is readable by its writer (control)',
+    pg_temp.probe_count(u16, format('select 1 from public.reviews where id = %L', v_rev4)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u10 does not read the review of the completed C4 ride',
+    pg_temp.probe_count(u10, format('select 1 from public.reviews where id = %L', v_rev4)) = 0);
+  perform pg_temp.probe_ok(v_probe, 'u3 (approved, in neither) reads the C2 review and not the C4 one',
+    pg_temp.probe_count(u3, format('select 1 from public.reviews where id = %L', v_rev2)) = 1
+    and pg_temp.probe_count(u3, format('select 1 from public.reviews where id = %L', v_rev4)) = 0);
+  perform pg_temp.probe_ok(v_probe, 'anon reads the C2 review through the guest views (control)',
+    pg_temp.probe_count(null, format('select 1 from public.reviews where id = %L', v_rev2), 'anon') = 1);
+  perform pg_temp.probe_ok(v_probe, 'anon does not read the C4 review',
+    pg_temp.probe_count(null, format('select 1 from public.reviews where id = %L', v_rev4), 'anon') = 0);
+  perform pg_temp.probe_ok(v_probe, 'anon reads no review through the table beyond the guest views',
+    pg_temp.probe_count(null, $q$select 1 from public.reviews v
+                                  where not exists (select 1 from public.guest_rides g where g.id = v.ride_id)
+                                    and not exists (select 1 from public.guest_favors g where g.id = v.favor_id)$q$,
+                        'anon') = 0);
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE listed_reviews OK' as probe;
 
 select 'PROBE ALL OK' as probe;
