@@ -14354,6 +14354,47 @@
         }
       }
     },
+    "welcome_body_find_community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find your neighborhood's community. Get a ride, lend a hand, and meet the people next door."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encuentra la comunidad de tu vecindario. Consigue un aventón, echa una mano y conoce a la gente de al lado."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "우리 동네 커뮤니티를 찾아보세요. 차를 얻어 타고, 도움을 주고, 이웃을 만나 보세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tìm cộng đồng của khu phố bạn. Nhờ đi nhờ xe, giúp một tay và làm quen với những người hàng xóm."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找到你所在街区的社区。搭个便车、帮个忙，认识身边的邻居。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找到你所在街區的社群。搭個便車、幫個忙，認識身邊的鄰居。"
+          }
+        }
+      }
+    },
     "welcome_footer_communities" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14391,6 +14432,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過邀請加入社區、申請加入公開社區，或建立你自己的社區。社區管理員會審核新成員。"
+          }
+        }
+      }
+    },
+    "welcome_look_around" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Look around first"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echar un vistazo primero"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 둘러보기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xem qua trước"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先随便看看"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先隨便看看"
           }
         }
       }

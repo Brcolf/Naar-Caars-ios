@@ -19,7 +19,6 @@ struct WelcomeView: View {
     @State private var showError = false
     @State private var navigateToEmailSignup = false
     @State private var navigateToLogin = false
-    @State private var showInviteEntry = false
     /// The invite code kept on this device, if any. Only its presence is shown: a signed-out
     /// person cannot look a code up, so no community details appear here.
     @State private var savedInviteCode: String?
@@ -49,7 +48,7 @@ struct WelcomeView: View {
                         .fontWeight(.bold)
                         .multilineTextAlignment(.center)
 
-                    Text("welcome_body".localized)
+                    Text("welcome_body_find_community".localized)
                         .font(.naarsBody)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -131,10 +130,9 @@ struct WelcomeView: View {
                     .accessibilityIdentifier("welcome.emailSignup")
 
                     Button {
-                        appState.isGuestMode = true
-                        AppLaunchManager.shared.enterGuestMode()
+                        WelcomeEntryRoute.lookAroundFirst(appState: appState)
                     } label: {
-                        Text("welcome_continue_as_guest".localized)
+                        Text("welcome_look_around".localized)
                             .font(.naarsSubheadline)
                             .foregroundColor(.naarsTextSecondary)
                             .frame(maxWidth: .infinity)
@@ -195,11 +193,6 @@ struct WelcomeView: View {
         } message: {
             Text(appleSignInViewModel.errorMessage ?? "common_error_occurred".localized)
         }
-        .sheet(isPresented: $showInviteEntry) {
-            InviteCodeEntrySheet(store: pendingInviteStore) {
-                savedInviteCode = pendingInviteStore.peek()
-            }
-        }
         .trackScreen("Welcome")
         // A join link opened while Welcome is on screen shows the banner without a relaunch.
         .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
@@ -218,7 +211,7 @@ struct WelcomeView: View {
 }
 
 extension WelcomeView {
-    /// "I have an invite code", or, once a code is saved, the banner that says so with Remove.
+    /// The banner that says an invite code is saved on this device, with Remove. Nothing shows without one.
     @ViewBuilder
     var inviteCodeEntry: some View {
         if savedInviteCode != nil {
@@ -250,18 +243,6 @@ extension WelcomeView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .cardStyle()
             .accessibilityIdentifier("welcome.inviteCode.banner")
-        } else {
-            Button {
-                showInviteEntry = true
-            } label: {
-                Text("community_invite_entry_link".localized)
-                    .font(.naarsFootnote)
-                    .foregroundColor(.naarsPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Constants.Spacing.sm)
-            }
-            .accessibilityLabel("community_invite_entry_link".localized)
-            .accessibilityIdentifier("welcome.inviteCode.entry")
         }
     }
 }
@@ -272,6 +253,18 @@ extension WelcomeView {
 @MainActor
 enum WelcomeEntryRoute {
     static var opensSignIn = false
+
+    /// "Look around first": opens Explore as a guest. The intent is set first so the main
+    /// tab view replays it when it appears.
+    static func lookAroundFirst(
+        appState: AppState,
+        launchManager: AppLaunchManager? = nil,
+        coordinator: NavigationCoordinator? = nil
+    ) {
+        (coordinator ?? NavigationCoordinator.shared).pendingIntent = .explore
+        appState.isGuestMode = true
+        (launchManager ?? AppLaunchManager.shared).enterGuestMode()
+    }
 }
 
 #if DEBUG

@@ -541,4 +541,16 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertEqual(NavigationCoordinator.Tab.townHall.refreshDomain, .townHall)
         XCTAssertNil(NavigationCoordinator.Tab.profile.refreshDomain); XCTAssertNil(NavigationCoordinator.Tab.explore.refreshDomain)
     }
+
+    @MainActor
+    func testLookAroundFirst_EntersGuestModeOnExplore() {
+        let appState = AppState()
+        AppLaunchManager.shared.state = .ready(.unauthenticated)
+
+        WelcomeEntryRoute.lookAroundFirst(appState: appState)
+
+        XCTAssertEqual(coordinator.pendingIntent, .explore)
+        XCTAssertTrue(appState.isGuestMode)
+        XCTAssertEqual(AppLaunchManager.shared.state, .ready(.guest))
+    }
 }

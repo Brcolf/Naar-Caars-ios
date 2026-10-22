@@ -2,7 +2,7 @@
 //  MyProfileView.swift
 //  NaarsCars
 //
-//  Current user's profile view with editing, reviews, and invite codes
+//  Current user's profile view with editing and reviews
 //
 
 import SwiftUI
@@ -77,10 +77,10 @@ struct MyProfileView: View {
                                 xp: viewModel.totalXP
                             )
                             
-                            // Admin Panel Link (below stats): platform admins and admins of any community
+                            // Admin Panel Link (below stats): platform admins only; community admins use Manage
                             if let adminScope = AdminPanelScope.initial(
                                 isPlatformAdmin: profile.isAdmin,
-                                administered: CommunityContext.shared.administeredCommunities
+                                administered: []
                             ) {
                                 adminPanelLink(scope: adminScope)
                             }
