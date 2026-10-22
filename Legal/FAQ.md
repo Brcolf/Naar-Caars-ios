@@ -14,6 +14,10 @@ We typically respond within 24 hours.
 
 Naar's Cars is open: anyone may download the app and create an account. There are three ways into a community: enter an invite code someone in that community gave you, ask to join a public community (answering a couple of questions for its admins), or create your own community. Each community is a group of neighbors who help each other with rides and favors.
 
+## How do I find and join communities?
+
+Open the Explore tab (the magnifying glass at the right end of the tab bar). It lists the communities you belong to and the communities listed for anyone to find. Tap a community to open its page: you can see its name, description and member count, its upcoming open requests (without addresses), and its recent Town Hall posts before you join. The bar at the bottom of the page shows how it admits people: join right away, ask to join (the community's admins approve), or invite only (enter a code). You can also enter an invite code or start your own community from Explore. If you are browsing without an account, tap "Look around first" on the welcome screen to open Explore.
+
 ## How long does approval take?
 
 Creating a community, or joining with a code for a community that admits people with a code, gets you in right away. Otherwise the community's owners and admins approve or decline your request, so how long it takes depends on the community. You can see the status of each request in the app while you wait.

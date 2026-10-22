@@ -150,7 +150,7 @@ Two elevations, both in `View+Extensions.swift`:
 
 `.cardStyle()` is the whole card recipe (16 pt padding, card surface, `Radius.card`, `cardShadow`); `.cardSurface()` is the same without padding.
 
-**Liquid Glass** (`.glassEffect`) is used on five surfaces, all transient or floating: `ToastView`, `ErrorBanner`, the offline notice, the address-copied toast, and the map's count chip. The tab bar, navigation bars, toolbar buttons and sheets get glass from the system. Cards never do.
+**Liquid Glass** (`.glassEffect`) is used on six surfaces, all transient or floating: `ToastView`, `ErrorBanner`, the offline notice, the address-copied toast, the map's count chip, and (Community Release 1) the community page's floating join bar (`CommunityPageView`, `.glassEffect(.regular, in: .rect(cornerRadius: Constants.Radius.card))` in a bottom `safeAreaInset`, shown only to a visitor; a member sees no bar). The tab bar, navigation bars, toolbar buttons and sheets get glass from the system. Cards never do.
 
 The message composer and overlay still use `UIBlurEffect`; they belong to the messaging path.
 
@@ -200,6 +200,8 @@ Paths are relative to `NaarsCars/`.
 | Component | File | Spec |
 |---|---|---|
 | `NaarsChip` | `UI/Components/Common/NotificationBadge.swift` | Short label on a capsule: caption semibold in a tint, on that tint at 12%. `tint: nil` is neutral. `size: .large` for detail-screen headers. Used for request status, post type, invite state and admin tags. |
+| Policy chip (Release 1) | `CommunityPolicyChip` in `UI/Components/Common/CommunityBadges.swift` | A `NaarsChip` with `tint: nil` and an SF Symbol naming how a community is joined: Open, Ask to join or Invite only. Used on Explore rows, the community page header, and `RideCard` / `FavorCard` for open communities. It reads "Open" for the join policy and sits beside the status chip, which can also read "Open"; the VoiceOver label says "Join rule: ..." so the two differ. No new tokens. |
+| Requests chips row (Release 1) | `RequestsDashboardView` | Community chips under the title: one capsule per community the person belongs to, toggled through `CommunityContext.toggleRequestsInclusion`. The selected capsule follows the Reports filter capsule (`naarsPrimary` at 12% with a 1 pt stroke). Wraps under the header at accessibility sizes. |
 | Community chip | `NaarsChip(text:, tint: nil)` in `RideCard` and `FavorCard`, the `RideDetailView` / `FavorDetailView` headers (`size: .large`) and, read-only, the `EditRideView` / `EditFavorView` headers | Neutral chip naming the request's or post's community. Hidden when the person has one active membership, so a single-community screen is unchanged. |
 | Bell and announcement row community chip (Phase 4) | `NaarsChip` in `NotificationRow` and `AnnouncementsView` rows (`communityChipText`) | Neutral chip naming the community; shown only when the person has more than one active membership. Wraps under the title at accessibility sizes. |
 | Requests hint row (Phase 4) | `RequestsDashboardView` | One caption row, "N more requests in your other communities", under a narrowed community scope when the others hold requests; hidden otherwise. No new tokens. |
@@ -255,6 +257,7 @@ A block nested inside a card uses `naarsInsetBackground` and `Radius.sm`.
 | Component | File | Spec |
 |---|---|---|
 | `AvatarView` | `UI/Components/Common/AvatarView.swift` | Photo, or white initials on `naarsPrimary`. Sizes in use: 24, 28, 40, 44, 56, 100. |
+| `CommunityMonogram` | `UI/Components/Common/CommunityBadges.swift` | The community's stand-in picture: the first letters of the first two words of its name, uppercased ("?" for a blank name), `naarsHeadline` in `naarsPrimary` on a circle of `naarsPrimary` at 12%. Default 40 pt; hidden from VoiceOver (the name is read beside it). |
 | `StarRatingView`, `StarRatingInput` | `UI/Components/Common/` | `naarsRating` stars. |
 
 ### 3.7 Messaging (UIKit)
@@ -265,7 +268,7 @@ A block nested inside a card uses `naarsInsetBackground` and `Radius.sm`.
 
 ## 4. Screen patterns
 
-- **Navigation.** Four tabs: Requests, Messages, Community, Profile. Each root is a `NavigationStack` with a large title, the bell at the trailing edge and one primary action.
+- **Navigation.** Four tabs: Requests, Messages, Community, Profile, plus Explore as the search-role tab (`Tab(..., role: .search)`: iOS draws it apart at the trailing end with a magnifying glass). `MainTabView` uses the Tab API and `.tabBarMinimizeBehavior(.onScrollDown)`, so the bar shrinks while a list scrolls and returns on scroll up. Each root is a `NavigationStack` with a large title, the bell at the trailing edge and one primary action.
 - **Ground.** Every scrolling screen sits on `naarsBackground`, including the ride and favor detail screens, the public profile and past requests.
 - **Bodies.** A `ScrollView` of cards (Requests, Town Hall, Profile, details), a plain `List` (conversations, notifications), or a system `Form` (create, edit, settings).
 - **Detail screens.** Status chip and poster, one card per topic with a title3 header, then actions: primary first, secondary after, destructive drawn in `naarsError`.

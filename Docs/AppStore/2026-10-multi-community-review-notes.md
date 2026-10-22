@@ -125,3 +125,28 @@ Add this sentence only after the announcement server change (File B) is applied:
 
 - The announcement push and the `membership_update` notices are produced by server files that are NOT APPLIED (`20261019_0002`, `20261019_0003`); until they are, notification behaviour is unchanged.
 - Account deletion, reporting and moderation are unchanged; no privacy manifest change.
+
+## Community Release 1: Explore and the community page
+
+Added 2026-10-21 as a draft for the owner to review before the build that adds the Explore tab. Nothing here has been pasted into App Store Connect. Replace the matching text of the earlier sections only if this build ships with them.
+
+### App Review Notes: Release 1 paragraph (add after "Review access")
+
+```text
+Explore and community pages:
+The Explore tab (magnifying glass, right end of the tab bar) lists the person's communities and communities their owners chose to list. Tapping one opens its community page. Anyone, including a guest, sees a listed community's name, description, member count, upcoming open requests without addresses or notes, recent Town Hall posts, and members' name, photo, car, rating and reviews. The bar at the bottom shows how to join: join, ask to join, or invite only. Joining, asking, entering an invite code and starting a community need an account; a guest is asked to sign in.
+No account: on the welcome screen tap "Look around first". It opens Explore as a guest.
+Reporting a community: Report this community is on the community page and in My communities. It goes to the platform moderators.
+```
+
+### Release notes (What's New), Release 1
+
+```text
+Find communities in the new Explore tab: see what a community offers before you join, then join, ask to join or enter an invite code. The Requests tab can show several communities at once, and Welcome has a new "Look around first" button. Our privacy policy and FAQ are updated.
+```
+
+### Owner steps and checks
+
+1. Copy the changed `Legal/PRIVACY_POLICY.md` sentence ("Public communities") and the new FAQ entry to the Notion pages the app opens.
+2. Check the byte size of the pasted Review Notes (limit 4,000 bytes); this paragraph adds about 1,000.
+3. What a visitor reads is server-limited: `get_community_preview` (`20261021_0001`) returns listed, unarchived communities only, with no address, note or community description beyond the public one, and members' name, photo, car, rating and reviews.
