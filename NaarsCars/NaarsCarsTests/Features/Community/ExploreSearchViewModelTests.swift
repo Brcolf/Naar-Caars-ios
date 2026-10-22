@@ -263,4 +263,24 @@ final class ExploreSearchViewModelTests: XCTestCase {
 
         XCTAssertEqual(service.searchCommunitiesCalls, ["Harb"])
     }
+
+    // MARK: - Results view copy (test locale en)
+
+    func testSearchRowDetail_JoinsAreaDistanceAndMembers() {
+        func row(area: String?, distance: Double?, members: Int) -> CommunitySearchResult {
+            CommunitySearchResult(
+                id: UUID(), name: "Harbor Helpers", description: nil, joinPolicy: CommunityJoinPolicy.approve.rawValue,
+                areaName: area, radiusMiles: area == nil ? nil : 2, memberCount: members, distanceMiles: distance
+            )
+        }
+        XCTAssertEqual(CommunitySearchRow.detailText(for: row(area: "Harbor", distance: 0.4, members: 214)), "Harbor · 0.4 mi · 214 members")
+        XCTAssertEqual(CommunitySearchRow.detailText(for: row(area: "Harbor", distance: nil, members: 214)), "Harbor · 214 members")
+        XCTAssertEqual(CommunitySearchRow.detailText(for: row(area: nil, distance: nil, members: 214)), "214 members")
+        XCTAssertEqual(CommunitySearchRow.detailText(for: row(area: nil, distance: nil, members: 1)), "1 member")
+    }
+
+    func testEmptyResultsText_GuestAndMember() {
+        XCTAssertEqual(CommunitySearchResultsView.emptyText(isGuest: true), "No community here yet. Sign up to start one.")
+        XCTAssertEqual(CommunitySearchResultsView.emptyText(isGuest: false), "No community here yet. Start one for your neighbors.")
+    }
 }

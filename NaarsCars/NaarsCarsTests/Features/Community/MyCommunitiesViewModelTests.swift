@@ -202,29 +202,40 @@ final class MyCommunitiesViewModelTests: XCTestCase {
 
     // MARK: - Explore: listed communities
 
-    private func listed(_ id: UUID, name: String, policy: String = "approve") -> PublicCommunity {
-        PublicCommunity(id: id, name: name, description: nil, joinPolicy: policy, isDefault: false)
+    private func listed(_ id: UUID, name: String, policy: String = "approve", isDefault: Bool = false) -> PublicCommunity {
+        PublicCommunity(id: id, name: name, description: nil, joinPolicy: policy, isDefault: isDefault)
     }
 
-    func testListedToShow_LeavesOutActiveAndPendingMemberships() async {
+    /// The default community (Test Community) is the Example community row, for anyone not in it.
+    func testExampleCommunity_IsTheDefaultListedOneUnlessJoined() async {
+        let example = CommunityFixtures.communityC
         let a = CommunityFixtures.communityA
-        let b = CommunityFixtures.communityB
-        let c = CommunityFixtures.communityC
-        let stub = StubCommunityService(result: .success([
-            CommunityFixtures.membership(a, name: "Community A"),
-            CommunityFixtures.membership(b, name: "Community B", status: .pending)
-        ]))
+        let stub = StubCommunityService(result: .success([]))
         stub.fetchPublicCommunitiesResult = .success([
-            listed(a, name: "Community A"), listed(b, name: "Community B"), listed(c, name: "Community C")
+            listed(example, name: "Test Community", isDefault: true), listed(a, name: "Community A")
         ])
         let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
         context.restore(for: me)
         let vm = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in }, isGuest: { false })
 
         await vm.load()
+        XCTAssertEqual(vm.exampleCommunity?.name, "Test Community")
+        XCTAssertEqual(vm.exampleCommunity?.id, example)
 
-        XCTAssertEqual(vm.listedToShow.map(\.id), [c])
-        XCTAssertFalse(vm.listedLoadFailed)
+        // An active membership in it: the row goes.
+        stub.result = .success([CommunityFixtures.membership(example, name: "Test Community")])
+        await vm.load()
+        XCTAssertNil(vm.exampleCommunity)
+
+        // So does a pending one.
+        stub.result = .success([CommunityFixtures.membership(example, name: "Test Community", status: .pending)])
+        await vm.load()
+        XCTAssertNil(vm.exampleCommunity)
+
+        // A membership elsewhere leaves it.
+        stub.result = .success([CommunityFixtures.membership(a, name: "Community A")])
+        await vm.load()
+        XCTAssertEqual(vm.exampleCommunity?.id, example)
     }
 
     func testLoad_GuestLoadsListedOnlyWithoutMembershipOrLimitCalls() async {
@@ -238,7 +249,8 @@ final class MyCommunitiesViewModelTests: XCTestCase {
         XCTAssertEqual(stub.fetchCount, 0)
         XCTAssertEqual(stub.fetchMyCommunityLimitsCalls, 0)
         XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 1)
-        XCTAssertEqual(vm.listedToShow.map(\.id), [CommunityFixtures.communityC])
+        XCTAssertEqual(context.listedCommunities.map(\.id), [CommunityFixtures.communityC])
+        XCTAssertNil(vm.exampleCommunity)
         XCTAssertFalse(vm.hasLoadedMemberships)
         XCTAssertNil(vm.limits)
     }
@@ -321,35 +333,33 @@ final class MyCommunitiesViewModelTests: XCTestCase {
         XCTAssertEqual(stub.fetchCount, 2)
     }
 
-    func testListedLoadFailure_SetsTheFlagAndKeepsTheRows() async {
-        let c = CommunityFixtures.communityC
+    func testExampleCommunity_HiddenWhenTheListedLoadFails() async {
+        let example = CommunityFixtures.communityC
         let stub = StubCommunityService(result: .success([]))
-        stub.fetchPublicCommunitiesResult = .success([listed(c, name: "Community C")])
+        stub.fetchPublicCommunitiesResult = .success([listed(example, name: "Test Community", isDefault: true)])
         let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
         context.restore(for: me)
         let vm = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in }, isGuest: { false })
 
         await vm.load()
         XCTAssertFalse(vm.listedLoadFailed)
-        XCTAssertEqual(vm.listedToShow.map(\.id), [c])
+        XCTAssertEqual(vm.exampleCommunity?.id, example)
 
         stub.fetchPublicCommunitiesResult = .failure(URLError(.notConnectedToInternet))
         await vm.load()
         XCTAssertTrue(vm.listedLoadFailed)
-        XCTAssertEqual(vm.listedToShow.map(\.id), [c])
+        XCTAssertNil(vm.exampleCommunity)
 
         // A cancelled pull-to-refresh is not a result: the flag stays as it was.
         stub.fetchPublicCommunitiesResult = .failure(URLError(.cancelled))
         await vm.load()
         XCTAssertTrue(vm.listedLoadFailed)
+        XCTAssertNil(vm.exampleCommunity)
 
-        stub.fetchPublicCommunitiesResult = .success([listed(c, name: "Community C")])
+        stub.fetchPublicCommunitiesResult = .success([listed(example, name: "Test Community", isDefault: true)])
         await vm.load()
         XCTAssertFalse(vm.listedLoadFailed)
-
-        stub.fetchPublicCommunitiesResult = .failure(CancellationError())
-        await vm.load()
-        XCTAssertFalse(vm.listedLoadFailed)
+        XCTAssertEqual(vm.exampleCommunity?.id, example)
     }
 
     func testIsGuest_DefaultFollowsTheInjectedAuthService() {

@@ -2,7 +2,7 @@
 //  MyCommunitiesViewModel.swift
 //  NaarsCars
 //
-//  Explore's content: the member's communities, the listed communities, and the follow-ups of a
+//  Explore's content: the member's communities, the Example community, and the follow-ups of a
 //  leave, a create or a join
 //
 
@@ -75,13 +75,9 @@ final class MyCommunitiesViewModel: ObservableObject {
     /// Set instead of `errorMessage` when a leave is refused with `last_owner`: the view offers
     /// to choose a new owner on the community's Members screen.
     @Published var newOwnerNeededFor: CommunityMembership?
-    /// True when the last listed-communities load failed (a cancelled one changes nothing). The
-    /// rows already on screen stay; the view shows a banner with Retry, or a Retry row when the
-    /// section would otherwise be empty.
+    /// True when the last listed-communities load failed (a cancelled one changes nothing); the
+    /// Example community row is hidden until a load succeeds.
     @Published private(set) var listedLoadFailed = false
-    /// True once a listed-communities load has succeeded: before that an empty list means "not
-    /// loaded yet", not "no listed communities".
-    @Published private(set) var hasLoadedListed = false
 
     private let service: any CommunityServiceProtocol
     private let communityContext: CommunityContext
@@ -127,11 +123,13 @@ final class MyCommunitiesViewModel: ObservableObject {
     /// A guest has no memberships, no limits and no skeleton; only the listed communities load.
     var isGuest: Bool { isGuestProvider() }
 
-    /// The listed communities the person is not already in: every one except an active or a
-    /// pending membership. A community the person left or was removed from stays listed.
-    var listedToShow: [PublicCommunity] {
+    /// The Example community row: the listed default community (Test Community), while the
+    /// person has no active or pending membership in it. nil when the last listed load failed.
+    var exampleCommunity: PublicCommunity? {
+        guard !listedLoadFailed,
+              let example = communityContext.listedCommunities.first(where: \.isDefault) else { return nil }
         let joined = Set((active + pending).map(\.communityId))
-        return communityContext.listedCommunities.filter { !joined.contains($0.id) }
+        return joined.contains(example.id) ? nil : example
     }
 
     func isAdmin(of communityId: UUID) -> Bool {
@@ -172,7 +170,7 @@ final class MyCommunitiesViewModel: ObservableObject {
     }
 
     /// A member reads the memberships, the owned-community limits and the listed communities,
-    /// in that order (the listed rows leave out the memberships, so they come last). A guest
+    /// in that order (the Example row leaves out a joined default community, so they come last). A guest
     /// reads the listed communities only and calls no membership or limit function.
     func load() async {
         guard !isLoading else { return }
@@ -193,7 +191,6 @@ final class MyCommunitiesViewModel: ObservableObject {
         switch await communityContext.loadListedCommunities() {
         case true?:
             listedLoadFailed = false
-            hasLoadedListed = true
             lastSuccessfulLoad = now()
         case false?:
             listedLoadFailed = true

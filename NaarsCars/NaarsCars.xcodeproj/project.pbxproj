@@ -316,6 +316,7 @@
 		AC7A1D6E308AAA9300908D08 /* PlaceGeocoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D6D308AAA9300908D08 /* PlaceGeocoder.swift */; };
 		AC7A1D70308AAD2800908D08 /* ExploreSearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D6F308AAD2800908D08 /* ExploreSearchViewModelTests.swift */; };
 		AC7A1D72308AAD6D00908D08 /* ExploreSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D71308AAD6D00908D08 /* ExploreSearchViewModel.swift */; };
+		AC7A1D74308AB19100908D08 /* CommunitySearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D73308AB19100908D08 /* CommunitySearchResultsView.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -880,6 +881,7 @@
 		AC7A1D6D308AAA9300908D08 /* PlaceGeocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceGeocoder.swift; sourceTree = "<group>"; };
 		AC7A1D6F308AAD2800908D08 /* ExploreSearchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreSearchViewModelTests.swift; sourceTree = "<group>"; };
 		AC7A1D71308AAD6D00908D08 /* ExploreSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreSearchViewModel.swift; sourceTree = "<group>"; };
+		AC7A1D73308AB19100908D08 /* CommunitySearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunitySearchResultsView.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1683,6 +1685,7 @@
 				AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */,
 				AC7A1D5C3089A12400908D08 /* ExploreView.swift */,
 				AC7A1D623089AAA600908D08 /* CommunityPageView.swift */,
+				AC7A1D73308AB19100908D08 /* CommunitySearchResultsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2953,6 +2956,7 @@
 				AC4F1DF32F20BA4800CC5DBA /* LinkPreviewView.swift in Sources */,
 				AC4F1DF42F20BA4800CC5DBA /* ImageViewerView.swift in Sources */,
 				AC4F1DF52F20BA4800CC5DBA /* TypingIndicatorView.swift in Sources */,
+				AC7A1D74308AB19100908D08 /* CommunitySearchResultsView.swift in Sources */,
 				45BD6598267841EF999E58AA /* Features/Rides/Views/RideDetailView.swift in Sources */,
 				16C176A10FD84773AD93DCF2 /* UI/Components/Cards/FavorCard.swift in Sources */,
 				AABD5781380A404FB7CEC993 /* UI/Components/Common/RequestQAView.swift in Sources */,

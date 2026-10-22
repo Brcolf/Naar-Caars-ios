@@ -2,15 +2,18 @@
 //  MyCommunitiesView.swift
 //  NaarsCars
 //
-//  Explore's content: your communities, the listed communities, an invite code and Start a community
+//  Explore's content before a search: Use my location, your communities, an invite code, Start a
+//  community and the Example community
 //
 
 import SwiftUI
 import SwiftData
 
 /// The root of the Explore tab, for members and guests alike. No NavigationStack: `ExploreView`
-/// supplies it. A community row opens its page (`CommunityPageView`), which owns invite, mute,
-/// leave and Manage; the rows of the waiting section keep their own menu.
+/// supplies it, with the search field; while a search shows, its results are drawn over this
+/// screen, which stays mounted (its intent consumer, destinations and sheets keep working).
+/// A community row opens its page (`CommunityPageView`), which owns invite, mute, leave and
+/// Manage; the rows of the waiting section keep their own menu.
 struct MyCommunitiesView: View {
     /// Where a pending intent opens on Explore. `.root` is this screen with nothing pushed on top.
     enum ExploreRoute: Equatable {
@@ -83,15 +86,42 @@ struct MyCommunitiesView: View {
     @State private var openJoinOnNextAppear = false
     /// The pending intent present when this view first appeared is opened once per view lifetime.
     @State private var didReplayInitialIntent = false
-    /// The banner over kept listed rows was closed; shown again by the next load.
-    @State private var listedBannerDismissed = false
+    /// Asks the search for one device fix; nil hides the Use my location button.
+    private let onUseMyLocation: (() -> Void)?
+    /// True while that fix is awaited: the button shows a spinner.
+    private let isLocating: Bool
+    /// Set by the search results' Start a community (or a guest's Sign up): this screen opens the
+    /// same sheet as its own row and sets it back to false.
+    @Binding private var startCommunityRequested: Bool
+    /// True while a screen opened from the search results is pushed on top of this one.
+    private let hasSearchScreenOnTop: Bool
 
-    @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel()) {
+    @MainActor init(
+        viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel(),
+        onUseMyLocation: (() -> Void)? = nil,
+        isLocating: Bool = false,
+        startCommunityRequested: Binding<Bool> = .constant(false),
+        hasSearchScreenOnTop: Bool = false
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel())
+        self.onUseMyLocation = onUseMyLocation
+        self.isLocating = isLocating
+        _startCommunityRequested = startCommunityRequested
+        self.hasSearchScreenOnTop = hasSearchScreenOnTop
     }
 
     var body: some View {
         List {
+            Section {
+                Text("explore_find_hint".localized)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.naarsTextSecondary)
+                    .accessibilityIdentifier("explore.findHint")
+                if let onUseMyLocation {
+                    UseMyLocationButton(isLocating: isLocating, action: onUseMyLocation)
+                }
+            }
+
             // A guest has no memberships to wait for, so no skeleton.
             if !viewModel.isGuest && viewModel.active.isEmpty && viewModel.pending.isEmpty && !viewModel.hasLoadedMemberships {
                 skeletonSection
@@ -130,9 +160,10 @@ struct MyCommunitiesView: View {
                 }
                 inviteCodeRow
                 startCommunityRow
+                if let example = viewModel.exampleCommunity {
+                    exampleCommunityRow(example)
+                }
             }
-
-            listedSection
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -245,20 +276,21 @@ struct MyCommunitiesView: View {
                 openJoinOnNextAppear = Self.opensJoinOnNextAppear(
                     storedCode: storedInviteCode,
                     isVisible: isVisible,
-                    screenPushedOnTop: screenPushedOnTop,
+                    screenPushedOnTop: screenPushedOnTop || hasSearchScreenOnTop,
                     isGuest: viewModel.isGuest
                 )
             }
         }
-        .onChange(of: viewModel.isLoading) { _, isLoading in
-            if isLoading { listedBannerDismissed = false }
+        .onChange(of: startCommunityRequested) { _, requested in
+            guard requested else { return }
+            startCommunityRequested = false
+            openStartCommunity()
         }
         .refreshable { await viewModel.load() }
         .sheet(item: $activeSheet, onDismiss: sheetDismissed) { sheet in
             sheetContent(sheet)
         }
         .toast(message: $viewModel.toastMessage)
-        .errorBanner(message: listedBanner, retryAction: { Task { await viewModel.load() } })
         .errorBanner(message: $viewModel.errorMessage)
     }
 
@@ -313,7 +345,7 @@ struct MyCommunitiesView: View {
 
     /// True while a screen of this tab is pushed on top of the root.
     private var hasScreenOnTop: Bool {
-        screenPushedOnTop || pendingTarget != nil || reportsTarget != nil
+        screenPushedOnTop || hasSearchScreenOnTop || pendingTarget != nil || reportsTarget != nil
             || membersTarget != nil || communityPageTarget != nil
     }
 
@@ -442,11 +474,28 @@ struct MyCommunitiesView: View {
             subtitle: "explore_start_community_subtitle".localized,
             identifier: "explore.startCommunity"
         ) {
-            if viewModel.isGuest {
-                activeSheet = .guestPrompt(.startCommunity)
-            } else {
-                activeSheet = .create
-            }
+            openStartCommunity()
+        }
+    }
+
+    /// Create for a member, the sign-in prompt for a guest; also the search results' entry point.
+    private func openStartCommunity() {
+        if viewModel.isGuest {
+            activeSheet = .guestPrompt(.startCommunity)
+        } else {
+            activeSheet = .create
+        }
+    }
+
+    /// The default community's page, to see requests and posts before joining one.
+    private func exampleCommunityRow(_ community: PublicCommunity) -> some View {
+        actionRow(
+            systemImage: "sparkles",
+            title: "explore_example_title".localized,
+            subtitle: "explore_example_subtitle".localized,
+            identifier: "explore.example.row"
+        ) {
+            communityPageTarget = community.id
         }
     }
 
@@ -667,111 +716,6 @@ struct MyCommunitiesView: View {
         }
     }
 
-    // MARK: - Listed communities
-
-    @ViewBuilder
-    private var listedSection: some View {
-        let rows = viewModel.listedToShow
-        Section {
-            if !rows.isEmpty {
-                ForEach(rows) { community in
-                    listedRow(community)
-                }
-            } else if viewModel.listedLoadFailed {
-                listedFailureRow
-            } else if viewModel.hasLoadedListed {
-                Text("explore_listed_empty".localized)
-                    .font(.naarsSubheadline)
-                    .foregroundColor(.naarsTextSecondary)
-                    .accessibilityIdentifier("explore.listed.empty")
-            } else {
-                listedSkeletonRow
-            }
-        } header: {
-            Text("explore_section_listed".localized)
-        } footer: {
-            Text("explore_listed_footer".localized)
-        }
-    }
-
-    private func listedRow(_ community: PublicCommunity) -> some View {
-        let policy = CommunityJoinPolicy(rawValue: community.joinPolicy)
-        return Button {
-            communityPageTarget = community.id
-        } label: {
-            rowLayout {
-                CommunityMonogram(name: community.name, size: monogramSize)
-                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                    Text(community.name)
-                        .font(.naarsHeadline)
-                        .foregroundColor(.naarsTextPrimary)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                    if let policy {
-                        CommunityPolicyChip(policy: policy)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if !dynamicTypeSize.isAccessibilitySize {
-                    rowChevron
-                }
-            }
-            .padding(.vertical, Constants.Spacing.xs)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(([community.name] + (policy.map { [$0.chipText] } ?? [])).joined(separator: ", "))
-        .accessibilityIdentifier("explore.listed.row")
-    }
-
-    /// The failure row, only where the section would otherwise be empty. With rows on screen a
-    /// failed refresh keeps them and shows the banner instead.
-    private var listedFailureRow: some View {
-        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-            Label("explore_listed_load_failed".localized, systemImage: "exclamationmark.triangle.fill")
-                .font(.naarsSubheadline)
-                .foregroundColor(.naarsTextSecondary)
-            Button {
-                Task { await viewModel.load() }
-            } label: {
-                Text("common_retry".localized)
-                    .font(.naarsSubheadline.weight(.semibold))
-                    .foregroundColor(.naarsPrimary)
-                    .frame(minHeight: 44)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("common_retry".localized)
-            .accessibilityIdentifier("explore.listed.retry")
-        }
-        .padding(.vertical, Constants.Spacing.xs)
-    }
-
-    /// The failure banner over listed rows that stayed on screen. Closed by its own dismiss button
-    /// until the next load, and not drawn while an action error uses the banner slot.
-    private var listedBanner: Binding<String?> {
-        Binding(
-            get: {
-                guard viewModel.listedLoadFailed, !viewModel.listedToShow.isEmpty,
-                      !listedBannerDismissed, viewModel.errorMessage == nil else { return nil }
-                return "explore_listed_load_failed".localized
-            },
-            set: { if $0 == nil { listedBannerDismissed = true } }
-        )
-    }
-
-    private var listedSkeletonRow: some View {
-        HStack(spacing: Constants.Spacing.md) {
-            SkeletonRectangle(width: monogramSize, height: monogramSize, cornerRadius: monogramSize / 2)
-            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
-                SkeletonRectangle(width: 180, height: 16)
-                SkeletonRectangle(width: 80, height: 12)
-            }
-        }
-        .padding(.vertical, Constants.Spacing.xs)
-        .accessibilityHidden(true)
-    }
-
     private var skeletonSection: some View {
         Section {
             ForEach(0..<2, id: \.self) { _ in
@@ -878,12 +822,18 @@ struct MyCommunitiesView: View {
 
 #if DEBUG
 private enum ExplorePreviewData {
+    /// The listed default community, shown as the Example community row.
+    static let example = PublicCommunity(
+        id: UUID(), name: "Test Community", description: nil,
+        joinPolicy: CommunityJoinPolicy.approve.rawValue, isDefault: true
+    )
+
     /// Explore for `memberships` (empty with `isGuest`: a guest), the listed communities `listed`,
     /// and a saved invite code when `savedCode` is set.
     @MainActor
     static func screen(
         memberships: [CommunityMembership],
-        listed: [PublicCommunity] = PreviewCommunityService.samplePublicCommunities,
+        listed: [PublicCommunity] = PreviewCommunityService.samplePublicCommunities + [example],
         limits: CommunityLimits? = nil,
         failListed: Bool = false,
         isGuest: Bool = false,
@@ -900,7 +850,7 @@ private enum ExplorePreviewData {
         return NavigationStack {
             MyCommunitiesView(viewModel: MyCommunitiesViewModel(
                 service: service, communityContext: context, refreshDashboard: { _ in }, isGuest: { isGuest }
-            ))
+            ), onUseMyLocation: {})
         }
         .environment(AppState())
     }
@@ -947,6 +897,7 @@ private enum ExplorePreviewData {
     ExplorePreviewData.screen(memberships: [], isGuest: true, savedCode: "NC7K2PQ9XA")
 }
 
+// The listed load failed: no Example community row.
 #Preview("Listed communities failed to load") {
     ExplorePreviewData.screen(
         memberships: [PreviewCommunityService.membership(name: "Ballard Neighbors", memberCount: 12)],
