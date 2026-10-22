@@ -1,6 +1,7 @@
 -- 2026-10-21_test_community_cleanup.sql
 --
--- STATUS: NOT APPLIED. The owner runs this in the Supabase SQL editor, if and when they decide to.
+-- STATUS: NOT NEEDED: observed 2026-10-22 that the rows it targets no longer exist (0 rides, 0 favors, 0 posts,
+-- 0 comments, 0 Q&A in Test Community); nothing to run.
 -- It is a one-off data script, not a migration: do not move it to supabase/migrations, never `supabase db push`,
 -- and do not run it through the Supabase MCP (the MCP declines DELETE statements; do not rephrase around that).
 --
