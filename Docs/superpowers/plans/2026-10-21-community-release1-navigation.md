@@ -528,6 +528,8 @@ Keys: `welcome_body_find_community` "Find your neighborhood's community. Get a r
 
 ## Interfaces later releases rely on
 
+- (Scan ruling 4) The reviews read widening in Task 1 Block 3 sits inside `[A23]`'s `approved` gate, so a Release 2 visitor with no membership (the search-first Get started) does not read listed-community reviews until Release 2 widens that gate.
+
 - **Screens:** `ExploreView` (root of the search tab; Release 2 adds `.searchable` and the search view model here), `MyCommunitiesView` (the before-search content and the Explore intent consumer, `MyCommunitiesView.exploreRoute(for:)`), `CommunityPageView(communityId:)` (Release 2 adds the area map and Merge under Manage; Release 3 the offers rules), `CommunityTabView` (the Town Hall tab).
 - **ViewModels:** `CommunityPageViewModel` (`CommunityPageMode`, `CommunityVisitorAction`, `load()`), `MyCommunitiesViewModel` (`listedToShow`, `loadIfStale()`, leave, mute, `didJoin`), `RequestsDashboardViewModel.header(scope:activeMemberships:isGuest:)` and `openCounts`, `TownHallFeedViewModel.communitySwitchNotice`, `LeaderboardViewModel(communityId:)`.
 - **Entry points:** `NavigationCoordinator.Tab.explore` / `.townHall`, `NavigationIntent.explore`, `NavigationCoordinator.Tab.refreshDomain`, `CommunityContext.listedCommunities` / `loadListedCommunities()` / `joinPolicy(for:)` / `toggleRequestsInclusion(_:)`, `RequestsScope.excluding`, `CommunityJoinPolicy.open` with `chipText` / `subtitleText` / `ruleSentence` / `systemImage`, `CommunityPolicyChip`, `CommunityMonogram`, `BadgeCounts.explore`, `WelcomeEntryRoute.lookAroundFirst`.
