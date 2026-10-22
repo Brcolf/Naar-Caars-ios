@@ -118,15 +118,17 @@ final class ExploreSearchViewModel: ObservableObject {
         guard locator.access != .denied, !isLocating else { return }
         isLocating = true
         locationNotice = nil
-        pendingSearch?.cancel()
         let fix = await locator.currentLocation(timeout: Constants.Community.locationSearchTimeout)
         guard let fix else {
+            // No fix: a typed search that is pending or running goes on and writes its answer.
             isLocating = false
             if locator.access != .denied {
                 locationNotice = "explore_location_unavailable".localized
             }
             return
         }
+        // Only a fix replaces the typed search; the generation bump below makes its answer win.
+        pendingSearch?.cancel()
         let point = fix.rounded(toDecimals: Constants.Community.searchCoordinateDecimals)
         generation += 1
         let current = generation

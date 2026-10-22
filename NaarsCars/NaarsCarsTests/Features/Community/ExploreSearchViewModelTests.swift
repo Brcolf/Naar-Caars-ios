@@ -219,6 +219,39 @@ final class ExploreSearchViewModelTests: XCTestCase {
         XCTAssertTrue(service.searchCommunitiesCalls.isEmpty)
     }
 
+    func testUseMyLocation_NoFixLeavesATypedSearchToFinish() async throws {
+        locator.location = nil
+        let found = result("Seattle Riders")
+        service.searchCommunitiesResult = .success([found])
+
+        // A search still in its debounce runs once the location attempt gives up.
+        let vm = makeViewModel(debounce: .milliseconds(50))
+        vm.query = "Seattle"
+        await vm.useMyLocation()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(service.searchCommunitiesCalls, ["Seattle"])
+        XCTAssertEqual(vm.phase, .results)
+        XCTAssertEqual(vm.results.byName, [found])
+        XCTAssertTrue(vm.showsResults)
+
+        // A search already running finishes and writes its answer; no spinner is left behind.
+        service.searchCommunitiesHandler = { _ in
+            try await Task.sleep(for: .milliseconds(100))
+            return [found]
+        }
+        let running = makeViewModel()
+        running.query = "Fremont"
+        for _ in 0..<200 where service.searchCommunitiesCalls.count < 2 { await Task.yield() }
+        XCTAssertEqual(service.searchCommunitiesCalls, ["Seattle", "Fremont"])
+        await running.useMyLocation()
+        for _ in 0..<100 where running.phase != .results { try await Task.sleep(for: .milliseconds(10)) }
+
+        XCTAssertEqual(running.phase, .results)
+        XCTAssertEqual(running.results.byName, [found])
+        XCTAssertEqual(running.query, "Fremont")
+    }
+
     func testQueryEdits_AreDebouncedIntoOneSearch() async throws {
         let vm = makeViewModel(debounce: .milliseconds(50))
 
