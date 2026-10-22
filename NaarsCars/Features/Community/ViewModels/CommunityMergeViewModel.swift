@@ -163,7 +163,7 @@ final class CommunityMergeViewModel: ObservableObject {
             let proposal = try await service.fetchMergeProposal(communityId: communityId)
             guard generation == loadGeneration else { return }
             mode = proposal.map { .proposal($0) } ?? .compose
-        } catch is CancellationError {
+        } catch where Self.isCancellation(error) {
             return
         } catch {
             AppLogger.error("community", "fetchMergeProposal failed: \(error)")
@@ -194,7 +194,7 @@ final class CommunityMergeViewModel: ObservableObject {
             if let selected = selectedTarget, !found.contains(where: { $0.id == selected.id }) {
                 selectedTarget = nil
             }
-        } catch is CancellationError {
+        } catch where Self.isCancellation(error) {
             return
         } catch {
             AppLogger.error("community", "searchMergeTargets failed: \(error)")
@@ -249,13 +249,13 @@ final class CommunityMergeViewModel: ObservableObject {
         HapticManager.success()
         let mergedAway = proposal.merged.id == communityId
         completion = String(format: "community_merge_done_toast".localized, proposal.merged.name, proposal.survivor.name)
+        // Set before the refreshes: the merged community is archived, so the memberships refresh
+        // drops it and the panel removes the link that pushed this screen. The screen must have
+        // handed its confirmation to the panel by then (as `CommunitySettingsViewModel.archive`).
+        if mergedAway { didMergeAway = true }
         await refreshDashboard("mergedCommunity")
         await communityContext.refreshMemberships()
-        if mergedAway {
-            didMergeAway = true
-        } else {
-            await load()
-        }
+        if !mergedAway { await load() }
         return true
     }
 
@@ -294,6 +294,13 @@ final class CommunityMergeViewModel: ObservableObject {
     }
 
     // MARK: - Private
+
+    /// A cancelled Supabase call throws `URLError(.cancelled)`, not only `CancellationError`.
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        return false
+    }
 
     private func resetCompose() {
         query = ""

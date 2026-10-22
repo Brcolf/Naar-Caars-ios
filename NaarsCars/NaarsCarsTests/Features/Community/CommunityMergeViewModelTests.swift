@@ -173,7 +173,14 @@ final class CommunityMergeViewModelTests: XCTestCase {
         XCTAssertEqual(vm.mode, .compose)
 
         // Fremont is the one folded away this time: the panel closes.
-        let vm2 = makeViewModel(context: context, stub: stub, triggers: { triggers.append($0) })
+        // The memberships refresh drops the archived community and the panel pops this screen in
+        // that update, so the close must already be signalled when the refreshes start.
+        var mergedAwayAtRefresh: Bool?
+        var vm2: CommunityMergeViewModel!
+        vm2 = makeViewModel(context: context, stub: stub, triggers: {
+            triggers.append($0)
+            mergedAwayAtRefresh = vm2.didMergeAway
+        })
         stub.fetchMergeProposalResult = .success(CommunityFixtures.mergeProposal(direction: .incoming, survivorIsFrom: true))
         await vm2.load()
         stub.respondToMergeResult = .success(CommunityMergeOutcome(survivorId: harbor, mergedId: fremont))
@@ -182,6 +189,7 @@ final class CommunityMergeViewModelTests: XCTestCase {
 
         XCTAssertTrue(accepted2)
         XCTAssertTrue(vm2.didMergeAway)
+        XCTAssertEqual(mergedAwayAtRefresh, true, "didMergeAway is set before the refreshes")
         XCTAssertEqual(
             vm2.completion,
             String(format: "community_merge_done_toast".localized, "Fremont Porch Club", "Harbor Riders")
@@ -208,6 +216,34 @@ final class CommunityMergeViewModelTests: XCTestCase {
         XCTAssertTrue(triggers.isEmpty)
         XCTAssertNil(vm.completion)
         XCTAssertFalse(vm.isWorking)
+    }
+
+    // MARK: - Cancellation
+
+    /// A cancelled Supabase call throws `URLError(.cancelled)`: typing again cancels the search in
+    /// flight, and a cancelled pull-to-refresh cancels the load. Neither is a failure.
+    func testCancelledSearchAndLoad_AreNotFailures() async {
+        let (context, stub) = await makeContext(role: .owner)
+        let vm = makeViewModel(context: context, stub: stub)
+        await vm.load()
+        XCTAssertEqual(vm.mode, .compose)
+
+        stub.searchMergeTargetsResult = .failure(URLError(.cancelled))
+        vm.query = "Harbor"
+        await vm.searchTargets()
+        XCTAssertNil(vm.errorMessage)
+
+        stub.searchMergeTargetsResult = .failure(CancellationError())
+        await vm.searchTargets()
+        XCTAssertNil(vm.errorMessage)
+
+        let incoming = CommunityFixtures.mergeProposal(direction: .incoming)
+        stub.fetchMergeProposalResult = .success(incoming)
+        await vm.load()
+        stub.fetchMergeProposalResult = .failure(URLError(.cancelled))
+        await vm.load()
+        XCTAssertEqual(vm.mode, .proposal(incoming), "the proposal card stays")
+        XCTAssertNil(vm.errorMessage)
     }
 
     // MARK: - Confirmation
