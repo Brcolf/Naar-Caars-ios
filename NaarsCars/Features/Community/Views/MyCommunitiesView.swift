@@ -2,13 +2,15 @@
 //  MyCommunitiesView.swift
 //  NaarsCars
 //
-//  The member's communities: invite, requests to join, mute, report, leave, create and join
+//  Explore's content: your communities, the listed communities, an invite code and Start a community
 //
 
 import SwiftUI
 import SwiftData
 
-/// My communities, the root of the Explore tab. No NavigationStack: `ExploreView` supplies it.
+/// The root of the Explore tab, for members and guests alike. No NavigationStack: `ExploreView`
+/// supplies it. A community row opens its page (`CommunityPageView`), which owns invite, mute,
+/// leave and Manage; the rows of the waiting section keep their own menu.
 struct MyCommunitiesView: View {
     /// Where a pending intent opens on Explore. `.root` is this screen with nothing pushed on top.
     enum ExploreRoute: Equatable {
@@ -19,37 +21,43 @@ struct MyCommunitiesView: View {
     }
 
     private enum ActiveSheet: Identifiable {
-        case invite(CommunityMembership)
         case report(CommunityMembership)
         case leave(CommunityMembership, LeavePlan)
         case create
         case join
         case limitRequest(currentMax: Int)
+        case guestPrompt(GuestRestrictionReason)
 
         var id: String {
             switch self {
-            case .invite(let m): return "invite-\(m.communityId)"
             case .report(let m): return "report-\(m.communityId)"
             case .leave(let m, _): return "leave-\(m.communityId)"
             case .create: return "create"
             case .join: return "join"
             case .limitRequest: return "limit-request"
+            case .guestPrompt(let reason): return "guest-\(reason.id)"
             }
         }
     }
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The monogram circle of a row: this size at the default text size, growing with Dynamic Type
+    /// up to `maxMonogramSize`, so the initials stay inside the circle and the name keeps its room.
+    private static let baseMonogramSize: CGFloat = 40
+    private static let maxMonogramSize: CGFloat = 64
+    @ScaledMetric(relativeTo: .headline) private var scaledMonogramSize: CGFloat = MyCommunitiesView.baseMonogramSize
     @StateObject private var viewModel: MyCommunitiesViewModel
     @State private var activeSheet: ActiveSheet?
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var pendingTarget: PendingMembersTarget?
     /// A community's reports opened from a `.communityReports` intent (`content_reported`).
     @State private var reportsTarget: UUID?
-    /// The Members screen opened to choose a new owner after a `last_owner` refusal, or from a
-    /// `.communityMembers` intent (`membership_update`: made an owner).
+    /// The Members screen opened from a `.communityMembers` intent (`membership_update`: made an owner).
     @State private var membersTarget: CommunityMembersTarget?
-    /// The community whose Admin panel is open.
-    @State private var adminPanelTarget: UUID?
+    /// The community whose page is open.
+    @State private var communityPageTarget: UUID?
     /// Recorded by Create and Join; acted on in the sheet's `onDismiss`.
     @State private var createdCommunityId: UUID?
     @State private var joinResult: JoinResult?
@@ -59,13 +67,13 @@ struct MyCommunitiesView: View {
     @State private var joinPrefilledCode: String?
     /// The invite code saved on Welcome before sign-in; re-read in `.task` and after every sheet.
     @State private var storedInviteCode: String? = PendingInviteStore().peek()
-    /// A code saved before this view first appeared opens the Join sheet by itself once per view
-    /// lifetime. A code saved later is decided by the store-change rule instead, so this is also set
-    /// on every store change.
+    /// Whether a saved code may open the Join sheet by itself has been decided: once per view
+    /// lifetime, on the first `.task`. A code saved later is decided by the store-change rule
+    /// instead, so this is also set on every store change.
     @State private var didAutoOpenStoredCode = false
-    /// False while a screen is pushed on top (Admin panel, Members, Reports, Requests to join), while
-    /// another tab is selected, or once this one is popped, so a hidden copy never presents the Join
-    /// sheet on a store change.
+    /// False while a screen is pushed on top (a community page, Members, Reports, Requests to
+    /// join), while another tab is selected, or once this one is popped, so a hidden copy never
+    /// presents the Join sheet on a store change.
     @State private var isVisible = false
     /// True while one of this screen's destinations is pushed on top of it: set by the destination's
     /// `onAppear`, cleared by this screen's `onAppear`. A tab switch does not change it.
@@ -75,6 +83,8 @@ struct MyCommunitiesView: View {
     @State private var openJoinOnNextAppear = false
     /// The pending intent present when this view first appeared is opened once per view lifetime.
     @State private var didReplayInitialIntent = false
+    /// The banner over kept listed rows was closed; shown again by the next load.
+    @State private var listedBannerDismissed = false
 
     @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -82,7 +92,8 @@ struct MyCommunitiesView: View {
 
     var body: some View {
         List {
-            if viewModel.active.isEmpty && viewModel.pending.isEmpty && !viewModel.hasLoadedMemberships {
+            // A guest has no memberships to wait for, so no skeleton.
+            if !viewModel.isGuest && viewModel.active.isEmpty && viewModel.pending.isEmpty && !viewModel.hasLoadedMemberships {
                 skeletonSection
             }
 
@@ -117,22 +128,11 @@ struct MyCommunitiesView: View {
                 if let code = storedInviteCode {
                     storedInviteRow(code)
                 }
-
-                Button {
-                    activeSheet = .create
-                } label: {
-                    Label("community_action_create".localized, systemImage: "plus.circle")
-                }
-                .accessibilityIdentifier("community.my.create")
-
-                Button {
-                    joinPrefilledCode = nil
-                    activeSheet = .join
-                } label: {
-                    Label("community_action_join".localized, systemImage: "person.badge.plus")
-                }
-                .accessibilityIdentifier("community.my.join")
+                inviteCodeRow
+                startCommunityRow
             }
+
+            listedSection
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -155,22 +155,27 @@ struct MyCommunitiesView: View {
             CommunityReportsView(communityId: communityId, communityName: CommunityContext.shared.name(for: communityId))
                 .onAppear { screenPushedOnTop = true }
         }
-        .navigationDestination(item: $adminPanelTarget) { communityId in
-            AdminPanelView(
-                scope: .community(communityId),
-                communityName: viewModel.active.first(where: { $0.communityId == communityId })?.name,
-                onCommunityArchived: { viewModel.toastMessage = $0 }
-            )
-            .onAppear { screenPushedOnTop = true }
+        .navigationDestination(item: $communityPageTarget) { communityId in
+            // The same identity rule as Members: another community in place needs a fresh view model.
+            CommunityPageView(communityId: communityId)
+                .id(communityId)
+                .onAppear { screenPushedOnTop = true }
         }
         .task {
             viewModel.setup(modelContext: modelContext)
             storedInviteCode = PendingInviteStore().peek()
-            if !didAutoOpenStoredCode, let code = storedInviteCode, activeSheet == nil {
-                didAutoOpenStoredCode = true
+            if let code = Self.joinCodeToOpenOnAppear(
+                storedCode: storedInviteCode,
+                isGuest: viewModel.isGuest,
+                hasSheet: activeSheet != nil,
+                hasScreenOnTop: hasScreenOnTop,
+                pendingIntent: navigationCoordinator.pendingIntent,
+                alreadyDecided: didAutoOpenStoredCode
+            ) {
                 openJoin(with: code)
             }
-            await viewModel.load()
+            didAutoOpenStoredCode = true
+            await viewModel.loadIfStale()
         }
         .onAppear {
             isVisible = true
@@ -182,7 +187,8 @@ struct MyCommunitiesView: View {
                 if let code = Self.joinCodeToOpenOnStoreChange(
                     storedCode: storedInviteCode,
                     hasSheet: activeSheet != nil,
-                    isVisible: true
+                    isVisible: true,
+                    isGuest: viewModel.isGuest
                 ) {
                     openJoin(with: code)
                 }
@@ -215,7 +221,8 @@ struct MyCommunitiesView: View {
         }
         // A join link opened while this screen exists. Visible with no sheet: Join opens now. Hidden
         // by a tab switch: Join opens on the next appearance. With a sheet up or a screen pushed on
-        // top the code only refreshes the saved-code row, whose Use button stays the way in.
+        // top the code only refreshes the saved-code row, whose Use button stays the way in. A guest
+        // never gets Join by itself: Use shows the sign-in prompt.
         .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
             storedInviteCode = PendingInviteStore().peek()
             // The store-change rule owns this code; the `.task` re-run on the next appearance must not
@@ -224,7 +231,8 @@ struct MyCommunitiesView: View {
             if let code = Self.joinCodeToOpenOnStoreChange(
                 storedCode: storedInviteCode,
                 hasSheet: activeSheet != nil,
-                isVisible: isVisible
+                isVisible: isVisible,
+                isGuest: viewModel.isGuest
             ) {
                 openJoinOnNextAppear = false
                 openJoin(with: code)
@@ -232,40 +240,21 @@ struct MyCommunitiesView: View {
                 openJoinOnNextAppear = Self.opensJoinOnNextAppear(
                     storedCode: storedInviteCode,
                     isVisible: isVisible,
-                    screenPushedOnTop: screenPushedOnTop
+                    screenPushedOnTop: screenPushedOnTop,
+                    isGuest: viewModel.isGuest
                 )
             }
+        }
+        .onChange(of: viewModel.isLoading) { _, isLoading in
+            if isLoading { listedBannerDismissed = false }
         }
         .refreshable { await viewModel.load() }
         .sheet(item: $activeSheet, onDismiss: sheetDismissed) { sheet in
             sheetContent(sheet)
         }
         .toast(message: $viewModel.toastMessage)
+        .errorBanner(message: listedBanner, retryAction: { Task { await viewModel.load() } })
         .errorBanner(message: $viewModel.errorMessage)
-        .alert(
-            "community_leave_needs_owner_title".localized,
-            isPresented: Binding(
-                get: { viewModel.newOwnerNeededFor != nil },
-                set: { if !$0 { viewModel.newOwnerNeededFor = nil } }
-            ),
-            presenting: viewModel.newOwnerNeededFor
-        ) { membership in
-            Button("community_leave_needs_owner_action".localized) {
-                let target = CommunityMembersTarget(
-                    communityId: membership.communityId,
-                    communityName: membership.name,
-                    highlightTransfer: true
-                )
-                viewModel.newOwnerNeededFor = nil
-                membersTarget = target
-            }
-            .accessibilityIdentifier("community.my.chooseNewOwner")
-            Button("common_cancel".localized, role: .cancel) {
-                viewModel.newOwnerNeededFor = nil
-            }
-        } message: { membership in
-            Text(String(format: "community_leave_needs_owner_body".localized, membership.name))
-        }
     }
 
     // MARK: - Routes
@@ -296,7 +285,7 @@ struct MyCommunitiesView: View {
             pendingTarget = nil
             reportsTarget = nil
             membersTarget = nil
-            adminPanelTarget = nil
+            communityPageTarget = nil
         case .pendingMembers(let target):
             pendingTarget = target
         case .communityReports(let communityId):
@@ -312,6 +301,12 @@ struct MyCommunitiesView: View {
         navigationCoordinator.pendingIntent = nil
     }
 
+    /// True while a screen of this tab is pushed on top of the root.
+    private var hasScreenOnTop: Bool {
+        screenPushedOnTop || pendingTarget != nil || reportsTarget != nil
+            || membersTarget != nil || communityPageTarget != nil
+    }
+
     // MARK: - Saved invite code
 
     /// A saved code whose sheet was dismissed, or never shown, stays reachable here until it is
@@ -321,36 +316,58 @@ struct MyCommunitiesView: View {
             Label("community_invite_saved_row".localized, systemImage: "envelope.open.fill")
                 .font(.naarsSubheadline)
                 .foregroundColor(.naarsTextPrimary)
-            HStack(spacing: Constants.Spacing.md) {
-                Button {
-                    openJoin(with: code)
-                } label: {
-                    Text("community_invite_use".localized)
-                        .font(.naarsSubheadline.weight(.semibold))
-                        .foregroundColor(.naarsPrimary)
-                        .frame(minHeight: 44)
+            // Side by side while both words fit whole, stacked when they do not (accessibility sizes).
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Constants.Spacing.md) {
+                    useCodeButton(code)
+                    Spacer(minLength: 0)
+                    removeCodeButton
                 }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("community_invite_use".localized)
-                .accessibilityIdentifier("community.my.inviteCode.use")
-
-                Spacer(minLength: 0)
-
-                Button {
-                    PendingInviteStore().clear()
-                    storedInviteCode = nil
-                } label: {
-                    Text("community_invite_remove".localized)
-                        .font(.naarsSubheadline)
-                        .foregroundColor(.naarsTextSecondary)
-                        .frame(minHeight: 44)
+                VStack(alignment: .leading, spacing: 0) {
+                    useCodeButton(code)
+                    removeCodeButton
                 }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("community_invite_remove".localized)
-                .accessibilityIdentifier("community.my.inviteCode.remove")
             }
         }
         .padding(.vertical, Constants.Spacing.xs)
+    }
+
+    private func useCodeButton(_ code: String) -> some View {
+        Button {
+            useStoredCode(code)
+        } label: {
+            Text("community_invite_use".localized)
+                .font(.naarsSubheadline.weight(.semibold))
+                .foregroundColor(.naarsPrimary)
+                .frame(minHeight: 44)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("community_invite_use".localized)
+        .accessibilityIdentifier("community.my.inviteCode.use")
+    }
+
+    private var removeCodeButton: some View {
+        Button {
+            PendingInviteStore().clear()
+            storedInviteCode = nil
+        } label: {
+            Text("community_invite_remove".localized)
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextSecondary)
+                .frame(minHeight: 44)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("community_invite_remove".localized)
+        .accessibilityIdentifier("community.my.inviteCode.remove")
+    }
+
+    /// A guest cannot redeem a code: the sign-in prompt comes first, and the code stays saved.
+    private func useStoredCode(_ code: String) {
+        if viewModel.isGuest {
+            activeSheet = .guestPrompt(.joinCommunity)
+        } else {
+            openJoin(with: code)
+        }
     }
 
     private func openJoin(with code: String) {
@@ -359,17 +376,105 @@ struct MyCommunitiesView: View {
     }
 
     /// The code to open the Join sheet with after a store change: only when one is saved, no sheet
-    /// is up and this screen is the visible one. Pure, for tests.
-    static func joinCodeToOpenOnStoreChange(storedCode: String?, hasSheet: Bool, isVisible: Bool) -> String? {
-        guard let storedCode, !hasSheet, isVisible else { return nil }
+    /// is up, this screen is the visible one and the person is not a guest. Pure, for tests.
+    static func joinCodeToOpenOnStoreChange(storedCode: String?, hasSheet: Bool, isVisible: Bool, isGuest: Bool = false) -> String? {
+        guard let storedCode, !hasSheet, isVisible, !isGuest else { return nil }
         return storedCode
     }
 
     /// Whether a store change that did not open Join now opens it on the next appearance: only when a
     /// code is saved and this screen is hidden with nothing pushed on top of it (another tab is
-    /// selected). Under a pushed screen the saved-code row is the way in. Pure, for tests.
-    static func opensJoinOnNextAppear(storedCode: String?, isVisible: Bool, screenPushedOnTop: Bool) -> Bool {
-        storedCode != nil && !isVisible && !screenPushedOnTop
+    /// selected). Under a pushed screen the saved-code row is the way in. A guest never. Pure, for tests.
+    static func opensJoinOnNextAppear(storedCode: String?, isVisible: Bool, screenPushedOnTop: Bool, isGuest: Bool = false) -> Bool {
+        storedCode != nil && !isVisible && !screenPushedOnTop && !isGuest
+    }
+
+    /// The code the first `.task` opens the Join sheet with, once per view lifetime: only for a
+    /// member, with no sheet and no screen on top, and not while the pending intent opens a screen
+    /// of its own (a community admin's push). Pure, for tests.
+    static func joinCodeToOpenOnAppear(
+        storedCode: String?,
+        isGuest: Bool,
+        hasSheet: Bool,
+        hasScreenOnTop: Bool,
+        pendingIntent: NavigationIntent?,
+        alreadyDecided: Bool
+    ) -> String? {
+        guard !alreadyDecided, !isGuest, !hasSheet, !hasScreenOnTop, let storedCode else { return nil }
+        if let pendingIntent, let route = exploreRoute(for: pendingIntent), route != .root {
+            return nil
+        }
+        return storedCode
+    }
+
+    // MARK: - Invite code and Start a community
+
+    private var inviteCodeRow: some View {
+        actionRow(
+            systemImage: "person.badge.plus",
+            title: "explore_have_invite_code".localized,
+            subtitle: nil,
+            identifier: "explore.inviteCode"
+        ) {
+            if viewModel.isGuest {
+                activeSheet = .guestPrompt(.joinCommunity)
+            } else {
+                joinPrefilledCode = nil
+                activeSheet = .join
+            }
+        }
+    }
+
+    private var startCommunityRow: some View {
+        actionRow(
+            systemImage: "plus.circle",
+            title: "explore_start_community".localized,
+            subtitle: "explore_start_community_subtitle".localized,
+            identifier: "explore.startCommunity"
+        ) {
+            if viewModel.isGuest {
+                activeSheet = .guestPrompt(.startCommunity)
+            } else {
+                activeSheet = .create
+            }
+        }
+    }
+
+    private func actionRow(
+        systemImage: String,
+        title: String,
+        subtitle: String?,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: Constants.Spacing.md) {
+                // At accessibility sizes the icon would leave the title a few letters per line.
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: systemImage)
+                        .font(.naarsTitle3)
+                        .foregroundColor(.naarsPrimary)
+                        .frame(minWidth: 28)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text(title)
+                        .font(.naarsBody)
+                        .foregroundColor(.naarsPrimary)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.naarsFootnote)
+                            .foregroundColor(.naarsTextSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(subtitle.map { "\(title). \($0)" } ?? title)
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: - Limit
@@ -400,97 +505,85 @@ struct MyCommunitiesView: View {
         }
     }
 
-    // MARK: - Rows
+    // MARK: - Your communities
+
+    /// The row layout: monogram, text and chevron in a line; stacked at accessibility text sizes,
+    /// where the line leaves the name no room.
+    private var rowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Constants.Spacing.sm))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Constants.Spacing.md))
+    }
+
+    private var monogramSize: CGFloat { min(scaledMonogramSize, Self.maxMonogramSize) }
+
+    private var rowChevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.naarsCaption)
+            .foregroundColor(.secondary)
+            .accessibilityHidden(true)
+    }
 
     private func activeRow(_ membership: CommunityMembership) -> some View {
-        HStack(alignment: .top, spacing: Constants.Spacing.md) {
-            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
-                Text(membership.name)
-                    .font(.naarsHeadline)
-                    .foregroundColor(.naarsTextPrimary)
-                    .lineLimit(3)
-                HStack(spacing: Constants.Spacing.xs) {
-                    NaarsChip(text: roleText(membership.role), tint: membership.role == .member ? nil : .naarsPrimary)
-                    if viewModel.isMuted(membership) {
-                        NaarsChip(text: "community_muted_chip".localized, systemImage: "bell.slash.fill", tint: nil)
+        let detail = Self.rowDetail(joinPolicy: membership.joinPolicy, memberCount: membership.memberCount)
+        let muted = viewModel.isMuted(membership)
+        return Button {
+            communityPageTarget = membership.communityId
+        } label: {
+            rowLayout {
+                CommunityMonogram(name: membership.name, size: monogramSize)
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text(membership.name)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.naarsTextPrimary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                    Text(detail)
+                        .font(.naarsFootnote)
+                        .foregroundColor(.naarsTextSecondary)
+                        .multilineTextAlignment(.leading)
+                    HStack(spacing: Constants.Spacing.xs) {
+                        NaarsChip(text: roleText(membership.role), tint: membership.role == .member ? nil : .naarsPrimary)
+                        if muted {
+                            NaarsChip(text: "community_muted_chip".localized, systemImage: "bell.slash.fill", tint: nil)
+                        }
                     }
                 }
-                Text(memberCountText(membership.memberCount))
-                    .font(.naarsFootnote)
-                    .foregroundColor(.naarsTextSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    rowChevron
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-
-            Menu {
-                activeMenu(membership)
-            } label: {
-                menuLabel(membership)
-            }
-            .disabled(viewModel.busyCommunityId != nil)
-            .accessibilityLabel(String(format: "community_actions_accessibility".localized, membership.name))
-            .accessibilityIdentifier("community.my.actions")
+            .padding(.vertical, Constants.Spacing.xs)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, Constants.Spacing.xs)
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            ([membership.name, detail, roleText(membership.role)] + (muted ? ["community_muted_chip".localized] : []))
+                .joined(separator: ", ")
+        )
+        .accessibilityIdentifier("explore.community.row")
     }
 
-    @ViewBuilder
-    private func activeMenu(_ membership: CommunityMembership) -> some View {
-        let isAdmin = viewModel.isAdmin(of: membership.communityId)
-        if isAdmin {
-            Button {
-                adminPanelTarget = membership.communityId
-            } label: {
-                Label("admin_panel_open".localized, systemImage: "shield")
-            }
-            .accessibilityIdentifier("community.my.adminPanel")
-        }
-        if membership.canInvite {
-            Button {
-                activeSheet = .invite(membership)
-            } label: {
-                Label("community_action_invite".localized, systemImage: "person.crop.circle.badge.plus")
-            }
-        }
-        if isAdmin {
-            Button {
-                pendingTarget = .community(membership.communityId, name: membership.name)
-            } label: {
-                Label(requestsTitle(count: membership.pendingCount ?? 0), systemImage: "person.badge.clock")
-            }
-        }
-        let muted = viewModel.isMuted(membership)
-        Button {
-            Task { await viewModel.setMuted(!muted, for: membership) }
-        } label: {
-            Label(
-                muted ? "community_action_unmute".localized : "community_action_mute".localized,
-                systemImage: muted ? "bell.fill" : "bell.slash"
-            )
-        }
-        Button {
-            activeSheet = .report(membership)
-        } label: {
-            Label("community_action_report".localized, systemImage: "exclamationmark.bubble")
-        }
-        Button(role: .destructive) {
-            activeSheet = .leave(membership, viewModel.leavePlan(for: membership))
-        } label: {
-            Label("community_action_leave".localized, systemImage: "rectangle.portrait.and.arrow.right")
-        }
-    }
-
-    /// Sets `pendingTarget`, as the ••• menu does. A `NavigationLink(value:)` did nothing here while
-    /// this screen was pushed from Profile: a value link cannot see a pushed screen's own
+    /// Sets `pendingTarget`, as the Manage page does. A `NavigationLink(value:)` did nothing here
+    /// while this screen was pushed from Profile: a value link cannot see a pushed screen's own
     /// `navigationDestination(for:)` (5b gate G2). The item-driven form stays.
     private func requestsLink(_ membership: CommunityMembership, count: Int) -> some View {
         Button {
             pendingTarget = .community(membership.communityId, name: membership.name)
         } label: {
             HStack(spacing: Constants.Spacing.sm) {
-                Label("community_action_requests".localized, systemImage: "person.badge.clock")
-                    .font(.naarsSubheadline)
-                    .foregroundColor(.naarsTextPrimary)
+                if dynamicTypeSize.isAccessibilitySize {
+                    // Without the icon "Requests" stays whole at accessibility sizes.
+                    Text("community_action_requests".localized)
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.naarsTextPrimary)
+                } else {
+                    Label("community_action_requests".localized, systemImage: "person.badge.clock")
+                        .font(.naarsSubheadline)
+                        .foregroundColor(.naarsTextPrimary)
+                }
                 Spacer(minLength: 0)
                 NotificationBadge(count: count)
                 Image(systemName: "chevron.right")
@@ -504,6 +597,19 @@ struct MyCommunitiesView: View {
         .accessibilityLabel(requestsTitle(count: count))
         .accessibilityIdentifier("community.my.requests")
     }
+
+    /// "Ask to join · 12 members"; just the count for a policy this build does not know.
+    /// Pure, for tests.
+    static func rowDetail(joinPolicy: String, memberCount: Int) -> String {
+        let count = String(
+            format: (memberCount == 1 ? "community_member_count_one" : "community_member_count_other").localized,
+            memberCount
+        )
+        guard let policy = CommunityJoinPolicy(rawValue: joinPolicy) else { return count }
+        return String(format: "explore_row_detail".localized, policy.chipText, count)
+    }
+
+    // MARK: - Waiting for approval
 
     private func pendingRow(_ membership: CommunityMembership) -> some View {
         HStack(alignment: .top, spacing: Constants.Spacing.md) {
@@ -551,6 +657,111 @@ struct MyCommunitiesView: View {
         }
     }
 
+    // MARK: - Listed communities
+
+    @ViewBuilder
+    private var listedSection: some View {
+        let rows = viewModel.listedToShow
+        Section {
+            if !rows.isEmpty {
+                ForEach(rows) { community in
+                    listedRow(community)
+                }
+            } else if viewModel.listedLoadFailed {
+                listedFailureRow
+            } else if viewModel.hasLoadedListed {
+                Text("explore_listed_empty".localized)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.naarsTextSecondary)
+                    .accessibilityIdentifier("explore.listed.empty")
+            } else {
+                listedSkeletonRow
+            }
+        } header: {
+            Text("explore_section_listed".localized)
+        } footer: {
+            Text("explore_listed_footer".localized)
+        }
+    }
+
+    private func listedRow(_ community: PublicCommunity) -> some View {
+        let policy = CommunityJoinPolicy(rawValue: community.joinPolicy)
+        return Button {
+            communityPageTarget = community.id
+        } label: {
+            rowLayout {
+                CommunityMonogram(name: community.name, size: monogramSize)
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text(community.name)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.naarsTextPrimary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                    if let policy {
+                        CommunityPolicyChip(policy: policy)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    rowChevron
+                }
+            }
+            .padding(.vertical, Constants.Spacing.xs)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(([community.name] + (policy.map { [$0.chipText] } ?? [])).joined(separator: ", "))
+        .accessibilityIdentifier("explore.listed.row")
+    }
+
+    /// The failure row, only where the section would otherwise be empty. With rows on screen a
+    /// failed refresh keeps them and shows the banner instead.
+    private var listedFailureRow: some View {
+        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+            Label("explore_listed_load_failed".localized, systemImage: "exclamationmark.triangle.fill")
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextSecondary)
+            Button {
+                Task { await viewModel.load() }
+            } label: {
+                Text("common_retry".localized)
+                    .font(.naarsSubheadline.weight(.semibold))
+                    .foregroundColor(.naarsPrimary)
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("common_retry".localized)
+            .accessibilityIdentifier("explore.listed.retry")
+        }
+        .padding(.vertical, Constants.Spacing.xs)
+    }
+
+    /// The failure banner over listed rows that stayed on screen. Closed by its own dismiss button
+    /// until the next load, and not drawn while an action error uses the banner slot.
+    private var listedBanner: Binding<String?> {
+        Binding(
+            get: {
+                guard viewModel.listedLoadFailed, !viewModel.listedToShow.isEmpty,
+                      !listedBannerDismissed, viewModel.errorMessage == nil else { return nil }
+                return "explore_listed_load_failed".localized
+            },
+            set: { if $0 == nil { listedBannerDismissed = true } }
+        )
+    }
+
+    private var listedSkeletonRow: some View {
+        HStack(spacing: Constants.Spacing.md) {
+            SkeletonRectangle(width: monogramSize, height: monogramSize, cornerRadius: monogramSize / 2)
+            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                SkeletonRectangle(width: 180, height: 16)
+                SkeletonRectangle(width: 80, height: 12)
+            }
+        }
+        .padding(.vertical, Constants.Spacing.xs)
+        .accessibilityHidden(true)
+    }
+
     private var skeletonSection: some View {
         Section {
             ForEach(0..<2, id: \.self) { _ in
@@ -569,13 +780,6 @@ struct MyCommunitiesView: View {
     @ViewBuilder
     private func sheetContent(_ sheet: ActiveSheet) -> some View {
         switch sheet {
-        case .invite(let membership):
-            CommunityInviteSheet(
-                communityId: membership.communityId,
-                communityName: membership.name,
-                isAdmin: viewModel.isAdmin(of: membership.communityId),
-                onDone: { activeSheet = nil }
-            )
         case .report(let membership):
             ReportContentSheet(context: .community(id: membership.communityId, code: nil, name: membership.name))
         case .leave(let membership, let plan):
@@ -603,29 +807,21 @@ struct MyCommunitiesView: View {
                 limitRequestSent = true
             })
         case .join:
-            NavigationStack {
-                ScrollView {
-                    CommunityJoinOptionsView(
-                        excludedCommunityIds: viewModel.allMembershipIds,
-                        prefilledCode: joinPrefilledCode,
-                        onJoined: { result in
-                            joinResult = result
-                            activeSheet = nil
-                        }
-                    )
-                    .padding()
-                }
-                .background(Color.naarsBackground)
-                .navigationTitle("community_action_join".localized)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("common_cancel".localized) { activeSheet = nil }
-                            .accessibilityIdentifier("community.my.join.cancel")
-                    }
-                }
-            }
+            // The sheet shows its own done state; the result is recorded the moment the server
+            // answers and acted on in `sheetDismissed`.
+            JoinCommunitySheet(target: .code(prefilled: joinPrefilledCode), onJoined: { joinResult = $0 })
+        case .guestPrompt(let reason):
+            GuestSignInPromptView(
+                reason: reason,
+                onSignUp: { exitGuestMode() },
+                onLogIn: { exitGuestMode() }
+            )
         }
+    }
+
+    private func exitGuestMode() {
+        appState.isGuestMode = false
+        AppLaunchManager.shared.exitGuestMode()
     }
 
     /// Create and Join record their result; the follow-up runs once the sheet is gone, so nothing
@@ -664,10 +860,6 @@ struct MyCommunitiesView: View {
         }
     }
 
-    private func memberCountText(_ count: Int) -> String {
-        String(format: (count == 1 ? "community_member_count_one" : "community_member_count_other").localized, count)
-    }
-
     private func requestsTitle(count: Int) -> String {
         let title = "community_action_requests".localized
         return count > 0 ? "\(title) (\(count))" : title
@@ -675,48 +867,80 @@ struct MyCommunitiesView: View {
 }
 
 #if DEBUG
-#Preview("One membership") {
-    let service = PreviewCommunityService()
-    service.memberships = [PreviewCommunityService.sampleMemberships[0]]
-    let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
-    context.debugSetMemberships(service.memberships)
-    return NavigationStack {
-        MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
+private enum ExplorePreviewData {
+    /// Explore for `memberships` (empty with `isGuest`: a guest), the listed communities `listed`,
+    /// and a saved invite code when `savedCode` is set.
+    @MainActor
+    static func screen(
+        memberships: [CommunityMembership],
+        listed: [PublicCommunity] = PreviewCommunityService.samplePublicCommunities,
+        limits: CommunityLimits? = nil,
+        failListed: Bool = false,
+        isGuest: Bool = false,
+        savedCode: String? = nil
+    ) -> some View {
+        let service = PreviewCommunityService()
+        service.memberships = memberships
+        service.publicCommunities = listed
+        service.failPublicCommunities = failListed
+        if let limits { service.limits = limits }
+        let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
+        context.debugSetMemberships(memberships)
+        if let savedCode { PendingInviteStore().save(savedCode) } else { PendingInviteStore().clear() }
+        return NavigationStack {
+            MyCommunitiesView(viewModel: MyCommunitiesViewModel(
+                service: service, communityContext: context, refreshDashboard: { _ in }, isGuest: { isGuest }
+            ))
+        }
+        .environment(AppState())
     }
+}
+
+#Preview("Member, two communities") {
+    ExplorePreviewData.screen(memberships: [
+        PreviewCommunityService.membership(name: "Naar's Cars Seattle", memberCount: 140, isDefault: true),
+        PreviewCommunityService.membership(name: "Ballard Neighbors", memberCount: 12)
+    ])
+}
+
+#Preview("Admin with requests and a waiting row") {
+    ExplorePreviewData.screen(memberships: PreviewCommunityService.sampleMemberships)
 }
 
 #Preview("Limit reached") {
-    let service = PreviewCommunityService()
-    service.limits = CommunityLimits(maxOwned: 3, ownedCount: 3, nextCreateAt: nil, canCreate: false, latestRequest: nil)
-    let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
-    context.debugSetMemberships(PreviewCommunityService.sampleMemberships)
-    return NavigationStack {
-        MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
-    }
+    ExplorePreviewData.screen(
+        memberships: PreviewCommunityService.sampleMemberships,
+        limits: CommunityLimits(maxOwned: 3, ownedCount: 3, nextCreateAt: nil, canCreate: false, latestRequest: nil)
+    )
 }
 
 #Preview("Limit request pending") {
-    let service = PreviewCommunityService()
-    service.limits = CommunityLimits(
-        maxOwned: 3, ownedCount: 3, nextCreateAt: nil, canCreate: false,
-        latestRequest: CommunityLimitRequest(
-            requestId: UUID(), requestedMax: 5, reason: "Three groups", status: .pending,
-            createdAt: Date(), decidedAt: nil
+    ExplorePreviewData.screen(
+        memberships: PreviewCommunityService.sampleMemberships,
+        limits: CommunityLimits(
+            maxOwned: 3, ownedCount: 3, nextCreateAt: nil, canCreate: false,
+            latestRequest: CommunityLimitRequest(
+                requestId: UUID(), requestedMax: 5, reason: "Three groups", status: .pending,
+                createdAt: Date(), decidedAt: nil
+            )
         )
     )
-    let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
-    context.debugSetMemberships(PreviewCommunityService.sampleMemberships)
-    return NavigationStack {
-        MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
-    }
 }
 
-#Preview("Owner with requests and a pending row") {
-    let service = PreviewCommunityService()
-    let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
-    context.debugSetMemberships(PreviewCommunityService.sampleMemberships)
-    return NavigationStack {
-        MyCommunitiesView(viewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }))
-    }
+#Preview("Guest") {
+    ExplorePreviewData.screen(memberships: [], isGuest: true)
+}
+
+// A member with a saved code gets the Join sheet by itself on first appearance; a guest never does,
+// so this is the preview that shows the saved-code row.
+#Preview("Guest with a saved invite code") {
+    ExplorePreviewData.screen(memberships: [], isGuest: true, savedCode: "NC7K2PQ9XA")
+}
+
+#Preview("Listed communities failed to load") {
+    ExplorePreviewData.screen(
+        memberships: [PreviewCommunityService.membership(name: "Ballard Neighbors", memberCount: 12)],
+        failListed: true
+    )
 }
 #endif

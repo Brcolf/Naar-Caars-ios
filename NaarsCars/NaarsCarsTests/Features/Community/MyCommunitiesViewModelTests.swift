@@ -7,9 +7,25 @@
 //  follow-up membership refresh fails
 //
 
+import AuthenticationServices
 import XCTest
 import SwiftData
 @testable import NaarsCars
+
+/// Answers only `currentUserId`; every other method is unused here.
+private final class StubExploreAuthService: AuthServiceProtocol {
+    var currentUserId: UUID?
+    var currentProfile: Profile? { nil }
+
+    init(currentUserId: UUID?) { self.currentUserId = currentUserId }
+
+    func signIn(email: String, password: String) async throws {}
+    func signUp(email: String, password: String, name: String, car: String?) async throws {}
+    func signOut() async throws {}
+    func sendPasswordReset(email: String) async throws {}
+    func signUpWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws {}
+    func logInWithApple(credential: ASAuthorizationAppleIDCredential, rawNonce: String?) async throws -> AppleLoginResult { .success }
+}
 
 @MainActor
 final class MyCommunitiesViewModelTests: XCTestCase {
@@ -179,9 +195,229 @@ final class MyCommunitiesViewModelTests: XCTestCase {
         stub.fetchMyCommunityLimitsResult = .success(
             CommunityLimits(maxOwned: 20, ownedCount: 20, nextCreateAt: nil, canCreate: false, latestRequest: nil)
         )
-        let viewModel = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in })
+        let viewModel = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in }, isGuest: { false })
         await viewModel.load()
         XCTAssertNil(viewModel.limitOffer)
+    }
+
+    // MARK: - Explore: listed communities
+
+    private func listed(_ id: UUID, name: String, policy: String = "approve") -> PublicCommunity {
+        PublicCommunity(id: id, name: name, description: nil, joinPolicy: policy, isDefault: false)
+    }
+
+    func testListedToShow_LeavesOutActiveAndPendingMemberships() async {
+        let a = CommunityFixtures.communityA
+        let b = CommunityFixtures.communityB
+        let c = CommunityFixtures.communityC
+        let stub = StubCommunityService(result: .success([
+            CommunityFixtures.membership(a, name: "Community A"),
+            CommunityFixtures.membership(b, name: "Community B", status: .pending)
+        ]))
+        stub.fetchPublicCommunitiesResult = .success([
+            listed(a, name: "Community A"), listed(b, name: "Community B"), listed(c, name: "Community C")
+        ])
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: me)
+        let vm = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in }, isGuest: { false })
+
+        await vm.load()
+
+        XCTAssertEqual(vm.listedToShow.map(\.id), [c])
+        XCTAssertFalse(vm.listedLoadFailed)
+    }
+
+    func testLoad_GuestLoadsListedOnlyWithoutMembershipOrLimitCalls() async {
+        let stub = StubCommunityService(result: .success([CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A")]))
+        stub.fetchPublicCommunitiesResult = .success([listed(CommunityFixtures.communityC, name: "Community C")])
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        let vm = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in }, isGuest: { true })
+
+        await vm.load()
+
+        XCTAssertEqual(stub.fetchCount, 0)
+        XCTAssertEqual(stub.fetchMyCommunityLimitsCalls, 0)
+        XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 1)
+        XCTAssertEqual(vm.listedToShow.map(\.id), [CommunityFixtures.communityC])
+        XCTAssertFalse(vm.hasLoadedMemberships)
+        XCTAssertNil(vm.limits)
+    }
+
+    func testLoadIfStale_SkipsWithinTheStalenessWindow() async {
+        let stub = StubCommunityService(result: .success([CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A")]))
+        stub.fetchPublicCommunitiesResult = .success([listed(CommunityFixtures.communityC, name: "Community C")])
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: me)
+        var clock = base
+        let vm = MyCommunitiesViewModel(
+            service: stub, communityContext: context, refreshDashboard: { _ in },
+            isGuest: { false }, now: { clock }
+        )
+
+        await vm.loadIfStale()
+        XCTAssertEqual(stub.fetchCount, 1)
+        XCTAssertEqual(stub.fetchMyCommunityLimitsCalls, 1)
+        XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 1)
+
+        clock = base.addingTimeInterval(10)
+        await vm.loadIfStale()
+        XCTAssertEqual(stub.fetchCount, 1)
+        XCTAssertEqual(stub.fetchMyCommunityLimitsCalls, 1)
+        XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 1)
+
+        clock = base.addingTimeInterval(31)
+        await vm.loadIfStale()
+        XCTAssertEqual(stub.fetchCount, 2)
+        XCTAssertEqual(stub.fetchMyCommunityLimitsCalls, 2)
+        XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 2)
+
+        // Pull-to-refresh and Retry call load() and always read.
+        await vm.load()
+        XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 3)
+    }
+
+    func testLoadIfStale_ReadsAgainAfterAFailedListedLoad() async {
+        let stub = StubCommunityService(result: .success([]))
+        stub.fetchPublicCommunitiesResult = .failure(URLError(.notConnectedToInternet))
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        var clock = base
+        let vm = MyCommunitiesViewModel(
+            service: stub, communityContext: context, refreshDashboard: { _ in },
+            isGuest: { true }, now: { clock }
+        )
+
+        await vm.loadIfStale()
+        clock = base.addingTimeInterval(5)
+        await vm.loadIfStale()
+
+        XCTAssertEqual(stub.fetchPublicCommunitiesCalls, 2)
+    }
+
+    func testLoadIfStale_ReadsAgainWhenAMembersMembershipsNeverLoaded() async {
+        let stub = StubCommunityService(result: .failure(URLError(.notConnectedToInternet)))
+        stub.fetchPublicCommunitiesResult = .success([listed(CommunityFixtures.communityC, name: "Community C")])
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: me)
+        var clock = base
+        let vm = MyCommunitiesViewModel(
+            service: stub, communityContext: context, refreshDashboard: { _ in },
+            isGuest: { false }, now: { clock }
+        )
+
+        await vm.loadIfStale()
+        XCTAssertFalse(vm.hasLoadedMemberships)
+
+        // The listed rows loaded, but there is no membership state to show: the next appearance reads again.
+        clock = base.addingTimeInterval(5)
+        stub.result = .success([CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A")])
+        await vm.loadIfStale()
+
+        XCTAssertEqual(stub.fetchCount, 2)
+        XCTAssertTrue(vm.hasLoadedMemberships)
+
+        // Loaded now: within the window it stays quiet.
+        clock = base.addingTimeInterval(10)
+        await vm.loadIfStale()
+        XCTAssertEqual(stub.fetchCount, 2)
+    }
+
+    func testListedLoadFailure_SetsTheFlagAndKeepsTheRows() async {
+        let c = CommunityFixtures.communityC
+        let stub = StubCommunityService(result: .success([]))
+        stub.fetchPublicCommunitiesResult = .success([listed(c, name: "Community C")])
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: me)
+        let vm = MyCommunitiesViewModel(service: stub, communityContext: context, refreshDashboard: { _ in }, isGuest: { false })
+
+        await vm.load()
+        XCTAssertFalse(vm.listedLoadFailed)
+        XCTAssertEqual(vm.listedToShow.map(\.id), [c])
+
+        stub.fetchPublicCommunitiesResult = .failure(URLError(.notConnectedToInternet))
+        await vm.load()
+        XCTAssertTrue(vm.listedLoadFailed)
+        XCTAssertEqual(vm.listedToShow.map(\.id), [c])
+
+        // A cancelled pull-to-refresh is not a result: the flag stays as it was.
+        stub.fetchPublicCommunitiesResult = .failure(URLError(.cancelled))
+        await vm.load()
+        XCTAssertTrue(vm.listedLoadFailed)
+
+        stub.fetchPublicCommunitiesResult = .success([listed(c, name: "Community C")])
+        await vm.load()
+        XCTAssertFalse(vm.listedLoadFailed)
+
+        stub.fetchPublicCommunitiesResult = .failure(CancellationError())
+        await vm.load()
+        XCTAssertFalse(vm.listedLoadFailed)
+    }
+
+    func testIsGuest_DefaultFollowsTheInjectedAuthService() {
+        let stub = StubCommunityService(result: .success([]))
+        let context = CommunityContext(service: stub, defaults: defaults, platformAdminProvider: { false })
+        let signedOut = MyCommunitiesViewModel(service: stub, communityContext: context, authService: StubExploreAuthService(currentUserId: nil))
+        let signedIn = MyCommunitiesViewModel(service: stub, communityContext: context, authService: StubExploreAuthService(currentUserId: me))
+        XCTAssertTrue(signedOut.isGuest)
+        XCTAssertFalse(signedIn.isGuest)
+    }
+
+    // MARK: - Explore: the saved invite code opens Join by itself only for a member
+
+    func testStoredCodeAutoOpens_OnlyForAMemberOnTheRootWithNothingElseOpening() {
+        let code = "NC7K2PQ9XA"
+        func decide(
+            stored: String? = code, isGuest: Bool = false, hasSheet: Bool = false, hasScreenOnTop: Bool = false,
+            intent: NavigationIntent? = nil, decided: Bool = false
+        ) -> String? {
+            MyCommunitiesView.joinCodeToOpenOnAppear(
+                storedCode: stored, isGuest: isGuest, hasSheet: hasSheet, hasScreenOnTop: hasScreenOnTop,
+                pendingIntent: intent, alreadyDecided: decided
+            )
+        }
+
+        XCTAssertEqual(decide(), code)
+        // A join link's intent is the root, so Join opens.
+        XCTAssertEqual(decide(intent: .joinCommunity), code)
+        // An intent for another tab leaves Explore's rule alone.
+        XCTAssertEqual(decide(intent: .dashboard), code)
+
+        // A guest never gets Join by itself.
+        XCTAssertNil(decide(isGuest: true))
+        // Once per view lifetime, not over a sheet, not with nothing saved.
+        XCTAssertNil(decide(decided: true))
+        XCTAssertNil(decide(hasSheet: true))
+        XCTAssertNil(decide(stored: nil))
+        // A screen already pushed (a community admin's push replayed first) wins.
+        XCTAssertNil(decide(hasScreenOnTop: true))
+        // So does an intent that is about to push one.
+        XCTAssertNil(decide(intent: .communityReports(CommunityFixtures.communityA)))
+        XCTAssertNil(decide(intent: .pendingMembers(CommunityFixtures.communityA)))
+        XCTAssertNil(decide(intent: .communityMembers(CommunityFixtures.communityA)))
+    }
+
+    func testStoreChangeAndNextAppearRules_NeverOpenJoinForAGuest() {
+        let code = "NC7K2PQ9XA"
+        XCTAssertEqual(
+            MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: code, hasSheet: false, isVisible: true, isGuest: false),
+            code
+        )
+        XCTAssertNil(MyCommunitiesView.joinCodeToOpenOnStoreChange(storedCode: code, hasSheet: false, isVisible: true, isGuest: true))
+        XCTAssertTrue(MyCommunitiesView.opensJoinOnNextAppear(storedCode: code, isVisible: false, screenPushedOnTop: false, isGuest: false))
+        XCTAssertFalse(MyCommunitiesView.opensJoinOnNextAppear(storedCode: code, isVisible: false, screenPushedOnTop: false, isGuest: true))
+    }
+
+    func testRowDetail_JoinsThePolicyChipTextAndTheMemberCount() {
+        let count = String(format: "community_member_count_other".localized, 12)
+        let detail = MyCommunitiesView.rowDetail(joinPolicy: CommunityJoinPolicy.approve.rawValue, memberCount: 12)
+        XCTAssertTrue(detail.contains(CommunityJoinPolicy.approve.chipText))
+        XCTAssertTrue(detail.hasSuffix(count))
+        XCTAssertTrue(detail.contains("·"))
+
+        let one = MyCommunitiesView.rowDetail(joinPolicy: CommunityJoinPolicy.open.rawValue, memberCount: 1)
+        XCTAssertTrue(one.hasSuffix(String(format: "community_member_count_one".localized, 1)))
+
+        // A policy this build does not know shows the count alone, with no stray separator.
+        XCTAssertEqual(MyCommunitiesView.rowDetail(joinPolicy: "future_policy", memberCount: 12), count)
     }
 
     // MARK: - Routes on Explore

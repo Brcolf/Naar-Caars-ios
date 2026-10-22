@@ -2,7 +2,8 @@
 //  MyCommunitiesViewModel.swift
 //  NaarsCars
 //
-//  The member's communities: mute, leave, and the follow-ups of a create or a join
+//  Explore's content: the member's communities, the listed communities, and the follow-ups of a
+//  leave, a create or a join
 //
 
 internal import Combine
@@ -74,25 +75,41 @@ final class MyCommunitiesViewModel: ObservableObject {
     /// Set instead of `errorMessage` when a leave is refused with `last_owner`: the view offers
     /// to choose a new owner on the community's Members screen.
     @Published var newOwnerNeededFor: CommunityMembership?
+    /// True when the last listed-communities load failed (a cancelled one changes nothing). The
+    /// rows already on screen stay; the view shows a banner with Retry, or a Retry row when the
+    /// section would otherwise be empty.
+    @Published private(set) var listedLoadFailed = false
+    /// True once a listed-communities load has succeeded: before that an empty list means "not
+    /// loaded yet", not "no listed communities".
+    @Published private(set) var hasLoadedListed = false
 
     private let service: any CommunityServiceProtocol
     private let communityContext: CommunityContext
     private let authService: any AuthServiceProtocol
     private let refreshDashboard: @MainActor (String) async -> Void
+    private let isGuestProvider: @MainActor () -> Bool
+    private let now: () -> Date
+    /// When `load()` last read the listed list successfully (for `loadIfStale()`).
+    private var lastSuccessfulLoad: Date?
     private var modelContext: ModelContext?
 
+    /// - Parameter isGuest: Defaults to "the injected `authService` has no signed-in user".
     init(
         service: any CommunityServiceProtocol = CommunityService.shared,
         communityContext: CommunityContext? = nil,
         authService: any AuthServiceProtocol = AuthService.shared,
         refreshDashboard: @escaping @MainActor (String) async -> Void = {
             _ = await RefreshCoordinator.shared.forceFullRefreshAndWait(.dashboard, trigger: $0)
-        }
+        },
+        isGuest: (@MainActor () -> Bool)? = nil,
+        now: @escaping () -> Date = Date.init
     ) {
         self.service = service
         self.communityContext = communityContext ?? .shared
         self.authService = authService
         self.refreshDashboard = refreshDashboard
+        self.isGuestProvider = isGuest ?? { [authService] in authService.currentUserId == nil }
+        self.now = now
     }
 
     /// Set up the model context the Leave counts are read from.
@@ -105,10 +122,17 @@ final class MyCommunitiesViewModel: ObservableObject {
     var active: [CommunityMembership] { communityContext.activeMemberships }
     var pending: [CommunityMembership] { communityContext.pendingMemberships }
 
-    /// Every membership id, active or pending (excluded from the public list in Join).
-    var allMembershipIds: Set<UUID> { Set(communityContext.memberships.map(\.communityId)) }
-
     var hasLoadedMemberships: Bool { communityContext.hasLoadedMemberships }
+
+    /// A guest has no memberships, no limits and no skeleton; only the listed communities load.
+    var isGuest: Bool { isGuestProvider() }
+
+    /// The listed communities the person is not already in: every one except an active or a
+    /// pending membership. A community the person left or was removed from stays listed.
+    var listedToShow: [PublicCommunity] {
+        let joined = Set((active + pending).map(\.communityId))
+        return communityContext.listedCommunities.filter { !joined.contains($0.id) }
+    }
 
     func isAdmin(of communityId: UUID) -> Bool {
         communityContext.isAdmin(of: communityId)
@@ -134,17 +158,47 @@ final class MyCommunitiesViewModel: ObservableObject {
 
     // MARK: - Load
 
+    /// A tab appearance: shows what is stored and reads again only when the last successful
+    /// `load()` is older than `Constants.Timing.refreshStalenessWindow`. Pull-to-refresh and
+    /// Retry call `load()`, which always reads.
+    func loadIfStale() async {
+        // A member whose memberships never loaded (the read failed quietly) has nothing stored to show.
+        let hasStoredState = isGuest || hasLoadedMemberships
+        if hasStoredState, let lastSuccessfulLoad,
+           now().timeIntervalSince(lastSuccessfulLoad) < Constants.Timing.refreshStalenessWindow {
+            return
+        }
+        await load()
+    }
+
+    /// A member reads the memberships, the owned-community limits and the listed communities,
+    /// in that order (the listed rows leave out the memberships, so they come last). A guest
+    /// reads the listed communities only and calls no membership or limit function.
     func load() async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
 
-        await communityContext.refreshMemberships()
-        do {
-            limits = try await service.fetchMyCommunityLimits()
-        } catch {
-            AppLogger.warning("community", "fetchMyCommunityLimits failed: \(error)")
-            limits = nil
+        if !isGuest {
+            await communityContext.refreshMemberships()
+            do {
+                limits = try await service.fetchMyCommunityLimits()
+            } catch {
+                AppLogger.warning("community", "fetchMyCommunityLimits failed: \(error)")
+                limits = nil
+            }
+        }
+
+        // nil: the load was cancelled (a cancelled pull-to-refresh), which is not a failure.
+        switch await communityContext.loadListedCommunities() {
+        case true?:
+            listedLoadFailed = false
+            hasLoadedListed = true
+            lastSuccessfulLoad = now()
+        case false?:
+            listedLoadFailed = true
+        case nil:
+            break
         }
     }
 

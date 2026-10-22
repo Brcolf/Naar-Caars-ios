@@ -26,6 +26,7 @@ enum GuestRestrictionReason: Identifiable {
     case addParticipants
     case deepLinkSignIn
     case joinCommunity
+    case startCommunity
 
     var title: String {
         switch self {
@@ -43,6 +44,7 @@ enum GuestRestrictionReason: Identifiable {
         case .addParticipants:  return "guest_prompt_title_add_participants".localized
         case .deepLinkSignIn:   return "guest_prompt_title_deep_link_sign_in".localized
         case .joinCommunity:    return "guest_prompt_title_join_community".localized
+        case .startCommunity:   return "guest_prompt_title_start_community".localized
         }
     }
 
@@ -62,6 +64,7 @@ enum GuestRestrictionReason: Identifiable {
         case .addParticipants:  return "guest_prompt_message_add_participants".localized
         case .deepLinkSignIn:   return "guest_prompt_message_deep_link_sign_in".localized
         case .joinCommunity:    return "guest_prompt_message_join_community".localized
+        case .startCommunity:   return "guest_prompt_message_start_community".localized
         }
     }
 }
