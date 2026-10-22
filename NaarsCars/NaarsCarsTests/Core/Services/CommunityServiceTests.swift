@@ -171,7 +171,7 @@ final class CommunityServiceTests: XCTestCase {
     }
 
     func testLocalizedMessage_EveryCodeHasAKey() {
-        XCTAssertEqual(CommunityRefusalCode.allCases.count, 21)
+        XCTAssertEqual(CommunityRefusalCode.allCases.count, 31)
         for code in CommunityRefusalCode.allCases {
             let error = CommunityRPCError(code: code, maxOwned: 3, ownedCount: 3, retryAfter: fixedDate)
             XCTAssertNotEqual(error.localizedMessage, "community_error_\(code.rawValue)", "missing string for \(code.rawValue)")
@@ -214,11 +214,13 @@ final class CommunityServiceTests: XCTestCase {
 
     func testCreateCommunity_SendsNameDescriptionPolicy() async throws {
         respond(with: CommunityFixtures.createCommunitySuccessJSON)
-        let created = try await service.createCommunity(name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve, timezone: nil)
+        let draft = NewCommunityDraft(name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve,
+                                      timezone: nil, area: nil, reason: nil)
+        let created = try await service.createCommunity(draft)
         let request = try onlyRequest()
         XCTAssertEqual(request.method, "POST")
-        XCTAssertEqual(request.path, "/rest/v1/rpc/create_community")
-        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_description", "p_join_policy"])
+        XCTAssertEqual(request.path, "/rest/v1/rpc/create_community_with_area")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_description", "p_join_policy", "p_listed"])
         XCTAssertEqual(request.body?["p_name"] as? String, "Ballard Neighbors")
         XCTAssertEqual(request.body?["p_join_policy"] as? String, "approve")
         XCTAssertEqual(created.communityId, CommunityFixtures.communityA)
@@ -226,21 +228,123 @@ final class CommunityServiceTests: XCTestCase {
 
     func testCreateCommunity_OmitsNilDescription() async throws {
         respond(with: CommunityFixtures.createCommunitySuccessJSON)
-        _ = try await service.createCommunity(name: "Ballard Neighbors", description: nil, joinPolicy: .invite, timezone: nil)
+        let draft = NewCommunityDraft(name: "Ballard Neighbors", description: nil, joinPolicy: .invite,
+                                      timezone: nil, area: nil, reason: nil)
+        _ = try await service.createCommunity(draft)
         let request = try onlyRequest()
-        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_join_policy"])
+        XCTAssertEqual(request.path, "/rest/v1/rpc/create_community_with_area")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_join_policy", "p_listed"])
         XCTAssertEqual(request.body?["p_join_policy"] as? String, "invite")
     }
 
-    /// create_community(p_name, p_description, p_join_policy, p_timezone) (20261019_0001 block 3).
+    /// create_community_with_area(p_name, p_description, p_join_policy, p_timezone, p_listed, ...) (20261021_0021 block 4).
     func testCreateCommunity_SendsTimezone() async throws {
         respond(with: CommunityFixtures.createCommunitySuccessJSON)
-        _ = try await service.createCommunity(
-            name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve, timezone: "America/Chicago"
-        )
+        let draft = NewCommunityDraft(name: "Ballard Neighbors", description: "Rides in Ballard", joinPolicy: .approve,
+                                      timezone: "America/Chicago", area: nil, reason: nil)
+        _ = try await service.createCommunity(draft)
         let request = try onlyRequest()
-        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_description", "p_join_policy", "p_timezone"])
+        XCTAssertEqual(request.path, "/rest/v1/rpc/create_community_with_area")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_description", "p_join_policy", "p_timezone", "p_listed"])
         XCTAssertEqual(request.body?["p_timezone"] as? String, "America/Chicago")
+    }
+
+    func testCreateCommunity_ListedDraftSendsAreaAndReason() async throws {
+        respond(with: #"{"success": true, "community_id": "\#(CommunityFixtures.communityA.uuidString)"}"#)
+        let draft = NewCommunityDraft(name: "Harbor Riders", description: nil, joinPolicy: .approve,
+                                      timezone: "America/Los_Angeles", area: CommunityFixtures.seattleArea, reason: "Parents of one school")
+        _ = try await service.createCommunity(draft)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/create_community_with_area")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_join_policy", "p_timezone", "p_listed", "p_area_name",
+                                                             "p_center_lat", "p_center_lng", "p_radius_miles", "p_reason"])
+        XCTAssertEqual(request.body?["p_listed"] as? Bool, true)
+        XCTAssertEqual(request.body?["p_radius_miles"] as? Int, 10)
+        XCTAssertEqual(request.body?["p_area_name"] as? String, "Seattle")
+        XCTAssertEqual(request.body?["p_center_lat"] as? Double, 47.6062)
+        XCTAssertEqual(request.body?["p_center_lng"] as? Double, -122.3321)
+        XCTAssertEqual(request.body?["p_reason"] as? String, "Parents of one school")
+    }
+
+    /// A hidden draft sends no area and no reason, even when a reason was typed (the server ignores
+    /// it for a hidden community but still refuses one over 300 characters).
+    func testCreateCommunity_HiddenDraftOmitsAreaAndReason() async throws {
+        respond(with: CommunityFixtures.createCommunitySuccessJSON)
+        let draft = NewCommunityDraft(name: "Harbor Riders", description: nil, joinPolicy: .invite,
+                                      timezone: "America/Los_Angeles", area: nil, reason: "Parents of one school")
+        _ = try await service.createCommunity(draft)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/create_community_with_area")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_name", "p_join_policy", "p_timezone", "p_listed"])
+        XCTAssertEqual(request.body?["p_listed"] as? Bool, false)
+    }
+
+    // MARK: - Discovery (20261021_0021 blocks 1-3)
+
+    func testSearchCommunities_SendsQueryAndDecodes() async throws {
+        respond(with: CommunityFixtures.searchResultsJSON)
+        let rows = try await service.searchCommunities(name: "test")
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/search_communities_by_name")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_query"])
+        XCTAssertEqual(request.body?["p_query"] as? String, "test")
+        XCTAssertEqual(rows.map(\.name), ["Test Community", "Harbor Riders"])
+        XCTAssertNil(rows[0].distanceMiles)
+        XCTAssertEqual(rows[1].distanceMiles, 0.4)
+        XCTAssertEqual(rows[1].areaName, "Harbor")
+        XCTAssertEqual(rows[1].radiusMiles, 2)
+        XCTAssertEqual(rows[1].memberCount, 214)
+        XCTAssertEqual(rows[0].policy, .approve)
+    }
+
+    func testFindCommunitiesNear_SendsThePoint() async throws {
+        respond(with: CommunityFixtures.searchResultsJSON)
+        let rows = try await service.findCommunitiesNear(GeoPoint(latitude: 47.606, longitude: -122.332))
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/find_communities_near")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_lat", "p_lng"])
+        XCTAssertEqual(request.body?["p_lat"] as? Double, 47.606)
+        XCTAssertEqual(request.body?["p_lng"] as? Double, -122.332)
+        XCTAssertEqual(rows.count, 2)
+    }
+
+    func testCheckCommunityArea_SendsTheAreaAndTheExcludedCommunity() async throws {
+        respond(with: CommunityFixtures.searchResultsJSON)
+        let rows = try await service.checkCommunityArea(CommunityFixtures.seattleArea, excluding: CommunityFixtures.communityB)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/check_community_area")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_center_lat", "p_center_lng", "p_radius_miles", "p_community_id"])
+        XCTAssertEqual(request.body?["p_center_lat"] as? Double, 47.6062)
+        XCTAssertEqual(request.body?["p_center_lng"] as? Double, -122.3321)
+        XCTAssertEqual(request.body?["p_radius_miles"] as? Int, 10)
+        XCTAssertEqual((request.body?["p_community_id"] as? String)?.lowercased(), CommunityFixtures.communityB.uuidString.lowercased())
+        XCTAssertEqual(rows.map(\.name), ["Test Community", "Harbor Riders"])
+
+        CommunityServiceURLProtocol.reset()
+        respond(with: CommunityFixtures.searchResultsJSON)
+        _ = try await service.checkCommunityArea(CommunityFixtures.seattleArea, excluding: nil)
+        XCTAssertEqual(Set(try onlyRequest().body?.keys ?? [:].keys), ["p_center_lat", "p_center_lng", "p_radius_miles"])
+    }
+
+    func testFetchServiceArea_DecodesAllFourOrNil() async throws {
+        respond(with: #"[{"area_name": "Seattle", "area_center_lat": 47.6062, "area_center_lng": -122.3321, "area_radius_miles": 10}]"#)
+        let area = try await service.fetchServiceArea(communityId: CommunityFixtures.communityA)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.method, "GET")
+        XCTAssertEqual(request.path, "/rest/v1/communities")
+        XCTAssertEqual(request.query["id"]?.lowercased(), "eq.\(CommunityFixtures.communityA.uuidString.lowercased())")
+        XCTAssertEqual(request.query["limit"], "1")
+        XCTAssertEqual(Set((request.query["select"] ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }),
+                       ["area_name", "area_center_lat", "area_center_lng", "area_radius_miles"])
+        XCTAssertEqual(area, CommunityFixtures.seattleArea)
+
+        respond(with: #"[{"area_name": null, "area_center_lat": 47.6062, "area_center_lng": -122.3321, "area_radius_miles": 10}]"#)
+        let missing = try await service.fetchServiceArea(communityId: CommunityFixtures.communityA)
+        XCTAssertNil(missing)
+
+        respond(with: "[]")
+        let noRow = try await service.fetchServiceArea(communityId: CommunityFixtures.communityA)
+        XCTAssertNil(noRow)
     }
 
     func testFetchMyCommunityLimits_DecodesLatestRequest() async throws {
@@ -713,5 +817,32 @@ final class CommunityServiceTests: XCTestCase {
         try await service.updateCommunity(communityId: CommunityFixtures.communityA, change: CommunitySettingsChange(name: "New"))
         let request = try onlyRequest()
         XCTAssertNil(request.body?["p_timezone"], "an unchanged time zone is never sent, not even as null")
+    }
+
+    // MARK: - Access (20261021_0021 block 5)
+
+    func testUpdateCommunityAccess_SendsTheAccessFields() async throws {
+        respond(with: #"{"success": true, "changed": true}"#)
+        try await service.updateCommunityAccess(
+            communityId: CommunityFixtures.communityA,
+            change: CommunityAccessChange(isListed: false, joinPolicy: .invite, newArea: nil, reason: nil)
+        )
+        let hidden = try onlyRequest()
+        XCTAssertEqual(hidden.path, "/rest/v1/rpc/update_community_access")
+        XCTAssertEqual(Set(hidden.body?.keys ?? [:].keys), ["p_community_id", "p_listed", "p_join_policy"])
+        XCTAssertEqual(hidden.body?["p_listed"] as? Bool, false)
+        XCTAssertEqual(hidden.body?["p_join_policy"] as? String, "invite")
+
+        CommunityServiceURLProtocol.reset()
+        respond(with: #"{"success": true, "changed": true}"#)
+        try await service.updateCommunityAccess(
+            communityId: CommunityFixtures.communityA,
+            change: CommunityAccessChange(isListed: true, joinPolicy: .approve, newArea: CommunityFixtures.seattleArea, reason: "Parents of one school")
+        )
+        let listed = try onlyRequest()
+        XCTAssertEqual(Set(listed.body?.keys ?? [:].keys), ["p_community_id", "p_listed", "p_join_policy", "p_area_name",
+                                                            "p_center_lat", "p_center_lng", "p_radius_miles", "p_reason"])
+        XCTAssertEqual(listed.body?["p_listed"] as? Bool, true)
+        XCTAssertEqual(listed.body?["p_radius_miles"] as? Int, 10)
     }
 }

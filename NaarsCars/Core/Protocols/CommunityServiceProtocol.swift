@@ -11,9 +11,10 @@ protocol CommunityServiceProtocol: AnyObject {
     /// Active and pending memberships of the signed-in user.
     func fetchMyMemberships() async throws -> [CommunityMembership]
 
-    /// `timezone` is an IANA identifier (the device's at creation); nil is omitted and the server
-    /// keeps its column default, as it does for a zone it does not know.
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity
+    /// `create_community_with_area`. A draft without an area creates a hidden community; with one, a
+    /// listed community (its reason is sent only then). nil values are omitted; `timezone` is an IANA
+    /// identifier and the server keeps its column default for one it does not know.
+    func createCommunity(_ draft: NewCommunityDraft) async throws -> CreatedCommunity
     func fetchMyCommunityLimits() async throws -> CommunityLimits
     func requestOwnedCommunityLimit(requested: Int, reason: String) async throws -> LimitRequestReceipt
 
@@ -34,4 +35,15 @@ protocol CommunityServiceProtocol: AnyObject {
 
     /// Reports a community by id or by a code the reporter holds (exactly one of the two).
     func reportCommunity(communityId: UUID?, code: String?, type: MessageService.ReportType, description: String?) async throws -> CommunityReportResult
+
+    // MARK: Discovery (20261021_0021; the two searches are callable by guests)
+
+    /// Discoverable communities whose name contains `name` (at most 20; `distanceMiles` nil).
+    func searchCommunities(name: String) async throws -> [CommunitySearchResult]
+    /// Discoverable communities whose area covers `point`, nearest first. The caller rounds the point.
+    func findCommunitiesNear(_ point: GeoPoint) async throws -> [CommunitySearchResult]
+    /// Listed communities whose area overlaps `area`, other than `communityId` (signed-in callers).
+    func checkCommunityArea(_ area: ServiceArea, excluding communityId: UUID?) async throws -> [CommunitySearchResult]
+    /// The stored service area of a community the caller may read; nil when it has none.
+    func fetchServiceArea(communityId: UUID) async throws -> ServiceArea?
 }

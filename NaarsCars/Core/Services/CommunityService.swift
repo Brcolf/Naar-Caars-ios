@@ -2,7 +2,8 @@
 //  CommunityService.swift
 //  NaarsCars
 //
-//  Member-side community calls: memberships, create, invite codes, join, leave, mute, report.
+//  Member-side community calls: memberships, create, invite codes, join, leave, mute, report,
+//  and discovery (search by name or place, area checks, service areas).
 //  Every envelope RPC answers HTTP 200; a refusal is `{success:false, error, code?}` and is
 //  thrown as a `CommunityRPCError` by `CommunityRPC`.
 //
@@ -12,24 +13,101 @@ import Supabase
 
 // MARK: - RPC parameters (explicit keys; optionals are omitted when nil)
 
-/// `create_community(p_name, p_description, p_join_policy, p_timezone)` (20261019_0001 block 3).
-/// `p_timezone` is omitted when nil, never sent as null.
-private struct CreateCommunityParams: Encodable, Sendable {
-    let name: String
-    let description: String?
-    let joinPolicy: String
-    let timezone: String?
+/// `create_community_with_area(p_name, p_description, p_join_policy, p_timezone, p_listed, p_area_name,
+/// p_center_lat, p_center_lng, p_radius_miles, p_reason)` (20261021_0021 block 4). `p_listed` is always
+/// sent; the area and the reason only for a listed community; nil values are omitted, never sent as null.
+private struct CreateCommunityWithAreaParams: Encodable, Sendable {
+    let draft: NewCommunityDraft
 
     private enum CodingKeys: String, CodingKey {
-        case p_name, p_description, p_join_policy, p_timezone
+        case p_name, p_description, p_join_policy, p_timezone, p_listed
+        case p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(name, forKey: .p_name)
-        try c.encodeIfPresent(description, forKey: .p_description)
-        try c.encode(joinPolicy, forKey: .p_join_policy)
-        try c.encodeIfPresent(timezone, forKey: .p_timezone)
+        try c.encode(draft.name, forKey: .p_name)
+        try c.encodeIfPresent(draft.description, forKey: .p_description)
+        try c.encode(draft.joinPolicy.rawValue, forKey: .p_join_policy)
+        try c.encodeIfPresent(draft.timezone, forKey: .p_timezone)
+        try c.encode(draft.area != nil, forKey: .p_listed)
+        guard let area = draft.area else { return }
+        try c.encode(area.name, forKey: .p_area_name)
+        try c.encode(area.center.latitude, forKey: .p_center_lat)
+        try c.encode(area.center.longitude, forKey: .p_center_lng)
+        try c.encode(area.radiusMiles, forKey: .p_radius_miles)
+        try c.encodeIfPresent(draft.reason, forKey: .p_reason)
+    }
+}
+
+/// `search_communities_by_name(p_query)` (20261021_0021 block 1).
+private struct SearchByNameParams: Encodable, Sendable {
+    let query: String
+
+    private enum CodingKeys: String, CodingKey { case p_query }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(query, forKey: .p_query)
+    }
+}
+
+/// `find_communities_near(p_lat, p_lng)` (20261021_0021 block 2). The point is sent as given.
+private struct FindNearParams: Encodable, Sendable {
+    let point: GeoPoint
+
+    private enum CodingKeys: String, CodingKey { case p_lat, p_lng }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(point.latitude, forKey: .p_lat)
+        try c.encode(point.longitude, forKey: .p_lng)
+    }
+}
+
+/// `check_community_area(p_center_lat, p_center_lng, p_radius_miles, p_community_id)` (20261021_0021
+/// block 3). `p_community_id` is omitted when nil (a community being created).
+private struct CheckAreaParams: Encodable, Sendable {
+    let area: ServiceArea
+    let communityId: String?
+
+    private enum CodingKeys: String, CodingKey { case p_center_lat, p_center_lng, p_radius_miles, p_community_id }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(area.center.latitude, forKey: .p_center_lat)
+        try c.encode(area.center.longitude, forKey: .p_center_lng)
+        try c.encode(area.radiusMiles, forKey: .p_radius_miles)
+        try c.encodeIfPresent(communityId, forKey: .p_community_id)
+    }
+}
+
+/// `update_community_access(p_community_id, p_listed, p_join_policy, p_area_name, p_center_lat,
+/// p_center_lng, p_radius_miles, p_reason)` (20261021_0021 block 5). The area only when a new one is
+/// set; the reason only while listed; nil values are omitted.
+private struct UpdateAccessParams: Encodable, Sendable {
+    let communityId: String
+    let change: CommunityAccessChange
+
+    private enum CodingKeys: String, CodingKey {
+        case p_community_id, p_listed, p_join_policy
+        case p_area_name, p_center_lat, p_center_lng, p_radius_miles, p_reason
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(communityId, forKey: .p_community_id)
+        try c.encode(change.isListed, forKey: .p_listed)
+        try c.encode(change.joinPolicy.rawValue, forKey: .p_join_policy)
+        if let area = change.newArea {
+            try c.encode(area.name, forKey: .p_area_name)
+            try c.encode(area.center.latitude, forKey: .p_center_lat)
+            try c.encode(area.center.longitude, forKey: .p_center_lng)
+            try c.encode(area.radiusMiles, forKey: .p_radius_miles)
+        }
+        if change.isListed {
+            try c.encodeIfPresent(change.reason, forKey: .p_reason)
+        }
     }
 }
 
@@ -287,14 +365,10 @@ final class CommunityService: CommunityServiceProtocol {
             .decode([CommunityMembership].self, from: response.data)
     }
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity {
-        let params = CreateCommunityParams(
-            name: name,
-            description: description,
-            joinPolicy: joinPolicy.rawValue,
-            timezone: timezone
-        )
-        let response = try await client.rpc("create_community", params: params).execute()
+    func createCommunity(_ draft: NewCommunityDraft) async throws -> CreatedCommunity {
+        let response = try await client
+            .rpc("create_community_with_area", params: CreateCommunityWithAreaParams(draft: draft))
+            .execute()
         return try CommunityRPC.decode(CreatedCommunity.self, from: response.data)
     }
 
@@ -403,6 +477,42 @@ final class CommunityService: CommunityServiceProtocol {
         let response = try await client.rpc("report_community", params: params).execute()
         return try CommunityRPC.decode(CommunityReportResult.self, from: response.data)
     }
+
+    // MARK: Discovery (20261021_0021 blocks 1-3). The query and the point are never logged.
+
+    func searchCommunities(name: String) async throws -> [CommunitySearchResult] {
+        let response = try await client
+            .rpc("search_communities_by_name", params: SearchByNameParams(query: name))
+            .execute()
+        return try CommunityRPC.decode(CommunitySearchResults.self, from: response.data).communities
+    }
+
+    func findCommunitiesNear(_ point: GeoPoint) async throws -> [CommunitySearchResult] {
+        let response = try await client
+            .rpc("find_communities_near", params: FindNearParams(point: point))
+            .execute()
+        return try CommunityRPC.decode(CommunitySearchResults.self, from: response.data).communities
+    }
+
+    func checkCommunityArea(_ area: ServiceArea, excluding communityId: UUID?) async throws -> [CommunitySearchResult] {
+        let params = CheckAreaParams(area: area, communityId: communityId?.uuidString)
+        let response = try await client.rpc("check_community_area", params: params).execute()
+        return try CommunityRPC.decode(CommunitySearchResults.self, from: response.data).communities
+    }
+
+    func fetchServiceArea(communityId: UUID) async throws -> ServiceArea? {
+        struct AreaRow: Decodable {
+            let area: ServiceArea?
+            init(from decoder: Decoder) throws { area = try ServiceArea.decodeColumns(from: decoder) }
+        }
+        let response = try await client
+            .from("communities")
+            .select("area_name, area_center_lat, area_center_lng, area_radius_miles")
+            .eq("id", value: communityId.uuidString)
+            .limit(1)
+            .execute()
+        return try JSONDecoder().decode([AreaRow].self, from: response.data).first?.area
+    }
 }
 
 // MARK: - Admin
@@ -497,7 +607,8 @@ extension CommunityService: CommunityAdminServiceProtocol {
     func fetchCommunitySettings(communityId: UUID) async throws -> CommunitySettings {
         let response = try await client
             .from("communities")
-            .select("id, name, description, join_policy, members_can_invite, is_public, is_default, timezone")
+            .select("id, name, description, join_policy, members_can_invite, is_public, is_default, timezone, "
+                + "area_name, area_center_lat, area_center_lng, area_radius_miles")
             .eq("id", value: communityId.uuidString)
             .limit(1)
             .execute()
@@ -517,6 +628,12 @@ extension CommunityService: CommunityAdminServiceProtocol {
             timezone: change.timezone
         )
         let response = try await client.rpc("update_community", params: params).execute()
+        try CommunityRPC.decodeSuccess(from: response.data)
+    }
+
+    func updateCommunityAccess(communityId: UUID, change: CommunityAccessChange) async throws {
+        let params = UpdateAccessParams(communityId: communityId.uuidString, change: change)
+        let response = try await client.rpc("update_community_access", params: params).execute()
         try CommunityRPC.decodeSuccess(from: response.data)
     }
 }

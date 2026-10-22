@@ -3161,6 +3161,88 @@
         }
       }
     },
+    "community_error_default_community" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The example community can't be merged."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La comunidad de ejemplo no se puede fusionar."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예시 커뮤니티는 병합할 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể hợp nhất cộng đồng mẫu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "示例社区无法合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範例社群無法合併。"
+          }
+        }
+      }
+    },
+    "community_error_default_stays_listed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The example community always stays listed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La comunidad de ejemplo siempre permanece en la lista."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "예시 커뮤니티는 항상 목록에 공개됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng mẫu luôn được niêm yết."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "示例社区始终保持公开列出。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範例社群始終保持公開列出。"
+          }
+        }
+      }
+    },
     "community_error_exhausted" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3366,6 +3448,47 @@
         }
       }
     },
+    "community_error_invalid_area" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That service area can't be used. Choose a town or ZIP code and one of the distances."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede usar esa área de servicio. Elige una ciudad o un código postal y una de las distancias."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 서비스 지역은 사용할 수 없습니다. 도시나 우편번호와 거리 중 하나를 선택해 주세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể dùng khu vực phục vụ đó. Hãy chọn một thị trấn hoặc mã ZIP và một trong các khoảng cách."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法使用该服务区域。请选择一个城镇或邮政编码，并选择其中一个距离。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用該服務區域。請選擇一個城鎮或郵遞區號，並選擇其中一個距離。"
+          }
+        }
+      }
+    },
     "community_error_last_owner" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3403,6 +3526,129 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "社群需要一位擁有者。請先將另一位成員設為擁有者。"
+          }
+        }
+      }
+    },
+    "community_error_merge_pending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One of these communities already has a merge proposal waiting."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una de estas comunidades ya tiene una propuesta de fusión pendiente."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 커뮤니티 중 하나에 이미 대기 중인 병합 제안이 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một trong các cộng đồng này đã có đề xuất hợp nhất đang chờ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其中一个社区已有待处理的合并提议。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其中一個社群已有待處理的合併提議。"
+          }
+        }
+      }
+    },
+    "community_error_merged" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This community is now part of another community."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta comunidad ahora forma parte de otra comunidad."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 커뮤니티는 이제 다른 커뮤니티의 일부입니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng này giờ đã là một phần của cộng đồng khác."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此社区现已并入另一个社区。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此社群現已併入另一個社群。"
+          }
+        }
+      }
+    },
+    "community_error_needs_area" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A listed community needs a service area. Choose a town or ZIP code."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una comunidad en la lista necesita un área de servicio. Elige una ciudad o un código postal."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에 공개된 커뮤니티에는 서비스 지역이 필요합니다. 도시나 우편번호를 선택해 주세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng được niêm yết cần có khu vực phục vụ. Hãy chọn một thị trấn hoặc mã ZIP."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公开列出的社区需要一个服务区域。请选择一个城镇或邮政编码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公開列出的社群需要一個服務區域。請選擇一個城鎮或郵遞區號。"
           }
         }
       }
@@ -3530,6 +3776,47 @@
         }
       }
     },
+    "community_error_not_owner" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the owner can change this."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo el propietario puede cambiar esto."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소유자만 이 항목을 변경할 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ chủ sở hữu mới có thể thay đổi mục này."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有所有者可以更改此项。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有擁有者可以變更此項。"
+          }
+        }
+      }
+    },
     "community_error_not_pending" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3653,6 +3940,47 @@
         }
       }
     },
+    "community_error_proposal_closed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This proposal is no longer open."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta propuesta ya no está abierta."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 제안은 더 이상 진행 중이 아닙니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đề xuất này không còn mở nữa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此提议已不再开放。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此提議已不再開放。"
+          }
+        }
+      }
+    },
     "community_error_rate_limited" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3690,6 +4018,88 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "嘗試次數過多。請稍後再試。"
+          }
+        }
+      }
+    },
+    "community_error_reason_required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other communities already serve this area. Say why a new one is needed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otras comunidades ya atienden esta área. Explica por qué se necesita una nueva."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 지역에는 이미 다른 커뮤니티가 있습니다. 새 커뮤니티가 필요한 이유를 알려 주세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã có cộng đồng khác phục vụ khu vực này. Hãy cho biết vì sao cần một cộng đồng mới."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有其他社区服务此区域。请说明为什么需要新建一个。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有其他社群服務此區域。請說明為什麼需要新建一個。"
+          }
+        }
+      }
+    },
+    "community_error_recently_declined" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This community declined or withdrew a merge with yours recently. Try again later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta comunidad rechazó o retiró hace poco una fusión con la tuya. Inténtalo de nuevo más tarde."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 커뮤니티와 회원님의 커뮤니티 간 병합이 최근 거절되었거나 철회되었습니다. 나중에 다시 시도해 주세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gần đây việc hợp nhất giữa cộng đồng này và cộng đồng của bạn đã bị từ chối hoặc rút lại. Hãy thử lại sau."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此社区最近拒绝或撤回了与你的社区合并。请稍后再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此社群最近拒絕或撤回了與你的社群合併。請稍後再試。"
           }
         }
       }

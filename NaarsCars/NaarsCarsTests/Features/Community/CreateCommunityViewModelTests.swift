@@ -43,7 +43,9 @@ final class CreateCommunityViewModelTests: XCTestCase {
 
         XCTAssertNotNil(created)
         XCTAssertEqual(stub.createCommunityCalls.count, 1)
-        XCTAssertEqual(stub.createCommunityCalls[0].timezone, "America/Chicago")
+        XCTAssertEqual(stub.createCommunityCalls.last?.timezone, "America/Chicago")
+        XCTAssertNil(stub.createCommunityCalls.last?.area, "a hidden draft until the create flow gains its area step")
+        XCTAssertNil(stub.createCommunityCalls.last?.reason)
     }
 }
 

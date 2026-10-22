@@ -250,6 +250,53 @@ enum CommunityFixtures {
         )
     }
 
+    // MARK: - Discovery (20261021_0021; names and ids invented)
+
+    static let seattleArea = ServiceArea(name: "Seattle", center: GeoPoint(latitude: 47.6062, longitude: -122.3321), radiusMiles: 10)
+
+    static let searchResultsJSON = """
+    {
+      "success": true,
+      "communities": [
+        {"id": "6A000000-0000-4000-8000-000000000001", "name": "Test Community", "description": "Example requests to explore",
+         "join_policy": "approve", "area_name": "Seattle", "area_radius_miles": 10, "member_count": 3, "distance_miles": null},
+        {"id": "6A000000-0000-4000-8000-000000000002", "name": "Harbor Riders", "description": null,
+         "join_policy": "invite", "area_name": "Harbor", "area_radius_miles": 2, "member_count": 214, "distance_miles": 0.4}
+      ]
+    }
+    """
+
+    static func searchResult(_ id: UUID, name: String, distance: Double? = nil) -> CommunitySearchResult {
+        CommunitySearchResult(
+            id: id, name: name, description: nil, joinPolicy: CommunityJoinPolicy.approve.rawValue,
+            areaName: "Seattle", radiusMiles: 2, memberCount: 12, distanceMiles: distance
+        )
+    }
+
+    /// Release 1's `communityPreviewJSON` plus the area keys and `is_example` (20261021_0021 block 7).
+    static let communityPreviewWithAreaJSON = """
+    {
+      "success": true,
+      "community": {"id": "AAAAAAAA-0000-4000-8000-000000000001", "name": "Test Public A", "description": null,
+                    "join_policy": "approve", "is_public": true, "is_default": false, "member_count": 1,
+                    "timezone": "America/Los_Angeles", "area_name": "Seattle", "area_center_lat": 47.6062,
+                    "area_center_lng": -122.3321, "area_radius_miles": 10},
+      "requests": [
+        {"type": "ride", "id": "5A000000-0000-4000-8000-000000000001", "title": null, "date": "2026-10-25", "time": "09:30:00",
+         "timezone": "America/Los_Angeles", "seats": 2, "poster_id": "5B000000-0000-4000-8000-000000000001",
+         "poster_name": "Sample Poster", "poster_avatar_url": null, "is_example": true},
+        {"type": "favor", "id": "5A000000-0000-4000-8000-000000000002", "title": "Move a couch", "date": "2026-10-26", "time": null,
+         "timezone": null, "seats": null, "poster_id": "5B000000-0000-4000-8000-000000000001",
+         "poster_name": "Sample Poster", "poster_avatar_url": null, "is_example": false}
+      ],
+      "posts": [
+        {"id": "5C000000-0000-4000-8000-000000000001", "type": null, "title": null, "content": "Welcome to the group",
+         "created_at": "2026-10-20T10:00:00.123456+00:00", "author_id": "5B000000-0000-4000-8000-000000000001",
+         "author_name": "Sample Poster", "author_avatar_url": null, "comment_count": 3}
+      ]
+    }
+    """
+
     // MARK: - Admin payloads
 
     static let pendingMembersAdminJSON = """
@@ -475,7 +522,7 @@ final class StubCommunityService: CommunityServiceProtocol {
     var actionGate: (() async -> Void)?
 
     var createCommunityResult: Result<CreatedCommunity, Error> = .success(CreatedCommunity(communityId: CommunityFixtures.communityA))
-    private(set) var createCommunityCalls: [(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?)] = []
+    private(set) var createCommunityCalls: [NewCommunityDraft] = []
 
     var fetchMyCommunityLimitsResult: Result<CommunityLimits, Error> = .success(
         CommunityLimits(maxOwned: 3, ownedCount: 0, nextCreateAt: nil, canCreate: true, latestRequest: nil)
@@ -524,6 +571,22 @@ final class StubCommunityService: CommunityServiceProtocol {
     var reportCommunityResult: Result<CommunityReportResult, Error> = .success(CommunityReportResult(reportId: UUID(), duplicate: false))
     private(set) var reportCommunityCalls: [(communityId: UUID?, code: String?, type: MessageService.ReportType, description: String?)] = []
 
+    // MARK: Discovery
+
+    var searchCommunitiesResult: Result<[CommunitySearchResult], Error> = .success([])
+    /// When set, answers `searchCommunities` instead of `searchCommunitiesResult` (slow or per-query answers).
+    var searchCommunitiesHandler: ((String) async throws -> [CommunitySearchResult])?
+    private(set) var searchCommunitiesCalls: [String] = []
+
+    var findCommunitiesNearResult: Result<[CommunitySearchResult], Error> = .success([])
+    private(set) var findCommunitiesNearCalls: [GeoPoint] = []
+
+    var checkCommunityAreaResult: Result<[CommunitySearchResult], Error> = .success([])
+    private(set) var checkCommunityAreaCalls: [(area: ServiceArea, excluding: UUID?)] = []
+
+    var fetchServiceAreaResult: Result<ServiceArea?, Error> = .success(nil)
+    private(set) var fetchServiceAreaCalls: [UUID] = []
+
     init(result: Result<[CommunityMembership], Error>) {
         self.result = result
     }
@@ -534,8 +597,8 @@ final class StubCommunityService: CommunityServiceProtocol {
         return try result.get()
     }
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity {
-        createCommunityCalls.append((name, description, joinPolicy, timezone))
+    func createCommunity(_ draft: NewCommunityDraft) async throws -> CreatedCommunity {
+        createCommunityCalls.append(draft)
         await actionGate?()
         return try createCommunityResult.get()
     }
@@ -611,6 +674,27 @@ final class StubCommunityService: CommunityServiceProtocol {
         reportCommunityCalls.append((communityId, code, type, description))
         await actionGate?()
         return try reportCommunityResult.get()
+    }
+
+    func searchCommunities(name: String) async throws -> [CommunitySearchResult] {
+        searchCommunitiesCalls.append(name)
+        if let searchCommunitiesHandler { return try await searchCommunitiesHandler(name) }
+        return try searchCommunitiesResult.get()
+    }
+
+    func findCommunitiesNear(_ point: GeoPoint) async throws -> [CommunitySearchResult] {
+        findCommunitiesNearCalls.append(point)
+        return try findCommunitiesNearResult.get()
+    }
+
+    func checkCommunityArea(_ area: ServiceArea, excluding communityId: UUID?) async throws -> [CommunitySearchResult] {
+        checkCommunityAreaCalls.append((area, communityId))
+        return try checkCommunityAreaResult.get()
+    }
+
+    func fetchServiceArea(communityId: UUID) async throws -> ServiceArea? {
+        fetchServiceAreaCalls.append(communityId)
+        return try fetchServiceAreaResult.get()
     }
 }
 
@@ -752,6 +836,15 @@ final class StubCommunityAdminService: CommunityAdminServiceProtocol {
         updateCommunityCalls.append((communityId, change))
         await actionGate?()
         try updateCommunityResult.get()
+    }
+
+    var updateCommunityAccessResult: Result<Void, Error> = .success(())
+    private(set) var updateCommunityAccessCalls: [(communityId: UUID, change: CommunityAccessChange)] = []
+
+    func updateCommunityAccess(communityId: UUID, change: CommunityAccessChange) async throws {
+        updateCommunityAccessCalls.append((communityId, change))
+        await actionGate?()
+        try updateCommunityAccessResult.get()
     }
 }
 

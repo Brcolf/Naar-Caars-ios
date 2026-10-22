@@ -3,7 +3,8 @@
 //  NaarsCars
 //
 //  Payloads, the refusal envelope and the typed errors of the community RPCs
-//  (supabase/migrations/20261017_0005_communities_rpcs.sql)
+//  (supabase/migrations/20261017_0005_communities_rpcs.sql; the discovery and merge codes from
+//  20261021_0021_discovery_rpcs.sql and 20261021_0022_community_merge.sql)
 //
 
 import Foundation
@@ -33,6 +34,19 @@ enum CommunityRefusalCode: String, CaseIterable, Sendable {
     case notMember = "not_member"
     case notRemoved = "not_removed"
     case notListed = "not_listed"
+    // Release 2: access, listing rules and merging (20261021_0021, 20261021_0022)
+    case notOwner = "not_owner"
+    case needsArea = "needs_area"
+    case invalidArea = "invalid_area"
+    case reasonRequired = "reason_required"
+    case defaultStaysListed = "default_stays_listed"
+    case mergePending = "merge_pending"
+    /// A merge declined within 7 days or withdrawn within 24 hours.
+    case recentlyDeclined = "recently_declined"
+    case proposalClosed = "proposal_closed"
+    case defaultCommunity = "default_community"
+    /// `get_community_preview` of a community merged into another; carries `mergedIntoId` / `mergedIntoName`.
+    case merged
 }
 
 /// A refusal from a community RPC. The server's English text is kept for logs and never shown;
@@ -46,19 +60,26 @@ struct CommunityRPCError: Error, Equatable, Sendable {
     let ownedCount: Int?
     /// `recently_rejected` only.
     let retryAfter: Date?
+    /// `merged` only: the community it is now part of, when the caller may discover it.
+    let mergedIntoId: UUID?
+    let mergedIntoName: String?
 
     init(
         code: CommunityRefusalCode?,
         serverMessage: String = "",
         maxOwned: Int? = nil,
         ownedCount: Int? = nil,
-        retryAfter: Date? = nil
+        retryAfter: Date? = nil,
+        mergedIntoId: UUID? = nil,
+        mergedIntoName: String? = nil
     ) {
         self.code = code
         self.serverMessage = serverMessage
         self.maxOwned = maxOwned
         self.ownedCount = ownedCount
         self.retryAfter = retryAfter
+        self.mergedIntoId = mergedIntoId
+        self.mergedIntoName = mergedIntoName
     }
 
     var localizedMessage: String {
@@ -93,12 +114,16 @@ enum CommunityRPC {
         let maxOwned: Int?
         let ownedCount: Int?
         let retryAfter: Date?
+        let mergedIntoId: UUID?
+        let mergedIntoName: String?
 
         enum CodingKeys: String, CodingKey {
             case success, error, code
             case maxOwned = "max_owned"
             case ownedCount = "owned_count"
             case retryAfter = "retry_after"
+            case mergedIntoId = "merged_into_id"
+            case mergedIntoName = "merged_into_name"
         }
 
         init(from decoder: Decoder) throws {
@@ -109,6 +134,8 @@ enum CommunityRPC {
             maxOwned = try? c.decodeIfPresent(Int.self, forKey: .maxOwned)
             ownedCount = try? c.decodeIfPresent(Int.self, forKey: .ownedCount)
             retryAfter = try? c.decodeIfPresent(Date.self, forKey: .retryAfter)
+            mergedIntoId = try? c.decodeIfPresent(UUID.self, forKey: .mergedIntoId)
+            mergedIntoName = try? c.decodeIfPresent(String.self, forKey: .mergedIntoName)
         }
     }
 
@@ -133,7 +160,9 @@ enum CommunityRPC {
             serverMessage: envelope.error ?? "",
             maxOwned: envelope.maxOwned,
             ownedCount: envelope.ownedCount,
-            retryAfter: envelope.retryAfter
+            retryAfter: envelope.retryAfter,
+            mergedIntoId: envelope.mergedIntoId,
+            mergedIntoName: envelope.mergedIntoName
         )
     }
 }
@@ -407,6 +436,8 @@ struct CommunityPreview: Decodable, Equatable, Sendable {
         let isDefault: Bool
         let memberCount: Int
         let timezone: String
+        /// nil for a community without a service area, or from a server before Release 2.
+        var area: ServiceArea? = nil
 
         enum CodingKeys: String, CodingKey {
             case id, name, description, timezone
@@ -429,6 +460,8 @@ struct CommunityPreview: Decodable, Equatable, Sendable {
         let posterId: UUID
         let posterName: String
         let posterAvatarUrl: String?
+        /// Example content of the example community; false when the key is absent (before Release 2).
+        var isExample: Bool = false
 
         var isRide: Bool { type == "ride" }
 
@@ -437,6 +470,7 @@ struct CommunityPreview: Decodable, Equatable, Sendable {
             case posterId = "poster_id"
             case posterName = "poster_name"
             case posterAvatarUrl = "poster_avatar_url"
+            case isExample = "is_example"
         }
     }
 
@@ -459,6 +493,40 @@ struct CommunityPreview: Decodable, Equatable, Sendable {
             case authorAvatarUrl = "author_avatar_url"
             case commentCount = "comment_count"
         }
+    }
+}
+
+extension CommunityPreview.Community {
+    /// The area keys may be absent (a server before Release 2); the memberwise initializer stays.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        joinPolicy = try c.decode(String.self, forKey: .joinPolicy)
+        isPublic = try c.decode(Bool.self, forKey: .isPublic)
+        isDefault = try c.decode(Bool.self, forKey: .isDefault)
+        memberCount = try c.decode(Int.self, forKey: .memberCount)
+        timezone = try c.decode(String.self, forKey: .timezone)
+        area = try ServiceArea.decodeColumns(from: decoder)
+    }
+}
+
+extension CommunityPreview.Request {
+    /// `is_example` may be absent (a server before Release 2); the memberwise initializer stays.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        type = try c.decode(String.self, forKey: .type)
+        id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        date = try c.decode(Date.self, forKey: .date)
+        time = try c.decodeIfPresent(String.self, forKey: .time)
+        timezone = try c.decodeIfPresent(String.self, forKey: .timezone)
+        seats = try c.decodeIfPresent(Int.self, forKey: .seats)
+        posterId = try c.decode(UUID.self, forKey: .posterId)
+        posterName = try c.decode(String.self, forKey: .posterName)
+        posterAvatarUrl = try c.decodeIfPresent(String.self, forKey: .posterAvatarUrl)
+        isExample = try c.decodeIfPresent(Bool.self, forKey: .isExample) ?? false
     }
 }
 
@@ -617,6 +685,8 @@ struct CommunitySettings: Decodable, Equatable, Sendable {
     let isPublic: Bool
     let isDefault: Bool
     let timezone: String
+    /// The stored service area; nil when the community has none.
+    var area: ServiceArea? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, timezone
@@ -624,6 +694,22 @@ struct CommunitySettings: Decodable, Equatable, Sendable {
         case membersCanInvite = "members_can_invite"
         case isPublic = "is_public"
         case isDefault = "is_default"
+    }
+}
+
+extension CommunitySettings {
+    /// The four area columns are read beside the settings; the memberwise initializer stays.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        joinPolicy = try c.decode(String.self, forKey: .joinPolicy)
+        membersCanInvite = try c.decode(Bool.self, forKey: .membersCanInvite)
+        isPublic = try c.decode(Bool.self, forKey: .isPublic)
+        isDefault = try c.decode(Bool.self, forKey: .isDefault)
+        timezone = try c.decode(String.self, forKey: .timezone)
+        area = try ServiceArea.decodeColumns(from: decoder)
     }
 }
 

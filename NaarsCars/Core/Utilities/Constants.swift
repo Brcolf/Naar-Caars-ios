@@ -286,6 +286,30 @@ enum Constants {
         static let pagePreviewRequests = 10
         /// Recent Town Hall posts the community page lists (the cap of `get_community_preview`)
         static let pagePreviewPosts = 5
+
+        // MARK: Discovery (Release 2; the server enforces each value)
+
+        /// Shortest name query sent to `search_communities_by_name` (the server answers [] below it)
+        static let searchMinLength = 2
+        /// Longest name query (the server cuts it at 60)
+        static let searchMaxLength = 60
+        /// Pause after the last keystroke before a name search runs
+        static let searchDebounce: Duration = .milliseconds(350)
+        /// Service-area radii a community can choose, in miles (the server accepts only these)
+        static let areaRadiusChoices = [1, 2, 5, 10]
+        static let defaultAreaRadiusMiles = 2
+        /// Longest service-area name (the server accepts 2-80 characters)
+        static let areaNameMaxLength = 80
+        /// Longest reason for listing a community where others already serve the area (the server refuses more than 300)
+        static let listingReasonMaxLength = 300
+        /// Longest note on a merge proposal
+        static let mergeNoteMaxLength = 300
+        /// Decimal places a device coordinate is rounded to before a place search (3 is about 100 m)
+        static let searchCoordinateDecimals = 3
+        /// How long "Use my location" waits for one fix
+        static let locationSearchTimeout: TimeInterval = 5
+        /// How long a community page visit is remembered (7 days)
+        static let viewedCommunityLifetime: TimeInterval = 7 * 24 * 3600
     }
 
     /// Default map coordinates

@@ -181,7 +181,8 @@ final class CommunitySettingsViewModel: ObservableObject {
             membersCanInvite: change.membersCanInvite ?? current.membersCanInvite,
             isPublic: current.isPublic,
             isDefault: current.isDefault,
-            timezone: change.timezone ?? current.timezone
+            timezone: change.timezone ?? current.timezone,
+            area: current.area
         )
         apply(saved)
         HapticManager.success()

@@ -114,4 +114,63 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertEqual(RequestFilter.allCases.map(\.localizedKey), ["requests_tile_open", "requests_tile_mine", "requests_tile_helping"])
         XCTAssertEqual(RequestFilter.claimed.rawValue, "Claimed Requests")
     }
+
+    // MARK: - Release 2 discovery (20261021_0021 block 7, 20261021_0022)
+
+    func testPreview_DecodesAreaAndExampleFlag() throws {
+        let preview = try CommunityRPC.decode(CommunityPreview.self, from: Data(CommunityFixtures.communityPreviewWithAreaJSON.utf8))
+        XCTAssertEqual(preview.community.area, CommunityFixtures.seattleArea)
+        XCTAssertEqual(preview.requests.map(\.isExample), [true, false])
+    }
+
+    func testPreview_Release1PayloadStillDecodes() throws {
+        let preview = try CommunityRPC.decode(CommunityPreview.self, from: Data(CommunityFixtures.communityPreviewJSON.utf8))
+        XCTAssertNil(preview.community.area)
+        XCTAssertEqual(preview.requests.count, 2)
+        XCTAssertTrue(preview.requests.allSatisfy { !$0.isExample })
+    }
+
+    func testRefusal_MergedCarriesTheSurvivor() {
+        let json = """
+        {"success": false, "error": "Community merged", "code": "merged",
+         "merged_into_id": "\(CommunityFixtures.communityB.uuidString)", "merged_into_name": "Harbor Riders"}
+        """
+        XCTAssertThrowsError(try CommunityRPC.decode(CommunityPreview.self, from: Data(json.utf8))) { error in
+            guard let refusal = error as? CommunityRPCError else { return XCTFail("expected CommunityRPCError, got \(error)") }
+            XCTAssertEqual(refusal.code, .merged)
+            XCTAssertEqual(refusal.mergedIntoId, CommunityFixtures.communityB)
+            XCTAssertEqual(refusal.mergedIntoName, "Harbor Riders")
+        }
+    }
+
+    func testSettings_DecodesTheServiceArea() throws {
+        let row = """
+        [{"id": "AAAAAAAA-0000-4000-8000-000000000001", "name": "Ballard Neighbors", "description": null,
+          "join_policy": "approve", "members_can_invite": false, "is_public": true, "is_default": false,
+          "timezone": "America/Los_Angeles", "area_name": %@, "area_center_lat": 47.6062,
+          "area_center_lng": -122.3321, "area_radius_miles": 10}]
+        """
+        let decoder = DateDecoderFactory.makeSupabaseDecoder()
+        let withArea = try decoder.decode([CommunitySettings].self, from: Data(row.replacingOccurrences(of: "%@", with: "\"Seattle\"").utf8))
+        XCTAssertEqual(withArea.first?.area, CommunityFixtures.seattleArea)
+        XCTAssertEqual(withArea.first?.name, "Ballard Neighbors")
+        let withoutArea = try decoder.decode([CommunitySettings].self, from: Data(row.replacingOccurrences(of: "%@", with: "null").utf8))
+        XCTAssertEqual(withoutArea.count, 1)
+        XCTAssertNil(withoutArea.first?.area)
+        let release1Row = try decoder.decode([CommunitySettings].self, from: Data(CommunityFixtures.communitySettingsRowsJSON.utf8))
+        XCTAssertNil(release1Row.first?.area)
+    }
+
+    func testGeoPoint_RoundsToDecimals() {
+        let point = GeoPoint(latitude: 47.60621, longitude: -122.33207).rounded(toDecimals: Constants.Community.searchCoordinateDecimals)
+        XCTAssertEqual(point, GeoPoint(latitude: 47.606, longitude: -122.332))
+    }
+
+    func testServiceAreaMake_NeedsAllFourValues() {
+        XCTAssertEqual(ServiceArea.make(name: "Seattle", latitude: 47.6062, longitude: -122.3321, radiusMiles: 10), CommunityFixtures.seattleArea)
+        XCTAssertNil(ServiceArea.make(name: nil, latitude: 47.6062, longitude: -122.3321, radiusMiles: 10))
+        XCTAssertNil(ServiceArea.make(name: "Seattle", latitude: nil, longitude: -122.3321, radiusMiles: 10))
+        XCTAssertNil(ServiceArea.make(name: "Seattle", latitude: 47.6062, longitude: nil, radiusMiles: 10))
+        XCTAssertNil(ServiceArea.make(name: "Seattle", latitude: 47.6062, longitude: -122.3321, radiusMiles: nil))
+    }
 }

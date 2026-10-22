@@ -64,12 +64,15 @@ final class CreateCommunityViewModel: ObservableObject {
 
         let created: CreatedCommunity
         do {
-            created = try await service.createCommunity(
+            // A hidden community until the create flow gains its service-area step.
+            created = try await service.createCommunity(NewCommunityDraft(
                 name: cleanName,
                 description: cleanDescription.isEmpty ? nil : cleanDescription,
                 joinPolicy: policy,
-                timezone: deviceTimeZone().identifier
-            )
+                timezone: deviceTimeZone().identifier,
+                area: nil,
+                reason: nil
+            ))
         } catch let refusal as CommunityRPCError {
             lastRefusal = refusal
             errorMessage = refusal.localizedMessage

@@ -42,6 +42,11 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     /// (the not-admin preview).
     var adminRefusal: CommunityRPCError?
     var applicantContact = ApplicantContact(email: "dana.rivera@example.com", phoneNumber: "+1 206 555 0142")
+    /// The answer to the three discovery searches.
+    var searchResults: [CommunitySearchResult] = PreviewCommunityService.sampleSearchResults
+    /// The answer to `checkCommunityArea` (overlapping communities); empty previews "no overlap".
+    var overlappingCommunities: [CommunitySearchResult] = []
+    var serviceArea: ServiceArea? = PreviewCommunityService.sampleArea
 
     init() {}
 
@@ -100,6 +105,28 @@ final class PreviewCommunityService: CommunityServiceProtocol {
         )
     ]
 
+    static let sampleArea = ServiceArea(
+        name: "Ballard", center: GeoPoint(latitude: 47.6687, longitude: -122.3847), radiusMiles: 2
+    )
+
+    static let sampleSearchResults: [CommunitySearchResult] = [
+        CommunitySearchResult(
+            id: UUID(), name: "Ballard Neighbors", description: "Rides and favors around Ballard.",
+            joinPolicy: CommunityJoinPolicy.approve.rawValue, areaName: "Ballard", radiusMiles: 2,
+            memberCount: 214, distanceMiles: 0.4
+        ),
+        CommunitySearchResult(
+            id: UUID(), name: "Fremont Porch Club", description: nil,
+            joinPolicy: CommunityJoinPolicy.invite.rawValue, areaName: "Fremont", radiusMiles: 5,
+            memberCount: 38, distanceMiles: 1.8
+        ),
+        CommunitySearchResult(
+            id: UUID(), name: "Test Community", description: "Example requests to look around.",
+            joinPolicy: CommunityJoinPolicy.approve.rawValue, areaName: "Seattle", radiusMiles: 10,
+            memberCount: 3, distanceMiles: nil
+        )
+    ]
+
     static let sampleLiveInvites: [CommunityInviteRow] = [
         CommunityInviteRow(
             id: UUID(),
@@ -125,7 +152,7 @@ final class PreviewCommunityService: CommunityServiceProtocol {
 
     func fetchMyMemberships() async throws -> [CommunityMembership] { memberships }
 
-    func createCommunity(name: String, description: String?, joinPolicy: CommunityJoinPolicy, timezone: String?) async throws -> CreatedCommunity {
+    func createCommunity(_ draft: NewCommunityDraft) async throws -> CreatedCommunity {
         CreatedCommunity(communityId: UUID())
     }
 
@@ -171,6 +198,20 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     func reportCommunity(communityId: UUID?, code: String?, type: MessageService.ReportType, description: String?) async throws -> CommunityReportResult {
         CommunityReportResult(reportId: nil, duplicate: false)
     }
+
+    func searchCommunities(name: String) async throws -> [CommunitySearchResult] {
+        searchResults.filter { $0.name.localizedCaseInsensitiveContains(name) }
+    }
+
+    func findCommunitiesNear(_ point: GeoPoint) async throws -> [CommunitySearchResult] {
+        searchResults.filter { $0.distanceMiles != nil }
+    }
+
+    func checkCommunityArea(_ area: ServiceArea, excluding communityId: UUID?) async throws -> [CommunitySearchResult] {
+        overlappingCommunities.filter { $0.id != communityId }
+    }
+
+    func fetchServiceArea(communityId: UUID) async throws -> ServiceArea? { serviceArea }
 }
 
 // MARK: - Admin
@@ -321,6 +362,10 @@ extension PreviewCommunityService: CommunityAdminServiceProtocol {
     }
 
     func updateCommunity(communityId: UUID, change: CommunitySettingsChange) async throws {
+        if let adminRefusal { throw adminRefusal }
+    }
+
+    func updateCommunityAccess(communityId: UUID, change: CommunityAccessChange) async throws {
         if let adminRefusal { throw adminRefusal }
     }
 }

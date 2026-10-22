@@ -36,4 +36,7 @@ protocol CommunityAdminServiceProtocol: AnyObject {
     func fetchCommunitySettings(communityId: UUID) async throws -> CommunitySettings
     /// Sends only the fields `change` sets.
     func updateCommunity(communityId: UUID, change: CommunitySettingsChange) async throws
+    /// `update_community_access` (the owner only): listed or hidden, the join policy, and a new
+    /// service area when `change.newArea` is set (nil keeps the stored one).
+    func updateCommunityAccess(communityId: UUID, change: CommunityAccessChange) async throws
 }
