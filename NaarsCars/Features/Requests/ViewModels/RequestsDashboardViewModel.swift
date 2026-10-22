@@ -16,6 +16,14 @@ struct RequestNotificationSummary {
     let latestUnreadAt: Date
 }
 
+/// What the top of the Requests screen shows: a title, the community's join rule under it when
+/// the list is one community's, and whether the community chips show.
+struct RequestsHeader: Equatable {
+    let title: String
+    let subtitle: String?
+    let showsCommunityChips: Bool
+}
+
 /// ViewModel for unified requests dashboard
 @MainActor
 final class RequestsDashboardViewModel: ObservableObject {
@@ -30,8 +38,11 @@ final class RequestsDashboardViewModel: ObservableObject {
     @Published var filteredRides: [SDRide] = []
     @Published var filteredFavors: [SDFavor] = []
     @Published var filteredRequests: [RequestItem] = []
-    /// Requests the current filter lists under All communities but the narrowed scope hides (0 when not narrowed).
+    /// Requests the current filter lists under All communities but the scope hides (a narrow or left-out
+    /// communities; 0 under All communities).
     @Published private(set) var otherCommunitiesCount: Int = 0
+    /// Open requests under All communities, in total and per community, whatever the filter and the scope.
+    @Published private(set) var openCounts: OpenRequestCounts = .zero
 
     var unseenRequestKeys: Set<String> { summaryManager.unseenRequestKeys }
     var requestNotificationSummaries: [String: RequestNotificationSummary] { summaryManager.requestNotificationSummaries }
@@ -251,15 +262,20 @@ final class RequestsDashboardViewModel: ObservableObject {
 
     private func refreshFilteredRequests(updatingBadgeCounts: Bool = true) {
         guard let context = modelContext else { return }
-        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: communityContext.requestsScope)
-        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: communityContext.requestsScope)
+        let scope = communityContext.requestsScope
+        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: scope)
+        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: scope)
         filteredRequests = filterManager.getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filter)
         // A narrow can outlive the second membership (the scope resets only when the narrowed
         // community goes), and the person's own rows from a community they left are still read,
         // so the hint is gated on the membership count, not only on the count of rows.
         otherCommunitiesCount = communityContext.hasMultipleCommunities
-            ? filterManager.countOutsideScope(in: context, filter: filter, scope: communityContext.requestsScope)
+            ? filterManager.countOutsideScope(in: context, filter: filter, scope: scope)
             : 0
+        // Open under All communities is the list just built; any other filter or scope reads it again.
+        openCounts = filter == .open && scope == .all
+            ? OpenRequestCounts(openRequests: filteredRequests)
+            : filterManager.openCounts(in: context)
         if updatingBadgeCounts { refreshFilterBadgeCounts() }
     }
 
@@ -278,6 +294,37 @@ final class RequestsDashboardViewModel: ObservableObject {
     /// The Requests narrow changed: re-filter the local rows. Local only, no network.
     func requestsScopeDidChange() {
         refreshFilteredRequests()
+    }
+
+    // MARK: - Header
+
+    /// The header rules: a guest or a person with no community sees "Requests"; one membership,
+    /// or a list narrowed to one active community, shows that community's name and join rule;
+    /// otherwise "All communities" with the community chips (a list that leaves some out included).
+    static func header(
+        scope: RequestsScope,
+        activeMemberships: [CommunityMembership],
+        isGuest: Bool
+    ) -> RequestsHeader {
+        guard !isGuest, let first = activeMemberships.first else {
+            return RequestsHeader(title: "requests_nav_title".localized, subtitle: nil, showsCommunityChips: false)
+        }
+        if activeMemberships.count == 1 {
+            return communityHeader(first)
+        }
+        if case .community(let id) = scope,
+           let narrowed = activeMemberships.first(where: { $0.communityId == id }) {
+            return communityHeader(narrowed)
+        }
+        return RequestsHeader(title: "community_all_communities".localized, subtitle: nil, showsCommunityChips: true)
+    }
+
+    private static func communityHeader(_ membership: CommunityMembership) -> RequestsHeader {
+        RequestsHeader(
+            title: membership.name,
+            subtitle: CommunityJoinPolicy(rawValue: membership.joinPolicy)?.subtitleText,
+            showsCommunityChips: false
+        )
     }
 }
 

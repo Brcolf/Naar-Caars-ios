@@ -32,6 +32,18 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertFalse(RequestsScope.community(CommunityFixtures.communityA).includes(CommunityFixtures.communityB))
     }
 
+    func testRequestsScope_ExcludingStorageRoundTripAndMalformedValues() {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let scope = RequestsScope.excluding([b, a])
+        XCTAssertEqual(scope.storageValue, "exclude:" + [a, b].map(\.uuidString).sorted().joined(separator: ","))
+        XCTAssertEqual(RequestsScope(storageValue: scope.storageValue), scope)
+        XCTAssertEqual(RequestsScope(storageValue: "exclude:"), .all)
+        XCTAssertEqual(RequestsScope(storageValue: "exclude:garbage"), .all)
+        XCTAssertEqual(RequestsScope(storageValue: "exclude:\(a.uuidString),garbage"), .excluding([a]))
+        XCTAssertFalse(RequestsScope.excluding([a]).includes(a)); XCTAssertTrue(RequestsScope.excluding([a]).includes(b))
+        XCTAssertTrue(RequestsScope.excluding([a]).includes(nil)); XCTAssertNil(RequestsScope.excluding([a]).communityId)
+    }
+
     func testMembershipWithUnknownRoleAndStatusDecodesTolerantly() throws {
         let rows = try DateDecoderFactory.makeSupabaseDecoder().decode([CommunityMembership].self, from: Data(CommunityFixtures.myMembershipsUnknownEnumsJSON.utf8))
         XCTAssertEqual(rows.count, 1)

@@ -289,6 +289,88 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertEqual(ctx.memberships.map(\.communityId), [a, b])
     }
 
+    // MARK: - Requests include and exclude filter
+
+    func testRefresh_ExcludingScopeDropsCommunitiesNoLongerActive() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB, c = CommunityFixtures.communityC
+        seedKeys(for: uid, tab: nil, scope: RequestsScope.excluding([a, c]).storageValue, lastPosted: nil)
+        let (ctx, _) = makeContext(.success([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ]))
+        ctx.restore(for: uid)
+        XCTAssertEqual(ctx.requestsScope, .excluding([a, c]))
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(ctx.requestsScope, .excluding([a]))
+        XCTAssertEqual(suite.string(forKey: CommunityContext.requestsScopeKeyPrefix + uid.uuidString), RequestsScope.excluding([a]).storageValue)
+    }
+
+    func testRefresh_ExcludingEveryActiveCommunityFallsBackToAll() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        seedKeys(for: uid, tab: nil, scope: RequestsScope.excluding([a, b]).storageValue, lastPosted: nil)
+        let (ctx, _) = makeContext(.success([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ]))
+        ctx.restore(for: uid)
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(ctx.requestsScope, .all)
+        XCTAssertEqual(suite.string(forKey: CommunityContext.requestsScopeKeyPrefix + uid.uuidString), RequestsScope.all.storageValue)
+    }
+
+    func testToggleRequestsInclusion_NeverExcludesTheLastCommunity() {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let (ctx, _) = makeContext()
+        ctx.debugSetMemberships([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ])
+
+        ctx.toggleRequestsInclusion(a)
+        XCTAssertEqual(ctx.requestsScope, .excluding([a]))
+        ctx.toggleRequestsInclusion(b)
+        XCTAssertEqual(ctx.requestsScope, .excluding([a]), "the last included community cannot be left out")
+        ctx.toggleRequestsInclusion(a)
+        XCTAssertEqual(ctx.requestsScope, .all, "including the last left-out community is All communities")
+
+        ctx.debugSetMemberships([CommunityFixtures.membership(a, name: "A", isPrimary: true)])
+        ctx.toggleRequestsInclusion(a)
+        XCTAssertEqual(ctx.requestsScope, .all, "one membership is never left out")
+
+        ctx.debugSetMemberships([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ])
+        ctx.requestsScope = .community(a)
+        ctx.toggleRequestsInclusion(a)
+        XCTAssertEqual(ctx.requestsScope, .community(a), "toggling never changes a narrowed list")
+    }
+
+    func testChipText_ShownWhenExcludingHiddenWhenNarrowed() {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let (ctx, _) = makeContext()
+        ctx.debugSetMemberships([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B")
+        ])
+
+        ctx.requestsScope = .excluding([b])
+        XCTAssertEqual(ctx.chipText(for: a, respectingScope: true), "A", "a list of several communities keeps its chips")
+
+        ctx.requestsScope = .community(a)
+        XCTAssertNil(ctx.chipText(for: a, respectingScope: true))
+        XCTAssertEqual(ctx.chipText(for: a, respectingScope: false), "A")
+
+        ctx.requestsScope = .all
+        XCTAssertEqual(ctx.chipText(for: a, respectingScope: true), "A")
+    }
+
     func testCommunityContext_AdministeredCommunitiesAreActiveOwnerAndAdminRows() async {
         let uid = UUID()
         let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB, c = CommunityFixtures.communityC

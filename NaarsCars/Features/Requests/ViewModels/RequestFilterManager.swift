@@ -9,6 +9,32 @@ import Foundation
 import SwiftData
 import Observation
 
+/// Open requests per community: what the Open filter lists under All communities.
+/// Rows with no community count only in `all`.
+struct OpenRequestCounts: Equatable {
+    let all: Int
+    let byCommunity: [UUID: Int]
+
+    static let zero = OpenRequestCounts(all: 0, byCommunity: [:])
+}
+
+extension OpenRequestCounts {
+    /// Counts already filtered Open rows (the Open filter's list under `.all`).
+    init(openRequests: [RequestItem]) {
+        var byCommunity: [UUID: Int] = [:]
+        for request in openRequests {
+            let communityId: UUID?
+            switch request {
+            case .ride(let ride): communityId = ride.communityId
+            case .favor(let favor): communityId = favor.communityId
+            }
+            guard let communityId else { continue }
+            byCommunity[communityId, default: 0] += 1
+        }
+        self.init(all: openRequests.count, byCommunity: byCommunity)
+    }
+}
+
 /// Extracted filtering/badge helper logic for requests dashboard.
 @MainActor
 @Observable
@@ -234,6 +260,16 @@ final class RequestFilterManager {
             filter: filter
         ).count
         return max(0, everything - narrowed)
+    }
+
+    /// The Open filter's rows under `.all` (the 12-hour rule included), counted in total and per
+    /// community. Local only: two fetches of open rows, no network.
+    func openCounts(in context: ModelContext) -> OpenRequestCounts {
+        OpenRequestCounts(openRequests: getFilteredRequests(
+            rides: fetchFilteredRides(in: context, filter: .open, scope: .all),
+            favors: fetchFilteredFavors(in: context, filter: .open, scope: .all),
+            filter: .open
+        ))
     }
 
     func computeFilterBadgeCounts(

@@ -145,10 +145,11 @@ final class CommunityContext {
     }
 
     /// Text for a community chip: nil with one active membership, and nil when `respectingScope`
-    /// is set and Requests is narrowed (every card then belongs to the same community).
+    /// is set and Requests is narrowed to one community (every card then belongs to it). A list
+    /// that leaves some communities out still shows several, so it keeps its chips.
     func chipText(for communityId: UUID?, respectingScope: Bool) -> String? {
         guard hasMultipleCommunities else { return nil }
-        if respectingScope && requestsScope != .all { return nil }
+        if respectingScope, case .community = requestsScope { return nil }
         return name(for: communityId)
     }
 
@@ -209,6 +210,34 @@ final class CommunityContext {
 
     private static func isActiveAdmin(_ row: CommunityMembership) -> Bool {
         row.status == .active && (row.role == .owner || row.role == .admin)
+    }
+
+    // MARK: - Requests filter
+
+    /// Includes or leaves out one active community in the Requests list (the community chips).
+    /// From `.all` the community is left out; in `.excluding` it is left out or included again, and
+    /// including the last left-out community is `.all`. Leaving out the last included community, a
+    /// community that is not an active membership, and any change while narrowed to one community
+    /// (`.community`) are no-ops. Local only; the change persists like any other assignment.
+    func toggleRequestsInclusion(_ communityId: UUID) {
+        let activeIds = Set(activeMemberships.map(\.communityId))
+        guard activeIds.contains(communityId) else { return }
+
+        var excluded: Set<UUID>
+        switch requestsScope {
+        case .community: return
+        case .all: excluded = []
+        case .excluding(let ids): excluded = ids.intersection(activeIds)
+        }
+
+        if excluded.contains(communityId) {
+            excluded.remove(communityId)
+        } else {
+            excluded.insert(communityId)
+            // Never leave every community out.
+            guard !activeIds.isSubset(of: excluded) else { return }
+        }
+        requestsScope = excluded.isEmpty ? .all : .excluding(excluded)
     }
 
     // MARK: - Lifecycle
@@ -329,8 +358,15 @@ final class CommunityContext {
         } else {
             communityTabId = active.first(where: \.isPrimary)?.communityId ?? active.first?.communityId
         }
-        if let narrowed = requestsScope.communityId, !activeIds.contains(narrowed) {
-            requestsScope = .all
+        switch requestsScope {
+        case .all:
+            break
+        case .community(let narrowed):
+            if !activeIds.contains(narrowed) { requestsScope = .all }
+        case .excluding(let ids):
+            // Only active communities stay left out; none left, or every one left out, is `.all`.
+            let kept = ids.intersection(activeIds)
+            requestsScope = kept.isEmpty || activeIds.isSubset(of: kept) ? .all : .excluding(kept)
         }
         if let lastPosted = lastPostedCommunityId, !activeIds.contains(lastPosted) {
             lastPostedCommunityId = nil

@@ -81,19 +81,28 @@ struct CommunityMembership: Decodable, Identifiable, Equatable, Sendable {
 enum RequestsScope: Equatable, Hashable, Sendable {
     case all
     case community(UUID)
+    /// Every community except these (the community chips' include and exclude filter).
+    case excluding(Set<UUID>)
 
+    private static let excludingStoragePrefix = "exclude:"
+
+    /// The one community a narrow shows; nil for `.all` and `.excluding`.
     var communityId: UUID? {
         switch self {
-        case .all: return nil
+        case .all, .excluding: return nil
         case .community(let id): return id
         }
     }
 
-    /// `.all` includes everything; a community scope includes its rows and rows with unknown (nil) community.
+    /// `.all` includes everything; a community scope includes its rows and rows with unknown (nil) community;
+    /// `.excluding` includes every row whose community is not in its set, rows with unknown community included.
     func includes(_ communityId: UUID?) -> Bool {
         switch self {
         case .all: return true
         case .community(let id): return communityId == id || communityId == nil
+        case .excluding(let ids):
+            guard let communityId else { return true }
+            return !ids.contains(communityId)
         }
     }
 
@@ -101,11 +110,24 @@ enum RequestsScope: Equatable, Hashable, Sendable {
         switch self {
         case .all: return "all"
         case .community(let id): return id.uuidString
+        case .excluding(let ids):
+            return Self.excludingStoragePrefix + ids.map(\.uuidString).sorted().joined(separator: ",")
         }
     }
 
+    /// Reads `storageValue`. Invalid ids in an exclude list are dropped; an exclude list with no valid id,
+    /// and anything unreadable, is `.all`.
     init(storageValue: String?) {
-        if let storageValue, let id = UUID(uuidString: storageValue) {
+        guard let storageValue else {
+            self = .all
+            return
+        }
+        if storageValue.hasPrefix(Self.excludingStoragePrefix) {
+            let ids = Set(storageValue.dropFirst(Self.excludingStoragePrefix.count)
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) })
+            self = ids.isEmpty ? .all : .excluding(ids)
+        } else if let id = UUID(uuidString: storageValue) {
             self = .community(id)
         } else {
             self = .all

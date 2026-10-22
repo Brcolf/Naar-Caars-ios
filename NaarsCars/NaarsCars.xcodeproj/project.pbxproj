@@ -309,6 +309,7 @@
 		AC7A1D5F3089A8C700908D08 /* CommunityPageViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D5E3089A8C700908D08 /* CommunityPageViewModelTests.swift */; };
 		AC7A1D613089A98500908D08 /* CommunityPageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D603089A98500908D08 /* CommunityPageViewModel.swift */; };
 		AC7A1D633089AAA600908D08 /* CommunityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D623089AAA600908D08 /* CommunityPageView.swift */; };
+		AC7A1D663089C68700908D08 /* RequestsHeaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D653089C68700908D08 /* RequestsHeaderTests.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -866,6 +867,7 @@
 		AC7A1D5E3089A8C700908D08 /* CommunityPageViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageViewModelTests.swift; sourceTree = "<group>"; };
 		AC7A1D603089A98500908D08 /* CommunityPageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageViewModel.swift; sourceTree = "<group>"; };
 		AC7A1D623089AAA600908D08 /* CommunityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageView.swift; sourceTree = "<group>"; };
+		AC7A1D653089C68700908D08 /* RequestsHeaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestsHeaderTests.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1514,6 +1516,14 @@
 				RECENT00000000000000002 /* RecentReactionsStore.swift */,
 			);
 			path = Storage;
+			sourceTree = "<group>";
+		};
+		AC7A1D643089C67D00908D08 /* Requests */ = {
+			isa = PBXGroup;
+			children = (
+				AC7A1D653089C68700908D08 /* RequestsHeaderTests.swift */,
+			);
+			path = Requests;
 			sourceTree = "<group>";
 		};
 		AC8197B62F14C2C1003BB08B /* ViewModels */ = {
@@ -2366,6 +2376,7 @@
 				ACDCBE192F0B79BD00956D1C /* Profile */,
 				AC410C3D3085525C00D921E2 /* Community */,
 				AC410C9C3085CF9000D921E2 /* Admin */,
+				AC7A1D643089C67D00908D08 /* Requests */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -3054,6 +3065,7 @@
 				F20784961007464C82C09B9F /* PromptQueueTests.swift in Sources */,
 				A891C6D6BC044E179A160A11 /* PromptModelsTests.swift in Sources */,
 				ACDCBE112F0B797200956D1C /* NaarsCarsTests.swift in Sources */,
+				AC7A1D663089C68700908D08 /* RequestsHeaderTests.swift in Sources */,
 				B3BDA45A8E05444CAB1EF3A8 /* ProfileTests.swift in Sources */,
 				DC8A8AB167BC402DB2FCC38F /* RideTests.swift in Sources */,
 				ACBB62F13086FE8B0016DEE5 /* PersistentImageServiceTests.swift in Sources */,

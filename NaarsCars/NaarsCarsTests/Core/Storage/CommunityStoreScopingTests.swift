@@ -406,6 +406,36 @@ final class CommunityStoreScopingTests: XCTestCase {
         XCTAssertEqual(rows.count, 2)
     }
 
+    func testExcludingScope_LeavesOutTheExcludedCommunityKeepsUnlabelled() throws {
+        let container = try makeContainer()
+        let context = try seedScopedRequests(container)
+        let manager = RequestFilterManager()
+        let rides = manager.fetchFilteredRides(in: context, filter: .open, scope: .excluding([communityB]))
+        let favors = manager.fetchFilteredFavors(in: context, filter: .open, scope: .excluding([communityB]))
+        XCTAssertEqual(Set(rides.map(\.communityId)), [communityA, nil])
+        XCTAssertEqual(rides.count, 2)
+        XCTAssertEqual(Set(favors.map(\.communityId)), [communityA, nil])
+        XCTAssertEqual(favors.count, 2)
+    }
+
+    func testOpenCounts_CountsOpenRowsPerCommunityAndAll() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let future = Date().addingTimeInterval(7 * 86_400)
+        for community in [communityA, communityB, communityB, nil] {
+            context.insert(SDRide(id: UUID(), userId: userId, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: community))
+        }
+        let claimed = SDRide(id: UUID(), userId: userId, date: future, time: "12:00:00", pickup: "P", destination: "D", communityId: communityA)
+        claimed.status = "confirmed"
+        claimed.claimedBy = UUID()
+        context.insert(claimed)
+        try context.save()
+
+        let counts = RequestFilterManager().openCounts(in: context)
+
+        XCTAssertEqual(counts, OpenRequestCounts(all: 4, byCommunity: [communityA: 1, communityB: 2]))
+    }
+
     func testAllScope_KeepsEveryRow() throws {
         let container = try makeContainer()
         let context = try seedScopedRequests(container)
