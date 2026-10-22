@@ -8,6 +8,20 @@
 -- service_role=X/postgres}; has_function_privilege anon false, authenticated true, service_role true. Still
 -- security definer with search_path "". No deviation: the block ran as written below.
 --
+-- Closing run (task S6), 2026-10-22, after S5a's data (Test Community's area, the four test communities flagged
+-- is_test, 4 example rides, 4 example favors and 3 example posts in Test Community). The whole probe file
+-- (supabase/probes/communities_probe.sql, unchanged) ran through the MCP in seven rolled-back execute_sql calls,
+-- PARAMETERS and HELPERS in each (the call for legacy_bridges .. blocks carried HELPERS up to probe_world, every
+-- helper those blocks call), full-line comments stripped, text otherwise as committed: 34 blocks,
+-- every one PROBE ... OK (legacy_bridges returns SKIPPED, as it has since 20261019_0060), each call's last row its
+-- last block's OK. posts_delete_policy and storage_private are the owner's SQL-editor blocks; the final
+-- 'PROBE ALL OK' row comes from the owner's whole-file run. Nothing was left behind (counted afterwards: no probe
+-- account, community, request, post, proposal, listing event or merged community; 11 example rows, 4 test
+-- communities, the cron job active, the five status and updated_at triggers enabled).
+-- EXECUTE (ruling R-G1 as amended after S1), read live: md5(prosrc) f66ac46feddff13eba34ad97ecbcf01c and the ACL
+-- above, unchanged by 0020-0023 (anon false, authenticated true); archive OK in the closing run. No header or grant
+-- changed.
+--
 -- What it fixes. public.archive_community(uuid): a signed-in caller with no active membership in the community was
 -- not refused. The guard compared public.my_community_role(...) = 'owner', which is NULL when the caller has no
 -- active membership, so the whole condition was NULL and the refusal did not fire. The guard now reads

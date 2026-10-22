@@ -37,6 +37,22 @@
 -- After the apply: community_merge_proposals is empty, no community is merged, no post carries a system_event, the
 -- three set_updated_at triggers are enabled, and no probe row was left behind (counted).
 --
+-- Closing run (task S6), 2026-10-22, after S5a's data (Test Community's area, the four test communities flagged
+-- is_test, 4 example rides, 4 example favors and 3 example posts in Test Community). The whole probe file
+-- (supabase/probes/communities_probe.sql, unchanged) ran through the MCP in seven rolled-back execute_sql calls,
+-- PARAMETERS and HELPERS in each (the call for legacy_bridges .. blocks carried HELPERS up to probe_world, every
+-- helper those blocks call), full-line comments stripped, text otherwise as committed: 34 blocks,
+-- every one PROBE ... OK (legacy_bridges returns SKIPPED, as it has since 20261019_0060), each call's last row its
+-- last block's OK. posts_delete_policy and storage_private are the owner's SQL-editor blocks; the final
+-- 'PROBE ALL OK' row comes from the owner's whole-file run. Nothing was left behind (counted afterwards: no probe
+-- account, community, request, post, proposal, listing event or merged community; 11 example rows, 4 test
+-- communities, the cron job active, the five status and updated_at triggers enabled).
+-- EXECUTE matrix (ruling R-G1 as amended after S1), read live: md5(prosrc) of all eleven functions equal the values
+-- above. search_merge_targets, propose_community_merge, get_community_merge_proposal, respond_to_community_merge,
+-- withdraw_community_merge, get_my_community_merges, send_community_broadcast, get_platform_communities,
+-- unarchive_community: anon false, authenticated true. post_community_announcement, merge_communities: anon false,
+-- authenticated false. community_merge_proposals is empty and no community is merged. No header or grant changed.
+--
 -- File C of Community Release 2 (discovery: community areas, search, listing rules, merging, example content;
 -- Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-design.md 4.12; plan
 -- Docs/superpowers/plans/2026-10-21-community-release2-discovery-sql.md, task S3, with the orchestrator's rulings

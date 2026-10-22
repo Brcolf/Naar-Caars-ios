@@ -37,6 +37,24 @@
 -- communities their areas). Read in a rolled-back transaction as anon: search_communities_by_name('test') answered
 -- success with the 3 listed communities, find_communities_near at a Seattle point success with no row.
 --
+-- Closing run (task S6), 2026-10-22, after S5a's data (Test Community's area, the four test communities flagged
+-- is_test, 4 example rides, 4 example favors and 3 example posts in Test Community). The whole probe file
+-- (supabase/probes/communities_probe.sql, unchanged) ran through the MCP in seven rolled-back execute_sql calls,
+-- PARAMETERS and HELPERS in each (the call for legacy_bridges .. blocks carried HELPERS up to probe_world, every
+-- helper those blocks call), full-line comments stripped, text otherwise as committed: 34 blocks,
+-- every one PROBE ... OK (legacy_bridges returns SKIPPED, as it has since 20261019_0060), each call's last row its
+-- last block's OK. posts_delete_policy and storage_private are the owner's SQL-editor blocks; the final
+-- 'PROBE ALL OK' row comes from the owner's whole-file run. Nothing was left behind (counted afterwards: no probe
+-- account, community, request, post, proposal, listing event or merged community; 11 example rows, 4 test
+-- communities, the cron job active, the five status and updated_at triggers enabled).
+-- EXECUTE matrix (ruling R-G1 as amended after S1), read live: search_communities_by_name, find_communities_near,
+-- get_community_preview anon true, authenticated true; check_community_area, create_community_with_area,
+-- update_community_access, set_community_public anon false, authenticated true; overlapping_listed_communities
+-- anon false, authenticated false. md5(prosrc) equal to the values above for eight of the nine;
+-- get_platform_communities is now 20261021_0022 Block 9's body (451f840aa2a66bc98ba38383fae61c7e, ACL unchanged,
+-- false / true), as that header records. create_community(text, text, text, text) unchanged
+-- (b499c74a3371cc051f02a4bcd19b54f3). No header or grant changed.
+--
 -- File B of Community Release 2 (discovery: community areas, search, listing rules, merging, example content;
 -- Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-design.md 4.2, 4.6, 4.10; plan
 -- Docs/superpowers/plans/2026-10-21-community-release2-discovery-sql.md, task S2, with the orchestrator's rulings

@@ -28,6 +28,22 @@
 -- active (read from cron.job after the apply; the jobs expire-past-open-requests '15 3 * * *' and
 -- process-completion-reminders are unchanged).
 --
+-- Closing run (task S6), 2026-10-22, after S5a's data (Test Community's area, the four test communities flagged
+-- is_test, 4 example rides, 4 example favors and 3 example posts in Test Community). The whole probe file
+-- (supabase/probes/communities_probe.sql, unchanged) ran through the MCP in seven rolled-back execute_sql calls,
+-- PARAMETERS and HELPERS in each (the call for legacy_bridges .. blocks carried HELPERS up to probe_world, every
+-- helper those blocks call), full-line comments stripped, text otherwise as committed: 34 blocks,
+-- every one PROBE ... OK (legacy_bridges returns SKIPPED, as it has since 20261019_0060), each call's last row its
+-- last block's OK. posts_delete_policy and storage_private are the owner's SQL-editor blocks; the final
+-- 'PROBE ALL OK' row comes from the owner's whole-file run. Nothing was left behind (counted afterwards: no probe
+-- account, community, request, post, proposal, listing event or merged community; 11 example rows, 4 test
+-- communities, the cron job active, the five status and updated_at triggers enabled).
+-- EXECUTE matrix (ruling R-G1 as amended after S1), read live: md5(prosrc) of all seven functions equal the values
+-- above. set_example_content: anon false, authenticated true. refresh_example_requests, notify_new_ride,
+-- notify_new_favor, notify_town_hall_post, record_xp_on_request_created, expire_past_open_requests: anon false,
+-- authenticated false. example_content ran over the live example rows inside its rolled-back transaction (the
+-- second refresh changed nothing). No header or grant changed.
+--
 -- File D of Community Release 2 (discovery: community areas, search, listing rules, merging, example content;
 -- Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-design.md 4.11; plan
 -- Docs/superpowers/plans/2026-10-21-community-release2-discovery-sql.md, task S4, with the orchestrator's rulings
