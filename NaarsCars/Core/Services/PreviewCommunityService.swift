@@ -14,6 +14,10 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     var publicCommunities: [PublicCommunity] = PreviewCommunityService.samplePublicCommunities
     /// Previews the load-failure state.
     var failPublicCommunities = false
+    /// The answer to `fetchCommunityPreview`; nil previews the "not listed" refusal.
+    var preview: CommunityPreview?
+    /// Previews the preview-load-failure state.
+    var failPreview = false
     var limits = CommunityLimits(maxOwned: 3, ownedCount: 1, nextCreateAt: nil, canCreate: true, latestRequest: nil)
     var invite = CommunityInvite(code: "NC7K2PQ9XA", inviteId: UUID(), maxUses: 1, expiresAt: Date().addingTimeInterval(7 * 86_400))
     var liveInvites: [CommunityInviteRow] = PreviewCommunityService.sampleLiveInvites
@@ -146,6 +150,12 @@ final class PreviewCommunityService: CommunityServiceProtocol {
     func fetchPublicCommunities() async throws -> [PublicCommunity] {
         if failPublicCommunities { throw URLError(.notConnectedToInternet) }
         return publicCommunities
+    }
+
+    func fetchCommunityPreview(communityId: UUID) async throws -> CommunityPreview {
+        if failPreview { throw URLError(.notConnectedToInternet) }
+        guard let preview else { throw CommunityRPCError(code: .notListed) }
+        return preview
     }
 
     func requestToJoin(communityId: UUID, heardAbout: String?, joinReason: String?) async throws -> JoinResult {

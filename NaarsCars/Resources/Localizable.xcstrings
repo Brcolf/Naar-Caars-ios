@@ -3448,6 +3448,47 @@
         }
       }
     },
+    "community_error_not_listed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This community isn't listed. You can join it with an invite code or link."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta comunidad no está en la lista. Puedes unirte con un código o enlace de invitación."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 커뮤니티는 목록에 없습니다. 초대 코드나 링크로 가입할 수 있습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cộng đồng này không được niêm yết. Bạn có thể tham gia bằng mã hoặc liên kết mời."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此社区未公开列出。你可以通过邀请码或链接加入。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此社群未公開列出。你可以透過邀請碼或連結加入。"
+          }
+        }
+      }
+    },
     "community_error_not_member" : {
       "extractionState" : "manual",
       "localizations" : {

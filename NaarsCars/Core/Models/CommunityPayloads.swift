@@ -32,6 +32,7 @@ enum CommunityRefusalCode: String, CaseIterable, Sendable {
     case lastOwner = "last_owner"
     case notMember = "not_member"
     case notRemoved = "not_removed"
+    case notListed = "not_listed"
 }
 
 /// A refusal from a community RPC. The server's English text is kept for logs and never shown;
@@ -386,6 +387,78 @@ extension PublicCommunity: Decodable {
         case id, name, description
         case joinPolicy = "join_policy"
         case isDefault = "is_default"
+    }
+}
+
+/// What a visitor sees of a listed community (`get_community_preview`): the community, its open
+/// requests and its latest Town Hall posts. Addresses, notes and the community's description of
+/// a request never travel in it; the server decides, this type only decodes.
+struct CommunityPreview: Decodable, Equatable, Sendable {
+    let community: Community
+    let requests: [Request]
+    let posts: [Post]
+
+    struct Community: Decodable, Equatable, Sendable {
+        let id: UUID
+        let name: String
+        let description: String?
+        let joinPolicy: String
+        let isPublic: Bool
+        let isDefault: Bool
+        let memberCount: Int
+        let timezone: String
+
+        enum CodingKeys: String, CodingKey {
+            case id, name, description, timezone
+            case joinPolicy = "join_policy"
+            case isPublic = "is_public"
+            case isDefault = "is_default"
+            case memberCount = "member_count"
+        }
+    }
+
+    struct Request: Decodable, Equatable, Sendable, Identifiable {
+        /// "ride" or "favor".
+        let type: String
+        let id: UUID
+        let title: String?
+        let date: Date
+        let time: String?
+        let timezone: String?
+        let seats: Int?
+        let posterId: UUID
+        let posterName: String
+        let posterAvatarUrl: String?
+
+        var isRide: Bool { type == "ride" }
+
+        enum CodingKeys: String, CodingKey {
+            case type, id, title, date, time, timezone, seats
+            case posterId = "poster_id"
+            case posterName = "poster_name"
+            case posterAvatarUrl = "poster_avatar_url"
+        }
+    }
+
+    struct Post: Decodable, Equatable, Sendable, Identifiable {
+        let id: UUID
+        let type: String?
+        let title: String?
+        let content: String
+        let createdAt: Date
+        let authorId: UUID
+        let authorName: String
+        let authorAvatarUrl: String?
+        let commentCount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case id, type, title, content
+            case createdAt = "created_at"
+            case authorId = "author_id"
+            case authorName = "author_name"
+            case authorAvatarUrl = "author_avatar_url"
+            case commentCount = "comment_count"
+        }
     }
 }
 

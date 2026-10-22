@@ -361,6 +361,13 @@ final class CommunityService: CommunityServiceProtocol {
         return try DateDecoderFactory.makeSupabaseDecoder().decode([PublicCommunity].self, from: response.data)
     }
 
+    func fetchCommunityPreview(communityId: UUID) async throws -> CommunityPreview {
+        let response = try await client
+            .rpc("get_community_preview", params: CommunityIdParams(communityId: communityId.uuidString))
+            .execute()
+        return try CommunityRPC.decode(CommunityPreview.self, from: response.data)
+    }
+
     func requestToJoin(communityId: UUID, heardAbout: String?, joinReason: String?) async throws -> JoinResult {
         let params = RequestToJoinParams(communityId: communityId.uuidString, heardAbout: heardAbout, joinReason: joinReason)
         let response = try await client.rpc("request_to_join_community", params: params).execute()

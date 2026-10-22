@@ -171,13 +171,36 @@ final class CommunityServiceTests: XCTestCase {
     }
 
     func testLocalizedMessage_EveryCodeHasAKey() {
-        XCTAssertEqual(CommunityRefusalCode.allCases.count, 20)
+        XCTAssertEqual(CommunityRefusalCode.allCases.count, 21)
         for code in CommunityRefusalCode.allCases {
             let error = CommunityRPCError(code: code, maxOwned: 3, ownedCount: 3, retryAfter: fixedDate)
             XCTAssertNotEqual(error.localizedMessage, "community_error_\(code.rawValue)", "missing string for \(code.rawValue)")
             XCTAssertFalse(error.localizedMessage.contains("%"), "unformatted placeholder for \(code.rawValue)")
         }
         XCTAssertNotEqual("community_error_generic".localized, "community_error_generic")
+    }
+
+    func testFetchCommunityPreview_SendsCommunityIdAndDecodes() async throws {
+        respond(with: CommunityFixtures.communityPreviewJSON)
+        let preview = try await service.fetchCommunityPreview(communityId: CommunityFixtures.communityA)
+        let request = try onlyRequest()
+        XCTAssertEqual(request.path, "/rest/v1/rpc/get_community_preview")
+        XCTAssertEqual(Set(request.body?.keys ?? [:].keys), ["p_community_id"])
+        XCTAssertEqual(preview.community.joinPolicy, "approve")
+        XCTAssertEqual(preview.requests.map(\.isRide), [true, false])
+        XCTAssertEqual(preview.posts.first?.commentCount, 3)
+    }
+
+    func testFetchCommunityPreview_NotListedThrowsTypedRefusal() async {
+        respond(with: #"{"success": false, "error": "Community not found", "code": "not_listed"}"#)
+        do {
+            _ = try await service.fetchCommunityPreview(communityId: CommunityFixtures.communityA)
+            XCTFail("expected a refusal")
+        } catch let error as CommunityRPCError {
+            XCTAssertEqual(error.code, .notListed)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
     }
 
     func testInviteCode_NormalizesFormattedPastedCode() {

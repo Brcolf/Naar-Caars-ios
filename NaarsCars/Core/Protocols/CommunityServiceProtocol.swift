@@ -26,6 +26,8 @@ protocol CommunityServiceProtocol: AnyObject {
     func redeemInvite(code: String, heardAbout: String?, joinReason: String?) async throws -> JoinResult
 
     func fetchPublicCommunities() async throws -> [PublicCommunity]
+    /// What a visitor may see of a listed community; throws `CommunityRPCError` with `.notListed` when it is not listed.
+    func fetchCommunityPreview(communityId: UUID) async throws -> CommunityPreview
     func requestToJoin(communityId: UUID, heardAbout: String?, joinReason: String?) async throws -> JoinResult
     func leaveCommunity(communityId: UUID) async throws -> LeaveResult
     func setCommunityMuted(communityId: UUID, muted: Bool) async throws

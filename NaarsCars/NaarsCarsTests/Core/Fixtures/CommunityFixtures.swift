@@ -206,6 +206,50 @@ enum CommunityFixtures {
     """
 
 
+    static let communityPreviewJSON = """
+    {
+      "success": true,
+      "community": {"id": "AAAAAAAA-0000-4000-8000-000000000001", "name": "Test Public A", "description": null,
+                    "join_policy": "approve", "is_public": true, "is_default": false, "member_count": 1,
+                    "timezone": "America/Los_Angeles"},
+      "requests": [
+        {"type": "ride", "id": "5A000000-0000-4000-8000-000000000001", "title": null, "date": "2026-10-25", "time": "09:30:00",
+         "timezone": "America/Los_Angeles", "seats": 2, "poster_id": "5B000000-0000-4000-8000-000000000001",
+         "poster_name": "Sample Poster", "poster_avatar_url": null},
+        {"type": "favor", "id": "5A000000-0000-4000-8000-000000000002", "title": "Move a couch", "date": "2026-10-26", "time": null,
+         "timezone": null, "seats": null, "poster_id": "5B000000-0000-4000-8000-000000000001",
+         "poster_name": "Sample Poster", "poster_avatar_url": null}
+      ],
+      "posts": [
+        {"id": "5C000000-0000-4000-8000-000000000001", "type": null, "title": null, "content": "Welcome to the group",
+         "created_at": "2026-10-20T10:00:00.123456+00:00", "author_id": "5B000000-0000-4000-8000-000000000001",
+         "author_name": "Sample Poster", "author_avatar_url": null, "comment_count": 3}
+      ]
+    }
+    """
+
+    static func preview(_ id: UUID, name: String, policy: String = "approve") -> CommunityPreview {
+        let poster = UUID(uuidString: "5B000000-0000-4000-8000-000000000001")!
+        let date = Date(timeIntervalSince1970: 1_792_000_000)
+        return CommunityPreview(
+            community: .init(id: id, name: name, description: nil, joinPolicy: policy, isPublic: true,
+                             isDefault: false, memberCount: 1, timezone: "America/Los_Angeles"),
+            requests: [
+                .init(type: "ride", id: UUID(uuidString: "5A000000-0000-4000-8000-000000000001")!, title: nil, date: date,
+                      time: "09:30:00", timezone: "America/Los_Angeles", seats: 2, posterId: poster,
+                      posterName: "Sample Poster", posterAvatarUrl: nil),
+                .init(type: "favor", id: UUID(uuidString: "5A000000-0000-4000-8000-000000000002")!, title: "Move a couch", date: date,
+                      time: nil, timezone: nil, seats: nil, posterId: poster,
+                      posterName: "Sample Poster", posterAvatarUrl: nil)
+            ],
+            posts: [
+                .init(id: UUID(uuidString: "5C000000-0000-4000-8000-000000000001")!, type: nil, title: nil,
+                      content: "Welcome to the group", createdAt: date, authorId: poster,
+                      authorName: "Sample Poster", authorAvatarUrl: nil, commentCount: 3)
+            ]
+        )
+    }
+
     // MARK: - Admin payloads
 
     static let pendingMembersAdminJSON = """
@@ -463,6 +507,11 @@ final class StubCommunityService: CommunityServiceProtocol {
     var fetchPublicCommunitiesResult: Result<[PublicCommunity], Error> = .success([])
     private(set) var fetchPublicCommunitiesCalls = 0
 
+    var fetchCommunityPreviewResult: Result<CommunityPreview, Error> = .success(
+        CommunityFixtures.preview(CommunityFixtures.communityA, name: "Community A")
+    )
+    private(set) var fetchCommunityPreviewCalls: [UUID] = []
+
     var requestToJoinResult: Result<JoinResult, Error> = .success(JoinResult(communityId: CommunityFixtures.communityA, status: .pending))
     private(set) var requestToJoinCalls: [(communityId: UUID, heardAbout: String?, joinReason: String?)] = []
 
@@ -533,6 +582,11 @@ final class StubCommunityService: CommunityServiceProtocol {
     func fetchPublicCommunities() async throws -> [PublicCommunity] {
         fetchPublicCommunitiesCalls += 1
         return try fetchPublicCommunitiesResult.get()
+    }
+
+    func fetchCommunityPreview(communityId: UUID) async throws -> CommunityPreview {
+        fetchCommunityPreviewCalls.append(communityId)
+        return try fetchCommunityPreviewResult.get()
     }
 
     func requestToJoin(communityId: UUID, heardAbout: String?, joinReason: String?) async throws -> JoinResult {
