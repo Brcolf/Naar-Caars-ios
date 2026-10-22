@@ -1092,7 +1092,8 @@ select 'PROBE membership_end OK' as probe;
 -- =============================================================================================================
 -- archive: a member of an archived probe community reads none of its rides, cannot insert, and (it being their
 -- only community) has approved = false and application_complete = false; the completion reminder of a confirmed
--- request there is dropped; restoring reverses both flags; the default community cannot be archived.
+-- request there is dropped; restoring reverses both flags; the default community cannot be archived; a non-member,
+-- a pending applicant and a plain member are refused (20261022_0001).
 -- =============================================================================================================
 begin;
 do $probe$
@@ -1101,6 +1102,7 @@ declare
   d uuid;
   v_admin uuid := pg_temp.probe_subject('platform_admin');
   u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);
+  u9 uuid := pg_temp.u(9);  u13 uuid := pg_temp.u(13);
   c1 uuid := pg_temp.c(1);
   v_rides_sql text;
   j jsonb;
@@ -1111,6 +1113,16 @@ begin
   v_rides_sql := format('select 1 from public.rides where community_id = %L and user_id <> %L', c1, u3);
 
   perform pg_temp.probe_ok(v_probe, 'before archiving the member reads C1 rides (control)', pg_temp.probe_count(u3, v_rides_sql) >= 1);
+  -- only the owner or a platform admin archives: no membership, a pending row or a plain member role is refused
+  j := pg_temp.probe_call(u13, format('public.archive_community(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'a signed-in account with no membership cannot archive C1: ' || j::text, pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'C1 is still live', exists (select 1 from public.communities where id = c1 and archived_at is null));
+  j := pg_temp.probe_call(u9, format('public.archive_community(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'a pending applicant cannot archive C1: ' || j::text, pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'C1 is still live', exists (select 1 from public.communities where id = c1 and archived_at is null));
+  j := pg_temp.probe_call(u3, format('public.archive_community(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, 'a member who is not the owner cannot archive C1: ' || j::text, pg_temp.probe_refused(j));
+  perform pg_temp.probe_ok(v_probe, 'C1 is still live', exists (select 1 from public.communities where id = c1 and archived_at is null));
   -- a confirmed request with a completion reminder, so the archive's reminder cleanup can be checked
   update public.rides set status = 'confirmed', claimed_by = pg_temp.u(7) where id = pg_temp.r(2);
   insert into public.completion_reminders (ride_id, claimer_user_id, scheduled_for)
