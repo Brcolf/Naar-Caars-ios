@@ -4069,6 +4069,12 @@ select 'PROBE listing_rules OK' as probe;
 -- re-proposing within 24 hours of a withdrawal answers recently_declined in both directions, a caller's fourth
 -- proposal within 24 hours answers rate_limited and writes nothing, and a block between the caller and an owner of
 -- the other community (either way) answers invalid with no proposal and no notice (an admin's block does not).
+-- 20261022_0002 (task S7, owner decisions after the final review): C3's owner u14 joins C2 as an owner beside u12
+-- (no event, u14 had no C2 row), and C11's owners u11 (a member of C2) and u3 (an admin of C2) become owners of C2
+-- with one role_changed event each; u7 (removed from C2) has a post in C3 with their comment on it and a comment
+-- on u14's post: after the merge all three are hidden by u14 with the merge reason, the post keeps its updated_at,
+-- a C2 member reads none of them but reads u14's post and u3's comment (the control), u7 still reads their own
+-- post, and u7's earlier post and comment in C2 stay as they were.
 -- =============================================================================================================
 begin;
 do $probe$
@@ -4080,7 +4086,7 @@ declare
   u11 uuid := pg_temp.u(11);  u12 uuid := pg_temp.u(12);  u13 uuid := pg_temp.u(13);  u14 uuid := pg_temp.u(14);
   u16 uuid := pg_temp.u(16);
   c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);  c3 uuid := pg_temp.c(3);
-  c4 uuid;  c5 uuid;  c6 uuid;  c7 uuid;  c8 uuid;  c9 uuid;  c10 uuid;
+  c4 uuid;  c5 uuid;  c6 uuid;  c7 uuid;  c8 uuid;  c9 uuid;  c10 uuid;  c11 uuid;
   v_ids constant jsonpath := '$.communities[*].id ? (@ starts with "00000000-0000-4000-b000-")';
   v_open_ride uuid := pg_temp.r(61);
   v_done_ride uuid := pg_temp.r(62);
@@ -4091,6 +4097,12 @@ declare
   v_post uuid;
   v_sys_post uuid;
   v_comment uuid;
+  v_rm_post uuid := ('00000000-0000-4000-d000-' || lpad('563', 12, '0'))::uuid;
+  v_rm_comment uuid;
+  v_rm_comment_other uuid;
+  v_rm_c2_post uuid;
+  v_rm_c2_comment uuid;
+  v_merge_reason constant text := 'Moved in a merge into a community you were removed from';
   v_post_report uuid;
   v_community_report uuid;
   v_first uuid;
@@ -4190,6 +4202,24 @@ begin
   v_post := pg_temp.probe_post(61, u14, c3);
   insert into public.town_hall_comments (post_id, user_id, content)
   values (v_post, u3, 'communities probe comment') returning id into v_comment;
+  -- S7: u7 (removed from C2) has a C3 post updated 10 days ago, their comment on it and one on u14's post; in C2,
+  -- u7's post and comment from before the removal
+  insert into public.town_hall_posts (id, user_id, title, content, community_id, updated_at)
+  values (v_rm_post, u7, 'Probe post 63', 'communities probe post 63', c3, v_done_at);
+  insert into public.town_hall_comments (post_id, user_id, content)
+  values (v_rm_post, u7, 'communities probe removed comment') returning id into v_rm_comment;
+  insert into public.town_hall_comments (post_id, user_id, content)
+  values (v_post, u7, 'communities probe removed comment on a moved post') returning id into v_rm_comment_other;
+  v_rm_c2_post := pg_temp.probe_post(64, u7, c2);
+  insert into public.town_hall_comments (post_id, user_id, content)
+  values (v_rm_c2_post, u7, 'communities probe earlier comment in C2') returning id into v_rm_c2_comment;
+  perform pg_temp.probe_ok(v_probe, 'S7 setup: u7''s C3 post has the old updated_at; nothing is hidden yet',
+    exists (select 1 from public.town_hall_posts where id = v_rm_post and updated_at = v_done_at)
+    and not exists (select 1 from public.town_hall_posts where id in (v_post, v_rm_post, v_rm_c2_post)
+                     and hidden_at is not null)
+    and not exists (select 1 from public.town_hall_comments
+                     where id in (v_comment, v_rm_comment, v_rm_comment_other, v_rm_c2_comment)
+                       and hidden_at is not null));
   insert into public.reports (reporter_id, reported_post_id, report_type, description)
   values (u12, v_post, 'other', 'communities probe') returning id into v_post_report;
   insert into public.reports (reporter_id, reported_community_id, report_type, description)
@@ -4395,13 +4425,16 @@ begin
     and coalesce(current_setting('naars.broadcast_post', true), '') = '');
 
   -- members in C2
-  perform pg_temp.probe_ok(v_probe, 'C2: u14 admin, u3 admin (the higher role), u12 still the only owner',
+  perform pg_temp.probe_ok(v_probe, 'C2: u14 owner beside u12 (co-owners, S7), u3 admin (the higher role)',
     exists (select 1 from public.community_members where community_id = c2 and user_id = u14
-             and role = 'admin' and status = 'active')
+             and role = 'owner' and status = 'active')
     and exists (select 1 from public.community_members where community_id = c2 and user_id = u3
                  and role = 'admin' and status = 'active')
-    and (select array_agg(user_id) from public.community_members
-          where community_id = c2 and role = 'owner' and status = 'active') = array[u12]);
+    and (select array_agg(user_id order by user_id) from public.community_members
+          where community_id = c2 and role = 'owner' and status = 'active')
+        = (select array_agg(x order by x) from unnest(array[u12, u14]) x));
+  perform pg_temp.probe_ok(v_probe, 'S7: no role_changed event in C2 (u14 had no C2 row; u3''s promotion writes none, as before)',
+    not exists (select 1 from public.community_membership_events where community_id = c2 and event = 'role_changed'));
   perform pg_temp.probe_ok(v_probe, 'C2: u5 pending with C3''s answers',
     exists (select 1 from public.community_members where community_id = c2 and user_id = u5 and status = 'pending'
              and role = 'member' and heard_about = 'Probe merge heard' and join_reason = 'Probe merge reason'));
@@ -4434,6 +4467,29 @@ begin
     and not exists (select 1 from public.xp_events where community_id = c3)
     and not exists (select 1 from public.reports where community_id = c3)
     and exists (select 1 from public.xp_events where source_id = v_done_ride and community_id = c2));
+  perform pg_temp.probe_ok(v_probe, 'S7: u7''s moved post and comments are hidden by u14 with the merge reason; the post '
+                                    || 'kept its updated_at',
+    exists (select 1 from public.town_hall_posts
+             where id = v_rm_post and community_id = c2 and hidden_at is not null and hidden_by = u14
+               and hidden_reason = v_merge_reason and updated_at = v_done_at)
+    and (select count(*) from public.town_hall_comments
+          where id in (v_rm_comment, v_rm_comment_other) and hidden_at is not null and hidden_by = u14
+            and hidden_reason = v_merge_reason) = 2);
+  perform pg_temp.probe_ok(v_probe, 'S7: the control (u14''s post, u3''s comment) and u7''s earlier post and comment in C2 '
+                                    || 'are not hidden',
+    (select count(*) from public.town_hall_posts
+      where id in (v_post, v_rm_c2_post) and hidden_at is null and hidden_by is null and hidden_reason is null) = 2
+    and (select count(*) from public.town_hall_comments
+          where id in (v_comment, v_rm_c2_comment) and hidden_at is null and hidden_reason is null) = 2);
+  perform pg_temp.probe_ok(v_probe, 'S7: a C2 member (u3) reads u14''s moved post and u3''s comment, none of u7''s moved rows',
+    pg_temp.probe_count(u3, format('select 1 from public.town_hall_posts where id in (%L::uuid, %L::uuid)',
+                                   v_post, v_rm_post)) = 1
+    and pg_temp.probe_count(u3, format('select 1 from public.town_hall_posts where id = %L::uuid', v_post)) = 1
+    and pg_temp.probe_count(u3, format('select 1 from public.town_hall_comments where id in (%L::uuid, %L::uuid, %L::uuid)',
+                                       v_comment, v_rm_comment, v_rm_comment_other)) = 1
+    and pg_temp.probe_count(u3, format('select 1 from public.town_hall_comments where id = %L::uuid', v_comment)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'S7: u7 still reads their own hidden post',
+    pg_temp.probe_count(u7, format('select 1 from public.town_hall_posts where id = %L::uuid', v_rm_post)) = 1);
   perform pg_temp.probe_ok(v_probe, 'the post report moved to C2; the community report still names C3',
     (select community_id from public.reports where id = v_post_report) = c2
     and exists (select 1 from public.reports
@@ -4557,9 +4613,12 @@ begin
   c6 := pg_temp.probe_community(6, 'Probe Six', u12, false, 'invite');
   j := pg_temp.probe_call(u12, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c6, c2, c2));
   v_prop := (j ->> 'proposal_id')::uuid;
-  perform pg_temp.probe_ok(v_probe, 'u12 proposes C6 into C2 and is not told of their own proposal: ' || j::text,
+  perform pg_temp.probe_ok(v_probe, 'u12 proposes C6 into C2 and is not told of their own proposal; u14, C2''s other '
+                                    || 'owner since the merge (S7), is: ' || j::text,
     v_prop is not null
-    and not exists (select 1 from public.notifications where title = 'Merge proposal from Probe Six'));
+    and not exists (select 1 from public.notifications where title = 'Merge proposal from Probe Six' and user_id = u12)
+    and (select array_agg(user_id) from public.notifications where title = 'Merge proposal from Probe Six')
+        = array[u14]);
   j := pg_temp.probe_call(u12, format('public.respond_to_community_merge(%L::uuid, true)', v_prop));
   perform pg_temp.probe_ok(v_probe, 'u12 accepts as C2''s owner: ' || j::text,
     j ->> 'success' = 'true' and j ->> 'survivor_id' = c2::text and j ->> 'merged_id' = c6::text);
@@ -4568,6 +4627,29 @@ begin
     and exists (select 1 from public.community_members where community_id = c2 and user_id = u12
                  and role = 'owner' and status = 'active')
     and exists (select 1 from public.communities where id = c6 and archived_at is not null and merged_into_id = c2));
+
+  -- S7: C11 (owners u11, a member of C2, and u3, an admin of C2) into C2: both become owners of C2
+  c11 := pg_temp.probe_community(11, 'Probe Eleven', u11, false, 'invite');
+  perform pg_temp.probe_member(c11, u3, 'owner', 'active', 20);
+  j := pg_temp.probe_call(u11, format('public.propose_community_merge(%L::uuid, %L::uuid, %L::uuid)', c11, c2, c2));
+  v_prop := (j ->> 'proposal_id')::uuid;
+  perform pg_temp.probe_ok(v_probe, 'S7: u11 proposes C11 into C2: ' || j::text, v_prop is not null);
+  j := pg_temp.probe_call(u12, format('public.respond_to_community_merge(%L::uuid, true)', v_prop));
+  perform pg_temp.probe_ok(v_probe, 'S7: u12 accepts C11 into C2: ' || j::text,
+    j ->> 'success' = 'true' and j ->> 'survivor_id' = c2::text and j ->> 'merged_id' = c11::text);
+  perform pg_temp.probe_ok(v_probe, 'S7: u11 (was member) and u3 (was admin) own C2 beside u12 and u14, one row each',
+    (select array_agg(user_id order by user_id) from public.community_members
+      where community_id = c2 and role = 'owner' and status = 'active')
+    = (select array_agg(x order by x) from unnest(array[u3, u11, u12, u14]) x)
+    and (select count(*) from public.community_members where community_id = c2 and user_id in (u3, u11)) = 2);
+  perform pg_temp.probe_ok(v_probe, 'S7: one role_changed event each, by u12, with the old role',
+    (select count(*) from public.community_membership_events
+      where community_id = c2 and event = 'role_changed' and user_id = u11 and actor_id = u12
+        and old_role = 'member' and new_role = 'owner') = 1
+    and (select count(*) from public.community_membership_events
+          where community_id = c2 and event = 'role_changed' and user_id = u3 and actor_id = u12
+            and old_role = 'admin' and new_role = 'owner') = 1
+    and (select count(*) from public.community_membership_events where community_id = c2 and event = 'role_changed') = 2);
 
   -- an archived side: C1 into C5, C5 archived before the answer
   c5 := pg_temp.probe_community(5, 'Probe Five', u13, true, 'approve');

@@ -7,6 +7,7 @@
 -- 20261021_0022_block_5, 20261022143245 20261021_0022_block_6, 20261022143413 20261021_0022_block_7, 20261022143538
 -- 20261021_0022_block_8, 20261022143715 20261021_0022_block_9, 20261022143838 20261021_0022_block_10. No deviation:
 -- every block ran as written below.
+-- Block 3's merge_communities was re-created by 20261022_0002 (co-owner mapping; hidden content of removed people).
 -- Deployed md5(prosrc), each read live after the apply and equal to the md5 of the text between this file's
 -- $function$ delimiters (python3 -I over this file):
 --   post_community_announcement(uuid, uuid, text, text, boolean, text, text, jsonb)
