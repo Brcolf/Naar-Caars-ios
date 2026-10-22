@@ -134,7 +134,7 @@ Added 2026-10-21 as a draft for the owner to review before the build that adds t
 
 ```text
 Explore and community pages:
-The Explore tab (magnifying glass, right end of the tab bar) lists the person's communities and communities their owners chose to list. Tapping one opens its community page. Anyone, including a guest, sees a listed community's name, description, member count, upcoming open requests without addresses or notes, recent Town Hall posts, and members' name, photo, car, rating and reviews. The bar at the bottom shows how to join: join, ask to join, or invite only. Joining, asking, entering an invite code and starting a community need an account; a guest is asked to sign in.
+The Explore tab (magnifying glass, right end of the tab bar) lists the person's communities and public communities (the platform moderators decide which communities are public). Tapping one opens its community page. Anyone, including a guest, sees a listed community's name, description, member count, upcoming open requests without addresses or notes, recent Town Hall posts, and members' name, photo, car, rating and reviews. The bar at the bottom shows how to join: join, ask to join, or invite only. Joining, asking, entering an invite code and starting a community need an account; a guest is asked to sign in.
 No account: on the welcome screen tap "Look around first". It opens Explore as a guest.
 Reporting a community: Report this community is on the community page and in My communities. It goes to the platform moderators.
 ```
