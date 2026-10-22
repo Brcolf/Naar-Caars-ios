@@ -44,6 +44,7 @@ final class CommunityPageViewModel: ObservableObject {
     private let service: any CommunityServiceProtocol
     private let communityContext: CommunityContext
     private let isGuestProvider: @MainActor () -> Bool
+    private let selectTab: @MainActor (NavigationCoordinator.Tab) -> Void
     /// Each `load()` takes the next number; a result that comes back after a newer load started
     /// is dropped, so a slow preview cannot overwrite the page a later membership change built.
     private var loadGeneration = 0
@@ -51,17 +52,20 @@ final class CommunityPageViewModel: ObservableObject {
     private var lastPreviewRead: Date?
 
     /// - Parameter isGuest: Defaults to "the injected `authService` has no signed-in user".
+    /// - Parameter selectTab: Defaults to setting `NavigationCoordinator.shared.selectedTab`.
     init(
         communityId: UUID,
         service: any CommunityServiceProtocol = CommunityService.shared,
         communityContext: CommunityContext? = nil,
         authService: any AuthServiceProtocol = AuthService.shared,
-        isGuest: (@MainActor () -> Bool)? = nil
+        isGuest: (@MainActor () -> Bool)? = nil,
+        selectTab: (@MainActor (NavigationCoordinator.Tab) -> Void)? = nil
     ) {
         self.communityId = communityId
         self.service = service
         self.communityContext = communityContext ?? .shared
         self.isGuestProvider = isGuest ?? { [authService] in authService.currentUserId == nil }
+        self.selectTab = selectTab ?? { NavigationCoordinator.shared.selectedTab = $0 }
     }
 
     // MARK: - Derived state
@@ -133,7 +137,40 @@ final class CommunityPageViewModel: ObservableObject {
         }
     }
 
+    /// Whether member mode can show this community's recent posts from the local store. The store
+    /// holds Town Hall posts of the Town Hall tab's community only (`TownHallSyncEngine` syncs that
+    /// community's first page and prunes every other post), so for any other community an empty
+    /// list would wrongly read as "no posts yet"; the page offers that community's Town Hall instead.
+    var showsLocalTownHallPosts: Bool {
+        communityContext.communityTabId == communityId
+    }
+
+    // MARK: - Actions
+
+    /// "See this community's Town Hall": makes this community the Town Hall tab's community, as the
+    /// title menu does, then selects the tab (in that order, so the tab's badge clear reads this
+    /// community). The feed reloads itself through the coordinator when its community changes.
+    /// Only for an active membership; anything else is a no-op.
+    func openTownHall() {
+        guard communityContext.membership(for: communityId)?.status == .active else { return }
+        communityContext.communityTabId = communityId
+        selectTab(.townHall)
+    }
+
     // MARK: - Load
+
+    /// Pull-to-refresh. A member's mode comes from the membership row, which a refresh does not
+    /// change. Anyone else may have become a member since the page loaded (an approval, a join made
+    /// elsewhere), so a signed-in non-member reads the memberships again first; the reload then
+    /// decides the mode from the new row. A guest has no memberships to read.
+    func refresh() async {
+        if case .member = mode {
+            // The row decides; nothing to read.
+        } else if !isGuest {
+            await communityContext.refreshMemberships()
+        }
+        await load()
+    }
 
     /// The page's appearance. A visitor's preview that was read within
     /// `Constants.Timing.refreshStalenessWindow` is shown as it is: returning from a profile or a

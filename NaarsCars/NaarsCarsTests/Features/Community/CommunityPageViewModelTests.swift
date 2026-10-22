@@ -332,6 +332,115 @@ final class CommunityPageViewModelTests: XCTestCase {
         XCTAssertEqual(stub.fetchCommunityPreviewCalls, [id])
     }
 
+    // MARK: - Pull-to-refresh
+
+    func testRefresh_PendingPageBecomesAMemberPageAfterApproval() async throws {
+        let id = CommunityFixtures.communityC
+        let (context, stub) = await makeContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A"),
+            CommunityFixtures.membership(id, name: "Community C", status: .pending)
+        ])
+        let vm = makeViewModel(id, stub: stub, context: context)
+        await vm.load()
+        guard case .pending = vm.mode else { return XCTFail("expected pending mode, got \(vm.mode)") }
+        let fetchesBefore = stub.fetchCount
+
+        // An admin approved the request while the page was open.
+        stub.result = .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A"),
+            CommunityFixtures.membership(id, name: "Community C")
+        ])
+        await vm.refresh()
+
+        let row = try XCTUnwrap(context.membership(for: id))
+        XCTAssertEqual(row.status, .active)
+        XCTAssertEqual(vm.mode, .member(row))
+        XCTAssertEqual(stub.fetchCount, fetchesBefore + 1)
+        XCTAssertTrue(stub.fetchCommunityPreviewCalls.isEmpty)
+    }
+
+    func testRefresh_MemberPageReadsNoMemberships() async throws {
+        let (context, stub) = await makeContext()
+        let vm = makeViewModel(CommunityFixtures.communityA, stub: stub, context: context)
+        await vm.load()
+        let fetchesBefore = stub.fetchCount
+
+        await vm.refresh()
+
+        XCTAssertEqual(vm.mode, .member(try XCTUnwrap(context.membership(for: CommunityFixtures.communityA))))
+        XCTAssertEqual(stub.fetchCount, fetchesBefore)
+    }
+
+    func testRefresh_GuestReadsNoMemberships() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityC
+        stub.fetchCommunityPreviewResult = .success(CommunityFixtures.preview(id, name: "Test Public A"))
+        let vm = makeViewModel(id, stub: stub, context: context, isGuest: true)
+        let fetchesBefore = stub.fetchCount
+
+        await vm.refresh()
+
+        XCTAssertEqual(stub.fetchCount, fetchesBefore)
+        XCTAssertEqual(stub.fetchCommunityPreviewCalls, [id])
+    }
+
+    // MARK: - Town Hall posts (member mode)
+
+    func testTownHallPosts_ShownFromTheStoreOnlyForTheTownHallCommunity() async {
+        let (context, stub) = await makeContext()
+        XCTAssertEqual(context.communityTabId, CommunityFixtures.communityA)
+        let townHallPage = makeViewModel(CommunityFixtures.communityA, stub: stub, context: context)
+        let otherPage = makeViewModel(CommunityFixtures.communityB, stub: stub, context: context)
+        await townHallPage.load()
+        await otherPage.load()
+
+        // The store holds only the Town Hall community's posts: B's page must not read as "no posts".
+        XCTAssertTrue(townHallPage.showsLocalTownHallPosts)
+        XCTAssertFalse(otherPage.showsLocalTownHallPosts)
+    }
+
+    func testOpenTownHall_SwitchesTheTownHallCommunityThenSelectsTheTab() async {
+        let (context, stub) = await makeContext()
+        var tabIdWhenSelected: UUID?
+        var selected: [NavigationCoordinator.Tab] = []
+        let vm = CommunityPageViewModel(
+            communityId: CommunityFixtures.communityB,
+            service: stub,
+            communityContext: context,
+            isGuest: { false },
+            selectTab: { tab in
+                tabIdWhenSelected = context.communityTabId
+                selected.append(tab)
+            }
+        )
+        await vm.load()
+
+        vm.openTownHall()
+
+        XCTAssertEqual(context.communityTabId, CommunityFixtures.communityB)
+        XCTAssertEqual(tabIdWhenSelected, CommunityFixtures.communityB)
+        XCTAssertEqual(selected, [.townHall])
+        XCTAssertTrue(vm.showsLocalTownHallPosts)
+    }
+
+    func testOpenTownHall_DoesNothingWithoutAnActiveMembership() async {
+        let id = CommunityFixtures.communityC
+        let (context, stub) = await makeContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A"),
+            CommunityFixtures.membership(id, name: "Community C", status: .pending)
+        ])
+        var selected: [NavigationCoordinator.Tab] = []
+        let vm = CommunityPageViewModel(
+            communityId: id, service: stub, communityContext: context, isGuest: { false },
+            selectTab: { selected.append($0) }
+        )
+
+        vm.openTownHall()
+
+        XCTAssertEqual(context.communityTabId, CommunityFixtures.communityA)
+        XCTAssertTrue(selected.isEmpty)
+    }
+
     func testLeavingAHiddenCommunity_ShowsUnavailable() async {
         let (context, stub) = await makeContext()
         let id = CommunityFixtures.communityA

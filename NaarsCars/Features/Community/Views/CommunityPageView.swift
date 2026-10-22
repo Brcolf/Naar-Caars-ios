@@ -194,7 +194,7 @@ struct CommunityPageView: View {
     }
 
     private func refreshPage() async {
-        await viewModel.load()
+        await viewModel.refresh()
         if isMemberMode {
             await leaderboardViewModel.refresh()
         }
@@ -281,7 +281,9 @@ struct CommunityPageView: View {
             header(name: membership.name, role: membership.role)
             memberActions(membership)
             LocalCommunityActivity(communityId: membership.communityId) { requests, posts in
-                activity(requests: requests, posts: posts)
+                // The store holds only the Town Hall tab's community's posts; any other community
+                // gets a way to its Town Hall rather than a wrong "no posts yet".
+                activity(requests: requests, posts: viewModel.showsLocalTownHallPosts ? posts : nil)
             }
             leaderboardCard
             otherActions(membership)
@@ -474,7 +476,9 @@ struct CommunityPageView: View {
 
     // MARK: - Requests and posts
 
-    private func activity(requests: [CommunityPreview.Request], posts: [CommunityPreview.Post]) -> some View {
+    /// `posts` nil: the posts are not at hand (member mode, a community other than the Town Hall
+    /// tab's); the card offers that community's Town Hall.
+    private func activity(requests: [CommunityPreview.Request], posts: [CommunityPreview.Post]?) -> some View {
         VStack(alignment: .leading, spacing: Constants.Spacing.md) {
             requestsCard(requests)
             postsCard(posts)
@@ -531,22 +535,48 @@ struct CommunityPageView: View {
         }
     }
 
-    private func postsCard(_ posts: [CommunityPreview.Post]) -> some View {
+    private func postsCard(_ posts: [CommunityPreview.Post]?) -> some View {
         VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
             sectionTitle("community_page_recent_town_hall".localized)
-            if posts.isEmpty {
+            if let posts, posts.isEmpty {
                 Text("community_page_no_posts".localized)
                     .font(.naarsSubheadline)
                     .foregroundColor(.naarsTextSecondary)
-            } else {
+            } else if let posts {
                 ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
                     if index > 0 { Divider() }
                     postRow(post)
                 }
+            } else {
+                townHallLink
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardStyle()
+    }
+
+    /// Makes this community the Town Hall tab's community and selects the tab.
+    private var townHallLink: some View {
+        Button {
+            viewModel.openTownHall()
+        } label: {
+            HStack(spacing: Constants.Spacing.sm) {
+                Text("community_page_open_town_hall".localized)
+                    .font(.naarsSubheadline.weight(.semibold))
+                    .foregroundColor(.naarsPrimary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("community_page_open_town_hall_hint".localized)
+        .accessibilityIdentifier("communityPage.openTownHall")
     }
 
     private func postRow(_ post: CommunityPreview.Post) -> some View {
@@ -921,18 +951,21 @@ private enum CommunityPagePreviewData {
     }
 
     /// A page for `communityId` whose memberships are `rows` (empty: the person is not a member).
+    /// `isTownHallCommunity`: the community is the Town Hall tab's, so member mode shows its posts.
     @MainActor
     static func page(
         communityId: UUID,
         memberships rows: [CommunityMembership],
         preview: CommunityPreview?,
-        isGuest: Bool = false
+        isGuest: Bool = false,
+        isTownHallCommunity: Bool = true
     ) -> some View {
         let service = PreviewCommunityService()
         service.memberships = rows
         service.preview = preview
         let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
         context.debugSetMemberships(rows)
+        context.communityTabId = isTownHallCommunity ? communityId : nil
         return NavigationStack {
             CommunityPageView(
                 viewModel: CommunityPageViewModel(
@@ -956,6 +989,17 @@ private enum CommunityPagePreviewData {
         joinedAt: Date(timeIntervalSince1970: 1_790_000_000), activatedAt: Date(timeIntervalSince1970: 1_790_000_100)
     )
     return CommunityPagePreviewData.page(communityId: id, memberships: [owned], preview: nil)
+}
+
+#Preview("Member, not the Town Hall community") {
+    let id = UUID()
+    let member = CommunityMembership(
+        communityId: id, name: "Ballard Neighbors", description: nil, role: .member, status: .active, isPrimary: false,
+        joinPolicy: "approve", isPublic: true, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles",
+        canInvite: true, memberCount: 12, pendingCount: nil, notificationsMuted: false, mutedUntil: nil,
+        joinedAt: Date(timeIntervalSince1970: 1_790_000_000), activatedAt: Date(timeIntervalSince1970: 1_790_000_100)
+    )
+    return CommunityPagePreviewData.page(communityId: id, memberships: [member], preview: nil, isTownHallCommunity: false)
 }
 
 #Preview("Visitor, ask to join") {
