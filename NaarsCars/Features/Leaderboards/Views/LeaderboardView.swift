@@ -8,8 +8,10 @@
 import SwiftUI
 
 /// Leaderboard view showing community rankings.
-/// Hosted inside CommunityTabView's NavigationStack; it must not open a stack of its own, or it
-/// draws a second navigation bar under the Community one and pushes profiles inside the segment.
+/// Hosted by the community page (`CommunityPageView`, "See all") inside the Explore tab's
+/// NavigationStack, and still by CommunityTabView's until its segment is removed. It must not open
+/// a stack of its own, or it draws a second navigation bar under the host's and pushes profiles
+/// inside the segment.
 struct LeaderboardView: View {
     @State private var communityContext = CommunityContext.shared
     /// Owned by CommunityTabView, so the cache and the chosen period outlive a segment switch.

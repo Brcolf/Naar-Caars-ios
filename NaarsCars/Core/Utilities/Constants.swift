@@ -279,6 +279,13 @@ enum Constants {
         /// only once `https://naarscars.com/.well-known/apple-app-site-association` and the
         /// `https://naarscars.com/join` landing page are live (Phase 4 plan, Prerequisite 1d).
         static let shareInviteLinks: Bool = false
+        /// Places the community page's leaderboard section lists before "See all"
+        static let pageLeaderboardRows = 3
+        /// Open requests the community page lists. The same cap as `get_community_preview`, so a
+        /// member and a visitor see the same number of rows.
+        static let pagePreviewRequests = 10
+        /// Recent Town Hall posts the community page lists (the cap of `get_community_preview`)
+        static let pagePreviewPosts = 5
     }
 
     /// Default map coordinates

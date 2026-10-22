@@ -34,6 +34,9 @@ final class LeaderboardViewModel: ObservableObject {
     private let leaderboardService: any LeaderboardFetching
     private let authService: any AuthServiceProtocol
     private let communityContext: CommunityContext?
+    /// A community the rows are pinned to, whatever the Town Hall community is (the community
+    /// page). Nil follows `communityContext.communityTabId`.
+    private let pinnedCommunityId: UUID?
 
     // Cache: [Period + community: (entries, spotlights, cachedAt)]
     private var cachedEntries: [LeaderboardCacheKey: (entries: [LeaderboardEntry], spotlights: [SpotlightEntry], cachedAt: Date)] = [:]
@@ -44,15 +47,17 @@ final class LeaderboardViewModel: ObservableObject {
     init(
         leaderboardService: any LeaderboardFetching = LeaderboardService.shared,
         authService: any AuthServiceProtocol = AuthService.shared,
-        communityContext: CommunityContext? = nil
+        communityContext: CommunityContext? = nil,
+        communityId: UUID? = nil
     ) {
         self.leaderboardService = leaderboardService
         self.authService = authService
         self.communityContext = communityContext
+        self.pinnedCommunityId = communityId
     }
 
     private var currentKey: LeaderboardCacheKey {
-        LeaderboardCacheKey(period: selectedPeriod, communityId: communityContext?.communityTabId)
+        LeaderboardCacheKey(period: selectedPeriod, communityId: pinnedCommunityId ?? communityContext?.communityTabId)
     }
 
     /// The Community tab's community changed: load the rows for the new key.

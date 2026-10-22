@@ -306,6 +306,9 @@
 		AC4F1E202F23497B00CC5DBA /* PersistentImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4F1E1F2F23497B00CC5DBA /* PersistentImageService.swift */; };
 		AC7A1D5B308999C900908D08 /* CommunityBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D5A308999C800908D08 /* CommunityBadges.swift */; };
 		AC7A1D5D3089A12400908D08 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D5C3089A12400908D08 /* ExploreView.swift */; };
+		AC7A1D5F3089A8C700908D08 /* CommunityPageViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D5E3089A8C700908D08 /* CommunityPageViewModelTests.swift */; };
+		AC7A1D613089A98500908D08 /* CommunityPageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D603089A98500908D08 /* CommunityPageViewModel.swift */; };
+		AC7A1D633089AAA600908D08 /* CommunityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D623089AAA600908D08 /* CommunityPageView.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -860,6 +863,9 @@
 		AC4F1E1F2F23497B00CC5DBA /* PersistentImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentImageService.swift; sourceTree = "<group>"; };
 		AC7A1D5A308999C800908D08 /* CommunityBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityBadges.swift; sourceTree = "<group>"; };
 		AC7A1D5C3089A12400908D08 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		AC7A1D5E3089A8C700908D08 /* CommunityPageViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageViewModelTests.swift; sourceTree = "<group>"; };
+		AC7A1D603089A98500908D08 /* CommunityPageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageViewModel.swift; sourceTree = "<group>"; };
+		AC7A1D623089AAA600908D08 /* CommunityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityPageView.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1460,6 +1466,7 @@
 				AC410C8A3085BC2900D921E2 /* CommunityMembersViewModel.swift */,
 				AC410C923085C37800D921E2 /* CommunitySettingsViewModel.swift */,
 				AC410C983085C92500D921E2 /* CommunityReportsViewModel.swift */,
+				AC7A1D603089A98500908D08 /* CommunityPageViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1476,6 +1483,7 @@
 				AC410C883085BBE400D921E2 /* CommunityMembersViewModelTests.swift */,
 				AC410C903085C33B00D921E2 /* CommunitySettingsViewModelTests.swift */,
 				AC410C963085C8F000D921E2 /* CommunityReportsViewModelTests.swift */,
+				AC7A1D5E3089A8C700908D08 /* CommunityPageViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1649,6 +1657,7 @@
 				AC410C943085C3A700D921E2 /* CommunitySettingsView.swift */,
 				AC410C9A3085C96600D921E2 /* CommunityReportsView.swift */,
 				AC7A1D5C3089A12400908D08 /* ExploreView.swift */,
+				AC7A1D623089AAA600908D08 /* CommunityPageView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2667,6 +2676,7 @@
 				AC35AB602F0F080F0012096B /* TownHallFeedViewModel.swift in Sources */,
 				AC8197C02F14C34A003BB08B /* MessageDetailsPopup.swift in Sources */,
 				C9821C65F1324BA89AD8E4D4 /* RealtimeManager.swift in Sources */,
+				AC7A1D633089AAA600908D08 /* CommunityPageView.swift in Sources */,
 				ACDCBDCC2F0B74F400956D1C /* NaarsCarsApp.swift in Sources */,
 				84D9FCFB10CF4588B6DBDE7B /* Profile.swift in Sources */,
 				E45167AB602B45E7B6D76981 /* Ride.swift in Sources */,
@@ -2796,6 +2806,7 @@
 				74F10B329CDE4E56913B6098 /* UserAvatarLink.swift in Sources */,
 				5539038B67914970B5B5155F /* StarRatingView.swift in Sources */,
 				06B825CE696F4C0C8ACDF684 /* ReviewCard.swift in Sources */,
+				AC7A1D613089A98500908D08 /* CommunityPageViewModel.swift in Sources */,
 				ACBF4B0C2F12CBDA006A7C8A /* RequestMapView.swift in Sources */,
 				ACBF4AE12F12CB30006A7C8A /* BroadcastViewModel.swift in Sources */,
 				ACBF4AE22F12CB30006A7C8A /* AdminPanelViewModel.swift in Sources */,
@@ -3082,6 +3093,7 @@
 				AC2B00012F9A0001FACEDB01 /* NotificationTypeDomainMappingTests.swift in Sources */,
 				AC2B00032F9A0003FACEDB03 /* RefreshCoordinatorTests.swift in Sources */,
 				AC9DDD392F2B139C003465D3 /* ConversationsListViewModelTests.swift in Sources */,
+				AC7A1D5F3089A8C700908D08 /* CommunityPageViewModelTests.swift in Sources */,
 				7B8F9E1C2D3E4F5A6B7C8D9E /* MessageServiceTests.swift in Sources */,
 				7FC1B85E59ED46EC979DDA25 /* ProfileServiceTests.swift in Sources */,
 				AC410C293084E78500D921E2 /* CommunityPayloadDecodingTests.swift in Sources */,

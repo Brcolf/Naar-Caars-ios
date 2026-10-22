@@ -112,6 +112,35 @@ final class LeaderboardViewModelTests: XCTestCase {
         XCTAssertEqual(stub.entryCalls.map(\.period), [.thisMonth, .allTime])
         XCTAssertEqual(stub.spotlightCalls.map(\.period), [.thisMonth, .allTime])
     }
+
+    /// The community page pins its leaderboard to the page's community: the Town Hall community
+    /// (the context's tab) does not decide which rows it reads.
+    func testPinnedCommunity_LoadsThatCommunityWhateverTheTab() async {
+        let suiteName = "LeaderboardViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let communities = StubCommunityService(result: .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A", isPrimary: true),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "Community B")
+        ]))
+        let context = CommunityContext(service: communities, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: CommunityFixtures.userA)
+        await context.refreshMemberships()
+        XCTAssertEqual(context.communityTabId, CommunityFixtures.communityA)
+
+        let stub = StubLeaderboardFetcher()
+        let vm = LeaderboardViewModel(leaderboardService: stub, communityContext: context, communityId: CommunityFixtures.communityB)
+
+        await vm.loadLeaderboard()
+        vm.selectedPeriod = .allTime
+        await vm.loadLeaderboard()
+        await vm.refresh()
+        await drainMainActor()
+
+        XCTAssertEqual(stub.entryCalls.last?.communityId, CommunityFixtures.communityB)
+        XCTAssertEqual(Set(stub.entryCalls.map { $0.communityId }), [CommunityFixtures.communityB])
+        XCTAssertEqual(Set(stub.spotlightCalls.map { $0.communityId }), [CommunityFixtures.communityB])
+    }
 }
 
 /// Records each leaderboard and spotlight read and answers with no rows.
