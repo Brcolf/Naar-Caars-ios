@@ -2,7 +2,7 @@
 //  CommunitySettingsViewModel.swift
 //  NaarsCars
 //
-//  One community's name, description, who joins, who invites, time zone, and archive
+//  One community's name, description, who invites, time zone, and archive
 //
 
 internal import Combine
@@ -16,7 +16,6 @@ final class CommunitySettingsViewModel: ObservableObject {
     @Published private(set) var settings: CommunitySettings?
     @Published var name = ""
     @Published var description = ""
-    @Published var requiresApproval = true
     @Published var membersCanInvite = true
     /// IANA identifier; edited only by the owner or a platform admin (`canEdit`).
     @Published var timezone = ""
@@ -69,6 +68,20 @@ final class CommunitySettingsViewModel: ObservableObject {
         access == .allowed && (callerRole == .owner || communityContext.isPlatformAdmin)
     }
 
+    /// Only the owner changes who can join and where (`update_community_access`); a platform admin
+    /// does not, and the access screen is not offered to a plain admin.
+    var isOwner: Bool {
+        access == .allowed && callerRole == .owner
+    }
+
+    /// "Listed · Ask to join": the access row's subtitle; nil until the settings are read.
+    var accessSummary: String? {
+        guard let settings else { return nil }
+        let policy = CommunityJoinPolicy(rawValue: settings.joinPolicy) ?? .approve
+        let listed = settings.isPublic ? "community_access_listed".localized : "community_access_hidden".localized
+        return String(format: "community_access_row_subtitle".localized, listed, policy.chipText)
+    }
+
     /// The owner or a platform admin, never the default community (archive_community :784-794).
     var canArchive: Bool {
         canEdit && settings?.isDefault == false
@@ -84,8 +97,6 @@ final class CommunitySettingsViewModel: ObservableObject {
         var change = CommunitySettingsChange()
         if trimmedName != settings.name { change.name = trimmedName }
         if trimmedDescription != (settings.description ?? "") { change.description = trimmedDescription }
-        let policy: CommunityJoinPolicy = requiresApproval ? .approve : .invite
-        if policy.rawValue != settings.joinPolicy { change.joinPolicy = policy }
         if membersCanInvite != settings.membersCanInvite { change.membersCanInvite = membersCanInvite }
         if !timezone.isEmpty, timezone != settings.timezone { change.timezone = timezone }
         return change
@@ -141,11 +152,18 @@ final class CommunitySettingsViewModel: ObservableObject {
         }
     }
 
+    /// Reads the settings again after the access screen closes, replacing only the snapshot the
+    /// access row's subtitle reads: a name or description being edited here is left alone.
+    func refreshAccessSummary() async {
+        guard access == .allowed else { return }
+        guard let fetched = try? await adminService.fetchCommunitySettings(communityId: communityId) else { return }
+        settings = fetched
+    }
+
     private func apply(_ fetched: CommunitySettings) {
         settings = fetched
         name = fetched.name
         description = fetched.description ?? ""
-        requiresApproval = fetched.joinPolicy == CommunityJoinPolicy.approve.rawValue
         membersCanInvite = fetched.membersCanInvite
         timezone = fetched.timezone
     }
@@ -177,7 +195,7 @@ final class CommunitySettingsViewModel: ObservableObject {
             id: current.id,
             name: change.name ?? current.name,
             description: change.description.map { $0.isEmpty ? nil : $0 } ?? current.description,
-            joinPolicy: change.joinPolicy?.rawValue ?? current.joinPolicy,
+            joinPolicy: current.joinPolicy,
             membersCanInvite: change.membersCanInvite ?? current.membersCanInvite,
             isPublic: current.isPublic,
             isDefault: current.isDefault,

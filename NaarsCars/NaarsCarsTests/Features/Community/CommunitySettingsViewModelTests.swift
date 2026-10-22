@@ -90,14 +90,12 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         XCTAssertEqual(admin.fetchCommunitySettingsCalls, [CommunityFixtures.communityA])
         XCTAssertEqual(vm.name, "Fremont")
         XCTAssertEqual(vm.description, "Fremont rides.")
-        XCTAssertFalse(vm.requiresApproval)
         XCTAssertFalse(vm.membersCanInvite)
         XCTAssertTrue(vm.change.isEmpty)
         XCTAssertFalse(vm.canSave)
 
         admin.fetchCommunitySettingsResult = .success(settings(description: nil, joinPolicy: "approve"))
         await vm.load()
-        XCTAssertTrue(vm.requiresApproval)
         XCTAssertEqual(vm.description, "")
     }
 
@@ -150,9 +148,8 @@ final class CommunitySettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.change.isEmpty)
 
         vm.description = "   "
-        vm.requiresApproval = false
         vm.membersCanInvite = false
-        XCTAssertEqual(vm.change, CommunitySettingsChange(description: "", joinPolicy: .invite, membersCanInvite: false))
+        XCTAssertEqual(vm.change, CommunitySettingsChange(description: "", membersCanInvite: false))
     }
 
     func testLoad_ReadsTheCommunityTimezone() async {

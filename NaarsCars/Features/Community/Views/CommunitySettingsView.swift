@@ -2,7 +2,7 @@
 //  CommunitySettingsView.swift
 //  NaarsCars
 //
-//  One community's name, description, who joins, who invites, and archive
+//  One community's name, description, who invites, time zone, and archive
 //
 
 import SwiftUI
@@ -16,6 +16,7 @@ struct CommunitySettingsView: View {
     @StateObject private var viewModel: CommunitySettingsViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showArchiveAlert = false
+    @State private var showAccess = false
 
     init(
         communityId: UUID,
@@ -65,6 +66,13 @@ struct CommunitySettingsView: View {
             }
         }
         .task { await viewModel.load() }
+        .navigationDestination(isPresented: $showAccess) {
+            CommunityAccessView(communityId: communityId)
+        }
+        .onChange(of: showAccess) { _, isShown in
+            // Back from the access screen: the row's subtitle shows what was saved there.
+            if !isShown { Task { await viewModel.refreshAccessSummary() } }
+        }
         .onChange(of: viewModel.didArchive) { _, archived in
             guard archived else { return }
             onArchived(viewModel.archiveConfirmation ?? "")
@@ -133,12 +141,39 @@ struct CommunitySettingsView: View {
                      + "  \(trimmedDescriptionCount)/\(Constants.Community.descriptionMaxLength)")
             }
 
-            Section {
-                Toggle("community_settings_requires_approval".localized, isOn: $viewModel.requiresApproval)
-                    .disabled(!viewModel.canEdit || isBusy)
-                    .accessibilityIdentifier("community.settings.requiresApproval")
-            } footer: {
-                Text("community_settings_requires_approval_footer".localized)
+            if viewModel.isOwner {
+                Section {
+                    Button {
+                        showAccess = true
+                    } label: {
+                        HStack(spacing: Constants.Spacing.sm) {
+                            VStack(alignment: .leading, spacing: Constants.Spacing.xxs) {
+                                Text("community_access_title".localized)
+                                    .font(.naarsBody)
+                                    .foregroundColor(.naarsTextPrimary)
+                                if let summary = viewModel.accessSummary {
+                                    Text(summary)
+                                        .font(.naarsSubheadline)
+                                        .foregroundColor(.naarsTextSecondary)
+                                }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: Constants.Spacing.sm)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundColor(.naarsTextSecondary)
+                                .accessibilityHidden(true)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("community_access_title".localized)
+                    .accessibilityValue(viewModel.accessSummary ?? "")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("community.access.row")
+                }
             }
 
             Section {

@@ -320,6 +320,9 @@
 		AC7A1D76308AB83D00908D08 /* ServiceAreaDraftModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D75308AB83D00908D08 /* ServiceAreaDraftModelTests.swift */; };
 		AC7A1D78308AB88E00908D08 /* ServiceAreaDraftModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D77308AB88E00908D08 /* ServiceAreaDraftModel.swift */; };
 		AC7A1D7A308AB8EC00908D08 /* ServiceAreaPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D79308AB8EC00908D08 /* ServiceAreaPicker.swift */; };
+		AC7A1D7C308AC7FB00908D08 /* CommunityAccessViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7B308AC7FB00908D08 /* CommunityAccessViewModelTests.swift */; };
+		AC7A1D7E308AC85C00908D08 /* CommunityAccessViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7D308AC85C00908D08 /* CommunityAccessViewModel.swift */; };
+		AC7A1D80308AC8A400908D08 /* CommunityAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -888,6 +891,9 @@
 		AC7A1D75308AB83D00908D08 /* ServiceAreaDraftModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceAreaDraftModelTests.swift; sourceTree = "<group>"; };
 		AC7A1D77308AB88E00908D08 /* ServiceAreaDraftModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceAreaDraftModel.swift; sourceTree = "<group>"; };
 		AC7A1D79308AB8EC00908D08 /* ServiceAreaPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceAreaPicker.swift; sourceTree = "<group>"; };
+		AC7A1D7B308AC7FB00908D08 /* CommunityAccessViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessViewModelTests.swift; sourceTree = "<group>"; };
+		AC7A1D7D308AC85C00908D08 /* CommunityAccessViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessViewModel.swift; sourceTree = "<group>"; };
+		AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityAccessView.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1492,6 +1498,7 @@
 				AC7A1D603089A98500908D08 /* CommunityPageViewModel.swift */,
 				AC7A1D71308AAD6D00908D08 /* ExploreSearchViewModel.swift */,
 				AC7A1D77308AB88E00908D08 /* ServiceAreaDraftModel.swift */,
+				AC7A1D7D308AC85C00908D08 /* CommunityAccessViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -1511,6 +1518,7 @@
 				AC7A1D5E3089A8C700908D08 /* CommunityPageViewModelTests.swift */,
 				AC7A1D6F308AAD2800908D08 /* ExploreSearchViewModelTests.swift */,
 				AC7A1D75308AB83D00908D08 /* ServiceAreaDraftModelTests.swift */,
+				AC7A1D7B308AC7FB00908D08 /* CommunityAccessViewModelTests.swift */,
 			);
 			path = Community;
 			sourceTree = "<group>";
@@ -1695,6 +1703,7 @@
 				AC7A1D623089AAA600908D08 /* CommunityPageView.swift */,
 				AC7A1D73308AB19100908D08 /* CommunitySearchResultsView.swift */,
 				AC7A1D79308AB8EC00908D08 /* ServiceAreaPicker.swift */,
+				AC7A1D7F308AC8A400908D08 /* CommunityAccessView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2765,6 +2774,7 @@
 				B29F4A793E8647D9911439DC /* AppNotification.swift in Sources */,
 				AC305EF12F0DB7BD0063AFDF /* SignupViewModel.swift in Sources */,
 				E01A23F3B5354449AED53D3E /* NoAccountFoundSheet.swift in Sources */,
+				AC7A1D80308AC8A400908D08 /* CommunityAccessView.swift in Sources */,
 				AC410C75308575EF00D921E2 /* PendingApprovalViewModel.swift in Sources */,
 				AC410C6B3085620D00D921E2 /* CommunitiesAdminView.swift in Sources */,
 				AC305EF22F0DB7BD0063AFDF /* LoginView.swift in Sources */,
@@ -3024,6 +3034,7 @@
 				8473AEC4921F7ADD7433F230 /* URLDetectionCache.swift in Sources */,
 				11E63CC66A19A0FD69A3115C /* InviteCodeFormatter.swift in Sources */,
 				457AE7AECC220A02FC433539 /* MessageSeriesHelper.swift in Sources */,
+				AC7A1D7E308AC85C00908D08 /* CommunityAccessViewModel.swift in Sources */,
 				DC10BA7C913BB6154D64733E /* NetworkMonitor.swift in Sources */,
 				AC410C6F3085723000D921E2 /* CommunityOnboardingView.swift in Sources */,
 				E7FE0980E455BADC223BAD94 /* RetryableOperation.swift in Sources */,
@@ -3132,6 +3143,7 @@
 				AC1200772F3AE6090043BFAE /* NavigationCoordinatorRoutingTests.swift in Sources */,
 				E8C3A1B6F5D24C1A9B7C3D55 /* LeaveReviewViewModelTests.swift in Sources */,
 				AC9DDD362F2B139C003465D3 /* TownHallFeedViewModelTests.swift in Sources */,
+				AC7A1D7C308AC7FB00908D08 /* CommunityAccessViewModelTests.swift in Sources */,
 				AC9DDD3C2F2B13BC003465D3 /* NavigationCoordinatorTests.swift in Sources */,
 				AC9DDD372F2B139C003465D3 /* CreatePostViewModelTests.swift in Sources */,
 				AC9DDD382F2B139C003465D3 /* InAppToastManagerTests.swift in Sources */,
