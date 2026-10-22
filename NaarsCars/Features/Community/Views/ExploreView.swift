@@ -19,6 +19,8 @@ struct ExploreView: View {
     @State private var communityPageTarget: UUID?
     /// Start a community from the results: My communities opens its own sheet.
     @State private var startCommunityRequested = false
+    /// The search field is active (focused, with Cancel showing).
+    @State private var isSearchPresented = false
 
     var body: some View {
         NavigationStack {
@@ -56,7 +58,14 @@ struct ExploreView: View {
                 }
             }
         }
-        .searchable(text: $search.query, prompt: "explore_search_prompt".localized)
+        .searchable(text: $search.query, isPresented: $isSearchPresented, prompt: "explore_search_prompt".localized)
+        // Cancel empties a typed query, which hides the results by itself. Results from Use my location
+        // with no town found have an empty query, so the dismissal hides them here. A query that still
+        // has text (a page pushed from the results) is left as it is.
+        .onChange(of: isSearchPresented) { _, presented in
+            guard !presented, search.query.isEmpty, search.showsResults else { return }
+            search.clear()
+        }
         .toast(message: $search.locationNotice, style: .info)
         // An Explore route (a push, a link, Find communities) is opened by My communities: the
         // search and a page opened from it give way so that route shows.

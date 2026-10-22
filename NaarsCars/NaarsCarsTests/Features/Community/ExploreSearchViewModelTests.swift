@@ -204,6 +204,24 @@ final class ExploreSearchViewModelTests: XCTestCase {
         XCTAssertTrue(vm.results.isEmpty)
     }
 
+    func testClear_AfterALocationSearchWithNoTownHidesTheResults() async {
+        locator.location = GeoPoint(latitude: 47.60621, longitude: -122.33207)
+        geocoder.reverseResult = nil
+        let vm = makeViewModel()
+
+        await vm.useMyLocation()
+
+        XCTAssertEqual(vm.query, "")
+        XCTAssertTrue(vm.showsResults)
+
+        // ExploreView calls clear() when the field is dismissed with an empty query (ruling I2).
+        vm.clear()
+
+        XCTAssertFalse(vm.showsResults)
+        XCTAssertEqual(vm.phase, .idle)
+        XCTAssertTrue(vm.results.isEmpty)
+    }
+
     func testUseMyLocation_NoFixShowsTheUnavailableNotice() async {
         locator.access = .allowed
         locator.location = nil
