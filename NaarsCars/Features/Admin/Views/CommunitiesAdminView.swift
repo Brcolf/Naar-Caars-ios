@@ -2,7 +2,8 @@
 //  CommunitiesAdminView.swift
 //  NaarsCars
 //
-//  Platform admins: every community, archive and restore, public or private, and owned-limit requests
+//  Platform admins: every community (its area, test flag, merge and listing reason), archive and
+//  restore, public or private, owned-limit requests and merge proposals
 //
 
 import SwiftUI
@@ -28,7 +29,7 @@ struct CommunitiesAdminView: View {
 
     var body: some View {
         Group {
-            if viewModel.communities.isEmpty && viewModel.limitRequests.isEmpty {
+            if viewModel.communities.isEmpty && viewModel.limitRequests.isEmpty && viewModel.mergeProposals.isEmpty {
                 if let loadError = viewModel.loadError {
                     ErrorView(error: loadError) {
                         Task { await viewModel.load() }
@@ -95,6 +96,13 @@ struct CommunitiesAdminView: View {
                 }
                 ForEach(viewModel.communities) { community in
                     communityCard(community)
+                }
+                if !viewModel.mergeProposals.isEmpty {
+                    sectionHeader("admin_communities_merges_section".localized)
+                        .padding(.top, Constants.Spacing.sm)
+                    ForEach(viewModel.mergeProposals) { proposal in
+                        mergeProposalCard(proposal)
+                    }
                 }
             }
             .padding()
@@ -179,6 +187,7 @@ struct CommunitiesAdminView: View {
                 Text(String(format: "admin_communities_members".localized, community.memberCount, community.pendingCount))
                     .font(.naarsFootnote)
                     .foregroundColor(.naarsTextSecondary)
+                listingDetails(community)
                 Text(String(
                     format: "admin_communities_created_by".localized,
                     community.creatorName ?? "—",
@@ -206,10 +215,40 @@ struct CommunitiesAdminView: View {
         .accessibilityIdentifier("admin.communities.row")
     }
 
+    /// The area, where the community went in a merge, and the latest listing event's reason and overlaps.
+    @ViewBuilder
+    private func listingDetails(_ community: PlatformCommunity) -> some View {
+        if let area = community.area {
+            detailLine(String(format: "admin_communities_area".localized, area.name, area.radiusMiles))
+        }
+        if let mergedIntoName = community.mergedIntoName {
+            detailLine(String(format: "admin_communities_merged_into".localized, mergedIntoName))
+        }
+        if let reason = community.listingReason, !reason.isEmpty {
+            detailLine(String(format: "admin_communities_reason".localized, reason))
+        }
+        if !community.listingOverlaps.isEmpty {
+            detailLine(String(
+                format: "admin_communities_overlaps".localized,
+                ListFormatter.localizedString(byJoining: community.listingOverlaps)
+            ))
+        }
+    }
+
+    private func detailLine(_ text: String) -> some View {
+        Text(text)
+            .font(.naarsFootnote)
+            .foregroundColor(.naarsTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     @ViewBuilder
     private func chips(_ community: PlatformCommunity) -> some View {
         if community.isDefault {
             NaarsChip(text: "admin_communities_default_chip".localized, systemImage: "star.fill")
+        }
+        if community.isTest {
+            NaarsChip(text: "admin_communities_test_chip".localized, systemImage: "testtube.2", tint: nil)
         }
         if community.isPublic {
             NaarsChip(text: "admin_communities_public_chip".localized, systemImage: "globe", tint: nil)
@@ -227,6 +266,46 @@ struct CommunitiesAdminView: View {
                 tint: .naarsWarning
             )
         }
+    }
+
+    // MARK: - Merge proposals
+
+    /// One proposal: "<merged> into <survivor>", its status, when it was made and when it expires or
+    /// was decided, and the proposer's note.
+    private func mergeProposalCard(_ proposal: PlatformMergeProposal) -> some View {
+        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+            Text(String(format: "admin_communities_merge_row".localized, proposal.mergedName, proposal.survivorName))
+                .font(.naarsHeadline)
+                .foregroundColor(.naarsTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            NaarsChip(
+                text: CommunitiesAdminViewModel.mergeStatusText(proposal.status),
+                systemImage: "arrow.triangle.merge",
+                tint: proposal.status == "pending" ? .naarsWarning : nil
+            )
+            detailLine(mergeDates(proposal))
+            if let note = proposal.note, !note.isEmpty {
+                Text(note)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.naarsTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("admin.communities.mergeRow")
+    }
+
+    /// The day it was proposed, then its expiry while pending, else the day it was decided.
+    private func mergeDates(_ proposal: PlatformMergeProposal) -> String {
+        let created = proposal.createdAt.formatted(date: .abbreviated, time: .omitted)
+        if proposal.status == "pending" {
+            let expires = String(format: "community_merge_expires".localized, proposal.expiresAt.formatted(date: .abbreviated, time: .omitted))
+            return created + " · " + expires
+        }
+        guard let decidedAt = proposal.decidedAt else { return created }
+        return created + " · " + decidedAt.formatted(date: .abbreviated, time: .omitted)
     }
 
     @ViewBuilder
@@ -339,6 +418,50 @@ struct CommunitiesAdminView: View {
 #Preview("List with a limit request") {
     NavigationStack {
         CommunitiesAdminView(viewModel: CommunitiesAdminViewModel(adminService: PreviewCommunityService()))
+    }
+}
+
+#Preview("Area, test row and a merge proposal") {
+    let service = PreviewCommunityService()
+    let created = Date(timeIntervalSince1970: 1_790_000_000)
+    service.platformCommunities = PlatformCommunities(
+        communities: [
+            PlatformCommunity(
+                id: UUID(), name: "Harbor Riders", description: nil, createdBy: UUID(), creatorName: "Sam Neighbor",
+                createdAt: created, isPublic: true, isDefault: false, joinPolicy: "approve", archivedAt: nil, archivedBy: nil,
+                memberCount: 14, pendingCount: 1, ownerCount: 2, openReportCount: 0,
+                area: PreviewCommunityService.sampleArea, listingReason: "Parents of one school",
+                listingOverlaps: ["Test Community", "Ballard Neighbors"], listingEventAt: created
+            ),
+            PlatformCommunity(
+                id: UUID(), name: "Test Public A", description: nil, createdBy: UUID(), creatorName: "Lee Park",
+                createdAt: created, isPublic: true, isDefault: false, joinPolicy: "open", archivedAt: nil, archivedBy: nil,
+                memberCount: 2, pendingCount: 0, ownerCount: 1, openReportCount: 0,
+                area: PreviewCommunityService.sampleArea, isTest: true
+            ),
+            PlatformCommunity(
+                id: UUID(), name: "Fremont Porch Club", description: nil, createdBy: UUID(), creatorName: "Pat Quinn",
+                createdAt: created, isPublic: false, isDefault: false, joinPolicy: "invite",
+                archivedAt: created.addingTimeInterval(86_400), archivedBy: nil,
+                memberCount: 0, pendingCount: 0, ownerCount: 0, openReportCount: 0, mergedIntoName: "Harbor Riders"
+            )
+        ],
+        limitRequests: [],
+        mergeProposals: [
+            PlatformMergeProposal(
+                id: UUID(), fromName: "Ballard Neighbors", toName: "Harbor Riders", survivorName: "Harbor Riders",
+                status: "pending", note: "We cover the same streets.", createdAt: created,
+                expiresAt: created.addingTimeInterval(7 * 86_400), decidedAt: nil
+            ),
+            PlatformMergeProposal(
+                id: UUID(), fromName: "Fremont Porch Club", toName: "Harbor Riders", survivorName: "Harbor Riders",
+                status: "accepted", note: nil, createdAt: created,
+                expiresAt: created.addingTimeInterval(7 * 86_400), decidedAt: created.addingTimeInterval(86_400)
+            )
+        ]
+    )
+    return NavigationStack {
+        CommunitiesAdminView(viewModel: CommunitiesAdminViewModel(adminService: service))
     }
 }
 

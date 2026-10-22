@@ -324,6 +324,90 @@ final class AppLaunchManagerTests: XCTestCase {
         XCTAssertEqual(suite.string(forKey: CommunityContext.requestsScopeKeyPrefix + uid.uuidString), RequestsScope.all.storageValue)
     }
 
+    // MARK: - After a merge (Release 2)
+
+    private func merge(_ merged: UUID, into survivor: UUID) -> CommunityMerge {
+        CommunityMerge(
+            mergedId: merged, mergedName: "Merged", survivorId: survivor, survivorName: "Survivor",
+            mergedAt: Date(timeIntervalSince1970: 1_792_000_000)
+        )
+    }
+
+    func testRefresh_NarrowedToAMergedCommunityMovesToTheSurvivor() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        seedKeys(for: uid, tab: a, scope: a.uuidString, lastPosted: a)
+        let (ctx, stub) = makeContext(.success([CommunityFixtures.membership(b, name: "B")]))
+        stub.fetchMyCommunityMergesResult = .success([merge(a, into: b)])
+        ctx.restore(for: uid)
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(stub.fetchMyCommunityMergesCalls, 1)
+        XCTAssertEqual(ctx.requestsScope, .community(b))
+        XCTAssertEqual(ctx.communityTabId, b)
+        XCTAssertEqual(ctx.lastPostedCommunityId, b)
+        XCTAssertEqual(storedKeys(for: uid), [b.uuidString, b.uuidString, b.uuidString])
+    }
+
+    func testRefresh_ExcludingAMergedCommunityDropsIt() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB, c = CommunityFixtures.communityC
+        seedKeys(for: uid, tab: nil, scope: RequestsScope.excluding([a, c]).storageValue, lastPosted: nil)
+        let (ctx, stub) = makeContext(.success([
+            CommunityFixtures.membership(b, name: "B", isPrimary: true),
+            CommunityFixtures.membership(c, name: "C")
+        ]))
+        stub.fetchMyCommunityMergesResult = .success([merge(a, into: b)])
+        ctx.restore(for: uid)
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(ctx.requestsScope, .excluding([c]))
+        XCTAssertEqual(
+            suite.string(forKey: CommunityContext.requestsScopeKeyPrefix + uid.uuidString),
+            RequestsScope.excluding([c]).storageValue
+        )
+    }
+
+    func testRefresh_NoMissingReferenceMakesNoMergeCall() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        seedKeys(for: uid, tab: a, scope: RequestsScope.excluding([b]).storageValue, lastPosted: b)
+        let (ctx, stub) = makeContext(.success([
+            CommunityFixtures.membership(a, name: "A", isPrimary: true),
+            CommunityFixtures.membership(b, name: "B"),
+            CommunityFixtures.membership(CommunityFixtures.communityC, name: "C")
+        ]))
+        ctx.restore(for: uid)
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(stub.fetchMyCommunityMergesCalls, 0)
+        XCTAssertEqual(ctx.requestsScope, .excluding([b]))
+        XCTAssertEqual(ctx.communityTabId, a)
+    }
+
+    func testRefresh_MergeLookupFailureFallsBackToAll() async {
+        let uid = UUID()
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        seedKeys(for: uid, tab: a, scope: a.uuidString, lastPosted: nil)
+        let (ctx, stub) = makeContext(.success([CommunityFixtures.membership(b, name: "B")]))
+        stub.fetchMyCommunityMergesResult = .failure(URLError(.notConnectedToInternet))
+        ctx.restore(for: uid)
+
+        await ctx.refreshMemberships()
+
+        XCTAssertEqual(stub.fetchMyCommunityMergesCalls, 1)
+        XCTAssertEqual(ctx.requestsScope, .all)
+        XCTAssertEqual(ctx.communityTabId, b)
+        XCTAssertEqual(ctx.memberships.map(\.communityId), [b])
+        XCTAssertEqual(
+            suite.string(forKey: CommunityContext.requestsScopeKeyPrefix + uid.uuidString),
+            RequestsScope.all.storageValue
+        )
+    }
+
     func testToggleRequestsInclusion_NeverExcludesTheLastCommunity() {
         let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
         let (ctx, _) = makeContext()

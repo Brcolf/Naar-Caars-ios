@@ -44,6 +44,16 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertTrue(RequestsScope.excluding([a]).includes(nil)); XCTAssertNil(RequestsScope.excluding([a]).communityId)
     }
 
+    func testRequestsScope_AfterMerges() {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB, c = CommunityFixtures.communityC
+        let survivors = [a: b]
+        XCTAssertEqual(RequestsScope.community(a).afterMerges(survivors), .community(b))
+        XCTAssertEqual(RequestsScope.community(c).afterMerges(survivors), .community(c))
+        XCTAssertEqual(RequestsScope.excluding([a, c]).afterMerges(survivors), .excluding([c]))
+        XCTAssertEqual(RequestsScope.excluding([a]).afterMerges(survivors), .all)
+        XCTAssertEqual(RequestsScope.all.afterMerges(survivors), .all)
+    }
+
     func testMembershipWithUnknownRoleAndStatusDecodesTolerantly() throws {
         let rows = try DateDecoderFactory.makeSupabaseDecoder().decode([CommunityMembership].self, from: Data(CommunityFixtures.myMembershipsUnknownEnumsJSON.utf8))
         XCTAssertEqual(rows.count, 1)
@@ -159,6 +169,63 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertNil(withoutArea.first?.area)
         let release1Row = try decoder.decode([CommunitySettings].self, from: Data(CommunityFixtures.communitySettingsRowsJSON.utf8))
         XCTAssertNil(release1Row.first?.area)
+    }
+
+    func testPlatformCommunities_DecodesAreaReasonTestFlagAndProposals() throws {
+        let json = """
+        {
+          "success": true,
+          "communities": [
+            {"id": "AAAAAAAA-0000-4000-8000-000000000001", "name": "Fremont Porch Club", "description": null,
+             "created_by": null, "creator_name": null, "created_at": "2026-10-01T00:00:00+00:00", "is_public": false,
+             "is_default": false, "join_policy": "approve", "archived_at": "2026-10-21T00:00:00+00:00", "archived_by": null,
+             "member_count": 0, "pending_count": 0, "owner_count": 0, "open_report_count": 0,
+             "area_name": "Seattle", "area_center_lat": 47.6062, "area_center_lng": -122.3321, "area_radius_miles": 10,
+             "is_test": true, "merged_into_id": "BBBBBBBB-0000-4000-8000-000000000002", "merged_into_name": "Harbor Riders",
+             "listing_event": "listed", "listing_reason": "Parents of one school", "listing_overlaps": ["Test Community"],
+             "listing_event_at": "2026-10-20T08:00:00.250000+00:00"}
+          ],
+          "limit_requests": [],
+          "merge_proposals": [
+            {"id": "6C000000-0000-4000-8000-000000000001", "from_id": "AAAAAAAA-0000-4000-8000-000000000001",
+             "from_name": "Fremont Porch Club", "to_id": "BBBBBBBB-0000-4000-8000-000000000002", "to_name": "Harbor Riders",
+             "survivor_id": "BBBBBBBB-0000-4000-8000-000000000002", "survivor_name": "Harbor Riders", "status": "accepted",
+             "note": null, "created_at": "2026-10-20T09:00:00+00:00", "expires_at": "2026-10-27T09:00:00+00:00",
+             "decided_at": "2026-10-21T00:00:00+00:00"}
+          ]
+        }
+        """
+        let result = try CommunityRPC.decode(PlatformCommunities.self, from: Data(json.utf8))
+        let row = try XCTUnwrap(result.communities.first)
+        XCTAssertEqual(row.area, CommunityFixtures.seattleArea)
+        XCTAssertTrue(row.isTest)
+        XCTAssertEqual(row.mergedIntoName, "Harbor Riders")
+        XCTAssertEqual(row.listingReason, "Parents of one school")
+        XCTAssertEqual(row.listingOverlaps, ["Test Community"])
+        XCTAssertNotNil(row.listingEventAt)
+        XCTAssertEqual(result.mergeProposals.map(\.status), ["accepted"])
+        let proposal = try XCTUnwrap(result.mergeProposals.first)
+        XCTAssertEqual(proposal.id, CommunityFixtures.mergeProposalId)
+        XCTAssertEqual(proposal.fromName, "Fremont Porch Club")
+        XCTAssertEqual(proposal.toName, "Harbor Riders")
+        XCTAssertEqual(proposal.survivorName, "Harbor Riders")
+        XCTAssertNil(proposal.note)
+        XCTAssertNotNil(proposal.decidedAt)
+    }
+
+    func testPlatformCommunities_Release1PayloadStillDecodes() throws {
+        let result = try CommunityRPC.decode(PlatformCommunities.self, from: Data(CommunityFixtures.platformCommunitiesJSON.utf8))
+        XCTAssertEqual(result.communities.count, 2)
+        for row in result.communities {
+            XCTAssertNil(row.area)
+            XCTAssertFalse(row.isTest)
+            XCTAssertNil(row.mergedIntoName)
+            XCTAssertNil(row.listingReason)
+            XCTAssertEqual(row.listingOverlaps, [])
+            XCTAssertNil(row.listingEventAt)
+        }
+        XCTAssertEqual(result.limitRequests.count, 1)
+        XCTAssertEqual(result.mergeProposals, [])
     }
 
     func testGeoPoint_RoundsToDecimals() {

@@ -480,6 +480,53 @@ final class DeepLinkParserTests: XCTestCase {
         )
     }
 
+    /// The "Communities merged" announcement (`community_merged_announcement.apns`, 20261021_0022) opens
+    /// Announcements at its notification, and the push refreshes the memberships and the dashboard as
+    /// well as Town Hall: the merged community is gone and its requests moved to the survivor.
+    func testCommunityMergedAnnouncement_OpensAnnouncementsAndRefreshesMemberships() {
+        let notificationId = UUID()
+        let payload: [AnyHashable: Any] = [
+            "type": "announcement",
+            "notification_id": notificationId.uuidString,
+            "community_id": UUID().uuidString,
+            "town_hall_post_id": UUID().uuidString,
+            "community_event": "merged"
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: payload)
+        guard case .announcements(let routedId) = deepLink else {
+            return XCTFail("Expected .announcements deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, notificationId)
+
+        XCTAssertEqual(
+            PushRefreshPlan.make(userInfo: payload),
+            PushRefreshPlan(domains: [.townHall, .dashboard], entityId: nil, refreshesMemberships: true)
+        )
+    }
+
+    /// A merge proposal (`merge_proposal_announcement.apns`) is an announcement to the other owner: it opens
+    /// Announcements and changes no membership.
+    func testMergeProposalPush_OpensAnnouncements() {
+        let notificationId = UUID()
+        let payload: [AnyHashable: Any] = [
+            "type": "announcement",
+            "notification_id": notificationId.uuidString,
+            "community_id": UUID().uuidString
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: payload)
+        guard case .announcements(let routedId) = deepLink else {
+            return XCTFail("Expected .announcements deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, notificationId)
+
+        XCTAssertEqual(
+            PushRefreshPlan.make(userInfo: payload),
+            PushRefreshPlan(domains: [.townHall], entityId: nil, refreshesMemberships: false)
+        )
+    }
+
     // MARK: - Universal Link: https://naarscars.com/join#<code> (multi-community Phase 4)
 
     private func parsedCode(_ string: String) -> String? {

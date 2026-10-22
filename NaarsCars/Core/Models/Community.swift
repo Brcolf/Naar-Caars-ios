@@ -106,6 +106,22 @@ enum RequestsScope: Equatable, Hashable, Sendable {
         }
     }
 
+    /// The scope after merges: `survivors` maps a merged community to the community it is now part
+    /// of. A narrow to a merged community moves to its survivor; a merged community left out of an
+    /// `.excluding` list is dropped (its rows now belong to the survivor, which was not left out), and
+    /// a list left with nothing is `.all`.
+    func afterMerges(_ survivors: [UUID: UUID]) -> RequestsScope {
+        switch self {
+        case .all:
+            return .all
+        case .community(let id):
+            return .community(survivors[id] ?? id)
+        case .excluding(let ids):
+            let kept = ids.filter { survivors[$0] == nil }
+            return kept.isEmpty ? .all : .excluding(kept)
+        }
+    }
+
     var storageValue: String {
         switch self {
         case .all: return "all"

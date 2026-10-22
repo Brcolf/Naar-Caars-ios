@@ -30,6 +30,8 @@ final class CommunityContext {
     // MARK: - Dependencies
 
     private let service: any CommunityServiceProtocol
+    /// Reads the merges that touched the member's memberships; nil makes no merge lookup.
+    private let mergeService: (any CommunityMergeServiceProtocol)?
     private let defaults: UserDefaults
     private let now: () -> Date
     private let platformAdminProvider: @MainActor () -> Bool
@@ -114,13 +116,17 @@ final class CommunityContext {
 
     // MARK: - Init
 
+    /// - Parameter mergeService: Defaults to `service` when it also answers the merge calls
+    ///   (`CommunityService` does); otherwise no merge lookup is made.
     init(
         service: any CommunityServiceProtocol = CommunityService.shared,
+        mergeService: (any CommunityMergeServiceProtocol)? = nil,
         defaults: UserDefaults = .standard,
         now: @escaping () -> Date = Date.init,
         platformAdminProvider: @escaping @MainActor () -> Bool = { AuthService.shared.currentProfile?.isAdmin == true }
     ) {
         self.service = service
+        self.mergeService = mergeService ?? (service as? any CommunityMergeServiceProtocol)
         self.defaults = defaults
         self.now = now
         self.platformAdminProvider = platformAdminProvider
@@ -258,6 +264,10 @@ final class CommunityContext {
 
     /// Loads `get_my_memberships`. Never throws; a no-op before `restore(for:)`. On failure it
     /// keeps what it had. A result that returns after sign-out (or for another user) is dropped.
+    /// When the Requests filter, the Town Hall community or the last community posted to names a
+    /// community that is no longer an active membership, one `get_my_community_merges` moves each
+    /// merged one to its survivor (when the survivor is active) before the load is applied; a failed
+    /// lookup moves nothing, and the load then normalises as usual (a narrow falls back to All).
     func refreshMemberships() async {
         guard let requestedFor = restoredUserId else { return }
         lastRefreshAttempt = now()
@@ -273,10 +283,17 @@ final class CommunityContext {
         guard restoredUserId == requestedFor else { return }
 
         #if DEBUG
-        apply(Self.appendingDebugMemberships(to: rows))
+        let loaded = Self.appendingDebugMemberships(to: rows)
         #else
-        apply(rows)
+        let loaded = rows
         #endif
+
+        let activeIds = Set(loaded.filter { $0.status == .active }.map(\.communityId))
+        if let survivors = await survivorsOfMergedReferences(activeIds: activeIds) {
+            guard restoredUserId == requestedFor else { return }
+            moveReferences(to: survivors)
+        }
+        apply(loaded)
 
         if activeMemberships.isEmpty {
             await onActiveMembershipsEmpty?()
@@ -346,6 +363,52 @@ final class CommunityContext {
     }
 
     // MARK: - Private
+
+    /// The communities the three stored references name that are not in `activeIds`.
+    private func missingReferences(activeIds: Set<UUID>) -> Set<UUID> {
+        var ids: Set<UUID> = []
+        switch requestsScope {
+        case .all: break
+        case .community(let id): ids.insert(id)
+        case .excluding(let excluded): ids.formUnion(excluded)
+        }
+        if let communityTabId { ids.insert(communityTabId) }
+        if let lastPostedCommunityId { ids.insert(lastPostedCommunityId) }
+        return ids.subtracting(activeIds)
+    }
+
+    /// Merged community → survivor, for the missing references whose survivor is active. nil when
+    /// nothing is missing, when there is no merge service, or when the lookup fails (no call is
+    /// made in the first two cases).
+    private func survivorsOfMergedReferences(activeIds: Set<UUID>) async -> [UUID: UUID]? {
+        let missing = missingReferences(activeIds: activeIds)
+        guard !missing.isEmpty, let mergeService else { return nil }
+        let merges: [CommunityMerge]
+        do {
+            merges = try await mergeService.fetchMyCommunityMerges()
+        } catch {
+            AppLogger.warning("community", "Merge lookup failed; stored filters fall back as usual: \(error.localizedDescription)")
+            return nil
+        }
+        var survivors: [UUID: UUID] = [:]
+        for merge in merges where missing.contains(merge.mergedId) && activeIds.contains(merge.survivorId) {
+            survivors[merge.mergedId] = merge.survivorId
+        }
+        return survivors
+    }
+
+    /// Moves the Requests filter, the Town Hall community and the last community posted to from a
+    /// merged community to its survivor. The assignments persist; `apply` then normalises.
+    private func moveReferences(to survivors: [UUID: UUID]) {
+        guard !survivors.isEmpty else { return }
+        requestsScope = requestsScope.afterMerges(survivors)
+        if let tab = communityTabId, let survivor = survivors[tab] {
+            communityTabId = survivor
+        }
+        if let lastPosted = lastPostedCommunityId, let survivor = survivors[lastPosted] {
+            lastPostedCommunityId = survivor
+        }
+    }
 
     /// Applies a successful load (spec §3.7 "Membership load").
     private func apply(_ rows: [CommunityMembership]) {

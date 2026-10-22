@@ -596,12 +596,24 @@ extension CommunityMember {
 struct PlatformCommunities: Equatable, Sendable {
     let communities: [PlatformCommunity]
     let limitRequests: [PlatformLimitRequest]
+    /// Merge proposals still pending, or decided or expired within 30 days, newest first.
+    /// Empty when the key is absent (a server before Release 2).
+    var mergeProposals: [PlatformMergeProposal] = []
 }
 
 extension PlatformCommunities: Decodable {
     enum CodingKeys: String, CodingKey {
         case communities
         case limitRequests = "limit_requests"
+        case mergeProposals = "merge_proposals"
+    }
+
+    /// `merge_proposals` may be absent; the memberwise initializer stays.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        communities = try c.decode([PlatformCommunity].self, forKey: .communities)
+        limitRequests = try c.decode([PlatformLimitRequest].self, forKey: .limitRequests)
+        mergeProposals = try c.decodeIfPresent([PlatformMergeProposal].self, forKey: .mergeProposals) ?? []
     }
 }
 
@@ -621,6 +633,19 @@ struct PlatformCommunity: Identifiable, Equatable, Sendable {
     let pendingCount: Int
     let ownerCount: Int
     let openReportCount: Int
+    // Release 2 (20261021_0021, 20261021_0022). Absent keys read as nil, false and [].
+    /// The service area; nil for a hidden community.
+    var area: ServiceArea? = nil
+    /// A community kept for testing (listed only to its members and platform admins).
+    var isTest: Bool = false
+    /// The community this one was merged into.
+    var mergedIntoName: String? = nil
+    /// The reason given at the latest listing event (creation listed, a listing or an area change).
+    var listingReason: String? = nil
+    /// Names of the listed communities whose areas overlapped at that event.
+    var listingOverlaps: [String] = []
+    /// When the latest listing event happened.
+    var listingEventAt: Date? = nil
 }
 
 extension PlatformCommunity: Decodable {
@@ -638,6 +663,66 @@ extension PlatformCommunity: Decodable {
         case pendingCount = "pending_count"
         case ownerCount = "owner_count"
         case openReportCount = "open_report_count"
+        case isTest = "is_test"
+        case mergedIntoName = "merged_into_name"
+        case listingReason = "listing_reason"
+        case listingOverlaps = "listing_overlaps"
+        case listingEventAt = "listing_event_at"
+    }
+
+    /// The Release 2 keys may be absent (a server before Release 2), and `listing_overlaps` is null
+    /// for a community with no listing event; the memberwise initializer stays.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        createdBy = try c.decodeIfPresent(UUID.self, forKey: .createdBy)
+        creatorName = try c.decodeIfPresent(String.self, forKey: .creatorName)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        isPublic = try c.decode(Bool.self, forKey: .isPublic)
+        isDefault = try c.decode(Bool.self, forKey: .isDefault)
+        joinPolicy = try c.decode(String.self, forKey: .joinPolicy)
+        archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
+        archivedBy = try c.decodeIfPresent(UUID.self, forKey: .archivedBy)
+        memberCount = try c.decode(Int.self, forKey: .memberCount)
+        pendingCount = try c.decode(Int.self, forKey: .pendingCount)
+        ownerCount = try c.decode(Int.self, forKey: .ownerCount)
+        openReportCount = try c.decode(Int.self, forKey: .openReportCount)
+        area = try ServiceArea.decodeColumns(from: decoder)
+        isTest = try c.decodeIfPresent(Bool.self, forKey: .isTest) ?? false
+        mergedIntoName = try c.decodeIfPresent(String.self, forKey: .mergedIntoName)
+        listingReason = try c.decodeIfPresent(String.self, forKey: .listingReason)
+        listingOverlaps = try c.decodeIfPresent([String].self, forKey: .listingOverlaps) ?? []
+        listingEventAt = try c.decodeIfPresent(Date.self, forKey: .listingEventAt)
+    }
+}
+
+/// One row of `get_platform_communities`' `merge_proposals`: a proposal as a platform admin sees it.
+/// `status` is the server's text (`pending`, `accepted`, `declined`, `withdrawn`, `expired`; a pending
+/// proposal past its expiry reads `expired`), kept as text so an unknown status still decodes.
+struct PlatformMergeProposal: Identifiable, Equatable, Sendable, Decodable {
+    let id: UUID
+    let fromName: String
+    let toName: String
+    let survivorName: String
+    let status: String
+    let note: String?
+    let createdAt: Date
+    let expiresAt: Date
+    let decidedAt: Date?
+
+    /// The community that is folded into the survivor (the name of whichever side does not survive).
+    var mergedName: String { survivorName == toName ? fromName : toName }
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, note
+        case fromName = "from_name"
+        case toName = "to_name"
+        case survivorName = "survivor_name"
+        case createdAt = "created_at"
+        case expiresAt = "expires_at"
+        case decidedAt = "decided_at"
     }
 }
 

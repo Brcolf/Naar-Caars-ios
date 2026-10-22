@@ -52,6 +52,8 @@ struct CommunityPageView: View {
     @State private var showGuidelines = false
     /// Members, opened to choose a new owner after a `last_owner` refusal.
     @State private var membersTarget: CommunityMembersTarget?
+    /// The community this one was merged into, opened from the merged page.
+    @State private var survivorPageId: UUID?
 
     @MainActor init(communityId: UUID) {
         _viewModel = StateObject(wrappedValue: CommunityPageViewModel(communityId: communityId))
@@ -114,6 +116,11 @@ struct CommunityPageView: View {
                 CommunityMembersView(target: target)
                     .id(target.communityId)
             }
+            .navigationDestination(item: $survivorPageId) { communityId in
+                // Another community in place needs a fresh view model (the Members identity rule).
+                CommunityPageView(communityId: communityId)
+                    .id(communityId)
+            }
             .toast(message: $communitiesViewModel.toastMessage)
             .errorBanner(message: $communitiesViewModel.errorMessage)
             .errorBanner(message: $viewModel.bannerMessage)
@@ -166,6 +173,8 @@ struct CommunityPageView: View {
             }
         case .visitor(let preview):
             visitorContent(preview)
+        case .merged(let survivorId, let survivorName):
+            mergedContent(survivorId: survivorId, survivorName: survivorName)
         case .unavailable:
             EmptyStateView(
                 icon: "building.2",
@@ -180,6 +189,34 @@ struct CommunityPageView: View {
             )
             .accessibilityIdentifier("communityPage.retry")
         }
+    }
+
+    /// The community was merged: one sentence and the way to the community it is now part of.
+    private func mergedContent(survivorId: UUID, survivorName: String) -> some View {
+        ScrollView {
+            VStack(spacing: Constants.Spacing.lg) {
+                Image(systemName: "arrow.triangle.merge")
+                    .font(.naarsLargeTitle)
+                    .foregroundColor(.naarsTextSecondary)
+                    .accessibilityHidden(true)
+                Text(viewModel.mergedMessage ?? "")
+                    .font(.naarsTitle3)
+                    .foregroundColor(.naarsTextPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                PrimaryButton(
+                    title: String(format: "community_page_open_survivor".localized, survivorName),
+                    action: { survivorPageId = survivorId }
+                )
+                .accessibilityLabel(String(format: "community_page_open_survivor".localized, survivorName))
+                .accessibilityIdentifier("communityPage.openSurvivor")
+            }
+            .padding(.horizontal, Constants.Spacing.md)
+            .padding(.vertical, Constants.Spacing.xl)
+            .frame(maxWidth: .infinity)
+        }
+        .refreshable { await refreshPage() }
     }
 
     private func scrollContent<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -975,26 +1012,77 @@ private enum CommunityPagePreviewData {
         )
     }
 
+    /// `PreviewCommunityService` with the community preview refused (the merged page).
+    final class RefusingPreview: CommunityServiceProtocol {
+        let base: PreviewCommunityService
+        let refusal: CommunityRPCError
+
+        init(base: PreviewCommunityService, refusal: CommunityRPCError) {
+            self.base = base
+            self.refusal = refusal
+        }
+
+        func fetchCommunityPreview(communityId: UUID) async throws -> CommunityPreview { throw refusal }
+
+        func fetchMyMemberships() async throws -> [CommunityMembership] { try await base.fetchMyMemberships() }
+        func createCommunity(_ draft: NewCommunityDraft) async throws -> CreatedCommunity { try await base.createCommunity(draft) }
+        func fetchMyCommunityLimits() async throws -> CommunityLimits { try await base.fetchMyCommunityLimits() }
+        func requestOwnedCommunityLimit(requested: Int, reason: String) async throws -> LimitRequestReceipt {
+            try await base.requestOwnedCommunityLimit(requested: requested, reason: reason)
+        }
+        func createInvite(communityId: UUID, maxUses: Int?, expiresAt: Date?) async throws -> CommunityInvite {
+            try await base.createInvite(communityId: communityId, maxUses: maxUses, expiresAt: expiresAt)
+        }
+        func fetchLiveInvites(communityId: UUID, createdBy: UUID) async throws -> [CommunityInviteRow] {
+            try await base.fetchLiveInvites(communityId: communityId, createdBy: createdBy)
+        }
+        func revokeInvite(inviteId: UUID) async throws { try await base.revokeInvite(inviteId: inviteId) }
+        func validateInvite(code: String) async throws -> InvitePreview { try await base.validateInvite(code: code) }
+        func redeemInvite(code: String, heardAbout: String?, joinReason: String?) async throws -> JoinResult {
+            try await base.redeemInvite(code: code, heardAbout: heardAbout, joinReason: joinReason)
+        }
+        func fetchPublicCommunities() async throws -> [PublicCommunity] { try await base.fetchPublicCommunities() }
+        func requestToJoin(communityId: UUID, heardAbout: String?, joinReason: String?) async throws -> JoinResult {
+            try await base.requestToJoin(communityId: communityId, heardAbout: heardAbout, joinReason: joinReason)
+        }
+        func leaveCommunity(communityId: UUID) async throws -> LeaveResult { try await base.leaveCommunity(communityId: communityId) }
+        func setCommunityMuted(communityId: UUID, muted: Bool) async throws {
+            try await base.setCommunityMuted(communityId: communityId, muted: muted)
+        }
+        func reportCommunity(communityId: UUID?, code: String?, type: MessageService.ReportType, description: String?) async throws -> CommunityReportResult {
+            try await base.reportCommunity(communityId: communityId, code: code, type: type, description: description)
+        }
+        func searchCommunities(name: String) async throws -> [CommunitySearchResult] { try await base.searchCommunities(name: name) }
+        func findCommunitiesNear(_ point: GeoPoint) async throws -> [CommunitySearchResult] { try await base.findCommunitiesNear(point) }
+        func checkCommunityArea(_ area: ServiceArea, excluding communityId: UUID?) async throws -> [CommunitySearchResult] {
+            try await base.checkCommunityArea(area, excluding: communityId)
+        }
+        func fetchServiceArea(communityId: UUID) async throws -> ServiceArea? { try await base.fetchServiceArea(communityId: communityId) }
+    }
+
     /// A page for `communityId` whose memberships are `rows` (empty: the person is not a member).
     /// `isTownHallCommunity`: the community is the Town Hall tab's, so member mode shows its posts.
+    /// `previewRefusal`: the visitor's preview is refused with it (the merged page).
     @MainActor
     static func page(
         communityId: UUID,
         memberships rows: [CommunityMembership],
         preview: CommunityPreview?,
         isGuest: Bool = false,
-        isTownHallCommunity: Bool = true
+        isTownHallCommunity: Bool = true,
+        previewRefusal: CommunityRPCError? = nil
     ) -> some View {
         let service = PreviewCommunityService()
         service.memberships = rows
         service.preview = preview
+        let pageService: any CommunityServiceProtocol = previewRefusal.map { RefusingPreview(base: service, refusal: $0) } ?? service
         let context = CommunityContext(service: service, defaults: UserDefaults(suiteName: "preview")!)
         context.debugSetMemberships(rows)
         context.communityTabId = isTownHallCommunity ? communityId : nil
         return NavigationStack {
             CommunityPageView(
                 viewModel: CommunityPageViewModel(
-                    communityId: communityId, service: service, communityContext: context, isGuest: { isGuest }
+                    communityId: communityId, service: pageService, communityContext: context, isGuest: { isGuest }
                 ),
                 communitiesViewModel: MyCommunitiesViewModel(service: service, communityContext: context, refreshDashboard: { _ in }),
                 leaderboardViewModel: leaderboardViewModel(communityId: communityId)
@@ -1061,5 +1149,20 @@ private enum CommunityPagePreviewData {
 
 #Preview("No longer available") {
     CommunityPagePreviewData.page(communityId: UUID(), memberships: [], preview: nil)
+}
+
+#Preview("Merged into another community") {
+    // A row the person left still names the community, so the page reads the full sentence.
+    let id = UUID()
+    let left = CommunityMembership(
+        communityId: id, name: "Fremont Porch Club", description: nil, role: .member, status: .left, isPrimary: false,
+        joinPolicy: "approve", isPublic: true, isDefault: false, membersCanInvite: true, timezone: "America/Los_Angeles",
+        canInvite: false, memberCount: 0, pendingCount: nil, notificationsMuted: false, mutedUntil: nil,
+        joinedAt: Date(timeIntervalSince1970: 1_790_000_000), activatedAt: nil
+    )
+    return CommunityPagePreviewData.page(
+        communityId: id, memberships: [left], preview: nil,
+        previewRefusal: CommunityRPCError(code: .merged, mergedIntoId: UUID(), mergedIntoName: "Harbor Riders")
+    )
 }
 #endif

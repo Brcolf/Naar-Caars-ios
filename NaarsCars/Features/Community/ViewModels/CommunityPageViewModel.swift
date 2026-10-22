@@ -18,6 +18,9 @@ enum CommunityPageMode: Equatable {
     case pending(CommunityMembership)
     /// Anyone else (a signed-in non-member or a guest): the listed community's preview.
     case visitor(CommunityPreview)
+    /// The community was merged into another one the person may see (`get_community_preview`'s
+    /// `merged` refusal): the page points to the survivor.
+    case merged(survivorId: UUID, survivorName: String)
     /// The community is not listed (or no longer exists) and the person is not a member.
     case unavailable
     /// The preview could not be read.
@@ -61,6 +64,9 @@ final class CommunityPageViewModel: ObservableObject {
     private var lastPreviewRead: Date?
     /// A member's area was read (with or without an area); the page does not read it again.
     private var memberAreaRead = false
+    /// The community's own name as this page last knew it (a member row, a preview, the listed
+    /// communities), kept for the merged sentence: the `merged` refusal names only the survivor.
+    private var knownName: String?
 
     /// - Parameter isGuest: Defaults to "the injected `authService` has no signed-in user".
     /// - Parameter selectTab: Defaults to setting `NavigationCoordinator.shared.selectedTab`.
@@ -123,15 +129,24 @@ final class CommunityPageViewModel: ObservableObject {
         switch mode {
         case .member(let row), .pending(let row): return row.name
         case .visitor(let preview): return preview.community.name
+        case .merged: return knownName
         case .loading, .unavailable, .failed: return nil
         }
+    }
+
+    /// "<this> is now part of <survivor>." in merged mode; the plain "now part of another community"
+    /// sentence when the page never knew this community's name (the button still names the survivor).
+    var mergedMessage: String? {
+        guard case .merged(_, let survivorName) = mode else { return nil }
+        guard let knownName else { return "community_error_merged".localized }
+        return String(format: "community_page_merged".localized, knownName, survivorName)
     }
 
     var memberCount: Int? {
         switch mode {
         case .member(let row), .pending(let row): return row.memberCount
         case .visitor(let preview): return preview.community.memberCount
-        case .loading, .unavailable, .failed: return nil
+        case .loading, .merged, .unavailable, .failed: return nil
         }
     }
 
@@ -145,7 +160,7 @@ final class CommunityPageViewModel: ObservableObject {
         switch mode {
         case .member(let row), .pending(let row): return row.isPublic
         case .visitor(let preview): return preview.community.isPublic
-        case .loading, .unavailable, .failed: return false
+        case .loading, .merged, .unavailable, .failed: return false
         }
     }
 
@@ -153,7 +168,7 @@ final class CommunityPageViewModel: ObservableObject {
         switch mode {
         case .member(let row), .pending(let row): return CommunityJoinPolicy(rawValue: row.joinPolicy)
         case .visitor(let preview): return CommunityJoinPolicy(rawValue: preview.community.joinPolicy)
-        case .loading, .unavailable, .failed: return nil
+        case .loading, .merged, .unavailable, .failed: return nil
         }
     }
 
@@ -173,7 +188,7 @@ final class CommunityPageViewModel: ObservableObject {
                 joinPolicy: community.joinPolicy,
                 isDefault: community.isDefault
             ))
-        case .loading, .member, .unavailable, .failed:
+        case .loading, .member, .merged, .unavailable, .failed:
             return nil
         }
     }
@@ -231,6 +246,7 @@ final class CommunityPageViewModel: ObservableObject {
     func load() async {
         loadGeneration += 1
         let generation = loadGeneration
+        rememberName()
 
         if let row = communityContext.membership(for: communityId) {
             switch row.status {
@@ -268,6 +284,15 @@ final class CommunityPageViewModel: ObservableObject {
             guard generation == loadGeneration else { return }
             mode = .unavailable
             bannerMessage = nil
+        } catch let refusal as CommunityRPCError where refusal.code == .merged {
+            guard generation == loadGeneration else { return }
+            // A survivor the caller may not see is not named: the page is then simply unavailable.
+            if let survivorId = refusal.mergedIntoId, let survivorName = refusal.mergedIntoName {
+                mode = .merged(survivorId: survivorId, survivorName: survivorName)
+            } else {
+                mode = .unavailable
+            }
+            bannerMessage = nil
         } catch {
             guard generation == loadGeneration else { return }
             AppLogger.warning("community", "Community preview load failed: \(error.localizedDescription)")
@@ -276,6 +301,15 @@ final class CommunityPageViewModel: ObservableObject {
             } else {
                 mode = .failed
             }
+        }
+    }
+
+    /// Keeps the name the page shows now, else the person's row or the listed community's, for a
+    /// later merged answer (which carries only the survivor's name).
+    private func rememberName() {
+        let listedName = communityContext.listedCommunities.first { $0.id == communityId }?.name
+        if let name = communityName ?? communityContext.name(for: communityId) ?? listedName {
+            knownName = name
         }
     }
 

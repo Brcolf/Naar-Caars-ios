@@ -16,6 +16,8 @@ enum CommunityAdminAction: Equatable {
 final class CommunitiesAdminViewModel: ObservableObject {
     @Published private(set) var communities: [PlatformCommunity] = []
     @Published private(set) var limitRequests: [PlatformLimitRequest] = []
+    /// Merge proposals still pending, or decided or expired within 30 days, newest first.
+    @Published private(set) var mergeProposals: [PlatformMergeProposal] = []
     @Published private(set) var isLoading = false
     /// True once one load has succeeded; until then an empty list shows the skeleton.
     @Published private(set) var hasLoaded = false
@@ -36,7 +38,7 @@ final class CommunitiesAdminViewModel: ObservableObject {
     /// The actions a row offers. The default community is never offered Archive or Make private:
     /// the server refuses both (it stays public and is never archived while a member remains).
     /// Every community that is not archived opens its Admin panel (first in the menu), including
-    /// one the platform admin does not belong to.
+    /// one the platform admin does not belong to. A community merged into another is never offered Restore.
     static func actions(for community: PlatformCommunity) -> [CommunityAdminAction] {
         let isArchived = community.archivedAt != nil
         var actions: [CommunityAdminAction] = []
@@ -54,11 +56,25 @@ final class CommunitiesAdminViewModel: ObservableObject {
             }
         }
         if isArchived {
-            actions.append(.restore)
+            // A merged community stays archived: `unarchive_community` refuses it (20261021_0022).
+            if community.mergedIntoName == nil { actions.append(.restore) }
         } else if !community.isDefault {
             actions.append(.archive)
         }
         return actions
+    }
+
+    /// The status of a merge proposal as the list shows it; a status this build does not know is
+    /// shown as the server wrote it.
+    static func mergeStatusText(_ status: String) -> String {
+        switch status {
+        case "pending": return "admin_communities_merge_status_pending".localized
+        case "accepted": return "admin_communities_merge_status_accepted".localized
+        case "declined": return "admin_communities_merge_status_declined".localized
+        case "withdrawn": return "admin_communities_merge_status_withdrawn".localized
+        case "expired": return "admin_communities_merge_status_expired".localized
+        default: return status
+        }
     }
 
     // MARK: - Load
@@ -78,6 +94,7 @@ final class CommunitiesAdminViewModel: ObservableObject {
             let result = try await adminService.fetchPlatformCommunities()
             communities = result.communities
             limitRequests = result.limitRequests
+            mergeProposals = result.mergeProposals
             loadError = nil
             hasLoaded = true
         } catch let refusal as CommunityRPCError {
@@ -202,7 +219,8 @@ private extension PlatformCommunity {
             createdAt: createdAt, isPublic: isPublic, isDefault: isDefault, joinPolicy: joinPolicy,
             archivedAt: archivedAt, archivedBy: archivedAt == nil ? nil : archivedBy,
             memberCount: memberCount, pendingCount: pendingCount, ownerCount: ownerCount,
-            openReportCount: openReportCount
+            openReportCount: openReportCount, area: area, isTest: isTest, mergedIntoName: mergedIntoName,
+            listingReason: listingReason, listingOverlaps: listingOverlaps, listingEventAt: listingEventAt
         )
     }
 }

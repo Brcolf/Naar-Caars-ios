@@ -1,0 +1,12 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Merge proposal from <COMMUNITY_NAME>",
+      "body": "Fixture: a merge proposal to the other community's owner"
+    },
+    "sound": "default"
+  },
+  "type": "announcement",
+  "notification_id": "<NOTIFICATION_ID>",
+  "community_id": "<COMMUNITY_ID>"
+}

@@ -238,6 +238,38 @@ final class CommunityPageViewModelTests: XCTestCase {
         XCTAssertNil(vm.visitorAction)
     }
 
+    func testVisitor_MergedRefusalShowsTheSurvivor() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityC
+        let merged = CommunityRPCError(code: .merged, mergedIntoId: CommunityFixtures.harborRiders, mergedIntoName: "Harbor Riders")
+        stub.fetchCommunityPreviewResult = .failure(merged)
+        let vm = makeViewModel(id, stub: stub, context: context)
+
+        await vm.load()
+
+        XCTAssertEqual(vm.mode, .merged(survivorId: CommunityFixtures.harborRiders, survivorName: "Harbor Riders"))
+        XCTAssertNil(vm.visitorAction)
+        XCTAssertNil(vm.bannerMessage)
+        // Opened with no name known for this community: the plain sentence; the button names the survivor.
+        XCTAssertEqual(vm.mergedMessage, "community_error_merged".localized)
+
+        // A page that showed the community before names it.
+        let named = makeViewModel(id, stub: stub, context: context)
+        stub.fetchCommunityPreviewResult = .success(CommunityFixtures.preview(id, name: "Fremont Porch Club"))
+        await named.load()
+        stub.fetchCommunityPreviewResult = .failure(merged)
+        await named.refresh()
+        XCTAssertEqual(named.mode, .merged(survivorId: CommunityFixtures.harborRiders, survivorName: "Harbor Riders"))
+        XCTAssertEqual(named.mergedMessage, String(format: "community_page_merged".localized, "Fremont Porch Club", "Harbor Riders"))
+        XCTAssertNil(named.bannerMessage)
+
+        // A merged refusal that does not name a survivor the caller may see reads as unavailable.
+        stub.fetchCommunityPreviewResult = .failure(CommunityRPCError(code: .merged))
+        await vm.load()
+        XCTAssertEqual(vm.mode, .unavailable)
+        XCTAssertNil(vm.mergedMessage)
+    }
+
     func testVisitor_NetworkFailureShowsFailedAndRetryLoads() async {
         let (context, stub) = await makeContext()
         let id = CommunityFixtures.communityC

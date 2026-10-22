@@ -881,6 +881,11 @@ struct PushRefreshPlan: Equatable {
     /// Push types that can change the person's community memberships (spec §3.7 "Later refreshes").
     static let membershipRefreshTypes: Set<NotificationType> = [.userApproved, .userRejected, .accountRestricted, .pendingApproval, .membershipUpdate]
 
+    /// The `community_event` of the "Communities merged" announcement (20261021_0022). A merge archives
+    /// one community and moves its members and requests to the survivor, so the push also refreshes the
+    /// memberships and the dashboard.
+    static let mergedCommunityEvent = "merged"
+
     /// Returns nil when `type` is missing or not a known notification type.
     static func make(userInfo: [AnyHashable: Any]) -> PushRefreshPlan? {
         guard let typeString = userInfo["type"] as? String,
@@ -890,10 +895,11 @@ struct PushRefreshPlan: Equatable {
                   let idString = userInfo[key] as? String else { return nil }
             return UUID(uuidString: idString)
         }()
+        let isMerge = userInfo["community_event"] as? String == mergedCommunityEvent
         return PushRefreshPlan(
-            domains: type.affectedDomains,
+            domains: isMerge ? type.affectedDomains.union([.dashboard]) : type.affectedDomains,
             entityId: entityId,
-            refreshesMemberships: membershipRefreshTypes.contains(type)
+            refreshesMemberships: isMerge || membershipRefreshTypes.contains(type)
         )
     }
 }
