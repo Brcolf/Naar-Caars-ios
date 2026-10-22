@@ -624,6 +624,55 @@ final class CommunityPageViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isBlocked(otherPoster))
     }
 
+    // MARK: - Service area
+
+    func testVisitor_AreaComesFromThePreview() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityC
+        let preview = CommunityPreview(
+            community: .init(
+                id: id, name: "Test Public A", description: nil, joinPolicy: "approve", isPublic: true,
+                isDefault: false, memberCount: 1, timezone: "America/Los_Angeles", area: CommunityFixtures.seattleArea
+            ),
+            requests: [],
+            posts: []
+        )
+        stub.fetchCommunityPreviewResult = .success(preview)
+        let vm = makeViewModel(id, stub: stub, context: context)
+
+        await vm.load()
+
+        XCTAssertEqual(vm.area, CommunityFixtures.seattleArea)
+        XCTAssertTrue(stub.fetchServiceAreaCalls.isEmpty)
+    }
+
+    func testMember_AreaIsReadOnce() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityA
+        stub.fetchServiceAreaResult = .success(CommunityFixtures.seattleArea)
+        let vm = makeViewModel(id, stub: stub, context: context)
+
+        await vm.loadIfStale()
+        await vm.loadIfStale()
+        await vm.refresh()
+
+        XCTAssertEqual(vm.area, CommunityFixtures.seattleArea)
+        XCTAssertEqual(stub.fetchServiceAreaCalls, [id])
+    }
+
+    func testMember_AreaReadFailureLeavesNoAreaAndNoBanner() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityA
+        stub.fetchServiceAreaResult = .failure(URLError(.notConnectedToInternet))
+        let vm = makeViewModel(id, stub: stub, context: context)
+
+        await vm.load()
+
+        XCTAssertNil(vm.area)
+        XCTAssertNil(vm.bannerMessage)
+        XCTAssertEqual(vm.mode, .member(context.membership(for: id)!))
+    }
+
     // MARK: - Town Hall tab's About page
 
     /// The Town Hall tab's "About this community" page closes when the tab switches to another

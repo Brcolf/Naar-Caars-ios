@@ -43,6 +43,9 @@ final class CommunityPageViewModel: ObservableObject {
     /// The authors member mode leaves out of the local requests and posts. Read in `start()` and
     /// again on `.blockedUsersDidChange` (a block or unblock made anywhere).
     @Published private(set) var blockedAuthorIds: Set<UUID> = []
+    /// The community's service area, shown under the rule sentence. A visitor's comes with the
+    /// preview; a member's is read once per page (`fetchServiceArea`), and a failed read leaves it nil.
+    @Published private(set) var area: ServiceArea?
 
     private let service: any CommunityServiceProtocol
     private let communityContext: CommunityContext
@@ -56,6 +59,8 @@ final class CommunityPageViewModel: ObservableObject {
     private var loadGeneration = 0
     /// When a preview was last read successfully (for `loadIfStale()`).
     private var lastPreviewRead: Date?
+    /// A member's area was read (with or without an area); the page does not read it again.
+    private var memberAreaRead = false
 
     /// - Parameter isGuest: Defaults to "the injected `authService` has no signed-in user".
     /// - Parameter selectTab: Defaults to setting `NavigationCoordinator.shared.selectedTab`.
@@ -232,6 +237,7 @@ final class CommunityPageViewModel: ObservableObject {
             case .active:
                 mode = .member(row)
                 bannerMessage = nil
+                await loadMemberAreaIfNeeded(generation: generation)
                 return
             case .pending:
                 mode = .pending(row)
@@ -251,6 +257,7 @@ final class CommunityPageViewModel: ObservableObject {
             let preview = try await service.fetchCommunityPreview(communityId: communityId)
             guard generation == loadGeneration else { return }
             mode = .visitor(preview)
+            area = preview.community.area
             lastPreviewRead = Date()
             bannerMessage = nil
         } catch is CancellationError {
@@ -269,6 +276,25 @@ final class CommunityPageViewModel: ObservableObject {
             } else {
                 mode = .failed
             }
+        }
+    }
+
+    /// One `fetchServiceArea` per page: `loadIfStale()` runs `load()` on every appearance of a
+    /// member's page, and the area changes only when the owner moves it. A failure is quiet (the
+    /// page reads without the area) and the next load tries again.
+    private func loadMemberAreaIfNeeded(generation: Int) async {
+        guard !memberAreaRead else { return }
+        do {
+            let stored = try await service.fetchServiceArea(communityId: communityId)
+            guard generation == loadGeneration else { return }
+            area = stored
+            memberAreaRead = true
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            AppLogger.warning("community", "Community area load failed: \(error.localizedDescription)")
         }
     }
 

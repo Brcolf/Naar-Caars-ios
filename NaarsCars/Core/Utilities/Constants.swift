@@ -298,6 +298,10 @@ enum Constants {
         /// Service-area radii a community can choose, in miles (the server accepts only these)
         static let areaRadiusChoices = [1, 2, 5, 10]
         static let defaultAreaRadiusMiles = 2
+        /// Height of the service-area map card (a plain inset card, no interaction)
+        static let areaMapHeight: CGFloat = 160
+        /// Fill opacity of the service-area circle on that map
+        static let areaMapFillOpacity: Double = 0.15
         /// Longest service-area name (the server accepts 2-80 characters)
         static let areaNameMaxLength = 80
         /// Longest reason for listing a community where others already serve the area (the server refuses more than 300)

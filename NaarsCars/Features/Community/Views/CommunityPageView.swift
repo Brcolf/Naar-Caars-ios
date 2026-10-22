@@ -251,7 +251,24 @@ struct CommunityPageView: View {
                     .foregroundColor(.naarsTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let area = viewModel.area {
+                areaSection(area)
+            }
         }
+    }
+
+    /// "Serves <area> and about N miles around it" and the circle on a map; no exact centre is named.
+    private func areaSection(_ area: ServiceArea) -> some View {
+        VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+            Label(ServiceAreaMap.servesText(area), systemImage: "mappin.and.ellipse")
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            ServiceAreaMap(area: area)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ServiceAreaMap.servesText(area))
+        .accessibilityIdentifier("communityPage.area")
     }
 
     /// One row of chips while they fit, one under the other when they do not (large text).
@@ -942,7 +959,7 @@ private enum CommunityPagePreviewData {
         return CommunityPreview(
             community: .init(
                 id: id, name: "Ballard Neighbors", description: nil, joinPolicy: policy.rawValue, isPublic: true,
-                isDefault: false, memberCount: 12, timezone: "America/Los_Angeles"
+                isDefault: false, memberCount: 12, timezone: "America/Los_Angeles", area: PreviewCommunityService.sampleArea
             ),
             requests: [
                 .init(type: "ride", id: UUID(), title: nil, date: date, time: "09:30:00", timezone: "America/Los_Angeles",
