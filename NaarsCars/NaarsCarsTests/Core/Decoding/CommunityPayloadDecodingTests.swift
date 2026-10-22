@@ -109,4 +109,9 @@ final class CommunityPayloadDecodingTests: XCTestCase {
         XCTAssertEqual(CommunityMonogram.initials(for: "Solo"), "S")
         XCTAssertEqual(CommunityMonogram.initials(for: "   "), "?")
     }
+
+    func testRequestTiles_AreOpenMineHelpingWithUnchangedIdentifiers() {
+        XCTAssertEqual(RequestFilter.allCases.map(\.localizedKey), ["requests_tile_open", "requests_tile_mine", "requests_tile_helping"])
+        XCTAssertEqual(RequestFilter.claimed.rawValue, "Claimed Requests")
+    }
 }

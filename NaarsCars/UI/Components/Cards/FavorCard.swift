@@ -13,6 +13,8 @@ struct FavorCard: View {
     var unreadCount: Int = 0
     /// Name of the request's community; set only when the person belongs to several.
     var communityChipText: String? = nil
+    /// How the request's community is joined; shown on every card whose community is known.
+    var policy: CommunityJoinPolicy? = nil
 
     @Environment(AppState.self) private var appState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -84,6 +86,9 @@ struct FavorCard: View {
         if let communityChipText {
             parts.append("community_chip_accessibility".localized(with: communityChipText))
         }
+        if let policy {
+            parts.append("community_policy_accessibility".localized(with: policy.chipText))
+        }
         if unreadCount > 0 {
             parts.append("common_unseen_notifications_accessibility".localized(with: unreadCount))
         }
@@ -92,50 +97,86 @@ struct FavorCard: View {
 
     @ViewBuilder
     private var headerContent: some View {
-        // At accessibility sizes the name hyphenates ("Bren-dan Col-ford") and the status
-        // badge wraps mid-word beside it; stack the badges under the poster row instead.
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout())
-        layout {
-            HStack {
-                if let poster = favor.poster {
-                    UserAvatarLink(profile: poster, size: 40)
-                } else {
-                    AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 40)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    if let poster = favor.poster {
-                        Text(poster.name)
-                            .font(.naarsHeadline)
-                            .lineLimit(2)
-                    } else {
-                        Text("community_former_member".localized)
-                            .font(.naarsHeadline)
-                            .foregroundColor(.secondary)
-                    }
-
-                    Text(favor.date.dateString)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
-                }
+        if dynamicTypeSize.isAccessibilitySize {
+            // At accessibility sizes the name hyphenates ("Bren-dan Col-ford") and the status
+            // badge wraps mid-word beside it; stack the badges under the poster row instead.
+            VStack(alignment: .leading, spacing: 8) {
+                posterRow
+                stackedChips
             }
-
-            if !dynamicTypeSize.isAccessibilitySize {
-                Spacer()
-            }
-
-            HStack(spacing: 8) {
-                NotificationBadge(count: unreadCount, cap: 9)
-                    .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
-                if let communityChipText {
-                    NaarsChip(text: communityChipText, tint: nil)
-                        .accessibilityLabel("community_chip_accessibility".localized(with: communityChipText))
+        } else {
+            // The chips sit beside the poster when they fit at full width. With the community
+            // chip and the policy chip they often do not, and they go under the poster instead
+            // of truncating ("Capit…", "As…").
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    posterRow
+                    Spacer()
+                    chipsInOneRow
                 }
-                NaarsChip(text: favor.statusDisplayText, tint: favor.status.color)
+                VStack(alignment: .leading, spacing: 8) {
+                    posterRow
+                    stackedChips
+                }
             }
         }
+    }
+
+    private var posterRow: some View {
+        HStack {
+            if let poster = favor.poster {
+                UserAvatarLink(profile: poster, size: 40)
+            } else {
+                AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 40)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let poster = favor.poster {
+                    Text(poster.name)
+                        .font(.naarsHeadline)
+                        .lineLimit(2)
+                } else {
+                    Text("community_former_member".localized)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(favor.date.dateString)
+                    .font(.naarsCaption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var chipsInOneRow: some View {
+        HStack(spacing: 8) {
+            chips
+        }
+    }
+
+    /// The chips on one line when they fit, otherwise one under the other.
+    private var stackedChips: some View {
+        ViewThatFits(in: .horizontal) {
+            chipsInOneRow
+            VStack(alignment: .leading, spacing: 8) {
+                chips
+            }
+        }
+    }
+
+    /// The unread count, the community chip, the join-policy chip and the status chip.
+    @ViewBuilder
+    private var chips: some View {
+        NotificationBadge(count: unreadCount, cap: 9)
+            .accessibilityLabel("common_unseen_notifications_accessibility".localized(with: unreadCount))
+        if let communityChipText {
+            NaarsChip(text: communityChipText, tint: nil)
+                .accessibilityLabel("community_chip_accessibility".localized(with: communityChipText))
+        }
+        if let policy {
+            CommunityPolicyChip(policy: policy)
+        }
+        NaarsChip(text: favor.statusDisplayText, tint: favor.status.color)
     }
 
     @ViewBuilder
@@ -234,7 +275,7 @@ struct FavorCard: View {
             duration: .underHour,
             date: Date(),
             status: .open
-        ))
+        ), policy: .invite)
         
         FavorCard(favor: Favor(
             userId: UUID(),
@@ -243,9 +284,10 @@ struct FavorCard: View {
             duration: .coupleDays,
             date: Date().addingTimeInterval(86400),
             status: .confirmed
-        ))
+        ), policy: .open)
     }
     .padding()
+    .environment(AppState())
 }
 
 #Preview("Former member poster") {
@@ -292,7 +334,7 @@ struct FavorCard: View {
             duration: .underHour,
             date: Date(),
             status: .open
-        ), communityChipText: "Capitol Hill")
+        ), unreadCount: 2, communityChipText: "Capitol Hill", policy: .approve)
     }
     .padding()
     .environment(AppState())

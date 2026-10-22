@@ -192,6 +192,19 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         }
     }
 
+    /// A request push from another community opens the request on Requests. The filter and the
+    /// Town Hall community are left alone because nothing on this path touches them (checked on
+    /// a device at the gate).
+    func testNewRidePushFromAnotherCommunity_OpensOnRequestsAndLeavesTheFilter() {
+        let b = CommunityFixtures.communityB, rideId = UUID()
+        let link = DeepLinkParser.parse(userInfo: ["type": "new_ride", "ride_id": rideId.uuidString, "community_id": b.uuidString])
+        guard case .ride(let id) = link else { return XCTFail("Expected a ride deep link, got \(link)") }
+        XCTAssertEqual(id, rideId)
+        coordinator.applyPushDeepLink(link)
+        XCTAssertEqual(coordinator.pendingIntent, .ride(rideId, anchor: nil))
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .requests)
+    }
+
     func testDeepLinkParserRideRoundTripToNavigationState() {
         let rideId = UUID()
         let payload: [AnyHashable: Any] = [
