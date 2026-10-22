@@ -141,6 +141,9 @@ struct MyCommunitiesView: View {
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $pendingTarget) { target in
             PendingMembersView(target: target)
+                // The identity rule of Members below: a push for another community while this
+                // screen is open needs a fresh view model; the same community keeps the screen.
+                .id(target.communityId)
                 .onAppear { screenPushedOnTop = true }
         }
         .navigationDestination(item: $membersTarget) { target in
@@ -153,6 +156,8 @@ struct MyCommunitiesView: View {
         }
         .navigationDestination(item: $reportsTarget) { communityId in
             CommunityReportsView(communityId: communityId, communityName: CommunityContext.shared.name(for: communityId))
+                // The same identity rule as Members.
+                .id(communityId)
                 .onAppear { screenPushedOnTop = true }
         }
         .navigationDestination(item: $communityPageTarget) { communityId in
@@ -258,6 +263,11 @@ struct MyCommunitiesView: View {
     }
 
     // MARK: - Routes
+
+    /// "Find communities" in the Requests and Town Hall title menus. Its Explore route is `.root`,
+    /// so Explore opens at its root, not on the screen last pushed there. Both menus are for
+    /// members only (a guest has no title menu), so the intent's sign-in rule never applies.
+    static let findCommunitiesIntent: NavigationIntent = .myCommunities
 
     /// Where a pending intent opens on Explore; nil leaves it to another tab. Pure, for tests.
     static func exploreRoute(for intent: NavigationIntent) -> ExploreRoute? {
@@ -944,3 +954,12 @@ private enum ExplorePreviewData {
     )
 }
 #endif
+
+private extension PendingMembersTarget {
+    /// The community a pushed Requests to join screen shows (nil: the default community), its
+    /// identity on Explore whatever name the target carries.
+    var communityId: UUID? {
+        if case .community(let id, _) = self { return id }
+        return nil
+    }
+}

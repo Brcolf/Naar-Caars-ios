@@ -83,6 +83,7 @@ struct CommunityPageView: View {
             // Runs on appearance and again whenever the person's own row changes (a join, a leave,
             // a mute, an approval), so the page follows the membership.
             .task(id: viewModel.currentMembership) {
+                viewModel.start()
                 communitiesViewModel.setup(modelContext: modelContext)
                 await viewModel.loadIfStale()
             }
@@ -280,7 +281,10 @@ struct CommunityPageView: View {
         scrollContent {
             header(name: membership.name, role: membership.role)
             memberActions(membership)
-            LocalCommunityActivity(communityId: membership.communityId) { requests, posts in
+            LocalCommunityActivity(
+                communityId: membership.communityId,
+                blockedAuthorIds: viewModel.blockedAuthorIds
+            ) { requests, posts in
                 // The store holds only the Town Hall tab's community's posts; any other community
                 // gets a way to its Town Hall rather than a wrong "no posts yet".
                 activity(requests: requests, posts: viewModel.showsLocalTownHallPosts ? posts : nil)
@@ -836,9 +840,11 @@ struct CommunityPageView: View {
 }
 
 /// Member mode's open requests and recent posts, read from the local store: no request of its own.
-/// Sync engines write the rows; `@Query` redraws when they change.
+/// Sync engines write the rows; `@Query` redraws when they change. The blocked authors come from
+/// the page's view model, which re-reads them on `.blockedUsersDidChange`.
 private struct LocalCommunityActivity<Content: View>: View {
     let communityId: UUID
+    let blockedAuthorIds: Set<UUID>
     let content: ([CommunityPreview.Request], [CommunityPreview.Post]) -> Content
     @Query private var rides: [SDRide]
     @Query private var favors: [SDFavor]
@@ -846,9 +852,11 @@ private struct LocalCommunityActivity<Content: View>: View {
 
     init(
         communityId: UUID,
+        blockedAuthorIds: Set<UUID>,
         @ViewBuilder content: @escaping ([CommunityPreview.Request], [CommunityPreview.Post]) -> Content
     ) {
         self.communityId = communityId
+        self.blockedAuthorIds = blockedAuthorIds
         self.content = content
         let community: UUID? = communityId
         _rides = Query(filter: #Predicate<SDRide> { $0.communityId == community })
@@ -857,7 +865,7 @@ private struct LocalCommunityActivity<Content: View>: View {
     }
 
     var body: some View {
-        let isBlocked: (UUID) -> Bool = { MessageService.shared.isBlocked($0) }
+        let isBlocked: (UUID) -> Bool = { [blockedAuthorIds] in blockedAuthorIds.contains($0) }
         content(
             CommunityPageViewModel.localRequests(
                 rides: rides, favors: favors, communityId: communityId, isBlocked: isBlocked

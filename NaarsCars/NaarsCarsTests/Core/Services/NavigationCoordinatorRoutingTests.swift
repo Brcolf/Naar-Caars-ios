@@ -553,4 +553,13 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertTrue(appState.isGuestMode)
         XCTAssertEqual(AppLaunchManager.shared.state, .ready(.guest))
     }
+
+    /// "Find communities" in the Requests and Town Hall title menus opens Explore at its root:
+    /// the intent is the one whose Explore route clears every pushed screen.
+    func testFindCommunities_OpensExploreAtItsRoot() {
+        let intent = MyCommunitiesView.findCommunitiesIntent
+        XCTAssertEqual(intent, .myCommunities)
+        XCTAssertEqual(intent.targetTab, .explore)
+        XCTAssertEqual(MyCommunitiesView.exploreRoute(for: intent), .root)
+    }
 }

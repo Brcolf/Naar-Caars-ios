@@ -53,7 +53,8 @@ struct CommunityTabView: View {
                     .disabled(communityContext.communityTabId == nil)
                     .accessibilityIdentifier("townHall.titleMenu.about")
                     Button {
-                        navigationCoordinator.selectedTab = .explore
+                        // Explore at its root, not on the screen last pushed there.
+                        navigationCoordinator.pendingIntent = MyCommunitiesView.findCommunitiesIntent
                     } label: {
                         Label("community_menu_find".localized, systemImage: "magnifyingglass")
                     }
@@ -75,12 +76,25 @@ struct CommunityTabView: View {
                 // Arriving on the tab (a tap or a routed push) clears the visible community's badge in
                 // MainTabView's onChange(selectedTab). A second clear here in .onAppear ran beside it
                 // on every visit (two get_badge_counts calls) and again on every pop back to this root.
-                .onChange(of: communityContext.communityTabId) { _, newCommunityId in
+                // The tab and the community are observed together so that a switch that changes both
+                // in one update (the community page's Town Hall row) is seen as one change.
+                .onChange(of: TownHallSelection(
+                    tab: navigationCoordinator.selectedTab,
+                    communityId: communityContext.communityTabId
+                )) { old, new in
+                    guard old.communityId != new.communityId else { return }
+                    if let newCommunityId = new.communityId {
+                        aboutCommunityId = Self.aboutTargetAfterSwitch(
+                            current: aboutCommunityId,
+                            newCommunity: newCommunityId
+                        )
+                    }
                     // Switching communities marks the newly visible one read. A change while the
                     // tab is not on screen (a membership refresh) marks nothing read.
-                    guard navigationCoordinator.selectedTab == .townHall else { return }
+                    guard new.tab == .townHall,
+                          Self.shouldClearBadge(tabChanged: old.tab != new.tab, communityChanged: true) else { return }
                     Task {
-                        await BadgeCountManager.shared.clearCommunityBadge(visibleCommunityId: newCommunityId)
+                        await BadgeCountManager.shared.clearCommunityBadge(visibleCommunityId: new.communityId)
                     }
                 }
                 .onChange(of: navigationCoordinator.pendingIntent) { _, intent in
@@ -91,6 +105,29 @@ struct CommunityTabView: View {
                 }
                 .trackScreen("Community")
         }
+    }
+
+    // MARK: - Community switch
+
+    /// The tab and its community, observed as one value.
+    private struct TownHallSelection: Equatable {
+        let tab: NavigationCoordinator.Tab
+        let communityId: UUID?
+    }
+
+    /// Whether a change of the Town Hall community clears its badge here. A switch that also
+    /// selected the tab in the same update is cleared by MainTabView's tab change (the single
+    /// tab-change clear), so clearing here as well would read the badge counts twice.
+    static func shouldClearBadge(tabChanged: Bool, communityChanged: Bool) -> Bool {
+        communityChanged && !tabChanged
+    }
+
+    /// The "About this community" page left open after the tab switched to `newCommunity`: a page
+    /// of another community closes, so the switch shows that community's feed; the same community
+    /// keeps its page.
+    static func aboutTargetAfterSwitch(current: UUID?, newCommunity: UUID) -> UUID? {
+        guard let current, current == newCommunity else { return nil }
+        return current
     }
 
     /// The menu is for any member, however many communities they belong to. A guest browses the

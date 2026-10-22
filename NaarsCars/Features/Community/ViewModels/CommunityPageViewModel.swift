@@ -40,11 +40,17 @@ final class CommunityPageViewModel: ObservableObject {
     @Published private(set) var mode: CommunityPageMode = .loading
     /// A refresh that failed while the preview is on screen; the view shows it as a banner.
     @Published var bannerMessage: String?
+    /// The authors member mode leaves out of the local requests and posts. Read in `start()` and
+    /// again on `.blockedUsersDidChange` (a block or unblock made anywhere).
+    @Published private(set) var blockedAuthorIds: Set<UUID> = []
 
     private let service: any CommunityServiceProtocol
     private let communityContext: CommunityContext
     private let isGuestProvider: @MainActor () -> Bool
     private let selectTab: @MainActor (NavigationCoordinator.Tab) -> Void
+    private let blockedAuthorIdsProvider: @MainActor () -> Set<UUID>
+    private let notificationCenter: NotificationCenter
+    private var blockedUsersCancellable: AnyCancellable?
     /// Each `load()` takes the next number; a result that comes back after a newer load started
     /// is dropped, so a slow preview cannot overwrite the page a later membership change built.
     private var loadGeneration = 0
@@ -53,19 +59,44 @@ final class CommunityPageViewModel: ObservableObject {
 
     /// - Parameter isGuest: Defaults to "the injected `authService` has no signed-in user".
     /// - Parameter selectTab: Defaults to setting `NavigationCoordinator.shared.selectedTab`.
+    /// - Parameter blockedAuthorIds: Defaults to `MessageService.shared.cachedBlockedUserIds`, as
+    ///   `TownHallService` reads it. Not read before `start()`.
     init(
         communityId: UUID,
         service: any CommunityServiceProtocol = CommunityService.shared,
         communityContext: CommunityContext? = nil,
         authService: any AuthServiceProtocol = AuthService.shared,
         isGuest: (@MainActor () -> Bool)? = nil,
-        selectTab: (@MainActor (NavigationCoordinator.Tab) -> Void)? = nil
+        selectTab: (@MainActor (NavigationCoordinator.Tab) -> Void)? = nil,
+        blockedAuthorIds: (@MainActor () -> Set<UUID>)? = nil,
+        notificationCenter: NotificationCenter = .default
     ) {
         self.communityId = communityId
         self.service = service
         self.communityContext = communityContext ?? .shared
         self.isGuestProvider = isGuest ?? { [authService] in authService.currentUserId == nil }
         self.selectTab = selectTab ?? { NavigationCoordinator.shared.selectedTab = $0 }
+        self.blockedAuthorIdsProvider = blockedAuthorIds ?? { MessageService.shared.cachedBlockedUserIds }
+        self.notificationCenter = notificationCenter
+    }
+
+    /// Reads the blocked authors and follows `.blockedUsersDidChange` from then on. Called from the
+    /// view's `.task`, never from `init`; safe to call again (it subscribes once).
+    func start() {
+        guard blockedUsersCancellable == nil else { return }
+        blockedAuthorIds = blockedAuthorIdsProvider()
+        blockedUsersCancellable = notificationCenter.publisher(for: .blockedUsersDidChange)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.reloadBlockedAuthors()
+                }
+            }
+    }
+
+    private func reloadBlockedAuthors() {
+        let ids = blockedAuthorIdsProvider()
+        // Published only when the set changes, so an unrelated notification redraws nothing.
+        if ids != blockedAuthorIds { blockedAuthorIds = ids }
     }
 
     // MARK: - Derived state
@@ -97,6 +128,11 @@ final class CommunityPageViewModel: ObservableObject {
         case .visitor(let preview): return preview.community.memberCount
         case .loading, .unavailable, .failed: return nil
         }
+    }
+
+    /// Whether member mode leaves this author's requests and posts out.
+    func isBlocked(_ userId: UUID) -> Bool {
+        blockedAuthorIds.contains(userId)
     }
 
     /// Whether anyone can find the community in Explore.

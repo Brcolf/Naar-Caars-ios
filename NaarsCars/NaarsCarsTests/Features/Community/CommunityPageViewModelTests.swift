@@ -8,6 +8,7 @@
 //  from the local store
 //
 
+internal import Combine
 import XCTest
 @testable import NaarsCars
 
@@ -559,5 +560,79 @@ final class CommunityPageViewModelTests: XCTestCase {
         let withTime = CommunityPageViewModel.whenText(date: day, time: "09:30:00")
         XCTAssertTrue(withTime.contains("30"), withTime)
         XCTAssertNotEqual(withTime, DateFormatters.monthDayFormatter.string(from: day))
+    }
+
+    // MARK: - Blocked authors
+
+    func testBlockedAuthor_RowsDisappearAfterTheBlockedUsersNotification() async {
+        let (context, stub) = await makeContext()
+        let center = NotificationCenter()
+        var blocked: Set<UUID> = []
+        let vm = CommunityPageViewModel(
+            communityId: CommunityFixtures.communityA,
+            service: stub,
+            communityContext: context,
+            isGuest: { false },
+            blockedAuthorIds: { blocked },
+            notificationCenter: center
+        )
+        vm.start()
+        vm.start()
+        let rides = [ride(1), ride(2, userId: otherPoster)]
+        let posts = [post(1), post(2, userId: otherPoster)]
+        func visible() -> (requests: [UUID], posts: [UUID]) {
+            (
+                CommunityPageViewModel.localRequests(
+                    rides: rides, favors: [], communityId: CommunityFixtures.communityA,
+                    now: now, calendar: calendar, isBlocked: vm.isBlocked
+                ).map(\.id),
+                CommunityPageViewModel.localPosts(
+                    posts, communityId: CommunityFixtures.communityA, isBlocked: vm.isBlocked
+                ).map(\.id)
+            )
+        }
+        XCTAssertEqual(visible().requests.count, 2)
+        XCTAssertEqual(visible().posts.count, 2)
+
+        blocked = [otherPoster]
+        let changed = expectation(description: "blocked authors re-read")
+        let cancellable = vm.$blockedAuthorIds.dropFirst().sink { ids in
+            if ids == [self.otherPoster] { changed.fulfill() }
+        }
+        center.post(name: .blockedUsersDidChange, object: nil)
+        await fulfillment(of: [changed], timeout: 2)
+        cancellable.cancel()
+
+        XCTAssertEqual(visible().requests, [rides[0].id])
+        XCTAssertEqual(visible().posts, [posts[0].id])
+    }
+
+    func testBlockedAuthor_NotReadBeforeStart() async {
+        let (context, stub) = await makeContext()
+        var reads = 0
+        let vm = CommunityPageViewModel(
+            communityId: CommunityFixtures.communityA, service: stub, communityContext: context,
+            isGuest: { false }, blockedAuthorIds: { reads += 1; return [self.otherPoster] },
+            notificationCenter: NotificationCenter()
+        )
+        XCTAssertEqual(reads, 0)
+        XCTAssertFalse(vm.isBlocked(otherPoster))
+
+        vm.start()
+
+        XCTAssertEqual(reads, 1)
+        XCTAssertTrue(vm.isBlocked(otherPoster))
+    }
+
+    // MARK: - Town Hall tab's About page
+
+    /// The Town Hall tab's "About this community" page closes when the tab switches to another
+    /// community (the page's Town Hall row, a push); the same community keeps it.
+    func testAboutTargetAfterSwitch_ClosesAPageOfAnotherCommunityOnly() {
+        let a = CommunityFixtures.communityA
+        let b = CommunityFixtures.communityB
+        XCTAssertNil(CommunityTabView.aboutTargetAfterSwitch(current: a, newCommunity: b))
+        XCTAssertEqual(CommunityTabView.aboutTargetAfterSwitch(current: b, newCommunity: b), b)
+        XCTAssertNil(CommunityTabView.aboutTargetAfterSwitch(current: nil, newCommunity: b))
     }
 }

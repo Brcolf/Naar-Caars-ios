@@ -297,4 +297,15 @@ final class BadgeCountManagerTests: XCTestCase {
         XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: UUID(), countsAreCurrent: false))
         XCTAssertTrue(BadgeCountManager.communityClearNeedsFetch(counts, visibleCommunityId: nil, countsAreCurrent: false))
     }
+
+    // MARK: - Town Hall switch (one clear per switch)
+
+    /// The community page's Town Hall row sets the community and selects the tab in one update:
+    /// MainTabView's tab change clears the badge, so the Town Hall tab's own clear stays out.
+    func testTownHallSwitch_ClearsOnlyForACommunityChangeWithoutATabChange() {
+        XCTAssertTrue(CommunityTabView.shouldClearBadge(tabChanged: false, communityChanged: true))
+        XCTAssertFalse(CommunityTabView.shouldClearBadge(tabChanged: true, communityChanged: true))
+        XCTAssertFalse(CommunityTabView.shouldClearBadge(tabChanged: true, communityChanged: false))
+        XCTAssertFalse(CommunityTabView.shouldClearBadge(tabChanged: false, communityChanged: false))
+    }
 }

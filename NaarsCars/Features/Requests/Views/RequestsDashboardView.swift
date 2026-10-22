@@ -316,7 +316,8 @@ struct RequestsDashboardView: View {
             .accessibilityIdentifier("requests.titleMenu.about")
         }
         Button {
-            navigationCoordinator.selectedTab = .explore
+            // Explore at its root, not on the screen last pushed there.
+            navigationCoordinator.pendingIntent = MyCommunitiesView.findCommunitiesIntent
         } label: {
             Label("community_menu_find".localized, systemImage: "magnifyingglass")
         }
