@@ -183,4 +183,16 @@ final class MyCommunitiesViewModelTests: XCTestCase {
         await viewModel.load()
         XCTAssertNil(viewModel.limitOffer)
     }
+
+    // MARK: - Routes on Explore
+
+    func testExploreRoute_CommunityAdminIntentsMapToTheirScreens() {
+        let a = CommunityFixtures.communityA
+        XCTAssertEqual(MyCommunitiesView.exploreRoute(for: .pendingMembers(a)), .pendingMembers(.community(a, name: nil)))
+        XCTAssertEqual(MyCommunitiesView.exploreRoute(for: .communityReports(a)), .communityReports(a))
+        XCTAssertEqual(MyCommunitiesView.exploreRoute(for: .communityMembers(a)), .communityMembers(a))
+        XCTAssertEqual(MyCommunitiesView.exploreRoute(for: .myCommunities), .root)
+        XCTAssertEqual(MyCommunitiesView.exploreRoute(for: .joinCommunity), .root)
+        XCTAssertNil(MyCommunitiesView.exploreRoute(for: .pendingUsers)); XCTAssertNil(MyCommunitiesView.exploreRoute(for: .ride(UUID())))
+    }
 }

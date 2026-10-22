@@ -32,15 +32,9 @@ struct MyProfileView: View {
     @State private var deleteErrorMessage = ""
     @State private var showSettings = false
     @State private var badges: [LeaderboardBadge] = []
-    /// Requests to join opened from a notification (`.pendingUsers` / `.pendingMembers` intents).
+    /// The default community's Requests to join, opened from a `.pendingUsers` intent (platform admins).
+    /// Community routes (`.pendingMembers`, `.myCommunities`, …) open on Explore.
     @State private var pendingMembersTarget: PendingMembersTarget?
-    /// My communities, opened from the Profile row or from a `.myCommunities` / `.joinCommunity`
-    /// intent: one destination, so an intent never pushes a second copy over the row's.
-    @State private var showMyCommunities = false
-    /// A community's reports opened from a `.communityReports` intent (`content_reported`).
-    @State private var communityReportsTarget: UUID?
-    /// A community's members opened from a `.communityMembers` intent (`membership_update`: made an owner).
-    @State private var communityMembersTarget: UUID?
     @State private var showAdminPanel = false
     @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
@@ -90,8 +84,6 @@ struct MyProfileView: View {
                             ) {
                                 adminPanelLink(scope: adminScope)
                             }
-
-                            myCommunitiesLink()
 
                             accountSettingsSection()
 
@@ -166,8 +158,7 @@ struct MyProfileView: View {
                     // used to switch here without being applied, and the intent stayed set.
                     if let intent = navigationCoordinator.pendingIntent {
                         switch intent {
-                        case .pendingUsers, .pendingMembers, .myCommunities, .joinCommunity, .adminPanel, .adminReports,
-                             .communityReports, .communityMembers, .profile:
+                        case .pendingUsers, .adminPanel, .adminReports, .profile:
                             applyProfileIntent(intent, proxy: proxy)
                         default:
                             break
@@ -208,24 +199,6 @@ struct MyProfileView: View {
             }
             .navigationDestination(item: $pendingMembersTarget) { target in
                 PendingMembersView(target: target)
-            }
-            .navigationDestination(isPresented: $showMyCommunities) {
-                MyCommunitiesView()
-            }
-            .navigationDestination(item: $communityReportsTarget) { communityId in
-                CommunityReportsView(communityId: communityId, communityName: CommunityContext.shared.name(for: communityId))
-            }
-            .navigationDestination(item: $communityMembersTarget) { communityId in
-                // Opened from a push: the role change may not be in the memberships yet.
-                CommunityMembersView(target: CommunityMembersTarget(
-                    communityId: communityId,
-                    communityName: CommunityContext.shared.name(for: communityId),
-                    refreshesRoleFirst: true
-                ))
-                // A push for another community while Members is open changes the item in place:
-                // without a new identity the pushed screen keeps its first view model (its
-                // @StateObject) and shows the first community. The same community keeps the screen.
-                .id(communityId)
             }
             .navigationDestination(isPresented: $showAdminPanel) {
                 AdminPanelView(autoOpenReports: autoOpenAdminReports, onCommunityArchived: { toastMessage = $0 })
@@ -688,41 +661,6 @@ struct MyProfileView: View {
         .accessibilityIdentifier("profile.adminPanel")
     }
 
-    // MARK: - My Communities Link
-
-    private func myCommunitiesLink() -> some View {
-        let pendingTotal = CommunityContext.shared.administeredPendingTotal
-        // A Button, not a NavigationLink: the row and every intent drive the one
-        // `showMyCommunities` destination (setting it while already true pushes nothing).
-        return Button {
-            showMyCommunities = true
-        } label: {
-            HStack {
-                Image(systemName: "person.3.fill")
-                    .foregroundColor(.naarsPrimary)
-                    .accessibilityHidden(true)
-                Text("community_my_profile_row".localized)
-                    .font(.naarsHeadline)
-                    .foregroundColor(.primary)
-                Spacer()
-                if pendingTotal > 0 {
-                    NotificationBadge(count: pendingTotal)
-                }
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.naarsCaption)
-                    .accessibilityHidden(true)
-            }
-            .padding()
-            .background(Color.naarsCardBackground)
-            .cornerRadius(Constants.Radius.card)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("community_my_profile_row".localized)
-        .accessibilityValue(pendingTotal > 0 ? "\(pendingTotal)" : "")
-        .accessibilityIdentifier("profile.myCommunities")
-    }
-
     // MARK: - Account Settings Link
 
     private func accountSettingsSection() -> some View {
@@ -753,25 +691,12 @@ struct MyProfileView: View {
             // The platform admins' route opens the default community's Requests to join.
             pendingMembersTarget = .defaultCommunity
             navigationCoordinator.pendingIntent = nil
-        case .pendingMembers(let communityId):
-            pendingMembersTarget = .community(communityId, name: nil)
-            navigationCoordinator.pendingIntent = nil
-        case .myCommunities, .joinCommunity:
-            // `.joinCommunity`: My communities opens Join from the saved code (PendingInviteStore).
-            showMyCommunities = true
-            navigationCoordinator.pendingIntent = nil
         case .adminPanel:
             showAdminPanel = true
             navigationCoordinator.pendingIntent = nil
         case .adminReports:
             autoOpenAdminReports = true
             showAdminPanel = true
-            navigationCoordinator.pendingIntent = nil
-        case .communityReports(let communityId):
-            communityReportsTarget = communityId
-            navigationCoordinator.pendingIntent = nil
-        case .communityMembers(let communityId):
-            communityMembersTarget = communityId
             navigationCoordinator.pendingIntent = nil
         case .profile(let userId):
             if userId == AuthService.shared.currentUserId {

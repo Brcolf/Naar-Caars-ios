@@ -44,7 +44,7 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
 
         XCTAssertEqual(launch.state, .ready(.authenticated))
         XCTAssertEqual(coordinator.pendingIntent, .myCommunities)
-        XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .profile)
+        XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .explore)
     }
 
     func testResetNavigationClearsAllKeyRoutingState() {
@@ -91,21 +91,21 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         }
     }
 
-    func testApplyPendingNavigation_TownHallCommentsSelectsCommunityTab() {
+    func testApplyPendingNavigation_TownHallCommentsSelectsTownHallTab() {
         let id = UUID()
         coordinator.deferNotificationIntent(.openTownHallPost(postId: id, mode: .openComments))
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .community)
+        XCTAssertEqual(coordinator.selectedTab, .townHall)
         let consumed = coordinator.consumeTownHallNavigationTarget()
         XCTAssertEqual(consumed?.postId, id)
         XCTAssertEqual(consumed?.mode, .openComments)
     }
 
-    func testApplyPendingNavigation_TownHallHighlightSelectsCommunityTab() {
+    func testApplyPendingNavigation_TownHallHighlightSelectsTownHallTab() {
         let id = UUID()
         coordinator.deferNotificationIntent(.openTownHallPost(postId: id, mode: .highlightPost))
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .community)
+        XCTAssertEqual(coordinator.selectedTab, .townHall)
         let consumed = coordinator.consumeTownHallNavigationTarget()
         XCTAssertEqual(consumed?.postId, id)
         XCTAssertEqual(consumed?.mode, .highlightPost)
@@ -124,7 +124,7 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
     }
 
     func testApplyPendingNavigation_RequestsTabOnlySelectsRequestsTab() {
-        coordinator.selectedTab = .community
+        coordinator.selectedTab = .townHall
         coordinator.deferNotificationIntent(.openDashboard)
         coordinator.applyDeferredNotificationIntentIfNeeded()
         XCTAssertEqual(coordinator.selectedTab, .requests)
@@ -227,7 +227,7 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         let communityId = UUID()
         coordinator.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost, communityId: communityId))
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .community)
+        XCTAssertEqual(coordinator.selectedTab, .townHall)
         let consumed = coordinator.consumeTownHallNavigationTarget()
         XCTAssertEqual(consumed?.postId, postId)
         XCTAssertEqual(consumed?.mode, .highlightPost)
@@ -253,18 +253,18 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
     }
     // MARK: - pending_approval for a community (multi-community Phase 2)
 
-    func testApplyPushDeepLink_PendingMembersSetsIntentForProfileTab() {
+    func testApplyPushDeepLink_PendingMembersSetsIntentForExploreTab() {
         let communityId = UUID()
         coordinator.applyPushDeepLink(.pendingMembers(communityId: communityId))
         XCTAssertEqual(coordinator.pendingIntent, .pendingMembers(communityId))
-        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .explore)
     }
 
-    func testDeferredOpenPendingMembers_SelectsProfileTab() {
+    func testDeferredOpenPendingMembers_SelectsExploreTab() {
         let communityId = UUID()
         coordinator.deferNotificationIntent(.openPendingMembers(communityId: communityId))
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.selectedTab, .explore)
         XCTAssertEqual(coordinator.pendingIntent, .pendingMembers(communityId))
     }
 
@@ -300,34 +300,34 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertFalse(coordinator.intentRequiresAuth(pending))
         XCTAssertTrue(coordinator.intentRequiresAuth(.myCommunities))
         XCTAssertFalse(coordinator.intentIsAdminOnly(.myCommunities))
-        XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .profile)
+        XCTAssertEqual(NavigationIntent.myCommunities.targetTab, .explore)
     }
 
     // MARK: - content_reported and account_restricted (multi-community Phase 3)
 
-    func testApplyPushDeepLink_CommunityReportsSetsIntentForProfileTab() {
+    func testApplyPushDeepLink_CommunityReportsSetsIntentForExploreTab() {
         let communityId = UUID()
         coordinator.applyPushDeepLink(.communityReports(communityId: communityId))
         XCTAssertEqual(coordinator.pendingIntent, .communityReports(communityId))
-        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .explore)
 
         coordinator.resetNavigation()
         coordinator.applyPushDeepLink(.myCommunities)
         XCTAssertEqual(coordinator.pendingIntent, .myCommunities)
     }
 
-    func testDeferredOpenCommunityReports_SelectsProfileTab() {
+    func testDeferredOpenCommunityReports_SelectsExploreTab() {
         let communityId = UUID()
         coordinator.deferNotificationIntent(.openCommunityReports(communityId: communityId))
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.selectedTab, .explore)
         XCTAssertEqual(coordinator.pendingIntent, .communityReports(communityId))
 
         coordinator.resetNavigation()
         coordinator.selectedTab = .requests
         coordinator.deferNotificationIntent(.openMyCommunities)
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.selectedTab, .explore)
         XCTAssertEqual(coordinator.pendingIntent, .myCommunities)
     }
 
@@ -390,23 +390,23 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         let reports = NavigationIntent.communityReports(UUID())
         XCTAssertTrue(coordinator.intentIsAdminOnly(reports))
         XCTAssertFalse(coordinator.intentRequiresAuth(reports))
-        XCTAssertEqual(reports.targetTab, .profile)
+        XCTAssertEqual(reports.targetTab, .explore)
     }
 
     // MARK: - membership_update (multi-community Phase 4)
 
-    func testApplyPushDeepLink_CommunityMembersSetsIntentForProfileTab() {
+    func testApplyPushDeepLink_CommunityMembersSetsIntentForExploreTab() {
         let communityId = UUID()
         coordinator.applyPushDeepLink(.communityMembers(communityId: communityId))
         XCTAssertEqual(coordinator.pendingIntent, .communityMembers(communityId))
-        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .explore)
     }
 
-    func testDeferredOpenCommunityMembers_SelectsProfileTab() {
+    func testDeferredOpenCommunityMembers_SelectsExploreTab() {
         let communityId = UUID()
         coordinator.deferNotificationIntent(.openCommunityMembers(communityId: communityId))
         coordinator.applyDeferredNotificationIntentIfNeeded()
-        XCTAssertEqual(coordinator.selectedTab, .profile)
+        XCTAssertEqual(coordinator.selectedTab, .explore)
         XCTAssertEqual(coordinator.pendingIntent, .communityMembers(communityId))
         XCTAssertNil(coordinator.deferredNotificationIntent)
     }
@@ -456,7 +456,7 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         let members = NavigationIntent.communityMembers(UUID())
         XCTAssertTrue(coordinator.intentIsAdminOnly(members))
         XCTAssertFalse(coordinator.intentRequiresAuth(members))
-        XCTAssertEqual(members.targetTab, .profile)
+        XCTAssertEqual(members.targetTab, .explore)
     }
 
     // MARK: - Universal Link (multi-community Phase 4)
@@ -472,7 +472,7 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertFalse(coordinator.showDeepLinkConfirmation)
         XCTAssertNil(coordinator.pendingDeepLink)
         XCTAssertEqual(coordinator.pendingIntent, .joinCommunity)
-        XCTAssertEqual(NavigationIntent.joinCommunity.targetTab, .profile)
+        XCTAssertEqual(NavigationIntent.joinCommunity.targetTab, .explore)
     }
 
     /// An unrecognized URL opens the app where it was.
@@ -491,5 +491,41 @@ final class NavigationCoordinatorRoutingTests: XCTestCase {
         XCTAssertFalse(coordinator.intentIsAdminOnly(.joinCommunity))
         XCTAssertEqual(coordinator.guestPromptReason(for: .joinCommunity).id, GuestRestrictionReason.joinCommunity.id)
         XCTAssertEqual(coordinator.guestPromptReason(for: .conversation(UUID())).id, GuestRestrictionReason.deepLinkSignIn.id)
+    }
+
+    // MARK: - Explore tab (community Release 1)
+
+    func testCommunityAdminIntents_TargetExploreTab() {
+        let a = CommunityFixtures.communityA
+        for intent: NavigationIntent in [.myCommunities, .joinCommunity, .pendingMembers(a), .communityReports(a), .communityMembers(a), .explore] {
+            XCTAssertEqual(intent.targetTab, .explore, "\(intent)")
+        }
+        for intent: NavigationIntent in [.pendingUsers, .adminPanel, .adminReports, .profile(UUID())] {
+            XCTAssertEqual(intent.targetTab, .profile, "\(intent)")
+        }
+        XCTAssertEqual(NavigationIntent.townHallPost(UUID()).targetTab, .townHall)
+    }
+
+    func testDeferredCommunityAdminIntents_SelectExploreTab() {
+        let a = CommunityFixtures.communityA
+        for intent: NotificationIntent in [.openPendingMembers(communityId: a), .openCommunityReports(communityId: a), .openCommunityMembers(communityId: a), .openMyCommunities] {
+            coordinator.selectedTab = .requests
+            coordinator.deferNotificationIntent(intent)
+            coordinator.applyDeferredNotificationIntentIfNeeded()
+            XCTAssertEqual(coordinator.selectedTab, .explore, "\(intent)")
+        }
+        coordinator.deferNotificationIntent(.openPendingUsers); coordinator.applyDeferredNotificationIntentIfNeeded()
+        XCTAssertEqual(coordinator.selectedTab, .profile)
+    }
+
+    func testExploreIntent_IsGuestSafe() {
+        XCTAssertFalse(coordinator.intentRequiresAuth(.explore)); XCTAssertFalse(coordinator.intentIsAdminOnly(.explore))
+    }
+
+    func testTabRefreshDomains_ExploreAndProfileHaveNone() {
+        XCTAssertEqual(NavigationCoordinator.Tab.requests.refreshDomain, .dashboard)
+        XCTAssertEqual(NavigationCoordinator.Tab.messages.refreshDomain, .conversations)
+        XCTAssertEqual(NavigationCoordinator.Tab.townHall.refreshDomain, .townHall)
+        XCTAssertNil(NavigationCoordinator.Tab.profile.refreshDomain); XCTAssertNil(NavigationCoordinator.Tab.explore.refreshDomain)
     }
 }

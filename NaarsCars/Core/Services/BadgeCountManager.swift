@@ -40,7 +40,8 @@ extension BadgeCountManager: BadgeCountManaging {
         var requests: Int = 0
         var messages: Int = 0
         var community: Int = 0
-        var profile: Int = 0
+        /// The Explore tab: people asking to join the communities the caller owns or runs.
+        var explore: Int = 0
         var adminPanel: Int = 0
         var bell: Int = 0
         var totalUnread: Int = 0
@@ -48,7 +49,7 @@ extension BadgeCountManager: BadgeCountManaging {
         /// Read by the Community tab's title menu for the communities that are not on screen.
         var communityUnreadById: [UUID: Int] = [:]
 
-        /// The tab counts for one `get_badge_counts` payload. The Profile (and Admin Panel)
+        /// The tab counts for one `get_badge_counts` payload. The Explore (and Admin Panel)
         /// badge is `pending_members_total`: pending rows in the communities the caller
         /// administers, counted by the server, so there is no second client-side path.
         static func makeCounts(from payload: BadgeCountsPayload) -> BadgeCounts {
@@ -56,8 +57,8 @@ extension BadgeCountManager: BadgeCountManaging {
             counts.requests = payload.requestsTotal
             counts.messages = payload.messagesTotal
             counts.community = payload.communityTotal
-            counts.profile = payload.pendingMembersTotal ?? 0
-            counts.adminPanel = counts.profile
+            counts.explore = payload.pendingMembersTotal ?? 0
+            counts.adminPanel = counts.explore
             counts.bell = payload.bellTotal
             counts.totalUnread = payload.requestsTotal + payload.messagesTotal + payload.communityTotal
             var byId: [UUID: Int] = [:]
@@ -350,10 +351,10 @@ extension BadgeCountManager: BadgeCountManaging {
         }
     }
 
-    /// Clear Profile badge (called when approving/denying users)
-    func clearProfileBadge() async {
-        // Badge count will automatically update when pending users change
-        await refreshAllBadges(reason: "clearProfileBadge")
+    /// Clear Explore badge (called when the Explore tab is selected)
+    func clearExploreBadge() async {
+        // Badge count will automatically update when pending members change
+        await refreshAllBadges(reason: "clearExploreBadge")
     }
 
     // MARK: - Deferred Refresh

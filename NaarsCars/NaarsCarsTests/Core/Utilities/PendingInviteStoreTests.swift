@@ -155,7 +155,7 @@ final class IncomingLinkHandlerTests: XCTestCase {
         XCTAssertEqual(decision, .route)
         XCTAssertEqual(store.peek(), code)
         XCTAssertTrue(routedToJoin)
-        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .profile)
+        XCTAssertEqual(coordinator.pendingIntent?.targetTab, .explore)
     }
 
     func testGuest_SavesCodeAndRoutesJoinIntent() {

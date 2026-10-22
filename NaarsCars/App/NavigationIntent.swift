@@ -17,17 +17,20 @@ enum NavigationIntent: Equatable {
     // Messages tab
     case conversation(UUID, scrollTarget: NavigationCoordinator.ConversationScrollTarget? = nil)
 
-    // Community tab
+    // Town Hall tab
     case townHallPost(UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode = .openComments, communityId: UUID? = nil)
     case announcements(scrollToNotificationId: UUID? = nil)
 
     // Profile tab
     case profile(UUID)
     case adminPanel
+    /// The platform admins' Pending approvals: the default community's Requests to join.
     case pendingUsers
+    case adminReports
+
+    // Explore tab (My communities is its root)
     /// A community's Requests to join (admin of that community, or a platform admin).
     case pendingMembers(UUID)
-    case adminReports
     /// A community's reports (an owner or admin of that community).
     case communityReports(UUID)
     /// My communities (an approval into a further community while signed in).
@@ -37,6 +40,8 @@ enum NavigationIntent: Equatable {
     /// Join a community with the code an invite link carried. The code is in `PendingInviteStore`,
     /// never in the intent; My communities opens Join from the store.
     case joinCommunity
+    /// The Explore tab itself (guest-safe). `MainTabView` selects the tab and clears it.
+    case explore
 
     // Cross-tab surfaces
     case notifications
@@ -50,10 +55,11 @@ enum NavigationIntent: Equatable {
         case .conversation:
             return .messages
         case .townHallPost, .announcements:
-            return .community
-        case .profile, .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .myCommunities,
-             .communityMembers, .joinCommunity:
+            return .townHall
+        case .profile, .adminPanel, .pendingUsers, .adminReports:
             return .profile
+        case .myCommunities, .joinCommunity, .pendingMembers, .communityReports, .communityMembers, .explore:
+            return .explore
         }
     }
 }

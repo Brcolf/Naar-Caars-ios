@@ -37,7 +37,7 @@ final class BadgeCountManagerTests: XCTestCase {
         XCTAssertEqual(counts.requests, 0)
         XCTAssertEqual(counts.messages, 0)
         XCTAssertEqual(counts.community, 0)
-        XCTAssertEqual(counts.profile, 0)
+        XCTAssertEqual(counts.explore, 0)
         XCTAssertEqual(counts.adminPanel, 0)
         XCTAssertEqual(counts.bell, 0)
         XCTAssertEqual(counts.totalUnread, 0)
@@ -166,10 +166,10 @@ final class BadgeCountManagerTests: XCTestCase {
         )
     }
 
-    func testMakeCounts_ProfileBadgeReadsPendingMembersTotal() {
+    func testMakeCounts_ExploreBadgeReadsPendingMembersTotal() {
         let counts = BadgeCountManager.BadgeCounts.makeCounts(from: makePayload(pendingMembersTotal: 2))
 
-        XCTAssertEqual(counts.profile, 2)
+        XCTAssertEqual(counts.explore, 2)
         XCTAssertEqual(counts.adminPanel, 2)
         XCTAssertEqual(counts.requests, 1)
         XCTAssertEqual(counts.messages, 5)
@@ -181,7 +181,7 @@ final class BadgeCountManagerTests: XCTestCase {
     func testMakeCounts_MissingPendingMembersTotalIsZero() {
         let counts = BadgeCountManager.BadgeCounts.makeCounts(from: makePayload(pendingMembersTotal: nil))
 
-        XCTAssertEqual(counts.profile, 0)
+        XCTAssertEqual(counts.explore, 0)
         XCTAssertEqual(counts.adminPanel, 0)
         XCTAssertEqual(counts.communityUnreadById, [:])
     }

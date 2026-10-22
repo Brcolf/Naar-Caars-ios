@@ -8,8 +8,16 @@
 import SwiftUI
 import SwiftData
 
-/// My communities. No NavigationStack: always pushed from Profile.
+/// My communities, the root of the Explore tab. No NavigationStack: `ExploreView` supplies it.
 struct MyCommunitiesView: View {
+    /// Where a pending intent opens on Explore. `.root` is this screen with nothing pushed on top.
+    enum ExploreRoute: Equatable {
+        case root
+        case pendingMembers(PendingMembersTarget)
+        case communityReports(UUID)
+        case communityMembers(UUID)
+    }
+
     private enum ActiveSheet: Identifiable {
         case invite(CommunityMembership)
         case report(CommunityMembership)
@@ -33,8 +41,12 @@ struct MyCommunitiesView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var viewModel: MyCommunitiesViewModel
     @State private var activeSheet: ActiveSheet?
+    @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var pendingTarget: PendingMembersTarget?
-    /// The Members screen opened to choose a new owner after a `last_owner` refusal.
+    /// A community's reports opened from a `.communityReports` intent (`content_reported`).
+    @State private var reportsTarget: UUID?
+    /// The Members screen opened to choose a new owner after a `last_owner` refusal, or from a
+    /// `.communityMembers` intent (`membership_update`: made an owner).
     @State private var membersTarget: CommunityMembersTarget?
     /// The community whose Admin panel is open.
     @State private var adminPanelTarget: UUID?
@@ -51,8 +63,9 @@ struct MyCommunitiesView: View {
     /// lifetime. A code saved later is decided by the store-change rule instead, so this is also set
     /// on every store change.
     @State private var didAutoOpenStoredCode = false
-    /// False while a screen is pushed on top (Admin panel, Members), while another tab is selected,
-    /// or once this one is popped, so a hidden copy never presents the Join sheet on a store change.
+    /// False while a screen is pushed on top (Admin panel, Members, Reports, Requests to join), while
+    /// another tab is selected, or once this one is popped, so a hidden copy never presents the Join
+    /// sheet on a store change.
     @State private var isVisible = false
     /// True while one of this screen's destinations is pushed on top of it: set by the destination's
     /// `onAppear`, cleared by this screen's `onAppear`. A tab switch does not change it.
@@ -60,6 +73,8 @@ struct MyCommunitiesView: View {
     /// A code saved while this screen was hidden only by a tab switch (nothing pushed on top): the
     /// Join sheet opens on the next appearance, which the link's own route brings about.
     @State private var openJoinOnNextAppear = false
+    /// The pending intent present when this view first appeared is opened once per view lifetime.
+    @State private var didReplayInitialIntent = false
 
     @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> MyCommunitiesViewModel = MyCommunitiesViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -122,7 +137,7 @@ struct MyCommunitiesView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color.naarsBackground)
-        .navigationTitle("community_my_title".localized)
+        .navigationTitle("explore_title".localized)
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(item: $pendingTarget) { target in
             PendingMembersView(target: target)
@@ -130,6 +145,14 @@ struct MyCommunitiesView: View {
         }
         .navigationDestination(item: $membersTarget) { target in
             CommunityMembersView(target: target)
+                // A push for another community while Members is open changes the item in place:
+                // without a new identity the pushed screen keeps its first view model (its
+                // @StateObject) and shows the first community. The same community keeps the screen.
+                .id(target.communityId)
+                .onAppear { screenPushedOnTop = true }
+        }
+        .navigationDestination(item: $reportsTarget) { communityId in
+            CommunityReportsView(communityId: communityId, communityName: CommunityContext.shared.name(for: communityId))
                 .onAppear { screenPushedOnTop = true }
         }
         .navigationDestination(item: $adminPanelTarget) { communityId in
@@ -166,6 +189,30 @@ struct MyCommunitiesView: View {
             }
         }
         .onDisappear { isVisible = false }
+        // initial: true also opens a route whose intent was set before this view existed (the
+        // Explore tab's first appearance after a push or a link); onChange alone never fires for a
+        // value that is already there. The replay rule is RequestsDashboardView's.
+        .onChange(of: navigationCoordinator.pendingIntent, initial: true) { oldIntent, intent in
+            // Old and new are the same value only on the pass that initial: true adds. That pass
+            // comes round again on every appearance; it is honoured once per view lifetime.
+            let isInitialPass = oldIntent == intent
+            if isInitialPass {
+                guard !didReplayInitialIntent else { return }
+                didReplayInitialIntent = true
+            }
+            guard let intent else { return }
+            if isInitialPass {
+                // One main-actor turn later: a push requested in the same update as the stack's
+                // first render can be dropped. Skipped if the intent was consumed or replaced
+                // meanwhile, so it is never applied twice.
+                Task { @MainActor in
+                    guard navigationCoordinator.pendingIntent == intent else { return }
+                    openExploreRoute(from: intent)
+                }
+                return
+            }
+            openExploreRoute(from: intent)
+        }
         // A join link opened while this screen exists. Visible with no sheet: Join opens now. Hidden
         // by a tab switch: Join opens on the next appearance. With a sheet up or a screen pushed on
         // top the code only refreshes the saved-code row, whose Use button stays the way in.
@@ -219,6 +266,50 @@ struct MyCommunitiesView: View {
         } message: { membership in
             Text(String(format: "community_leave_needs_owner_body".localized, membership.name))
         }
+    }
+
+    // MARK: - Routes
+
+    /// Where a pending intent opens on Explore; nil leaves it to another tab. Pure, for tests.
+    static func exploreRoute(for intent: NavigationIntent) -> ExploreRoute? {
+        switch intent {
+        case .myCommunities, .joinCommunity:
+            // `.joinCommunity`: this screen opens Join from the saved code (PendingInviteStore).
+            return .root
+        case .pendingMembers(let communityId):
+            return .pendingMembers(.community(communityId, name: nil))
+        case .communityReports(let communityId):
+            return .communityReports(communityId)
+        case .communityMembers(let communityId):
+            return .communityMembers(communityId)
+        default:
+            return nil
+        }
+    }
+
+    /// Opens the route of an Explore intent and clears the intent; any other intent is left alone.
+    private func openExploreRoute(from intent: NavigationIntent) {
+        guard let route = Self.exploreRoute(for: intent) else { return }
+        switch route {
+        case .root:
+            // Back to this screen, so the saved-code rule decides on the visible root.
+            pendingTarget = nil
+            reportsTarget = nil
+            membersTarget = nil
+            adminPanelTarget = nil
+        case .pendingMembers(let target):
+            pendingTarget = target
+        case .communityReports(let communityId):
+            reportsTarget = communityId
+        case .communityMembers(let communityId):
+            // Opened from a push: the role change may not be in the memberships yet.
+            membersTarget = CommunityMembersTarget(
+                communityId: communityId,
+                communityName: CommunityContext.shared.name(for: communityId),
+                refreshesRoleFirst: true
+            )
+        }
+        navigationCoordinator.pendingIntent = nil
     }
 
     // MARK: - Saved invite code
@@ -389,9 +480,9 @@ struct MyCommunitiesView: View {
         }
     }
 
-    /// Sets `pendingTarget`, as the ••• menu does. A `NavigationLink(value:)` did nothing here: this
-    /// screen is itself pushed (from Profile), and a value link cannot see a pushed screen's own
-    /// `navigationDestination(for:)` (5b gate G2).
+    /// Sets `pendingTarget`, as the ••• menu does. A `NavigationLink(value:)` did nothing here while
+    /// this screen was pushed from Profile: a value link cannot see a pushed screen's own
+    /// `navigationDestination(for:)` (5b gate G2). The item-driven form stays.
     private func requestsLink(_ membership: CommunityMembership, count: Int) -> some View {
         Button {
             pendingTarget = .community(membership.communityId, name: membership.name)

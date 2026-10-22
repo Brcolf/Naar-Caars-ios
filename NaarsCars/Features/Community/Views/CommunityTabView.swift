@@ -83,7 +83,7 @@ struct CommunityTabView: View {
             .onChange(of: communityContext.communityTabId) { _, newCommunityId in
                 // Switching communities marks the newly visible one read. A change while the
                 // tab is not on screen (a membership refresh) marks nothing read.
-                guard navigationCoordinator.selectedTab == .community else { return }
+                guard navigationCoordinator.selectedTab == .townHall else { return }
                 Task {
                     await BadgeCountManager.shared.clearCommunityBadge(visibleCommunityId: newCommunityId)
                 }

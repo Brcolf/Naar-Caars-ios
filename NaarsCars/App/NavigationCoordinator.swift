@@ -89,8 +89,10 @@ final class NavigationCoordinator {
     enum Tab: Int {
         case requests = 0
         case messages = 1
-        case community = 2  // Town Hall + Leaderboard
+        case townHall = 2  // Town Hall + Leaderboard (CommunityTabView)
         case profile = 3
+        /// The trailing search-role tab: My communities and the community admin screens.
+        case explore = 4
     }
 
     struct ConversationScrollTarget: Equatable {
@@ -195,7 +197,7 @@ final class NavigationCoordinator {
             pendingIntent = .conversation(conversationId, scrollTarget: conversationScrollTarget)
             
         case .townHall:
-            selectedTab = .community
+            selectedTab = .townHall
             
         case .townHallPostComments(let postId, let communityId):
             pendingIntent = .townHallPost(postId, mode: .openComments, communityId: communityId)
@@ -286,7 +288,7 @@ final class NavigationCoordinator {
             }
             return false
         case .townHall:
-            return selectedTab == .community
+            return selectedTab == .townHall
         case .adminPanel:
             if case .adminPanel = pendingIntent { return true }
             return false
@@ -377,10 +379,10 @@ final class NavigationCoordinator {
             selectedTab = .requests
         case .openTownHallPost(let postId, let mode, let communityId):
             pendingIntent = .townHallPost(postId, mode: mode, communityId: communityId)
-            selectedTab = .community
+            selectedTab = .townHall
         case .openAnnouncements(let scrollToNotificationId):
             pendingIntent = .announcements(scrollToNotificationId: scrollToNotificationId)
-            selectedTab = .community
+            selectedTab = .townHall
         case .openProfile(let userId):
             pendingIntent = .profile(userId)
             selectedTab = .profile
@@ -392,19 +394,19 @@ final class NavigationCoordinator {
             selectedTab = .profile
         case .openPendingMembers(let communityId):
             pendingIntent = .pendingMembers(communityId)
-            selectedTab = .profile
+            selectedTab = .explore
         case .openAdminReports:
             pendingIntent = .adminReports
             selectedTab = .profile
         case .openCommunityReports(let communityId):
             pendingIntent = .communityReports(communityId)
-            selectedTab = .profile
+            selectedTab = .explore
         case .openMyCommunities:
             pendingIntent = .myCommunities
-            selectedTab = .profile
+            selectedTab = .explore
         case .openCommunityMembers(let communityId):
             pendingIntent = .communityMembers(communityId)
-            selectedTab = .profile
+            selectedTab = .explore
         case .openDashboard:
             pendingIntent = .dashboard
             selectedTab = .requests
@@ -414,12 +416,12 @@ final class NavigationCoordinator {
     // MARK: - Guest Gating
 
     /// Returns true if this intent requires an authenticated user.
-    /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll)
+    /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll, explore)
     /// pass through. Admin-only intents (adminPanel, pendingUsers, pendingMembers, adminReports, communityReports,
     /// communityMembers) are treated as silently ignorable — guests should never encounter them via deep link.
     func intentRequiresAuth(_ intent: NavigationIntent) -> Bool {
         switch intent {
-        case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard:
+        case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard, .explore:
             return false
         case .conversation, .announcements, .notifications, .myCommunities, .joinCommunity:
             return true
