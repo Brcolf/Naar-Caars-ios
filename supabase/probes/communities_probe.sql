@@ -4571,4 +4571,228 @@ $probe$;
 rollback;
 select 'PROBE community_merge OK' as probe;
 
+
+
+-- =============================================================================================================
+-- example_content (Release 2, 20261021_0023 Blocks 1-7; rulings R-G1, R3). EXECUTE, definer and volatility of the
+-- File D functions; in C1 (active members u3, u5, u7, u11; the notifiers skip the poster u4) an example ride, favor
+-- and post by u4 write no notifications row and no xp_events row, and the same three without the flag write the
+-- bell rows and XP as before (control); expire_past_open_requests completes a 20-day-old ordinary open ride and
+-- leaves the example open; refresh_example_requests moves a 20-day-old example ride to [tomorrow, tomorrow + 6]
+-- (Los Angeles) and a 9-day-old example favor to the same window in Pacific/Auckland, each on its own weekday,
+-- reopens a completed example with no helper, leaves a hidden example and a future one alone, and a second run
+-- returns 0; set_example_content by the platform admin subject (changed true, then false; a definer write the S1
+-- guard allows), refused for the member subject and for an unknown type, closed to anon; the cron job.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'example_content';
+  v_admin uuid := pg_temp.probe_subject('platform_admin');
+  v_member uuid := pg_temp.probe_subject('member');
+  u3 uuid := pg_temp.u(3);  u4 uuid := pg_temp.u(4);  u5 uuid := pg_temp.u(5);  u7 uuid := pg_temp.u(7);
+  u11 uuid := pg_temp.u(11);
+  c1 uuid := pg_temp.c(1);
+  v_others constant uuid[] := array[pg_temp.u(3), pg_temp.u(5), pg_temp.u(7), pg_temp.u(11)];
+  v_ex_ride uuid := pg_temp.r(71);      -- example, in three days
+  v_ctl_ride uuid := pg_temp.r(72);     -- ordinary, in three days
+  v_old_ex uuid := pg_temp.r(73);       -- example, open, 20 days ago
+  v_old_ctl uuid := pg_temp.r(74);      -- ordinary, open, 20 days ago
+  v_done_ex uuid := pg_temp.r(75);      -- example, completed, helped by u3
+  v_hidden_ex uuid := pg_temp.r(76);    -- example, hidden, 20 days ago
+  v_old_date constant date := current_date - 20;
+  v_nz_date constant date := current_date - 9;
+  v_tomorrow constant date := (now() at time zone 'America/Los_Angeles')::date + 1;
+  v_nz_tomorrow constant date := (now() at time zone 'Pacific/Auckland')::date + 1;
+  v_ex_favor uuid;
+  v_ctl_favor uuid;
+  v_nz_favor uuid;
+  v_ex_post uuid;
+  v_ctl_post uuid;
+  v_date date;
+  v_fn text;
+  n int;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_release2(v_probe, 'd');
+  perform pg_temp.probe_world();
+  perform set_config('request.jwt.claims', '', true);
+  perform pg_temp.probe_ok(v_probe, 'the platform admin and member subjects resolve',
+    v_admin is not null and v_member is not null);
+
+  -- EXECUTE (ruling R-G1), definer, search_path, volatility
+  v_fn := 'public.set_example_content(text, uuid, boolean)';
+  perform pg_temp.probe_ok(v_probe, v_fn || ': EXECUTE for authenticated and service_role, none for anon or public',
+    not has_function_privilege('anon', v_fn, 'execute')
+    and has_function_privilege('authenticated', v_fn, 'execute')
+    and has_function_privilege('service_role', v_fn, 'execute')
+    and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                     where p.oid = v_fn::regprocedure and a.grantee = 0));
+  foreach v_fn in array array['public.refresh_example_requests()', 'public.notify_new_ride()',
+      'public.notify_new_favor()', 'public.notify_town_hall_post()', 'public.record_xp_on_request_created()',
+      'public.expire_past_open_requests()'] loop
+    perform pg_temp.probe_ok(v_probe, v_fn || ': EXECUTE for service_role only (no anon, authenticated or public)',
+      not has_function_privilege('anon', v_fn, 'execute')
+      and not has_function_privilege('authenticated', v_fn, 'execute')
+      and has_function_privilege('service_role', v_fn, 'execute')
+      and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) a
+                       where p.oid = v_fn::regprocedure and a.grantee = 0));
+  end loop;
+  foreach v_fn in array array['public.set_example_content(text, uuid, boolean)', 'public.refresh_example_requests()',
+      'public.notify_new_ride()', 'public.notify_new_favor()', 'public.notify_town_hall_post()',
+      'public.record_xp_on_request_created()', 'public.expire_past_open_requests()'] loop
+    perform pg_temp.probe_ok(v_probe, v_fn || ': security definer, search_path "", volatile',
+      exists (select 1 from pg_catalog.pg_proc p
+               where p.oid = v_fn::regprocedure and p.prosecdef and p.provolatile = 'v'
+                 and p.proconfig @> array['search_path=""']));
+  end loop;
+
+  -- R3: an example ride, favor and post by u4 in C1 notify nobody and earn no XP; the same without the flag do
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id, is_example)
+  values (v_ex_ride, u4, current_date + 3, '09:00', 'Probe pickup', 'Probe destination', 'open', c1, true);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id)
+  values (v_ctl_ride, u4, current_date + 3, '10:00', 'Probe pickup', 'Probe destination', 'open', c1);
+  insert into public.favors (user_id, title, location, date, status, community_id, is_example)
+  values (u4, 'Probe example favor', 'Probe location', current_date + 3, 'open', c1, true)
+  returning id into v_ex_favor;
+  insert into public.favors (user_id, title, location, date, status, community_id)
+  values (u4, 'Probe favor', 'Probe location', current_date + 3, 'open', c1)
+  returning id into v_ctl_favor;
+  insert into public.town_hall_posts (user_id, title, content, community_id, is_example)
+  values (u4, 'Probe example post', 'communities probe example post', c1, true)
+  returning id into v_ex_post;
+  v_ctl_post := pg_temp.probe_post(71, u4, c1);
+
+  perform pg_temp.probe_ok(v_probe, 'the example ride writes no notifications row',
+    not exists (select 1 from public.notifications where ride_id = v_ex_ride));
+  perform pg_temp.probe_ok(v_probe, 'the example favor writes no notifications row',
+    not exists (select 1 from public.notifications where favor_id = v_ex_favor));
+  perform pg_temp.probe_ok(v_probe, 'the example post writes no notifications row (no New in Town Hall)',
+    not exists (select 1 from public.notifications where town_hall_post_id = v_ex_post));
+  perform pg_temp.probe_ok(v_probe, 'the example ride and favor earn no XP',
+    not exists (select 1 from public.xp_events where source_id in (v_ex_ride, v_ex_favor)));
+  perform pg_temp.probe_ok(v_probe, 'the example ride, favor and post queue no push',
+    not exists (select 1 from public.notification_queue q
+                 where q.payload::text like '%' || v_ex_ride::text || '%'
+                    or q.payload::text like '%' || v_ex_favor::text || '%'
+                    or q.payload::text like '%' || v_ex_post::text || '%'));
+
+  perform pg_temp.probe_ok(v_probe, 'control: the ordinary ride tells u3, u5, u7 and u11 (one new_ride row each)',
+    (select array_agg(user_id order by user_id) from public.notifications
+      where ride_id = v_ctl_ride and type = 'new_ride')
+    = (select array_agg(x order by x) from unnest(v_others) x));
+  perform pg_temp.probe_ok(v_probe, 'control: the ordinary favor tells u3, u5, u7 and u11 (one new_favor row each)',
+    (select array_agg(user_id order by user_id) from public.notifications
+      where favor_id = v_ctl_favor and type = 'new_favor')
+    = (select array_agg(x order by x) from unnest(v_others) x));
+  perform pg_temp.probe_ok(v_probe, 'control: the ordinary post tells u3, u5, u7 and u11 (New in Town Hall)',
+    (select array_agg(user_id order by user_id) from public.notifications
+      where town_hall_post_id = v_ctl_post and type = 'town_hall_post')
+    = (select array_agg(x order by x) from unnest(v_others) x));
+  perform pg_temp.probe_ok(v_probe, 'control: the ordinary ride and favor earn u4 their request XP',
+    exists (select 1 from public.xp_events where source_id = v_ctl_ride and source_type = 'ride_requested'
+                                              and user_id = u4)
+    and exists (select 1 from public.xp_events where source_id = v_ctl_favor and source_type = 'favor_requested'
+                                                  and user_id = u4));
+
+  -- expiry skips examples
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id, is_example)
+  values (v_old_ex, u4, v_old_date, '09:00', 'Probe pickup', 'Probe destination', 'open', c1, true);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id)
+  values (v_old_ctl, u4, v_old_date, '09:00', 'Probe pickup', 'Probe destination', 'open', c1);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, community_id, is_example,
+                            hidden_at, hidden_reason)
+  values (v_hidden_ex, u4, v_old_date, '09:00', 'Probe pickup', 'Probe destination', 'open', c1, true,
+          now(), 'communities probe');
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, claimed_by, community_id,
+                            is_example)
+  values (v_done_ex, u4, v_tomorrow + 2, '09:00', 'Probe pickup', 'Probe destination', 'completed', u3, c1, true);
+  insert into public.favors (user_id, title, location, date, status, community_id, is_example, timezone)
+  values (u4, 'Probe example favor NZ', 'Probe location', v_nz_date, 'open', c1, true, 'Pacific/Auckland')
+  returning id into v_nz_favor;
+
+  perform public.expire_past_open_requests();
+  perform pg_temp.probe_ok(v_probe, 'expiry completes the 20-day-old ordinary open ride',
+    (select status::text from public.rides where id = v_old_ctl) = 'completed');
+  perform pg_temp.probe_ok(v_probe, 'expiry leaves the 20-day-old example open, its date unchanged',
+    exists (select 1 from public.rides where id = v_old_ex and status::text = 'open' and date = v_old_date));
+  perform pg_temp.probe_ok(v_probe, 'expiry leaves the 9-day-old example favor open',
+    (select status::text from public.favors where id = v_nz_favor) = 'open');
+  perform pg_temp.probe_ok(v_probe, 'the status-change triggers are enabled again after expiry',
+    (select count(*) from pg_catalog.pg_trigger
+      where tgname in ('on_ride_status_change_notify', 'on_favor_status_change_notify') and tgenabled = 'O') = 2);
+
+  -- the daily refresh
+  n := public.refresh_example_requests();
+  perform pg_temp.probe_ok(v_probe, 'the first refresh changes at least the three probe rows (' || n || ')', n >= 3);
+  v_date := (select date from public.rides where id = v_old_ex);
+  perform pg_temp.probe_ok(v_probe, format('the 20-day-old example moves to [%s, %s] on its weekday (got %s)',
+      v_tomorrow, v_tomorrow + 6, v_date),
+    v_date between v_tomorrow and v_tomorrow + 6
+    and extract(dow from v_date) = extract(dow from v_old_date)
+    and (select status::text from public.rides where id = v_old_ex) = 'open');
+  v_date := (select date from public.favors where id = v_nz_favor);
+  perform pg_temp.probe_ok(v_probe, format('the Auckland example favor moves to [%s, %s] on its weekday (got %s)',
+      v_nz_tomorrow, v_nz_tomorrow + 6, v_date),
+    v_date between v_nz_tomorrow and v_nz_tomorrow + 6
+    and extract(dow from v_date) = extract(dow from v_nz_date));
+  perform pg_temp.probe_ok(v_probe, 'the completed example is open again with no helper, its future date kept',
+    exists (select 1 from public.rides where id = v_done_ex and status::text = 'open' and claimed_by is null
+                                         and date = v_tomorrow + 2));
+  perform pg_temp.probe_ok(v_probe, 'the hidden example is left alone',
+    exists (select 1 from public.rides where id = v_hidden_ex and date = v_old_date));
+  perform pg_temp.probe_ok(v_probe, 'a future example and an ordinary ride are left alone',
+    (select date from public.rides where id = v_ex_ride) = current_date + 3
+    and (select date from public.rides where id = v_old_ctl) = v_old_date
+    and (select status::text from public.rides where id = v_old_ctl) = 'completed');
+  n := public.refresh_example_requests();
+  perform pg_temp.probe_ok(v_probe, 'a second refresh changes nothing (' || n || ')', n = 0);
+
+  -- set_example_content
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, false)', 'ride', v_ex_ride));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin clears the example ride (changed true): ' || j::text,
+    j ->> 'success' = 'true' and j ->> 'changed' = 'true'
+    and not (select is_example from public.rides where id = v_ex_ride));
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, false)', 'ride', v_ex_ride));
+  perform pg_temp.probe_ok(v_probe, 'the same call again changes nothing: ' || j::text,
+    j ->> 'success' = 'true' and j ->> 'changed' = 'false');
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, true)', 'ride', v_ctl_ride));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin marks the ordinary ride as an example: ' || j::text,
+    j ->> 'changed' = 'true' and (select is_example from public.rides where id = v_ctl_ride));
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, false)', 'favor', v_ex_favor));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin clears the example favor: ' || j::text,
+    j ->> 'changed' = 'true' and not (select is_example from public.favors where id = v_ex_favor));
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, false)', 'town_hall_post',
+                                          v_ex_post));
+  perform pg_temp.probe_ok(v_probe, 'the platform admin clears the example post: ' || j::text,
+    j ->> 'changed' = 'true' and not (select is_example from public.town_hall_posts where id = v_ex_post));
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, true)', 'comment', v_ex_post));
+  perform pg_temp.probe_ok(v_probe, 'an unknown type is refused with code invalid: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'code' = 'invalid');
+  j := pg_temp.probe_call(v_admin, format('public.set_example_content(%L, %L::uuid, null)', 'ride', v_ex_ride));
+  perform pg_temp.probe_ok(v_probe, 'a null flag is refused with code invalid: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'code' = 'invalid');
+  j := pg_temp.probe_call(v_member, format('public.set_example_content(%L, %L::uuid, false)', 'ride', v_old_ex));
+  perform pg_temp.probe_ok(v_probe, 'the member subject is refused: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'error' = 'Not authorized - admin access required'
+    and (select is_example from public.rides where id = v_old_ex));
+  j := pg_temp.probe_call(null, format('public.set_example_content(%L, %L::uuid, false)', 'ride', v_old_ex), 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon cannot call set_example_content (42501): ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = '42501');
+  j := pg_temp.probe_call(u3, 'public.refresh_example_requests()');
+  perform pg_temp.probe_ok(v_probe, 'a client cannot call refresh_example_requests (42501): ' || j::text,
+    coalesce(j ->> 'raised', '') = 'true' and j ->> 'sqlstate' = '42501');
+
+  -- the daily job (read only)
+  perform pg_temp.probe_ok(v_probe, 'cron.job has refresh-example-requests at 10 11 * * *, active',
+    exists (select 1 from cron.job
+             where jobname = 'refresh-example-requests' and schedule = '10 11 * * *'
+               and command = 'select public.refresh_example_requests()' and active));
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE example_content OK' as probe;
+
 select 'PROBE ALL OK' as probe;
