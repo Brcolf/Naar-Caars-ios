@@ -2,7 +2,7 @@
 
 ## Document Information
 - **Type**: Security Requirements
-- **Last Updated**: 2026-10-05
+- **Last Updated**: 2026-10-05 (sections 2.1.1, 2.13 and 2.26.1 updated for Community Release 1 on 2026-10-22)
 - **Status**: Live app; reflects production RLS as of 2026-10-05
 
 ---
@@ -101,6 +101,8 @@ Realistic alternatives evaluated and rejected:
 | Convert to a SECURITY DEFINER RPC (`get_public_profiles(ids[])`) | Breaks every relationship-style join in `MessageService`, `ConversationService`, `TownHallService`, `TownHallCommentService`, `InviteService`, `ProfileService`, `UserSearchView`, `SupabaseService` (e.g. `sender:public_profiles!messages_from_id_fkey(id, name, avatar_url)`). PostgREST doesn't join RPCs. Trades one advisor warning for another. |
 
 **The view stays as-is.** The advisor warning is a known accepted exception — record it as such, do not auto-remediate. If the underlying `profiles` schema changes (new PII columns), update the view's column list at the same time.
+
+**Which rows (multi-community, live as of 2026-10-21).** The SQL block above shows only the column list. The live view also filters rows: a signed-in caller reads the ids `public.my_visible_profile_ids()` returns, and a caller with no JWT subject (a guest) reads the active members of listed communities (`is_public`, not archived). `my_visible_profile_ids()` (SECURITY DEFINER, `search_path = ''`) returns the caller, the active members of the caller's communities, the people in the caller's conversations, the caller's review counterparts, and, since Community Release 1 (`20261021_0001` Block 1), **the active members of every listed, unarchived community, for every signed-in caller**, so a signed-in visitor reads the same names and photos a guest already reads (the community page shows the poster of a listed request). The same function gates `get_profile_stats`, `get_user_stats`, `get_user_badges` and `is_user_approved`. Members of private communities stay visible only to people who share a community with them (probe `listed_profiles`). The set grows with listed membership; revisit its cost for town-sized communities, and Release 2 must leave `is_test` communities out of this arm for non-members.
 
 #### 2.1.2 Common policy patterns
 
@@ -281,6 +283,8 @@ Owner-only on every operation.
 | `reviews_select_anon_guest` | SELECT | anon | `true` (guest browseable) |
 | `reviews_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = reviewer_id AND is_active_user(auth.uid())` |
 
+**Live policy text (2026-10-21).** The table above is the pre-community summary. `Approved users can view reviews` reads: the caller is approved, and the caller is the reviewer or the fulfiller, or the review's ride or favor is readable to the caller (the `rides` / `favors` SELECT policies), or `public.is_listed_request(ride_id, favor_id)`. The last arm was added by Community Release 1 (`20261021_0001` Block 3): `is_listed_request` (SECURITY DEFINER, `search_path = ''`, stable) is true when the ride or favor exists, is not hidden, and belongs to a listed, unarchived community, so a signed-in visitor reads the reviews of a listed community's requests, as a guest already does; it does not make the request row itself readable. Because the arm sits inside the approved gate, an account with no active membership does not read them (Release 2 widens this for Get started visitors). `reviews_select_anon_guest` reads `EXISTS` in `guest_rides` or `guest_favors` (the listed, visible requests), not `true`.
+
 ### 2.14 town_hall_posts
 
 | Policy | Op | Roles | USING / CHECK |
@@ -447,6 +451,11 @@ RLS does not cover `/rest/v1/rpc`: any function with EXECUTE granted to `anon` o
 **Pending manual step — not yet applied to production:** `supabase/migrations/20261005_0004_function_caller_guards.sql` (admin-only guard on `send_approval_notification`, self-only guards on `set_typing_status` / `clear_typing_status`) must be run from the Supabase SQL editor; the MCP tool holds `CREATE OR REPLACE` statements for interactive confirmation. Until it runs, those three RPCs are protected only by the `anon` EXECUTE revoke, not by caller checks.
 
 New RPCs must follow the same rule: grant EXECUTE only to the roles that need it, and verify `auth.uid()` inside any function that acts on behalf of a user.
+
+**Community Release 1 (`20261021_0001`, applied 2026-10-21).** Two new functions, both with EXECUTE for `anon`, `authenticated` and `service_role` and none for PUBLIC:
+
+- `public.get_community_preview(p_community_id uuid) → jsonb` (SECURITY DEFINER, stable, `search_path = ''`) is the only way a visitor (a guest or a signed-in non-member) reads a community. It answers only for a listed (`is_public`), unarchived community and otherwise returns `{"success": false, "code": "not_listed"}` (also for a null or unknown id, and for a private community even to its own members). It returns the community's public fields (name, description, join policy, member count, time zone), at most 10 open, unclaimed, visible requests dated today or later (type, title, date, time, seats, poster id, name and avatar), and at most 5 recent visible posts (content cut to 280 characters, comment count). No pickup, destination, location, notes, description of a request, gift, flight or cost key is returned. Banned posters are left out, and for a signed-in caller so is anyone the caller blocked or who blocked the caller. Probe `community_preview`.
+- `public.is_listed_request(p_ride_id uuid, p_favor_id uuid) → boolean` (SECURITY DEFINER, stable, `search_path = ''`) is the predicate of the reviews arm in §2.13. It is anon-callable because the policy is `TO public`; it reveals only what a guest can already derive from `guest_rides` / `guest_favors`.
 
 ### 2.27 content_moderation_events (audit log)
 

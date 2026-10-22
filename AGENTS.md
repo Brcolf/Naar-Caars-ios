@@ -60,11 +60,20 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `Scripts/obfuscate.swift` to generate obfuscated credential arrays. Never log or expose `Secrets.supabaseURL` or `Secrets.supabaseAnonKey`.
 - Install the git pre-commit hook with `scripts/install-hooks.sh`; it installs a thin wrapper that runs `scripts/pre-commit-secrets-check.sh` from the repo (secrets, signing files, localization-key check).
 
+## Communities (Release 1: Explore and the community page)
+
+- Tabs: Requests, Messages, Town Hall, Profile, and Explore as the search-role tab (`MainTabView`, SwiftUI `Tab` API). `MainTabView.onChange(of: selectedTab)` is the only caller of `setVisibleDomain`: Requests → `.dashboard`, Messages → `.conversations`, Town Hall → `.townHall`, Profile and Explore → nil (`NavigationCoordinator.Tab.refreshDomain`). Leaving Messages still unsubscribes the conversation.
+- Explore code: `ExploreView` (root) with `MyCommunitiesView` as its content and its intent consumer (`MyCommunitiesView.exploreRoute(for:)`); `CommunityPageView(communityId:)` / `CommunityPageViewModel` (`ObservableObject`) for a community's page; `UI/Components/Common/CommunityBadges.swift` (`CommunityPolicyChip`, `CommunityMonogram`). Push every destination item-driven, never with a value-based `NavigationLink` in a pushed screen.
+- Routes: community-admin routes (`.pendingMembers`, `.communityReports`, `.communityMembers`), `.myCommunities`, `.joinCommunity` and `.enterApp` (authenticated) open on Explore; platform-admin routes (`.pendingUsers`, `.adminReports`, `.adminPanel`) stay on Profile.
+- A visitor reads a community only through `CommunityService.fetchCommunityPreview(communityId:)` → `get_community_preview` (listed and unarchived only; refusal `not_listed`; no address columns), never through a table read.
+- Requests filter: `CommunityContext.requestsScope` (`.all`, `.community`, `.excluding`), changed through `toggleRequestsInclusion(_:)` or the title menu.
+- The Explore badge (`BadgeCounts.explore`) reads `pending_members_total`.
+
 ## Communities (Phase 2)
 
 - Community screens: `Features/Community/{Views,ViewModels}`; Admin → Communities in `Features/Admin`; onboarding in `Features/Authentication` (`CommunityOnboardingView` is the `.needsApplication` root).
-- `pending_approval` with `community_id` routes to `.pendingMembers(communityId)`; without it, `.pendingUsers` opens the default community's Requests to join; `.enterApp` while authenticated opens My communities.
-- The Profile badge reads `pending_members_total`; never aggregate pending counts on the client. `clearCommunityBadge(visibleCommunityId:)` clears only the visible community's Town Hall rows.
+- `pending_approval` with `community_id` routes to `.pendingMembers(communityId)` (Explore); without it, `.pendingUsers` opens the default community's Requests to join (Profile); `.enterApp` while authenticated opens Explore.
+- Never aggregate pending counts on the client. `clearCommunityBadge(visibleCommunityId:)` clears only the visible community's Town Hall rows.
 - Community RPC refusals (`{success:false, error, code}`) throw `CommunityRPCError`. Shared community sheets record a result and the presenter acts on it in `onDismiss`. `PreviewCommunityService` is the only app-target preview stand-in.
 
 ## Communities (Phase 1)
@@ -72,24 +81,24 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `CommunityContext` (`@Observable`, `App/`) holds the person's memberships and the selected scopes. Switch the Community tab's community only by setting `communityTabId`; the feed refreshes through `forceFullRefreshAndWait(.townHall, …)`. `TownHallSyncEngine` reads the context at fetch start and `.townHallPostsDidSync` carries the synced scope.
 - Town Hall pushes use `town_hall_post_id` (`NotificationType.entityIdKey`) and may carry `community_id`; they do a targeted single-post refresh.
 - `recheckAccountStatus` acts only on a successful read; the waiting screen runs `performCriticalLaunch()`; sign-out calls `CommunityContext.resetForSignOut(userId:)`.
-- Title menus use the shared `communityTitleMenu` modifier and show only with more than one membership. `get_badge_counts` keys `pending_members_total`, `community_details`, `total` come from the server.
+- Title menus use the shared `communityTitleMenu` modifier; since Release 1 they show for any member, also of one community (About this community and Find communities live there), and never for a guest. `get_badge_counts` keys `pending_members_total`, `community_details`, `total` come from the server.
 
 ## Communities (Phase 3)
 
 - Admin and moderation code: `Features/Community/{Views,ViewModels}` (members, settings, reports) and `Features/Admin` (panel per community, announcements). Fronts: `AdminServiceProtocol` (figures, `sendBroadcast(communityId:…)`, community reports) and `CommunityAdminServiceProtocol` (remove, readmit, roles, ownership, settings, archive). `PreviewAdminService` is the app-target preview stand-in; any `#Preview` using a DEBUG-only preview service sits inside `#if DEBUG`.
 - `CommunityReport` has no reporter field (INV-P2). Community screens never call `admin_get_reports` or `admin_moderate_content`; they use `AdminService.fetchCommunityReports` and `moderateCommunityContent`.
-- `content_reported` with `community_id` routes to `.communityReports(communityId)` for a non-platform admin; without it, `.adminReports`. `account_restricted` routes to `.myCommunities`.
+- `content_reported` with `community_id` routes to `.communityReports(communityId)` (Explore) for a non-platform admin; without it, `.adminReports` (Profile). `account_restricted` routes to `.myCommunities` (Explore).
 - Coordinator triggers added: `forceFullRefreshAndWait(.dashboard, "removedMember")` and `(.dashboard, "archivedCommunity")`, from ViewModels after an explicit action only. One RPC per tap: a write method returns early while one is in flight.
 
 ## Phase 5a (multi-community) facts
 
 - **Signed image URLs**: images of `message-images`, `group-images`, `town-hall-images`, `review-images` and voice notes (`audio-messages`) are read through `StorageURLSigner` (via `PersistentImageService.getImage(for:)`, `CachedAsyncImage`, `MessageAudioPlayer`). Never persist or log a signed URL, never download these with `URLSession.shared`, and store only the URL the upload returned.
 - **Ride-cost geocoding**: `GeocodingCacheService` uses only `get_geocoding_multiplier` / `put_geocoding_multiplier`; it never reads or writes `geocoding_cache` and sends no placemark data. The client no longer touches `invite_codes`.
-- Phase 5b server files (`20261019_0060`-`0063`) are GATED, NOT APPLIED.
+- Phase 5b server files (`20261019_0060`-`0063`) are applied (2026-10-20); see `CLAUDE.md`.
 
 ## Phase 4 (multi-community) facts
 
-- **Notification types**: 34. `membership_update` is the newest; add or change a type in the Swift enum, `NotificationTypeRegistry`, `supabase/functions/_shared/notificationTypes.ts` and the SQL `valid_notification_type` CHECK together; `scripts/validate-notification-types.sh` reads all four. Its server producers and the announcement push (`20261019_0002`, `20261019_0003`) are GATED (NOT APPLIED) until no pre-community build is in use.
+- **Notification types**: 34. `membership_update` is the newest; add or change a type in the Swift enum, `NotificationTypeRegistry`, `supabase/functions/_shared/notificationTypes.ts` and the SQL `valid_notification_type` CHECK together; `scripts/validate-notification-types.sh` reads all four. Its server producers and the announcement push (`20261019_0002`, `20261019_0003`) are live since 2026-10-20.
 - **Incoming URLs**: `onOpenURL` → `IncomingLinkHandler.handle(_:)` (in `Core/Utilities/PendingInviteStore.swift`) saves the code in `PendingInviteStore` first, then `DeepLinkParser.parse(url:)` → `DeepLink.joinCommunity` → `NavigationCoordinator.applyExternalDeepLink`. The code is read from the fragment only and never logged. Do not add `UIApplicationDelegate` URL methods (`AppDelegate` has none).
 - **Entitlement**: Associated Domains `applinks:naarscars.com`; the owner adds the capability to the App ID and hosts `Docs/universal-links/apple-app-site-association` before an archive.
 - **Navigation**: new intents `communityMembers` and `joinCommunity`; the routing table test covers them.
