@@ -7,7 +7,7 @@ This file holds the text to paste into App Store Connect for that build, and the
 ## Owner steps before submitting
 
 1. **Review account.** Keep the existing review account approved and an active member of the default community ("Naar's Cars Seattle"), so the reviewer lands in the app with content.
-2. **Test invite code.** Sign in as a community admin (or the owner), open Profile > My communities > Naar's Cars Seattle > Invite people, and make an admin code with at least 5 uses and an expiry of at least 30 days. Put it where the notes say `<TEST CODE>`. A member code is single-use and lasts only 7 days, which is too short for review.
+2. **Test invite code.** Sign in as a community admin (or the owner), open Explore (the search tab) > Test Community > Invite, and make an admin code with at least 5 uses and an expiry of at least 30 days. Put it where the notes say `<TEST CODE>`. A member code is single-use and lasts only 7 days, which is too short for review.
 3. **Legal pages.** Replace `<RELEASE DATE>` in `Legal/PRIVACY_POLICY.md` and `Legal/TERMS_OF_SERVICE.md` with the release date, then copy both documents to the Notion pages the app opens (`Constants.swift`, privacy policy and terms URLs). The app shows the Notion copies, not the files in this repository.
 4. **Release notes.** Paste the release notes below, and tell the platform admins directly to update with this build (decision D10: on the previous build they can neither approve nor reject applicants to other communities).
 5. **Review Notes size.** App Store Connect limits Review Notes to 4,000 bytes. The block below is about 2,600 bytes before the account details are filled in.
@@ -22,7 +22,7 @@ Email: [REVIEW_ACCOUNT_EMAIL]
 Password: [REVIEW_ACCOUNT_PASSWORD]
 Test invite code: <TEST CODE>
 
-Existing account: sign in. You are a member of Naar's Cars Seattle. Profile > My communities lists your communities and has Create a community, Join a community and, for admins, Requests to join.
+Existing account: sign in. You are a member of Naar's Cars Seattle. Explore (the search tab) lists your communities and has Start a community, Join a community and, for admins, Requests to join.
 
 New account, three ways in (after signing up, the Get started screen offers all three):
 1. Invite code: tap Enter an invite code and type <TEST CODE>. The preview shows the community's name, member count and what its admins will see before you join.
@@ -68,7 +68,7 @@ Added 2026-10-18 for the build that lets community owners and admins run their c
 
 ### Owner steps (in addition to the Phase 2 steps)
 
-1. **Reviewer's test community.** Sign in as the review account, create a test community (Profile > My communities > Create a community), so the review account is its owner. Profile > Admin Panel then offers that community, with Members, Reports and Settings.
+1. **Reviewer's test community.** Sign in as the review account, create a test community (Explore > Start a community), so the review account is its owner. Profile > Admin Panel then offers that community, with Members, Reports and Settings.
 2. **A report to look at (optional, writes).** From a second test account that belongs to the test community, report one of its Town Hall posts, so the community's Reports list is not empty. Remove the post, the report and the second account's membership after review.
 3. **Legal pages.** The terms, privacy policy and FAQ changed again for Phase 3 (community moderation). Replace `<RELEASE DATE>` and copy both documents to the Notion pages the app opens (`Constants.swift`, privacy policy and terms URLs) before submitting.
 4. **Review Notes size.** The Phase 3 paragraph below is about 920 bytes. It replaces one paragraph of the Phase 2 block, which leaves about 2,200 bytes, so the total is about 3,100 bytes before the account details are filled in, under the 4,000-byte limit.
@@ -109,8 +109,8 @@ The build adds the **Associated Domains** entitlement with `applinks:naarscars.c
 
 ### How a reviewer tests a join link
 
-1. Sign in as the review account and create or open a community with an invite code (Profile > My communities > community > Invite people).
-2. In Safari or Notes, open `https://naarscars.com/join#<code>`. The app opens Profile > My communities with the Join sheet for that community. Signed out, the Welcome screen shows "You have an invite. Sign up or sign in to use it." and the code is kept for after sign-in.
+1. Sign in as the review account and create or open a community with an invite code (Explore > the community's page > Invite).
+2. In Safari or Notes, open `https://naarscars.com/join#<code>`. The app opens Explore with the Join sheet for that community. Signed out, the Welcome screen shows "You have an invite. Sign up or sign in to use it." and the code is kept for after sign-in.
 3. Join links are not required to review the app; every invite can also be entered by hand on the Join screen.
 
 ### Release notes (What's New), Phase 4

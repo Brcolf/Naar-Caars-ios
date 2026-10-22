@@ -280,7 +280,7 @@ Owner-only on every operation.
 | Policy | Op | Roles | USING / CHECK |
 |---|---|---|---|
 | `Approved users can view reviews` | SELECT | (all) | caller is approved |
-| `reviews_select_anon_guest` | SELECT | anon | `true` (guest browseable) |
+| `reviews_select_anon_guest` | SELECT | anon | `true` (guest browseable; see the live policy text below for the signed-in policy widened on 2026-10-21) |
 | `reviews_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = reviewer_id AND is_active_user(auth.uid())` |
 
 **Live policy text (2026-10-21).** The table above is the pre-community summary. `Approved users can view reviews` reads: the caller is approved, and the caller is the reviewer or the fulfiller, or the review's ride or favor is readable to the caller (the `rides` / `favors` SELECT policies), or `public.is_listed_request(ride_id, favor_id)`. The last arm was added by Community Release 1 (`20261021_0001` Block 3): `is_listed_request` (SECURITY DEFINER, `search_path = ''`, stable) is true when the ride or favor exists, is not hidden, and belongs to a listed, unarchived community, so a signed-in visitor reads the reviews of a listed community's requests, as a guest already does; it does not make the request row itself readable. Because the arm sits inside the approved gate, an account with no active membership does not read them (Release 2 widens this for Get started visitors). `reviews_select_anon_guest` reads `EXISTS` in `guest_rides` or `guest_favors` (the listed, visible requests), not `true`.

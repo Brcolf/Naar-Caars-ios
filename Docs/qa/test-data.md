@@ -27,8 +27,8 @@ Open-join communities do not exist yet, so there is no test community of that ty
 
 ## How to use them
 
-- **Join a public one as a platform admin.** On your own account, open the onboarding screen or Profile → My communities → Join a community, and ask to join Test Public A or B. Then, on the iPhone 17 as NC Test Owner, open Profile → My communities → the community's menu → Requests to join, and approve or decline.
-- **Join a private one.** On the iPhone 17 as NC Test Owner, open Profile → My communities → the community's menu → Invite people. Use the code (or link) it shows on the other account. A private community never appears in the public list, so a code is the only way in.
+- **Join a public one as a platform admin.** On your own account, open the onboarding screen or Explore (the search tab) → Join a community, and ask to join Test Public A or B. Then, on the iPhone 17 as NC Test Owner, open Profile → My communities → the community's menu → Requests to join, and approve or decline.
+- **Join a private one.** On the iPhone 17 as NC Test Owner, open Explore → the community's page → Invite. Use the code (or link) it shows on the other account. A private community never appears in the public list, so a code is the only way in.
 - **Leave afterwards** if the test does not need the membership any more, so the communities stay small.
 - Platform admins can read every community row, private ones included (D9), but the "Ask to join a public community" list shows only the public ones.
 
