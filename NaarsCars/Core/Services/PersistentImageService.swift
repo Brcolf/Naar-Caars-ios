@@ -113,7 +113,7 @@ final class PersistentImageService {
                 // Save to disk cache (off-main)
                 let saveURL = fileURL
                 Task.detached(priority: .utility) {
-                    try? data.write(to: saveURL)
+                    try? data.write(to: saveURL, options: .atomic)
                 }
                 remember(image, forKey: memoryKey)
                 return image
