@@ -36,6 +36,11 @@
 --     accounts their default membership directly instead of through the retired approve bridge; broadcast_cap
 --     expects 42501 from send_broadcast_notifications once 0060 block 7 has revoked it. A 5b dry run never pastes
 --     this file: it runs the committed script in supabase/dryruns/ (no commit; probes as savepoints).
+--   * Release 1 (community discovery and trust, 20261021_0001). community_preview and listed_profiles need it
+--     and fail with "Release 1 is not live" otherwise (pg_temp.probe_require_release1: get_community_preview
+--     exists). reputation adapts: once Release 1 is live, u5 (active in public C2) is readable by every signed-in
+--     account, so its "shares no community" check reads u3 (C1 only, private) and a new check reads u5. Neither
+--     new block holds a DELETE; both run through the MCP.
 --   * SQL editor: run the whole file. MCP execute_sql: pass the PARAMETERS and HELPERS sections plus the
 --     block(s) in ONE call (the helpers live in the session). The `commit;` after HELPERS is deliberate:
 --     in a multi-statement run it keeps the helpers from being rolled back by the first block's rollback.
@@ -100,6 +105,7 @@
 --   Phase 3 adds: get_community_reports(p_community_id, p_status), moderate_community_content(p_report_id, p_action, p_reason), get_community_stats(p_community_id) and get_community_stats_fulfilled / _savings(p_community_id, p_period, p_count), get_community_stats_active_requests(p_community_id), send_community_broadcast(p_community_id, p_title, p_body, p_pinned[, p_type]).
 --   Phase 4: create_community(p_name, p_description, p_join_policy, p_timezone); the membership_update producers approve_community_member, readmit_community_member, transfer_community_ownership, set_member_role; send_community_broadcast's push.
 --   Phase 5 adds: get_geocoding_multiplier(p_location_key), put_geocoding_multiplier(p_location_key, p_latitude, p_longitude, p_multiplier).
+--   Release 1 adds: get_community_preview(p_community_id) (refusal code 'not_listed'), is_listed_request(p_ride_id, p_favor_id).
 
 
 -- =============================================================================================================
@@ -445,6 +451,16 @@ begin
   perform set_config('request.jwt.claims', '', true);
   insert into storage.objects (bucket_id, name, owner, owner_id, metadata)
   values (p_bucket, p_name, p_owner, p_owner::text, '{"mimetype": "image/jpeg", "size": 1}'::jsonb);
+end $f$;
+
+-- Release 1 (20261021_0001): fails unless steps 1-5 are live and get_community_preview exists (in the dry run:
+-- created earlier in the same transaction)
+create or replace function pg_temp.probe_require_release1(p_probe text) returns void language plpgsql as $f$
+begin
+  perform pg_temp.probe_require(p_probe);
+  if to_regprocedure('public.get_community_preview(uuid)') is null then
+    raise exception 'PROBE % FAILED: Release 1 is not live', p_probe;
+  end if;
 end $f$;
 commit;
 
@@ -1317,15 +1333,18 @@ select 'PROBE reports OK' as probe;
 -- =============================================================================================================
 -- reputation: two viewers who each share a different community with the same person read identical
 -- get_profile_stats; a viewer who shares none gets an empty result; get_community_leaderboard for a private
--- community the caller is not in is refused.
+-- community the caller is not in is refused. Once Release 1 (20261021_0001) is live, an active member of a listed
+-- community is readable by every signed-in account: the "shares none" check reads u3 (C1 only, private) instead of
+-- u5 (active in public C2), and a default member now reads u5's stats.
 -- =============================================================================================================
 begin;
 do $probe$
 declare
   v_probe constant text := 'reputation';
   v_member uuid := pg_temp.probe_subject('member');
-  u3 uuid := pg_temp.u(3);  u5 uuid := pg_temp.u(5);  u12 uuid := pg_temp.u(12);
+  u3 uuid := pg_temp.u(3);  u5 uuid := pg_temp.u(5);  u7 uuid := pg_temp.u(7);  u12 uuid := pg_temp.u(12);
   c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);
+  v_release1 boolean := to_regprocedure('public.get_community_preview(uuid)') is not null;
   j jsonb;
   k jsonb;
 begin
@@ -1343,8 +1362,19 @@ begin
   k := pg_temp.probe_call(u12, format('public.get_profile_stats(%L::uuid)', u5));
   perform pg_temp.probe_ok(v_probe, 'a C1 viewer reads the stats: ' || j::text, not pg_temp.probe_empty(j) and (j ->> 'review_count')::int = 1);
   perform pg_temp.probe_ok(v_probe, format('viewers through different communities read identical stats: %s vs %s', j, k), j = k);
-  j := pg_temp.probe_call(v_member, format('public.get_profile_stats(%L::uuid)', u5));
-  perform pg_temp.probe_ok(v_probe, 'a viewer who shares no community gets an empty result: ' || j::text, pg_temp.probe_empty(j));
+  if v_release1 then
+    -- u3 has u7's review of r(1): a C1 co-member reads it (control), a default member does not
+    j := pg_temp.probe_call(u7, format('public.get_profile_stats(%L::uuid)', u3));
+    perform pg_temp.probe_ok(v_probe, 'a C1 viewer reads u3''s stats (control): ' || j::text, not pg_temp.probe_empty(j) and (j ->> 'review_count')::int = 1);
+    j := pg_temp.probe_call(v_member, format('public.get_profile_stats(%L::uuid)', u3));
+    perform pg_temp.probe_ok(v_probe, 'a viewer who shares no community gets an empty result: ' || j::text, pg_temp.probe_empty(j));
+    k := pg_temp.probe_call(v_member, format('public.get_profile_stats(%L::uuid)', u5));
+    perform pg_temp.probe_ok(v_probe, 'a default member reads the stats of an active member of a listed community: ' || k::text,
+      not pg_temp.probe_empty(k) and (k ->> 'review_count')::int = 1);
+  else
+    j := pg_temp.probe_call(v_member, format('public.get_profile_stats(%L::uuid)', u5));
+    perform pg_temp.probe_ok(v_probe, 'a viewer who shares no community gets an empty result: ' || j::text, pg_temp.probe_empty(j));
+  end if;
 
   j := pg_temp.probe_run(v_member, format($q$select coalesce(jsonb_agg(x.user_id), '[]'::jsonb)
                                            from public.get_community_leaderboard(%L::uuid, '1970-01-01'::date, current_date) x$q$, c1));
@@ -2646,5 +2676,182 @@ end
 $probe$;
 rollback;
 select 'PROBE storage_private OK' as probe;
+
+
+-- =============================================================================================================
+-- community_preview (Release 1, 20261021_0001): a visitor of a listed community (u3, not in C2; anon) reads its
+-- id, member count, live open requests and newest post, and no address, note, description or gift key; hidden and
+-- past requests are left out; a private community (C1), a null id and an unknown id are refused with 'not_listed',
+-- to a C1 member too, without an exception; a block in either direction hides the other person's requests and
+-- posts (checked before the archive, on a preview that answers success); an archived community is refused.
+-- Rows are inserted as the table owner, as in reputation.
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'community_preview';
+  u3 uuid := pg_temp.u(3);  u7 uuid := pg_temp.u(7);  u12 uuid := pg_temp.u(12);
+  c1 uuid := pg_temp.c(1);  c2 uuid := pg_temp.c(2);
+  v_ride   uuid := pg_temp.r(21);   -- open, in two days
+  v_hidden uuid := pg_temp.r(22);   -- open, in two days, hidden
+  v_past   uuid := pg_temp.r(23);   -- open, three days ago
+  v_favor uuid;
+  v_post uuid;
+  v_call text;
+  v_ids jsonb;
+  j jsonb;
+  k jsonb;
+begin
+  perform pg_temp.probe_require_release1(v_probe);
+  perform pg_temp.probe_world();
+
+  -- u12 (owner of public C2, its only member) posts a live ride and favor, a hidden ride, a past ride and a post
+  insert into public.rides (id, user_id, date, "time", pickup, destination, notes, status, community_id, hidden_at, hidden_reason)
+  values (v_ride,   u12, current_date + 2, '09:00', 'Probe pickup', 'Probe destination', 'Probe notes', 'open', c2, null, null),
+         (v_hidden, u12, current_date + 2, '10:00', 'Probe pickup', 'Probe destination', null, 'open', c2, now(), 'communities probe'),
+         (v_past,   u12, current_date - 3, '09:00', 'Probe pickup', 'Probe destination', null, 'open', c2, null, null);
+  insert into public.favors (user_id, title, description, location, date, gift, status, community_id)
+  values (u12, 'Probe favor', 'Probe description', 'Probe location', current_date + 2, 'Probe gift', 'open', c2)
+  returning id into v_favor;
+  v_post := pg_temp.probe_post(21, u12, c2);
+  v_call := format('public.get_community_preview(%L::uuid)', c2);
+
+  -- u3 is active in C1 only (private), not in C2
+  j := pg_temp.probe_call(u3, v_call);
+  perform pg_temp.probe_ok(v_probe, 'a non-member reads the preview of a listed community: ' || left(j::text, 500),
+    j ->> 'success' = 'true');
+  perform pg_temp.probe_ok(v_probe, 'the community is C2 with 1 active member: ' || (j -> 'community')::text,
+    j #>> '{community,id}' = c2::text and (j #>> '{community,member_count}')::int = 1);
+  v_ids := jsonb_path_query_array(j, '$.requests[*].id');
+  perform pg_temp.probe_ok(v_probe, 'both live requests are listed: ' || v_ids::text,
+    v_ids ? v_ride::text and v_ids ? v_favor::text);
+  perform pg_temp.probe_ok(v_probe, 'the hidden and the past ride are not: ' || v_ids::text,
+    not (v_ids ? v_hidden::text) and not (v_ids ? v_past::text));
+  perform pg_temp.probe_ok(v_probe, 'the ride and the favor carry their type and title: ' || (j -> 'requests')::text,
+    exists (select 1 from jsonb_array_elements(j -> 'requests') e
+             where e ->> 'id' = v_ride::text and e ->> 'type' = 'ride' and e -> 'title' = 'null'::jsonb)
+    and exists (select 1 from jsonb_array_elements(j -> 'requests') e
+                 where e ->> 'id' = v_favor::text and e ->> 'type' = 'favor' and e ->> 'title' = 'Probe favor'));
+  perform pg_temp.probe_ok(v_probe, 'no request has a pickup, destination, location, notes, description or gift key',
+    not exists (select 1 from jsonb_array_elements(j -> 'requests') e, jsonb_object_keys(e) kk
+                 where kk in ('pickup', 'destination', 'location', 'notes', 'description', 'gift')));
+  perform pg_temp.probe_ok(v_probe, 'the post is listed: ' || (j -> 'posts')::text,
+    jsonb_path_query_array(j, '$.posts[*].id') ? v_post::text);
+
+  k := pg_temp.probe_call(null, v_call, 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon reads the same requests and post: ' || left(k::text, 500),
+    k ->> 'success' = 'true'
+    and jsonb_path_query_array(k, '$.requests[*].id') = v_ids
+    and jsonb_path_query_array(k, '$.posts[*].id') = jsonb_path_query_array(j, '$.posts[*].id'));
+
+  -- refusals: a private community (u12 is not in C1, u3 is), a null id, an unknown id
+  j := pg_temp.probe_call(u12, format('public.get_community_preview(%L::uuid)', c1));
+  k := pg_temp.probe_call(u3,  format('public.get_community_preview(%L::uuid)', c1));
+  perform pg_temp.probe_ok(v_probe, format('a private community is refused to a non-member and to its member: %s / %s', j, k),
+    j ->> 'success' = 'false' and j ->> 'code' = 'not_listed' and k ->> 'success' = 'false' and k ->> 'code' = 'not_listed');
+  foreach v_call in array array['public.get_community_preview(null::uuid)', 'public.get_community_preview(gen_random_uuid())'] loop
+    j := pg_temp.probe_call(null, v_call, 'anon');
+    k := pg_temp.probe_call(u3, v_call);
+    perform pg_temp.probe_ok(v_probe, format('%s answers not_listed to anon and to u3 without an exception: %s / %s', v_call, j, k),
+      not (j ? 'raised') and j ->> 'code' = 'not_listed' and not (k ? 'raised') and k ->> 'code' = 'not_listed');
+  end loop;
+
+  -- blocks, before the archive: u12 blocks u7 (the blocked person reads), then u3 blocks u12 (the blocker reads)
+  v_call := format('public.get_community_preview(%L::uuid)', c2);
+  j := pg_temp.probe_run(u12, format($q$insert into public.blocked_users (blocker_id, blocked_id, reason)
+                                      values (%L, %L, 'communities probe') returning to_jsonb(id)$q$, u12, u7));
+  perform pg_temp.probe_ok(v_probe, 'u12 blocks u7: ' || j::text, not pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u7, v_call);
+  perform pg_temp.probe_ok(v_probe, 'the person u12 blocked reads a preview without u12''s requests and post: ' || left(j::text, 500),
+    j ->> 'success' = 'true'
+    and not exists (select 1 from jsonb_array_elements(j -> 'requests') e where e ->> 'poster_id' = u12::text)
+    and not exists (select 1 from jsonb_array_elements(j -> 'posts') e where e ->> 'author_id' = u12::text));
+  j := pg_temp.probe_run(u3, format($q$insert into public.blocked_users (blocker_id, blocked_id, reason)
+                                     values (%L, %L, 'communities probe') returning to_jsonb(id)$q$, u3, u12));
+  perform pg_temp.probe_ok(v_probe, 'u3 blocks u12: ' || j::text, not pg_temp.probe_refused(j));
+  j := pg_temp.probe_call(u3, v_call);
+  perform pg_temp.probe_ok(v_probe, 'the blocker reads a preview without u12''s requests and post: ' || left(j::text, 500),
+    j ->> 'success' = 'true'
+    and not exists (select 1 from jsonb_array_elements(j -> 'requests') e where e ->> 'poster_id' = u12::text)
+    and not exists (select 1 from jsonb_array_elements(j -> 'posts') e where e ->> 'author_id' = u12::text));
+  k := pg_temp.probe_call(null, v_call, 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon still reads them (control): ' || left(k::text, 500),
+    jsonb_path_query_array(k, '$.requests[*].id') ? v_ride::text and jsonb_path_query_array(k, '$.posts[*].id') ? v_post::text);
+
+  -- archive
+  update public.communities set archived_at = now() where id = c2;
+  j := pg_temp.probe_call(u3, v_call);
+  perform pg_temp.probe_ok(v_probe, 'an archived community is refused: ' || j::text,
+    j ->> 'success' = 'false' and j ->> 'code' = 'not_listed');
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE community_preview OK' as probe;
+
+
+-- =============================================================================================================
+-- listed_profiles (Release 1, 20261021_0001): a signed-in account reads an active member of a listed community
+-- (u12, public C2) in public_profiles and get_profile_stats, as a guest does, and not a member of a private one
+-- (u14, C3); it reads the review of a completed request in a listed community and not one in a private community,
+-- and still does not read the listed request's row itself; anon's read of reviews plans and runs (it needs
+-- EXECUTE on is_listed_request).
+-- =============================================================================================================
+begin;
+do $probe$
+declare
+  v_probe constant text := 'listed_profiles';
+  u3 uuid := pg_temp.u(3);  u5 uuid := pg_temp.u(5);  u12 uuid := pg_temp.u(12);  u14 uuid := pg_temp.u(14);
+  u16 uuid := pg_temp.u(16);
+  c2 uuid := pg_temp.c(2);  c3 uuid := pg_temp.c(3);
+  v_rev2 uuid;
+  v_rev3 uuid;
+  j jsonb;
+begin
+  perform pg_temp.probe_require_release1(v_probe);
+  perform pg_temp.probe_world();
+
+  perform pg_temp.probe_ok(v_probe, 'u3 reads u12 (public C2 only) in public_profiles',
+    pg_temp.probe_count(u3, format('select 1 from public.public_profiles where id = %L', u12)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u3 does not read u14 (private C3 only) in public_profiles',
+    pg_temp.probe_count(u3, format('select 1 from public.public_profiles where id = %L', u14)) = 0);
+  -- the gate answers {} for a hidden profile; a visible one has the three keys even when they are 0 / null
+  j := pg_temp.probe_call(u3, format('public.get_profile_stats(%L::uuid)', u12));
+  perform pg_temp.probe_ok(v_probe, 'get_profile_stats(u12) is not empty for u3: ' || j::text,
+    jsonb_typeof(j) = 'object' and j ? 'review_count');
+  j := pg_temp.probe_call(u3, format('public.get_profile_stats(%L::uuid)', u14));
+  perform pg_temp.probe_ok(v_probe, 'get_profile_stats(u14) is empty for u3: ' || j::text, j = '{}'::jsonb);
+
+  -- a completed C2 ride (u12 posted, u5 made a C2 member and helped) and a completed C3 ride (u14 posted, u16 made a
+  -- C3 member and helped), each reviewed by its poster, as in reputation
+  perform pg_temp.probe_member(c2, u5, 'member', 'active', 5);
+  perform pg_temp.probe_member(c3, u16, 'member', 'active', 5);
+  insert into public.rides (id, user_id, date, "time", pickup, destination, status, claimed_by, community_id)
+  values (pg_temp.r(31), u12, current_date - 3, '09:00', 'Probe pickup', 'Probe destination', 'completed', u5, c2),
+         (pg_temp.r(32), u14, current_date - 3, '09:00', 'Probe pickup', 'Probe destination', 'completed', u16, c3);
+  insert into public.reviews (reviewer_id, fulfiller_id, ride_id, rating, comment)
+  values (u12, u5, pg_temp.r(31), 4, 'Probe review') returning id into v_rev2;
+  insert into public.reviews (reviewer_id, fulfiller_id, ride_id, rating, comment)
+  values (u14, u16, pg_temp.r(32), 5, 'Probe review') returning id into v_rev3;
+
+  perform pg_temp.probe_ok(v_probe, 'u3 is approved (the reviews policy''s gate)',
+    (select p.approved from public.profiles p where p.id = u3));
+  perform pg_temp.probe_ok(v_probe, 'u3 reads the review of the completed C2 ride',
+    pg_temp.probe_count(u3, format('select 1 from public.reviews where id = %L', v_rev2)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u3 still does not read the C2 ride itself',
+    pg_temp.probe_count(u3, format('select 1 from public.rides where id = %L', pg_temp.r(31))) = 0);
+  perform pg_temp.probe_ok(v_probe, 'the C3 review is readable by its writer (control)',
+    pg_temp.probe_count(u14, format('select 1 from public.reviews where id = %L', v_rev3)) = 1);
+  perform pg_temp.probe_ok(v_probe, 'u3 does not read the review of the completed C3 ride',
+    pg_temp.probe_count(u3, format('select 1 from public.reviews where id = %L', v_rev3)) = 0);
+  j := pg_temp.probe_run(null, 'select to_jsonb(count(*)) from (select 1 from public.reviews) s', 'anon');
+  perform pg_temp.probe_ok(v_probe, 'anon reads public.reviews without an error: ' || j::text, not pg_temp.probe_refused(j));
+
+  raise notice 'PROBE % OK', v_probe;
+end
+$probe$;
+rollback;
+select 'PROBE listed_profiles OK' as probe;
 
 select 'PROBE ALL OK' as probe;
