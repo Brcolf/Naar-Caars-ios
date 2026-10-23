@@ -67,7 +67,11 @@ If you grant location permission:
 - The app may access **precise location while the app is in use** to support map-related features (e.g., sharing your location one time in messages to another user assisting you with a ride or favor).
 - We do **not** intend to store your precise location on our servers for long-term tracking; any shared location is strictly point in time for coordination with another user.
 
-Separately, the app supports **address/location autocomplete** using Apple's MapKit search services. Your typed search queries may be sent to Apple to return suggestions.
+- **Finding communities near you.** Only when you tap **Use my location** in Explore, the app reads your location once. The point, rounded to about 100 metres, is sent to Apple to find the town name, and then to our servers for that one search of communities near you. It is not stored or logged, it is not read in the background, and the search runs again only if you tap the button again. If you decline, you can type a town or ZIP code instead.
+
+Separately, the app supports **address/location autocomplete** using Apple's MapKit search services. Your typed search queries may be sent to Apple to return suggestions. A town or ZIP code you type to find communities is looked up by Apple in the same way, and the place it returns is used for one search.
+
+**What is public about a listed community.** A community that its owner lists for anyone to find shows its name, its service area (a place name and a circle, never an address) and its member count to everyone, including people browsing without an account. Example requests and posts in Test Community, which we publish so new people have something to explore, are not real: nobody asked for those rides or favors, and they cannot be claimed.
 
 ### 4.4 Photos and camera
 
@@ -180,7 +184,7 @@ You can enable or disable push notifications via iOS Settings and within the app
 
 ### 10.3 Location
 
-You can enable or disable location access in iOS Settings. The app should still function with location disabled, though sharing your location via messages with another user will be limited.
+You can enable or disable location access in iOS Settings. The app should still function with location disabled, though sharing your location via messages with another user and the **Use my location** button in Explore will be limited; you can type a town or ZIP code to find communities instead.
 
 ### 10.4 Access, correction, and deletion
 

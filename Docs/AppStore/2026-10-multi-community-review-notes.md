@@ -150,3 +150,30 @@ Find communities in the new Explore tab: see what a community offers before you 
 1. Copy the changed `Legal/PRIVACY_POLICY.md` sentence ("Public communities") and the new FAQ entry to the Notion pages the app opens.
 2. Check the byte size of the pasted Review Notes (limit 4,000 bytes); this paragraph adds about 1,000.
 3. What a visitor reads is server-limited: `get_community_preview` (`20261021_0001`) returns listed, unarchived communities only, with no address, note or community description beyond the public one, and members' name, photo, car, rating and reviews.
+
+## Community Release 2: search, Use my location, listing rules, merging and example content
+
+Drafted 2026-10-22 for the owner to review before the build that adds discovery. Nothing here has been pasted into App Store Connect. Replace the matching text of the earlier sections only if this build ships with them.
+
+### App Review Notes: Release 2 paragraph (add after the Release 1 paragraph)
+
+```text
+Searching communities: Explore has a search field. Type a community name (for example "Test") or a town or ZIP code (for example "98101") to see listed communities, nearest first for a place. No account is needed.
+Use my location: a button in Explore, below the search field. The location permission prompt appears only after tapping it, once, and the location is used for that one search and not stored. If the permission is declined, typing a town or ZIP code works the same way. The permission is the existing "while using" permission; the purpose string now also names this use.
+Test Community: the public community used for the review. It holds example requests and posts, marked Example, written for new people to explore. They cannot be claimed or answered. Search "Test" or the ZIP code 98101 to find it. The other test communities are not listed.
+Starting a listed community: Explore > Start a community > Listed, then a service area (a place name and radius; never an address) and a nearby check. Merging two communities needs both owners to agree (Manage > Merge with another community). Neither is needed to review the app.
+```
+
+### Release notes (What's New), Release 2
+
+```text
+Find communities by name, town or ZIP code, or tap Use my location in Explore. Owners can list a community with a service area so neighbors can find it, and two communities can merge when both owners agree. Test Community now shows example requests so you can look around before joining. Our privacy policy, terms and FAQ are updated.
+```
+
+### Owner steps and checks
+
+1. Copy the changed `Legal/PRIVACY_POLICY.md` (section 4.3), `Legal/TERMS_OF_SERVICE.md` (section 6.3a) and the new FAQ entries to the Notion pages the app opens.
+2. In App Store Connect, confirm that the existing Location declaration (precise and coarse, App Functionality, linked, not tracking) covers community search (`Legal/PRIVACY-DISCLOSURES.md`).
+3. The purpose string (`NSLocationWhenInUseUsageDescription`) changed in the build; the new text is in `Legal/PRIVACY-DISCLOSURES.md` section 2.1 and in `NaarsCars/Info.plist`.
+4. The paragraph adds about 1,100 bytes: check the combined Review Notes against the 4,000-byte limit and drop earlier phase paragraphs the reviewer does not need.
+5. Until the owner makes Test Community's example content permanent (S5b adds the two answered questions), the review account sees the 8 example requests and 3 posts the refresh job keeps current.

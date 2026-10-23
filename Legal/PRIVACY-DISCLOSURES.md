@@ -29,7 +29,7 @@ The following keys MUST be added to Info.plist with user-friendly descriptions:
 |-----|-------------|----------------|
 | `NSCameraUsageDescription` | "Naar's Cars uses your camera to take profile photos." | Profile photo capture (if camera option offered) |
 | `NSPhotoLibraryUsageDescription` | "Naar's Cars accesses your photos to set your profile picture and share images in messages." | Photo picker for avatar or message images |
-| `NSLocationWhenInUseUsageDescription` | "Naar's Cars shows your location on the map to help you find nearby requests." | Map view (Phase 5) |
+| `NSLocationWhenInUseUsageDescription` | "Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, to share your location in a message when you choose to, and to find communities near you when you tap Use my location in Explore. Your location is not stored." | Request map, directions, sharing a location in a message, and (Release 2) the Use my location button in Explore. The prompt for the Explore button appears only after the person taps it. |
 | `NSFaceIDUsageDescription` | "Naar's Cars uses Face ID to quickly and securely unlock the app." | Biometric auth (Phase 5) |
 
 ### 2.2 Info.plist XML
@@ -43,7 +43,7 @@ The following keys MUST be added to Info.plist with user-friendly descriptions:
 <string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
 
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
+<string>Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, to share your location in a message when you choose to, and to find communities near you when you tap Use my location in Explore. Your location is not stored.</string>
 
 <key>NSFaceIDUsageDescription</key>
 <string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
@@ -115,12 +115,13 @@ Select the following in App Store Connect → App Privacy:
 - **Linked to User**: Yes
 - **Used for Tracking**: No
 
-#### Location - Precise Location (Phase 5 only)
-- **Collected**: Yes (when using map view)
-- **Purpose**: App Functionality (show nearby requests)
-- **Linked to User**: Yes (only while using feature)
+#### Location - Precise Location (and Coarse Location)
+- **Collected**: Yes (request map, directions, sharing a location in a message, and finding communities near you)
+- **Purpose**: App Functionality
+- **Linked to User**: Yes (only while using the feature)
 - **Used for Tracking**: No
-- **Note**: Location is NOT stored server-side; used only for real-time map display
+- **Note**: Location is NOT stored server-side. When a person taps Use my location in Explore, Apple reverse-geocodes the device location to the town name, and the point, rounded to three decimal places (about 100 metres), goes to our server only for that one search of communities near it (`find_communities_near`); it is not stored or logged and is never read in the background.
+- **Owner check before release (Release 2):** Location is already declared. In App Store Connect confirm that the existing declaration (precise and coarse, App Functionality, linked, not tracking) covers community search. The decision is to keep the declaration rather than claim the optional-disclosure exemption for a single, user-initiated search.
 
 ### 3.3 Data NOT Collected
 
@@ -142,7 +143,7 @@ Confirm "No" for:
 
 For App Store Connect description:
 
-> Naar's Cars collects personal information (name, email, phone number) to facilitate ride and favor sharing within the communities members create and join. Profile photos and user-generated content (requests, messages, reviews) are stored to enable app functionality. Push notification tokens are collected to deliver notifications. Location data is used only for the map feature and is not stored. No data is sold to third parties or used for advertising.
+> Naar's Cars collects personal information (name, email, phone number) to facilitate ride and favor sharing within the communities members create and join. Profile photos and user-generated content (requests, messages, reviews) are stored to enable app functionality. Push notification tokens are collected to deliver notifications. Location data is used only for the map, directions, sharing a location in a message and the Use my location search for communities, only when the person asks for it, and is not stored. No data is sold to third parties or used for advertising.
 
 ---
 
