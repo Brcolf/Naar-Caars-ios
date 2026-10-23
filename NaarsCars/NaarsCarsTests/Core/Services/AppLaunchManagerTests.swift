@@ -408,6 +408,36 @@ final class AppLaunchManagerTests: XCTestCase {
         )
     }
 
+    func testRefresh_SignOutDuringMergeLookupIsDropped() async {
+        let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
+        let lookups: [Result<[CommunityMerge], Error>] = [
+            .failure(URLError(.cancelled)),
+            .success([merge(a, into: b)])
+        ]
+        for lookup in lookups {
+            let uid = UUID()
+            seedKeys(for: uid, tab: a, scope: a.uuidString, lastPosted: a)
+            let mergeStub = SignOutDuringLookupMergeService(result: lookup)
+            let stub = StubCommunityService(result: .success([CommunityFixtures.membership(b, name: "B")]))
+            let ctx = CommunityContext(service: stub, mergeService: mergeStub, defaults: suite)
+            var emptyCalls = 0
+            ctx.onActiveMembershipsEmpty = { emptyCalls += 1 }
+            mergeStub.onLookup = { ctx.resetForSignOut(userId: uid) }
+            ctx.restore(for: uid)
+
+            await ctx.refreshMemberships()
+
+            XCTAssertEqual(mergeStub.calls, 1)
+            XCTAssertTrue(ctx.memberships.isEmpty, "\(lookup): the signed-out account's memberships must not land")
+            XCTAssertFalse(ctx.hasLoadedMemberships)
+            XCTAssertNil(ctx.communityTabId)
+            XCTAssertEqual(ctx.requestsScope, .all)
+            XCTAssertNil(ctx.lastPostedCommunityId)
+            XCTAssertEqual(emptyCalls, 0)
+            XCTAssertEqual(storedKeys(for: uid), [nil, nil, nil])
+        }
+    }
+
     func testToggleRequestsInclusion_NeverExcludesTheLastCommunity() {
         let a = CommunityFixtures.communityA, b = CommunityFixtures.communityB
         let (ctx, _) = makeContext()
@@ -648,4 +678,25 @@ private actor CommunityTestGate {
         continuation?.resume()
         continuation = nil
     }
+}
+
+/// A merge service whose `get_my_community_merges` runs `onLookup` (a sign-out) before it answers.
+private final class SignOutDuringLookupMergeService: CommunityMergeServiceProtocol {
+    let result: Result<[CommunityMerge], Error>
+    var onLookup: (@MainActor () -> Void)?
+    private(set) var calls = 0
+
+    init(result: Result<[CommunityMerge], Error>) { self.result = result }
+
+    func fetchMyCommunityMerges() async throws -> [CommunityMerge] {
+        calls += 1
+        await onLookup?()
+        return try result.get()
+    }
+
+    func searchMergeTargets(communityId: UUID, query: String) async throws -> [MergeTarget] { [] }
+    func proposeMerge(communityId: UUID, otherId: UUID, survivorId: UUID, note: String?) async throws -> UUID { UUID() }
+    func fetchMergeProposal(communityId: UUID) async throws -> CommunityMergeProposal? { nil }
+    func respondToMerge(proposalId: UUID, accept: Bool) async throws -> CommunityMergeOutcome? { nil }
+    func withdrawMerge(proposalId: UUID) async throws {}
 }

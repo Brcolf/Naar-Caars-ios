@@ -289,10 +289,10 @@ final class CommunityContext {
         #endif
 
         let activeIds = Set(loaded.filter { $0.status == .active }.map(\.communityId))
-        if let survivors = await survivorsOfMergedReferences(activeIds: activeIds) {
-            guard restoredUserId == requestedFor else { return }
-            moveReferences(to: survivors)
-        }
+        let survivors = await survivorsOfMergedReferences(activeIds: activeIds)
+        // Re-checked on every path: a failed lookup (nil) is the likeliest sign of a sign-out.
+        guard restoredUserId == requestedFor else { return }
+        if let survivors { moveReferences(to: survivors) }
         apply(loaded)
 
         if activeMemberships.isEmpty {
