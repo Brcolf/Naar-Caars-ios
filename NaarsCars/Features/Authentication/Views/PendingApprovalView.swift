@@ -24,7 +24,8 @@ struct PendingApprovalView: View {
     @State private var showCreate = false
     /// "<name> was archived." when this screen follows the archive of the account's last active community.
     @State private var rootNoticeMessage: String?
-    /// Recorded by "Join another community"; acted on once its sheet is gone.
+    /// Recorded by "Join another community" or by a page opened from Create's nearby check; acted on
+    /// once that sheet is gone.
     @State private var recordedJoin: JoinResult?
     /// Recorded by Create; acted on once the sheet (and its invite step) is gone.
     @State private var createdCommunityId: UUID?
@@ -108,7 +109,12 @@ struct PendingApprovalView: View {
             joinAnotherSheet
         }
         .sheet(isPresented: $showCreate, onDismiss: createDismissed) {
-            CreateCommunityView(onCreated: { createdCommunityId = $0 })
+            CreateCommunityView(
+                onCreated: { createdCommunityId = $0 },
+                // A join on a page opened from the nearby check; Create closes and
+                // `createDismissed` runs the poll, as Join another does.
+                onJoinedFromNearby: { recordedJoin = $0 }
+            )
         }
         .toast(message: $rootNoticeMessage)
         .task {
@@ -158,8 +164,12 @@ struct PendingApprovalView: View {
 
     /// The invite step shows inside the create sheet first; the relaunch waits until it is gone.
     private func createDismissed() {
-        guard createdCommunityId != nil else { return }
+        guard createdCommunityId != nil else {
+            joinAnotherDismissed()
+            return
+        }
         createdCommunityId = nil
+        recordedJoin = nil
         relaunchOnce()
     }
 

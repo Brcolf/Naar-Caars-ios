@@ -19,16 +19,22 @@ struct CreateCommunityView: View {
     private let service: any CommunityServiceProtocol
     private let onCreated: (UUID) -> Void
     private let onRequestHigherLimit: (() -> Void)?
+    /// Set by a presenter outside the app (Get started, the waiting screen): a join made on a page
+    /// opened from the nearby check is handed to it and this sheet closes, so the presenter acts on
+    /// the join in its `onDismiss`. Nil (Explore): the page handles the join itself.
+    private let onJoinedFromNearby: ((JoinResult) -> Void)?
 
     @MainActor init(
         service: any CommunityServiceProtocol = CommunityService.shared,
         viewModel: @autoclosure @escaping @MainActor () -> CreateCommunityViewModel = CreateCommunityViewModel(),
         onCreated: @escaping (UUID) -> Void,
-        onRequestHigherLimit: (() -> Void)? = nil
+        onRequestHigherLimit: (() -> Void)? = nil,
+        onJoinedFromNearby: ((JoinResult) -> Void)? = nil
     ) {
         self.service = service
         self.onCreated = onCreated
         self.onRequestHigherLimit = onRequestHigherLimit
+        self.onJoinedFromNearby = onJoinedFromNearby
         _viewModel = StateObject(wrappedValue: viewModel())
     }
 
@@ -82,7 +88,7 @@ struct CreateCommunityView: View {
             .errorBanner(message: $viewModel.errorMessage)
             .interactiveDismissDisabled(viewModel.isSubmitting)
             .navigationDestination(item: $viewedCommunityId) { communityId in
-                CommunityPageView(communityId: communityId)
+                CommunityPageView(communityId: communityId, onJoined: nearbyJoinHandler)
             }
             .navigationDestination(item: $createdId) { communityId in
                 // The creator is the community's owner, so the invite opens as an admin with a code
@@ -95,6 +101,15 @@ struct CreateCommunityView: View {
                     onDone: { dismiss() }
                 )
             }
+        }
+    }
+
+    /// The page calls this once its join sheet is gone: record with the presenter, then close.
+    private var nearbyJoinHandler: ((JoinResult) -> Void)? {
+        guard let onJoinedFromNearby else { return nil }
+        return { result in
+            onJoinedFromNearby(result)
+            dismiss()
         }
     }
 

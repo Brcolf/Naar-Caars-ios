@@ -33,6 +33,8 @@ struct CommunityOnboardingView: View {
     @State private var joinSheet: JoinSheet?
     /// Recorded by the Join sheet; acted on once it is gone.
     @State private var recordedJoin: JoinResult?
+    /// Recorded by a page opened from Create's nearby check; acted on once Create is gone.
+    @State private var nearbyJoin: JoinResult?
     /// The saved code the Join sheet was last opened with, so it opens once.
     @State private var openedPrefilledCode: String?
     /// The community page opened from a search result.
@@ -79,7 +81,8 @@ struct CommunityOnboardingView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("onboarding.search")
 
-                // An offline launch also lands here; a failed search is the sign of it.
+                // An offline launch also lands here; a failed search is the sign of it. Otherwise the
+                // same check stays reachable as a low-emphasis row under the account actions.
                 if search.phase == .failed {
                     SecondaryButton(title: "onboarding_retry_check_account".localized) {
                         viewModel.retry()
@@ -115,7 +118,8 @@ struct CommunityOnboardingView: View {
             CreateCommunityView(
                 service: service,
                 viewModel: CreateCommunityViewModel(service: service),
-                onCreated: { createdCommunityId = $0 }
+                onCreated: { createdCommunityId = $0 },
+                onJoinedFromNearby: { nearbyJoin = $0 }
             )
         }
         .accountDeletionFlow(
@@ -322,6 +326,19 @@ struct CommunityOnboardingView: View {
     /// accepts it (Guideline 5.1.1(v)).
     private var accountActions: some View {
         VStack(spacing: 0) {
+            // An existing member whose launch check failed offline lands here too; the search may
+            // succeed once back online, so the way back cannot depend on a failed search.
+            if search.phase != .failed {
+                AccountTextAction(title: "onboarding_retry_check_account".localized) {
+                    nameFocused = false
+                    viewModel.retry()
+                }
+                .disabled(accountViewModel.isSigningOut || accountViewModel.isDeletingAccount)
+                .accessibilityLabel("onboarding_retry_check_account".localized)
+                .accessibilityHint("onboarding_retry_check_account_hint".localized)
+                .accessibilityIdentifier("onboarding.retry")
+            }
+
             AccountTextAction(
                 title: "application_sign_out".localized,
                 isBusy: accountViewModel.isSigningOut
@@ -378,10 +395,16 @@ struct CommunityOnboardingView: View {
     }
 
     /// The invite step shows inside the create sheet first (F1); the relaunch waits until it is gone.
+    /// A join made on a page opened from the nearby check relaunches the same way.
     private func createDismissed() {
-        guard let communityId = createdCommunityId else { return }
-        createdCommunityId = nil
-        viewModel.didCreate(communityId)
+        if let communityId = createdCommunityId {
+            createdCommunityId = nil
+            nearbyJoin = nil
+            viewModel.didCreate(communityId)
+        } else if let result = nearbyJoin {
+            nearbyJoin = nil
+            viewModel.didJoin(result)
+        }
     }
 }
 
