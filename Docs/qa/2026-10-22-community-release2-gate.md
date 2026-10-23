@@ -2,7 +2,7 @@
 
 Date: 2026-10-22, 18:55 to 19:35 (Pacific). Branch `claude/naarscars-multi-community-roadmap-f08594`. The Release 2 client runs from `83e406b` (the server fix wave) to `f0587ad` (`[R2-T13]`): `[R2-T0]` (Release 1 carry-overs) and `[R2-T1]` to `[R2-T13]`. The server side is `20261021_0020` to `0023`, `20261022_0001`, `20261022_0002` and the data script `supabase/scripts/2026-10-21_release2_test_data.sql` (S5a). This gate verified `f0587ad`; its commit adds only this report and the documentation updates (`CLAUDE.md`, `AGENTS.md`, `SECURITY.md`). Plan: `Docs/superpowers/plans/2026-10-21-community-release2-discovery.md`, Task 14. Design: `Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-design.md`.
 
-**Status (updated 2026-10-23): the steps without the owner passed on 2026-10-22, and the owner-present steps O1, O2, O3, O4 (with the S7 checks), O5, O6 and O8 have passed; W2 and W4 are closed. O7 has not been run, so do not merge the branch until O7 passes.** The 2026-10-22 run was an unattended workflow session that ran only the read-only device steps (O5, the read parts of O6, the I15 badge count). The write steps ran on 2026-10-23 in another unattended session, with the owner's go-ahead ("can you do this full thing without me?"), on two simulators, one booted at a time. O7 needs a new account signed up in the app against the live backend and then deleted. That session does not type sign-up details or passwords into the live service, so O7 is left for the owner; "Owner-present steps, run 2026-10-23" below lists what it still has to show. The owner decided the former "Owed" item 5 on 2026-10-23: accepted.
+**Status (updated 2026-10-23): the steps without the owner passed on 2026-10-22, and the owner-present steps O1, O2, O3, O4 (with the S7 checks), O5, O6 and O8 have passed; W2 and W4 are closed. O7 has not been run, so do not merge the branch until O7 passes.** Two optional SQL-editor clean-ups are owed by the owner (O8, "Owed SQL-editor clean-ups"). The 2026-10-22 run was an unattended workflow session that ran only the read-only device steps (O5, the read parts of O6, the I15 badge count). The write steps ran on 2026-10-23 in another unattended session, with the owner's go-ahead ("can you do this full thing without me?"), on two simulators, one booted at a time. O7 needs a new account signed up in the app against the live backend and then deleted. That session does not type sign-up details or passwords into the live service, so O7 is left for the owner; "Owner-present steps, run 2026-10-23" below lists what it still has to show. The owner decided the former "Owed" item 5 on 2026-10-23: accepted.
 
 Captures, logs and the filled-in push fixtures are on the external SSD under `/Volumes/DevSSD/naars-build/roadmap-worktree/results/R2-gate/` (local, not committed; the owner-device captures show account names in the leaderboard and must be redacted before any is copied into `Docs/qa/`). App log of the owner's device: `owner-device.log` in the same folder. The 2026-10-23 run's captures and logs are in `R2-gate2-captures/` beside it (see that section).
 
@@ -32,7 +32,7 @@ On 2026-10-22 the owner's iPhone 16 (CAA2F1FD…, the owner's platform-admin acc
 - **R2-F2.** At AX 5 the visitor page's "Sign up to join" bar covers about a fifth of the screen and the "Use my location" row in Explore's results grows to most of the first screen (G4-02 AX 5, G4-11); content scrolls beneath both. The same kind of item as Release 1's AX 5 header note.
 - **R2-F3.** Leaving a community page while its leaderboard loads logs `Error loading leaderboard: cancelled` at error level (owner log). Nothing is shown to the person; the cancellation should not be logged as an error.
 - **Observation.** A visitor's request rows on the community page are not tappable (by design since Release 1: the preview carries no detail); a guest opens an example's detail from the Requests tab.
-- **R2-F4 (2026-10-23).** Creating a listed community (`create_community_with_area`) and listing a hidden one (`update_community_access`) each write an announcement bell row to every other platform admin, `is_test` communities included. The gate's create and re-list therefore wrote 6 bell rows to three platform-admin accounts that are not test accounts (no push: `p_push` false, and no `send-notification` call at those times). For real communities this is the listing-review notice. For `is_test` ones a server follow-up could skip it. The rows were left in place.
+- **R2-F4 (2026-10-23).** Creating a listed community (`create_community_with_area`) and listing a hidden one (`update_community_access`) each write an announcement bell row to every other platform admin, `is_test` communities included. The gate's create and re-list therefore wrote 6 bell rows to three platform-admin accounts that are not test accounts (no push: `p_push` false, and no `send-notification` call at those times). For real communities this is the listing-review notice. For `is_test` ones a server follow-up could skip it. Fix round 1 (2026-10-23, 14b review finding 1) marked the six rows read through the Supabase MCP (`update … set read = true`, six rows returned, no trigger on update), so no real admin sees an unread row; the rows still sit in those admins' bells and open an archived test community. Deleting them is an owed step for the owner's SQL editor (O8, "Owed SQL-editor clean-ups").
 - **R2-F5 (2026-10-23).** After an access change the toast reads "Saved. Members were told what changed." (`community_access_saved_toast`) even when the community has no other member, so nobody was told (O3-04).
 - **R2-F6 (2026-10-23).** The recently-declined refusal is cut at two lines, "This community declined or withdrew a merge with yours rece…", so "Try again later." never shows. The toast also stayed up for over a minute, until the next proposal (O4-10, O4-11).
 - **R2-F7 (2026-10-23).** Admin → Communities reads "1 members · 0 waiting": the count has no singular (O4-19).
@@ -100,6 +100,25 @@ Run 05:39 to 06:20 Pacific (12:39 to 13:20 UTC) on `45fc175`, the Debug build of
              where c.name in ('R2 Gate Merge A', 'R2 Gate Merge B')
                and m.user_id = (select id from public.profiles where name = 'NC Test Neighbor')) rows_left;
     ```
+  - **The six platform-admin bell rows (R2-F4).** Marked read on 2026-10-23 (fix round 1) through the MCP; this session does not delete. For the owner's SQL editor:
+
+    ```sql
+    do $$
+    declare v_l uuid; v_n int;
+    begin
+      select id into strict v_l from public.communities where name = 'R2 Gate Listed' and is_test and archived_at is not null;
+      delete from public.notifications
+       where community_id = v_l and type = 'announcement'
+         and title in ('New community: R2 Gate Listed', 'Now listed: R2 Gate Listed')
+         and created_at between '2026-10-23 12:51:00+00' and '2026-10-23 12:57:00+00'
+         and user_id in (select id from public.profiles where is_admin and name in ('Admin Reviewer', 'Rob Moore', 'Supreme Leader'));
+      get diagnostics v_n = row_count;
+      if v_n <> 6 then raise exception 'expected 6 rows, got %', v_n; end if;
+    end $$;
+    -- check: 0
+    select count(*) from public.notifications n join public.communities c on c.id = n.community_id where c.name = 'R2 Gate Listed';
+    ```
+  - **Owed SQL-editor clean-ups (owner).** (1) The neighbor's leftovers above. (2) The six platform-admin bell rows just above. Neither blocks the merge: both sit in archived `is_test` communities, and the bell rows are read.
   - **Notifications written during the run** (`created_at` from 12:39:22 UTC), by account:
 
     | Account | Rows | Titles |
@@ -107,7 +126,7 @@ Run 05:39 to 06:20 Pacific (12:39 to 13:20 UTC) on `45fc175`, the Debug build of
     | The owner | 2 | "Merge declined", "Communities merged" |
     | NC Test Owner | 3 | "Merge proposal from R2 Gate Merge A" (twice), "R2 Gate Merge A was archived" |
     | NC Test Neighbor | 1 | "R2 Gate Merge B was archived" |
-    | Three other platform-admin accounts, none of them a test account | 2 each | "New community: R2 Gate Listed", "Now listed: R2 Gate Listed" (R2-F4) |
+    | Three other platform-admin accounts, none of them a test account | 2 each | "New community: R2 Gate Listed", "Now listed: R2 Gate Listed" (R2-F4; marked read in fix round 1, deletion owed) |
 
     The six platform-admin rows are bell rows written with `p_push` false. `send-notification` ran only at 12:58, 13:06 and 13:08 to 13:09: the two proposals and the merge, for NC Test Owner and the owner. S5b wrote no notification in the window.
 - **W2. Example Q&A and comment: pass, closed.** S5b has landed (`acb3b8d`, `supabase/scripts/2026-10-22_release2_test_data_neighbor.sql`). SQL: 2 `request_qa` rows by NC Test Neighbor, both answered, and 1 `town_hall_comments` row. On the owner's device:
@@ -126,6 +145,7 @@ Run 05:39 to 06:20 Pacific (12:39 to 13:20 UTC) on `45fc175`, the Debug build of
 | Proposal `53e4ff89`: `created_at`, `decided_at` and `expires_at` moved back 8 days | moved forward 8 days in O8 |
 | S7 setup: the neighbor's active row in B, `removed` row in A, and the post in B | left in the archived communities; the delete statements are above |
 | The owner's `max_owned_communities` (the orchestrator's 3 to 5) | set back to 3 in O8 |
+| Six platform-admin bell rows (R2-F4), written by the app's create and re-list | `read` set true in fix round 1; the delete is owed (O8) |
 
 Everything else was written by the app through its own RPCs, as the owner's account or NC Test Owner.
 
