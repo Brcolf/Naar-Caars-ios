@@ -27,9 +27,9 @@
 --
 -- Task S5a of Community Release 2 (plan Docs/superpowers/plans/2026-10-21-community-release2-discovery-sql.md, task
 -- S5, split by the orchestrator's ruling R-G3; design Docs/superpowers/specs/2026-10-21-community-discovery-and-trust-
--- design.md 4.10 and 4.11). S5b (supabase/scripts/2026-10-22_release2_test_data_neighbor.sql, not written yet) carries
--- NC Test Neighbor's rows: the neighbor's active membership in Test Community, the one Town Hall comment and the two
--- answered questions. It runs once the owner has made that account and recorded its id prefix in Docs/qa/test-data.md.
+-- design.md 4.10 and 4.11). S5b (supabase/scripts/2026-10-22_release2_test_data_neighbor.sql, written and APPLIED
+-- 2026-10-23) carries NC Test Neighbor's rows: the neighbor's active membership in Test Community, the one Town Hall
+-- comment and the two answered questions, written once that account existed (id prefix in Docs/qa/test-data.md).
 --
 -- Owner's go-ahead (Step 2), their message of 2026-10-21: "Feel free to delete data that appears private and write in
 -- new example data for future users to see." Test Community has 19 real active members; nothing here notifies them.

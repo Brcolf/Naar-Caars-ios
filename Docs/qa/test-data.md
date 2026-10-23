@@ -9,9 +9,9 @@ Test data on the live backend that test passes may use instead of real communiti
 | Display name | Id (first 8) | Platform admin | Where it is signed in |
 |---|---|---|---|
 | NC Test Owner | `eebf5514` | no | the simulator "iPhone 17 (26.5)" |
-| NC Test Neighbor | not created yet | no | not signed in anywhere yet |
+| NC Test Neighbor | `76396234` | no | nowhere (created 2026-10-23 through the app's Sign Up on the simulator "iPhone 16 Tests", then signed out so that device stays session-free; sign in again from the local credentials file when a device needs it) |
 
-**NC Test Neighbor** is the second test account Release 2 needs (it asks the example questions and writes the example comment in Test Community). Making it is the owner's step (iOS plan Prerequisite 2): sign up in the app with that display name, then record its id prefix in this table. Its rows, an active Test Community membership, one Town Hall comment and two answered questions, are a second data script, `supabase/scripts/2026-10-22_release2_test_data_neighbor.sql` (S5b), **pending the owner's account**; it is not written yet.
+**NC Test Neighbor** is the second test account Release 2 needs (it asks the example questions and writes the example comment in Test Community). It was made on 2026-10-23 by the orchestrator, with the owner's go-ahead, through the app's Sign Up with that display name (iOS plan Prerequisite 2), and its id prefix is recorded in this table. Its rows, an active Test Community membership, one Town Hall comment and two answered questions, were written the same day by a second data script, `supabase/scripts/2026-10-22_release2_test_data_neighbor.sql` (S5b; no approval notice, no bell row, no push, no XP).
 
 The account was made through the app's Sign Up. Its sign-in details are kept only on the owner's Mac in `build/test-data/test-accounts.local` (gitignored, mode 600), together with the full community ids. They never go in the repository.
 
@@ -45,7 +45,7 @@ Open-join communities do not exist yet, so there is no test community of that ty
 
 ## Test Community (the default community)
 
-**Release 2 setup, 2026-10-22** (`supabase/scripts/2026-10-21_release2_test_data.sql`, task S5a; owner's go-ahead of 2026-10-21). Test Community has the service area "Seattle", centre 47.6062, -122.3321, radius 10 miles, and stays `is_test = false`: it is meant to be found by search and by place. NC Test Owner became an active member (role member; no approval notice; membership event `approved`, reason "example content account"), so it has 20 active members. It holds example content only, all posted by NC Test Owner with `is_example = true`:
+**Release 2 setup, 2026-10-22** (`supabase/scripts/2026-10-21_release2_test_data.sql`, task S5a; owner's go-ahead of 2026-10-21). Test Community has the service area "Seattle", centre 47.6062, -122.3321, radius 10 miles, and stays `is_test = false`: it is meant to be found by search and by place. NC Test Owner became an active member (role member; no approval notice; membership event `approved`, reason "example content account"), so it had 20 active members; NC Test Neighbor joined the same way on 2026-10-23 (S5b), so it has 21. It holds example content only: the requests and posts are NC Test Owner's, all with `is_example = true`:
 
 | Kind | Count | What |
 |---|---|---|
@@ -53,7 +53,7 @@ Open-join communities do not exist yet, so there is no test community of that ty
 | Favors | 4 | apples at Ballard Farmers Market; library books to Seattle Central Library; folding chairs at Gas Works Park; plant sale at Volunteer Park (gift) |
 | Town Hall posts | 3 | the pinned announcement "Welcome to Test Community"; "Is the Ballard Farmers Market open on holidays?"; a thank-you for the chairs at Gas Works Park |
 
-That is 8 requests and 3 posts. The one comment (on the farmers market question) and the two answered questions (on the airport ride and the apples favor) are NC Test Neighbor's and come with S5b.
+That is 8 requests, 3 posts, 1 comment and 2 answered questions. The comment and the questions are NC Test Neighbor's and are live since 2026-10-23 (S5b): on the farmers market post, "It's open every Sunday, holidays included."; on the airport ride, "How much luggage will you have?", answered by NC Test Owner "One carry-on and a backpack."; on the apples favor, "Which stall do you usually buy from?", answered "Any stall with Honeycrisp apples is fine." (checked when they were written: 0 notifications, 0 queued pushes, 0 XP rows; the two notify triggers were off only inside that transaction).
 
 - **Always current.** The requests are open, between public places only, dated today + 1 to today + 7 (Los Angeles) when written; the daily job `refresh-example-requests` (11:10 UTC) moves each one forward on its weekday so it always falls in the coming seven days. The nightly expiry skips them.
 - **Nobody is told.** Example rows write no bell row, no push and no XP (checked when they were written: 0 notifications, 0 queued pushes, 0 XP rows). Nobody can claim one: the server refuses it.
