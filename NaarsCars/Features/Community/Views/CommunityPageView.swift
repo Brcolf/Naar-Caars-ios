@@ -588,7 +588,7 @@ struct CommunityPageView: View {
                         .foregroundColor(.naarsTextPrimary)
                 }
                 if request.isExample {
-                    NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent)
+                    NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsPrimary)
                         .accessibilityLabel("request_example_accessibility".localized)
                         .accessibilityIdentifier("request.exampleChip")
                 }

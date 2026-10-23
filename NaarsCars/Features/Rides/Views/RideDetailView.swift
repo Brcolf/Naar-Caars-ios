@@ -383,7 +383,7 @@ struct RideDetailView: View {
                     
                     VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
                         if ride.isExample {
-                            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent, size: .large)
+                            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsPrimary, size: .large)
                                 .accessibilityLabel("request_example_accessibility".localized)
                                 .accessibilityIdentifier("request.exampleChip")
                         }

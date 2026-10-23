@@ -181,7 +181,7 @@ struct RideCard: View {
             CommunityPolicyChip(policy: policy)
         }
         if ride.isExample {
-            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent)
+            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsPrimary)
                 .accessibilityIdentifier("request.exampleChip")
         }
         NaarsChip(text: ride.statusDisplayText, tint: ride.status.color)

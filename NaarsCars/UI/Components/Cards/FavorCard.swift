@@ -180,7 +180,7 @@ struct FavorCard: View {
             CommunityPolicyChip(policy: policy)
         }
         if favor.isExample {
-            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent)
+            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsPrimary)
                 .accessibilityIdentifier("request.exampleChip")
         }
         NaarsChip(text: favor.statusDisplayText, tint: favor.status.color)
