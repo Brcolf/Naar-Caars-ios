@@ -2,8 +2,8 @@
 //  CommunityOnboardingView.swift
 //  NaarsCars
 //
-//  The root of `.needsApplication`: join a community with a code, ask to join a public one,
-//  or start your own
+//  The root of `.needsApplication` (Get started): find a community by name or place, join the
+//  one looked at as a guest, use an invite code, or start your own
 //
 
 import SwiftUI
@@ -11,25 +11,47 @@ import SwiftUI
 /// Shown to a signed-in account that belongs to no community yet. Joining or creating relaunches
 /// the account check, which routes to the app (active) or the waiting screen (pending).
 struct CommunityOnboardingView: View {
+    private struct JoinSheet: Identifiable {
+        let id = UUID()
+        let target: JoinTarget
+    }
+
+    /// The saved code and whether the options are open; the Join sheet opens the code once both hold.
+    private struct AutoOpen: Equatable {
+        let code: String?
+        let enabled: Bool
+    }
+
     @StateObject private var viewModel: CommunityOnboardingViewModel
+    /// The search by name or place. Use my location is offered in Explore only (spec 3).
+    @StateObject private var search: ExploreSearchViewModel
     // Sign-out and delete-account actions, shared with the pending-review and restricted screens
     @StateObject private var accountViewModel = BannedAccountViewModel()
     @State private var showCreate = false
     /// Recorded by Create; acted on once the sheet (and its invite step) is gone.
     @State private var createdCommunityId: UUID?
-    @State private var publicListFailed = false
+    @State private var joinSheet: JoinSheet?
+    /// Recorded by the Join sheet; acted on once it is gone.
+    @State private var recordedJoin: JoinResult?
+    /// The saved code the Join sheet was last opened with, so it opens once.
+    @State private var openedPrefilledCode: String?
+    /// The community page opened from a search result.
+    @State private var pageTarget: UUID?
     @State private var showDeleteConfirmation = false
     /// "<name> was archived." when this screen follows the archive of the account's last community.
     @State private var rootNoticeMessage: String?
     @FocusState private var nameFocused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let service: any CommunityServiceProtocol
 
     @MainActor init(
         viewModel: @autoclosure @escaping @MainActor () -> CommunityOnboardingViewModel = CommunityOnboardingViewModel(),
-        service: any CommunityServiceProtocol = CommunityService.shared
+        service: any CommunityServiceProtocol = CommunityService.shared,
+        search: @autoclosure @escaping @MainActor () -> ExploreSearchViewModel = ExploreSearchViewModel()
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
+        _search = StateObject(wrappedValue: search())
         self.service = service
     }
 
@@ -42,15 +64,23 @@ struct CommunityOnboardingView: View {
                     nameStep
                 }
 
-                CommunityJoinOptionsView(
-                    isEnabled: viewModel.optionsEnabled,
-                    prefilledCode: viewModel.prefilledCode,
-                    service: service,
-                    onPublicListFailureChange: { publicListFailed = $0 },
-                    onJoined: { viewModel.didJoin($0) }
-                )
+                if let viewed = viewModel.viewedCommunity {
+                    viewedCard(viewed)
+                }
 
-                if publicListFailed {
+                CommunitySearchPanel(
+                    viewModel: search,
+                    isGuest: false,
+                    isEnabled: viewModel.optionsEnabled,
+                    showsUseMyLocation: false,
+                    membership: { _ in nil },
+                    onSelect: { pageTarget = $0 }
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("onboarding.search")
+
+                // An offline launch also lands here; a failed search is the sign of it.
+                if search.phase == .failed {
                     SecondaryButton(title: "onboarding_retry_check_account".localized) {
                         viewModel.retry()
                     }
@@ -58,6 +88,8 @@ struct CommunityOnboardingView: View {
                     .accessibilityHint("onboarding_retry_check_account_hint".localized)
                     .accessibilityIdentifier("onboarding.retry")
                 }
+
+                inviteCodeCard
 
                 createCard
 
@@ -69,6 +101,16 @@ struct CommunityOnboardingView: View {
         .background(Color.naarsBackground)
         .navigationTitle("onboarding_nav_title".localized)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $pageTarget) { communityId in
+            // A join on the page goes to `didJoin` once its sheet is gone (one relaunch).
+            CommunityPageView(communityId: communityId, onJoined: { viewModel.didJoin($0) })
+                .id(communityId)
+        }
+        .sheet(item: $joinSheet, onDismiss: joinDismissed) { sheet in
+            JoinCommunitySheet(target: sheet.target, service: service) { result in
+                recordedJoin = result
+            }
+        }
         .sheet(isPresented: $showCreate, onDismiss: createDismissed) {
             CreateCommunityView(
                 service: service,
@@ -87,13 +129,19 @@ struct CommunityOnboardingView: View {
                 rootNoticeMessage = notice
             }
             await viewModel.loadNameRequirement()
-            // A code saved on Welcome before sign-in. The join options open it once they are
+            // A code saved on Welcome before sign-in. The Join sheet opens it once the options are
             // enabled (after the name step); only a redemption or a dead code clears the store.
             viewModel.prefilledCode = PendingInviteStore().peek()
         }
-        // A join link opened while onboarding is on screen: the join options open the new code.
+        // A join link opened while onboarding is on screen: the Join sheet opens the new code.
         .onReceive(NotificationCenter.default.publisher(for: PendingInviteStore.didChange)) { _ in
             viewModel.prefilledCode = PendingInviteStore().peek()
+        }
+        .onChange(of: AutoOpen(code: viewModel.prefilledCode, enabled: viewModel.optionsEnabled), initial: true) { _, new in
+            guard let code = new.code, new.enabled, joinSheet == nil, !showCreate,
+                  code != openedPrefilledCode else { return }
+            openedPrefilledCode = code
+            joinSheet = JoinSheet(target: .code(prefilled: code))
         }
         .toast(message: $rootNoticeMessage)
         .trackScreen("CommunityOnboarding")
@@ -108,14 +156,14 @@ struct CommunityOnboardingView: View {
                 .foregroundColor(.naarsPrimary)
                 .accessibilityHidden(true)
 
-            Text("onboarding_title".localized)
+            Text("onboarding_find_title".localized)
                 .font(.naarsTitle2)
                 .fontWeight(.semibold)
                 .foregroundColor(.naarsTextPrimary)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
 
-            Text("onboarding_body".localized)
+            Text("onboarding_find_body".localized)
                 .font(.naarsBody)
                 .foregroundColor(.naarsTextSecondary)
                 .multilineTextAlignment(.center)
@@ -162,6 +210,76 @@ struct CommunityOnboardingView: View {
             .accessibilityIdentifier("onboarding.name.continue")
         }
         .cardStyle()
+    }
+
+    /// The listed community this person looked at as a guest, with its join action.
+    private func viewedCard(_ viewed: ViewedCommunity) -> some View {
+        let policy = CommunityJoinPolicy(rawValue: viewed.joinPolicy)
+        return VStack(alignment: .leading, spacing: Constants.Spacing.md) {
+            Text("onboarding_viewed_title".localized)
+                .font(.naarsHeadline)
+                .foregroundColor(.naarsTextPrimary)
+                .accessibilityAddTraits(.isHeader)
+
+            viewedLayout {
+                CommunityMonogram(name: viewed.name)
+                VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                    Text(viewed.name)
+                        .font(.naarsHeadline)
+                        .foregroundColor(.naarsTextPrimary)
+                        .multilineTextAlignment(.leading)
+                    if let policy {
+                        CommunityPolicyChip(policy: policy)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .combine)
+
+            PrimaryButton(
+                title: String(format: "onboarding_viewed_join".localized, viewed.name),
+                action: { joinViewed(viewed, policy: policy) },
+                isDisabled: !viewModel.optionsEnabled
+            )
+            .accessibilityLabel(String(format: "onboarding_viewed_join".localized, viewed.name))
+            .accessibilityIdentifier("onboarding.viewed.join")
+        }
+        .cardStyle()
+    }
+
+    /// Monogram beside the name; stacked at accessibility text sizes, where the name needs the width.
+    private var viewedLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Constants.Spacing.sm))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Constants.Spacing.md))
+    }
+
+    private var inviteCodeCard: some View {
+        Button {
+            nameFocused = false
+            joinSheet = JoinSheet(target: .code(prefilled: viewModel.prefilledCode))
+        } label: {
+            HStack(spacing: Constants.Spacing.md) {
+                Image(systemName: "key.fill")
+                    .foregroundColor(.naarsPrimary)
+                    .accessibilityHidden(true)
+                Text("explore_have_invite_code".localized)
+                    .font(.naarsHeadline)
+                    .foregroundColor(.naarsTextPrimary)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsTextSecondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+        .disabled(!viewModel.optionsEnabled)
+        .accessibilityLabel("explore_have_invite_code".localized)
+        .accessibilityIdentifier("onboarding.inviteCode")
     }
 
     private var createCard: some View {
@@ -235,6 +353,30 @@ struct CommunityOnboardingView: View {
         Task { _ = await viewModel.saveName() }
     }
 
+    /// Ask to join for an approval (or open, or unknown) community; the invite code for an invite-only
+    /// one, which a visitor cannot ask to join. The server decides either way.
+    private func joinViewed(_ viewed: ViewedCommunity, policy: CommunityJoinPolicy?) {
+        nameFocused = false
+        if policy == .invite {
+            joinSheet = JoinSheet(target: .code(prefilled: nil))
+        } else {
+            joinSheet = JoinSheet(target: .publicCommunity(PublicCommunity(
+                id: viewed.id,
+                name: viewed.name,
+                description: nil,
+                joinPolicy: viewed.joinPolicy,
+                isDefault: false
+            )))
+        }
+    }
+
+    /// Done and a swipe both end up here: the relaunch waits until the Join sheet is gone.
+    private func joinDismissed() {
+        guard let result = recordedJoin else { return }
+        recordedJoin = nil
+        viewModel.didJoin(result)
+    }
+
     /// The invite step shows inside the create sheet first (F1); the relaunch waits until it is gone.
     private func createDismissed() {
         guard let communityId = createdCommunityId else { return }
@@ -244,44 +386,53 @@ struct CommunityOnboardingView: View {
 }
 
 #if DEBUG
-#Preview("Name needed") {
-    NavigationStack {
-        CommunityOnboardingView(
-            viewModel: CommunityOnboardingViewModel(
-                loadStoredName: { "Apple User" },
-                updateName: { _ in },
-                relaunch: {}
-            ),
-            service: PreviewCommunityService()
+private enum OnboardingPreviewData {
+    /// Get started with the preview service and stub geocoder. `viewed`: the community a guest looked
+    /// at (nil: none). `query`: a search already typed.
+    @MainActor
+    static func screen(storedName: String, viewed: (name: String, policy: String)? = nil, query: String? = nil) -> some View {
+        let service = PreviewCommunityService()
+        let store = ViewedCommunityStore(defaults: UserDefaults(suiteName: "preview.onboarding")!)
+        store.clear()
+        if let viewed {
+            store.save(id: UUID(), name: viewed.name, joinPolicy: viewed.policy)
+        }
+        let search = ExploreSearchViewModel(
+            service: service,
+            geocoder: PreviewPlaceGeocoder(),
+            locator: PreviewLocator(),
+            debounce: .zero
         )
+        if let query { search.query = query }
+        return NavigationStack {
+            CommunityOnboardingView(
+                viewModel: CommunityOnboardingViewModel(
+                    loadStoredName: { storedName },
+                    updateName: { _ in },
+                    relaunch: {},
+                    viewedStore: store
+                ),
+                service: service,
+                search: search
+            )
+        }
+        .environment(AppState())
     }
+}
+
+#Preview("Name needed") {
+    OnboardingPreviewData.screen(storedName: "Apple User")
 }
 
 #Preview("Name on file") {
-    NavigationStack {
-        CommunityOnboardingView(
-            viewModel: CommunityOnboardingViewModel(
-                loadStoredName: { "Sam" },
-                updateName: { _ in },
-                relaunch: {}
-            ),
-            service: PreviewCommunityService()
-        )
-    }
+    OnboardingPreviewData.screen(storedName: "Sam")
 }
 
-#Preview("Public list failed") {
-    let service = PreviewCommunityService()
-    service.failPublicCommunities = true
-    return NavigationStack {
-        CommunityOnboardingView(
-            viewModel: CommunityOnboardingViewModel(
-                loadStoredName: { "Sam" },
-                updateName: { _ in },
-                relaunch: {}
-            ),
-            service: service
-        )
-    }
+#Preview("Looked at a community") {
+    OnboardingPreviewData.screen(storedName: "Sam", viewed: (name: "Ballard Neighbors", policy: "approve"))
+}
+
+#Preview("Searching Ballard") {
+    OnboardingPreviewData.screen(storedName: "Sam", query: "Ballard")
 }
 #endif

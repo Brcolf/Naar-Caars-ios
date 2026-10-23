@@ -249,9 +249,7 @@
 		AC410C49308552B100D921E2 /* CreateCommunityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C48308552B100D921E2 /* CreateCommunityView.swift */; };
 		AC410C4B3085554400D921E2 /* JoinCommunityViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C4A3085554400D921E2 /* JoinCommunityViewModelTests.swift */; };
 		AC410C4D3085555400D921E2 /* JoinCommunityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C4C3085555400D921E2 /* JoinCommunityViewModel.swift */; };
-		AC410C4F3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C4E3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift */; };
 		AC410C513085557F00D921E2 /* JoinCommunitySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C503085557F00D921E2 /* JoinCommunitySheet.swift */; };
-		AC410C533085559200D921E2 /* CommunityJoinOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C523085559200D921E2 /* CommunityJoinOptionsView.swift */; };
 		AC410C553085582000D921E2 /* ApplicantContactFetching.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C543085582000D921E2 /* ApplicantContactFetching.swift */; };
 		AC410C573085583B00D921E2 /* PendingMembersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */; };
 		AC410C593085588300D921E2 /* PendingMembersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC410C583085588300D921E2 /* PendingMembersView.swift */; };
@@ -328,6 +326,7 @@
 		AC7A1D86308ACD2300908D08 /* CommunityMergeViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D85308ACD2300908D08 /* CommunityMergeViewModelTests.swift */; };
 		AC7A1D88308ACD9800908D08 /* CommunityMergeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D87308ACD9800908D08 /* CommunityMergeViewModel.swift */; };
 		AC7A1D8A308ACE0700908D08 /* CommunityMergeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D89308ACE0700908D08 /* CommunityMergeView.swift */; };
+		AC7A1D8C308AEA6200908D08 /* ViewedCommunityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7A1D8B308AEA6100908D08 /* ViewedCommunityStore.swift */; };
 		AC8197212F12E0C4003BB08B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ACBF4A942F12CA1D006A7C8A /* Localizable.xcstrings */; };
 		AC81977F2F14C15B003BB08B /* RideCostEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */; };
 		AC8197A42F14C216003BB08B /* StarRatingInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8197A22F14C216003BB08B /* StarRatingInput.swift */; };
@@ -825,9 +824,7 @@
 		AC410C48308552B100D921E2 /* CreateCommunityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommunityView.swift; sourceTree = "<group>"; };
 		AC410C4A3085554400D921E2 /* JoinCommunityViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinCommunityViewModelTests.swift; sourceTree = "<group>"; };
 		AC410C4C3085555400D921E2 /* JoinCommunityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinCommunityViewModel.swift; sourceTree = "<group>"; };
-		AC410C4E3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityJoinOptionsViewModel.swift; sourceTree = "<group>"; };
 		AC410C503085557F00D921E2 /* JoinCommunitySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinCommunitySheet.swift; sourceTree = "<group>"; };
-		AC410C523085559200D921E2 /* CommunityJoinOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityJoinOptionsView.swift; sourceTree = "<group>"; };
 		AC410C543085582000D921E2 /* ApplicantContactFetching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicantContactFetching.swift; sourceTree = "<group>"; };
 		AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMembersViewModel.swift; sourceTree = "<group>"; };
 		AC410C583085588300D921E2 /* PendingMembersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMembersView.swift; sourceTree = "<group>"; };
@@ -904,6 +901,7 @@
 		AC7A1D85308ACD2300908D08 /* CommunityMergeViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeViewModelTests.swift; sourceTree = "<group>"; };
 		AC7A1D87308ACD9800908D08 /* CommunityMergeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeViewModel.swift; sourceTree = "<group>"; };
 		AC7A1D89308ACE0700908D08 /* CommunityMergeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityMergeView.swift; sourceTree = "<group>"; };
+		AC7A1D8B308AEA6100908D08 /* ViewedCommunityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewedCommunityStore.swift; sourceTree = "<group>"; };
 		AC81977E2F14C15B003BB08B /* RideCostEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideCostEstimator.swift; sourceTree = "<group>"; };
 		AC8197A22F14C216003BB08B /* StarRatingInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRatingInput.swift; sourceTree = "<group>"; };
 		AC8197A32F14C216003BB08B /* TimePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePickerView.swift; sourceTree = "<group>"; };
@@ -1499,7 +1497,6 @@
 				AC410C403085526C00D921E2 /* CreateCommunityViewModel.swift */,
 				AC410C423085528800D921E2 /* CommunityInviteViewModel.swift */,
 				AC410C4C3085555400D921E2 /* JoinCommunityViewModel.swift */,
-				AC410C4E3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift */,
 				AC410C563085583B00D921E2 /* PendingMembersViewModel.swift */,
 				AC410C5E30855BF000D921E2 /* MyCommunitiesViewModel.swift */,
 				AC410C6430855F0C00D921E2 /* OwnedLimitRequestViewModel.swift */,
@@ -1703,7 +1700,6 @@
 				AC410C46308552B000D921E2 /* CommunityInviteSheet.swift */,
 				AC410C48308552B100D921E2 /* CreateCommunityView.swift */,
 				AC410C503085557F00D921E2 /* JoinCommunitySheet.swift */,
-				AC410C523085559200D921E2 /* CommunityJoinOptionsView.swift */,
 				AC410C583085588300D921E2 /* PendingMembersView.swift */,
 				AC410C6030855C0500D921E2 /* LeaveCommunitySheet.swift */,
 				AC410C6230855C3200D921E2 /* MyCommunitiesView.swift */,
@@ -2186,6 +2182,7 @@
 				CE110002AAAA00000000000F /* EmojiDetection.swift */,
 				AC410C3E3085526C00D921E2 /* QRCodeRenderer.swift */,
 				AC410C7830857C2700D921E2 /* PendingInviteStore.swift */,
+				AC7A1D8B308AEA6100908D08 /* ViewedCommunityStore.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -2739,7 +2736,6 @@
 				AC02E54C2F44322000355A45 /* RideDirectionsLauncher.swift in Sources */,
 				AC8197A72F14C232003BB08B /* RouteMapView.swift in Sources */,
 				AC410C2D3084F06800D921E2 /* TownHallPostFetching.swift in Sources */,
-				AC410C533085559200D921E2 /* CommunityJoinOptionsView.swift in Sources */,
 				AC35AB5D2F0F080F0012096B /* CreatePostView.swift in Sources */,
 				AC35AB5F2F0F080F0012096B /* CreatePostViewModel.swift in Sources */,
 				AC35AB602F0F080F0012096B /* TownHallFeedViewModel.swift in Sources */,
@@ -2811,6 +2807,7 @@
 				AC410C433085528800D921E2 /* CommunityInviteViewModel.swift in Sources */,
 				AC305EF62F0DB7BD0063AFDF /* PasswordResetViewModel.swift in Sources */,
 				AC410C47308552B000D921E2 /* CommunityInviteSheet.swift in Sources */,
+				AC7A1D8C308AEA6200908D08 /* ViewedCommunityStore.swift in Sources */,
 				ACBF4AA72F12CAB9006A7C8A /* String+Localization.swift in Sources */,
 				ACBF4AA82F12CAB9006A7C8A /* Number+Localization.swift in Sources */,
 				AC4F1E1E2F23495600CC5DBA /* DashboardSyncEngine.swift in Sources */,
@@ -3092,7 +3089,6 @@
 				84A119E32778E3F30D9E131D /* RefreshCoordinator.swift in Sources */,
 				5DDD5E74F61DBC72928F68DD /* RefreshMetrics.swift in Sources */,
 				C12749ED61073F03BFBC28B1 /* ProfileService+AccountStatus.swift in Sources */,
-				AC410C4F3085555E00D921E2 /* CommunityJoinOptionsViewModel.swift in Sources */,
 				8C0B03CA56EED6889B48D5DD /* ProfileService+Search.swift in Sources */,
 				AC410C253084E78500D921E2 /* CommunityService.swift in Sources */,
 				E847D7FC5A2CEA01ED03C0CC /* AdminReportsViewModel.swift in Sources */,

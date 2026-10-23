@@ -55,10 +55,15 @@ struct CommunityPageView: View {
     /// The community this one was merged into, opened from the merged page.
     @State private var survivorPageId: UUID?
 
-    @MainActor init(communityId: UUID) {
+    /// Set by a screen outside the app (Get started, the waiting screen's Join another): a join made
+    /// here goes to it once the join sheet is gone, and the page does nothing else with it.
+    private let onJoined: ((JoinResult) -> Void)?
+
+    @MainActor init(communityId: UUID, onJoined: ((JoinResult) -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: CommunityPageViewModel(communityId: communityId))
         _communitiesViewModel = StateObject(wrappedValue: MyCommunitiesViewModel())
         _leaderboardViewModel = StateObject(wrappedValue: LeaderboardViewModel(communityId: communityId))
+        self.onJoined = onJoined
     }
 
     /// For previews and tests.
@@ -70,6 +75,7 @@ struct CommunityPageView: View {
         _viewModel = StateObject(wrappedValue: viewModel())
         _communitiesViewModel = StateObject(wrappedValue: communitiesViewModel())
         _leaderboardViewModel = StateObject(wrappedValue: leaderboardViewModel())
+        self.onJoined = nil
     }
 
     // MARK: - Body
@@ -118,7 +124,7 @@ struct CommunityPageView: View {
             }
             .navigationDestination(item: $survivorPageId) { communityId in
                 // Another community in place needs a fresh view model (the Members identity rule).
-                CommunityPageView(communityId: communityId)
+                CommunityPageView(communityId: communityId, onJoined: onJoined)
                     .id(communityId)
             }
             .toast(message: $communitiesViewModel.toastMessage)
@@ -868,6 +874,10 @@ struct CommunityPageView: View {
     private func sheetDismissed() {
         guard let result = joinResult else { return }
         joinResult = nil
+        if let onJoined {
+            onJoined(result)
+            return
+        }
         Task {
             await communitiesViewModel.didJoin(result)
             await viewModel.load()

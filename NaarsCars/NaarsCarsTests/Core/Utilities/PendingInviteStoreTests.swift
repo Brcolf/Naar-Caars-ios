@@ -254,3 +254,64 @@ final class IncomingLinkHandlerTests: XCTestCase {
         XCTAssertFalse(MyCommunitiesView.opensJoinOnNextAppear(storedCode: nil, isVisible: false, screenPushedOnTop: false))
     }
 }
+
+// MARK: - ViewedCommunityStore
+
+/// The listed community a guest last looked at, offered on Get started after sign-up.
+final class ViewedCommunityStoreTests: XCTestCase {
+    private var suiteName: String!
+    private var defaults: UserDefaults!
+    private var now = Date(timeIntervalSince1970: 1_790_000_000)
+    private let communityId = UUID(uuidString: "5C000000-0000-4000-8000-000000000001")!
+
+    override func setUp() {
+        super.setUp()
+        suiteName = "ViewedCommunityStoreTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        suiteName = nil
+        super.tearDown()
+    }
+
+    private func makeStore() -> ViewedCommunityStore {
+        ViewedCommunityStore(defaults: defaults, now: { [unowned self] in self.now })
+    }
+
+    func testSaveAndPeek() {
+        let store = makeStore()
+        store.save(id: communityId, name: "Ballard Neighbors", joinPolicy: "approve")
+
+        XCTAssertEqual(
+            store.peek(),
+            ViewedCommunity(id: communityId, name: "Ballard Neighbors", joinPolicy: "approve", savedAt: now)
+        )
+        XCTAssertNotNil(store.peek(), "peek does not clear")
+        XCTAssertNotNil(defaults.data(forKey: ViewedCommunityStore.key))
+    }
+
+    func testExpiresAfterSevenDays() {
+        let store = makeStore()
+        store.save(id: communityId, name: "Ballard Neighbors", joinPolicy: "invite")
+
+        now = now.addingTimeInterval(Constants.Community.viewedCommunityLifetime)
+        XCTAssertNotNil(store.peek(), "still kept at exactly the lifetime")
+
+        now = now.addingTimeInterval(1)
+        XCTAssertNil(store.peek())
+        XCTAssertNil(defaults.object(forKey: ViewedCommunityStore.key), "an expired community is removed")
+    }
+
+    func testClear() {
+        let store = makeStore()
+        store.save(id: communityId, name: "Ballard Neighbors", joinPolicy: "approve")
+        store.clear()
+
+        XCTAssertNil(store.peek())
+        XCTAssertNil(defaults.object(forKey: ViewedCommunityStore.key))
+        store.clear()   // nothing stored: still fine
+    }
+}

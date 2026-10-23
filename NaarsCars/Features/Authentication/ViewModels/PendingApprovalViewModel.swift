@@ -26,8 +26,11 @@ enum PendingApprovalOutcome: Equatable {
 final class PendingApprovalViewModel: ObservableObject {
     /// Names of the communities with a pending request; empty keeps today's generic copy.
     @Published private(set) var pendingCommunityNames: [String] = []
-    /// Every community the person already holds a row in (excluded from "Join another community").
+    /// Every community the person already holds a row in.
     @Published private(set) var membershipIds: Set<UUID> = []
+    /// The rows of the last successful read; "Join another community" labels its search results
+    /// with them (`CommunityContext` is not loaded on this screen).
+    @Published private(set) var memberships: [CommunityMembership] = []
 
     private let service: any CommunityServiceProtocol
     private let accountRoute: @MainActor () async throws -> AuthState
@@ -61,6 +64,7 @@ final class PendingApprovalViewModel: ObservableObject {
             if pendingCommunityNames != names { pendingCommunityNames = names }
             let ids = Set(rows.map(\.communityId))
             if membershipIds != ids { membershipIds = ids }
+            if memberships != rows { memberships = rows }
 
             if rows.contains(where: { $0.status == .active }) {
                 result = .relaunch
@@ -81,6 +85,11 @@ final class PendingApprovalViewModel: ObservableObject {
 
         if result == .relaunch { decidedRelaunch = true }
         return result
+    }
+
+    /// The person's row for a community, from the last successful read; nil when there is none.
+    func membership(for communityId: UUID) -> CommunityMembership? {
+        memberships.first { $0.communityId == communityId }
     }
 
     /// The confirmation left by an archive of the account's last community (`RootNotice`), once:

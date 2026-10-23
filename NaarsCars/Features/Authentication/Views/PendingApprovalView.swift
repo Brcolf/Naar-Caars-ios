@@ -134,29 +134,16 @@ struct PendingApprovalView: View {
     // MARK: - Join another / Create your own
 
     private var joinAnotherSheet: some View {
-        NavigationStack {
-            ScrollView {
-                CommunityJoinOptionsView(
-                    excludedCommunityIds: viewModel.membershipIds,
-                    onJoined: { result in
-                        // Recorded at once (the inner sheet may still be swiped away); closing this
-                        // sheet runs the poll in `joinAnotherDismissed`.
-                        recordedJoin = result
-                        showJoinAnother = false
-                    }
-                )
-                .padding()
-            }
-            .background(Color.naarsBackground)
-            .navigationTitle("pending_join_another".localized)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("common_cancel".localized) { showJoinAnother = false }
-                        .accessibilityIdentifier("pendingApproval.joinAnother.cancel")
-                }
-            }
-        }
+        JoinAnotherCommunitySheet(
+            membership: { viewModel.membership(for: $0) },
+            onJoined: { result in
+                // Recorded once the inner sheet is gone; closing this sheet runs the poll in
+                // `joinAnotherDismissed`.
+                recordedJoin = result
+                showJoinAnother = false
+            },
+            onCancel: { showJoinAnother = false }
+        )
     }
 
     /// A recorded join is checked once its sheet is gone: an instant join relaunches into the app,
@@ -390,6 +377,111 @@ struct PendingApprovalView: View {
     }
 }
 
+/// "Join another community": the search by name or place (no Use my location outside Explore),
+/// the community page, and an invite code. A join made on the page or with a code is handed to
+/// `onJoined` once its own sheet is gone (present-record-act-on-dismiss).
+private struct JoinAnotherCommunitySheet: View {
+    private struct CodeSheet: Identifiable {
+        let id = UUID()
+    }
+
+    @StateObject private var search: ExploreSearchViewModel
+    /// The community page opened from a search result.
+    @State private var pageTarget: UUID?
+    @State private var codeSheet: CodeSheet?
+    /// Recorded by the invite-code sheet; handed on once it is gone.
+    @State private var recordedCodeJoin: JoinResult?
+
+    /// The person's row for a community, from the waiting screen's own read.
+    let membership: (UUID) -> CommunityMembership?
+    let onJoined: (JoinResult) -> Void
+    let onCancel: () -> Void
+
+    @MainActor init(
+        search: @autoclosure @escaping @MainActor () -> ExploreSearchViewModel = ExploreSearchViewModel(),
+        membership: @escaping (UUID) -> CommunityMembership?,
+        onJoined: @escaping (JoinResult) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        _search = StateObject(wrappedValue: search())
+        self.membership = membership
+        self.onJoined = onJoined
+        self.onCancel = onCancel
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Constants.Spacing.lg) {
+                    CommunitySearchPanel(
+                        viewModel: search,
+                        isGuest: false,
+                        showsUseMyLocation: false,
+                        membership: membership,
+                        onSelect: { pageTarget = $0 }
+                    )
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("pendingApproval.joinAnother.search")
+
+                    inviteCodeCard
+                }
+                .padding()
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color.naarsBackground)
+            .navigationTitle("pending_join_another".localized)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common_cancel".localized, action: onCancel)
+                        .accessibilityIdentifier("pendingApproval.joinAnother.cancel")
+                }
+            }
+            .navigationDestination(item: $pageTarget) { communityId in
+                CommunityPageView(communityId: communityId, onJoined: onJoined)
+                    .id(communityId)
+            }
+            .sheet(item: $codeSheet, onDismiss: codeSheetDismissed) { _ in
+                JoinCommunitySheet(target: .code(prefilled: nil)) { result in
+                    recordedCodeJoin = result
+                }
+            }
+        }
+    }
+
+    private var inviteCodeCard: some View {
+        Button {
+            codeSheet = CodeSheet()
+        } label: {
+            HStack(spacing: Constants.Spacing.md) {
+                Image(systemName: "key.fill")
+                    .foregroundColor(.naarsPrimary)
+                    .accessibilityHidden(true)
+                Text("explore_have_invite_code".localized)
+                    .font(.naarsHeadline)
+                    .foregroundColor(.naarsTextPrimary)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.naarsCaption)
+                    .foregroundColor(.naarsTextSecondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("explore_have_invite_code".localized)
+        .accessibilityIdentifier("pendingApproval.joinAnother.inviteCode")
+    }
+
+    private func codeSheetDismissed() {
+        guard let result = recordedCodeJoin else { return }
+        recordedCodeJoin = nil
+        onJoined(result)
+    }
+}
+
 #if DEBUG
 #Preview("Generic copy") {
     let service = PreviewCommunityService()
@@ -416,5 +508,26 @@ struct PendingApprovalView: View {
             approvalCheck: { false }
         )
     )
+}
+
+#Preview("Join another community") {
+    let service = PreviewCommunityService()
+    let search = ExploreSearchViewModel(
+        service: service,
+        geocoder: PreviewPlaceGeocoder(),
+        locator: PreviewLocator(),
+        debounce: .zero
+    )
+    search.query = "Ballard"
+    let waiting = PreviewCommunityService.sampleSearchResults.first?.id
+    return JoinAnotherCommunitySheet(
+        search: search,
+        membership: { id in
+            id == waiting ? PreviewCommunityService.membership(name: "Ballard Neighbors", status: .pending) : nil
+        },
+        onJoined: { _ in },
+        onCancel: {}
+    )
+    .environment(AppState())
 }
 #endif

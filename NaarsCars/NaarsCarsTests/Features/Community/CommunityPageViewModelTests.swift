@@ -68,7 +68,8 @@ final class CommunityPageViewModelTests: XCTestCase {
             communityId: communityId,
             service: stub,
             communityContext: context,
-            isGuest: { isGuest }
+            isGuest: { isGuest },
+            viewedStore: ViewedCommunityStore(defaults: defaults)
         )
     }
 
@@ -225,6 +226,34 @@ final class CommunityPageViewModelTests: XCTestCase {
         await vm.load()
 
         XCTAssertEqual(vm.visitorAction, .signUp)
+    }
+
+    // MARK: - Viewed community (Get started)
+
+    func testGuestVisitor_RemembersTheCommunity() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityC
+        stub.fetchCommunityPreviewResult = .success(CommunityFixtures.preview(id, name: "Test Public A", policy: "invite"))
+        let vm = makeViewModel(id, stub: stub, context: context, isGuest: true)
+
+        await vm.load()
+
+        let viewed = ViewedCommunityStore(defaults: defaults).peek()
+        XCTAssertEqual(viewed?.id, id)
+        XCTAssertEqual(viewed?.name, "Test Public A")
+        XCTAssertEqual(viewed?.joinPolicy, "invite")
+    }
+
+    func testSignedInVisitor_DoesNotRemember() async {
+        let (context, stub) = await makeContext()
+        let id = CommunityFixtures.communityC
+        stub.fetchCommunityPreviewResult = .success(CommunityFixtures.preview(id, name: "Test Public A"))
+        let vm = makeViewModel(id, stub: stub, context: context)
+
+        await vm.load()
+
+        XCTAssertEqual(vm.mode, .visitor(CommunityFixtures.preview(id, name: "Test Public A")))
+        XCTAssertNil(ViewedCommunityStore(defaults: defaults).peek())
     }
 
     func testVisitor_NotListedRefusalShowsUnavailable() async {

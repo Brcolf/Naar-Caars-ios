@@ -16,11 +16,22 @@ final class CommunityOnboardingViewModelTests: XCTestCase {
 
     private var relaunchCount = 0
     private var savedNames: [String] = []
+    private var suiteName: String!
+    private var defaults: UserDefaults!
 
     override func setUp() async throws {
         try await super.setUp()
         relaunchCount = 0
         savedNames = []
+        suiteName = "CommunityOnboardingViewModelTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+    }
+
+    override func tearDown() async throws {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        suiteName = nil
+        try await super.tearDown()
     }
 
     private func makeViewModel(
@@ -33,7 +44,8 @@ final class CommunityOnboardingViewModelTests: XCTestCase {
                 self?.savedNames.append(name)
                 if updateFails { throw SaveFailure() }
             },
-            relaunch: { [weak self] in self?.relaunchCount += 1 }
+            relaunch: { [weak self] in self?.relaunchCount += 1 },
+            viewedStore: ViewedCommunityStore(defaults: defaults)
         )
     }
 
@@ -51,6 +63,26 @@ final class CommunityOnboardingViewModelTests: XCTestCase {
         viewModel.didCreate(CommunityFixtures.communityA)
         viewModel.didCreate(CommunityFixtures.communityA)
         viewModel.retry()
+        XCTAssertEqual(relaunchCount, 1)
+    }
+
+    // MARK: - Viewed community
+
+    func testViewedCommunity_IsOfferedAndClearedAfterJoining() {
+        XCTAssertNil(makeViewModel(storedName: "Sam").viewedCommunity, "nothing viewed, nothing offered")
+
+        let store = ViewedCommunityStore(defaults: defaults)
+        store.save(id: CommunityFixtures.communityC, name: "Test Public A", joinPolicy: "approve")
+        let viewModel = makeViewModel(storedName: "Sam")
+
+        XCTAssertEqual(viewModel.viewedCommunity?.id, CommunityFixtures.communityC)
+        XCTAssertEqual(viewModel.viewedCommunity?.name, "Test Public A")
+        XCTAssertEqual(viewModel.viewedCommunity?.joinPolicy, "approve")
+
+        viewModel.didJoin(JoinResult(communityId: CommunityFixtures.communityC, status: .pending))
+
+        XCTAssertNil(viewModel.viewedCommunity)
+        XCTAssertNil(store.peek())
         XCTAssertEqual(relaunchCount, 1)
     }
 

@@ -21,6 +21,9 @@ final class CommunityOnboardingViewModel: ObservableObject {
     @Published private(set) var isSavingName = false
     /// An invite code to open as soon as the options are enabled (filled from `PendingInviteStore`).
     @Published var prefilledCode: String?
+    /// The listed community this person looked at as a guest ("You were looking at"); read once at
+    /// init, nil after a join.
+    @Published private(set) var viewedCommunity: ViewedCommunity?
 
     /// Apple sends the person's name only on the first authorization. A repeat authorization
     /// (for example after starting on the Sign In screen) creates the profile with this
@@ -30,6 +33,7 @@ final class CommunityOnboardingViewModel: ObservableObject {
     private let loadStoredName: @MainActor () async -> String?
     private let updateName: @MainActor (String) async throws -> Void
     private let relaunch: @MainActor () -> Void
+    private let viewedStore: ViewedCommunityStore
     /// One relaunch per screen: a join, a create and Try again can all ask for one.
     private var didRelaunch = false
 
@@ -37,17 +41,22 @@ final class CommunityOnboardingViewModel: ObservableObject {
     ///   - loadStoredName: The profile's stored name; nil when it could not be read
     ///   - updateName: Saves a new name to the profile
     ///   - relaunch: Re-runs the launch account check
+    ///   - viewedStore: The community a guest viewed before signing up
     init(
         loadStoredName: @escaping @MainActor () async -> String? = CommunityOnboardingViewModel.storedNameFromProfile,
         updateName: @escaping @MainActor (String) async throws -> Void = CommunityOnboardingViewModel.saveNameToProfile,
         relaunch: @escaping @MainActor () -> Void = {
             // Unstructured: this screen leaves the hierarchy at `.checkingAuth`.
             Task { @MainActor in await AppLaunchManager.shared.performCriticalLaunch() }
-        }
+        },
+        viewedStore: ViewedCommunityStore = ViewedCommunityStore()
     ) {
         self.loadStoredName = loadStoredName
         self.updateName = updateName
         self.relaunch = relaunch
+        self.viewedStore = viewedStore
+        // A local read (no publisher, no repository): shown with the screen's first frame.
+        self.viewedCommunity = viewedStore.peek()
     }
 
     // MARK: - Profile access
@@ -148,8 +157,11 @@ final class CommunityOnboardingViewModel: ObservableObject {
 
     // MARK: - Results
 
-    /// An active membership opens the app; a pending one opens the waiting screen.
+    /// An active membership opens the app; a pending one opens the waiting screen. The viewed
+    /// community has served its purpose (joined, or the person chose another one).
     func didJoin(_ result: JoinResult) {
+        viewedStore.clear()
+        viewedCommunity = nil
         relaunchOnce()
     }
 

@@ -56,6 +56,8 @@ final class CommunityPageViewModel: ObservableObject {
     private let selectTab: @MainActor (NavigationCoordinator.Tab) -> Void
     private let blockedAuthorIdsProvider: @MainActor () -> Set<UUID>
     private let notificationCenter: NotificationCenter
+    /// Where a guest's visit is remembered for Get started after sign-up.
+    private let viewedStore: ViewedCommunityStore
     private var blockedUsersCancellable: AnyCancellable?
     /// Each `load()` takes the next number; a result that comes back after a newer load started
     /// is dropped, so a slow preview cannot overwrite the page a later membership change built.
@@ -72,6 +74,7 @@ final class CommunityPageViewModel: ObservableObject {
     /// - Parameter selectTab: Defaults to setting `NavigationCoordinator.shared.selectedTab`.
     /// - Parameter blockedAuthorIds: Defaults to `MessageService.shared.cachedBlockedUserIds`, as
     ///   `TownHallService` reads it. Not read before `start()`.
+    /// - Parameter viewedStore: Remembers the community when a guest lands on its preview.
     init(
         communityId: UUID,
         service: any CommunityServiceProtocol = CommunityService.shared,
@@ -80,7 +83,8 @@ final class CommunityPageViewModel: ObservableObject {
         isGuest: (@MainActor () -> Bool)? = nil,
         selectTab: (@MainActor (NavigationCoordinator.Tab) -> Void)? = nil,
         blockedAuthorIds: (@MainActor () -> Set<UUID>)? = nil,
-        notificationCenter: NotificationCenter = .default
+        notificationCenter: NotificationCenter = .default,
+        viewedStore: ViewedCommunityStore = ViewedCommunityStore()
     ) {
         self.communityId = communityId
         self.service = service
@@ -89,6 +93,7 @@ final class CommunityPageViewModel: ObservableObject {
         self.selectTab = selectTab ?? { NavigationCoordinator.shared.selectedTab = $0 }
         self.blockedAuthorIdsProvider = blockedAuthorIds ?? { MessageService.shared.cachedBlockedUserIds }
         self.notificationCenter = notificationCenter
+        self.viewedStore = viewedStore
     }
 
     /// Reads the blocked authors and follows `.blockedUsersDidChange` from then on. Called from the
@@ -276,6 +281,14 @@ final class CommunityPageViewModel: ObservableObject {
             area = preview.community.area
             lastPreviewRead = Date()
             bannerMessage = nil
+            // Offered on Get started once this guest signs up ("You were looking at").
+            if isGuest {
+                viewedStore.save(
+                    id: preview.community.id,
+                    name: preview.community.name,
+                    joinPolicy: preview.community.joinPolicy
+                )
+            }
         } catch is CancellationError {
             return
         } catch let error as URLError where error.code == .cancelled {

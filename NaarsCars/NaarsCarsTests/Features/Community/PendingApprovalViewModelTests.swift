@@ -64,6 +64,9 @@ final class PendingApprovalViewModelTests: XCTestCase {
         XCTAssertEqual(outcome, .waiting)
         XCTAssertEqual(viewModel.pendingCommunityNames, ["Ballard"])
         XCTAssertEqual(viewModel.membershipIds, [CommunityFixtures.communityB])
+        // Join another community's search labels this community "Waiting" from the same rows.
+        XCTAssertEqual(viewModel.membership(for: CommunityFixtures.communityB)?.status, .pending)
+        XCTAssertNil(viewModel.membership(for: CommunityFixtures.communityA))
         XCTAssertEqual(routeCalls, 0, "a pending row is enough to wait")
     }
 
