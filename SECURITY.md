@@ -2,7 +2,7 @@
 
 ## Document Information
 - **Type**: Security Requirements
-- **Last Updated**: 2026-10-05 (sections 2.1.1, 2.13 and 2.26.1 updated for Community Release 1 on 2026-10-22; 2.13 and 2.26.1 for the Community Release 2 server on 2026-10-22)
+- **Last Updated**: 2026-10-05 (sections 2.1.1, 2.13 and 2.26.1 updated for Community Release 1 on 2026-10-22; 2.13 and 2.26.1 for the Community Release 2 server on 2026-10-22; 2.2, 2.3, 2.14, 2.26, 2.29 and 5.3 for the Release 2 gate on 2026-10-22)
 - **Status**: Live app; reflects production RLS as of 2026-10-05
 
 ---
@@ -130,9 +130,13 @@ Rides are visible to authenticated users (with hide-state filter) and to anon gu
 
 > The two UPDATE policies that overlap (`Users can update own or claimed rides` and `Users can update their own rides`) are a known minor cleanup target — both are PERMISSIVE so they OR together; effective permission is the broader `auth.uid() = user_id OR auth.uid() = claimed_by`. Removing the narrower one is a low-risk follow-up.
 
+**Live SELECT policies (read 2026-10-22).** The table above is the pre-community summary. `Authenticated users can view visible or own hidden rides` reads: the caller's own rows, or visible rows (`hidden_at IS NULL`) of a community in `my_community_ids()` when `is_active_user(auth.uid())`. `Guests can view visible rides` is `false` for `anon`: guests read `guest_rides` (listed, unarchived, non-test communities; addresses blanked; `is_example` is the last column). `guard_request_client_update` (2026-10-06) still limits a non-poster's direct UPDATE to claim, unclaim or complete.
+
+**Example requests (Community Release 2, `20261021_0020`, `0023`).** `rides.is_example` (boolean, not null, default false) is reserved for server code. The `guard_example_content` trigger (BEFORE INSERT and UPDATE, invoker rights) refuses a client write that sets or changes `is_example` with 42501 `example_flag_reserved`, and refuses a claim of an example request (open → confirmed with a helper) with 42501 `example_request`; the poster may still edit other columns. Only SECURITY DEFINER code writes the flag: the data script run as the table owner, `set_example_content(type, id, flag)` (platform admins only) and the daily `refresh_example_requests()` (cron `refresh-example-requests`, 11:10 UTC, service_role), which moves an example's date into the coming week on its weekday and reopens one that was completed, with no helper. Example rows write no bell row, push or XP, and `expire_past_open_requests()` skips them. The client also refuses the claim before calling (`ClaimViewModel`), and maps the server refusal through `ClaimService.isExampleRefusal(_:)`. Probes `example_guard`, `example_content`.
+
 ### 2.3 favors
 
-Mirror of `rides`. Same 8 policies with names substituting `favors`/`favor_status` where applicable.
+Mirror of `rides`. Same 8 policies with names substituting `favors`/`favor_status` where applicable. The live SELECT policies, the guest view (`guest_favors`) and the example rules of §2.2 (`favors.is_example`, `example_flag_reserved`, `example_request`) apply in the same way.
 
 | Policy | Op | Roles | USING / CHECK |
 |---|---|---|---|
@@ -294,6 +298,8 @@ Owner-only on every operation.
 | `town_hall_posts_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
 | `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is a platform admin OR the post's community is in my_admin_community_ids()` (Phase 3, `20261018_0001`) |
 
+**Live SELECT policies (read 2026-10-22).** Authenticated: the caller's own posts, or visible posts of a community in `my_community_ids()` when the caller is approved. Guests (`anon`): visible posts of a listed, unarchived community that is **not `is_test`** (`20261021_0020`), so a test community's posts never reach a guest. `town_hall_posts.is_example` and `system_event` are reserved for server code by `guard_example_content` (42501 `example_flag_reserved`); `system_event` accepts only `community_merged`, written by `post_community_announcement` for the "Communities merged" announcement. A merge (`merge_communities`, `20261022_0002`) hides the moved posts and comments of a person who was removed from the survivor (`hidden_reason` "Moved in a merge into a community you were removed from"); the author still reads them, and only SQL restores them.
+
 ### 2.15 town_hall_comments
 
 Mirror of `town_hall_posts` (§2.14): authenticated approved users see visible rows + their own hidden rows; anon guests see visible rows only; inserts gated by `is_active_user`. Adds an UPDATE policy so users can edit their own comments — `town_hall_posts` does not currently have an analogous UPDATE policy (posts are insert-then-immutable from the client side).
@@ -452,6 +458,28 @@ RLS does not cover `/rest/v1/rpc`: any function with EXECUTE granted to `anon` o
 
 New RPCs must follow the same rule: grant EXECUTE only to the roles that need it, and verify `auth.uid()` inside any function that acts on behalf of a user.
 
+**Community RPCs added by Release 2 and who may call them.** Each answers `{success: false, error, code}` on a refusal; the client throws `CommunityRPCError`.
+
+| Function | Who may call it | What it checks |
+|---|---|---|
+| `search_communities_by_name(p_query)` | anyone (anon included) | 2 to 60 characters used, `%` and `_` literal; listed, unarchived, non-test communities (a test community only for its members and platform admins, `can_discover_community`); at most 20 rows, a name that starts with the query first |
+| `find_communities_near(p_lat, p_lng)` | anyone (anon included) | a valid point (else `invalid_area`); communities whose area circle holds it, same visibility; at most 20 rows, nearest first |
+| `get_community_preview(p_community_id)` | anyone (anon included) | listed, unarchived, non-test (or the caller's test community); no address columns; a merged community answers `merged` with the survivor's id and name only when the caller could discover the survivor (listed, or a test community of the caller's), otherwise `not_listed` |
+| `check_community_area(lat, lng, radius, p_community_id)` | signed-in accounts | a valid area; returns the overlapping listed communities, never the default community or `p_community_id` |
+| `create_community_with_area(…)` | signed-in accounts | the Phase 2 creation limits (one a day, owned limit); `open` refused; a listed draft needs a town or ZIP area (a house number is `invalid_area`); an overlap needs a reason (at most 300 characters); writes a `created_listed` listing event and tells platform admins |
+| `update_community_access(…)` | the community's **owner** only (`not_owner` for admins and others) | same area and reason rules; the default community stays listed; members are told of a change, platform admins of a listing |
+| `set_community_public(id, bool)` | platform admins | listing needs an area (`needs_area`) |
+| `get_platform_communities()` | platform admins | areas, `is_test`, merges, listing reasons, proposals |
+| `search_merge_targets(community, query)` | the community's owner | listed communities by part of the name; a hidden one only by its exact name, without its area; never the default community or the caller's own |
+| `propose_community_merge(community, other, survivor, note)` | the community's owner | one pending proposal per community; refused after a decline (7 days) or a withdrawal (24 hours) between the pair, past 3 proposals per community per 24 hours, with a block between the proposer and an owner of the other side, or with the default community |
+| `get_community_merge_proposal(community)` | owners of either side, platform admins | an expired proposal is not shown |
+| `respond_to_community_merge(proposal, accept)` | an owner of the receiving community | a closed, expired or archived-side proposal answers `proposal_closed`; accept runs `merge_communities` (internal) |
+| `withdraw_community_merge(proposal)` | an owner of either side | only a pending proposal |
+| `get_my_community_merges()` | signed-in accounts | merges of communities the caller was an active member of |
+| `archive_community(id)` | the community's owner | (`20261022_0001`) |
+| `unarchive_community(id)` | platform admins | a merged community cannot be restored |
+| `set_example_content(type, id, flag)` | platform admins (checked inside) | `ride`, `favor` or `town_hall_post` |
+
 **Community Release 1 (`20261021_0001`, applied 2026-10-21).** Two new functions, both with EXECUTE for `anon`, `authenticated` and `service_role` and none for PUBLIC:
 
 - `public.get_community_preview(p_community_id uuid) → jsonb` (SECURITY DEFINER, stable, `search_path = ''`) is the only way a visitor (a guest or a signed-in non-member) reads a community. It answers only for a listed (`is_public`), unarchived community and otherwise returns `{"success": false, "code": "not_listed"}` (also for a null or unknown id, and for a private community even to its own members). It returns the community's public fields (name, description, join policy, member count, time zone), at most 10 open, unclaimed, visible requests dated today or later (type, title, date, time, seats, poster id, name and avatar), and at most 5 recent visible posts (content cut to 280 characters, comment count). No pickup, destination, location, notes, description of a request, gift, flight or cost key is returned. Banned posters are left out, and for a signed-in caller so is anyone the caller blocked or who blocked the caller. Probe `community_preview`.
@@ -485,6 +513,17 @@ USING (is_admin_user(auth.uid()));
 **UPDATE/DELETE:** blocked by the `content_moderation_events_append_only` trigger from `20260403_0011`, which raises an exception. The trigger catches row-level mutations; RLS adds belt-and-braces denial.
 
 **Pre-fix exposure (now closed):** before `20260502_0001` enabled RLS, anon/authenticated callers with the publishable anon key could `SELECT *` (see who hid what), and could `INSERT` arbitrary rows (planting fake `auto_hide` events into the audit trail).
+
+### 2.29 communities and the community tables (Community Release 2)
+
+| Policy | Op | Roles | USING |
+|---|---|---|---|
+| `communities_select_anon` | SELECT | anon | `is_public AND NOT is_test AND archived_at IS NULL` |
+| `communities_select_authenticated` | SELECT | authenticated | `archived_at IS NULL AND ((is_public AND NOT is_test) OR id in my_community_ids() OR id in my_admin_community_ids() OR the caller has a pending row)`; `my_admin_community_ids()` holds every community for a platform admin |
+
+- **Area columns** (`area_name`, `area_center_lat`, `area_center_lng`, `area_radius_miles`) are readable with the row and are a town or ZIP code centre, never an address; CHECKs require all four or none, a radius of 1, 2, 5 or 10 miles, a centre within ±90 / ±180 and a name of 2 to 80 characters after trimming (the RPCs also refuse a house number, `invalid_area`), and `communities_hidden_not_open` keeps a hidden community from being `open`. `is_test`, `merged_into_id` and `merged_at` are set only by SECURITY DEFINER code or SQL; no client writes `communities` directly (§2.26).
+- **`community_listing_events`** (who listed a community, its area, the overlapping communities and the reason) and **`community_merge_proposals`** have RLS on, **no policy and no grant** to `anon` or `authenticated`: a direct read raises 42501. Only the SECURITY DEFINER RPCs of §2.26 read or write them; platform admins see them through `get_platform_communities()`. Two partial unique indexes allow one pending proposal per community on either side.
+- `is_test` communities (the four owner test communities) are left out of the policies above, the guest views, `public_profiles`, `my_visible_profile_ids()`, `is_listed_request()` and the search and preview RPCs, except for their members and platform admins (probe `test_flag_visibility`).
 
 ---
 
@@ -691,6 +730,9 @@ For production deployment, implement server-side rate limiting via Supabase Edge
 | Password reset | 3 | 1 hour | Edge Function |
 | Invite generation | 5 | 24 hours | Database trigger |
 | Announcements | 3 per community | 24 hours | `send_community_broadcast` (platform admins included since `20261018_0002`; counts only announcements by platform admins and community staff) |
+| Community search | 20 rows per answer | per call | `search_communities_by_name`, `find_communities_near` (Release 2); queries under 2 characters answer no row, only the first 60 are used |
+| Merge proposals | one pending per community; 3 per community | 24 hours | `propose_community_merge`: a decline blocks the pair for 7 days, a withdrawal for 24 hours (`recently_declined`), the fourth in a day is `rate_limited`; a proposal expires after 7 days |
+| Community creation | 1 per account; 3 owned (raise on request) | 24 hours | unchanged by Release 2 (`create_community_with_area` applies the same limits as `create_community`) |
 
 ### 5.4 Implementation Priority
 

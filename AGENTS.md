@@ -60,6 +60,16 @@ These instructions apply to all work in this repository. Follow them unless the 
 - `Secrets.swift` is gitignored. Use `Secrets.swift.template` and `Scripts/obfuscate.swift` to generate obfuscated credential arrays. Never log or expose `Secrets.supabaseURL` or `Secrets.supabaseAnonKey`.
 - Install the git pre-commit hook with `scripts/install-hooks.sh`; it installs a thin wrapper that runs `scripts/pre-commit-secrets-check.sh` from the repo (secrets, signing files, localization-key check).
 
+## Communities (Release 2: discovery, merging, example content)
+
+- Models: `Core/Models/CommunityDiscovery.swift` (`GeoPoint`, `ServiceArea`, `CommunitySearchResult`, `NewCommunityDraft`, `CommunityAccessChange`) and `Core/Models/CommunityMerge.swift`. Merge calls go through `CommunityMergeServiceProtocol` (`Core/Protocols/`).
+- Search: `ExploreSearchViewModel` → `searchCommunities(name:)` / `findCommunitiesNear(_:)` (`search_communities_by_name` / `find_communities_near`; listed, unarchived, non-test only; 20 rows). Never read `communities` for discovery. "Use my location" takes one fix, rounds it to `Constants.Community.searchCoordinateDecimals`, sends it only to Apple's reverse geocoder and `find_communities_near`, and never stores or logs it.
+- Geocoding: `PlaceGeocoding` / `PlaceGeocoder` (`MKGeocodingRequest`) and `OneShotLocating` / `DeviceLocator`; `PlaceQuery` holds the pure rules (a street address is not a town). No new `CLGeocoder` (it remains only in `MessageInputBar.swift` and `GeocodingCacheService.swift`).
+- Create: `createCommunity(_ draft:)` → `create_community_with_area` (`ServiceAreaDraftModel`, `ServiceAreaPicker`, nearby check with a reason on overlap). Access: `updateCommunityAccess(communityId:change:)` → `update_community_access`, owner only (`CommunityAccessViewModel`). Merge: `CommunityMergeViewModel` under Manage; after an accepted merge it calls `forceFullRefreshAndWait(.dashboard, trigger: "mergedCommunity")`, the only new coordinator trigger.
+- Pushes: the merge proposal and "Communities merged" are `announcement` rows (registry stays 34); `community_event: "merged"` makes `PushRefreshPlan` refresh the memberships and the dashboard. `RequestsScope.afterMerges(_:)` moves a Requests filter to the survivor.
+- Example content: `isExample` on `Ride`, `Favor`, `RequestItem` and on `SDRide` / `SDFavor` (the SwiftData trio with `BackgroundSyncActor` and `RequestFilterManager`). Show the Example chip; the client refuses a claim before calling, and the server refuses it too (`example_request`); never write `is_example`.
+- Get started and the waiting screen use `CommunitySearchPanel`; `ViewedCommunityStore` remembers the community a guest looked at. `CommunityJoinOptionsView` is removed.
+
 ## Communities (Release 1: Explore and the community page)
 
 - Tabs: Requests, Messages, Town Hall, Profile, and Explore as the search-role tab (`MainTabView`, SwiftUI `Tab` API). `MainTabView.onChange(of: selectedTab)` is the only caller of `setVisibleDomain`: Requests → `.dashboard`, Messages → `.conversations`, Town Hall → `.townHall`, Profile and Explore → nil (`NavigationCoordinator.Tab.refreshDomain`). Leaving Messages still unsubscribes the conversation.
