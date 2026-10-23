@@ -507,4 +507,74 @@ final class CommunityStoreScopingTests: XCTestCase {
         XCTAssertEqual(manager.computeFilterBadgeCounts(in: context, requestNotificationSummaries: summaries, scope: .community(communityA))[.open], 1)
         XCTAssertEqual(manager.computeFilterBadgeCounts(in: context, requestNotificationSummaries: summaries, scope: .all)[.open], 2)
     }
+
+    // MARK: - Example requests (Release 2)
+
+    private func exampleRide(_ isExample: Bool) -> Ride {
+        Ride(
+            id: rideId, userId: userId, date: base, time: "12:00:00",
+            pickup: "Pickup", destination: "Destination",
+            communityId: communityA, createdAt: base, updatedAt: base, isExample: isExample
+        )
+    }
+
+    private func exampleFavor(_ isExample: Bool) -> Favor {
+        Favor(
+            id: favorId, userId: userId, title: "Favor", location: "Location", date: base,
+            communityId: communityA, createdAt: base, updatedAt: base, isExample: isExample
+        )
+    }
+
+    func testSyncAll_WritesAndRewritesIsExample() async throws {
+        let container = try makeContainer()
+        let actor = BackgroundSyncActor(modelContainer: container)
+
+        _ = try await actor.syncAllWithChangeDetection(
+            rides: [exampleRide(true)], favors: [exampleFavor(true)], notifications: []
+        )
+        XCTAssertEqual(try storedRide(container)?.isExample, true)
+        XCTAssertEqual(try storedFavor(container)?.isExample, true)
+
+        // Every other field is identical, so the change can only come from the isExample comparison.
+        let result = try await actor.syncAllWithChangeDetection(
+            rides: [exampleRide(false)], favors: [exampleFavor(false)], notifications: []
+        )
+        XCTAssertTrue(result.ridesChanged)
+        XCTAssertTrue(result.favorsChanged)
+        XCTAssertTrue(result.metrics.savedToStore)
+        XCTAssertEqual(try storedRide(container)?.isExample, false)
+        XCTAssertEqual(try storedFavor(container)?.isExample, false)
+
+        // The single-row paths (push-targeted refresh) carry it too.
+        let rideUpdate = try await actor.upsertRideWithChangeDetection(exampleRide(true))
+        let favorUpdate = try await actor.upsertFavorWithChangeDetection(exampleFavor(true))
+        XCTAssertEqual(rideUpdate.recordsMutated, 1)
+        XCTAssertEqual(favorUpdate.recordsMutated, 1)
+        XCTAssertEqual(try storedRide(container)?.isExample, true)
+        XCTAssertEqual(try storedFavor(container)?.isExample, true)
+    }
+
+    func testExampleRide_StaysOpenPastTheTwelveHourWindow() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let twoDaysAgo = Date().addingTimeInterval(-2 * 86_400)
+        let exampleId = UUID(uuidString: "0C000000-0000-0000-0000-000000000301")!
+        let plainId = UUID(uuidString: "0C000000-0000-0000-0000-000000000302")!
+        let example = SDRide(
+            id: exampleId, userId: userId, date: twoDaysAgo, time: "12:00:00",
+            pickup: "P", destination: "D", status: "open", communityId: communityA, isExample: true
+        )
+        let plain = SDRide(
+            id: plainId, userId: userId, date: twoDaysAgo, time: "12:00:00",
+            pickup: "P", destination: "D", status: "open", communityId: communityA
+        )
+        context.insert(example)
+        context.insert(plain)
+        try context.save()
+
+        let items = RequestFilterManager().getFilteredRequests(rides: [example, plain], favors: [], filter: .open)
+
+        XCTAssertEqual(items.map(\.id), [exampleId])
+        XCTAssertEqual(items.first?.isExample, true)
+    }
 }

@@ -359,7 +359,7 @@ final class CommunityPageViewModel: ObservableObject {
                 CommunityPreview.Request(
                     type: "ride", id: $0.id, title: nil, date: $0.date, time: $0.time, timezone: $0.timezone,
                     seats: $0.seats, posterId: $0.userId, posterName: $0.posterName ?? unnamed,
-                    posterAvatarUrl: $0.posterAvatarUrl
+                    posterAvatarUrl: $0.posterAvatarUrl, isExample: $0.isExample
                 )
             }
         let favorRows: [CommunityPreview.Request] = favors
@@ -372,7 +372,7 @@ final class CommunityPageViewModel: ObservableObject {
                 CommunityPreview.Request(
                     type: "favor", id: $0.id, title: $0.title, date: $0.date, time: $0.time, timezone: $0.timezone,
                     seats: nil, posterId: $0.userId, posterName: $0.posterName ?? unnamed,
-                    posterAvatarUrl: $0.posterAvatarUrl
+                    posterAvatarUrl: $0.posterAvatarUrl, isExample: $0.isExample
                 )
             }
 

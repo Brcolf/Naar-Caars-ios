@@ -91,6 +91,10 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
     let communityId: UUID?
     let createdAt: Date
     let updatedAt: Date
+    /// Example content of the example community. False when `is_example` is absent (a server
+    /// before Release 2). The server refuses a claim of an example (`example_request`) and every
+    /// client write of the flag, so it is read only, never sent.
+    let isExample: Bool
     
     // MARK: - Optional Joined Fields (populated when fetched with joins)
     
@@ -153,6 +157,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         case communityId = "community_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case isExample = "is_example"
         // Joined fields are not in CodingKeys - they're populated separately
     }
     
@@ -181,6 +186,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         communityId: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
+        isExample: Bool = false,
         poster: Profile? = nil,
         claimer: Profile? = nil,
         participants: [Profile]? = nil,
@@ -208,6 +214,7 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
         self.communityId = communityId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.isExample = isExample
         self.poster = poster
         self.claimer = claimer
         self.participants = participants
@@ -215,4 +222,33 @@ struct Favor: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
-
+extension Favor {
+    /// Matches the synthesized decoder for every other key; `is_example` may be absent (a server
+    /// before Release 2, or a payload that does not select it) and then reads false.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        userId = try c.decode(UUID.self, forKey: .userId)
+        title = try c.decode(String.self, forKey: .title)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        location = try c.decode(String.self, forKey: .location)
+        duration = try c.decode(FavorDuration.self, forKey: .duration)
+        requirements = try c.decodeIfPresent(String.self, forKey: .requirements)
+        date = try c.decode(Date.self, forKey: .date)
+        time = try c.decodeIfPresent(String.self, forKey: .time)
+        timezone = try c.decode(String.self, forKey: .timezone)
+        gift = try c.decodeIfPresent(String.self, forKey: .gift)
+        status = try c.decode(FavorStatus.self, forKey: .status)
+        claimedBy = try c.decodeIfPresent(UUID.self, forKey: .claimedBy)
+        reviewed = try c.decode(Bool.self, forKey: .reviewed)
+        reviewSkipped = try c.decodeIfPresent(Bool.self, forKey: .reviewSkipped)
+        reviewSkippedAt = try c.decodeIfPresent(Date.self, forKey: .reviewSkippedAt)
+        hiddenAt = try c.decodeIfPresent(Date.self, forKey: .hiddenAt)
+        hiddenBy = try c.decodeIfPresent(UUID.self, forKey: .hiddenBy)
+        hiddenReason = try c.decodeIfPresent(String.self, forKey: .hiddenReason)
+        communityId = try c.decodeIfPresent(UUID.self, forKey: .communityId)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        isExample = try c.decodeIfPresent(Bool.self, forKey: .isExample) ?? false
+    }
+}

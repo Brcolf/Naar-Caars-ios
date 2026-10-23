@@ -122,6 +122,15 @@ enum RequestItem: Identifiable, Equatable {
         return calendar.date(from: components)
     }
     
+    /// Example content of the example community: shows the Example chip, stays listed past the
+    /// 12-hour window, and cannot be claimed (the server refuses with `example_request`).
+    var isExample: Bool {
+        switch self {
+        case .ride(let ride): return ride.isExample
+        case .favor(let favor): return favor.isExample
+        }
+    }
+
     var isCompleted: Bool {
         switch self {
         case .ride(let ride):

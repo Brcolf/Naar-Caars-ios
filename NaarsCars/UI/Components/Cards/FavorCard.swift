@@ -79,6 +79,9 @@ struct FavorCard: View {
             parts.append(Date.displayTime(fromDatabaseTime: time))
         }
         parts.append(favor.duration.displayText)
+        if favor.isExample {
+            parts.append("request_example_accessibility".localized)
+        }
         parts.append(favor.statusDisplayText)
         if favor.claimedBy != nil {
             parts.append("\("card_claimed_by".localized) \(favor.claimer?.name ?? "community_former_member".localized)")
@@ -175,6 +178,10 @@ struct FavorCard: View {
         }
         if let policy {
             CommunityPolicyChip(policy: policy)
+        }
+        if favor.isExample {
+            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent)
+                .accessibilityIdentifier("request.exampleChip")
         }
         NaarsChip(text: favor.statusDisplayText, tint: favor.status.color)
     }
@@ -336,6 +343,22 @@ struct FavorCard: View {
             status: .open
         ), unreadCount: 2, communityChipText: "Capitol Hill", policy: .approve)
     }
+    .padding()
+    .environment(AppState())
+}
+#endif
+
+#if DEBUG
+#Preview("Example request") {
+    FavorCard(favor: Favor(
+        userId: UUID(),
+        title: "Borrow a ladder for an afternoon",
+        location: "Community Park",
+        duration: .coupleHours,
+        date: Date().addingTimeInterval(86400),
+        status: .open,
+        isExample: true
+    ), communityChipText: "Test Community", policy: .approve)
     .padding()
     .environment(AppState())
 }

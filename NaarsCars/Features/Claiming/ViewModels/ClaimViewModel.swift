@@ -68,8 +68,16 @@ final class ClaimViewModel: ObservableObject {
     /// - Parameters:
     ///   - requestType: "ride" or "favor"
     ///   - requestId: Request ID
+    ///   - isExample: The request is example content; it is refused here with the plain example
+    ///     message and the service is not called (the server refuses it too, `example_request`).
     /// - Throws: AppError if claim fails
-    func claim(requestType: String, requestId: UUID) async throws {
+    func claim(requestType: String, requestId: UUID, isExample: Bool = false) async throws {
+        if isExample {
+            let message = "request_example_refused".localized
+            error = message
+            throw AppError.invalidInput(message)
+        }
+
         guard let claimerId = authService.currentUserId else {
             throw AppError.notAuthenticated
         }

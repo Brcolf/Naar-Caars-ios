@@ -62,6 +62,7 @@ actor BackgroundSyncActor {
             existing.hiddenBy = ride.hiddenBy
             existing.hiddenReason = ride.hiddenReason
             existing.communityId = ride.communityId
+            existing.isExample = ride.isExample
             // Preserve poster/claimer/participants/qaCount — not in realtime payloads
         } else {
             let sdRide = SDRide(
@@ -94,7 +95,8 @@ actor BackgroundSyncActor {
                 claimerAvatarUrl: ride.claimer?.avatarUrl,
                 participantIds: ride.participants?.map { $0.id } ?? [],
                 qaCount: ride.qaCount ?? 0,
-                communityId: ride.communityId
+                communityId: ride.communityId,
+                isExample: ride.isExample
             )
             modelContext.insert(sdRide)
         }
@@ -128,6 +130,7 @@ actor BackgroundSyncActor {
             existing.hiddenBy = favor.hiddenBy
             existing.hiddenReason = favor.hiddenReason
             existing.communityId = favor.communityId
+            existing.isExample = favor.isExample
             // Preserve poster/claimer/participants/qaCount — not in realtime payloads
         } else {
             let sdFavor = SDFavor(
@@ -158,7 +161,8 @@ actor BackgroundSyncActor {
                 claimerAvatarUrl: favor.claimer?.avatarUrl,
                 participantIds: favor.participants?.map { $0.id } ?? [],
                 qaCount: favor.qaCount ?? 0,
-                communityId: favor.communityId
+                communityId: favor.communityId,
+                isExample: favor.isExample
             )
             modelContext.insert(sdFavor)
         }
@@ -381,7 +385,8 @@ actor BackgroundSyncActor {
                     claimerAvatarUrl: ride.claimer?.avatarUrl,
                     participantIds: ride.participants?.map { $0.id } ?? [],
                     qaCount: ride.qaCount ?? 0,
-                    communityId: ride.communityId
+                    communityId: ride.communityId,
+                    isExample: ride.isExample
                 )
                 modelContext.insert(sdRide)
             }
@@ -434,7 +439,8 @@ actor BackgroundSyncActor {
                     claimerAvatarUrl: favor.claimer?.avatarUrl,
                     participantIds: favor.participants?.map { $0.id } ?? [],
                     qaCount: favor.qaCount ?? 0,
-                    communityId: favor.communityId
+                    communityId: favor.communityId,
+                    isExample: favor.isExample
                 )
                 modelContext.insert(sdFavor)
             }
@@ -510,6 +516,7 @@ actor BackgroundSyncActor {
         sd.hiddenBy = ride.hiddenBy
         sd.hiddenReason = ride.hiddenReason
         sd.communityId = ride.communityId
+        sd.isExample = ride.isExample
         sd.posterName = ride.poster?.name
         sd.posterAvatarUrl = ride.poster?.avatarUrl
         sd.claimerName = ride.claimer?.name
@@ -538,6 +545,7 @@ actor BackgroundSyncActor {
         sd.hiddenBy = favor.hiddenBy
         sd.hiddenReason = favor.hiddenReason
         sd.communityId = favor.communityId
+        sd.isExample = favor.isExample
         sd.posterName = favor.poster?.name
         sd.posterAvatarUrl = favor.poster?.avatarUrl
         sd.claimerName = favor.claimer?.name
@@ -573,6 +581,7 @@ actor BackgroundSyncActor {
         if sd.hiddenBy != ride.hiddenBy { sd.hiddenBy = ride.hiddenBy; changed = true }
         if sd.hiddenReason != ride.hiddenReason { sd.hiddenReason = ride.hiddenReason; changed = true }
         if sd.communityId != ride.communityId { sd.communityId = ride.communityId; changed = true }
+        if sd.isExample != ride.isExample { sd.isExample = ride.isExample; changed = true }
         if sd.posterName != ride.poster?.name { sd.posterName = ride.poster?.name; changed = true }
         if sd.posterAvatarUrl != ride.poster?.avatarUrl { sd.posterAvatarUrl = ride.poster?.avatarUrl; changed = true }
         if sd.claimerName != ride.claimer?.name { sd.claimerName = ride.claimer?.name; changed = true }
@@ -605,6 +614,7 @@ actor BackgroundSyncActor {
         if sd.hiddenBy != favor.hiddenBy { sd.hiddenBy = favor.hiddenBy; changed = true }
         if sd.hiddenReason != favor.hiddenReason { sd.hiddenReason = favor.hiddenReason; changed = true }
         if sd.communityId != favor.communityId { sd.communityId = favor.communityId; changed = true }
+        if sd.isExample != favor.isExample { sd.isExample = favor.isExample; changed = true }
         if sd.posterName != favor.poster?.name { sd.posterName = favor.poster?.name; changed = true }
         if sd.posterAvatarUrl != favor.poster?.avatarUrl { sd.posterAvatarUrl = favor.poster?.avatarUrl; changed = true }
         if sd.claimerName != favor.claimer?.name { sd.claimerName = favor.claimer?.name; changed = true }
@@ -750,7 +760,8 @@ actor BackgroundSyncActor {
                     claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
                     participantIds: ride.participants?.map { $0.id } ?? [],
                     qaCount: ride.qaCount ?? 0,
-                    communityId: ride.communityId
+                    communityId: ride.communityId,
+                    isExample: ride.isExample
                 )
                 modelContext.insert(sdRide)
                 inserted += 1
@@ -788,7 +799,8 @@ actor BackgroundSyncActor {
                     claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
                     participantIds: favor.participants?.map { $0.id } ?? [],
                     qaCount: favor.qaCount ?? 0,
-                    communityId: favor.communityId
+                    communityId: favor.communityId,
+                    isExample: favor.isExample
                 )
                 modelContext.insert(sdFavor)
                 inserted += 1
@@ -880,7 +892,8 @@ actor BackgroundSyncActor {
                 claimerName: ride.claimer?.name, claimerAvatarUrl: ride.claimer?.avatarUrl,
                 participantIds: ride.participants?.map { $0.id } ?? [],
                 qaCount: ride.qaCount ?? 0,
-                communityId: ride.communityId
+                communityId: ride.communityId,
+                isExample: ride.isExample
             )
             modelContext.insert(sdRide)
             inserted = 1
@@ -924,7 +937,8 @@ actor BackgroundSyncActor {
                 claimerName: favor.claimer?.name, claimerAvatarUrl: favor.claimer?.avatarUrl,
                 participantIds: favor.participants?.map { $0.id } ?? [],
                 qaCount: favor.qaCount ?? 0,
-                communityId: favor.communityId
+                communityId: favor.communityId,
+                isExample: favor.isExample
             )
             modelContext.insert(sdFavor)
             inserted = 1

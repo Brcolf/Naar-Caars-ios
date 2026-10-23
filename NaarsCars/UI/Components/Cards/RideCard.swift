@@ -80,6 +80,9 @@ struct RideCard: View {
         if let flightInfo = FlightInfo.displayInfo(for: ride) {
             parts.append("\("ride_detail_flight".localized) \(flightInfo.normalizedFlightNumber)")
         }
+        if ride.isExample {
+            parts.append("request_example_accessibility".localized)
+        }
         parts.append(ride.statusDisplayText)
         if ride.claimedBy != nil {
             parts.append("\("card_claimed_by".localized) \(ride.claimer?.name ?? "community_former_member".localized)")
@@ -176,6 +179,10 @@ struct RideCard: View {
         }
         if let policy {
             CommunityPolicyChip(policy: policy)
+        }
+        if ride.isExample {
+            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent)
+                .accessibilityIdentifier("request.exampleChip")
         }
         NaarsChip(text: ride.statusDisplayText, tint: ride.status.color)
     }
@@ -358,6 +365,23 @@ struct RideCard: View {
             status: .open
         ), unreadCount: 2, communityChipText: "Capitol Hill", policy: .approve)
     }
+    .padding()
+    .environment(AppState())
+}
+#endif
+
+#if DEBUG
+#Preview("Example request") {
+    RideCard(ride: Ride(
+        userId: UUID(),
+        date: Date().addingTimeInterval(86400),
+        time: "10:00:00",
+        pickup: "Central Library",
+        destination: "Farmers Market",
+        seats: 1,
+        status: .open,
+        isExample: true
+    ), communityChipText: "Test Community", policy: .approve)
     .padding()
     .environment(AppState())
 }

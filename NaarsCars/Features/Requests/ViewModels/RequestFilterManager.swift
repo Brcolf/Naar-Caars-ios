@@ -89,6 +89,7 @@ final class RequestFilterManager {
                 communityId: sdRide.communityId,
                 createdAt: sdRide.createdAt,
                 updatedAt: sdRide.updatedAt,
+                isExample: sdRide.isExample,
                 poster: poster,
                 claimer: claimer,
                 qaCount: sdRide.qaCount
@@ -123,6 +124,7 @@ final class RequestFilterManager {
                 communityId: sdFavor.communityId,
                 createdAt: sdFavor.createdAt,
                 updatedAt: sdFavor.updatedAt,
+                isExample: sdFavor.isExample,
                 poster: poster,
                 claimer: claimer,
                 qaCount: sdFavor.qaCount
@@ -156,6 +158,10 @@ final class RequestFilterManager {
         let now = Date()
         allRequests = allRequests.filter { request in
             if request.isCompleted { return false }
+            // Example requests (spec 4.11) are never claimed and the nightly expiry skips them;
+            // the server's daily refresh moves their time forward, and until it runs they stay
+            // listed even when their time has passed.
+            if request.isExample { return true }
             // Measured from the end of the request's window (RequestItem.windowEnd), not from
             // `eventTime`: a favor with no time was hidden from every tile at noon of its day.
             let hoursSinceEvent = now.timeIntervalSince(request.windowEnd) / 3600

@@ -21,6 +21,8 @@ struct FavorDetailView: View {
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
+    /// I Can Help on an example request: the plain example message instead of the claim sheet.
+    @State private var showExampleNotice = false
     @State private var showUnclaimSheet = false
     @State private var showCompleteSheet = false
     @State private var showReviewSheet = false
@@ -200,6 +202,12 @@ struct FavorDetailView: View {
                  ? "calendar_offer_favor_message_all_day".localized
                  : "calendar_offer_favor_message".localized)
         }
+        .alert("request_example_title".localized, isPresented: $showExampleNotice) {
+            Button("common_ok".localized, role: .cancel) {}
+                .accessibilityIdentifier("request.exampleNotice")
+        } message: {
+            Text("request_example_refused".localized)
+        }
         .sheet(isPresented: $showClaimSheet, onDismiss: {
             // Check calendar offer after sheet is fully dismissed so the alert can present
             if claimViewModel.lastClaimSucceeded {
@@ -212,7 +220,7 @@ struct FavorDetailView: View {
                     requestType: "favor",
                     requestTitle: favor.title,
                     onConfirm: {
-                        try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
+                        try await claimViewModel.claim(requestType: "favor", requestId: favor.id, isExample: favor.isExample)
                         await viewModel.loadFavor(id: favorId)
                         claimViewModel.lastClaimSucceeded = true
                     }
@@ -351,6 +359,12 @@ struct FavorDetailView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                        if favor.isExample {
+                            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent, size: .large)
+                                .accessibilityLabel("request_example_accessibility".localized)
+                                .accessibilityIdentifier("request.exampleChip")
+                        }
+
                         NaarsChip(text: favor.statusDisplayText, tint: favor.status.color, size: .large)
                             .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
                             .requestHighlight(highlightedAnchor == .statusBadge)
@@ -975,6 +989,12 @@ struct FavorDetailView: View {
                     action: {
                         switch buttonState {
                         case .canClaim:
+                            // An example is never claimed (the server refuses it too); say so
+                            // before the phone check and the claim sheet.
+                            if favor.isExample {
+                                showExampleNotice = true
+                                return
+                            }
                             Task {
                                 let canClaim = await claimViewModel.checkCanClaim()
                                 if canClaim {

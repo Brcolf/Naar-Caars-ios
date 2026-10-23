@@ -174,8 +174,12 @@ final class SDRide {
     /// Community of the row. Nil for rows cached by a build without the column
     /// (unknown: shown, rewritten by the next sync).
     var communityId: UUID?
+
+    /// Example content of the example community (`is_example`). Defaulted, so a store written
+    /// by an earlier build migrates lightweight; the next sync rewrites it.
+    var isExample: Bool = false
     
-    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0, communityId: UUID? = nil) {
+    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0, communityId: UUID? = nil, isExample: Bool = false) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -206,6 +210,7 @@ final class SDRide {
         self.participantIds = participantIds
         self.qaCount = qaCount
         self.communityId = communityId
+        self.isExample = isExample
     }
 }
 
@@ -246,8 +251,12 @@ final class SDFavor {
     /// Community of the row. Nil for rows cached by a build without the column
     /// (unknown: shown, rewritten by the next sync).
     var communityId: UUID?
+
+    /// Example content of the example community (`is_example`). Defaulted, so a store written
+    /// by an earlier build migrates lightweight; the next sync rewrites it.
+    var isExample: Bool = false
     
-    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0, communityId: UUID? = nil) {
+    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0, communityId: UUID? = nil, isExample: Bool = false) {
         self.id = id
         self.userId = userId
         self.title = title
@@ -276,6 +285,7 @@ final class SDFavor {
         self.participantIds = participantIds
         self.qaCount = qaCount
         self.communityId = communityId
+        self.isExample = isExample
     }
 }
 

@@ -143,5 +143,40 @@ final class RideTests: XCTestCase {
         XCTAssertNil(ride.reviewSkipped)
         XCTAssertNil(ride.reviewSkippedAt)
     }
-}
 
+    /// `is_example` (Release 2): absent (a server before it, or a payload without the column)
+    /// reads false (ruling I4); true reads true.
+    func testDecode_IsExample() throws {
+        func json(_ extra: String) -> Data {
+            """
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "user_id": "223e4567-e89b-12d3-a456-426614174000",
+                "type": "request",
+                "date": "2025-01-10T00:00:00Z",
+                "time": "14:00:00",
+                "timezone": "America/Los_Angeles",
+                "pickup": "Central Library",
+                "destination": "Farmers Market",
+                "seats": 1,
+                "status": "open",
+                "reviewed": false,
+                "created_at": "2025-01-05T00:00:00Z",
+                "updated_at": "2025-01-05T00:00:00Z"\(extra)
+            }
+            """.data(using: .utf8)!
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let absent = try decoder.decode(Ride.self, from: json(""))
+        XCTAssertFalse(absent.isExample)
+        XCTAssertFalse(RequestItem.ride(absent).isExample)
+
+        let example = try decoder.decode(Ride.self, from: json(", \"is_example\": true"))
+        XCTAssertTrue(example.isExample)
+        XCTAssertTrue(RequestItem.ride(example).isExample)
+        XCTAssertEqual(example.pickup, "Central Library")
+        XCTAssertEqual(example.status, .open)
+    }
+}

@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import Supabase
 @testable import NaarsCars
 
 final class ClaimServiceURLProtocol: URLProtocol {
@@ -300,9 +301,12 @@ final class ClaimServiceTests: XCTestCase {
             XCTAssertTrue(true, "Complete attempted (expected behavior)")
         }
     }
+
+    /// The `guard_example_content` trigger's refusal (42501, message `example_request`) is the
+    /// example refusal; another 42501 is not.
+    func testIsExampleRefusal_MatchesTheServerMessage() {
+        XCTAssertTrue(ClaimService.isExampleRefusal(PostgrestError(code: "42501", message: "example_request")))
+        XCTAssertFalse(ClaimService.isExampleRefusal(PostgrestError(code: "42501", message: "Only members of the community can claim this request.")))
+        XCTAssertFalse(ClaimService.isExampleRefusal(AppError.invalidInput("example_request")))
+    }
 }
-
-
-
-
-

@@ -587,6 +587,11 @@ struct CommunityPageView: View {
                         .font(.naarsSubheadline)
                         .foregroundColor(.naarsTextPrimary)
                 }
+                if request.isExample {
+                    NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsAccent)
+                        .accessibilityLabel("request_example_accessibility".localized)
+                        .accessibilityIdentifier("request.exampleChip")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
